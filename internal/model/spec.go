@@ -125,6 +125,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "laguna" &&
 		architecture != "lfm2" &&
 		architecture != "lfm2moe" &&
+		architecture != "llada" &&
+		architecture != "llada-moe" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "exaone4" &&
@@ -166,7 +168,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "dream" || architecture == "rnd1" {
+	if architecture == "dream" || architecture == "llada" || architecture == "llada-moe" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "chameleon" {
@@ -792,7 +794,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1249,6 +1251,12 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
 	}
+	if s.Architecture == "llada-moe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("LLaDA-MoE expert metadata is invalid")
+	}
 	if s.Architecture == "qwen2moe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
@@ -1613,6 +1621,7 @@ func usesPostOnlyNorm(architecture string) bool {
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
 		architecture == "arctic" ||
+		architecture == "llada" ||
 		architecture == "internlm2" ||
 		architecture == "arcee" ||
 		architecture == "baichuan" ||

@@ -338,6 +338,43 @@ func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	}
 }
 
+func TestReadLLaDASpecsAreNonCausal(t *testing.T) {
+	for _, architecture := range []string{"llada", "llada-moe"} {
+		t.Run(architecture, func(t *testing.T) {
+			metadataItems := []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, architecture),
+				metadata(architecture+".block_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(architecture+".context_length", gguf.ValueTypeUint32, uint32(4096)),
+				metadata(architecture+".embedding_length", gguf.ValueTypeUint32, uint32(8)),
+				metadata(architecture+".feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+				metadata(architecture+".attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(architecture+".attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+				metadata(architecture+".attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+				metadata(architecture+".attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+				metadata(architecture+".rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+				metadata(architecture+".attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+			}
+			if architecture == "llada-moe" {
+				metadataItems = append(metadataItems,
+					metadata("llada-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+					metadata("llada-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+					metadata("llada-moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+				)
+			}
+			spec, err := ReadSpec(&gguf.File{Metadata: metadataItems})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !spec.NonCausalAttention || (architecture == "llada") != usesNormalRoPE(architecture) {
+				t.Fatalf("unexpected %s spec: %+v", architecture, spec)
+			}
+			if architecture == "llada-moe" && (spec.ExpertCount != 4 || spec.ExpertFeedForward != 6) {
+				t.Fatalf("unexpected LLaDA-MoE experts: %+v", spec)
+			}
+		})
+	}
+}
+
 func TestReadLagunaSpecPreservesPerLayerHeadsAndHybridRoPE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "laguna"),

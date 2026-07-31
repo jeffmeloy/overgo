@@ -441,6 +441,61 @@ func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	}
 }
 
+func TestBuildLLaDABlocksUseNonCausalAttention(t *testing.T) {
+	for _, architecture := range []string{"llada", "llada-moe"} {
+		t.Run(architecture, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
+				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+				RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+			weights := denseBlockInputs(builder, spec)
+			if architecture == "llada-moe" {
+				spec.ExpertCount, spec.ExpertUsedCount, spec.ExpertFeedForward = 4, 2, 6
+				spec.ExpertWeightsScale = 1
+				weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
+				weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+				weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+				weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+				weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
+			}
+			result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var attention *tensor.Tensor
+			var normal, neoX int
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpAttention:
+					attention = node
+				case tensor.OpRoPENormal:
+					normal++
+				case tensor.OpRoPENeoX:
+					neoX++
+				}
+			}
+			if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Causal ||
+				(architecture == "llada" && normal != 2) || (architecture == "llada-moe" && neoX != 2) {
+				t.Fatalf("unexpected %s graph: attention=%v normal=%d neox=%d", architecture, attention, normal, neoX)
+			}
+			if architecture == "llada-moe" {
+				for _, node := range nodes {
+					if node.Op == tensor.OpMoE && node.Attrs.(tensor.MoEAttributes).NormalizeTopKProb {
+						t.Fatal("LLaDA-MoE unexpectedly normalizes selected expert weights")
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestBuildRND1BlockUsesNonCausalMoE(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

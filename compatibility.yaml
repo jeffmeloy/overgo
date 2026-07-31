@@ -966,6 +966,40 @@ models:
       - iterative-mask-transfer-sampler-pending
       - diffusion-cli-pending
     real_model_validation: pending-fixture
+  llada:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quant
+    features:
+      - non-causal-full-sequence-attention
+      - no-kv-cache
+      - normal-rope
+      - rmsnorm
+      - swiglu
+      - all-position-hidden-states-and-logits
+      - optional-tied-output
+    limitations:
+      - iterative-diffusion-sampler-pending
+    real_model_validation: pending-fixture
+  llada-moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - non-causal-full-sequence-attention
+      - no-kv-cache
+      - qk-rmsnorm
+      - neox-rope
+      - unnormalized-softmax-top-k-moe
+      - all-position-hidden-states-and-logits
+      - required-untied-output
+    limitations:
+      - iterative-diffusion-sampler-pending
+    real_model_validation: pending-fixture
   rnd1:
     status: experimental
     execution:

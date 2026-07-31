@@ -262,6 +262,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "bailingmoe" ||
 		spec.Architecture == "bailingmoe2" ||
 		spec.Architecture == "jais" ||
+		spec.Architecture == "llada-moe" ||
 		spec.Architecture == "xverse" ||
 		spec.Architecture == "olmo2" ||
 		spec.Architecture == "nemotron" ||
@@ -677,7 +678,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
@@ -904,7 +905,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "llada-moe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "lfm2moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||

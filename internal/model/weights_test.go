@@ -317,6 +317,49 @@ func TestReadWeightsRND1(t *testing.T) {
 	}
 }
 
+func TestReadWeightsLLaDAFamilies(t *testing.T) {
+	denseSpec := Spec{
+		Architecture: "llada", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+	}
+	common := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_norm.weight", 8),
+	}
+	denseTensors := append(append([]gguf.TensorInfo{}, common...),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8),
+	)
+	dense, err := ReadWeights(&gguf.File{Tensors: denseTensors}, denseSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dense.Output != nil || dense.Layers[0].FeedForwardGate.Name == "" {
+		t.Fatalf("unexpected LLaDA catalog: %+v", dense)
+	}
+	moeSpec := denseSpec
+	moeSpec.Architecture = "llada-moe"
+	moeSpec.ExpertCount, moeSpec.ExpertUsedCount, moeSpec.ExpertFeedForward = 4, 2, 6
+	moeTensors := append(append([]gguf.TensorInfo{}, common...),
+		tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_q_norm.weight", 4), tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_gate_exps.weight", 8, 6, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 8, 6, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 6, 8, 4),
+	)
+	moe, err := ReadWeights(&gguf.File{Tensors: moeTensors}, moeSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moe.Output == nil || moe.Layers[0].AttentionQNorm == nil ||
+		moe.Layers[0].AttentionKNorm == nil || moe.Layers[0].FeedForwardRouter == nil {
+		t.Fatalf("unexpected LLaDA-MoE catalog: %+v", moe)
+	}
+}
+
 func TestReadWeightsLagunaDenseThenMoE(t *testing.T) {
 	spec := Spec{
 		Architecture: "laguna", BlockCount: 2, EmbeddingLength: 8,

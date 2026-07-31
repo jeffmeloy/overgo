@@ -118,6 +118,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "codeshell" &&
 		architecture != "chameleon" &&
 		architecture != "dream" &&
+		architecture != "deepseek" &&
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
@@ -794,7 +795,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -837,6 +838,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+	}
+	if architecture == "deepseek" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.SharedExpertCount, err = required[uint32](
+			values, prefix+"expert_shared_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
 	if architecture == "lfm2moe" {
@@ -1283,6 +1298,21 @@ func (s Spec) validate() error {
 			return errors.New("BailingMoE expert weight scale is invalid")
 		}
 	}
+	if s.Architecture == "deepseek" {
+		switch {
+		case s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("DeepSeek leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			s.SharedExpertFF == 0:
+			return errors.New("DeepSeek expert metadata is invalid")
+		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
+			return errors.New("DeepSeek shared expert width overflows")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("DeepSeek expert weight scale is invalid")
+		}
+	}
 	if s.Architecture == "bailingmoe2" {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
@@ -1626,6 +1656,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "arcee" ||
 		architecture == "baichuan" ||
 		architecture == "bailingmoe" ||
+		architecture == "deepseek" ||
 		architecture == "cohere2" ||
 		architecture == "command-r" ||
 		architecture == "chameleon" ||

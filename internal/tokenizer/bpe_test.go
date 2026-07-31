@@ -64,6 +64,25 @@ func TestBailingPreTokenizersUseQwen2Segmentation(t *testing.T) {
 	}
 }
 
+func TestPreTokenizeDeepSeekLLM(t *testing.T) {
+	tests := []struct {
+		text string
+		want []string
+	}{
+		{"Hello world!", []string{"Hello", " world", "!"}},
+		{"foo  bar", []string{"foo", " ", " bar"}},
+		{"a\n b", []string{"a", "\n", " b"}},
+		{"我想在apple工作1314151天～", []string{"我想在", "apple", "工作", "1314151", "天", "～"}},
+		{"Cửa Việt", []string{"C", "ử", "a", " Vi", "ệ", "t"}},
+		{"x  ", []string{"x", "  "}},
+	}
+	for _, test := range tests {
+		if got := preTokenizeDeepSeekLLM(test.text); !reflect.DeepEqual(got, test.want) {
+			t.Errorf("preTokenizeDeepSeekLLM(%q) = %#v, want %#v", test.text, got, test.want)
+		}
+	}
+}
+
 func TestPreTokenizeGPT2(t *testing.T) {
 	tests := []struct {
 		text string

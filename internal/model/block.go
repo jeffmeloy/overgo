@@ -459,6 +459,7 @@ func BuildDenseBlockCachedForLayer(
 	isAFMoE := spec.Architecture == "afmoe"
 	isBailingMoE := spec.Architecture == "bailingmoe"
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
+	isDeepSeek := spec.Architecture == "deepseek"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
@@ -475,7 +476,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -501,7 +502,7 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
-		if isBailingMoE {
+		if isBailingMoE || isDeepSeek {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
@@ -1037,6 +1038,19 @@ func BuildDenseBlockCachedForLayer(
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
 				weights.FeedForwardDownExperts, spec.ExpertUsedCount,
 				spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
+			)
+			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+			shared := builder.MulMat(
+				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+			)
+			feedForward = builder.Add(feedForward, shared)
+		} else if isDeepSeek {
+			feedForward = builder.MoE(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, spec.ExpertUsedCount, false,
+				spec.ExpertWeightsScale,
 			)
 			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
 			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)

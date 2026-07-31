@@ -344,7 +344,7 @@ func Load(file *gguf.File) (*Vocab, error) {
 func supportedPreTokenizer(pre string) bool {
 	switch pre {
 	case "", "default", "gpt-2", "phi-2", "qwen2", "deepseek-r1-qwen", "kormo", "f2llmv2", "megrez",
-		"bailingmoe", "bailingmoe2",
+		"bailingmoe", "bailingmoe2", "deepseek-llm",
 		"qwen35", "llama3", "llama-v3", "llama-bpe":
 		return true
 	default:

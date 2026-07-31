@@ -236,6 +236,55 @@ func TestBuildBailingMoEBlockUsesNormalizedSoftmaxAndSharedExpert(t *testing.T) 
 	}
 }
 
+func TestBuildDeepSeekMoEBlockUsesUnnormalizedSoftmaxAndSharedExpert(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "deepseek", EmbeddingLength: 8, FeedForwardLength: 16,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertCount: 2, SharedExpertFF: 12, ExpertWeightsScale: 1.3,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
+	weights.FeedForwardSharedGate = builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 12))
+	weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12))
+	weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var rope, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENormal:
+			rope++
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if moe == nil {
+		t.Fatal("DeepSeek graph is missing MoE operation")
+	}
+	attrs := moe.Attrs.(tensor.MoEAttributes)
+	if attrs.Routing != tensor.MoERoutingSoftmax || attrs.NormalizeTopKProb ||
+		attrs.TopK != 2 || attrs.Scale != 1.3 || rope != 2 || silu < 1 {
+		t.Fatalf("unexpected DeepSeek graph: attrs=%+v rope=%d silu=%d", attrs, rope, silu)
+	}
+}
+
 func TestBuildBailingMoE2BlockUsesFusedQKVNeoXAndSharedExpert(t *testing.T) {
 	for _, test := range []struct {
 		name    string

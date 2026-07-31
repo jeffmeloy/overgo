@@ -906,6 +906,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "llada-moe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "lfm2moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
@@ -992,6 +993,22 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if spec.Architecture == "bailingmoe" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "deepseek" {
 				for name, shapeAndDestination := range map[string]struct {
 					shape       []uint64
 					destination **gguf.TensorInfo

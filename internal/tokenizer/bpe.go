@@ -71,7 +71,9 @@ func (v *Vocab) encodeText(text string) ([]TokenID, error) {
 		return v.encodeWPM(text)
 	}
 	var words []string
-	if isLlama3Pre(v.Pre) {
+	if isDeepSeekLLMPre(v.Pre) {
+		words = preTokenizeDeepSeekLLM(text)
+	} else if isLlama3Pre(v.Pre) {
 		words = preTokenizeLlama3(text)
 	} else if isQwen35Pre(v.Pre) {
 		words = preTokenizeQwen35(text)
@@ -104,6 +106,10 @@ func (v *Vocab) encodeText(text string) ([]TokenID, error) {
 
 func isQwen35Pre(pre string) bool {
 	return pre == "qwen35"
+}
+
+func isDeepSeekLLMPre(pre string) bool {
+	return pre == "deepseek-llm"
 }
 
 func isQwen2Pre(pre string) bool {
@@ -329,6 +335,140 @@ func preTokenizeGPT2(text string) []string {
 
 func preTokenizeQwen2(text string) []string {
 	return preTokenize(text, true)
+}
+
+const deepSeekLLMLetterClass = "A-Za-zµÀ-ÖØ-öø-ƺƼ-ƿǄ-ʓʕ-ʯͰ-ͳͶͷͻ-ͽͿΆΈ-ΊΌΎ-ΡΣ-ϵϷ-ҁҊ-ԯԱ-ՖႠ-ჅᎠ-Ᏽᏸ-ᏽᲐ-ᲺᲽ-Ჿᴀ-ᴫᵫ-ᵷᵹ-ᶚḀ-ἕἘ-Ἕἠ-ὅὈ-Ὅὐ-ὗὙὛὝὟ-ώᾀ-ᾴᾶ-ᾼιῂ-ῄῆ-ῌῐ-ΐῖ-Ίῠ-Ῥῲ-ῴῶ-ῼℂℇℊ-ℓℕℙ-ℝℤΩℨK-ℭℯ-ℴℹℼ-ℿⅅ-ⅉⅎↃↄⰀ-ⱻⱾ-ⳤⳫ-ⳮⳲⳳꙀ-ꙭꚀ-ꚛꜢ-ꝯꝱ-ꞇꞋ-ꞎꭰ-ꮿﬀ-ﬆﬓ-ﬗＡ-Ｚａ-ｚ𐐀-𐑏𐒰-𐓓𐓘-𐓻𐲀-𐲲𐳀-𐳲𑢠-𑣟𞤀-𞥃"
+
+var deepSeekLLMLetterRanges = parseRuneRanges(deepSeekLLMLetterClass)
+
+func preTokenizeDeepSeekLLM(text string) []string {
+	parts := []string{text}
+	parts = splitDeepSeekParts(parts, func(values []rune, position int) int {
+		if values[position] == '\r' || values[position] == '\n' {
+			return 1
+		}
+		return 0
+	})
+	parts = splitDeepSeekParts(parts, func(values []rune, position int) int {
+		start := position
+		if unicode.IsSpace(values[position]) {
+			position++
+		}
+		if position >= len(values) || !isDeepSeekLLMLetter(values[position]) {
+			return 0
+		}
+		for position < len(values) && isDeepSeekLLMLetter(values[position]) {
+			position++
+		}
+		return position - start
+	})
+	parts = splitDeepSeekParts(parts, func(values []rune, position int) int {
+		start := position
+		if unicode.IsSpace(values[position]) {
+			position++
+		}
+		if position >= len(values) || !isDeepSeekLLMPunctuation(values[position]) {
+			return 0
+		}
+		for position < len(values) && isDeepSeekLLMPunctuation(values[position]) {
+			position++
+		}
+		return position - start
+	})
+	parts = splitDeepSeekParts(parts, func(values []rune, position int) int {
+		if !unicode.IsSpace(values[position]) {
+			return 0
+		}
+		end := position
+		for end < len(values) && unicode.IsSpace(values[end]) {
+			end++
+		}
+		if end != len(values) {
+			return 0
+		}
+		return end - position
+	})
+	parts = splitDeepSeekParts(parts, func(values []rune, position int) int {
+		if !isDeepSeekLLMCJK(values[position]) {
+			return 0
+		}
+		end := position + 1
+		for end < len(values) && isDeepSeekLLMCJK(values[end]) {
+			end++
+		}
+		return end - position
+	})
+	return splitDeepSeekParts(parts, func(values []rune, position int) int {
+		if !unicode.IsNumber(values[position]) {
+			return 0
+		}
+		end := position + 1
+		for end < len(values) && unicode.IsNumber(values[end]) {
+			end++
+		}
+		return end - position
+	})
+}
+
+func splitDeepSeekParts(parts []string, match func([]rune, int) int) []string {
+	output := make([]string, 0, len(parts)*2)
+	for _, part := range parts {
+		values := []rune(part)
+		unmatched := 0
+		for position := 0; position < len(values); {
+			length := match(values, position)
+			if length == 0 {
+				position++
+				continue
+			}
+			if unmatched < position {
+				output = append(output, string(values[unmatched:position]))
+			}
+			output = append(output, string(values[position:position+length]))
+			position += length
+			unmatched = position
+		}
+		if unmatched < len(values) {
+			output = append(output, string(values[unmatched:]))
+		}
+	}
+	return output
+}
+
+func parseRuneRanges(class string) [][2]rune {
+	values := []rune(class)
+	ranges := make([][2]rune, 0, len(values)/2)
+	for position := 0; position < len(values); {
+		start, end := values[position], values[position]
+		if position+2 < len(values) && values[position+1] == '-' {
+			end = values[position+2]
+			position += 3
+		} else {
+			position++
+		}
+		ranges = append(ranges, [2]rune{start, end})
+	}
+	return ranges
+}
+
+func isDeepSeekLLMLetter(value rune) bool {
+	for _, span := range deepSeekLLMLetterRanges {
+		if value >= span[0] && value <= span[1] {
+			return true
+		}
+	}
+	return false
+}
+
+func isDeepSeekLLMPunctuation(value rune) bool {
+	return value >= '!' && value <= '/' || value >= ':' && value <= '~' ||
+		value >= '！' && value <= '／' || value >= '：' && value <= '～' ||
+		value >= '‘' && value <= '‟' || value >= '　' && value <= '。'
+}
+
+func isDeepSeekLLMCJK(value rune) bool {
+	return value >= '一' && value <= '龥' || value >= 'ࠀ' && value <= '一' ||
+		value >= '가' && value <= '퟿'
 }
 
 func preTokenizeQwen35(text string) []string {

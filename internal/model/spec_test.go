@@ -131,6 +131,39 @@ func TestReadBailingMoESpec(t *testing.T) {
 	}
 }
 
+func TestReadDeepSeekSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "deepseek"),
+		metadata("deepseek.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("deepseek.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("deepseek.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("deepseek.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("deepseek.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("deepseek.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("deepseek.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.3)),
+		metadata("deepseek.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("deepseek.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("deepseek.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deepseek.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deepseek.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("deepseek.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "deepseek" || spec.ExpertCount != 8 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+		spec.SharedExpertCount != 2 || spec.SharedExpertFF != 12 ||
+		spec.ExpertWeightsScale != 1.3 || spec.ExpertWeightsNorm ||
+		spec.LeadingDenseBlocks != 1 || !usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected DeepSeek spec: %+v", spec)
+	}
+}
+
 func TestReadBailingMoE2SpecTrimsNextNLayers(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "bailingmoe2"),

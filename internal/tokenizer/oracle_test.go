@@ -19,7 +19,7 @@ func TestUpstreamTokenizerCorpus(t *testing.T) {
 	if source == "" {
 		t.Skip("LLAMACPP2GO_LLAMA_CPP is not set")
 	}
-	for _, name := range []string{"qwen2", "qwen35", "gpt-2", "llama-spm", "llama-bpe", "bert-bge"} {
+	for _, name := range []string{"qwen2", "qwen35", "deepseek-llm", "gpt-2", "llama-spm", "llama-bpe", "bert-bge"} {
 		t.Run(name, func(t *testing.T) {
 			modelPath := filepath.Join(source, "models", "ggml-vocab-"+name+".gguf")
 			file, err := gguf.Open(modelPath)

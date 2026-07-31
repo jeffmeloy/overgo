@@ -386,6 +386,30 @@ func TestReadBaichuan7BSpec(t *testing.T) {
 	}
 }
 
+func TestReadArceeSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "arcee"),
+		metadata("arcee.block_count", gguf.ValueTypeUint32, uint32(36)),
+		metadata("arcee.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("arcee.embedding_length", gguf.ValueTypeUint32, uint32(3072)),
+		metadata("arcee.feed_forward_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("arcee.attention.head_count", gguf.ValueTypeUint32, uint32(24)),
+		metadata("arcee.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("arcee.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("arcee.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("arcee.attention.scale", gguf.ValueTypeFloat32, float32(0.125)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "arcee" ||
+		spec.AttentionScale != 0.125 ||
+		spec.KeyLength != 128 {
+		t.Fatalf("unexpected Arcee spec: %+v", spec)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

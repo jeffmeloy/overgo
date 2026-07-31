@@ -612,6 +612,51 @@ func TestBuildDenseBaichuan7BUsesNormalRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDenseArceeUsesSquaredReLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "arcee",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		RMSNormEpsilon:    1e-5,
+		AttentionScale:    0.25,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var squaredReLU, normalRoPE int
+	for _, node := range nodes {
+		if node == weights.FeedForwardGate {
+			t.Fatal("Arcee graph unexpectedly consumes an FFN gate")
+		}
+		switch node.Op {
+		case tensor.OpReLUSquared:
+			squaredReLU++
+		case tensor.OpRoPENormal:
+			normalRoPE++
+		case tensor.OpAttention:
+			if node.Attrs.(tensor.AttentionAttributes).Scale != 0.25 {
+				t.Fatal("Arcee metadata attention scale was not honored")
+			}
+		}
+	}
+	if squaredReLU != 1 || normalRoPE != 2 {
+		t.Fatalf("Arcee graph squared-ReLU/RoPE = %d/%d, want 1/2", squaredReLU, normalRoPE)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

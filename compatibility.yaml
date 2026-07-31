@@ -814,6 +814,16 @@ cuda:
     - MXFP4
     - NVFP4
 models:
+  arcee:
+    status: experimental
+    features:
+      - rmsnorm
+      - normal-rope
+      - optional-per-pair-rope-factors
+      - metadata-attention-scale
+      - sequential-squared-relu
+      - optional-tied-output
+    real_model_validation: pending-fixture
   baichuan:
     status: experimental
     variants:

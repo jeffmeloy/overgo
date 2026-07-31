@@ -478,7 +478,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if !usesSequentialGELU(spec.Architecture) {
+		if !usesGateFreeFFN(spec.Architecture) {
 			if layer.FeedForwardGate, err = required(
 				prefix+"ffn_gate.weight",
 				uint64(spec.EmbeddingLength),

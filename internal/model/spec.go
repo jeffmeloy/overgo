@@ -76,6 +76,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	if architecture != "llama" && architecture != "internlm2" &&
+		architecture != "arcee" &&
 		architecture != "baichuan" &&
 		architecture != "codeshell" &&
 		architecture != "xverse" &&
@@ -598,6 +599,7 @@ func usesSlidingAttention(architecture string) bool {
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
 		architecture == "internlm2" ||
+		architecture == "arcee" ||
 		architecture == "baichuan" ||
 		architecture == "granite" ||
 		architecture == "minicpm" ||
@@ -609,6 +611,10 @@ func usesNormalRoPE(architecture string) bool {
 
 func usesSequentialGELU(architecture string) bool {
 	return architecture == "codeshell" || architecture == "starcoder2"
+}
+
+func usesGateFreeFFN(architecture string) bool {
+	return architecture == "arcee" || usesSequentialGELU(architecture)
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

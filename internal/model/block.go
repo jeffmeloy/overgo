@@ -215,7 +215,7 @@ func BuildDenseBlockCachedForLayer(
 		"feed-forward up":   weights.FeedForwardUp,
 		"feed-forward down": weights.FeedForwardDown,
 	}
-	if spec.Architecture != "starcoder2" {
+	if !usesSequentialGELU(spec.Architecture) {
 		required["feed-forward gate"] = weights.FeedForwardGate
 	} else {
 		required["attention output bias"] = weights.AttentionOutputBias
@@ -449,7 +449,7 @@ func BuildDenseBlockCachedForLayer(
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
 	var activation *tensor.Tensor
-	if spec.Architecture == "starcoder2" {
+	if usesSequentialGELU(spec.Architecture) {
 		activation = builder.GELU(up)
 	} else {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)

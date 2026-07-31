@@ -76,6 +76,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	if architecture != "llama" && architecture != "internlm2" &&
+		architecture != "codeshell" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "smollm3" &&
@@ -160,7 +161,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "orion" || architecture == "starcoder2" {
+	if architecture == "orion" || usesSequentialGELU(architecture) {
 		if spec.LayerNormEpsilon, err = required[float32](
 			values,
 			prefix+"attention.layer_norm_epsilon",
@@ -452,7 +453,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Architecture == "orion" || s.Architecture == "starcoder2"
+	return s.Architecture == "orion" || usesSequentialGELU(s.Architecture)
 }
 
 func (s Spec) validate() error {
@@ -599,6 +600,10 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "mistral3" ||
 		architecture == "smollm3" ||
 		architecture == "xverse"
+}
+
+func usesSequentialGELU(architecture string) bool {
+	return architecture == "codeshell" || architecture == "starcoder2"
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

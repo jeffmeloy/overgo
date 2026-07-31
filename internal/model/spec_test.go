@@ -332,6 +332,30 @@ func TestReadStarCoder2Spec(t *testing.T) {
 	}
 }
 
+func TestReadCodeShellSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "codeshell"),
+		metadata("codeshell.block_count", gguf.ValueTypeUint32, uint32(42)),
+		metadata("codeshell.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("codeshell.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("codeshell.feed_forward_length", gguf.ValueTypeUint32, uint32(16384)),
+		metadata("codeshell.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("codeshell.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("codeshell.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("codeshell.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "codeshell" ||
+		!spec.UsesLayerNorm() ||
+		spec.LayerNormEpsilon != 1e-5 ||
+		spec.KeyLength != 128 {
+		t.Fatalf("unexpected CodeShell spec: %+v", spec)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

@@ -530,6 +530,46 @@ func TestBuildDenseStarCoder2UsesSequentialGELU(t *testing.T) {
 	}
 }
 
+func TestBuildDenseCodeShellUsesSequentialGELU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "codeshell",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		LayerNormEpsilon:  1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionOutputBias = builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardUpBias = builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardDownBias = builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var geluCount int
+	for _, node := range nodes {
+		if node == weights.FeedForwardGate || node.Op == tensor.OpSiLU {
+			t.Fatal("CodeShell graph unexpectedly consumes a gated SwiGLU path")
+		}
+		if node.Op == tensor.OpGELU {
+			geluCount++
+		}
+	}
+	if geluCount != 1 {
+		t.Fatalf("CodeShell GELU count = %d, want 1", geluCount)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

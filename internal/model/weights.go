@@ -98,8 +98,14 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 
 	var result Weights
 	var err error
+	tokenEmbeddingName := "token_embd.weight"
+	if spec.Architecture == "codeshell" {
+		if _, ok := tensors[tokenEmbeddingName]; !ok {
+			tokenEmbeddingName = "output.weight"
+		}
+	}
 	if result.TokenEmbedding, err = required(
-		"token_embd.weight",
+		tokenEmbeddingName,
 		uint64(spec.EmbeddingLength),
 		uint64(spec.VocabularySize),
 	); err != nil {
@@ -178,7 +184,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if (spec.Architecture == "internlm2" ||
 		spec.Architecture == "xverse" ||
 		spec.Architecture == "olmo2" ||
-		spec.Architecture == "orion") &&
+		spec.Architecture == "orion" ||
+		spec.Architecture == "codeshell") &&
 		result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
 	}
@@ -470,7 +477,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if spec.Architecture != "starcoder2" {
+		if !usesSequentialGELU(spec.Architecture) {
 			if layer.FeedForwardGate, err = required(
 				prefix+"ffn_gate.weight",
 				uint64(spec.EmbeddingLength),
@@ -514,7 +521,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				*shapeAndDestination.destination = &item
 			}
 		}
-		if spec.Architecture == "starcoder2" {
+		if usesSequentialGELU(spec.Architecture) {
 			for name, item := range map[string]*gguf.TensorInfo{
 				"attn_output.bias": layer.AttentionOutputBias,
 				"ffn_up.bias":      layer.FeedForwardUpBias,

@@ -1004,6 +1004,8 @@ models:
     real_model_validation: pending-fixture
   bailingmoe:
     status: experimental
+    tokenizers:
+      - bailingmoe-bpe
     execution:
       - bounded-host
       - f32-preload
@@ -1018,6 +1020,32 @@ models:
       - always-on-shared-experts
       - serializable-prefix-editable-kv-cache
       - required-untied-output
+    real_model_validation: pending-fixture
+  bailingmoe2:
+    status: experimental
+    tokenizers:
+      - bailingmoe-bpe
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - pre-rmsnorm
+      - fused-qkv-projection
+      - per-head-qk-rmsnorm
+      - neox-rope
+      - leading-dense-swiglu-blocks
+      - softmax-or-sigmoid-top-k-routing
+      - optional-selection-correction-bias
+      - optional-selected-weight-normalization
+      - routed-weight-scaling
+      - packed-swiglu-experts
+      - configurable-always-on-shared-experts
+      - preserved-unexecuted-nextn-mtp-layers
+      - serializable-prefix-editable-kv-cache
+      - required-untied-output
+    limitations:
+      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   lfm2:
     status: experimental

@@ -108,7 +108,7 @@ func isQwen35Pre(pre string) bool {
 
 func isQwen2Pre(pre string) bool {
 	switch pre {
-	case "qwen2", "deepseek-r1-qwen", "kormo", "f2llmv2", "megrez":
+	case "qwen2", "deepseek-r1-qwen", "kormo", "f2llmv2", "megrez", "bailingmoe", "bailingmoe2":
 		return true
 	default:
 		return false

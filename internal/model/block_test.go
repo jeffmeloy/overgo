@@ -141,6 +141,75 @@ func TestBuildBailingMoEBlockUsesNormalizedSoftmaxAndSharedExpert(t *testing.T) 
 	}
 }
 
+func TestBuildBailingMoE2BlockUsesFusedQKVNeoXAndSharedExpert(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		gating  uint32
+		routing tensor.MoERouting
+	}{
+		{name: "softmax", gating: 1, routing: tensor.MoERoutingSoftmax},
+		{name: "sigmoid", gating: 2, routing: tensor.MoERoutingSigmoid},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: "bailingmoe2", BlockCount: 2, LeadingDenseBlocks: 1,
+				EmbeddingLength: 8, FeedForwardLength: 16,
+				ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+				SharedExpertCount: 2, SharedExpertFF: 10, ExpertWeightsScale: 1.25,
+				ExpertWeightsNorm: true, ExpertGatingFunc: test.gating,
+				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+				RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := LayerGraphWeights{
+				AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+				AttentionQKV:           builder.Input("qkv", dtype.F32, tensor.MustShape(8, 16)),
+				AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+				AttentionQNorm:         builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+				AttentionKNorm:         builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+				FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+				FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+				FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+				FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+				FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+				FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+				FeedForwardSharedGate:  builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 10)),
+				FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 10)),
+				FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8)),
+			}
+			result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var moe *tensor.Tensor
+			var neox, silu int
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpMoE:
+					moe = node
+				case tensor.OpRoPENeoX:
+					neox++
+				case tensor.OpSiLU:
+					silu++
+				}
+			}
+			if moe == nil {
+				t.Fatal("BailingMoE2 graph is missing MoE operation")
+			}
+			attrs := moe.Attrs.(tensor.MoEAttributes)
+			if attrs.Routing != test.routing || !attrs.NormalizeTopKProb || len(moe.Inputs) != 6 ||
+				attrs.TopK != 2 || attrs.Scale != 1.25 || neox != 2 || silu < 1 {
+				t.Fatalf("unexpected BailingMoE2 graph: attrs=%+v inputs=%d neox=%d silu=%d", attrs, len(moe.Inputs), neox, silu)
+			}
+		})
+	}
+}
+
 func TestBuildQwen2MoEBlockUsesGatedSharedExpert(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

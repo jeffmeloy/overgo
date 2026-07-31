@@ -56,6 +56,14 @@ func TestPreTokenizeQwen2(t *testing.T) {
 	}
 }
 
+func TestBailingPreTokenizersUseQwen2Segmentation(t *testing.T) {
+	for _, pre := range []string{"bailingmoe", "bailingmoe2"} {
+		if !supportedPreTokenizer(pre) || !isQwen2Pre(pre) {
+			t.Fatalf("pre-tokenizer %q is not mapped to Bailing segmentation", pre)
+		}
+	}
+}
+
 func TestPreTokenizeGPT2(t *testing.T) {
 	tests := []struct {
 		text string

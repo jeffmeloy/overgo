@@ -110,6 +110,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "apertus" &&
 		architecture != "baichuan" &&
 		architecture != "bailingmoe" &&
+		architecture != "bailingmoe2" &&
 		architecture != "bitnet" &&
 		architecture != "bloom" &&
 		architecture != "codeshell" &&
@@ -649,6 +650,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SlidingLayers = append([]bool(nil), layers...)
 		}
 	}
+	if architecture == "bailingmoe2" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("BailingMoE2 NextN/MTP layer count is invalid")
+			}
+			spec.BlockCount -= nextN
+		}
+	}
 	if architecture == "falcon" {
 		spec.RopeDimensionCount, _ = optional[uint32](
 			values,
@@ -769,7 +782,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "bailingmoe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
+	if isLlamaMoE || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -808,6 +821,30 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+	}
+	if architecture == "bailingmoe2" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.SharedExpertCount, err = required[uint32](
+			values, prefix+"expert_shared_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		sharedWidth := spec.ExpertFeedForward
+		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
+			sharedWidth = value
+		}
+		spec.SharedExpertFF = sharedWidth * spec.SharedExpertCount
+		if spec.ExpertGatingFunc, err = required[uint32](
+			values, prefix+"expert_gating_func", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
@@ -1196,6 +1233,26 @@ func (s Spec) validate() error {
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("BailingMoE expert weight scale is invalid")
+		}
+	}
+	if s.Architecture == "bailingmoe2" {
+		switch {
+		case s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("BailingMoE2 leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			s.SharedExpertFF == 0:
+			return errors.New("BailingMoE2 expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("BailingMoE2 expert routing function is unsupported")
+		case s.SharedExpertFF%s.SharedExpertCount != 0:
+			return errors.New("BailingMoE2 shared expert width is invalid")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("BailingMoE2 expert weight scale is invalid")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength:
+			return errors.New("BailingMoE2 rotary/head dimensions are invalid")
 		}
 	}
 	if s.Architecture == "olmoe" &&

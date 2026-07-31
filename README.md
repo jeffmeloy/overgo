@@ -1,7 +1,7 @@
 # llamacpp2go
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
-Its current executable model subset is dense Qwen 2/3, Mixtral, BailingMoE, Qwen2-MoE/Qwen3-MoE
+Its current executable model subset is dense Qwen 2/3, Mixtral, BailingMoE/BailingMoE2, Qwen2-MoE/Qwen3-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, text-only Qwen3.5 hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell,
 dense Cohere2/Command R, Dream non-causal inference, Falcon, Gemma 1/2/3,

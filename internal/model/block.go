@@ -431,6 +431,7 @@ func BuildDenseBlockCachedForLayer(
 	isLaguna := spec.Architecture == "laguna"
 	isAFMoE := spec.Architecture == "afmoe"
 	isBailingMoE := spec.Architecture == "bailingmoe"
+	isBailingMoE2 := spec.Architecture == "bailingmoe2"
 	isQwen2MoE := spec.Architecture == "qwen2moe"
 	headCount := spec.LayerHeadCount(layerIndex)
 	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
@@ -444,7 +445,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isBailingMoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isBailingMoE && !isBailingMoE2 && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -465,7 +466,7 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
-		if isEXAOneMoE {
+		if isEXAOneMoE || isBailingMoE2 {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
@@ -654,7 +655,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || isAFMoE || spec.Architecture == "exaone4" || isEXAOneMoE || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || spec.Architecture == "exaone4" || isEXAOneMoE || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -937,7 +938,7 @@ func BuildDenseBlockCachedForLayer(
 	// and FFN run in parallel before both branches are added to residual
 	if usesExperts {
 		var feedForward *tensor.Tensor
-		if isLaguna || isAFMoE || (isEXAOneMoE && spec.ExpertGatingFunc == 2) {
+		if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2) && spec.ExpertGatingFunc == 2) {
 			feedForward = builder.MoESigmoid(
 				normalized, weights.FeedForwardRouter,
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
@@ -952,7 +953,7 @@ func BuildDenseBlockCachedForLayer(
 				)
 				feedForward = builder.Add(feedForward, shared)
 			}
-		} else if isEXAOneMoE {
+		} else if isEXAOneMoE || isBailingMoE2 {
 			if weights.FeedForwardExpertBias != nil {
 				feedForward = builder.MoESoftmaxWithSelectionBias(
 					normalized, weights.FeedForwardRouter,

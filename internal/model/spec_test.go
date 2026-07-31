@@ -104,6 +104,44 @@ func TestReadBailingMoESpec(t *testing.T) {
 	}
 }
 
+func TestReadBailingMoE2SpecTrimsNextNLayers(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "bailingmoe2"),
+		metadata("bailingmoe2.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("bailingmoe2.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("bailingmoe2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("bailingmoe2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("bailingmoe2.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("bailingmoe2.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("bailingmoe2.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(5)),
+		metadata("bailingmoe2.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("bailingmoe2.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe2.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe2.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("bailingmoe2.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("bailingmoe2.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe2.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("bailingmoe2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("bailingmoe2.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("bailingmoe2.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("bailingmoe2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("bailingmoe2.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("bailingmoe2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "bailingmoe2" || spec.BlockCount != 2 ||
+		spec.LeadingDenseBlocks != 1 || spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertCount != 2 || spec.SharedExpertFF != 10 ||
+		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
+		spec.RopeDimensionCount != 4 || usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected BailingMoE2 spec: %+v", spec)
+	}
+}
+
 func TestReadQwen2MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen2moe"),

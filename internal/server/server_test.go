@@ -23,33 +23,34 @@ import (
 )
 
 type fakeGenerator struct {
-	mu            sync.Mutex
-	started       chan struct{}
-	release       chan struct{}
-	grammar       []string
-	contextShift  bool
-	gbnfSource    string
-	gbnfRoot      string
-	gbnfPatterns  []string
-	gbnfTokens    []tokenizer.TokenID
-	gbnfErr       error
-	samplers      []sampling.SamplerStage
-	sampling      sampling.Config
-	promptIDs     []tokenizer.TokenID
-	cachePrompt   bool
-	keepTokens    int
-	discardTokens int
-	minCacheReuse int
-	promptCached  int
-	pieces        []string
-	infillPrefix  []tokenizer.TokenID
-	infillSuffix  []tokenizer.TokenID
-	infillPrompt  []tokenizer.TokenID
-	infillExtra   []inference.InfillExtra
-	infillOptions inference.InfillFormatOptions
-	chatMessages  []inference.ChatMessage
-	chatOptions   inference.ChatFormatOptions
-	tokenDelay    time.Duration
+	mu              sync.Mutex
+	started         chan struct{}
+	release         chan struct{}
+	grammar         []string
+	contextShift    bool
+	gbnfSource      string
+	gbnfRoot        string
+	gbnfPatterns    []string
+	gbnfTokens      []tokenizer.TokenID
+	gbnfErr         error
+	samplers        []sampling.SamplerStage
+	sampling        sampling.Config
+	promptIDs       []tokenizer.TokenID
+	cachePrompt     bool
+	keepTokens      int
+	discardTokens   int
+	minCacheReuse   int
+	promptCached    int
+	pieces          []string
+	infillPrefix    []tokenizer.TokenID
+	infillSuffix    []tokenizer.TokenID
+	infillPrompt    []tokenizer.TokenID
+	infillExtra     []inference.InfillExtra
+	infillOptions   inference.InfillFormatOptions
+	chatMessages    []inference.ChatMessage
+	chatOptions     inference.ChatFormatOptions
+	grammarParallel bool
+	tokenDelay      time.Duration
 }
 
 type failingMemoryGenerator struct {
@@ -405,7 +406,11 @@ func (f *fakeGenerator) ChatToolGrammar(
 	_ []inference.ChatTool,
 	required bool,
 	_ bool,
+	parallel bool,
 ) (string, string, []string, error) {
+	f.mu.Lock()
+	f.grammarParallel = parallel
+	f.mu.Unlock()
 	if required {
 		return `root ::= "a"`, "root", nil, nil
 	}
@@ -3136,6 +3141,49 @@ func TestResponsesInputTokensAliasesAndValidation(t *testing.T) {
 	}
 }
 
+func TestResponsesInputTokensIncludeToolsAndCallHistory(t *testing.T) {
+	generator := &fakeGenerator{}
+	handler := newTestHandler(t, generator)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses/input_tokens",
+			strings.NewReader(
+				`{"tools":[{"type":"function","name":"weather",`+
+					`"parameters":{"type":"object"}}],`+
+					`"input":[`+
+					`{"role":"user","content":"weather?"},`+
+					`{"type":"message","id":"msg_1","role":"assistant","status":"completed",`+
+					`"content":[{"type":"output_text","text":"Checking.","annotations":[],"logprobs":[]}]},`+
+					`{"type":"function_call","id":"fc_1","call_id":"call_1",`+
+					`"name":"weather","arguments":"{\"city\":\"Paris\"}","status":"completed"},`+
+					`{"type":"function_call_output","call_id":"call_1","output":"Sunny"}`+
+					`]}`,
+			),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if len(generator.chatOptions.Tools) != 1 ||
+		len(generator.chatMessages) != 3 ||
+		len(generator.chatMessages[1].ToolCalls) != 1 ||
+		generator.chatMessages[1].Content != "Checking." ||
+		generator.chatMessages[1].ToolCalls[0].ID != "call_1" ||
+		generator.chatMessages[2].Role != "tool" ||
+		generator.chatMessages[2].ToolCallID != "call_1" {
+		t.Fatalf(
+			"formatted options/messages = %+v / %+v",
+			generator.chatOptions,
+			generator.chatMessages,
+		)
+	}
+}
+
 func TestBufferedResponsesAliases(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, path := range []string{"/responses", "/v1/responses"} {
@@ -3168,6 +3216,52 @@ func TestBufferedResponsesAliases(t *testing.T) {
 			result.Usage.TotalTokens != 3 {
 			t.Fatalf("%s response = %+v body=%s", path, result, response.Body.String())
 		}
+	}
+}
+
+func TestBufferedResponsesFunctionCall(t *testing.T) {
+	generator := &fakeGenerator{
+		pieces: []string{
+			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+		},
+	}
+	handler := newTestHandler(t, generator)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(
+				`{"input":"weather?","max_output_tokens":1,`+
+					`"tool_choice":{"type":"function","name":"weather"},`+
+					`"tools":[{"type":"function","name":"weather",`+
+					`"description":"forecast","parameters":{"type":"object",`+
+					`"properties":{"city":{"type":"string"}}},"strict":true}]}`,
+			),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result responsesResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Output) != 1 ||
+		result.Output[0].Type != "function_call" ||
+		result.Output[0].ID == "" ||
+		result.Output[0].CallID == "" ||
+		result.Output[0].Name != "weather" ||
+		result.Output[0].Arguments != `{"city":"Paris"}` {
+		t.Fatalf("function response = %+v body=%s", result, response.Body.String())
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if len(generator.chatOptions.Tools) != 1 ||
+		generator.chatOptions.Tools[0].Function.Name != "weather" ||
+		generator.grammarParallel {
+		t.Fatalf("formatted tools = %+v", generator.chatOptions.Tools)
 	}
 }
 
@@ -3214,6 +3308,66 @@ func TestStreamingResponsesLifecycle(t *testing.T) {
 	}
 }
 
+func TestStreamingResponsesFunctionCallLifecycle(t *testing.T) {
+	generator := &fakeGenerator{
+		pieces: []string{
+			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+		},
+	}
+	handler := newTestHandler(t, generator)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(
+				`{"input":"weather?","max_output_tokens":1,"stream":true,`+
+					`"tool_choice":"required","parallel_tool_calls":false,`+
+					`"tools":[{"type":"function",`+
+					`"name":"weather","parameters":{"type":"object"}}]}`,
+			),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	events := []string{
+		"event: response.created",
+		"event: response.in_progress",
+		"event: response.output_item.added",
+		`"type":"function_call"`,
+		"event: response.function_call_arguments.delta",
+		`"delta":"{\"city\":\"Paris\"}"`,
+		"event: response.function_call_arguments.done",
+		"event: response.output_item.done",
+		"event: response.completed",
+	}
+	previous := -1
+	for _, event := range events {
+		index := strings.Index(body, event)
+		if index < 0 || index <= previous {
+			t.Fatalf(
+				"event %q index=%d after=%d body=%s",
+				event,
+				index,
+				previous,
+				body,
+			)
+		}
+		previous = index
+	}
+	if strings.Contains(body, "<tool_call>") {
+		t.Fatalf("function stream leaked template syntax:\n%s", body)
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if generator.grammarParallel {
+		t.Fatal("parallel_tool_calls:false reached the grammar as parallel")
+	}
+}
+
 func TestResponsesValidationAndMethod(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
@@ -3222,6 +3376,9 @@ func TestResponsesValidationAndMethod(t *testing.T) {
 		`{"input":"hello","previous_response_id":"resp_old"}`,
 		`{"model":"missing","input":"hello"}`,
 		`{"input":"hello","unknown":true}`,
+		`{"input":"hello","tools":[{"type":"custom","name":"shell"}]}`,
+		`{"input":"hello","tool_choice":{"type":"function","name":"missing"},` +
+			`"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}]}`,
 	} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(
@@ -3509,11 +3666,12 @@ func TestStreamingAnthropicMessagesLifecycle(t *testing.T) {
 }
 
 func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
-	handler := newTestHandler(t, &fakeGenerator{
+	generator := &fakeGenerator{
 		pieces: []string{
 			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
 		},
-	})
+	}
+	handler := newTestHandler(t, generator)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(
 		response,
@@ -3521,7 +3679,8 @@ func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
 			http.MethodPost,
 			"/v1/messages",
 			strings.NewReader(
-				`{"max_tokens":1,"stream":true,"tool_choice":{"type":"tool","name":"weather"},`+
+				`{"max_tokens":1,"stream":true,"tool_choice":{"type":"tool","name":"weather",`+
+					`"disable_parallel_tool_use":true},`+
 					`"tools":[{"name":"weather","input_schema":{"type":"object"}}],`+
 					`"messages":[{"role":"user","content":"weather?"}]}`,
 			),
@@ -3547,6 +3706,11 @@ func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
 	}
 	if strings.Contains(body, "<tool_call>") {
 		t.Fatalf("tool stream leaked template syntax:\n%s", body)
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if generator.grammarParallel {
+		t.Fatal("disable_parallel_tool_use reached the grammar as parallel")
 	}
 }
 

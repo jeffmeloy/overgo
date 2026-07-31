@@ -20,6 +20,7 @@ func (r *Runner) ChatToolGrammar(
 	tools []ChatTool,
 	required bool,
 	enableThinking bool,
+	parallelToolCalls bool,
 ) (source, root string, triggerPatterns []string, err error) {
 	if r == nil {
 		return "", "", nil, errors.New("inference: runner is nil")
@@ -36,9 +37,9 @@ func (r *Runner) ChatToolGrammar(
 	}
 	hermes := strings.Contains(template, "<function=example_function_name>")
 	if hermes {
-		source, err = hermesToolGrammar(tools)
+		source, err = hermesToolGrammar(tools, parallelToolCalls)
 	} else if strings.Contains(template, toolCallOpen) {
-		source, err = jsonToolGrammar(tools)
+		source, err = jsonToolGrammar(tools, parallelToolCalls)
 	} else {
 		err = errors.New(
 			"inference: GGUF chat template has no supported tool-call syntax",
@@ -65,7 +66,7 @@ func (r *Runner) ChatToolGrammar(
 	return source, "tool-root", []string{`(<tool_call>)`}, nil
 }
 
-func jsonToolGrammar(tools []ChatTool) (string, error) {
+func jsonToolGrammar(tools []ChatTool, parallelToolCalls bool) (string, error) {
 	type nameSchema struct {
 		Const string `json:"const"`
 	}
@@ -112,12 +113,19 @@ func jsonToolGrammar(tools []ChatTool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("tool JSON schema: %w", err)
 	}
+	toolRoot := `tool-root ::= tool-call`
+	if parallelToolCalls {
+		toolRoot += ` (space tool-call)*`
+	}
 	return `tool-call ::= "<tool_call>" space root space "</tool_call>"` + "\n" +
-		`tool-root ::= tool-call (space tool-call)*` + "\n" +
+		toolRoot + "\n" +
 		jsonGrammar, nil
 }
 
-func hermesToolGrammar(tools []ChatTool) (string, error) {
+func hermesToolGrammar(
+	tools []ChatTool,
+	parallelToolCalls bool,
+) (string, error) {
 	rules := make([]string, 0, 2+len(tools)*2)
 	functionRules := make([]string, len(tools))
 	for index, tool := range tools {
@@ -167,6 +175,10 @@ func hermesToolGrammar(tools []ChatTool) (string, error) {
 				strconv.Quote("</function>"),
 		)
 	}
+	toolRoot := `tool-root ::= tool-call`
+	if parallelToolCalls {
+		toolRoot += ` (space tool-call)*`
+	}
 	rules = append(
 		rules,
 		`space ::= | " " | "\n"{1,2} [ \t]{0,20}`,
@@ -174,7 +186,7 @@ func hermesToolGrammar(tools []ChatTool) (string, error) {
 		`tool-call ::= "<tool_call>" space (`+
 			strings.Join(functionRules, " | ")+
 			`) space "</tool_call>"`,
-		`tool-root ::= tool-call (space tool-call)*`,
+		toolRoot,
 	)
 	sort.Strings(rules)
 	return strings.Join(rules, "\n"), nil

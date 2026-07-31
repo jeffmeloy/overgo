@@ -51,6 +51,7 @@ func selectAnthropicTools(
 	}
 
 	var openAIChoice json.RawMessage
+	parallel := true
 	if rawJSONConfigured(rawChoice) {
 		var choice struct {
 			Type               string `json:"type"`
@@ -87,16 +88,16 @@ func selectAnthropicTools(
 		default:
 			return chatToolSelection{}, fmt.Errorf("unsupported tool_choice type %q", choice.Type)
 		}
-		if choice.DisableParallelUse != nil && *choice.DisableParallelUse {
-			return chatToolSelection{}, errors.New(
-				"disable_parallel_tool_use is not supported",
-			)
+		if choice.DisableParallelUse != nil {
+			parallel = !*choice.DisableParallelUse
 		}
 	}
-	return selectChatTools(chatCompletionRequest{
+	selection, err := selectChatTools(chatCompletionRequest{
 		Tools:      tools,
 		ToolChoice: openAIChoice,
 	})
+	selection.parallel = parallel
+	return selection, err
 }
 
 func parseAnthropicMessage(

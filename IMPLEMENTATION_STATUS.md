@@ -250,9 +250,13 @@
   `/v1/responses` convert text or text-message inputs through the same native
   formatter and return pinned Responses output/usage objects. Streaming emits
   the named created/in-progress/item/content/delta/done/completed SSE
-  lifecycle without a `[DONE]` marker.
+  lifecycle without a `[DONE]` marker. Flat function definitions,
+  auto/none/required/named selection, replayable `function_call` and
+  `function_call_output` items, schema-constrained generation, buffered
+  function-call output, single/parallel call constraints, and call-complete
+  argument SSE events are supported.
   `/responses/input_tokens` and `/v1/responses/input_tokens` share that
-  conversion without running inference.
+  tool-aware conversion without running inference.
 - Text-only Anthropic `/v1/messages` generation supports buffered responses
   and the named message/content-block SSE lifecycle, including native stop
   reasons/sequences and cache/input/output usage without llama timing fields.
@@ -260,8 +264,8 @@
   content through the identical prompt formatter. Anthropic tool definitions
   and auto/any/named selection use the same schema grammar and GGUF Jinja tool
   context as OpenAI chat. Assistant `tool_use` and user `tool_result` history,
-  buffered tool blocks, call-complete streaming `input_json_delta` blocks, and
-  tool-aware counting are supported.
+  single/parallel call constraints, buffered tool blocks, call-complete
+  streaming `input_json_delta` blocks, and tool-aware counting are supported.
 - Authenticated `/lora-adapters` exposes a truthful empty adapter list for this
   no-LoRA runtime. Empty disable-all POST requests succeed with the pinned
   envelope; non-empty activation is rejected explicitly.
@@ -510,9 +514,10 @@
   system/user/assistant/tool role families. Buffered and complete-call SSE
   OpenAI function calls plus tool-aware token counting are supported;
   images/audio/files remain pending.
-- Text-only OpenAI Responses generation, streaming, and token counting are
-  supported. Continuation IDs, tools, reasoning items, and multimodal/file
-  inputs remain pending.
+- Text-only OpenAI Responses generation, streaming, token counting, and
+  function tools/history are supported. Continuation IDs, hosted/custom
+  tools, reasoning items, multimodal/file inputs, and token-incremental
+  function-argument deltas remain pending.
 - Text-only Anthropic generation, streaming, counting, tool use/results, and
   tool-aware Jinja contexts are supported. Thinking blocks, images, and
   token-incremental tool-input deltas remain pending.

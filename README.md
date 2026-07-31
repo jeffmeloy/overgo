@@ -278,15 +278,20 @@ Text-only OpenAI content-part arrays are flattened through the same formatter.
 Authenticated `/responses` and `/v1/responses` convert text inputs and message
 arrays into chat prompts and return the pinned Responses object/output/usage
 envelope. Streaming emits the named Responses lifecycle events through
-`response.completed` without an OpenAI `[DONE]` marker. `/responses/input_tokens` and
-`/v1/responses/input_tokens` expose the corresponding no-generation count.
-Continuation IDs, tools, and multimodal/file inputs are rejected explicitly.
+`response.completed` without an OpenAI `[DONE]` marker. Flat function tools,
+auto/none/required/named choice, replayable call/output history, constrained
+generation, single/parallel call constraints, buffered function-call items,
+and call-complete argument SSE events are supported. `/responses/input_tokens` and
+`/v1/responses/input_tokens` expose the corresponding tool-aware
+no-generation count. Continuation IDs, hosted/custom tools, reasoning items,
+multimodal/file inputs, and token-incremental function-argument deltas remain
+explicit exclusions.
 Text-only Anthropic-compatible `/v1/messages` supports buffered and named-SSE
 streaming replies with Anthropic text/tool-use content blocks, stop fields,
 and usage. Tool definitions, auto/any/named choice, assistant `tool_use`,
 user `tool_result`, schema-constrained generation, call-complete streaming
-`input_json_delta`, and tool-aware token counting share the GGUF Jinja
-formatter used by OpenAI chat.
+`input_json_delta`, single/parallel call constraints, and tool-aware token
+counting share the GGUF Jinja formatter used by OpenAI chat.
 `/v1/messages/count_tokens` accepts the same string or multipart text
 system/message forms. Anthropic thinking and image blocks remain rejected
 until their template/runtime semantics are available.

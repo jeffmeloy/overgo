@@ -1,0 +1,337 @@
+package server
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"llamacpp2go/internal/inference"
+)
+
+func selectResponsesTools(
+	rawTools, rawChoice json.RawMessage,
+	parallelTools *bool,
+) (chatToolSelection, error) {
+	var tools []inference.ChatTool
+	if rawJSONConfigured(rawTools) {
+		var definitions []struct {
+			Type        string         `json:"type"`
+			Name        string         `json:"name"`
+			Description string         `json:"description"`
+			Parameters  map[string]any `json:"parameters"`
+			Strict      *bool          `json:"strict"`
+		}
+		decoder := json.NewDecoder(bytes.NewReader(rawTools))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&definitions); err != nil {
+			return chatToolSelection{}, errors.New(
+				"tools must be an array of Responses function definitions",
+			)
+		}
+		if err := requireEOF(decoder); err != nil {
+			return chatToolSelection{}, err
+		}
+		if len(definitions) > 128 {
+			return chatToolSelection{}, errors.New("tool count exceeds 128")
+		}
+		tools = make([]inference.ChatTool, len(definitions))
+		for index, definition := range definitions {
+			if definition.Type != "function" {
+				return chatToolSelection{}, fmt.Errorf(
+					"tool %d has unsupported type %q",
+					index,
+					definition.Type,
+				)
+			}
+			if definition.Name == "" {
+				return chatToolSelection{}, fmt.Errorf(
+					"tool %d name is required",
+					index,
+				)
+			}
+			if definition.Parameters == nil {
+				return chatToolSelection{}, fmt.Errorf(
+					"tool %d parameters are required",
+					index,
+				)
+			}
+			tools[index] = inference.ChatTool{
+				Type: "function",
+				Function: inference.ChatToolDefinition{
+					Name:        definition.Name,
+					Description: definition.Description,
+					Parameters:  definition.Parameters,
+				},
+			}
+		}
+	}
+
+	var openAIChoice json.RawMessage
+	if rawJSONConfigured(rawChoice) {
+		var mode string
+		if json.Unmarshal(rawChoice, &mode) == nil {
+			openAIChoice = rawChoice
+		} else {
+			var named struct {
+				Type string `json:"type"`
+				Name string `json:"name"`
+			}
+			decoder := json.NewDecoder(bytes.NewReader(rawChoice))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&named); err != nil {
+				return chatToolSelection{}, errors.New(
+					"tool_choice must be auto, none, required, or a named function",
+				)
+			}
+			if err := requireEOF(decoder); err != nil {
+				return chatToolSelection{}, err
+			}
+			if named.Type != "function" || named.Name == "" {
+				return chatToolSelection{}, errors.New(
+					"named tool_choice requires type function and a name",
+				)
+			}
+			encoded, err := json.Marshal(map[string]any{
+				"type": "function",
+				"function": map[string]string{
+					"name": named.Name,
+				},
+			})
+			if err != nil {
+				return chatToolSelection{}, err
+			}
+			openAIChoice = encoded
+		}
+	}
+	return selectChatTools(chatCompletionRequest{
+		Tools:         tools,
+		ToolChoice:    openAIChoice,
+		ParallelTools: parallelTools,
+	})
+}
+
+func parseResponsesMessages(
+	raw json.RawMessage,
+	instructions string,
+) ([]inference.ChatMessage, error) {
+	if len(raw) == 0 {
+		return nil, errors.New("input is required")
+	}
+	messages := make([]inference.ChatMessage, 0, 4)
+	if instructions != "" {
+		messages = append(messages, inference.ChatMessage{
+			Role:    "system",
+			Content: instructions,
+		})
+	}
+	var textInput string
+	if err := json.Unmarshal(raw, &textInput); err == nil {
+		return append(messages, inference.ChatMessage{
+			Role:    "user",
+			Content: textInput,
+		}), nil
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil, errors.New("input must be a string or message array")
+	}
+	if len(items) == 0 {
+		return nil, errors.New("input message array must not be empty")
+	}
+	if len(items) > 1024 {
+		return nil, errors.New("input message count exceeds 1024")
+	}
+	for index, rawItem := range items {
+		var header struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(rawItem, &header); err != nil {
+			return nil, fmt.Errorf("input item %d: %w", index, err)
+		}
+		switch header.Type {
+		case "", "message":
+			var item struct {
+				Content json.RawMessage `json:"content"`
+				ID      string          `json:"id"`
+				Role    string          `json:"role"`
+				Status  string          `json:"status"`
+				Type    string          `json:"type"`
+			}
+			if err := decodeResponsesItem(rawItem, &item); err != nil {
+				return nil, fmt.Errorf("input item %d: %w", index, err)
+			}
+			if item.Role == "" || len(item.Content) == 0 {
+				return nil, fmt.Errorf(
+					"input item %d requires role and content",
+					index,
+				)
+			}
+			content, err := parseResponsesTextContent(
+				item.Content,
+				fmt.Sprintf("input item %d content", index),
+			)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, inference.ChatMessage{
+				Role:    item.Role,
+				Content: content,
+			})
+		case "function_call":
+			var item struct {
+				Arguments string `json:"arguments"`
+				CallID    string `json:"call_id"`
+				ID        string `json:"id"`
+				Name      string `json:"name"`
+				Status    string `json:"status"`
+				Type      string `json:"type"`
+			}
+			if err := decodeResponsesItem(rawItem, &item); err != nil {
+				return nil, fmt.Errorf("input item %d: %w", index, err)
+			}
+			if item.CallID == "" || item.Name == "" ||
+				!json.Valid([]byte(item.Arguments)) {
+				return nil, fmt.Errorf(
+					"input item %d has invalid function_call fields",
+					index,
+				)
+			}
+			call := inference.ChatToolCall{
+				ID:   item.CallID,
+				Type: "function",
+				Function: inference.ChatToolFunction{
+					Name:      item.Name,
+					Arguments: item.Arguments,
+				},
+			}
+			if len(messages) != 0 &&
+				messages[len(messages)-1].Role == "assistant" {
+				last := &messages[len(messages)-1]
+				last.ToolCalls = append(last.ToolCalls, call)
+			} else {
+				messages = append(messages, inference.ChatMessage{
+					Role:      "assistant",
+					ToolCalls: []inference.ChatToolCall{call},
+				})
+			}
+		case "function_call_output":
+			var item struct {
+				CallID string          `json:"call_id"`
+				ID     string          `json:"id"`
+				Output json.RawMessage `json:"output"`
+				Status string          `json:"status"`
+				Type   string          `json:"type"`
+			}
+			if err := decodeResponsesItem(rawItem, &item); err != nil {
+				return nil, fmt.Errorf("input item %d: %w", index, err)
+			}
+			if item.CallID == "" || len(item.Output) == 0 {
+				return nil, fmt.Errorf(
+					"input item %d has invalid function_call_output fields",
+					index,
+				)
+			}
+			output, err := parseResponsesTextContent(
+				item.Output,
+				fmt.Sprintf("input item %d output", index),
+			)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, inference.ChatMessage{
+				Role:       "tool",
+				Content:    output,
+				ToolCallID: item.CallID,
+			})
+		default:
+			return nil, fmt.Errorf(
+				"input item %d has unsupported type %q",
+				index,
+				header.Type,
+			)
+		}
+	}
+	return messages, nil
+}
+
+func decodeResponsesItem(raw json.RawMessage, destination any) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+	return requireEOF(decoder)
+}
+
+func parseResponsesTextContent(raw json.RawMessage, label string) (string, error) {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text, nil
+	}
+	var rawParts []json.RawMessage
+	if err := json.Unmarshal(raw, &rawParts); err != nil {
+		return "", fmt.Errorf("%s must be a string or text-part array", label)
+	}
+	var result strings.Builder
+	for index, rawPart := range rawParts {
+		var part struct {
+			Type        string          `json:"type"`
+			Text        string          `json:"text"`
+			Annotations json.RawMessage `json:"annotations"`
+			Logprobs    json.RawMessage `json:"logprobs"`
+		}
+		if err := decodeResponsesItem(rawPart, &part); err != nil {
+			return "", fmt.Errorf("%s part %d: %w", label, index, err)
+		}
+		switch part.Type {
+		case "text", "input_text", "output_text":
+			result.WriteString(part.Text)
+		default:
+			return "", fmt.Errorf(
+				"%s part %d has unsupported type %q",
+				label,
+				index,
+				part.Type,
+			)
+		}
+	}
+	return result.String(), nil
+}
+
+func responseItems(
+	message inference.ChatMessage,
+	messageID, idSuffix string,
+) []responseOutputItem {
+	items := make([]responseOutputItem, 0, 1+len(message.ToolCalls))
+	if message.Content != "" {
+		items = append(items, responseOutputItem{
+			Content: []responseOutputText{{
+				Type:        "output_text",
+				Annotations: []any{},
+				Logprobs:    []any{},
+				Text:        message.Content,
+			}},
+			ID:     messageID,
+			Role:   "assistant",
+			Status: "completed",
+			Type:   "message",
+		})
+	}
+	for index, call := range message.ToolCalls {
+		callID := call.ID
+		if callID == "" {
+			callID = fmt.Sprintf("call_%s_%d", idSuffix, index)
+		}
+		items = append(items, responseOutputItem{
+			Arguments: call.Function.Arguments,
+			CallID:    callID,
+			ID:        fmt.Sprintf("fc_%s_%d", idSuffix, index),
+			Name:      call.Function.Name,
+			Status:    "completed",
+			Type:      "function_call",
+		})
+	}
+	return items
+}

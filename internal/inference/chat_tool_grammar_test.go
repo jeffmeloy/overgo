@@ -15,6 +15,7 @@ func TestJSONToolGrammarUsesSchemaAndLazyDelimiter(t *testing.T) {
 		[]ChatTool{toolWeatherDefinition()},
 		false,
 		true,
+		true,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -38,6 +39,32 @@ func TestJSONToolGrammarUsesSchemaAndLazyDelimiter(t *testing.T) {
 	}
 }
 
+func TestToolGrammarCanForbidParallelCalls(t *testing.T) {
+	for name, template := range map[string]string{
+		"json":   `<tool_call>{{ tools|tojson }}</tool_call>`,
+		"hermes": `<tool_call><function=example_function_name></function></tool_call>`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			runner := jinjaChatTestRunner(t, template)
+			source, _, _, err := runner.ChatToolGrammar(
+				[]ChatTool{toolWeatherDefinition()},
+				true,
+				false,
+				false,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(source, `(space tool-call)*`) {
+				t.Fatalf("single-call grammar allows repetition:\n%s", source)
+			}
+			if !strings.Contains(source, `tool-root ::= tool-call`) {
+				t.Fatalf("single-call root is missing:\n%s", source)
+			}
+		})
+	}
+}
+
 func TestHermesToolGrammarUsesFunctionAndParameterTags(t *testing.T) {
 	runner := jinjaChatTestRunner(
 		t,
@@ -46,6 +73,7 @@ func TestHermesToolGrammarUsesFunctionAndParameterTags(t *testing.T) {
 	source, root, triggers, err := runner.ChatToolGrammar(
 		[]ChatTool{toolWeatherDefinition()},
 		false,
+		true,
 		true,
 	)
 	if err != nil {
@@ -73,6 +101,7 @@ func TestToolGrammarRejectsUnsupportedTemplatesAndUnsafeNames(t *testing.T) {
 		[]ChatTool{toolWeatherDefinition()},
 		false,
 		true,
+		true,
 	); err == nil {
 		t.Fatal("unsupported template was accepted")
 	}
@@ -82,6 +111,7 @@ func TestToolGrammarRejectsUnsupportedTemplatesAndUnsafeNames(t *testing.T) {
 	if _, _, _, err := runner.ChatToolGrammar(
 		[]ChatTool{tool},
 		false,
+		true,
 		true,
 	); err == nil {
 		t.Fatal("unsafe tool name was accepted")
@@ -111,6 +141,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 				[]ChatTool{toolWeatherDefinition()},
 				false,
 				true,
+				true,
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -125,6 +156,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 			}
 			source, root, patterns, err = runner.ChatToolGrammar(
 				[]ChatTool{toolWeatherDefinition()},
+				true,
 				true,
 				true,
 			)

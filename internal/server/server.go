@@ -81,6 +81,7 @@ type ChatToolGrammarProvider interface {
 		[]inference.ChatTool,
 		bool,
 		bool,
+		bool,
 	) (source, root string, triggerPatterns []string, err error)
 }
 
@@ -3344,6 +3345,9 @@ type responsesTokenCountRequest struct {
 	Instructions       string          `json:"instructions"`
 	Input              json.RawMessage `json:"input"`
 	PreviousResponseID string          `json:"previous_response_id"`
+	Tools              json.RawMessage `json:"tools"`
+	ToolChoice         json.RawMessage `json:"tool_choice"`
+	ParallelTools      *bool           `json:"parallel_tool_calls"`
 }
 
 type anthropicTokenCountRequest struct {
@@ -3485,6 +3489,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			toolSelection.active,
 			toolSelection.required,
 			false,
+			toolSelection.parallel,
 		)
 		if grammarErr != nil {
 			writeError(response, http.StatusBadRequest, "invalid_request_error", grammarErr.Error())
@@ -3976,6 +3981,9 @@ type responsesRequest struct {
 	MaxOutputTokens    *int            `json:"max_output_tokens"`
 	Stop               json.RawMessage `json:"stop"`
 	Stream             bool            `json:"stream"`
+	Tools              json.RawMessage `json:"tools"`
+	ToolChoice         json.RawMessage `json:"tool_choice"`
+	ParallelTools      *bool           `json:"parallel_tool_calls"`
 	samplingParameters
 }
 
@@ -3987,11 +3995,14 @@ type responseOutputText struct {
 }
 
 type responseOutputItem struct {
-	Content []responseOutputText `json:"content"`
-	ID      string               `json:"id"`
-	Role    string               `json:"role"`
-	Status  string               `json:"status"`
-	Type    string               `json:"type"`
+	Arguments string               `json:"arguments,omitempty"`
+	CallID    string               `json:"call_id,omitempty"`
+	Content   []responseOutputText `json:"content,omitempty"`
+	ID        string               `json:"id"`
+	Name      string               `json:"name,omitempty"`
+	Role      string               `json:"role,omitempty"`
+	Status    string               `json:"status,omitempty"`
+	Type      string               `json:"type"`
 }
 
 type responseInputTokenDetails struct {
@@ -4039,12 +4050,43 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "previous_response_id is not supported")
 		return
 	}
+	toolSelection, err := selectResponsesTools(
+		body.Tools,
+		body.ToolChoice,
+		body.ParallelTools,
+	)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if len(toolSelection.active) != 0 {
+		if _, ok := h.generator.(ChatOutputParser); !ok {
+			writeError(
+				response,
+				http.StatusNotImplemented,
+				"unsupported_operation",
+				"tool-call output parsing is unavailable",
+			)
+			return
+		}
+	}
 	messages, err := parseResponsesMessages(body.Input, body.Instructions)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prompt, err := formatter.FormatChat(messages)
+	var prompt string
+	if len(toolSelection.prompt) == 0 {
+		prompt, err = formatter.FormatChat(messages)
+	} else {
+		prompt, err = formatChatRequest(
+			formatter,
+			messages,
+			toolSelection.prompt,
+			nil,
+			map[string]any{"enable_thinking": false},
+		)
+	}
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -4067,7 +4109,40 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	sampler, err := h.newSampler(body.samplingParameters)
+	samplingParams := body.samplingParameters
+	if len(toolSelection.active) != 0 {
+		provider, ok := h.generator.(ChatToolGrammarProvider)
+		if !ok {
+			writeError(
+				response,
+				http.StatusNotImplemented,
+				"unsupported_operation",
+				"tool-call grammar generation is unavailable",
+			)
+			return
+		}
+		source, root, patterns, grammarErr := provider.ChatToolGrammar(
+			toolSelection.active,
+			toolSelection.required,
+			false,
+			!toolSelection.named &&
+				(body.ParallelTools == nil || *body.ParallelTools),
+		)
+		if grammarErr != nil {
+			writeError(
+				response,
+				http.StatusBadRequest,
+				"invalid_request_error",
+				grammarErr.Error(),
+			)
+			return
+		}
+		samplingParams.Grammar = source
+		samplingParams.GrammarRoot = root
+		samplingParams.GrammarLazy = len(patterns) != 0
+		samplingParams.GrammarTriggerPatterns = patterns
+	}
+	sampler, err := h.newSampler(samplingParams)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -4093,6 +4168,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			stops,
 			responseID,
 			messageID,
+			toolSelection.active,
 		)
 		return
 	}
@@ -4123,22 +4199,22 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	}
 	output.WriteString(filter.Flush())
 	now := time.Now().Unix()
-	text := output.String()
-	outputItems := []responseOutputItem{}
-	if text != "" {
-		outputItems = append(outputItems, responseOutputItem{
-			Content: []responseOutputText{{
-				Type:        "output_text",
-				Annotations: []any{},
-				Logprobs:    []any{},
-				Text:        text,
-			}},
-			ID:     messageID,
-			Role:   "assistant",
-			Status: "completed",
-			Type:   "message",
-		})
+	message := inference.ChatMessage{
+		Role:    "assistant",
+		Content: output.String(),
 	}
+	if len(toolSelection.active) != 0 {
+		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
+			output.String(),
+			toolSelection.active,
+		)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+	}
+	idSuffix := strings.TrimPrefix(responseID, "resp_")
+	outputItems := responseItems(message, messageID, idSuffix)
 	promptTokens := len(ids) - generatedTokens
 	writeJSON(response, http.StatusOK, responsesResponse{
 		CompletedAt: now,
@@ -4166,6 +4242,7 @@ func (h *Handler) streamResponses(
 	maxTokens int,
 	stops []string,
 	responseID, messageID string,
+	tools []inference.ChatTool,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -4202,6 +4279,7 @@ func (h *Handler) streamResponses(
 	}
 
 	var output strings.Builder
+	var buffered strings.Builder
 	filter := newStopFilter(stops)
 	generatedTokens := 0
 	textStarted := false
@@ -4253,7 +4331,12 @@ func (h *Handler) streamResponses(
 			ContextShift:  h.config.ContextShift,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++
-				return emitText(filter.Accept(event.Piece))
+				piece := filter.Accept(event.Piece)
+				if len(tools) != 0 {
+					buffered.WriteString(piece)
+					return request.Context().Err()
+				}
+				return emitText(piece)
 			},
 		},
 	)
@@ -4264,8 +4347,32 @@ func (h *Handler) streamResponses(
 		})
 		return
 	}
-	if err := emitText(filter.Flush()); err != nil {
-		return
+	flushed := filter.Flush()
+	var parsedMessage inference.ChatMessage
+	if len(tools) != 0 {
+		buffered.WriteString(flushed)
+		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(
+			buffered.String(),
+			tools,
+		)
+		if err != nil {
+			_ = writeEvent("response.failed", map[string]any{
+				"type":  "response.failed",
+				"error": errorEnvelope("generation_error", err.Error()).Error,
+			})
+			return
+		}
+		if err := emitText(parsedMessage.Content); err != nil {
+			return
+		}
+	} else {
+		if err := emitText(flushed); err != nil {
+			return
+		}
+		parsedMessage = inference.ChatMessage{
+			Role:    "assistant",
+			Content: output.String(),
+		}
 	}
 	text := output.String()
 	outputItems := []responseOutputItem{}
@@ -4300,6 +4407,62 @@ func (h *Handler) streamResponses(
 		if err := writeEvent("response.output_item.done", map[string]any{
 			"type": "response.output_item.done",
 			"item": item,
+		}); err != nil {
+			return
+		}
+		outputItems = append(outputItems, item)
+	}
+	idSuffix := strings.TrimPrefix(responseID, "resp_")
+	callItems := responseItems(
+		inference.ChatMessage{
+			Role:      "assistant",
+			ToolCalls: parsedMessage.ToolCalls,
+		},
+		messageID,
+		idSuffix,
+	)
+	for _, item := range callItems {
+		outputIndex := len(outputItems)
+		added := item
+		added.Arguments = ""
+		added.Status = "in_progress"
+		if err := writeEvent("response.output_item.added", map[string]any{
+			"type":         "response.output_item.added",
+			"response_id":  responseID,
+			"output_index": outputIndex,
+			"item":         added,
+		}); err != nil {
+			return
+		}
+		if err := writeEvent(
+			"response.function_call_arguments.delta",
+			map[string]any{
+				"type":         "response.function_call_arguments.delta",
+				"response_id":  responseID,
+				"item_id":      item.ID,
+				"output_index": outputIndex,
+				"delta":        item.Arguments,
+			},
+		); err != nil {
+			return
+		}
+		if err := writeEvent(
+			"response.function_call_arguments.done",
+			map[string]any{
+				"type":         "response.function_call_arguments.done",
+				"response_id":  responseID,
+				"item_id":      item.ID,
+				"output_index": outputIndex,
+				"arguments":    item.Arguments,
+			},
+		); err != nil {
+			return
+		}
+		if err := writeEvent("response.output_item.done", map[string]any{
+			"type":         "response.output_item.done",
+			"response_id":  responseID,
+			"output_index": outputIndex,
+			"item":         item,
 		}); err != nil {
 			return
 		}
@@ -4361,12 +4524,32 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		)
 		return
 	}
+	toolSelection, err := selectResponsesTools(
+		body.Tools,
+		body.ToolChoice,
+		body.ParallelTools,
+	)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
 	messages, err := parseResponsesMessages(body.Input, body.Instructions)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prompt, err := formatter.FormatChat(messages)
+	var prompt string
+	if len(toolSelection.prompt) == 0 {
+		prompt, err = formatter.FormatChat(messages)
+	} else {
+		prompt, err = formatChatRequest(
+			formatter,
+			messages,
+			toolSelection.prompt,
+			nil,
+			map[string]any{"enable_thinking": false},
+		)
+	}
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -4380,71 +4563,6 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		"object":       "response.input_tokens",
 		"input_tokens": len(tokens),
 	})
-}
-
-func parseResponsesMessages(
-	raw json.RawMessage,
-	instructions string,
-) ([]inference.ChatMessage, error) {
-	if len(raw) == 0 {
-		return nil, errors.New("input is required")
-	}
-	messages := make([]inference.ChatMessage, 0, 4)
-	if instructions != "" {
-		messages = append(messages, inference.ChatMessage{
-			Role:    "system",
-			Content: instructions,
-		})
-	}
-	var textInput string
-	if err := json.Unmarshal(raw, &textInput); err == nil {
-		return append(messages, inference.ChatMessage{Role: "user", Content: textInput}), nil
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil, errors.New("input must be a string or message array")
-	}
-	if len(items) == 0 {
-		return nil, errors.New("input message array must not be empty")
-	}
-	if len(items) > 1024 {
-		return nil, errors.New("input message count exceeds 1024")
-	}
-	for index, rawItem := range items {
-		var item struct {
-			Role    string          `json:"role"`
-			Content json.RawMessage `json:"content"`
-			Type    string          `json:"type"`
-			Status  string          `json:"status"`
-		}
-		decoder := json.NewDecoder(strings.NewReader(string(rawItem)))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&item); err != nil {
-			return nil, fmt.Errorf("input item %d: %w", index, err)
-		}
-		if err := requireEOF(decoder); err != nil {
-			return nil, fmt.Errorf("input item %d: %w", index, err)
-		}
-		if item.Type != "" && item.Type != "message" {
-			return nil, fmt.Errorf("input item %d has unsupported type %q", index, item.Type)
-		}
-		if item.Role == "" || len(item.Content) == 0 {
-			return nil, fmt.Errorf("input item %d requires role and content", index)
-		}
-		messageJSON, err := json.Marshal(struct {
-			Role    string          `json:"role"`
-			Content json.RawMessage `json:"content"`
-		}{Role: item.Role, Content: item.Content})
-		if err != nil {
-			return nil, fmt.Errorf("input item %d: %w", index, err)
-		}
-		var message inference.ChatMessage
-		if err := json.Unmarshal(messageJSON, &message); err != nil {
-			return nil, fmt.Errorf("input item %d: %w", index, err)
-		}
-		messages = append(messages, message)
-	}
-	return messages, nil
 }
 
 func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Request) {
@@ -4610,6 +4728,8 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 			toolSelection.active,
 			toolSelection.required,
 			enableThinking,
+			!toolSelection.named &&
+				(body.ParallelTools == nil || *body.ParallelTools),
 		)
 		if err != nil {
 			writeError(
@@ -4671,6 +4791,8 @@ type chatToolSelection struct {
 	prompt   []inference.ChatTool
 	active   []inference.ChatTool
 	required bool
+	named    bool
+	parallel bool
 }
 
 func selectChatTools(
@@ -4763,6 +4885,7 @@ func selectChatTools(
 			selection.prompt = []inference.ChatTool{*selected}
 			selection.active = []inference.ChatTool{*selected}
 			selection.required = true
+			selection.named = true
 		}
 	}
 	if body.ParallelTools != nil &&

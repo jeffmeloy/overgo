@@ -93,8 +93,8 @@ func TestReadWeightsQwen2WithOutputBias(t *testing.T) {
 	}
 }
 
-func TestReadWeightsInternLM2AndEXAONE(t *testing.T) {
-	for _, architecture := range []string{"internlm2", "exaone"} {
+func TestReadWeightsInternLM2EXAONEAndXVERSE(t *testing.T) {
+	for _, architecture := range []string{"internlm2", "exaone", "xverse"} {
 		t.Run(architecture, func(t *testing.T) {
 			spec := Spec{
 				Architecture:      architecture,
@@ -120,7 +120,7 @@ func TestReadWeightsInternLM2AndEXAONE(t *testing.T) {
 				tensorInfo("blk.0.ffn_up.weight", 8, 16),
 				tensorInfo("blk.0.ffn_down.weight", 16, 8),
 			}
-			if architecture == "internlm2" {
+			if architecture == "internlm2" || architecture == "xverse" {
 				tensors = append(tensors, tensorInfo("output.weight", 8, 32))
 			} else {
 				tensors = append(tensors, tensorInfo("blk.0.rope_freqs.weight", 2))
@@ -129,8 +129,9 @@ func TestReadWeightsInternLM2AndEXAONE(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if architecture == "internlm2" && weights.Output == nil {
-				t.Fatal("InternLM2 output weight was not cataloged")
+			if (architecture == "internlm2" || architecture == "xverse") &&
+				weights.Output == nil {
+				t.Fatalf("%s output weight was not cataloged", architecture)
 			}
 			if architecture == "exaone" && weights.Layers[0].RopeFactors == nil {
 				t.Fatal("EXAONE RoPE factors were not cataloged")
@@ -139,16 +140,18 @@ func TestReadWeightsInternLM2AndEXAONE(t *testing.T) {
 	}
 }
 
-func TestReadWeightsInternLM2RequiresOutput(t *testing.T) {
-	spec := Spec{
-		Architecture: "internlm2", EmbeddingLength: 8, VocabularySize: 32,
-	}
-	_, err := ReadWeights(&gguf.File{Tensors: []gguf.TensorInfo{
-		tensorInfo("token_embd.weight", 8, 32),
-		tensorInfo("output_norm.weight", 8),
-	}}, spec)
-	if err == nil || !strings.Contains(err.Error(), "output.weight") {
-		t.Fatalf("error = %v, want required InternLM2 output weight", err)
+func TestReadWeightsInternLM2AndXVERSERequireOutput(t *testing.T) {
+	for _, architecture := range []string{"internlm2", "xverse"} {
+		spec := Spec{
+			Architecture: architecture, EmbeddingLength: 8, VocabularySize: 32,
+		}
+		_, err := ReadWeights(&gguf.File{Tensors: []gguf.TensorInfo{
+			tensorInfo("token_embd.weight", 8, 32),
+			tensorInfo("output_norm.weight", 8),
+		}}, spec)
+		if err == nil || !strings.Contains(err.Error(), "output.weight") {
+			t.Fatalf("%s error = %v, want required output weight", architecture, err)
+		}
 	}
 }
 

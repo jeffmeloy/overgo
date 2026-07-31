@@ -69,6 +69,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	if architecture != "llama" && architecture != "internlm2" &&
+		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -404,7 +405,9 @@ func hasGemmaPostNorm(architecture string) bool {
 }
 
 func usesNormalRoPE(architecture string) bool {
-	return architecture == "llama" || architecture == "internlm2"
+	return architecture == "llama" ||
+		architecture == "internlm2" ||
+		architecture == "xverse"
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

@@ -88,13 +88,14 @@ func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
 	}
 }
 
-func TestBuildDenseInternLM2AndEXAONEUseExpectedRoPE(t *testing.T) {
+func TestBuildDenseInternLM2EXAONEAndXVERSEUseExpectedRoPE(t *testing.T) {
 	for _, test := range []struct {
 		architecture string
 		want         tensor.Op
 	}{
 		{"internlm2", tensor.OpRoPENormal},
 		{"exaone", tensor.OpRoPENeoX},
+		{"xverse", tensor.OpRoPENormal},
 	} {
 		t.Run(test.architecture, func(t *testing.T) {
 			builder := tensor.NewBuilder()

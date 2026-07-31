@@ -846,6 +846,13 @@ models:
       - optional-per-pair-rope-factors
       - swiglu
     real_model_validation: pending-fixture
+  xverse:
+    status: experimental
+    features:
+      - untied-output-projection
+      - normal-rope
+      - swiglu
+    real_model_validation: pending-fixture
   qwen2:
     status: experimental
     execution:

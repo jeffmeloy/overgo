@@ -63,8 +63,8 @@ func TestReadQwen2Spec(t *testing.T) {
 	}
 }
 
-func TestReadInternLM2AndEXAONESpecs(t *testing.T) {
-	for _, architecture := range []string{"internlm2", "exaone"} {
+func TestReadInternLM2EXAONEAndXVERSESpecs(t *testing.T) {
+	for _, architecture := range []string{"internlm2", "exaone", "xverse"} {
 		t.Run(architecture, func(t *testing.T) {
 			prefix := architecture + "."
 			file := &gguf.File{Metadata: []gguf.Metadata{

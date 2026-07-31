@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 )
 
-// EncodeOptions controls special-token handling.
+// EncodeOptions: controls special-token handling
 type EncodeOptions struct {
 	AddSpecial   bool
 	ParseSpecial bool
@@ -20,7 +20,7 @@ type segment struct {
 	tokenID TokenID
 }
 
-// Encode tokenizes text using the GGUF vocabulary.
+// Encode: tokenizes text using GGUF vocabulary
 func (v *Vocab) Encode(text string, options EncodeOptions) ([]TokenID, error) {
 	if v == nil {
 		return nil, errors.New("tokenizer: vocabulary is nil")
@@ -89,7 +89,7 @@ func (v *Vocab) encodeText(text string) ([]TokenID, error) {
 				output = append(output, id)
 				continue
 			}
-			// Match llama.cpp's last-resort lookup over the encoded UTF-8 bytes.
+			// Match llama.cpp's last-resort lookup over encoded UTF-8 bytes
 			for _, value := range []byte(piece) {
 				id, ok := v.tokenToID[string([]byte{value})]
 				if !ok {
@@ -198,8 +198,8 @@ func (v *Vocab) partitionSpecial(text string, parseSpecial bool) []segment {
 	return result
 }
 
-// Decode converts token IDs back to UTF-8. Control and unknown tokens are
-// omitted unless includeSpecial is true.
+// Decode: converts token IDs back to UTF-8; Control and unknown tokens are
+// omitted unless includeSpecial is true
 func (v *Vocab) Decode(ids []TokenID, includeSpecial bool) (string, error) {
 	if v == nil {
 		return "", errors.New("tokenizer: vocabulary is nil")
@@ -222,8 +222,8 @@ func (v *Vocab) Decode(ids []TokenID, includeSpecial bool) (string, error) {
 	return result, nil
 }
 
-// DecodePiece decodes one token without sequence-initial whitespace removal.
-// Streaming callers should use this instead of Decode on a singleton slice.
+// DecodePiece decodes one token without sequence-initial whitespace removal
+// Streaming callers should use this instead of Decode on singleton slice
 func (v *Vocab) DecodePiece(id TokenID, includeSpecial bool) (string, error) {
 	if v == nil {
 		return "", errors.New("tokenizer: vocabulary is nil")

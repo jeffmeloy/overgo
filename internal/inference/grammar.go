@@ -14,8 +14,8 @@ const (
 	maxGrammarTotalTokens  = 4096
 )
 
-// TokenizeGrammarChoices compiles exact textual completion alternatives into
-// a token-level grammar for this runner's vocabulary.
+// TokenizeGrammarChoices: compiles exact textual completion alternatives into
+// token-level grammar for this runner's vocabulary
 func (r *Runner) TokenizeGrammarChoices(choices []string) (*sampling.TokenGrammar, error) {
 	if r == nil || r.vocab == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -66,14 +66,14 @@ func (r *Runner) TokenizeGrammarChoices(choices []string) (*sampling.TokenGramma
 	return sampling.NewChoiceGrammar(tokenChoices, terminalTokens, r.vocab.Len())
 }
 
-// CompileGBNF parses a llama.cpp-style character grammar and binds it to the
-// runner vocabulary's decoded token bytes. An empty root name selects "root".
+// CompileGBNF: parses llama.cpp-style character grammar and binds it to
+// runner vocabulary's decoded token bytes; empty root name selects "root"
 func (r *Runner) CompileGBNF(source, root string) (*sampling.GBNFGrammar, error) {
 	return r.compileGBNF(source, root, sampling.GBNFLazyOptions{})
 }
 
-// CompileLazyGBNF defers grammar filtering until a configured regex or token
-// trigger is accepted. Trigger-token pieces are included in grammar replay.
+// CompileLazyGBNF defers grammar filtering until configured regex or token
+// trigger: accepted; Trigger-token pieces are included in grammar replay
 func (r *Runner) CompileLazyGBNF(
 	source, root string,
 	patterns []string,

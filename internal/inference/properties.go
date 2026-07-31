@@ -7,9 +7,9 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
-// ModelProperties is the immutable model metadata exposed by llama.cpp's
-// /props-compatible server endpoint. It intentionally contains only
-// authoritative GGUF/runtime facts and no mutable generation state.
+// ModelProperties: immutable model metadata exposed by llama.cpp's
+// /props-compatible server endpoint; contains only
+// authoritative GGUF/runtime facts and no mutable generation state
 type ModelProperties struct {
 	Path              string
 	Name              string
@@ -30,8 +30,8 @@ type ModelProperties struct {
 	EOSToken          string
 }
 
-// ModelProperties returns a detached snapshot of the loaded model's public
-// metadata. It is safe to call without entering the generation mutex.
+// ModelProperties: returns detached snapshot of loaded model's public
+// metadata; safe to call without entering generation mutex
 func (r *Runner) ModelProperties() ModelProperties {
 	if r == nil {
 		return ModelProperties{}
@@ -144,8 +144,8 @@ func modelMetadataValue(file *gguf.File, key string) (gguf.Value, bool) {
 	if value, ok := file.MetadataValue(key); ok {
 		return value, true
 	}
-	// Parsed GGUF files have an index; the linear fallback also makes detached
-	// metadata snapshots and unit fixtures behave like parsed files.
+	// Parsed GGUF files have index; linear fallback also makes detached
+	// metadata snapshots and unit fixtures behave like parsed files
 	for _, metadata := range file.Metadata {
 		if metadata.Key == key {
 			return metadata.Value, true
@@ -154,7 +154,7 @@ func modelMetadataValue(file *gguf.File, key string) (gguf.Value, bool) {
 	return gguf.Value{}, false
 }
 
-// These names follow llama_ftype_name() at the pinned llama.cpp commit.
+// names follow llama_ftype_name() at pinned llama.cpp commit
 var ggufFileTypeNames = map[uint32]string{
 	0:  "all F32",
 	1:  "F16",

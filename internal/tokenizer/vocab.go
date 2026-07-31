@@ -13,10 +13,10 @@ import (
 
 const NullToken TokenID = -1
 
-// TokenID is compatible with llama_token.
+// TokenID: compatible with llama_token
 type TokenID int32
 
-// TokenType is the legacy tokenizer.ggml.token_type value.
+// TokenType: legacy tokenizer.ggml.token_type value
 type TokenType int32
 
 const (
@@ -29,7 +29,7 @@ const (
 	TokenByte
 )
 
-// Token describes one vocabulary entry.
+// Token: describes one vocabulary entry
 type Token struct {
 	Text  string
 	Score float32
@@ -41,7 +41,7 @@ type pair struct {
 	right string
 }
 
-// Vocab is an immutable supported vocabulary loaded from GGUF.
+// Vocab: immutable supported vocabulary loaded from GGUF
 type Vocab struct {
 	Model string
 	Pre   string
@@ -80,7 +80,7 @@ type Vocab struct {
 	fimConfigured bool
 }
 
-// Load reads and validates a supported vocabulary profile.
+// Load: reads and validates supported vocabulary profile
 func Load(file *gguf.File) (*Vocab, error) {
 	if file == nil {
 		return nil, errors.New("tokenizer: GGUF file is nil")
@@ -245,7 +245,7 @@ func Load(file *gguf.File) (*Vocab, error) {
 		{"tokenizer.ggml.eot_token_id", &vocab.EOT},
 		{"tokenizer.ggml.eom_token_id", &vocab.EOM},
 		{"tokenizer.ggml.unknown_token_id", &vocab.UNK},
-		// "seperator" is the spelling in the GGUF schema.
+		// "seperator" is spelling in GGUF schema
 		{"tokenizer.ggml.seperator_token_id", &vocab.SEP},
 		{"tokenizer.ggml.padding_token_id", &vocab.PAD},
 		{"tokenizer.ggml.mask_token_id", &vocab.Mask},
@@ -255,8 +255,8 @@ func Load(file *gguf.File) (*Vocab, error) {
 		{"tokenizer.ggml.fim_pad_token_id", &vocab.FIMPad},
 		{"tokenizer.ggml.fim_rep_token_id", &vocab.FIMRep},
 		{"tokenizer.ggml.fim_sep_token_id", &vocab.FIMSep},
-		// Deprecated aliases are read after the current keys, matching the
-		// pinned vocabulary loader's precedence.
+		// Deprecated aliases are read after current keys, matching
+		// pinned vocabulary loader's precedence
 		{"tokenizer.ggml.prefix_token_id", &vocab.FIMPre},
 		{"tokenizer.ggml.suffix_token_id", &vocab.FIMSuf},
 		{"tokenizer.ggml.middle_token_id", &vocab.FIMMid},
@@ -365,8 +365,8 @@ func (v *Vocab) Token(id TokenID) (Token, bool) {
 	return v.Tokens[id], true
 }
 
-// IsEOG reports the explicit GGUF terminal IDs and common terminal control
-// tokens that llama.cpp promotes to end-of-generation markers.
+// IsEOG: reports explicit GGUF terminal IDs and common terminal control
+// tokens that llama.cpp promotes to end-of-generation markers
 func (v *Vocab) IsEOG(id TokenID) bool {
 	if v == nil || id < 0 || int(id) >= len(v.Tokens) {
 		return false

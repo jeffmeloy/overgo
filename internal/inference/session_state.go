@@ -20,16 +20,16 @@ const (
 	maxSamplerState   = 1 << 20
 )
 
-// Session is a resumable generation state. The final token is intentionally
+// Session: resumable generation state; final token is intentionally
 // pending: Cache contains every token before it, so ContinueSession can
-// evaluate that token and produce the next one without recomputing the prompt.
+// evaluate that token and produce next one without recomputing prompt
 type Session struct {
 	TokenIDs []tokenizer.TokenID
 	Cache    *KVCache
 }
 
-// SaveSession serializes token history, KV tensors, and sampler RNG/adaptive
-// state. The state is bound to a fingerprint of the loaded GGUF model.
+// SaveSession: serializes token history, KV tensors, and sampler RNG/adaptive
+// state; state is bound to fingerprint of loaded GGUF model
 func (r *Runner) SaveSession(session *Session, sampler *sampling.Sampler) ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -80,8 +80,8 @@ func (r *Runner) SaveSession(session *Session, sampler *sampling.Sampler) ([]byt
 	return output, nil
 }
 
-// LoadSession parses and validates untrusted session state, then restores the
-// supplied sampler only after the complete session has passed validation.
+// LoadSession: parses and validates untrusted session state, then restores
+// supplied sampler only after complete session has passed validation
 func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")

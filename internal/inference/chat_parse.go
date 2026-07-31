@@ -15,7 +15,7 @@ const (
 )
 
 // ParseChatOutput separates reasoning, visible content, and tool calls using
-// the syntax advertised by the loaded GGUF chat template.
+// syntax advertised by loaded GGUF chat template
 func (r *Runner) ParseChatOutput(
 	output string,
 	tools []ChatTool,
@@ -117,8 +117,8 @@ func splitChatReasoning(output string) (reasoning, content string, err error) {
 		reasoning = strings.Trim(output[openIndex+len(open):closeIndex], "\r\n")
 		content = strings.TrimLeft(output[closeIndex+len(close):], "\r\n")
 	case closeIndex >= 0:
-		// Some templates put the opening tag in the generation prompt. The
-		// decoder output therefore starts inside the reasoning block.
+		// Some templates put opening tag in generation prompt;
+		// decoder output therefore starts inside reasoning block
 		reasoning = strings.Trim(output[:closeIndex], "\r\n")
 		content = strings.TrimLeft(output[closeIndex+len(close):], "\r\n")
 	default:

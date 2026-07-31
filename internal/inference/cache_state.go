@@ -18,9 +18,9 @@ const (
 	maxCacheStateLayers   = 4096
 )
 
-// SaveCache serializes attention KV or hybrid recurrent state after validating
-// it against the loaded model. Recurrent layers store their convolution and
-// delta-net states in LayerCache.Key and LayerCache.Value.
+// SaveCache: serializes attention KV or hybrid recurrent state after validating
+// against loaded model; Recurrent layers store their convolution and
+// delta-net states in LayerCache.Key and LayerCache.Value
 func (r *Runner) SaveCache(cache *KVCache) ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -31,8 +31,8 @@ func (r *Runner) SaveCache(cache *KVCache) ([]byte, error) {
 	return marshalCache(cache)
 }
 
-// LoadCache parses untrusted state with bounds checks and validates every
-// tensor against the loaded model before returning it.
+// LoadCache: parses untrusted state with bounds checks and validates every
+// tensor against loaded model before returning it
 func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -172,11 +172,11 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	return nil
 }
 
-// RemoveCacheRange discards one contiguous range of active attention KV
-// entries while retaining absolute token positions. Hybrid recurrent layers
-// are copied without modification because their fixed-size state summarizes
-// the entire history. The input cache and all of its backing slices remain
-// independently usable.
+// RemoveCacheRange: discards one contiguous range of active attention KV
+// entries while retaining absolute token positions; Hybrid recurrent layers
+// copied without modification because their fixed-size state summarizes
+// entire history; input cache and all of its backing slices remain
+// independently usable
 func (r *Runner) RemoveCacheRange(
 	cache *KVCache,
 	start, discard uint32,
@@ -239,8 +239,8 @@ func (r *Runner) RemoveCacheRange(
 	return result, nil
 }
 
-// ShiftCache discards a prefix of active attention KV entries while retaining
-// absolute token positions.
+// ShiftCache: discards prefix of active attention KV entries while retaining
+// absolute token positions
 func (r *Runner) ShiftCache(cache *KVCache, discard uint32) (*KVCache, error) {
 	return r.RemoveCacheRange(cache, 0, discard)
 }
@@ -329,8 +329,8 @@ func effectiveKeepTokens(requested, promptTokens int, contextLength uint32) uint
 	if keep < 0 || keep > promptTokens {
 		keep = promptTokens
 	}
-	// Match the upstream server's safety margin so a keep-all request still
-	// leaves room for a shifted suffix and subsequent decode tokens.
+	// Match upstream server's safety margin so keep-all request still
+	// leaves room for shifted suffix and subsequent decode tokens
 	maximum := max(0, int(contextLength)-4)
 	keep = min(keep, maximum)
 	return uint32(keep)
@@ -341,8 +341,8 @@ func effectiveCachePosition(cache *KVCache) uint32 {
 		return 0
 	}
 	if cache.Position == 0 {
-		// Position was added in cache-state v2. Treat zero on an existing,
-		// non-empty in-memory cache as the original append-only representation.
+		// Position was added in cache-state v2; Treat zero on existing,
+		// non-empty in-memory cache as original append-only representation
 		return cache.Tokens
 	}
 	return cache.Position

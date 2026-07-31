@@ -13,7 +13,7 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-// HostLayer is one dense layer dequantized to contiguous F32 values.
+// HostLayer: one dense layer dequantized to contiguous F32 values
 type HostLayer struct {
 	AttentionNorm           reference.Value
 	AttentionNormBias       *reference.Value
@@ -81,7 +81,7 @@ type HostLayer struct {
 	SSMOutput        *reference.Value
 }
 
-// LoadHostTensor reads and dequantizes one GGUF tensor.
+// LoadHostTensor: reads and dequantizes one GGUF tensor
 func LoadHostTensor(ctx context.Context, file *gguf.File, info gguf.TensorInfo) (reference.Value, error) {
 	if file == nil {
 		return reference.Value{}, errors.New("host tensor: GGUF file is nil")
@@ -116,8 +116,8 @@ func LoadHostTensor(ctx context.Context, file *gguf.File, info gguf.TensorInfo) 
 	return reference.Value{Shape: shape, Data: data}, nil
 }
 
-// LoadHostRows dequantizes selected rows from a rank-2 table without
-// materializing the complete tensor.
+// LoadHostRows dequantizes selected rows from rank-2 table without
+// materializing complete tensor
 func LoadHostRows(
 	ctx context.Context,
 	file *gguf.File,
@@ -180,8 +180,8 @@ func LoadHostRows(
 	return reference.Value{Shape: shape, Data: output}, nil
 }
 
-// ArgmaxDot streams a rank-2 output table and returns the row with the largest
-// dot product against vector. It bounds temporary memory by chunkRows.
+// ArgmaxDot: streams rank-2 output table and returns row with largest
+// dot product against vector; bounds temporary memory by chunkRows
 func ArgmaxDot(
 	ctx context.Context,
 	file *gguf.File,
@@ -204,7 +204,7 @@ func ArgmaxDot(
 	return bestRow, bestScore, nil
 }
 
-// DotRows streams a rank-2 output table and computes one logit per row.
+// DotRows: streams rank-2 output table and computes one logit per row
 func DotRows(
 	ctx context.Context,
 	file *gguf.File,
@@ -273,7 +273,7 @@ func DotRows(
 }
 
 // LoadHostLayer materializes only one layer, allowing callers to release it
-// before loading the next layer.
+// before loading next layer
 func LoadHostLayer(
 	ctx context.Context,
 	file *gguf.File,
@@ -526,7 +526,7 @@ func LoadHostLayer(
 }
 
 // GraphInputs creates graph input nodes and their reference/CUDA executor
-// feeds without copying the underlying dequantized slices.
+// feeds without copying underlying dequantized slices
 func (layer *HostLayer) GraphInputs(
 	builder *tensor.Builder,
 	prefix string,

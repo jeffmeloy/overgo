@@ -2,7 +2,7 @@ package dtype
 
 import "fmt"
 
-// Type is a ggml-compatible tensor storage type.
+// Type: ggml-compatible tensor storage type
 type Type uint32
 
 const (
@@ -44,7 +44,7 @@ const (
 	Count  Type = 43
 )
 
-// Traits defines a type's physical block layout.
+// Traits defines type's physical block layout
 type Traits struct {
 	Name      string
 	BlockSize uint64

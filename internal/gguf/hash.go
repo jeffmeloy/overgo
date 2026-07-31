@@ -11,7 +11,7 @@ import (
 	"math/bits"
 )
 
-// HashOptions selects llama-gguf-hash-compatible payload digests.
+// HashOptions: selects llama-gguf-hash-compatible payload digests
 type HashOptions struct {
 	XXH64     bool
 	SHA1      bool
@@ -20,7 +20,7 @@ type HashOptions struct {
 	PerTensor bool
 }
 
-// HashValues contains selected digests. Unselected fields are empty.
+// HashValues: contains selected digests; Unselected fields are empty
 type HashValues struct {
 	XXH64  string
 	SHA1   string
@@ -28,13 +28,13 @@ type HashValues struct {
 	UUID   string
 }
 
-// TensorHash identifies one tensor's raw payload digests.
+// TensorHash: identifies one tensor's raw payload digests
 type TensorHash struct {
 	Name   string
 	Values HashValues
 }
 
-// HashResult contains per-tensor and concatenated logical-model payload hashes.
+// HashResult: contains per-tensor and concatenated logical-model payload hashes
 type HashResult struct {
 	Tensors []TensorHash
 	Model   HashValues
@@ -45,9 +45,9 @@ var llamaCPPHashNamespace = [16]byte{
 	0xa1, 0x5f, 0x33, 0x59, 0xe5, 0x77, 0xd4, 0xe5,
 }
 
-// Hash computes digests over raw tensor payload bytes in logical directory
-// order. Padding and GGUF metadata are intentionally excluded, matching
-// llama-gguf-hash.
+// Hash: computes digests over raw tensor payload bytes in logical directory
+// order; Padding and GGUF metadata are excluded, matching
+// llama-gguf-hash
 func (f *File) Hash(options HashOptions) (HashResult, error) {
 	if f == nil {
 		return HashResult{}, errors.New("GGUF file is nil")

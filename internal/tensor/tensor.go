@@ -8,7 +8,7 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
-// Op identifies a typed graph operation.
+// Op: identifies typed graph operation
 type Op uint16
 
 const (
@@ -174,7 +174,7 @@ type FlatSliceAttributes struct {
 	Offset uint64
 }
 
-// Tensor is an immutable graph node descriptor.
+// Tensor: immutable graph node descriptor
 type Tensor struct {
 	ID     uint64
 	Name   string
@@ -186,7 +186,7 @@ type Tensor struct {
 	Attrs  any
 }
 
-// Builder constructs and validates a tensor graph.
+// Builder: constructs and validates tensor graph
 type Builder struct {
 	nextID uint64
 	nodes  []*Tensor
@@ -236,7 +236,7 @@ func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
 	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon})
 }
 
-// WeightedRMSNorm applies RMSNorm and the learned per-channel weight.
+// WeightedRMSNorm: applies RMSNorm and learned per-channel weight
 func (b *Builder) WeightedRMSNorm(input, weight *Tensor, epsilon float32) *Tensor {
 	return b.Multiply(b.RMSNorm(input, epsilon), weight)
 }
@@ -249,7 +249,7 @@ func (b *Builder) LayerNorm(input *Tensor, epsilon float32) *Tensor {
 	return b.unary(OpLayerNorm, input, LayerNormAttributes{Epsilon: epsilon})
 }
 
-// AffineLayerNorm applies LayerNorm and learned per-channel weight and bias.
+// AffineLayerNorm: applies LayerNorm and learned per-channel weight and bias
 func (b *Builder) AffineLayerNorm(input, weight, bias *Tensor, epsilon float32) *Tensor {
 	return b.Add(b.Multiply(b.LayerNorm(input, epsilon), weight), bias)
 }
@@ -299,9 +299,9 @@ func (b *Builder) L2Norm(input *Tensor, epsilon float32) *Tensor {
 	return b.unary(OpL2Norm, input, L2NormAttributes{Epsilon: epsilon})
 }
 
-// SSMConv applies the channel-wise sliding convolution used by recurrent SSM
-// blocks. Input is [kernel-1+tokens, channels, sequences] and weights are
-// [kernel, channels]; output is [channels, tokens, sequences].
+// SSMConv: applies channel-wise sliding convolution used by recurrent SSM
+// blocks; Input is [kernel-1+tokens, channels, sequences] and weights are
+// [kernel, channels]; output is [channels, tokens, sequences]
 func (b *Builder) SSMConv(input, weights *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
@@ -342,11 +342,11 @@ func (b *Builder) SSMConv(input, weights *Tensor) *Tensor {
 	return b.add("", dtype.F32, shape, OpSSMConv, []*Tensor{input, weights}, nil)
 }
 
-// GatedDeltaNet applies llama.cpp's fused K=1 recurrent delta-net update.
+// GatedDeltaNet: applies llama.cpp's fused K=1 recurrent delta-net update
 // Q/K/V are [state, heads, tokens, sequences], scalar or vector gate has
 // [1|state, valueHeads, tokens, sequences], beta is [1,valueHeads,tokens,
-// sequences], and state is [state,state,valueHeads,sequences]. The output
-// packs attention values followed by the newest state snapshot.
+// sequences], and state is [state,state,valueHeads,sequences]; output
+// packs attention values followed by newest state snapshot
 func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
@@ -387,9 +387,9 @@ func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
 	return b.add("", dtype.F32, shape, OpGatedDeltaNet, inputs, nil)
 }
 
-// MoE applies softmax top-k routing and SwiGLU experts. Expert tensors use
+// MoE: applies softmax top-k routing and SwiGLU experts; Expert tensors use
 // GGUF layouts gate/up=[hidden, intermediate, experts] and
-// down=[intermediate, hidden, experts].
+// down=[intermediate, hidden, experts]
 func (b *Builder) MoE(
 	input, router, gate, up, down *Tensor,
 	topK uint32,
@@ -399,9 +399,9 @@ func (b *Builder) MoE(
 	return b.moe(input, router, gate, up, down, nil, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
 }
 
-// MoESoftmaxWithSelectionBias applies softmax routing and uses selectionBias
-// only to choose the top-k experts. The unbiased probabilities weight the
-// selected expert outputs.
+// MoESoftmaxWithSelectionBias: applies softmax routing and uses selectionBias
+// only to choose top-k experts; unbiased probabilities weight
+// selected expert outputs
 func (b *Builder) MoESoftmaxWithSelectionBias(
 	input, router, gate, up, down, selectionBias *Tensor,
 	topK uint32,
@@ -411,8 +411,8 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 	return b.moe(input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
 }
 
-// MoESigmoid applies sigmoid routing, selects experts using the optional
-// correction bias, and weights the selected experts with the unbiased scores.
+// MoESigmoid: applies sigmoid routing, selects experts using optional
+// correction bias, and weights selected experts with unbiased scores
 func (b *Builder) MoESigmoid(
 	input, router, gate, up, down, selectionBias *Tensor,
 	topK uint32,
@@ -480,8 +480,8 @@ func (b *Builder) moe(
 		})
 }
 
-// RepeatHeads broadcasts a single head in a [width,1,tokens] tensor across
-// the requested head count without changing the token ordering.
+// RepeatHeads: broadcasts single head in [width,1,tokens] tensor across
+// requested head count without changing token ordering
 func (b *Builder) RepeatHeads(input *Tensor, heads uint32) *Tensor {
 	if b.err != nil {
 		return nil
@@ -499,18 +499,18 @@ func (b *Builder) RepeatHeads(input *Tensor, heads uint32) *Tensor {
 	return b.add("", dtype.F32, shape, OpRepeatHeads, []*Tensor{input}, RepeatHeadsAttributes{Heads: heads})
 }
 
-// SwiGLU computes SiLU(gate) * up.
+// SwiGLU: computes SiLU(gate) * up
 func (b *Builder) SwiGLU(gate, up *Tensor) *Tensor {
 	return b.Multiply(b.SiLU(gate), up)
 }
 
-// GEGLU computes GELU(gate) * up.
+// GEGLU: computes GELU(gate) * up
 func (b *Builder) GEGLU(gate, up *Tensor) *Tensor {
 	return b.Multiply(b.GELU(gate), up)
 }
 
-// MulMat follows ggml semantics. Left has shape [K,M], right has shape [K,N],
-// and the result has shape [M,N].
+// MulMat: follows ggml semantics; Left has shape [K,M], right has shape [K,N],
+// and result has shape [M,N]
 func (b *Builder) MulMat(left, right *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
@@ -546,8 +546,8 @@ func (b *Builder) MulMat(left, right *Tensor) *Tensor {
 	return b.add("", outputType, shape, OpMulMat, []*Tensor{left, right}, nil)
 }
 
-// GetRows gathers vocabulary rows from a rank-2 table in ggml layout. The
-// table shape is [embedding, rows] and the result is [embedding, len(rows)].
+// GetRows gathers vocabulary rows from rank-2 table in ggml layout;
+// table shape is [embedding, rows] and result is [embedding, len(rows)]
 func (b *Builder) GetRows(table *Tensor, rows []uint32) *Tensor {
 	if b.err != nil {
 		return nil
@@ -596,8 +596,8 @@ func nativeQuantizedType(value dtype.Type) bool {
 	}
 }
 
-// RoPENeoX applies the split-half rotary layout used by Qwen3. Input shape is
-// [head width, heads, tokens] (optionally with a batch dimension).
+// RoPENeoX: applies split-half rotary layout used by Qwen3; Input shape is
+// [head width, heads, tokens] (optionally with batch dimension)
 func (b *Builder) RoPENeoX(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
 	return b.rope(OpRoPENeoX, "rope_neox", input, positions, rotaryDimensions, frequencyBase, 1, nil)
 }
@@ -615,8 +615,8 @@ func (b *Builder) RoPENeoXScaled(
 	)
 }
 
-// RoPENeoXYaRN applies YaRN interpolation/extrapolation and magnitude scaling
-// to the split-half rotary layout.
+// RoPENeoXYaRN: applies YaRN interpolation/extrapolation and magnitude scaling
+// to split-half rotary layout
 func (b *Builder) RoPENeoXYaRN(
 	input *Tensor,
 	positions []uint32,
@@ -644,7 +644,7 @@ func (b *Builder) RoPENeoXScaledWithFactors(
 	)
 }
 
-// RoPENeoXWithFactors applies one frequency divisor per rotary pair.
+// RoPENeoXWithFactors: applies one frequency divisor per rotary pair
 func (b *Builder) RoPENeoXWithFactors(
 	input *Tensor,
 	positions []uint32,
@@ -658,8 +658,8 @@ func (b *Builder) RoPENeoXWithFactors(
 	)
 }
 
-// RoPENormal applies rotary embeddings to consecutive channel pairs, as used
-// by the Llama architecture family.
+// RoPENormal: applies rotary embeddings to consecutive channel pairs, as used
+// by Llama architecture family
 func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
 	return b.rope(OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, frequencyBase, 1, nil)
 }
@@ -677,8 +677,8 @@ func (b *Builder) RoPENormalScaled(
 	)
 }
 
-// RoPENormalYaRN applies YaRN interpolation/extrapolation and magnitude
-// scaling to consecutive rotary pairs.
+// RoPENormalYaRN: applies YaRN interpolation/extrapolation and magnitude
+// scaling to consecutive rotary pairs
 func (b *Builder) RoPENormalYaRN(
 	input *Tensor,
 	positions []uint32,
@@ -735,7 +735,7 @@ func (b *Builder) RoPENormalScaledWithFactors(
 	)
 }
 
-// RoPENormalWithFactors applies one frequency divisor per rotary pair.
+// RoPENormalWithFactors: applies one frequency divisor per rotary pair
 func (b *Builder) RoPENormalWithFactors(
 	input *Tensor,
 	positions []uint32,
@@ -749,8 +749,8 @@ func (b *Builder) RoPENormalWithFactors(
 	)
 }
 
-// RoPEMulti applies llama.cpp's split-half multi-axis rotary layout. Positions
-// are temporal, height, width, and extra axes; sections count rotary pairs.
+// RoPEMulti: applies llama.cpp's split-half multi-axis rotary layout; Positions
+// temporal, height, width, and extra axes; sections count rotary pairs
 func (b *Builder) RoPEMulti(
 	input *Tensor,
 	positions [4][]uint32,
@@ -864,7 +864,7 @@ func (b *Builder) rope(
 	return b.add("", input.Type, input.Shape, operation, inputs, attributes)
 }
 
-// Reshape changes only the logical dimensions and preserves contiguous order.
+// Reshape: changes only logical dimensions and preserves contiguous order
 func (b *Builder) Reshape(input *Tensor, dimensions ...uint64) *Tensor {
 	if b.err != nil {
 		return nil
@@ -895,7 +895,7 @@ func (b *Builder) Reshape(input *Tensor, dimensions ...uint64) *Tensor {
 	return b.add("", input.Type, shape, OpReshape, []*Tensor{input}, nil)
 }
 
-// Transpose2D materializes the transpose of a contiguous rank-2 tensor.
+// Transpose2D materializes transpose of contiguous rank-2 tensor
 func (b *Builder) Transpose2D(input *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
@@ -912,9 +912,9 @@ func (b *Builder) Transpose2D(input *Tensor) *Tensor {
 	return b.add("", input.Type, shape, OpTranspose2D, []*Tensor{input}, nil)
 }
 
-// GroupSlice extracts equally-strided groups from dimension zero. The input
-// rank must be 2 or 3 and the result prepends [width, groups] to the input's
-// remaining dimensions.
+// GroupSlice: extracts equally-strided groups from dimension zero; input
+// rank must be 2 or 3 and result prepends [width, groups] to input's
+// remaining dimensions
 func (b *Builder) GroupSlice(
 	input *Tensor,
 	offset, width, groups, stride uint64,
@@ -951,8 +951,8 @@ func (b *Builder) GroupSlice(
 	)
 }
 
-// FlatSlice copies a contiguous element range and gives it the requested
-// logical shape.
+// FlatSlice: copies contiguous element range and gives it requested
+// logical shape
 func (b *Builder) FlatSlice(input *Tensor, offset uint64, dimensions ...uint64) *Tensor {
 	if b.err != nil {
 		return nil
@@ -986,15 +986,15 @@ func (b *Builder) FlatSlice(input *Tensor, offset uint64, dimensions ...uint64) 
 	)
 }
 
-// Attention computes grouped-query scaled dot-product attention. Q has shape
+// Attention: computes grouped-query scaled dot-product attention; Q has shape
 // [key width, query heads, tokens], K is [key width, KV heads, tokens], and V
-// is [value width, KV heads, tokens].
+// [value width, KV heads, tokens]
 func (b *Builder) Attention(query, key, value *Tensor, scale float32, causal bool) *Tensor {
 	return b.AttentionWithOffset(query, key, value, scale, causal, 0)
 }
 
-// AttentionWithOffset permits query to represent only the suffix beginning at
-// queryStart in a longer cached key/value sequence.
+// AttentionWithOffset: permits query to represent only suffix beginning at
+// queryStart in longer cached key/value sequence
 func (b *Builder) AttentionWithOffset(
 	query, key, value *Tensor,
 	scale float32,
@@ -1004,8 +1004,8 @@ func (b *Builder) AttentionWithOffset(
 	return b.attentionWithWindow(query, key, value, nil, scale, 0, 0, causal, queryStart, 0)
 }
 
-// AttentionALiBiWithOffset applies llama.cpp-compatible head slopes to a
-// linear relative-position mask. maxBias controls the steepest slope.
+// AttentionALiBiWithOffset: applies llama.cpp-compatible head slopes to
+// linear relative-position mask; maxBias controls steepest slope
 func (b *Builder) AttentionALiBiWithOffset(
 	query, key, value *Tensor,
 	scale, maxBias float32,
@@ -1017,7 +1017,7 @@ func (b *Builder) AttentionALiBiWithOffset(
 	)
 }
 
-// AttentionSoftcappedWithOffset applies cap*tanh(score/cap) before softmax.
+// AttentionSoftcappedWithOffset: applies cap*tanh(score/cap) before softmax
 func (b *Builder) AttentionSoftcappedWithOffset(
 	query, key, value *Tensor,
 	scale float32,
@@ -1030,8 +1030,8 @@ func (b *Builder) AttentionSoftcappedWithOffset(
 	)
 }
 
-// AttentionWithRelativeBias computes full bidirectional attention and adds
-// T5-style bucketed relative-position bias. Bias has shape [heads, buckets].
+// AttentionWithRelativeBias: computes full bidirectional attention and adds
+// T5-style bucketed relative-position bias; Bias has shape [heads, buckets]
 func (b *Builder) AttentionWithRelativeBias(
 	query, key, value, bias *Tensor,
 	scale float32,
@@ -1176,8 +1176,8 @@ func (b *Builder) attentionWithWindow(
 	)
 }
 
-// Concat joins rank-2/3 tensors along dimension zero, or rank-3 tensors along
-// the token dimension.
+// Concat: joins rank-2/3 tensors along dimension zero, or rank-3 tensors along
+// token dimension
 func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 	if b.err != nil {
 		return nil

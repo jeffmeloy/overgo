@@ -1,7 +1,7 @@
 package sampling
 
-// splitMixSource is a small deterministic rand.Source64 whose complete state
-// is one uint64, making exact sampler continuation serializable.
+// splitMixSource: small deterministic rand.Source64 whose complete state
+// one uint64, making exact sampler continuation serializable
 type splitMixSource struct {
 	state uint64
 }

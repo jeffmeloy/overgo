@@ -8,14 +8,14 @@ import (
 	"math"
 )
 
-// WriteOptions controls canonical GGUF serialization.
+// WriteOptions: controls canonical GGUF serialization
 type WriteOptions struct {
 	Version   uint32
 	Alignment uint64
 }
 
-// TensorData describes one tensor and its streamed storage bytes. Data must
-// provide at least the exact byte size implied by Shape and Type.
+// TensorData: describes one tensor and its streamed storage bytes; Data must
+// provide at least exact byte size implied by Shape and Type
 type TensorData struct {
 	Name  string
 	Shape []uint64
@@ -29,9 +29,9 @@ type preparedTensor struct {
 	offset uint64
 }
 
-// Write serializes one canonical GGUF file without buffering tensor payloads.
+// Write: serializes one canonical GGUF file without buffering tensor payloads
 // Metadata and tensors retain caller order; tensor offsets are generated from
-// their physical sizes and the selected alignment.
+// their physical sizes and selected alignment
 func Write(
 	destination io.Writer,
 	metadata []Metadata,
@@ -125,9 +125,9 @@ func Write(
 	return nil
 }
 
-// WriteTo emits the parsed logical model as one canonical GGUF file. When the
-// source is split, tensor payloads stream from their original shards and split
-// bookkeeping metadata is removed from the single-file result.
+// WriteTo: emits parsed logical model as one canonical GGUF file; When
+// source: split, tensor payloads stream from their original shards and split
+// bookkeeping metadata is removed from single-file result
 func (f *File) WriteTo(destination io.Writer, options WriteOptions) error {
 	if f == nil {
 		return errors.New("GGUF file is nil")

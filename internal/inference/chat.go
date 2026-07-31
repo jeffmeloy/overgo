@@ -90,9 +90,9 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON accepts the OpenAI text-only content-part form in addition to
-// the legacy string form. Non-text parts remain explicit errors because the
-// text-only Runner has no multimodal prompt encoder.
+// UnmarshalJSON: accepts OpenAI text-only content-part form in addition to
+// legacy string form; Non-text parts remain explicit errors because
+// text-only Runner has no multimodal prompt encoder
 func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 	var wire struct {
 		Role             string          `json:"role"`
@@ -229,8 +229,8 @@ func requireChatJSONEOF(decoder *json.Decoder) error {
 	return err
 }
 
-// FormatChat selects a native formatter from boundary tokens in the loaded
-// vocabulary. Supported families currently include ChatML and Gemma turns.
+// FormatChat: selects native formatter from boundary tokens in loaded
+// vocabulary; Supported families currently include ChatML and Gemma turns
 func (r *Runner) FormatChat(messages []ChatMessage) (string, error) {
 	return r.FormatChatWithOptions(messages, ChatFormatOptions{
 		AddGenerationPrompt: true,
@@ -607,17 +607,17 @@ func writeChatTemplateJSON(output *strings.Builder, value any) {
 
 func normalizeChatTemplateSource(source string) string {
 	// gonja v2.9 supports Jinja inline conditionals but currently rejects one
-	// parenthesized form used by the pinned Gemma template when it appears as
-	// the right operand of string concatenation. This equivalent boolean form
-	// is safe here because both false and empty-prefix outcomes are empty.
+	// parenthesized form used by pinned Gemma template when it appears as
+	// right operand of string concatenation; equivalent boolean form
+	// safe here because both false and empty-prefix outcomes are empty
 	source = strings.ReplaceAll(
 		source,
 		`(first_user_prefix if loop.first else "")`,
 		`((loop.first and first_user_prefix) or "")`,
 	)
-	// gonja's precedence for this Qwen expression differs from Jinja's.
-	// Express the non-blank test through filters so an empty reasoning block
-	// does not get emitted for historical assistant tool calls.
+	// gonja's precedence for this Qwen expression differs from Jinja's
+	// Express non-blank test through filters so empty reasoning block
+	// does not get emitted for historical assistant tool calls
 	source = strings.ReplaceAll(
 		source,
 		`(not loop.last and (not reasoning_content.strip() == ''))`,

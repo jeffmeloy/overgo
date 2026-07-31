@@ -15,14 +15,14 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
-// TokenScore is the negative log-likelihood assigned to one observed token.
+// TokenScore: negative log-likelihood assigned to one observed token
 type TokenScore struct {
 	Position       int               `json:"position"`
 	TokenID        tokenizer.TokenID `json:"token_id"`
 	NegativeLogLik float64           `json:"negative_log_likelihood"`
 }
 
-// PerplexityResult summarizes teacher-forced next-token scoring.
+// PerplexityResult summarizes teacher-forced next-token scoring
 type PerplexityResult struct {
 	TokenCount            int          `json:"token_count"`
 	EvaluatedTokens       int          `json:"evaluated_tokens"`
@@ -31,20 +31,20 @@ type PerplexityResult struct {
 	Scores                []TokenScore `json:"scores,omitempty"`
 }
 
-// PerplexityOptions selects the scoring convention. ContextSize zero scores
-// every next token in one continuous context. A positive size uses llama.cpp's
-// disjoint-window convention and scores the latter half of each full window.
+// PerplexityOptions: selects scoring convention; ContextSize zero scores
+// every next token in one continuous context; positive size uses llama.cpp's
+// disjoint-window convention and scores latter half of each full window
 type PerplexityOptions struct {
 	ContextSize int
 }
 
-// Perplexity tokenizes text with model-default BOS/EOS behavior and evaluates
-// every token after the first under teacher forcing.
+// Perplexity: tokenizes text with model-default BOS/EOS behavior and evaluates
+// every token after first under teacher forcing
 func (r *Runner) Perplexity(ctx context.Context, text string) (PerplexityResult, error) {
 	return r.PerplexityWithOptions(ctx, text, PerplexityOptions{})
 }
 
-// PerplexityWithOptions evaluates teacher-forced next-token likelihoods.
+// PerplexityWithOptions: evaluates teacher-forced next-token likelihoods
 func (r *Runner) PerplexityWithOptions(
 	ctx context.Context,
 	text string,

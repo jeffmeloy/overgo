@@ -309,14 +309,14 @@ func (s *Sampler) Config() Config {
 	return result
 }
 
-// Sample chooses one token. Temperature zero is exact greedy argmax with the
-// lowest token ID winning ties.
+// Sample chooses one token; Temperature zero is exact greedy argmax with
+// lowest token ID winning ties
 func (s *Sampler) Sample(logits []float32) (int, error) {
 	return s.SampleWithHistory(logits, nil)
 }
 
-// SampleWithHistory applies repetition, presence, and frequency penalties over
-// the configured suffix of history before filtering and selection.
+// SampleWithHistory: applies repetition, presence, and frequency penalties over
+// configured suffix of history before filtering and selection
 func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error) {
 	if s == nil {
 		return 0, errors.New("sampler is nil")
@@ -948,7 +948,7 @@ func candidateProbabilities(candidates []candidate) (float64, error) {
 	return total, nil
 }
 
-// Reset restores the adaptive and random state to the initial configuration.
+// Reset: restores adaptive and random state to initial configuration
 func (s *Sampler) Reset() {
 	if s == nil {
 		return
@@ -1244,8 +1244,8 @@ func (s *Sampler) applyPenalties(logits []float32, history []int) ([]float32, er
 }
 
 // applyDry ports llama.cpp's reverse Z-algorithm for finding suffixes that
-// would be extended by each candidate token. Sequence breakers are added at a
-// higher layer later; this implements the core token-history penalty.
+// would be extended by each candidate token; Sequence breakers are added at
+// higher layer later; implements core token-history penalty
 func (s *Sampler) applyDry(logits []float32, history []int) {
 	if s.config.DryMultiplier == 0 || s.config.DryPenaltyLastN == 0 ||
 		len(history) <= s.config.DryAllowedLength {

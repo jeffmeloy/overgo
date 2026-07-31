@@ -18,7 +18,7 @@ const (
 	maxGBNFHistoryTokens      = ((1 << 20) - samplerStateHeaderSize) / 4
 )
 
-// SaveState stores the random stream, Mirostat, adaptive-p, and grammar state.
+// SaveState: stores random stream, Mirostat, adaptive-p, and grammar state
 func (s *Sampler) SaveState() ([]byte, error) {
 	if s == nil || s.source == nil {
 		return nil, errors.New("sampler is nil")
@@ -43,8 +43,8 @@ func (s *Sampler) SaveState() ([]byte, error) {
 	return output, nil
 }
 
-// LoadState restores state only when it was produced by an identical sampler
-// configuration.
+// LoadState: restores state only when it was produced by identical sampler
+// configuration
 func (s *Sampler) LoadState(data []byte) error {
 	if s == nil || s.source == nil {
 		return errors.New("sampler is nil")
@@ -223,8 +223,8 @@ func configSignature(config Config) uint64 {
 			}
 		}
 	}
-	// Preserve the v2 signature byte-for-byte when no GBNF is configured so
-	// existing sampler/session states remain loadable.
+	// Preserve v2 signature byte-for-byte when no GBNF is configured so
+	// existing sampler/session states remain loadable
 	if config.GBNF != nil {
 		writeUint64(^uint64(0))
 		writeUint64(config.GBNF.signature)

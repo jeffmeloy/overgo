@@ -11,8 +11,8 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
-// StartSession tokenizes a prompt and generates at least one token, returning
-// state that can be serialized or passed directly to ContinueSession.
+// StartSession: tokenizes prompt and generates at least one token, returning
+// state that can be serialized or passed directly to ContinueSession
 func (r *Runner) StartSession(
 	ctx context.Context,
 	prompt string,
@@ -96,8 +96,8 @@ func (r *Runner) StartSession(
 	return session, text, nil
 }
 
-// ContinueSession appends tokens to a valid resumable session. The input state
-// remains usable if generation fails; returned token history is a fresh slice.
+// ContinueSession appends tokens to valid resumable session; input state
+// remains usable if generation fails; returned token history is fresh slice
 func (r *Runner) ContinueSession(
 	ctx context.Context,
 	session *Session,

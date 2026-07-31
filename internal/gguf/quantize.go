@@ -12,15 +12,15 @@ import (
 
 const quantizationVersion = 2
 
-// QuantizeOptions controls model-level tensor selection and serialization.
+// QuantizeOptions: controls model-level tensor selection and serialization
 // By default, matrix tensors are converted and one-dimensional tensors are
-// preserved, matching llama.cpp's "mostly" quantization convention.
+// preserved, matching llama.cpp's "mostly" quantization convention
 type QuantizeOptions struct {
 	WriteOptions
 	ShouldQuantize func(TensorInfo) bool
 }
 
-// QuantizeReport describes the logical conversion selected before writing.
+// QuantizeReport: describes logical conversion selected before writing
 type QuantizeReport struct {
 	Converted   int
 	Preserved   int
@@ -28,8 +28,8 @@ type QuantizeReport struct {
 	OutputBytes uint64
 }
 
-// QuantizeTo streams a logical GGUF model into a canonical single-file GGUF
-// while converting selected tensors through F32 in bounded blocks.
+// QuantizeTo: streams logical GGUF model into canonical single-file GGUF
+// while converting selected tensors through F32 in bounded blocks
 func (f *File) QuantizeTo(
 	destination io.Writer,
 	target DType,

@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-// Library is unavailable on the initial non-Windows target.
+// Library: unavailable on initial non-Windows target
 type Library struct{}
 
 func Open() (*Library, error) {

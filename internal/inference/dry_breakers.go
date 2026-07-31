@@ -14,9 +14,9 @@ const (
 	maxDryBreakers     = 1024
 )
 
-// TokenizeDryBreakers ports llama.cpp's overlapping-token expansion. It finds
-// both tokens containing a complete breaker and token sequences where a
-// breaker starts in one token and continues in later tokens.
+// TokenizeDryBreakers ports llama.cpp's overlapping-token expansion; finds
+// both tokens containing complete breaker and token sequences where
+// breaker: starts in one token and continues in later tokens
 func (r *Runner) TokenizeDryBreakers(breakers []string) ([][]int, error) {
 	if r == nil || r.vocab == nil {
 		return nil, errors.New("inference: runner is nil")

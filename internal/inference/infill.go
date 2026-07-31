@@ -20,8 +20,8 @@ type InfillFormatOptions struct {
 	SuffixPrefix bool
 }
 
-// FormatInfillTokens implements the pinned server's FIM repository-context
-// layout and its 3:1 prefix/suffix truncation policy.
+// FormatInfillTokens implements pinned server's FIM repository-context
+// layout and its 3:1 prefix/suffix truncation policy
 func (r *Runner) FormatInfillTokens(
 	prefix, suffix, prompt []tokenizer.TokenID,
 	extra []InfillExtra,

@@ -14,8 +14,8 @@ import (
 
 var chatToolNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
-// ChatToolGrammar returns a lazy GBNF grammar that activates when the model
-// begins the tool-call delimiter advertised by its GGUF template.
+// ChatToolGrammar: returns lazy GBNF grammar that activates when model
+// begins tool-call delimiter advertised by its GGUF template
 func (r *Runner) ChatToolGrammar(
 	tools []ChatTool,
 	required bool,

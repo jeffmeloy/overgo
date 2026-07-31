@@ -5,33 +5,33 @@ import (
 	"strconv"
 )
 
-// Device is a CUDA device ordinal.
+// Device: CUDA device ordinal
 type Device int32
 
-// Context is a CUDA driver context handle.
+// Context: CUDA driver context handle
 type Context uintptr
 
-// Stream is a CUDA stream handle.
+// Stream: CUDA stream handle
 type Stream uintptr
 
-// DevicePtr is an address in CUDA device memory.
+// DevicePtr: address in CUDA device memory
 type DevicePtr uint64
 
-// Module is a loaded CUDA module.
+// Module: loaded CUDA module
 type Module uintptr
 
-// Function is a CUDA kernel function handle.
+// Function: CUDA kernel function handle
 type Function uintptr
 
-// Dim3 is a CUDA grid or block dimension.
+// Dim3: CUDA grid or block dimension
 type Dim3 struct {
 	X uint32
 	Y uint32
 	Z uint32
 }
 
-// DeviceInfo is the stable subset of CUDA device properties used by the
-// runtime and diagnostics.
+// DeviceInfo: stable subset of CUDA device properties used by
+// runtime and diagnostics
 type DeviceInfo struct {
 	Ordinal                int    `json:"ordinal"`
 	Name                   string `json:"name"`
@@ -41,16 +41,16 @@ type DeviceInfo struct {
 	MultiprocessorCount    int    `json:"multiprocessorCount"`
 }
 
-// MemoryStats reports allocations made through one Library instance. It is a
-// runtime-owned accounting view, not total device usage by other processes.
+// MemoryStats: reports allocations made through one Library instance; is
+// runtime-owned accounting view, not total device usage by other processes
 type MemoryStats struct {
 	CurrentBytes uint64 `json:"currentBytes"`
 	PeakBytes    uint64 `json:"peakBytes"`
 	Allocations  uint64 `json:"allocations"`
 }
 
-// ExecutionStats reports successful CUDA Driver API work submitted through
-// one Library instance. Counters are monotonic for the library lifetime.
+// ExecutionStats: reports successful CUDA Driver API work submitted through
+// one Library instance; Counters are monotonic for library lifetime
 type ExecutionStats struct {
 	KernelLaunches          uint64 `json:"kernelLaunches"`
 	StreamSynchronizations  uint64 `json:"streamSynchronizations"`
@@ -65,7 +65,7 @@ type ExecutionStats struct {
 	DeviceMemsetBytes       uint64 `json:"deviceMemsetBytes"`
 }
 
-// Version is CUDA's integer driver/toolkit version representation.
+// Version: CUDA's integer driver/toolkit version representation
 type Version int
 
 func (v Version) String() string {
@@ -78,7 +78,7 @@ func (v Version) String() string {
 	return strconv.Itoa(major) + "." + strconv.Itoa(minor)
 }
 
-// ResultError reports a failed CUDA Driver API operation.
+// ResultError: reports failed CUDA Driver API operation
 type ResultError struct {
 	Operation string
 	Code      int32

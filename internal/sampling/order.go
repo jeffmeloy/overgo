@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// SamplerStage names a repeatable transform in the non-Mirostat sampler
-// chain. The spellings follow llama.cpp's public CLI and server API.
+// SamplerStage names repeatable transform in non-Mirostat sampler
+// chain; spellings follow llama.cpp's public CLI and server API
 type SamplerStage string
 
 const (
@@ -35,14 +35,14 @@ var defaultSamplerOrder = []SamplerStage{
 	SamplerTemperature,
 }
 
-// DefaultSamplerOrder returns the supported subset of llama.cpp's default
-// chain. Unsupported disabled-by-default stages are intentionally omitted.
+// DefaultSamplerOrder: returns supported subset of llama.cpp's default
+// chain; Unsupported disabled-by-default stages are omitted
 func DefaultSamplerOrder() []SamplerStage {
 	return append([]SamplerStage(nil), defaultSamplerOrder...)
 }
 
-// ParseSamplerOrder parses llama.cpp's semicolon-delimited sampler names.
-// An empty string denotes an explicitly empty chain.
+// ParseSamplerOrder: parses llama.cpp's semicolon-delimited sampler names
+// empty string denotes explicitly empty chain
 func ParseSamplerOrder(value string) ([]SamplerStage, error) {
 	if value == "" || value == "none" {
 		return []SamplerStage{}, nil
@@ -50,7 +50,7 @@ func ParseSamplerOrder(value string) ([]SamplerStage, error) {
 	return ParseSamplerNames(strings.Split(value, ";"))
 }
 
-// ParseSamplerNames validates the server API's ordered sampler-name array.
+// ParseSamplerNames: validates server API's ordered sampler-name array
 func ParseSamplerNames(names []string) ([]SamplerStage, error) {
 	result := make([]SamplerStage, 0, len(names))
 	for index, part := range names {

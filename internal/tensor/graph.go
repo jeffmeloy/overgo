@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Topological returns all nodes needed by outputs in dependency order.
+// Topological: returns all nodes needed by outputs in dependency order
 func Topological(outputs ...*Tensor) ([]*Tensor, error) {
 	if len(outputs) == 0 {
 		return nil, errors.New("graph has no outputs")

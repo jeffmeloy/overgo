@@ -63,8 +63,8 @@ type schemaStringTrie struct {
 	terminal bool
 }
 
-// JSONSchemaToGrammar converts the pinned llama.cpp JSON-schema subset to
-// deterministic GBNF while preserving input property order.
+// JSONSchemaToGrammar: converts pinned llama.cpp JSON-schema subset to
+// deterministic GBNF while preserving input property order
 func JSONSchemaToGrammar(input []byte) (string, error) {
 	value, err := parseOrderedJSON(input)
 	if err != nil {

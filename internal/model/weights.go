@@ -8,7 +8,7 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
-// LayerWeights is the initial dense transformer weight set.
+// LayerWeights: initial dense transformer weight set
 type LayerWeights struct {
 	Recurrent               bool
 	AttentionNorm           gguf.TensorInfo
@@ -77,7 +77,7 @@ type LayerWeights struct {
 	SSMOutput        *gguf.TensorInfo
 }
 
-// Weights is a validated initial Llama/Qwen3 tensor catalog.
+// Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
 	TokenEmbedding         gguf.TensorInfo
 	PositionEmbedding      *gguf.TensorInfo
@@ -90,7 +90,7 @@ type Weights struct {
 	Layers                 []LayerWeights
 }
 
-// ReadWeights validates names and shapes without loading tensor bytes.
+// ReadWeights: validates names and shapes without loading tensor bytes
 func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if file == nil {
 		return Weights{}, errors.New("model file is nil")
@@ -900,7 +900,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {

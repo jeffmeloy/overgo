@@ -319,8 +319,8 @@ ws ::= [ \t\n\r]?
 		[]string{"0xFF 0x12 0xAB", "0xFF 0x12 0xAB 0x00 0x00"},
 		[]string{"", "0xFF", "0xFF 0x12", "0xFF 0x12 0xAB 0x00 0x00 0x00"},
 	)
-	// This nullable nested repetition is an upstream regression case. It has
-	// an epsilon cycle but does not grow the parser stack.
+	// nullable nested repetition is upstream regression case; has
+	// epsilon cycle but does not grow parser stack
 	assertGBNFCorpus(
 		t,
 		`root ::= ( [x]* )*`,

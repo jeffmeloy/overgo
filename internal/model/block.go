@@ -8,7 +8,7 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
-// LayerGraphWeights are the graph inputs for one dense Llama/Qwen3 block.
+// LayerGraphWeights: graph inputs for one dense Llama/Qwen3 block
 type LayerGraphWeights struct {
 	AttentionNorm           *tensor.Tensor
 	AttentionNormBias       *tensor.Tensor
@@ -76,9 +76,9 @@ type LayerGraphWeights struct {
 	SSMOutput        *tensor.Tensor
 }
 
-// ApplyNormalization applies the architecture's learned pre/post
-// normalization. Affine LayerNorm architectures and PhiMoE's affine RMSNorm
-// require a learned bias.
+// ApplyNormalization: applies architecture's learned pre/post
+// normalization; Affine LayerNorm architectures and PhiMoE's affine RMSNorm
+// require learned bias
 func ApplyNormalization(
 	builder *tensor.Builder,
 	input, weight, bias *tensor.Tensor,
@@ -103,7 +103,7 @@ func ApplyNormalization(
 	return normalized
 }
 
-// BuildT5EncoderBlock constructs one full, bidirectional T5 encoder block.
+// BuildT5EncoderBlock: constructs one full, bidirectional T5 encoder block
 func BuildT5EncoderBlock(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -207,10 +207,10 @@ type LFM2BlockResult struct {
 	Recurrent bool
 }
 
-// BuildPLMBlockCached constructs PLM's multi-head latent-attention block.
-// The compressed KV projection is normalized and expanded into per-head
+// BuildPLMBlockCached: constructs PLM's multi-head latent-attention block
+// compressed KV projection is normalized and expanded into per-head
 // non-positional keys/values, while one shared positional key is repeated
-// across heads after RoPE.
+// across heads after RoPE
 func BuildPLMBlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -293,10 +293,10 @@ func BuildPLMBlockCached(
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
-// BuildLFM2BlockCached constructs either an attention block or an LFM2 gated
-// short-convolution block. Recurrent blocks keep their convolution window in
-// Key; Value is a one-element reserved state so the common hybrid-cache ABI
-// remains stable.
+// BuildLFM2BlockCached: constructs either attention block or LFM2 gated
+// short-convolution block; Recurrent blocks keep their convolution window in
+// Key; Value is one-element reserved state so common hybrid-cache ABI
+// remains stable
 func BuildLFM2BlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -372,8 +372,8 @@ func BuildLFM2BlockCached(
 	}, nil
 }
 
-// BuildDenseBlock constructs one pre-normalized grouped-query transformer
-// block. It covers the initial Llama layout and Qwen3's per-head Q/K norms.
+// BuildDenseBlock: constructs one pre-normalized grouped-query transformer
+// block; covers initial Llama layout and Qwen3's per-head Q/K norms
 func BuildDenseBlock(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -385,9 +385,9 @@ func BuildDenseBlock(
 	return result.Output, err
 }
 
-// BuildDenseBlockCached additionally accepts and returns the layer's rank-3
-// RoPE-key/value cache. Past cache tensors must either both be nil or both be
-// present.
+// BuildDenseBlockCached additionally accepts and returns layer's rank-3
+// RoPE-key/value cache; Past cache tensors must either both be nil or both be
+// present
 func BuildDenseBlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -443,7 +443,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -684,8 +684,8 @@ func BuildDenseBlockCachedForLayer(
 		rotaryDimensions = spec.RopeDimensionCount
 	}
 	if !spec.UsesRoPE(layerIndex) {
-		// Some dense architectures intentionally leave periodic layers
-		// position-independent.
+		// Some dense architectures leave periodic layers
+		// position-independent
 	} else if isLaguna {
 		if spec.IsSlidingLayer(layerIndex) {
 			query = builder.RoPENeoX(
@@ -816,14 +816,14 @@ func BuildDenseBlockCachedForLayer(
 		attentionScale = spec.AttentionScale
 	}
 	if spec.Architecture == "phi2" || spec.Architecture == "phi3" || isPhiMoE {
-		// Phi decoders scale the rotated query before the dot product to
-		// preserve upstream precision behavior.
+		// Phi decoders scale rotated query before dot product to
+		// preserve upstream precision behavior
 		query = builder.Scale(query, attentionScale)
 		attentionScale = 1
 	}
 	if isGemmaArchitecture(spec.Architecture) {
-		// Gemma scales Q before the attention dot product, rather than scaling
-		// the accumulated score. Preserve that ordering for quantized parity.
+		// Gemma scales Q before attention dot product, rather than scaling
+		// accumulated score; Preserve that ordering for quantized parity
 		if spec.Architecture == "gemma2" && spec.BlockCount == 46 {
 			attentionScale = float32(1 / math.Sqrt(
 				float64(spec.EmbeddingLength)/float64(spec.HeadCount),
@@ -907,8 +907,8 @@ func BuildDenseBlockCachedForLayer(
 	if spec.Architecture == "falcon" {
 		normalized = feedForwardNormalized
 	} else if spec.Architecture == "gptneox" && spec.ParallelResidual {
-		// GPT-NeoX parallel blocks use a distinct FFN LayerNorm over the
-		// original residual input rather than sharing the attention norm.
+		// GPT-NeoX parallel blocks use distinct FFN LayerNorm over
+		// original residual input rather than sharing attention norm
 		normalized = ApplyNormalization(
 			builder, input, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
 		)
@@ -927,8 +927,8 @@ func BuildDenseBlockCachedForLayer(
 			}
 		}
 	}
-	// Cohere decoders leave normalized pointing at the block input so attention
-	// and FFN run in parallel before both branches are added to the residual.
+	// Cohere decoders leave normalized pointing at block input so attention
+	// and FFN run in parallel before both branches are added to residual
 	if usesExperts {
 		var feedForward *tensor.Tensor
 		if isLaguna || isAFMoE || (isEXAOneMoE && spec.ExpertGatingFunc == 2) {
@@ -1078,9 +1078,9 @@ func BuildDenseBlockCachedForLayer(
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
-// BuildQwen35BlockCached constructs either a gated full-attention block or a
-// fused gated-delta-net recurrent block, following the layer cadence recorded
-// in the weight catalog.
+// BuildQwen35BlockCached: constructs either gated full-attention block or
+// fused gated-delta-net recurrent block, following layer cadence recorded
+// in weight catalog
 func BuildQwen35BlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,

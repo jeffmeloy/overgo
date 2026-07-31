@@ -14,8 +14,8 @@ type ugmBest struct {
 	set   bool
 }
 
-// encodeUGM implements SentencePiece's unigram Viterbi tokenizer used by T5.
-// The GGUF profile handled here has no precompiled normalization character map.
+// encodeUGM implements SentencePiece's unigram Viterbi tokenizer used by T5
+// GGUF profile handled here has no precompiled normalization character map
 func (v *Vocab) encodeUGM(text string) ([]TokenID, error) {
 	normalized := v.normalizeUGM(text)
 	if normalized == "" {

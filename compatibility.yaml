@@ -1187,17 +1187,28 @@ models:
     real_model_validation: pending-fixture
   llama:
     status: experimental
+    variants:
+      - dense
+      - mixtral-moe
     types:
       - F16
       - Q8_0
       - Q8_1
       - Q8_K
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - mixtral-normalized-softmax-top-k-routing
+      - mixtral-packed-swiglu-experts
+      - serializable-prefix-editable-kv-cache
     constraints:
-      - dense
       - optional-projection-biases
       - ordinary-or-linear-rope
       - optional-per-pair-rope-factors
       - no-longrope-or-yarn-factor-selection
+    limitations:
+      - native-quantized-expert-kernels-pending
     tokenizers:
       - llama-spm
       - llama3-bpe

@@ -11,7 +11,7 @@ const (
 	OperationTranspose Operation = 1
 )
 
-// StatusError reports a cuBLAS API failure.
+// StatusError: reports cuBLAS API failure
 type StatusError struct {
 	Operation string
 	Status    int32

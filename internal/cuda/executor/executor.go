@@ -19,7 +19,7 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-// Executor evaluates the initial F32 tensor graph on one CUDA worker.
+// Executor: evaluates initial F32 tensor graph on one CUDA worker
 type Executor struct {
 	mu sync.RWMutex
 
@@ -50,8 +50,8 @@ type DeviceCopy struct {
 	Segments []DeviceCopySegment
 }
 
-// RetainedOutputs owns selected graph outputs in standalone device
-// allocations. Call Release when the values are no longer used.
+// RetainedOutputs: owns selected graph outputs in standalone device
+// allocations; Call Release when values are no longer used
 type RetainedOutputs struct {
 	mu          sync.Mutex
 	executor    *Executor
@@ -144,8 +144,8 @@ func (r *RetainedOutputs) Release(ctx context.Context) error {
 }
 
 // CopyDeviceValues creates independently owned device values by concatenating
-// caller-selected source segments. It is used for persistent state edits that
-// cannot be represented by a pointer view.
+// caller-selected source segments; used for persistent state edits that
+// cannot be represented by pointer view
 func (e *Executor) CopyDeviceValues(
 	ctx context.Context,
 	copies []DeviceCopy,
@@ -257,7 +257,7 @@ func New(deviceOrdinal int) (*Executor, error) {
 	return &Executor{worker: worker, ownsWorker: true}, nil
 }
 
-// NewWithWorker binds an executor to a caller-owned CUDA worker/context.
+// NewWithWorker: binds executor to caller-owned CUDA worker/context
 func NewWithWorker(worker *device.Worker) (*Executor, error) {
 	if worker == nil {
 		return nil, errors.New("CUDA executor requires a worker")
@@ -293,7 +293,7 @@ func (e *Executor) Close() error {
 	return errors.Join(errs...)
 }
 
-// Execute evaluates outputs and returns host copies of those tensors.
+// Execute: evaluates outputs and returns host copies of those tensors
 func (e *Executor) Execute(
 	ctx context.Context,
 	outputs []*tensor.Tensor,
@@ -335,8 +335,8 @@ func (e *Executor) Execute(
 	return results, err
 }
 
-// ExecuteWithDeviceFeeds evaluates a graph with selected F32 input nodes
-// already resident in the executor's CUDA context.
+// ExecuteWithDeviceFeeds: evaluates graph with selected F32 input nodes
+// already resident in executor's CUDA context
 func (e *Executor) ExecuteWithDeviceFeeds(
 	ctx context.Context,
 	outputs []*tensor.Tensor,
@@ -379,8 +379,8 @@ func (e *Executor) ExecuteWithDeviceFeeds(
 	return results, err
 }
 
-// ExecuteRetainedWithDeviceFeeds evaluates a graph but leaves each requested
-// output in an individually owned device allocation.
+// ExecuteRetainedWithDeviceFeeds: evaluates graph but leaves each requested
+// output in individually owned device allocation
 func (e *Executor) ExecuteRetainedWithDeviceFeeds(
 	ctx context.Context,
 	outputs []*tensor.Tensor,

@@ -5,9 +5,9 @@ import (
 	"fmt"
 )
 
-// TokenGrammar is a deterministic token-level grammar. A transition value of
-// -1 rejects that token. Accepting states may still have outgoing transitions,
-// which permits one choice to be a prefix of another.
+// TokenGrammar: deterministic token-level grammar; transition value of
+// -1 rejects that token; Accepting states may still have outgoing transitions,
+// which: permits one choice to be prefix of another
 type TokenGrammar struct {
 	Start          int
 	VocabularySize int
@@ -15,8 +15,8 @@ type TokenGrammar struct {
 	Accepting      []bool
 }
 
-// NewChoiceGrammar compiles exact token-sequence alternatives into a trie DFA.
-// eosTokens are accepted only after a complete choice.
+// NewChoiceGrammar: compiles exact token-sequence alternatives into trie DFA
+// eosTokens: accepted only after complete choice
 func NewChoiceGrammar(
 	choices [][]int,
 	eosTokens []int,

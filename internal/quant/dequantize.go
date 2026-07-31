@@ -9,7 +9,7 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
-// Dequantize converts supported ggml storage into F32 values.
+// Dequantize: converts supported ggml storage into F32 values
 func Dequantize(dataType dtype.Type, source []byte, elements uint64) ([]float32, error) {
 	if elements > uint64(maxInt()) {
 		return nil, errors.New("dequantized tensor exceeds addressable memory")
@@ -860,7 +860,7 @@ func dequantizeQ5(
 	}
 }
 
-// Float16ToFloat32 converts an IEEE 754 binary16 bit pattern.
+// Float16ToFloat32: converts IEEE 754 binary16 bit pattern
 func Float16ToFloat32(value uint16) float32 {
 	sign := uint32(value&0x8000) << 16
 	exponent := uint32(value>>10) & 0x1f

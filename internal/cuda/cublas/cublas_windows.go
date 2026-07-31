@@ -13,7 +13,7 @@ import (
 	"llamacpp2go/internal/cuda/driver"
 )
 
-// Library is a dynamically loaded cuBLAS library.
+// Library: dynamically loaded cuBLAS library
 type Library struct {
 	dll *syscall.DLL
 
@@ -91,7 +91,7 @@ func (l *Library) SetStream(handle Handle, stream driver.Stream) error {
 	return result("cublasSetStream_v2", status)
 }
 
-// SGEMM performs column-major C = alpha*op(A)*op(B) + beta*C.
+// SGEMM: performs column-major C = alpha*op()*op(B) + beta*C
 func (l *Library) SGEMM(
 	handle Handle,
 	operationA Operation,

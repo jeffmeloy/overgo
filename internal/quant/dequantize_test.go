@@ -363,7 +363,7 @@ func TestDequantizeQ5K(t *testing.T) {
 func TestDequantizeIQ4XS(t *testing.T) {
 	source := make([]byte, 136)
 	binary.LittleEndian.PutUint16(source[0:], 0x3800) // 0.5
-	// Group 0 scale: low 1 plus high 2 << 4 = 33, signed scale = 1.
+	// Group 0 scale: low 1 plus high 2 << 4 = 33, signed scale = 1
 	binary.LittleEndian.PutUint16(source[2:], 0x0002)
 	source[4] = 0x01
 	source[8] = 0xf0
@@ -448,7 +448,7 @@ func TestDequantizeTQ1_0(t *testing.T) {
 
 func TestDequantizeMXFP4(t *testing.T) {
 	source := make([]byte, 17)
-	source[0] = 128 // E8M0 half-scale = 1.
+	source[0] = 128 // E8M0 half-scale = 1
 	source[1] = 0xf1
 	output, err := Dequantize(dtype.MXFP4, source, 32)
 	if err != nil {
@@ -476,8 +476,8 @@ func TestDequantizeMXFP4(t *testing.T) {
 
 func TestDequantizeNVFP4(t *testing.T) {
 	source := make([]byte, 36)
-	source[0] = 64 // UE4M3 half-scale = 1.
-	source[1] = 65 // UE4M3 half-scale = 1.125.
+	source[0] = 64 // UE4M3 half-scale = 1
+	source[1] = 65 // UE4M3 half-scale = 1.125
 	source[2] = 0
 	source[3] = 0x7f
 	source[4] = 0xf1
@@ -568,11 +568,11 @@ func TestDequantizeIQCodebooksMatchPinnedLlamaCPP(t *testing.T) {
 			}
 			if test.leadingScale {
 				source[0] = 0
-				source[1] = 0x3a // IEEE binary16 0.75.
+				source[1] = 0x3a // IEEE binary16 0.75
 			}
 			if test.iq1MScale {
-				// IQ1_M stores the four nibbles of its binary16 scale in the
-				// high nibbles of four packed uint16 scale words.
+				// IQ1_M: stores four nibbles of its binary16 scale in
+				// high nibbles of four packed uint16 scale words
 				source[49] &= 0x0f
 				source[51] = source[51]&0x0f | 0xa0
 				source[53] = source[53]&0x0f | 0x30

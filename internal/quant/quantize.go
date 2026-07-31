@@ -10,8 +10,8 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
-// Quantize converts F32 values into a deterministic pinned GGML storage
-// layout. The initial encoder set covers the common classic block formats.
+// Quantize: converts F32 values into deterministic pinned GGML storage
+// layout; initial encoder set covers common classic block formats
 func Quantize(dataType dtype.Type, values []float32) ([]byte, error) {
 	traits, ok := dataType.Traits()
 	if !ok {
@@ -115,7 +115,7 @@ func Quantize(dataType dtype.Type, values []float32) ([]byte, error) {
 	return output, nil
 }
 
-// CanQuantize reports whether Quantize implements the destination layout.
+// CanQuantize: reports whether Quantize implements destination layout
 func CanQuantize(dataType dtype.Type) bool {
 	switch dataType {
 	case dtype.F32,
@@ -2086,8 +2086,8 @@ func roundFloat32(value float32) float32 {
 	return float32(math.Round(float64(value)))
 }
 
-// Float32ToFloat16 converts an IEEE 754 binary32 value to binary16 using
-// round-to-nearest, ties-to-even.
+// Float32ToFloat16: converts IEEE 754 binary32 value to binary16 using
+// round-to-nearest, ties-to-even
 func Float32ToFloat16(value float32) uint16 {
 	bits32 := math.Float32bits(value)
 	sign := uint16(bits32>>16) & 0x8000

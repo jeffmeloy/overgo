@@ -8,7 +8,7 @@ import (
 	"llamacpp2go/internal/gguf"
 )
 
-// Spec contains the common transformer metadata needed to construct a model.
+// Spec: contains common transformer metadata needed to construct model
 type Spec struct {
 	Architecture          string
 	Name                  string
@@ -69,7 +69,7 @@ type Spec struct {
 	XIELUBeta             []float32
 	XIELUEpsilon          []float32
 
-	// Qwen3.5 hybrid recurrent-attention metadata.
+	// Qwen3.5 hybrid recurrent-attention metadata
 	RopeDimensionCount    uint32
 	RopeSections          [4]int32
 	SSMConvKernel         uint32
@@ -81,8 +81,8 @@ type Spec struct {
 	RecurrentLayers       []bool
 }
 
-// UnsupportedArchitectureError identifies a valid GGUF architecture that the
-// runtime cannot execute yet.
+// UnsupportedArchitectureError: identifies valid GGUF architecture that
+// runtime cannot execute yet
 type UnsupportedArchitectureError struct {
 	Architecture string
 }
@@ -91,8 +91,8 @@ func (e *UnsupportedArchitectureError) Error() string {
 	return fmt.Sprintf("model architecture %q is not supported", e.Architecture)
 }
 
-// ReadSpec validates the common metadata for the initial Llama and Qwen3
-// architecture families.
+// ReadSpec: validates common metadata for initial Llama and Qwen3
+// architecture families
 func ReadSpec(file *gguf.File) (Spec, error) {
 	if file == nil {
 		return Spec{}, errors.New("model file is nil")
@@ -171,6 +171,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.Name = value
 	}
 	prefix := architecture + "."
+	isLlamaMoE := false
+	if architecture == "llama" {
+		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
+			isLlamaMoE = true
+		}
+	}
 	if spec.BlockCount, err = required[uint32](values, prefix+"block_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
@@ -258,7 +264,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if architecture == "bloom" || architecture == "gpt2" || architecture == "mpt" ||
 		architecture == "refact" || architecture == "starcoder" {
-		// These architectures use ALiBi or learned absolute rows instead of RoPE.
+		// architectures use ALiBi or learned absolute rows instead of RoPE
 		spec.RopeDisabled = true
 	} else if architecture != "t5encoder" {
 		if architecture == "gptneox" || architecture == "falcon" {
@@ -306,9 +312,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				}
 				spec.YaRNExtFactor = 1
 				// ggml's YaRN primitive applies its logarithmic magnitude factor
-				// internally. llama.cpp cancels it in the context parameters for
-				// ordinary YaRN models, leaving rotation interpolation without an
-				// unintended residual-vector scale.
+				// internally; llama.cpp cancels it in context parameters for
+				// ordinary YaRN models, leaving rotation interpolation without
+				// unintended residual-vector scale
 				spec.YaRNAttentionFactor = 1 / (1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
 				spec.YaRNBetaFast = 32
 				spec.YaRNBetaSlow = 1
@@ -762,7 +768,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
+	if isLlamaMoE || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -799,7 +805,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SharedExpertFF = value
 		}
 	}
-	if architecture == "olmoe" || architecture == "phimoe" {
+	if isLlamaMoE || architecture == "olmoe" || architecture == "phimoe" {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 	}
 	if architecture == "afmoe" {
@@ -1021,8 +1027,8 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 		block%s.SlidingPattern < s.SlidingPattern-1
 }
 
-// LayerHeadCount returns the query-head count selected for a layer. Laguna
-// stores this metadata as either a scalar or one value per layer.
+// LayerHeadCount: returns query-head count selected for layer; Laguna
+// stores this metadata as either scalar or one value per layer
 func (s Spec) LayerHeadCount(block uint32) uint32 {
 	if block < uint32(len(s.LayerHeadCounts)) {
 		return s.LayerHeadCounts[block]
@@ -1030,7 +1036,7 @@ func (s Spec) LayerHeadCount(block uint32) uint32 {
 	return s.HeadCount
 }
 
-// LayerKVHeadCount returns the key/value-head count selected for a layer.
+// LayerKVHeadCount: returns key/value-head count selected for layer
 func (s Spec) LayerKVHeadCount(block uint32) uint32 {
 	if block < uint32(len(s.LayerKVHeadCounts)) {
 		return s.LayerKVHeadCounts[block]
@@ -1169,6 +1175,12 @@ func (s Spec) validate() error {
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("OLMoE expert or attention metadata is invalid")
+	}
+	if s.Architecture == "llama" && s.ExpertCount > 0 &&
+		(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("Llama MoE expert metadata is invalid")
 	}
 	if s.Architecture == "phimoe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||

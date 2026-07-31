@@ -52,10 +52,10 @@ type gbnfRule struct {
 	alternatives [][]gbnfSymbol
 }
 
-// GBNFGrammar is an immutable llama.cpp-style character/token grammar compiled
-// for one vocabulary. It supports literals, Unicode character classes,
+// GBNFGrammar: immutable llama.cpp-style character/token grammar compiled
+// for one vocabulary; supports literals, Unicode character classes,
 // wildcard characters, token terminals, rule references, groups, alternation,
-// right recursion, and *, +, ?, or {m,n} repetition.
+// right recursion, and *, +, ?, or {m,n} repetition
 type GBNFGrammar struct {
 	rules           []gbnfRule
 	terminals       []gbnfTerminal
@@ -88,9 +88,9 @@ type gbnfTriggerPosition struct {
 	end   int
 }
 
-// GBNFLazyOptions configures deferred grammar activation. Patterns use Go's
-// RE2 syntax; matching begins at the first non-empty capture group, or at the
-// complete match when no capture participates.
+// GBNFLazyOptions configures deferred grammar activation; Patterns use Go's
+// RE2 syntax; matching begins at first non-empty capture group, or at
+// complete match when no capture participates
 type GBNFLazyOptions struct {
 	Enabled  bool
 	Patterns []string
@@ -135,8 +135,8 @@ type gbnfParser struct {
 	vocabulary int
 }
 
-// NewGBNFGrammar parses source and binds it to decoded token pieces. EOS token
-// IDs are permitted only when the grammar is in an accepting state.
+// NewGBNFGrammar: parses source and binds it to decoded token pieces; EOS token
+// IDs: permitted only when grammar is in accepting state
 func NewGBNFGrammar(
 	source, root string,
 	tokenPieces [][]byte,
@@ -146,7 +146,7 @@ func NewGBNFGrammar(
 }
 
 // NewGBNFGrammarWithTokens additionally resolves named token terminals such as
-// <|im_start|>. Numeric <[id]> terminals do not require the name map.
+// <|im_start|>; Numeric <[id]> terminals do not require name map
 func NewGBNFGrammarWithTokens(
 	source, root string,
 	tokenPieces [][]byte,
@@ -158,7 +158,7 @@ func NewGBNFGrammarWithTokens(
 	)
 }
 
-// NewGBNFGrammarWithOptions compiles GBNF with optional lazy activation.
+// NewGBNFGrammarWithOptions: compiles GBNF with optional lazy activation
 func NewGBNFGrammarWithOptions(
 	source, root string,
 	tokenPieces [][]byte,
@@ -918,11 +918,11 @@ func (c *gbnfCompiler) validateReferencesAndRecursion() error {
 			}
 		}
 	}
-	// Prefix-reference edges model expansions that can occur before a
-	// terminal is consumed. A cycle is unsafe only when some edge leaves a
-	// suffix on the stack: that is the growing form of left recursion.
+	// Prefix-reference edges model expansions that can occur before
+	// terminal: consumed; cycle is unsafe only when some edge leaves
+	// suffix on stack: that is growing form of left recursion
 	// Zero-growth epsilon cycles are harmless because normalizeStacks dedupes
-	// identical configurations (for example upstream's `( [x]* )*` case).
+	// identical configurations (for example upstream's `( [x]* )*` case)
 	edges := make([]map[int]bool, count)
 	for ruleID, rule := range c.grammar.rules {
 		edges[ruleID] = make(map[int]bool)

@@ -25,8 +25,8 @@ type TokenEvent struct {
 	ID    tokenizer.TokenID
 	Piece string
 	Index int
-	// Logits is a transient view of the pre-sampling logits for this token.
-	// Callers must copy it if they retain it after the callback returns.
+	// Logits: transient view of pre-sampling logits for this token
+	// Callers must copy it if they retain it after callback returns
 	Logits              []float32
 	SelectedProbability float64
 	TopProbabilities    []sampling.TokenProbability
@@ -42,35 +42,35 @@ type GenerateOptions struct {
 	MaxNewTokens int
 	Sampler      *sampling.Sampler
 	OnToken      func(TokenEvent) error
-	// ShouldStop is evaluated after OnToken and after the sampled piece has
-	// been appended to generated text. Returning true ends generation
-	// successfully while retaining that token.
+	// ShouldStop: evaluated after OnToken and after sampled piece has
+	// been appended to generated text; Returning true ends generation
+	// successfully while retaining that token
 	ShouldStop func(TokenEvent) bool
-	// PostSamplingProbabilities requests the top N normalized candidates after
-	// the configured sampler chain. Zero disables this instrumentation.
+	// PostSamplingProbabilities: requests top N normalized candidates after
+	// configured sampler chain; Zero disables this instrumentation
 	PostSamplingProbabilities int
 	ParseSpecial              bool
 	StopSequences             []string
 	// PromptTokenIDs, when non-nil, replaces text tokenization with this exact
-	// caller-owned prompt sequence. No BOS/EOS token is inserted implicitly.
+	// caller-owned prompt sequence; No BOS/EOS token is inserted implicitly
 	PromptTokenIDs []tokenizer.TokenID
-	// ContextShift permits generation to discard the oldest attention KV
-	// entries when the active cache reaches the model context length. Absolute
-	// token positions and hybrid recurrent state are preserved.
+	// ContextShift: permits generation to discard oldest attention KV
+	// entries when active cache reaches model context length; Absolute
+	// token positions and hybrid recurrent state are preserved
 	ContextShift bool
-	// KeepTokens preserves this many initial prompt tokens when ContextShift
-	// compacts a full host cache. Minus one preserves as much of the initial
-	// prompt as the context permits.
+	// KeepTokens: preserves this many initial prompt tokens when ContextShift
+	// compacts full host cache; Minus one preserves as much of initial
+	// prompt as context permits
 	KeepTokens int
-	// DiscardTokens controls how many entries after KeepTokens are removed per
-	// context shift. Zero uses half of the discardable cache, matching the
-	// native server convention.
+	// DiscardTokens: controls how many entries after KeepTokens are removed per
+	// context shift; Zero uses half of discardable cache, matching
+	// native server convention
 	DiscardTokens int
-	// CachePrompt retains the evaluated prompt state for a later request whose
-	// token sequence has this prompt as a prefix.
+	// CachePrompt: retains evaluated prompt state for later request whose
+	// token sequence has this prompt as prefix
 	CachePrompt bool
-	// MinCacheReuse requires at least this many matching prefix tokens before
-	// a retained prompt is reused.
+	// MinCacheReuse: requires at least this many matching prefix tokens before
+	// retained prompt is reused
 	MinCacheReuse     int
 	OnPromptEvaluated func(PromptEvaluation)
 }
@@ -82,26 +82,26 @@ type LayerCache struct {
 
 type KVCache struct {
 	Layers []LayerCache
-	// Tokens is the number of active attention tokens retained in Layers.
+	// Tokens: number of active attention tokens retained in Layers
 	Tokens uint32
-	// Position is the absolute position assigned to the next appended token.
-	// It can exceed Tokens after an attention-cache prefix has been removed.
+	// Position: absolute position assigned to next appended token
+	// can exceed Tokens after attention-cache prefix has been removed
 	Position uint32
 }
 
-// EmbeddingOverride replaces one token-embedding column before learned
+// EmbeddingOverride: replaces one token-embedding column before learned
 // positions, model-specific embedding scaling, and embedding normalization are
-// applied. TokenIndex is local to the token chunk passed to the Forward call.
-// This is the decoder-side bridge used by multimodal encoders and other soft
-// prompt producers.
+// applied; TokenIndex is local to token chunk passed to Forward call
+// decoder-side bridge used by multimodal encoders and other soft
+// prompt producers
 type EmbeddingOverride struct {
 	TokenIndex uint32
 	Embedding  []float32
 }
 
-// Runner is a correctness-first Llama/Qwen inference runtime with an editable
+// Runner: correctness-first Llama/Qwen inference runtime with editable
 // host attention/recurrent cache and optional persistent F32 or
-// native-quantized weights.
+// native-quantized weights
 type Runner struct {
 	file          *gguf.File
 	path          string
@@ -134,8 +134,8 @@ type OpenOptions struct {
 	DeviceOrdinal           int
 	PreloadDeviceWeights    bool
 	PreloadQuantizedWeights bool
-	// PromptCacheEntries bounds independently reusable prompt states.
-	// Zero selects the default capacity of one.
+	// PromptCacheEntries: bounds independently reusable prompt states
+	// Zero: selects default capacity of one
 	PromptCacheEntries int
 }
 
@@ -602,8 +602,8 @@ func (r *Runner) Vocab() *tokenizer.Vocab {
 	return r.vocab
 }
 
-// Forward evaluates all layers and returns final normalized hidden states in
-// ggml shape [embedding, tokens].
+// Forward: evaluates all layers and returns final normalized hidden states in
+// ggml shape [embedding, tokens]
 func (r *Runner) Forward(ctx context.Context, tokenIDs []tokenizer.TokenID) (reference.Value, error) {
 	if r == nil {
 		return reference.Value{}, errors.New("inference: runner is nil")
@@ -616,8 +616,8 @@ func (r *Runner) Forward(ctx context.Context, tokenIDs []tokenizer.TokenID) (ref
 	return r.forwardLocked(ctx, tokenIDs)
 }
 
-// ForwardWithEmbeddingOverrides evaluates a causal decoder after replacing
-// selected token lookup results with caller-provided soft-token embeddings.
+// ForwardWithEmbeddingOverrides: evaluates causal decoder after replacing
+// selected token lookup results with caller-provided soft-token embeddings
 func (r *Runner) ForwardWithEmbeddingOverrides(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
@@ -652,8 +652,8 @@ func (r *Runner) forwardLocked(
 	return hidden, err
 }
 
-// ForwardNonCausal evaluates an entire bidirectional token sequence without
-// creating or consuming decoder cache state.
+// ForwardNonCausal: evaluates entire bidirectional token sequence without
+// creating or consuming decoder cache state
 func (r *Runner) ForwardNonCausal(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
@@ -672,9 +672,9 @@ func (r *Runner) ForwardNonCausal(
 	return r.forwardNonCausalLocked(ctx, tokenIDs)
 }
 
-// ForwardNonCausalLogits evaluates a complete bidirectional sequence and
-// returns vocabulary logits for every position in shape [vocabulary, tokens].
-// It never creates or mutates decoder cache state.
+// ForwardNonCausalLogits: evaluates complete bidirectional sequence and
+// returns vocabulary logits for every position in shape [vocabulary, tokens]
+// never creates or mutates decoder cache state
 func (r *Runner) ForwardNonCausalLogits(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
@@ -849,8 +849,8 @@ func (r *Runner) forwardT5EncoderLocked(
 	return r.runOutputNorm(ctx, activation)
 }
 
-// ForwardCached evaluates a prompt chunk and returns a host KV/recurrent cache
-// suitable for a later incremental call or ShiftCache edit.
+// ForwardCached: evaluates prompt chunk and returns host KV/recurrent cache
+// suitable for later incremental call or ShiftCache edit
 func (r *Runner) ForwardCached(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
@@ -870,9 +870,9 @@ func (r *Runner) ForwardCached(
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
 }
 
-// ForwardCachedWithEmbeddingOverrides is the cache-producing form of
-// ForwardWithEmbeddingOverrides. Override indices address only the newly
-// supplied chunk, allowing its returned cache to continue normal decoding.
+// ForwardCachedWithEmbeddingOverrides: cache-producing form of
+// ForwardWithEmbeddingOverrides; Override indices address only newly
+// supplied chunk, allowing its returned cache to continue normal decoding
 func (r *Runner) ForwardCachedWithEmbeddingOverrides(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
@@ -1666,7 +1666,7 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 	return results[output], nil
 }
 
-// Greedy tokenizes prompt and appends up to maxNewTokens argmax tokens.
+// Greedy: tokenizes prompt and appends up to maxNewTokens argmax tokens
 func (r *Runner) Greedy(
 	ctx context.Context,
 	prompt string,
@@ -1682,8 +1682,8 @@ func (r *Runner) Greedy(
 	})
 }
 
-// Generate performs correctness-first token generation and optionally reports
-// each new token synchronously through OnToken.
+// Generate: performs correctness-first token generation and optionally reports
+// each new token synchronously through OnToken
 func (r *Runner) Generate(
 	ctx context.Context,
 	prompt string,
@@ -1771,9 +1771,9 @@ func (r *Runner) Generate(
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
 					r.promptCacheCapacity > 1 {
-					// A device suffix view would mutate the selected entry.
+					// device suffix view would mutate selected entry
 					// Preserve independent multi-entry caches and evaluate
-					// this divergent prompt from scratch.
+					// divergent prompt from scratch
 					selectedPromptCache = nil
 					cached = 0
 				}
@@ -1786,9 +1786,9 @@ func (r *Runner) Generate(
 					retainedPrefix = selectedPromptCache.Device
 					if cached < len(selectedPromptCache.Tokens) {
 						base := cached
-						// The retained logits describe the old final token.
-						// For an exact shorter prompt, reevaluate its final
-						// token from the preceding cache entry.
+						// retained logits describe old final token
+						// For exact shorter prompt, reevaluate its final
+						// token from preceding cache entry
 						if cached == len(ids) {
 							base--
 						}

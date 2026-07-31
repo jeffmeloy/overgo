@@ -21,8 +21,8 @@ type DeviceF32Tensor struct {
 	Size    uint64
 }
 
-// DeviceF32Weights owns host-dequantized F32 weights in one CUDA context.
-// This is the correctness bridge used before native quantized CUDA matmul.
+// DeviceF32Weights: owns host-dequantized F32 weights in one CUDA context
+// correctness bridge used before native quantized CUDA matmul
 type DeviceF32Weights struct {
 	worker *device.Worker
 
@@ -41,8 +41,8 @@ func NewDeviceF32Weights(worker *device.Worker) (*DeviceF32Weights, error) {
 	}, nil
 }
 
-// Load dequantizes and uploads tensors one at a time. The operation is
-// transactional for the supplied batch.
+// Load dequantizes and uploads tensors one at time; operation is
+// transactional for supplied batch
 func (w *DeviceF32Weights) Load(
 	ctx context.Context,
 	file *gguf.File,
@@ -152,16 +152,16 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		node, pointer, err := w.Input(builder, tensorInfo.Name)
 		if err != nil {
 			if builder.Err() == nil {
-				// Return nil and let the explicit lookup pass below surface a
-				// stable error without mutating Builder internals.
+				// Return nil and let explicit lookup pass below surface
+				// stable error without mutating Builder internals
 			}
 			return nil
 		}
 		feeds[node] = pointer
 		return node
 	}
-	// Validate all lookups first so a missing optional pointer cannot be hidden
-	// behind a later builder error.
+	// Validate all lookups first so missing optional pointer cannot be hidden
+	// behind later builder error
 	required := []gguf.TensorInfo{}
 	if info.FeedForwardRouter != nil {
 		if info.FeedForwardGateExperts == nil || info.FeedForwardUpExperts == nil ||

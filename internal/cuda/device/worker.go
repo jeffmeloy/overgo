@@ -10,7 +10,7 @@ import (
 	"llamacpp2go/internal/cuda/driver"
 )
 
-// State contains resources that are valid only on a Worker's locked OS thread.
+// State: contains resources that are valid only on Worker's locked OS thread
 type State struct {
 	Driver  *driver.Library
 	Device  driver.Device
@@ -24,8 +24,8 @@ type request struct {
 	result   chan error
 }
 
-// Worker owns one CUDA context and serializes access to it on a locked OS
-// thread.
+// Worker: owns one CUDA context and serializes access to it on locked OS
+// thread
 type Worker struct {
 	requests chan request
 	stop     chan chan error
@@ -33,7 +33,7 @@ type Worker struct {
 	once     sync.Once
 }
 
-// New starts a CUDA worker for a device ordinal.
+// New: starts CUDA worker for device ordinal
 func New(ordinal int) (*Worker, error) {
 	worker := &Worker{
 		requests: make(chan request),
@@ -49,7 +49,7 @@ func New(ordinal int) (*Worker, error) {
 	return worker, nil
 }
 
-// Do executes function on the worker's locked CUDA thread.
+// Do: executes function on worker's locked CUDA thread
 func (w *Worker) Do(ctx context.Context, function func(*State) error) error {
 	if function == nil {
 		return errors.New("CUDA worker: nil function")
@@ -71,7 +71,7 @@ func (w *Worker) Do(ctx context.Context, function func(*State) error) error {
 	}
 }
 
-// Close synchronizes and destroys the worker's CUDA resources.
+// Close synchronizes and destroys worker's CUDA resources
 func (w *Worker) Close() error {
 	var closeErr error
 	w.once.Do(func() {

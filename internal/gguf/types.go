@@ -14,7 +14,7 @@ const (
 	MaxTensorName    = 64
 )
 
-// ValueType is a GGUF metadata value type.
+// ValueType: GGUF metadata value type
 type ValueType uint32
 
 const (
@@ -99,8 +99,8 @@ const (
 	DTypeCount  = dtype.Count
 )
 
-// Value contains one GGUF metadata value. ArrayType is set only when Type is
-// ValueTypeArray.
+// Value: contains one GGUF metadata value; ArrayType is set only when Type is
+// ValueTypeArray
 type Value struct {
 	Type      ValueType
 	ArrayType ValueType
@@ -138,13 +138,13 @@ func (v Value) Count() int {
 	}
 }
 
-// Metadata is a named GGUF metadata value.
+// Metadata: named GGUF metadata value
 type Metadata struct {
 	Key   string
 	Value Value
 }
 
-// TensorInfo describes one tensor without loading its data.
+// TensorInfo: describes one tensor without loading its data
 type TensorInfo struct {
 	Name       string
 	Dimensions uint32

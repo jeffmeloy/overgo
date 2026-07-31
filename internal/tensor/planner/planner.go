@@ -9,7 +9,7 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
-// Allocation is an arena range assigned to an intermediate tensor.
+// Allocation: arena range assigned to intermediate tensor
 type Allocation struct {
 	Tensor *tensor.Tensor
 	Offset uint64
@@ -18,7 +18,7 @@ type Allocation struct {
 	Last   int
 }
 
-// Plan is a deterministic single-arena allocation plan.
+// Plan: deterministic single-arena allocation plan
 type Plan struct {
 	ArenaSize   uint64
 	Alignment   uint64
@@ -30,7 +30,7 @@ type freeBlock struct {
 	size   uint64
 }
 
-// Build assigns storage to non-input graph nodes using last-use liveness.
+// Build assigns storage to non-input graph nodes using last-use liveness
 func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
 	if alignment == 0 || alignment&(alignment-1) != 0 {
 		return Plan{}, fmt.Errorf("planner alignment %d is not a power of two", alignment)

@@ -12,8 +12,8 @@ import (
 	"llamacpp2go/internal/gguf"
 )
 
-// TestUpstreamTokenizerCorpus compares against the checked-in llama.cpp
-// tokenizer oracle when LLAMACPP2GO_LLAMA_CPP points at a source checkout.
+// TestUpstreamTokenizerCorpus compares against checked-in llama.cpp
+// tokenizer oracle when LLAMACPP2GO_LLAMA_CPP points at source checkout
 func TestUpstreamTokenizerCorpus(t *testing.T) {
 	source := os.Getenv("LLAMACPP2GO_LLAMA_CPP")
 	if source == "" {
@@ -39,8 +39,8 @@ func TestUpstreamTokenizerCorpus(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// The oracle is a C++ text-mode file. Normalize its Windows CRLF
-			// representation to the bytes observed by std::ifstream.
+			// oracle: C++ text-mode file; Normalize its Windows CRLF
+			// representation to bytes observed by std::ifstream
 			inputText := strings.ReplaceAll(string(inputData), "\r\n", "\n")
 			const separator = "\n__ggml_vocab_test__\n"
 			inputs := strings.Split(inputText, separator)

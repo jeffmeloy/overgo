@@ -9,7 +9,7 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
-// Value is a contiguous F32 reference tensor.
+// Value: contiguous F32 reference tensor
 type Value struct {
 	Shape tensor.Shape
 	Data  []float32
@@ -27,7 +27,7 @@ func NewValue(shape tensor.Shape, data []float32) (Value, error) {
 	return Value{Shape: shape, Data: copied}, nil
 }
 
-// Execute evaluates outputs using feeds for input nodes.
+// Execute: evaluates outputs using feeds for input nodes
 func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*tensor.Tensor]Value, error) {
 	order, err := tensor.Topological(outputs...)
 	if err != nil {

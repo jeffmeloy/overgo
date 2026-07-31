@@ -15,13 +15,13 @@ import (
 
 const defaultWeightChunkSize = 16 << 20
 
-// DeviceTensor is valid only while used on DeviceWeights' worker thread.
+// DeviceTensor: valid only while used on DeviceWeights' worker thread
 type DeviceTensor struct {
 	Info    gguf.TensorInfo
 	Pointer driver.DevicePtr
 }
 
-// DeviceWeights owns persistent raw GGUF tensors in one CUDA context.
+// DeviceWeights: owns persistent raw GGUF tensors in one CUDA context
 type DeviceWeights struct {
 	worker *device.Worker
 
@@ -40,7 +40,7 @@ func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
 	}, nil
 }
 
-// Load streams tensors from GGUF into persistent CUDA allocations.
+// Load: streams tensors from GGUF into persistent CUDA allocations
 func (w *DeviceWeights) Load(
 	ctx context.Context,
 	file *gguf.File,
@@ -138,7 +138,7 @@ func (w *DeviceWeights) streamTensor(
 	return nil
 }
 
-// Do exposes loaded device pointers only inside the owning worker callback.
+// Do exposes loaded device pointers only inside owning worker callback
 func (w *DeviceWeights) Do(
 	ctx context.Context,
 	function func(*device.State, map[string]DeviceTensor) error,
@@ -169,7 +169,7 @@ func (w *DeviceWeights) Lookup(name string) (DeviceTensor, bool) {
 	return value, ok
 }
 
-// Input adds a graph input using the tensor's original GGUF storage type.
+// Input: adds graph input using tensor's original GGUF storage type
 func (w *DeviceWeights) Input(
 	builder *tensor.Builder,
 	name string,
@@ -201,7 +201,7 @@ func (w *DeviceWeights) Count() int {
 	return len(w.tensors)
 }
 
-// Close frees every loaded tensor in the owning CUDA context.
+// Close: frees every loaded tensor in owning CUDA context
 func (w *DeviceWeights) Close() error {
 	if w == nil {
 		return nil

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Options bounds allocations made from file-controlled counts.
+// Options: bounds allocations made from file-controlled counts
 type Options struct {
 	MaxStringBytes   uint64
 	MaxArrayElements uint64
@@ -31,7 +31,7 @@ func DefaultOptions() Options {
 	}
 }
 
-// File is a parsed GGUF file. Tensor data remains in the backing ReaderAt.
+// File: parsed GGUF file; Tensor data remains in backing ReaderAt
 type File struct {
 	Version    uint32
 	Alignment  uint64
@@ -56,14 +56,14 @@ type tensorLocation struct {
 	tensor     TensorInfo
 }
 
-// Open parses a GGUF file and automatically loads every locally named split.
+// Open: parses GGUF file and automatically loads every locally named split
 func Open(path string) (*File, error) {
 	return OpenWithOptions(path, DefaultOptions())
 }
 
-// OpenWithOptions parses a GGUF file with explicit allocation and split-count
-// limits. Split models must be opened through their first
-// <prefix>-00001-of-XXXXX.gguf file.
+// OpenWithOptions: parses GGUF file with explicit allocation and split-count
+// limits; Split models must be opened through their first
+// <prefix>-00001-of-XXXXX.gguf file
 func OpenWithOptions(path string, options Options) (*File, error) {
 	options = normalizeOptions(options)
 	file, err := openPath(path, options)
@@ -171,7 +171,7 @@ func openPath(path string, options Options) (*File, error) {
 	return file, nil
 }
 
-// Parse parses a GGUF directory from a random-access source.
+// Parse: parses GGUF directory from random-access source
 func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 	if source == nil {
 		return nil, errors.New("GGUF source is nil")
@@ -326,8 +326,8 @@ func normalizeOptions(options Options) Options {
 	return options
 }
 
-// Close closes a file opened by Open. Files parsed from a caller-owned
-// ReaderAt do not require closing.
+// Close closes file opened by Open; Files parsed from caller-owned
+// ReaderAt do not require closing
 func (f *File) Close() error {
 	if f == nil || len(f.closers) == 0 {
 		return nil
@@ -343,7 +343,7 @@ func (f *File) Close() error {
 	return errors.Join(failures...)
 }
 
-// MetadataValue finds a metadata value by key.
+// MetadataValue finds metadata value by key
 func (f *File) MetadataValue(key string) (Value, bool) {
 	index, ok := f.metadataByKey[key]
 	if !ok {
@@ -352,7 +352,7 @@ func (f *File) MetadataValue(key string) (Value, bool) {
 	return f.Metadata[index].Value, true
 }
 
-// Tensor finds a tensor descriptor by name.
+// Tensor finds tensor descriptor by name
 func (f *File) Tensor(name string) (TensorInfo, bool) {
 	index, ok := f.tensorByName[name]
 	if !ok {
@@ -361,7 +361,7 @@ func (f *File) Tensor(name string) (TensorInfo, bool) {
 	return f.Tensors[index], true
 }
 
-// ReadTensorData reads an entire tensor into a caller-provided buffer.
+// ReadTensorData: reads entire tensor into caller-provided buffer
 func (f *File) ReadTensorData(tensor TensorInfo, destination []byte) error {
 	if uint64(len(destination)) != tensor.Size {
 		return fmt.Errorf("tensor %q destination has %d bytes, need %d", tensor.Name, len(destination), tensor.Size)
@@ -369,8 +369,8 @@ func (f *File) ReadTensorData(tensor TensorInfo, destination []byte) error {
 	return f.ReadTensorRange(tensor, 0, destination)
 }
 
-// ReadTensorRange reads a bounded byte range of a tensor. It permits large
-// weights to be streamed to a device without allocating a full host copy.
+// ReadTensorRange: reads bounded byte range of tensor; permits large
+// weights to be streamed to device without allocating full host copy
 func (f *File) ReadTensorRange(tensor TensorInfo, tensorOffset uint64, destination []byte) error {
 	if tensorOffset > tensor.Size || uint64(len(destination)) > tensor.Size-tensorOffset {
 		return fmt.Errorf(

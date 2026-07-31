@@ -10,7 +10,7 @@ import (
 
 const MaxDimensions = 4
 
-// Shape uses ggml dimension order: dimension 0 is the contiguous row width.
+// Shape: uses ggml dimension order: dimension 0 is contiguous row width
 type Shape struct {
 	Dims [MaxDimensions]uint64
 	Rank uint8

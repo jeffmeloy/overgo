@@ -12,7 +12,7 @@ import (
 	"unsafe"
 )
 
-// Library is a dynamically loaded CUDA Driver API library.
+// Library: dynamically loaded CUDA Driver API library
 type Library struct {
 	dll *syscall.DLL
 
@@ -61,7 +61,7 @@ type Library struct {
 	cuLaunchKernel       *syscall.Proc
 }
 
-// Open loads nvcuda.dll and resolves the required entry points.
+// Open: loads nvcuda.dll and resolves required entry points
 func Open() (*Library, error) {
 	dll, err := syscall.LoadDLL("nvcuda.dll")
 	if err != nil {
@@ -113,7 +113,7 @@ func Open() (*Library, error) {
 	return lib, nil
 }
 
-// Close releases the process handle for nvcuda.dll.
+// Close releases process handle for nvcuda.dll
 func (l *Library) Close() error {
 	if l == nil || l.dll == nil {
 		return nil
@@ -123,13 +123,13 @@ func (l *Library) Close() error {
 	return err
 }
 
-// Init initializes the CUDA driver.
+// Init initializes CUDA driver
 func (l *Library) Init() error {
 	result, _, _ := l.cuInit.Call(0)
 	return l.result("cuInit", result)
 }
 
-// DriverVersion returns the highest CUDA version supported by the driver.
+// DriverVersion: returns highest CUDA version supported by driver
 func (l *Library) DriverVersion() (Version, error) {
 	var version int32
 	result, _, _ := l.cuDriverGetVersion.Call(uintptr(unsafe.Pointer(&version)))
@@ -139,7 +139,7 @@ func (l *Library) DriverVersion() (Version, error) {
 	return Version(version), nil
 }
 
-// DeviceCount returns the number of CUDA devices visible to the driver.
+// DeviceCount: returns number of CUDA devices visible to driver
 func (l *Library) DeviceCount() (int, error) {
 	var count int32
 	result, _, _ := l.cuDeviceGetCount.Call(uintptr(unsafe.Pointer(&count)))
@@ -149,7 +149,7 @@ func (l *Library) DeviceCount() (int, error) {
 	return int(count), nil
 }
 
-// Device returns a CUDA device handle for an ordinal.
+// Device: returns CUDA device handle for ordinal
 func (l *Library) Device(ordinal int) (Device, error) {
 	var device int32
 	result, _, _ := l.cuDeviceGet.Call(
@@ -162,7 +162,7 @@ func (l *Library) Device(ordinal int) (Device, error) {
 	return Device(device), nil
 }
 
-// DeviceInfo returns the properties used by the Go runtime.
+// DeviceInfo: returns properties used by Go runtime
 func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	device, err := l.Device(ordinal)
 	if err != nil {
@@ -212,8 +212,8 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	}, nil
 }
 
-// ContextCreate creates a CUDA context for a device. The calling goroutine
-// must remain locked to its OS thread while it uses the context.
+// ContextCreate creates CUDA context for device; calling goroutine
+// must remain locked to its OS thread while it uses context
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 	var context Context
 	result, _, _ := l.cuCtxCreate.Call(
@@ -227,19 +227,19 @@ func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 	return context, nil
 }
 
-// ContextDestroy destroys a CUDA context.
+// ContextDestroy destroys CUDA context
 func (l *Library) ContextDestroy(context Context) error {
 	result, _, _ := l.cuCtxDestroy.Call(uintptr(context))
 	return l.result("cuCtxDestroy_v2", result)
 }
 
-// ContextSetCurrent makes a context current on the calling OS thread.
+// ContextSetCurrent makes context current on calling OS thread
 func (l *Library) ContextSetCurrent(context Context) error {
 	result, _, _ := l.cuCtxSetCurrent.Call(uintptr(context))
 	return l.result("cuCtxSetCurrent", result)
 }
 
-// ContextSynchronize waits for all preceding work in the current context.
+// ContextSynchronize waits for all preceding work in current context
 func (l *Library) ContextSynchronize() error {
 	result, _, _ := l.cuCtxSynchronize.Call()
 	if err := l.result("cuCtxSynchronize", result); err != nil {
@@ -249,7 +249,7 @@ func (l *Library) ContextSynchronize() error {
 	return nil
 }
 
-// StreamCreate creates a stream in the current context.
+// StreamCreate creates stream in current context
 func (l *Library) StreamCreate(flags uint32) (Stream, error) {
 	var stream Stream
 	result, _, _ := l.cuStreamCreate.Call(
@@ -262,13 +262,13 @@ func (l *Library) StreamCreate(flags uint32) (Stream, error) {
 	return stream, nil
 }
 
-// StreamDestroy destroys a stream.
+// StreamDestroy destroys stream
 func (l *Library) StreamDestroy(stream Stream) error {
 	result, _, _ := l.cuStreamDestroy.Call(uintptr(stream))
 	return l.result("cuStreamDestroy_v2", result)
 }
 
-// StreamSynchronize waits for preceding work in a stream.
+// StreamSynchronize waits for preceding work in stream
 func (l *Library) StreamSynchronize(stream Stream) error {
 	result, _, _ := l.cuStreamSynchronize.Call(uintptr(stream))
 	if err := l.result("cuStreamSynchronize", result); err != nil {
@@ -278,7 +278,7 @@ func (l *Library) StreamSynchronize(stream Stream) error {
 	return nil
 }
 
-// MemAlloc allocates bytes in the current CUDA context.
+// MemAlloc: allocates bytes in current CUDA context
 func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 	if bytes == 0 {
 		return 0, errors.New("cuMemAlloc_v2: allocation size is zero")
@@ -304,7 +304,7 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 	return pointer, nil
 }
 
-// MemFree frees a device allocation.
+// MemFree: frees device allocation
 func (l *Library) MemFree(pointer DevicePtr) error {
 	if pointer == 0 {
 		return nil
@@ -354,7 +354,7 @@ func (l *Library) ExecutionStats() ExecutionStats {
 	}
 }
 
-// MemcpyHtoD copies a host byte slice into device memory.
+// MemcpyHtoD: copies host byte slice into device memory
 func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
 	if len(source) == 0 {
 		return nil
@@ -373,7 +373,7 @@ func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
 	return nil
 }
 
-// MemcpyDtoH copies device memory into a host byte slice.
+// MemcpyDtoH: copies device memory into host byte slice
 func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
 	if len(destination) == 0 {
 		return nil
@@ -392,8 +392,8 @@ func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
 	return nil
 }
 
-// MemcpyDtoD copies bytes between two allocations in the current CUDA
-// context. Source and destination ranges must not overlap.
+// MemcpyDtoD: copies bytes between two allocations in current CUDA
+// context; Source and destination ranges must not overlap
 func (l *Library) MemcpyDtoD(
 	destination, source DevicePtr,
 	bytes uint64,
@@ -414,7 +414,7 @@ func (l *Library) MemcpyDtoD(
 	return nil
 }
 
-// MemsetD32Async enqueues a 32-bit device fill in stream.
+// MemsetD32Async: enqueues 32-bit device fill in stream
 func (l *Library) MemsetD32Async(
 	destination DevicePtr,
 	value uint32,
@@ -438,7 +438,7 @@ func (l *Library) MemsetD32Async(
 	return nil
 }
 
-// ModuleLoadData loads PTX or a CUDA binary module from memory.
+// ModuleLoadData: loads PTX or CUDA binary module from memory
 func (l *Library) ModuleLoadData(image []byte) (Module, error) {
 	if len(image) == 0 {
 		return 0, errors.New("cuModuleLoadData: empty module image")
@@ -460,7 +460,7 @@ func (l *Library) ModuleLoadData(image []byte) (Module, error) {
 	return module, nil
 }
 
-// ModuleUnload unloads a CUDA module.
+// ModuleUnload: unloads CUDA module
 func (l *Library) ModuleUnload(module Module) error {
 	if module == 0 {
 		return nil
@@ -469,7 +469,7 @@ func (l *Library) ModuleUnload(module Module) error {
 	return l.result("cuModuleUnload", result)
 }
 
-// ModuleFunction resolves a kernel function by name.
+// ModuleFunction: resolves kernel function by name
 func (l *Library) ModuleFunction(module Module, name string) (Function, error) {
 	if strings.IndexByte(name, 0) >= 0 {
 		return 0, errors.New("cuModuleGetFunction: function name contains NUL")
@@ -488,9 +488,9 @@ func (l *Library) ModuleFunction(module Module, name string) (Function, error) {
 	return function, nil
 }
 
-// LaunchKernel launches a CUDA kernel. Each argument must point to storage
+// LaunchKernel: launches CUDA kernel; Each argument must point to storage
 // containing one kernel parameter value and must stay live until this method
-// returns.
+// returns
 func (l *Library) LaunchKernel(
 	function Function,
 	grid Dim3,
@@ -561,9 +561,9 @@ func (l *Library) result(operation string, value uintptr) error {
 	return err
 }
 
-// readCString receives a process-local C pointer returned by the CUDA driver.
-// The pointer necessarily crosses the syscall boundary as uintptr and remains
-// owned by the driver for the duration of this bounded read.
+// readCString receives process-local C pointer returned by CUDA driver
+// pointer necessarily crosses syscall boundary as uintptr and remains
+// owned by driver for duration of this bounded read
 //
 //go:nocheckptr
 func readCString(pointer uintptr, limit int) string {

@@ -23,8 +23,8 @@ func (r *Runner) DeviceExecutionStats(ctx context.Context) (driver.ExecutionStat
 	return r.worker.ExecutionStats(ctx)
 }
 
-// TokenizeSamplingText expands a textual sampling parameter without adding
-// BOS/EOS tokens.
+// TokenizeSamplingText: expands textual sampling parameter without adding
+// BOS/EOS tokens
 func (r *Runner) TokenizeSamplingText(text string) ([]tokenizer.TokenID, error) {
 	if r == nil || r.vocab == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -32,7 +32,7 @@ func (r *Runner) TokenizeSamplingText(text string) ([]tokenizer.TokenID, error) 
 	return r.vocab.Encode(text, tokenizer.EncodeOptions{})
 }
 
-// SamplingEOGTokens returns the vocabulary's recognized end-of-generation IDs.
+// SamplingEOGTokens: returns vocabulary's recognized end-of-generation IDs
 func (r *Runner) SamplingEOGTokens() []tokenizer.TokenID {
 	if r == nil || r.vocab == nil {
 		return nil
@@ -47,10 +47,10 @@ func (r *Runner) SamplingVocabularySize() int {
 	return len(r.vocab.Tokens)
 }
 
-// SamplingInfillVocabulary returns the token pieces and terminal metadata used
-// by llama.cpp's infill sampler. Special/control pieces are intentionally
+// SamplingInfillVocabulary: returns token pieces and terminal metadata used
+// by llama.cpp's infill sampler; Special/control pieces are intentionally
 // decoded as empty because llama_sampler_infill requests token pieces with
-// render_special disabled.
+// render_special disabled
 func (r *Runner) SamplingInfillVocabulary() (*sampling.InfillVocabulary, error) {
 	if r == nil || r.vocab == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -101,8 +101,8 @@ func (r *Runner) DetokenizeTokens(tokens []tokenizer.TokenID) (string, error) {
 	return r.vocab.Decode(tokens, false)
 }
 
-// TokenPiece renders one vocabulary token exactly as llama.cpp's tokenizer
-// endpoints do, including control-token spellings and raw byte tokens.
+// TokenPiece: renders one vocabulary token exactly as llama.cpp's tokenizer
+// endpoints do, including control-token spellings and raw byte tokens
 func (r *Runner) TokenPiece(token tokenizer.TokenID) (string, error) {
 	if r == nil || r.vocab == nil {
 		return "", errors.New("inference: runner is nil")
@@ -110,8 +110,8 @@ func (r *Runner) TokenPiece(token tokenizer.TokenID) (string, error) {
 	return r.vocab.DecodePiece(token, true)
 }
 
-// DetokenizePromptTokens renders an exact prompt sequence for native server
-// metadata while preserving control-token spellings like llama.cpp.
+// DetokenizePromptTokens: renders exact prompt sequence for native server
+// metadata while preserving control-token spellings like llama.cpp
 func (r *Runner) DetokenizePromptTokens(tokens []tokenizer.TokenID) (string, error) {
 	if r == nil || r.vocab == nil {
 		return "", errors.New("inference: runner is nil")

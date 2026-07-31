@@ -10,7 +10,7 @@ import (
 	"llamacpp2go/internal/cuda/driver"
 )
 
-// VectorAddPTX contains the Phase 1 CUDA smoke-test kernel.
+// VectorAddPTX: contains Phase 1 CUDA smoke-test kernel
 //
 //go:embed vector_add.ptx
 var VectorAddPTX []byte
@@ -18,9 +18,9 @@ var VectorAddPTX []byte
 //go:embed ops_f32.ptx
 var OpsF32PTX []byte
 
-// VectorAdd executes the Phase 1 smoke-test kernel. It intentionally owns all
-// allocations so the complete module, launch, transfer, and cleanup path is
-// exercised.
+// VectorAdd: executes Phase 1 smoke-test kernel; owns all
+// allocations so complete module, launch, transfer, and cleanup path is
+// exercised
 func VectorAdd(
 	lib *driver.Library,
 	stream driver.Stream,

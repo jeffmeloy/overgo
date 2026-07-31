@@ -769,8 +769,8 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 		if task > 0 {
 			result[id].Params = &params
 			result[id].NextToken = &slotNextToken{
-				// Generate drives sampling synchronously and never leaves a
-				// sampled token buffered between calls.
+				// Generate drives sampling synchronously and never leaves
+				// sampled token buffered between calls
 				HasNextToken: false,
 				HasNewLine:   false,
 				NRemain:      max(params.MaxTokens-int(generatedTokens), 0),
@@ -3181,9 +3181,9 @@ func (h *Handler) streamNativeCompletion(
 				_ = stream.write(errorEnvelope("generation_error", err.Error()))
 				return
 			}
-			// The native llama.cpp stream terminates with the full metadata
+			// native llama.cpp stream terminates with full metadata
 			// envelope, but content and tokens in that final event are empty
-			// because they were already delivered by partial events.
+			// because they were already delivered by partial events
 			result.Content = ""
 			result.Tokens = []tokenizer.TokenID{}
 			var final any = result

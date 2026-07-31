@@ -28,7 +28,7 @@ type EmbeddingResult struct {
 	Tokens  int
 }
 
-// Embed returns the historical mean-pooled, L2-normalized embedding.
+// Embed: returns historical mean-pooled, L2-normalized embedding
 func (r *Runner) Embed(ctx context.Context, text string) ([]float32, int, error) {
 	result, err := r.EmbedAdvanced(ctx, text, EmbeddingOptions{
 		Pooling:   EmbeddingPoolingMean,
@@ -58,8 +58,8 @@ func (r *Runner) EmbedAdvanced(
 	return r.EmbedTokensAdvanced(ctx, ids, options)
 }
 
-// EmbedTokens embeds an exact caller-owned token sequence without implicit
-// BOS/EOS insertion or a lossy text round trip.
+// EmbedTokens embeds exact caller-owned token sequence without implicit
+// BOS/EOS insertion or lossy text round trip
 func (r *Runner) EmbedTokens(
 	ctx context.Context,
 	input []tokenizer.TokenID,

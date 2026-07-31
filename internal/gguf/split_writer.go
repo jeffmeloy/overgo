@@ -7,18 +7,18 @@ import (
 	"math"
 )
 
-// SplitOptions controls tensor partitioning for WriteSplit.
+// SplitOptions: controls tensor partitioning for WriteSplit
 type SplitOptions struct {
 	MaxTensors           int
 	MaxBytes             uint64
 	NoTensorsInFirstFile bool
 }
 
-// SplitWriter opens one output shard. WriteSplit closes every successfully
-// opened writer before opening the next shard.
+// SplitWriter: opens one output shard; WriteSplit closes every successfully
+// opened writer before opening next shard
 type SplitWriter func(index, count uint16) (io.WriteCloser, error)
 
-// WriteSplit streams a parsed logical model into canonical GGUF shards.
+// WriteSplit: streams parsed logical model into canonical GGUF shards
 func (f *File) WriteSplit(open SplitWriter, options SplitOptions) error {
 	if f == nil {
 		return errors.New("GGUF file is nil")

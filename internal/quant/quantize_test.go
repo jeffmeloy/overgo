@@ -38,9 +38,9 @@ func TestFloat32ToFloat16(t *testing.T) {
 }
 
 func TestQuantizeMatchesPinnedGGMLReference(t *testing.T) {
-	// These hashes were produced by the corresponding quantize_row_*_ref
+	// hashes: produced by corresponding quantize_row_*_ref
 	// exports in ggml-base.dll from llama.cpp commit
-	// 42fc243060709331ff9b158a9ed2cbe37219ae83.
+	// 42fc243060709331ff9b158a9ed2cbe37219ae83
 	tests := []struct {
 		dataType dtype.Type
 		elements int

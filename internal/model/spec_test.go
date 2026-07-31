@@ -308,6 +308,30 @@ func TestReadOrionSpec(t *testing.T) {
 	}
 }
 
+func TestReadStarCoder2Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "starcoder2"),
+		metadata("starcoder2.block_count", gguf.ValueTypeUint32, uint32(30)),
+		metadata("starcoder2.context_length", gguf.ValueTypeUint32, uint32(16384)),
+		metadata("starcoder2.embedding_length", gguf.ValueTypeUint32, uint32(3072)),
+		metadata("starcoder2.feed_forward_length", gguf.ValueTypeUint32, uint32(12288)),
+		metadata("starcoder2.attention.head_count", gguf.ValueTypeUint32, uint32(24)),
+		metadata("starcoder2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("starcoder2.rope.freq_base", gguf.ValueTypeFloat32, float32(100000)),
+		metadata("starcoder2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "starcoder2" ||
+		!spec.UsesLayerNorm() ||
+		spec.LayerNormEpsilon != 1e-5 ||
+		spec.KeyLength != 128 {
+		t.Fatalf("unexpected StarCoder2 spec: %+v", spec)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

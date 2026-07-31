@@ -470,12 +470,14 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if layer.FeedForwardGate, err = required(
-			prefix+"ffn_gate.weight",
-			uint64(spec.EmbeddingLength),
-			uint64(spec.FeedForwardLength),
-		); err != nil {
-			return Weights{}, err
+		if spec.Architecture != "starcoder2" {
+			if layer.FeedForwardGate, err = required(
+				prefix+"ffn_gate.weight",
+				uint64(spec.EmbeddingLength),
+				uint64(spec.FeedForwardLength),
+			); err != nil {
+				return Weights{}, err
+			}
 		}
 		if layer.FeedForwardUp, err = required(
 			prefix+"ffn_up.weight",
@@ -510,6 +512,17 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					)
 				}
 				*shapeAndDestination.destination = &item
+			}
+		}
+		if spec.Architecture == "starcoder2" {
+			for name, item := range map[string]*gguf.TensorInfo{
+				"attn_output.bias": layer.AttentionOutputBias,
+				"ffn_up.bias":      layer.FeedForwardUpBias,
+				"ffn_down.bias":    layer.FeedForwardDownBias,
+			} {
+				if item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				}
 			}
 		}
 	}

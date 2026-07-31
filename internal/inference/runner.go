@@ -469,8 +469,10 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
-	if result.FeedForwardGate, err = input(info.FeedForwardGate); err != nil {
-		return result, nil, err
+	if info.FeedForwardGate.Name != "" {
+		if result.FeedForwardGate, err = input(info.FeedForwardGate); err != nil {
+			return result, nil, err
+		}
 	}
 	if result.FeedForwardUp, err = input(info.FeedForwardUp); err != nil {
 		return result, nil, err

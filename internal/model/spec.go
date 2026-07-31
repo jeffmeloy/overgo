@@ -84,6 +84,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
 		architecture != "orion" &&
+		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -159,7 +160,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "orion" {
+	if architecture == "orion" || architecture == "starcoder2" {
 		if spec.LayerNormEpsilon, err = required[float32](
 			values,
 			prefix+"attention.layer_norm_epsilon",
@@ -451,7 +452,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Architecture == "orion"
+	return s.Architecture == "orion" || s.Architecture == "starcoder2"
 }
 
 func (s Spec) validate() error {

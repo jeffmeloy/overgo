@@ -167,9 +167,11 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		info.AttentionK,
 		info.AttentionV,
 		info.AttentionOutput,
-		info.FeedForwardGate,
 		info.FeedForwardUp,
 		info.FeedForwardDown,
+	}
+	if info.FeedForwardGate.Name != "" {
+		required = append(required, info.FeedForwardGate)
 	}
 	if info.AttentionNorm.Name != "" {
 		required = append(required, info.AttentionNorm)
@@ -193,9 +195,11 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		AttentionK:      input(info.AttentionK),
 		AttentionV:      input(info.AttentionV),
 		AttentionOutput: input(info.AttentionOutput),
-		FeedForwardGate: input(info.FeedForwardGate),
 		FeedForwardUp:   input(info.FeedForwardUp),
 		FeedForwardDown: input(info.FeedForwardDown),
+	}
+	if info.FeedForwardGate.Name != "" {
+		result.FeedForwardGate = input(info.FeedForwardGate)
 	}
 	if info.AttentionNorm.Name != "" {
 		result.AttentionNorm = input(info.AttentionNorm)

@@ -262,9 +262,14 @@ func LoadHostLayer(
 		destination *reference.Value
 		info        gguf.TensorInfo
 	}{
-		{&result.FeedForwardGate, info.FeedForwardGate},
 		{&result.FeedForwardUp, info.FeedForwardUp},
 		{&result.FeedForwardDown, info.FeedForwardDown},
+	}
+	if info.FeedForwardGate.Name != "" {
+		items = append(items, struct {
+			destination *reference.Value
+			info        gguf.TensorInfo
+		}{&result.FeedForwardGate, info.FeedForwardGate})
 	}
 	if info.AttentionNorm.Name != "" {
 		items = append(items, struct {
@@ -417,9 +422,11 @@ func (layer *HostLayer) GraphInputs(
 		return node
 	}
 	result := LayerGraphWeights{
-		FeedForwardGate: input("ffn_gate.weight", layer.FeedForwardGate),
 		FeedForwardUp:   input("ffn_up.weight", layer.FeedForwardUp),
 		FeedForwardDown: input("ffn_down.weight", layer.FeedForwardDown),
+	}
+	if layer.FeedForwardGate.Shape.Rank != 0 {
+		result.FeedForwardGate = input("ffn_gate.weight", layer.FeedForwardGate)
 	}
 	if layer.AttentionNorm.Shape.Rank != 0 {
 		result.AttentionNorm = input("attn_norm.weight", layer.AttentionNorm)

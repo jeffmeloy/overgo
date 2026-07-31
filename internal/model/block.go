@@ -212,9 +212,15 @@ func BuildDenseBlockCachedForLayer(
 		"attention K":       weights.AttentionK,
 		"attention V":       weights.AttentionV,
 		"attention output":  weights.AttentionOutput,
-		"feed-forward gate": weights.FeedForwardGate,
 		"feed-forward up":   weights.FeedForwardUp,
 		"feed-forward down": weights.FeedForwardDown,
+	}
+	if spec.Architecture != "starcoder2" {
+		required["feed-forward gate"] = weights.FeedForwardGate
+	} else {
+		required["attention output bias"] = weights.AttentionOutputBias
+		required["feed-forward up bias"] = weights.FeedForwardUpBias
+		required["feed-forward down bias"] = weights.FeedForwardDownBias
 	}
 	if isOLMo2 {
 		required["attention Q norm"] = weights.AttentionQNorm
@@ -438,17 +444,22 @@ func BuildDenseBlockCachedForLayer(
 			builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
 		)
 	}
-	gate := builder.MulMat(weights.FeedForwardGate, normalized)
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	if weights.FeedForwardGateBias != nil {
-		gate = builder.Add(gate, weights.FeedForwardGateBias)
-	}
 	if weights.FeedForwardUpBias != nil {
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
-	activation := builder.SwiGLU(gate, up)
-	if isGemmaArchitecture(spec.Architecture) {
-		activation = builder.GEGLU(gate, up)
+	var activation *tensor.Tensor
+	if spec.Architecture == "starcoder2" {
+		activation = builder.GELU(up)
+	} else {
+		gate := builder.MulMat(weights.FeedForwardGate, normalized)
+		if weights.FeedForwardGateBias != nil {
+			gate = builder.Add(gate, weights.FeedForwardGateBias)
+		}
+		activation = builder.SwiGLU(gate, up)
+		if isGemmaArchitecture(spec.Architecture) {
+			activation = builder.GEGLU(gate, up)
+		}
 	}
 	feedForward := builder.MulMat(weights.FeedForwardDown, activation)
 	if weights.FeedForwardDownBias != nil {

@@ -471,6 +471,65 @@ func TestBuildDenseOrionUsesAffineLayerNorm(t *testing.T) {
 	}
 }
 
+func TestBuildDenseStarCoder2UsesSequentialGELU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "starcoder2",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		LayerNormEpsilon:  1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionOutputBias = builder.Input(
+		"attn_output_bias", dtype.F32, tensor.MustShape(8),
+	)
+	weights.FeedForwardUpBias = builder.Input(
+		"ffn_up_bias", dtype.F32, tensor.MustShape(12),
+	)
+	weights.FeedForwardDownBias = builder.Input(
+		"ffn_down_bias", dtype.F32, tensor.MustShape(8),
+	)
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layerNormCount, ropeCount, geluCount, siluCount int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpLayerNorm:
+			layerNormCount++
+		case tensor.OpRoPENeoX:
+			ropeCount++
+		case tensor.OpGELU:
+			geluCount++
+		case tensor.OpSiLU:
+			siluCount++
+		}
+		if node == weights.FeedForwardGate {
+			t.Fatal("StarCoder2 graph unexpectedly consumes an FFN gate")
+		}
+	}
+	if layerNormCount != 2 || ropeCount != 2 || geluCount != 1 || siluCount != 0 {
+		t.Fatalf(
+			"StarCoder2 graph has LayerNorm=%d RoPE=%d GELU=%d SiLU=%d, want 2/2/1/0",
+			layerNormCount,
+			ropeCount,
+			geluCount,
+			siluCount,
+		)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

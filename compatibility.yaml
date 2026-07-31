@@ -934,6 +934,15 @@ models:
       - swiglu
       - untied-output-projection
     real_model_validation: pending-fixture
+  starcoder2:
+    status: experimental
+    features:
+      - affine-layernorm
+      - neox-rope
+      - sequential-gelu
+      - projection-biases
+      - optional-tied-output
+    real_model_validation: pending-fixture
   qwen2:
     status: experimental
     execution:

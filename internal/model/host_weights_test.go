@@ -147,6 +147,47 @@ func TestHostLayerGraphInputsPermitPostNormalizedBlock(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitSequentialFFN(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	attentionNormBias := value(8)
+	attentionOutputBias := value(8)
+	feedForwardNormBias := value(8)
+	feedForwardUpBias := value(12)
+	feedForwardDownBias := value(8)
+	layer := HostLayer{
+		AttentionNorm:       value(8),
+		AttentionNormBias:   &attentionNormBias,
+		AttentionQ:          value(8, 8),
+		AttentionK:          value(8, 4),
+		AttentionV:          value(8, 4),
+		AttentionOutput:     value(8, 8),
+		AttentionOutputBias: &attentionOutputBias,
+		FeedForwardNorm:     value(8),
+		FeedForwardNormBias: &feedForwardNormBias,
+		FeedForwardUp:       value(8, 12),
+		FeedForwardUpBias:   &feedForwardUpBias,
+		FeedForwardDown:     value(12, 8),
+		FeedForwardDownBias: &feedForwardDownBias,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if graph.FeedForwardGate != nil ||
+		graph.AttentionNormBias == nil ||
+		graph.FeedForwardNormBias == nil ||
+		graph.FeedForwardUpBias == nil ||
+		graph.FeedForwardDownBias == nil ||
+		len(feeds) != 13 {
+		t.Fatalf("unexpected sequential FFN graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func hostTensorFixture(t *testing.T) []byte {
 	t.Helper()
 	var buffer bytes.Buffer

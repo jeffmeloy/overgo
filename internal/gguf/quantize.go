@@ -1,0 +1,383 @@
+package gguf
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"math"
+
+	"llamacpp2go/internal/quant"
+	"llamacpp2go/internal/tensor/dtype"
+)
+
+const quantizationVersion = 2
+
+// QuantizeOptions controls model-level tensor selection and serialization.
+// By default, matrix tensors are converted and one-dimensional tensors are
+// preserved, matching llama.cpp's "mostly" quantization convention.
+type QuantizeOptions struct {
+	WriteOptions
+	ShouldQuantize func(TensorInfo) bool
+}
+
+// QuantizeReport describes the logical conversion selected before writing.
+type QuantizeReport struct {
+	Converted   int
+	Preserved   int
+	InputBytes  uint64
+	OutputBytes uint64
+}
+
+// QuantizeTo streams a logical GGUF model into a canonical single-file GGUF
+// while converting selected tensors through F32 in bounded blocks.
+func (f *File) QuantizeTo(
+	destination io.Writer,
+	target DType,
+	options QuantizeOptions,
+) (QuantizeReport, error) {
+	if f == nil {
+		return QuantizeReport{}, errors.New("GGUF file is nil")
+	}
+	if destination == nil {
+		return QuantizeReport{}, errors.New("GGUF destination is nil")
+	}
+	if !quant.CanQuantize(target) {
+		return QuantizeReport{}, fmt.Errorf(
+			"quantization target %s is not implemented",
+			target,
+		)
+	}
+	targetTraits, _ := target.Traits()
+	writeOptions := options.WriteOptions
+	if writeOptions.Version == 0 {
+		writeOptions.Version = f.Version
+	}
+	if writeOptions.Alignment == 0 {
+		writeOptions.Alignment = f.Alignment
+	}
+
+	metadata, err := quantizedMetadata(f.Metadata, target)
+	if err != nil {
+		return QuantizeReport{}, err
+	}
+	tensors := make([]TensorData, len(f.Tensors))
+	var report QuantizeReport
+	for index, tensor := range f.Tensors {
+		shape := make([]uint64, tensor.Dimensions)
+		copy(shape, tensor.Shape[:tensor.Dimensions])
+		outputType := tensor.Type
+		reader := io.Reader(&tensorRangeReader{file: f, tensor: tensor})
+		selected := defaultQuantizeTensor(tensor, targetTraits.BlockSize)
+		if options.ShouldQuantize != nil {
+			selected = options.ShouldQuantize(tensor)
+		}
+		if selected && tensor.Type != target {
+			if tensor.Shape[0]%targetTraits.BlockSize != 0 {
+				return report, fmt.Errorf(
+					"tensor %q row size %d is not divisible by %s block size %d",
+					tensor.Name,
+					tensor.Shape[0],
+					targetTraits.Name,
+					targetTraits.BlockSize,
+				)
+			}
+			reader, err = newQuantizingReader(f, tensor, target)
+			if err != nil {
+				return report, err
+			}
+			outputType = target
+			report.Converted++
+		} else {
+			report.Preserved++
+		}
+		outputSize, err := tensorStorageSize(tensor, outputType)
+		if err != nil {
+			return report, err
+		}
+		if report.InputBytes > math.MaxUint64-tensor.Size ||
+			report.OutputBytes > math.MaxUint64-outputSize {
+			return report, errors.New("quantization report byte count overflows uint64")
+		}
+		report.InputBytes += tensor.Size
+		report.OutputBytes += outputSize
+		tensors[index] = TensorData{
+			Name:  tensor.Name,
+			Shape: shape,
+			Type:  outputType,
+			Data:  reader,
+		}
+	}
+	if err := Write(destination, metadata, tensors, writeOptions); err != nil {
+		return report, err
+	}
+	return report, nil
+}
+
+func defaultQuantizeTensor(tensor TensorInfo, targetBlockSize uint64) bool {
+	if tensor.Dimensions < 2 || tensor.Shape[0]%targetBlockSize != 0 {
+		return false
+	}
+	traits, ok := tensor.Type.Traits()
+	if !ok {
+		return false
+	}
+	switch tensor.Type {
+	case dtype.F32, dtype.F16, dtype.BF16:
+		return true
+	default:
+		return traits.Quantized
+	}
+}
+
+func quantizedMetadata(metadata []Metadata, target DType) ([]Metadata, error) {
+	fileType, ok := quantizedFileType(target)
+	if !ok {
+		return nil, fmt.Errorf("no GGUF file type mapping for %s", target)
+	}
+	result := make([]Metadata, 0, len(metadata)+2)
+	fileTypeFound := false
+	versionFound := false
+	for _, item := range metadata {
+		switch item.Key {
+		case "split.no", "split.count", "split.tensors.count":
+			continue
+		case "general.file_type":
+			item.Value = Value{Type: ValueTypeUint32, Data: fileType}
+			fileTypeFound = true
+		case "general.quantization_version":
+			item.Value = Value{
+				Type: ValueTypeUint32,
+				Data: uint32(quantizationVersion),
+			}
+			versionFound = true
+		}
+		result = append(result, item)
+	}
+	if !fileTypeFound {
+		result = append(result, Metadata{
+			Key:   "general.file_type",
+			Value: Value{Type: ValueTypeUint32, Data: fileType},
+		})
+	}
+	if !versionFound {
+		result = append(result, Metadata{
+			Key: "general.quantization_version",
+			Value: Value{
+				Type: ValueTypeUint32,
+				Data: uint32(quantizationVersion),
+			},
+		})
+	}
+	return result, nil
+}
+
+func quantizedFileType(target DType) (uint32, bool) {
+	switch target {
+	case dtype.F32:
+		return 0, true
+	case dtype.F16:
+		return 1, true
+	case dtype.Q4_0:
+		return 2, true
+	case dtype.Q4_1:
+		return 3, true
+	case dtype.Q8_0:
+		return 7, true
+	case dtype.Q5_0:
+		return 8, true
+	case dtype.Q5_1:
+		return 9, true
+	case dtype.Q2K:
+		return 10, true
+	case dtype.Q3K:
+		return 12, true
+	case dtype.Q4K:
+		return 15, true
+	case dtype.Q5K:
+		return 17, true
+	case dtype.Q6K:
+		return 18, true
+	case dtype.BF16:
+		return 32, true
+	case dtype.IQ4NL:
+		return 25, true
+	case dtype.IQ2S:
+		return 28, true
+	case dtype.IQ3XXS:
+		return 23, true
+	case dtype.IQ3S:
+		return 26, true
+	case dtype.IQ4XS:
+		return 30, true
+	case dtype.TQ1_0:
+		return 36, true
+	case dtype.TQ2_0:
+		return 37, true
+	case dtype.MXFP4:
+		return 38, true
+	case dtype.NVFP4:
+		return 39, true
+	case dtype.Q1_0:
+		return 40, true
+	case dtype.Q2_0:
+		return 41, true
+	default:
+		return 0, false
+	}
+}
+
+func tensorStorageSize(tensor TensorInfo, dataType DType) (uint64, error) {
+	traits, ok := dataType.Traits()
+	if !ok {
+		return 0, fmt.Errorf("tensor %q has unknown type %d", tensor.Name, dataType)
+	}
+	elements, err := tensorElements(tensor)
+	if err != nil {
+		return 0, err
+	}
+	if elements%traits.BlockSize != 0 {
+		return 0, fmt.Errorf(
+			"tensor %q element count %d is not divisible by %s block size %d",
+			tensor.Name,
+			elements,
+			traits.Name,
+			traits.BlockSize,
+		)
+	}
+	blocks := elements / traits.BlockSize
+	if blocks > math.MaxUint64/traits.TypeSize {
+		return 0, fmt.Errorf("tensor %q byte size overflows uint64", tensor.Name)
+	}
+	return blocks * traits.TypeSize, nil
+}
+
+func tensorElements(tensor TensorInfo) (uint64, error) {
+	elements := uint64(1)
+	for axis := uint32(0); axis < tensor.Dimensions; axis++ {
+		dimension := tensor.Shape[axis]
+		if dimension == 0 || elements > math.MaxUint64/dimension {
+			return 0, fmt.Errorf("tensor %q element count overflows uint64", tensor.Name)
+		}
+		elements *= dimension
+	}
+	return elements, nil
+}
+
+type quantizingReader struct {
+	file              *File
+	tensor            TensorInfo
+	target            DType
+	sourceTraits      TypeTraits
+	targetTraits      TypeTraits
+	elementsRemaining uint64
+	sourceOffset      uint64
+	chunkElements     uint64
+	buffer            []byte
+	bufferOffset      int
+}
+
+func newQuantizingReader(
+	file *File,
+	tensor TensorInfo,
+	target DType,
+) (*quantizingReader, error) {
+	sourceTraits, ok := tensor.Type.Traits()
+	if !ok {
+		return nil, fmt.Errorf("tensor %q has unknown type %d", tensor.Name, tensor.Type)
+	}
+	targetTraits, ok := target.Traits()
+	if !ok {
+		return nil, fmt.Errorf("unknown quantization target %d", target)
+	}
+	elements, err := tensorElements(tensor)
+	if err != nil {
+		return nil, err
+	}
+	baseElements, overflow := leastCommonMultiple(
+		sourceTraits.BlockSize,
+		targetTraits.BlockSize,
+	)
+	if overflow || baseElements == 0 {
+		return nil, fmt.Errorf("tensor %q conversion block size overflows", tensor.Name)
+	}
+	if elements%baseElements != 0 {
+		return nil, fmt.Errorf(
+			"tensor %q element count %d is not divisible by conversion block size %d",
+			tensor.Name,
+			elements,
+			baseElements,
+		)
+	}
+	const targetChunkElements = uint64(256 << 10)
+	chunkElements := baseElements
+	if baseElements < targetChunkElements {
+		chunkElements *= targetChunkElements / baseElements
+	}
+	return &quantizingReader{
+		file:              file,
+		tensor:            tensor,
+		target:            target,
+		sourceTraits:      sourceTraits,
+		targetTraits:      targetTraits,
+		elementsRemaining: elements,
+		chunkElements:     chunkElements,
+	}, nil
+}
+
+func (r *quantizingReader) Read(destination []byte) (int, error) {
+	if len(destination) == 0 {
+		return 0, nil
+	}
+	if r.bufferOffset == len(r.buffer) {
+		if r.elementsRemaining == 0 {
+			return 0, io.EOF
+		}
+		if err := r.fill(); err != nil {
+			return 0, err
+		}
+	}
+	count := copy(destination, r.buffer[r.bufferOffset:])
+	r.bufferOffset += count
+	return count, nil
+}
+
+func (r *quantizingReader) fill() error {
+	elements := min(r.elementsRemaining, r.chunkElements)
+	sourceBlocks := elements / r.sourceTraits.BlockSize
+	if sourceBlocks > uint64(maxInt())/r.sourceTraits.TypeSize {
+		return errors.New("quantization source chunk exceeds addressable memory")
+	}
+	sourceSize := sourceBlocks * r.sourceTraits.TypeSize
+	source := make([]byte, int(sourceSize))
+	if err := r.file.ReadTensorRange(r.tensor, r.sourceOffset, source); err != nil {
+		return err
+	}
+	values, err := quant.Dequantize(r.tensor.Type, source, elements)
+	if err != nil {
+		return fmt.Errorf("dequantize tensor %q: %w", r.tensor.Name, err)
+	}
+	r.buffer, err = quant.Quantize(r.target, values)
+	if err != nil {
+		return fmt.Errorf("quantize tensor %q: %w", r.tensor.Name, err)
+	}
+	r.bufferOffset = 0
+	r.sourceOffset += sourceSize
+	r.elementsRemaining -= elements
+	return nil
+}
+
+func leastCommonMultiple(left, right uint64) (uint64, bool) {
+	divisor := greatestCommonDivisor(left, right)
+	reduced := left / divisor
+	if reduced > math.MaxUint64/right {
+		return 0, true
+	}
+	return reduced * right, false
+}
+
+func greatestCommonDivisor(left, right uint64) uint64 {
+	for right != 0 {
+		left, right = right, left%right
+	}
+	return left
+}

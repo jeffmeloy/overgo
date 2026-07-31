@@ -1,0 +1,909 @@
+schema: 1
+upstream:
+  repository: ggml-org/llama.cpp
+  commit: 42fc243060709331ff9b158a9ed2cbe37219ae83
+host:
+  os: windows
+  arch: amd64
+go:
+  minimum: "1.26"
+  cgo: false
+gguf:
+  versions:
+    - 2
+    - 3
+  split_files:
+    automatic_local_discovery: true
+    first_shard_required: true
+    naming: "<prefix>-%05d-of-%05d.gguf"
+    validates:
+      - split-index-and-count
+      - global-tensor-count
+      - duplicate-tensor-names
+      - per-shard-bounds
+    default_maximum_shards: 1024
+  writing:
+    versions:
+      - 2
+      - 3
+    canonical_tensor_offsets: true
+    streaming_tensor_payloads: true
+    metadata_scalars_and_arrays: all
+    merge_validated_splits: true
+    create_validated_splits: true
+    split_limits:
+      - tensor-count
+      - aligned-payload-bytes
+    pinned_upstream_validation:
+      - llama-gguf-hash
+      - llama-gguf-split--merge
+    payload_hashing:
+      algorithms:
+        - xxh64
+        - sha1
+        - sha256
+        - llama-cpp-uuidv5
+      per_tensor: true
+      logical_model: true
+      manifest_verification: true
+    model_quantization:
+      streaming: true
+      default_policy: matrices-except-1d
+      destinations:
+        - F32
+        - F16
+        - BF16
+        - Q1_0
+        - Q2_0
+        - Q4_0
+        - Q4_1
+        - Q5_0
+        - Q5_1
+        - Q8_0
+        - Q2_K
+        - Q3_K
+        - Q4_K
+        - Q5_K
+        - Q6_K
+        - TQ1_0
+        - TQ2_0
+        - IQ2_S
+        - IQ3_XXS
+        - IQ3_S
+        - IQ4_NL
+        - IQ4_XS
+        - MXFP4
+        - NVFP4
+      pinned_byte_exact_encoders:
+        - Q1_0
+        - Q2_0
+        - Q4_0
+        - Q4_1
+        - Q5_0
+        - Q5_1
+        - Q8_0
+        - Q8_1
+        - Q2_K
+        - Q3_K
+        - Q4_K
+        - Q5_K
+        - Q6_K
+        - Q8_K
+        - TQ1_0
+        - TQ2_0
+        - IQ2_S
+        - IQ3_XXS
+        - IQ3_S
+        - IQ4_NL
+        - IQ4_XS
+        - MXFP4
+        - NVFP4
+      weighted_encoder_limitations:
+        - IQ1_S
+        - IQ1_M
+        - IQ2_XXS
+        - IQ2_XS
+    overwrite_existing_output: false
+  f32_compatibility_conversion:
+    - F32
+    - F16
+    - BF16
+    - F64
+    - I8
+    - I16
+    - I32
+    - I64
+    - Q1_0
+    - Q2_0
+    - Q4_0
+    - Q4_1
+    - Q5_0
+    - Q5_1
+    - Q8_0
+    - Q8_1
+    - Q2_K
+    - Q3_K
+    - Q4_K
+    - Q5_K
+    - Q6_K
+    - Q8_K
+    - TQ1_0
+    - TQ2_0
+    - IQ1_S
+    - IQ1_M
+    - IQ2_XXS
+    - IQ2_XS
+    - IQ2_S
+    - IQ3_XXS
+    - IQ3_S
+    - IQ4_NL
+    - IQ4_XS
+    - MXFP4
+    - NVFP4
+tokenizers:
+  algorithms:
+    - sentencepiece-bpe
+    - gpt2-byte-bpe
+    - bert-wordpiece
+    - unigram
+  pinned_oracle_corpora:
+    - qwen2
+    - qwen35
+    - gpt-2
+    - llama-spm
+    - llama-bpe
+    - bert-bge
+  exact_oracle_cases: 280
+  fim:
+    metadata:
+      - fim_pre_token_id
+      - fim_suf_token_id
+      - fim_mid_token_id
+      - fim_pad_token_id
+      - fim_rep_token_id
+      - fim_sep_token_id
+    deprecated_metadata:
+      - prefix_token_id
+      - suffix_token_id
+      - middle_token_id
+    fallback_token_spellings: true
+sampling:
+  deterministic_state: true
+  filters:
+    - temperature
+    - dynamic-temperature
+    - top-k
+    - top-p
+    - min-p
+    - typical-p
+    - top-n-sigma
+    - xtc
+    - repetition
+    - dry
+    - mirostat-v1
+    - mirostat-v2
+    - adaptive-p
+    - infill
+    - logit-bias
+    - ignore-eog
+  configurable_chain:
+    default:
+      - penalties
+      - dry
+      - top_n_sigma
+      - top_k
+      - typ_p
+      - top_p
+      - min_p
+      - xtc
+      - temperature
+    repeated_stages: true
+    optional:
+      - adaptive_p
+      - infill
+  grammars:
+    - exact-literal-choices
+    - gbnf-character
+    - json-schema-to-gbnf
+  gbnf:
+    features:
+      - literals-and-escapes
+      - unicode-character-ranges
+      - negated-character-classes
+      - wildcard
+      - named-rules
+      - groups-and-alternation
+      - right-recursion
+      - repetition
+      - partial-utf8-token-pieces
+      - numeric-token-terminals
+      - named-token-terminals
+      - inverse-token-terminals
+      - lazy-token-triggers
+      - lazy-regex-triggers
+      - overlapping-token-replay
+      - serialized-state
+    limitations:
+      - ecmascript-lookaround-and-backreferences
+  state_version: 4
+  loads_legacy_state_versions:
+    - 2
+    - 3
+tools:
+  - inspect-gguf
+  - gguf-hash
+  - gguf-merge
+  - gguf-quantize
+  - gguf-split
+  - json-schema-grammar
+  - tokenize
+  - block-check
+  - generate
+  - perplexity
+  - embedding
+  - benchmark
+  - server
+benchmark:
+  format: json
+  metrics:
+    - model-and-device-identity
+    - model-load-time
+    - prompt-and-output-token-counts
+    - time-to-first-token
+    - post-first-token-decode-rate
+    - end-to-end-token-rate
+    - host-heap-snapshots
+    - current-device-allocation
+    - peak-device-allocation
+    - p50-and-minimum-summaries
+    - custom-kernel-launches
+    - stream-synchronizations
+    - host-device-copy-counts-and-bytes
+    - device-device-copy-counts-and-bytes
+    - stream-ordered-device-memset-counts-and-bytes
+    - launches-and-synchronizations-per-output-token
+  device_memory_scope: runner-owned-driver-allocations
+  execution_counter_scope: runner-owned-driver-calls
+hardening:
+  fuzz_targets:
+    - gguf-parser
+    - tokenizer-encode-decode
+    - gbnf-compiler
+    - json-schema-converter
+    - sampler-state
+    - cache-state
+    - session-state
+    - server-json
+  fuzz_smoke_script: scripts/fuzz-smoke.ps1
+  race_detector:
+    status: blocked
+    reason: standard-go-race-detector-requires-cgo
+  sbom:
+    format: CycloneDX-1.6
+    artifact: SBOM.cdx.json
+    deterministic: true
+    ci_verified: true
+    kernel_sha256: true
+    kernel_manifest:
+      schema: 2
+      abi_version: 1
+      verifies:
+        - source-and-asset-sha256
+        - complete-entry-set
+        - ordered-parameter-layouts
+        - launch-and-shared-memory-conventions
+      runtime_validation: fail-closed-before-module-load
+      cache_invalidation: embedded-ptx-content-hash
+    license_inventory: LICENSES.md
+    project_license: NOASSERTION
+release:
+  target: windows-amd64
+  cgo: false
+  deterministic:
+    trimpath: true
+    vcs_stamp: false
+    go_build_id: empty
+    fixed_zip_timestamps: true
+    repeated_build_comparison: true
+  manifests:
+    - embedded-SHA256SUMS
+    - external-archive-sha256
+    - CycloneDX-SBOM
+    - license-inventory
+    - CUDA-kernel-ABI
+  workflow: .github/workflows/release.yml
+  signing:
+    status: blocked
+    reason: no-user-controlled-code-signing-certificate
+server:
+  bearer_authentication: optional
+  context_shift: optional
+  graceful_shutdown_seconds: 30
+  request_timeout: optional
+  prometheus_metrics:
+    - readiness
+    - request-count-and-concurrency
+    - generation-count-errors-and-tokens
+    - uptime
+    - runner-cuda-current-bytes
+    - runner-cuda-peak-bytes
+    - runner-cuda-live-allocation-count
+    - runner-cuda-custom-kernel-launch-count
+    - runner-cuda-stream-and-context-synchronization-count
+    - runner-cuda-host-device-transfer-bytes
+    - runner-cuda-device-device-transfer-bytes
+  stop_sequences:
+    - buffered
+    - streaming
+    - cross-token
+  multiple_choices:
+    maximum: 8
+    streaming: true
+  chat_templates:
+    - chatml
+    - gemma-turns
+    - llama3-headers
+    - gguf-jinja-text
+  gguf_jinja:
+    engine: gonja-v2
+    loader: memory-only
+    template_max_bytes: 1048576
+    output_max_bytes: 16777216
+    context:
+      - messages
+      - bos_token
+      - eos_token
+      - add_generation_prompt
+      - enable_thinking
+      - tools
+      - assistant-tool-calls
+      - tool-results
+      - documents-empty
+    named_template_variants:
+      - tool_use
+    pinned_real_model_oracles:
+      - qwen3
+      - qwen3-tools-and-history
+      - qwen35
+      - qwen35-tools-and-history
+      - gemma3
+      - bonsai
+      - bonsai-tools-and-history
+  openai_chat_tools:
+    routes:
+      - /chat/completions
+      - /v1/chat/completions
+    choices:
+      - auto
+      - required
+      - none
+      - named-function
+    formatting:
+      - openai-function-schemas
+      - assistant-tool-call-history
+      - tool-result-history
+      - python-style-ordered-tojson
+    grammar:
+      auto: lazy-tool-call-delimiter-trigger
+      required: forced-schema-derived
+      named_function: forced-selected-schema
+    output_parsers:
+      - qwen-json-in-xml
+      - qwen35-bonsai-hermes-xml
+    arguments:
+      schema-type-coercion: true
+      required-validation: true
+      unknown-tool-validation: true
+    response:
+      generated_call_ids: true
+      finish_reason: tool_calls
+      empty_content: "null"
+    buffered: true
+    limitations:
+      - incremental-streaming-tool-call-deltas
+      - arbitrary-unknown-template-output-syntax
+  structured_output:
+    converter: ordered-json-schema-to-gbnf
+    grammar_root: root
+    explicit_grammar_conflicts_rejected: true
+    native_completion:
+      routes:
+        - /completion
+        - /completions
+      field: json_schema
+    openai_completion:
+      route: /v1/completions
+      field: json_schema
+    chat_completion:
+      routes:
+        - /chat/completions
+        - /v1/chat/completions
+      top_level_field: json_schema
+      response_format_types:
+        - text
+        - json_object
+        - json_schema
+      wrapped_schema_field: response_format.json_schema.schema
+  endpoints:
+    - /health
+    - /healthz
+    - /v1/health
+    - /metrics
+    - /models
+    - /v1/models
+    - /v1/completions
+    - /v1/chat/completions
+    - /chat/completions
+    - /chat/completions/input_tokens
+    - /v1/chat/completions/input_tokens
+    - /responses
+    - /v1/responses
+    - /responses/input_tokens
+    - /v1/responses/input_tokens
+    - /v1/messages
+    - /v1/messages/count_tokens
+    - /lora-adapters
+    - /v1/embeddings
+    - /embedding
+    - /embeddings
+    - /completion
+    - /completions
+    - /infill
+    - /apply-template
+    - /tokenize
+    - /detokenize
+    - /props
+    - /slots
+  native_infill:
+    route: /infill
+    layouts:
+      - prefix-suffix-middle
+      - suffix-prefix-middle
+    mixed_prefix_suffix_tokens: true
+    repository_extra_context: true
+    prefix_suffix_ratio: "3:1"
+    delegates_to_native_completion: true
+  public_endpoints:
+    - /health
+    - /healthz
+    - /v1/health
+    - /metrics
+    - /models
+    - /v1/models
+  model_discovery:
+    envelopes:
+      - models
+      - data
+    metadata:
+      - architecture-family
+      - vocabulary-type-and-count
+      - context-length
+      - embedding-length
+      - parameter-count
+      - tensor-bytes
+      - quantization-level
+    exposes_model_path: false
+  native_embeddings:
+    routes:
+      - /embedding
+      - /embeddings
+    prompt_shapes:
+      - string
+      - exact-token-sequence
+      - mixed-token-string-sequence
+      - heterogeneous-batch
+    response: indexed-nested-float-vectors
+    pooling:
+      - mean
+      - last
+      - none-per-token
+    normalization:
+      - none-minus-one
+      - max-absolute-int16-range
+      - general-p-norm
+    encoding: float
+  openai_embeddings:
+    route: /v1/embeddings
+    encoding:
+      - float
+      - base64-little-endian-float32
+  tokenizer:
+    tokenize:
+      content_shapes:
+        - string
+        - mixed-token-string-sequence
+      add_special_first_text_only: true
+      parse_special_default: true
+      with_pieces: true
+      invalid_utf8_piece: integer-byte-array
+    detokenize:
+      exact_piece_concatenation: true
+      renders_special_tokens: true
+    maximum_tokens: 1048576
+  slots:
+    maximum: 65536
+    stable_ids: true
+    exact_id_request: true
+    fail_on_no_slot: true
+    fields:
+      - id
+      - id-task-while-busy
+      - context-length
+      - speculative
+      - processing-state
+      - prompt-token-count
+      - prompt-processed-count
+      - prompt-cache-count
+      - prompt
+      - generated-text
+      - timing-rates
+      - sampler-parameters
+      - stop-sequences
+      - prompt-cache-controls
+      - context-shift
+      - next-token-state
+    completed_snapshot_retained_until_reuse: true
+  chat_token_count:
+    routes:
+      - /chat/completions/input_tokens
+      - /v1/chat/completions/input_tokens
+    response_object: response.input_tokens
+    shares_generation_formatter: true
+    limitations:
+      - multimodal-content
+  responses:
+    routes:
+      - /responses
+      - /v1/responses
+    token_count_routes:
+      - /responses/input_tokens
+      - /v1/responses/input_tokens
+    input:
+      - text
+      - text-message-array
+      - text-content-parts
+      - instructions
+    buffered: true
+    streaming:
+      named_sse_events: true
+      lifecycle:
+        - response.created
+        - response.in_progress
+        - response.output_item.added
+        - response.content_part.added
+        - response.output_text.delta
+        - response.output_text.done
+        - response.content_part.done
+        - response.output_item.done
+        - response.completed
+      openai_done_marker: false
+    output: response-object-with-message-and-usage
+    limitations:
+      - previous-response-continuation
+      - tools-and-function-items
+      - reasoning-items
+      - multimodal-and-file-input
+  anthropic_messages:
+    route: /v1/messages
+    token_count_route: /v1/messages/count_tokens
+    input:
+      - string-system
+      - text-block-system
+      - string-messages
+      - text-block-messages
+    buffered: true
+    streaming:
+      named_sse_events: true
+      lifecycle:
+        - message_start
+        - content_block_start
+        - content_block_delta
+        - content_block_stop
+        - message_delta
+        - message_stop
+    response:
+      - text-content-blocks
+      - stop-reason-and-sequence
+      - cache-input-output-usage
+    limitations:
+      - tools-and-tool-results
+      - thinking-blocks
+      - images
+      - tool-aware-jinja-context
+  lora_adapters:
+    discovery: empty-loaded-list
+    disable_all_post: true
+    limitations:
+      - adapter-loading
+      - tensor-application
+      - nonzero-scaling
+  props:
+    method: GET
+    mutable: false
+    fields:
+      - default-generation-settings
+      - total-slots
+      - model-alias
+      - model-file-type
+      - model-path
+      - model-metadata
+      - modalities
+      - endpoint-capabilities
+      - chat-template
+      - bos-eos-token-text
+      - build-info
+      - sleeping-state
+  native_completion:
+    prompt_shapes:
+      - string
+      - exact-token-sequence
+      - mixed-token-string-sequence
+    multiple_choices:
+      maximum: 8
+    prompt_batches:
+      maximum: 64
+      order: prompt-major
+      heterogeneous: true
+    streaming:
+      partial-token-events: true
+      final-metadata-event: true
+      openai-done-marker: false
+      sse_ping_interval:
+        default_seconds: 30
+        disabled_values:
+          - -1
+          - 0
+        frame: ":\n\n"
+      prompt_progress:
+        opt_in_field: return_progress
+        events:
+          - prompt-start
+          - prompt-complete
+        fields:
+          - total
+          - cache
+          - processed
+          - time-ms
+        limitation: no-internal-batch-increments
+      timings_per_token:
+        opt_in_field: timings_per_token
+        cache_prompt_decode_split: true
+        zero_safe_rates: true
+      prediction_time_limit:
+        field: t_max_predict_ms
+        stop_condition: first-newline-after-budget
+        disabled_values:
+          - -1
+          - 0
+        graceful: true
+      indentation_limit:
+        field: n_indent
+        whitespace:
+          - space
+          - tab
+        trims_offending_suffix: true
+      pre_sampling_probabilities:
+        field: n_probs
+        selected_token: true
+        top_n: true
+        values: logprob
+        token_piece: true
+        token_bytes: true
+        buffered: true
+        streaming: true
+      post_sampling_probabilities:
+        opt_in_field: post_sampling_probs
+        requires: positive-n_probs
+        values: probability
+        source: filtered-sampler-candidates
+        may_return_fewer_than_n: true
+        sampler_paths:
+          - standard-chain
+          - greedy
+          - mirostat-v1
+          - mirostat-v2
+          - adaptive-p
+        buffered: true
+        streaming: true
+    response:
+      - content
+      - raw-tokens
+      - stop-type-and-word
+      - prompt-and-generated-token-counts
+      - normalized-generation-settings
+      - timings
+    response_fields:
+      maximum: 64
+      slash_paths: true
+      missing_paths: omitted
+      streaming_final_only: true
+    prompt_cache:
+      opt_in_field: cache_prompt
+      retained_entries:
+        default: 1
+        configurable: true
+        eviction: lru
+      reuse: best-matching-entry
+      pure_attention_suffix_rollback:
+        host: copied-range-edit
+        device: zero-copy-shape-view
+        multi_device_entries: independent-no-mutation
+      recurrent_hybrid_reuse: exact-cached-prefix-only
+      minimum_match_field: n_cache_reuse
+      reports_cached_and_evaluated_tokens: true
+      split_prompt_decode_timings: true
+    limitations:
+      - multimodal-prompt-objects
+      - per-request-lora
+  openai_completion:
+    route: /v1/completions
+    prompt_shapes:
+      - string
+      - exact-token-sequence
+      - mixed-token-string-sequence
+      - flat-string-batch
+      - nested-heterogeneous-batch
+    prompt_batch_maximum: 64
+    exact_ids_bypass_tokenization: true
+    choice_order: prompt-major
+    buffered: true
+    streaming: true
+cache:
+  state_version: 2
+  loads_legacy_version: 1
+  features:
+    - prefix-removal
+    - absolute-position-preservation
+    - hybrid-recurrent-state-preservation
+    - rolling-context-generation
+    - prefix-preserving-middle-range-removal
+    - native-completion-n-keep
+    - native-completion-n-discard
+  device_residency:
+    preloaded_dense_generation: retained-output-allocations
+    preloaded_qwen35_generation: retained-hybrid-output-allocations
+    prompt_cache: retained-device-prefix-and-logits
+    steady_stream_synchronizations_per_token: 1
+    host_transfer: vocabulary-logits-only
+    rolling_context_shift: zero-copy-device-pointer-view
+    prefix_preserving_context_shift: owned-device-range-compaction
+    fallbacks:
+      - editable-session-state
+      - streamed-weight-execution
+  limitations:
+    - device-cache-paging
+    - multiple-device-sequences
+cuda:
+  toolkit_tested: "12.9"
+  driver_tested: "595.79"
+  compute_capabilities:
+    - "8.9"
+  kernel_targets:
+    - "sm_89"
+    - "compute_89"
+  native_weight_types:
+    - Q1_0
+    - Q2_0
+    - Q4_0
+    - Q4_1
+    - Q5_0
+    - Q5_1
+    - Q8_0
+    - Q8_1
+    - Q8_K
+    - Q2_K
+    - Q3_K
+    - Q4_K
+    - Q5_K
+    - Q6_K
+    - TQ1_0
+    - TQ2_0
+    - IQ1_S
+    - IQ1_M
+    - IQ2_XXS
+    - IQ2_XS
+    - IQ2_S
+    - IQ3_XXS
+    - IQ3_S
+    - IQ4_NL
+    - IQ4_XS
+    - MXFP4
+    - NVFP4
+models:
+  llama:
+    status: experimental
+    types:
+      - F16
+      - Q8_0
+      - Q8_1
+      - Q8_K
+    constraints:
+      - dense
+      - bias-free
+      - unscaled-rope
+    tokenizers:
+      - llama-spm
+      - llama3-bpe
+    real_model_validation: pending-fixture
+  qwen3:
+    status: experimental
+    types:
+      - Q1_0
+      - Q2_0
+      - Q4_0
+      - Q4_1
+      - Q5_0
+      - Q5_1
+      - Q8_0
+      - Q2_K
+      - Q3_K
+      - Q4_K
+      - Q5_K
+      - Q6_K
+      - IQ4_XS
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-q8
+      - native-k-quant
+      - native-iq4-xs
+    validated_fixture: Qwen3-4B-UD-Q8_K_XL.gguf
+  qwen35:
+    status: experimental
+    types:
+      - Q8_0
+    tokenizers:
+      - qwen35-bpe
+    execution:
+      - native-q8
+    features:
+      - multi-axis-rope-kernel
+      - text-generation-position-input
+      - gated-full-attention
+      - fused-gated-delta-net
+      - recurrent-convolution-state
+      - serializable-hybrid-cache
+      - retained-device-hybrid-cache
+      - stream-ordered-zero-state-initialization
+    validated_fixture: Qwen3.5-9B-Q8_0.gguf
+    additional_validated_fixture: Bonsai-27B-Q1_0.gguf
+  gemma3:
+    status: experimental
+    types:
+      - IQ4_XS
+      - Q6_K
+    features:
+      - strict-48-layer-catalog
+      - scaled-local-global-rope
+      - sliding-attention
+      - geglu
+      - post-attention-and-ffn-norms
+    validated_fixture: gemma-3-12b-it-IQ4_XS.gguf
+    validation:
+      - perplexity-relative-delta-below-0.5-percent
+      - greedy-token-id-exact
+  t5encoder:
+    status: experimental
+    types:
+      - Q5_K
+      - Q6_K
+      - F32
+    tokenizers:
+      - sentencepiece-ugm
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-k-quant
+    features:
+      - strict-encoder-catalog
+      - bidirectional-attention
+      - relative-position-buckets
+      - geglu
+      - mean-pooled-embeddings
+    validated_fixture: umt5-xxl-encoder-Q5_K_S.gguf
+    validation:
+      - tokenizer-id-exact
+      - pooled-embedding-cosine-above-0.999
+    limitations:
+      - encoder-only
+      - no-cross-attention

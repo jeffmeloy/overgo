@@ -1,0 +1,29 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Test
+        env:
+          CGO_ENABLED: "0"
+        run: go test ./...
+      - name: Verify SBOM
+        env:
+          CGO_ENABLED: "0"
+        run: go run ./cmd/sbom -check
+      - name: Verify kernel manifest
+        env:
+          CGO_ENABLED: "0"
+        run: go run ./cmd/kernel-manifest

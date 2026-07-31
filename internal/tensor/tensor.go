@@ -1,0 +1,942 @@
+package tensor
+
+import (
+	"errors"
+	"fmt"
+	"math"
+
+	"llamacpp2go/internal/tensor/dtype"
+)
+
+// Op identifies a typed graph operation.
+type Op uint16
+
+const (
+	OpInput Op = iota
+	OpAdd
+	OpMultiply
+	OpScale
+	OpRMSNorm
+	OpSoftmax
+	OpSiLU
+	OpMulMat
+	OpGetRows
+	OpRoPENeoX
+	OpReshape
+	OpAttention
+	OpConcat
+	OpRoPENormal
+	OpSigmoid
+	OpSoftplus
+	OpL2Norm
+	OpSSMConv
+	OpGatedDeltaNet
+	OpTranspose2D
+	OpGroupSlice
+	OpFlatSlice
+	OpRoPEMulti
+	OpGELU
+)
+
+var opNames = [...]string{
+	"input",
+	"add",
+	"multiply",
+	"scale",
+	"rms_norm",
+	"softmax",
+	"silu",
+	"mul_mat",
+	"get_rows",
+	"rope_neox",
+	"reshape",
+	"attention",
+	"concat",
+	"rope_normal",
+	"sigmoid",
+	"softplus",
+	"l2_norm",
+	"ssm_conv",
+	"gated_delta_net",
+	"transpose_2d",
+	"group_slice",
+	"flat_slice",
+	"rope_multi",
+	"gelu",
+}
+
+func (o Op) String() string {
+	if int(o) >= len(opNames) {
+		return fmt.Sprintf("op_%d", o)
+	}
+	return opNames[o]
+}
+
+type ScaleAttributes struct {
+	Value float32
+}
+
+type RMSNormAttributes struct {
+	Epsilon float32
+}
+
+type L2NormAttributes struct {
+	Epsilon float32
+}
+
+type GetRowsAttributes struct {
+	Rows []uint32
+}
+
+type RoPEAttributes struct {
+	Positions        []uint32
+	RotaryDimensions uint32
+	FrequencyBase    float32
+	FrequencyScale   float32
+}
+
+type RoPENeoXAttributes = RoPEAttributes
+
+type RoPEMultiAttributes struct {
+	Positions        [4][]uint32
+	Sections         [4]int32
+	RotaryDimensions uint32
+	FrequencyBase    float32
+}
+
+type AttentionAttributes struct {
+	Scale           float32
+	Causal          bool
+	QueryStart      uint32
+	Window          uint32
+	RelativeBuckets uint32
+}
+
+type ConcatAttributes struct {
+	Axis uint32
+}
+
+type GroupSliceAttributes struct {
+	Offset uint64
+	Width  uint64
+	Groups uint64
+	Stride uint64
+}
+
+type FlatSliceAttributes struct {
+	Offset uint64
+}
+
+// Tensor is an immutable graph node descriptor.
+type Tensor struct {
+	ID     uint64
+	Name   string
+	Type   dtype.Type
+	Shape  Shape
+	Stride [MaxDimensions]uint64
+	Op     Op
+	Inputs []*Tensor
+	Attrs  any
+}
+
+// Builder constructs and validates a tensor graph.
+type Builder struct {
+	nextID uint64
+	nodes  []*Tensor
+	err    error
+}
+
+func NewBuilder() *Builder {
+	return &Builder{nextID: 1}
+}
+
+func (b *Builder) Err() error {
+	return b.err
+}
+
+func (b *Builder) Nodes() []*Tensor {
+	return append([]*Tensor(nil), b.nodes...)
+}
+
+func (b *Builder) Input(name string, dataType dtype.Type, shape Shape) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if name == "" {
+		b.err = errors.New("input tensor name is empty")
+		return nil
+	}
+	return b.add(name, dataType, shape, OpInput, nil, nil)
+}
+
+func (b *Builder) Add(left, right *Tensor) *Tensor {
+	return b.binary(OpAdd, left, right)
+}
+
+func (b *Builder) Multiply(left, right *Tensor) *Tensor {
+	return b.binary(OpMultiply, left, right)
+}
+
+func (b *Builder) Scale(input *Tensor, value float32) *Tensor {
+	return b.unary(OpScale, input, ScaleAttributes{Value: value})
+}
+
+func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
+	if epsilon <= 0 {
+		b.setError(errors.New("RMSNorm epsilon must be positive"))
+		return nil
+	}
+	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon})
+}
+
+// WeightedRMSNorm applies RMSNorm and the learned per-channel weight.
+func (b *Builder) WeightedRMSNorm(input, weight *Tensor, epsilon float32) *Tensor {
+	return b.Multiply(b.RMSNorm(input, epsilon), weight)
+}
+
+func (b *Builder) Softmax(input *Tensor) *Tensor {
+	return b.unary(OpSoftmax, input, nil)
+}
+
+func (b *Builder) SiLU(input *Tensor) *Tensor {
+	return b.unary(OpSiLU, input, nil)
+}
+
+func (b *Builder) GELU(input *Tensor) *Tensor {
+	return b.unary(OpGELU, input, nil)
+}
+
+func (b *Builder) Sigmoid(input *Tensor) *Tensor {
+	return b.unary(OpSigmoid, input, nil)
+}
+
+func (b *Builder) Softplus(input *Tensor) *Tensor {
+	return b.unary(OpSoftplus, input, nil)
+}
+
+func (b *Builder) L2Norm(input *Tensor, epsilon float32) *Tensor {
+	if epsilon < 0 || math.IsNaN(float64(epsilon)) {
+		b.setError(errors.New("L2Norm epsilon must be non-negative"))
+		return nil
+	}
+	return b.unary(OpL2Norm, input, L2NormAttributes{Epsilon: epsilon})
+}
+
+// SSMConv applies the channel-wise sliding convolution used by recurrent SSM
+// blocks. Input is [kernel-1+tokens, channels, sequences] and weights are
+// [kernel, channels]; output is [channels, tokens, sequences].
+func (b *Builder) SSMConv(input, weights *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || weights == nil {
+		b.setError(errors.New("SSMConv input is nil"))
+		return nil
+	}
+	if (input.Shape.Rank != 2 && input.Shape.Rank != 3) || weights.Shape.Rank != 2 {
+		b.setError(errors.New("SSMConv requires rank-2/3 input and rank-2 weights"))
+		return nil
+	}
+	if input.Type != dtype.F32 || weights.Type != dtype.F32 {
+		b.setError(errors.New("SSMConv currently requires F32 inputs"))
+		return nil
+	}
+	kernelSize := weights.Shape.Dims[0]
+	if kernelSize == 0 || input.Shape.Dims[0] < kernelSize {
+		b.setError(errors.New("SSMConv kernel exceeds input window"))
+		return nil
+	}
+	if input.Shape.Dims[1] != weights.Shape.Dims[1] {
+		b.setError(errors.New("SSMConv channel counts differ"))
+		return nil
+	}
+	tokens := input.Shape.Dims[0] - kernelSize + 1
+	var shape Shape
+	var err error
+	if input.Shape.Rank == 2 {
+		shape, err = NewShape(input.Shape.Dims[1], tokens)
+	} else {
+		shape, err = NewShape(input.Shape.Dims[1], tokens, input.Shape.Dims[2])
+	}
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpSSMConv, []*Tensor{input, weights}, nil)
+}
+
+// GatedDeltaNet applies llama.cpp's fused K=1 recurrent delta-net update.
+// Q/K/V are [state, heads, tokens, sequences], scalar or vector gate has
+// [1|state, valueHeads, tokens, sequences], beta is [1,valueHeads,tokens,
+// sequences], and state is [state,state,valueHeads,sequences]. The output
+// packs attention values followed by the newest state snapshot.
+func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	inputs := []*Tensor{q, k, v, gate, beta, state}
+	for _, input := range inputs {
+		if input == nil || input.Type != dtype.F32 || input.Shape.Rank != 4 {
+			b.setError(errors.New("GatedDeltaNet requires six rank-4 F32 inputs"))
+			return nil
+		}
+	}
+	size := v.Shape.Dims[0]
+	heads := v.Shape.Dims[1]
+	tokens := v.Shape.Dims[2]
+	sequences := v.Shape.Dims[3]
+	if q.Shape.Dims[0] != size || k.Shape.Dims[0] != size ||
+		q.Shape.Dims[2] != tokens || k.Shape.Dims[2] != tokens ||
+		q.Shape.Dims[3] != sequences || k.Shape.Dims[3] != sequences ||
+		heads%q.Shape.Dims[1] != 0 || heads%k.Shape.Dims[1] != 0 {
+		b.setError(errors.New("GatedDeltaNet Q/K/V shapes are incompatible"))
+		return nil
+	}
+	if (gate.Shape.Dims[0] != 1 && gate.Shape.Dims[0] != size) ||
+		gate.Shape.Dims[1] != heads || gate.Shape.Dims[2] != tokens ||
+		gate.Shape.Dims[3] != sequences ||
+		beta.Shape.Dims[0] != 1 || beta.Shape.Dims[1] != heads ||
+		beta.Shape.Dims[2] != tokens || beta.Shape.Dims[3] != sequences ||
+		state.Shape.Dims[0] != size || state.Shape.Dims[1] != size ||
+		state.Shape.Dims[2] != heads || state.Shape.Dims[3] != sequences {
+		b.setError(errors.New("GatedDeltaNet gate/beta/state shapes are incompatible"))
+		return nil
+	}
+	shape, err := NewShape(size*heads, tokens*sequences+size*sequences)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpGatedDeltaNet, inputs, nil)
+}
+
+// SwiGLU computes SiLU(gate) * up.
+func (b *Builder) SwiGLU(gate, up *Tensor) *Tensor {
+	return b.Multiply(b.SiLU(gate), up)
+}
+
+// GEGLU computes GELU(gate) * up.
+func (b *Builder) GEGLU(gate, up *Tensor) *Tensor {
+	return b.Multiply(b.GELU(gate), up)
+}
+
+// MulMat follows ggml semantics. Left has shape [K,M], right has shape [K,N],
+// and the result has shape [M,N].
+func (b *Builder) MulMat(left, right *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if left == nil || right == nil {
+		b.setError(errors.New("mul_mat input is nil"))
+		return nil
+	}
+	if left.Shape.Rank != 2 || right.Shape.Rank != 2 {
+		b.setError(errors.New("initial mul_mat implementation requires rank-2 inputs"))
+		return nil
+	}
+	if left.Shape.Dims[0] != right.Shape.Dims[0] {
+		b.setError(fmt.Errorf(
+			"mul_mat inner dimensions differ: %d and %d",
+			left.Shape.Dims[0],
+			right.Shape.Dims[0],
+		))
+		return nil
+	}
+	outputType := left.Type
+	if nativeQuantizedType(left.Type) && right.Type == dtype.F32 {
+		outputType = dtype.F32
+	} else if left.Type != right.Type {
+		b.setError(fmt.Errorf("mul_mat types are unsupported: %s and %s", left.Type, right.Type))
+		return nil
+	}
+	shape, err := NewShape(left.Shape.Dims[1], right.Shape.Dims[1])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", outputType, shape, OpMulMat, []*Tensor{left, right}, nil)
+}
+
+// GetRows gathers vocabulary rows from a rank-2 table in ggml layout. The
+// table shape is [embedding, rows] and the result is [embedding, len(rows)].
+func (b *Builder) GetRows(table *Tensor, rows []uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if table == nil {
+		b.setError(errors.New("get_rows input is nil"))
+		return nil
+	}
+	if table.Shape.Rank != 2 {
+		b.setError(errors.New("get_rows table must have rank 2"))
+		return nil
+	}
+	if len(rows) == 0 {
+		b.setError(errors.New("get_rows row list is empty"))
+		return nil
+	}
+	for index, row := range rows {
+		if uint64(row) >= table.Shape.Dims[1] {
+			b.setError(fmt.Errorf("get_rows row %d at index %d exceeds table size %d", row, index, table.Shape.Dims[1]))
+			return nil
+		}
+	}
+	shape, err := NewShape(table.Shape.Dims[0], uint64(len(rows)))
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	attributes := GetRowsAttributes{Rows: append([]uint32(nil), rows...)}
+	outputType := table.Type
+	if nativeQuantizedType(table.Type) {
+		outputType = dtype.F32
+	}
+	return b.add("", outputType, shape, OpGetRows, []*Tensor{table}, attributes)
+}
+
+func nativeQuantizedType(value dtype.Type) bool {
+	switch value {
+	case dtype.Q4_0, dtype.Q4_1, dtype.Q5_0, dtype.Q5_1,
+		dtype.Q8_0, dtype.Q8_1, dtype.Q2K, dtype.Q3K, dtype.Q4K, dtype.Q5K, dtype.Q6K, dtype.Q8K,
+		dtype.IQ2XXS, dtype.IQ2XS, dtype.IQ2S, dtype.IQ3XXS, dtype.IQ3S, dtype.IQ1S, dtype.IQ1M,
+		dtype.IQ4NL, dtype.IQ4XS, dtype.MXFP4, dtype.NVFP4,
+		dtype.Q1_0, dtype.Q2_0, dtype.TQ1_0, dtype.TQ2_0:
+		return true
+	default:
+		return false
+	}
+}
+
+// RoPENeoX applies the split-half rotary layout used by Qwen3. Input shape is
+// [head width, heads, tokens] (optionally with a batch dimension).
+func (b *Builder) RoPENeoX(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
+	return b.rope(OpRoPENeoX, "rope_neox", input, positions, rotaryDimensions, frequencyBase, 1)
+}
+
+func (b *Builder) RoPENeoXScaled(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+	frequencyScale float32,
+) *Tensor {
+	return b.rope(
+		OpRoPENeoX, "rope_neox", input, positions,
+		rotaryDimensions, frequencyBase, frequencyScale,
+	)
+}
+
+// RoPENormal applies rotary embeddings to consecutive channel pairs, as used
+// by the Llama architecture family.
+func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
+	return b.rope(OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, frequencyBase, 1)
+}
+
+// RoPEMulti applies llama.cpp's split-half multi-axis rotary layout. Positions
+// are temporal, height, width, and extra axes; sections count rotary pairs.
+func (b *Builder) RoPEMulti(
+	input *Tensor,
+	positions [4][]uint32,
+	sections [4]int32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Shape.Rank < 3 {
+		b.setError(errors.New("rope_multi input must have rank 3 or 4"))
+		return nil
+	}
+	if rotaryDimensions == 0 || rotaryDimensions%2 != 0 ||
+		uint64(rotaryDimensions) > input.Shape.Dims[0] {
+		b.setError(errors.New("rope_multi rotary dimensions are invalid"))
+		return nil
+	}
+	var sectionPairs int64
+	for axis := range sections {
+		if sections[axis] < 0 {
+			b.setError(errors.New("rope_multi section count is negative"))
+			return nil
+		}
+		sectionPairs += int64(sections[axis])
+		if len(positions[axis]) != int(input.Shape.Dims[2]) {
+			b.setError(errors.New("rope_multi position count differs from token count"))
+			return nil
+		}
+	}
+	if sectionPairs == 0 || sectionPairs > int64(rotaryDimensions/2) {
+		b.setError(errors.New("rope_multi sections exceed rotary pair count"))
+		return nil
+	}
+	if frequencyBase <= 0 {
+		b.setError(errors.New("rope_multi frequency base must be positive"))
+		return nil
+	}
+	attributes := RoPEMultiAttributes{
+		Sections:         sections,
+		RotaryDimensions: rotaryDimensions,
+		FrequencyBase:    frequencyBase,
+	}
+	for axis := range positions {
+		attributes.Positions[axis] = append([]uint32(nil), positions[axis]...)
+	}
+	return b.add("", input.Type, input.Shape, OpRoPEMulti, []*Tensor{input}, attributes)
+}
+
+func (b *Builder) rope(
+	operation Op,
+	name string,
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+	frequencyScale float32,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil {
+		b.setError(fmt.Errorf("%s input is nil", name))
+		return nil
+	}
+	if input.Shape.Rank < 3 {
+		b.setError(fmt.Errorf("%s input must have rank 3 or 4", name))
+		return nil
+	}
+	if rotaryDimensions == 0 || rotaryDimensions%2 != 0 || uint64(rotaryDimensions) > input.Shape.Dims[0] {
+		b.setError(fmt.Errorf("%s rotary dimensions %d are invalid for head width %d", name, rotaryDimensions, input.Shape.Dims[0]))
+		return nil
+	}
+	if len(positions) != int(input.Shape.Dims[2]) {
+		b.setError(fmt.Errorf("%s has %d positions, need %d", name, len(positions), input.Shape.Dims[2]))
+		return nil
+	}
+	if frequencyBase <= 0 {
+		b.setError(fmt.Errorf("%s frequency base must be positive", name))
+		return nil
+	}
+	if frequencyScale <= 0 {
+		b.setError(fmt.Errorf("%s frequency scale must be positive", name))
+		return nil
+	}
+	attributes := RoPEAttributes{
+		Positions:        append([]uint32(nil), positions...),
+		RotaryDimensions: rotaryDimensions,
+		FrequencyBase:    frequencyBase,
+		FrequencyScale:   frequencyScale,
+	}
+	return b.add("", input.Type, input.Shape, operation, []*Tensor{input}, attributes)
+}
+
+// Reshape changes only the logical dimensions and preserves contiguous order.
+func (b *Builder) Reshape(input *Tensor, dimensions ...uint64) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil {
+		b.setError(errors.New("reshape input is nil"))
+		return nil
+	}
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	inputElements, err := input.Shape.Elements()
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	outputElements, err := shape.Elements()
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	if inputElements != outputElements {
+		b.setError(fmt.Errorf("reshape changes element count from %d to %d", inputElements, outputElements))
+		return nil
+	}
+	return b.add("", input.Type, shape, OpReshape, []*Tensor{input}, nil)
+}
+
+// Transpose2D materializes the transpose of a contiguous rank-2 tensor.
+func (b *Builder) Transpose2D(input *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Shape.Rank != 2 {
+		b.setError(errors.New("Transpose2D requires a rank-2 input"))
+		return nil
+	}
+	shape, err := NewShape(input.Shape.Dims[1], input.Shape.Dims[0])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", input.Type, shape, OpTranspose2D, []*Tensor{input}, nil)
+}
+
+// GroupSlice extracts equally-strided groups from dimension zero. The input
+// rank must be 2 or 3 and the result prepends [width, groups] to the input's
+// remaining dimensions.
+func (b *Builder) GroupSlice(
+	input *Tensor,
+	offset, width, groups, stride uint64,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || (input.Shape.Rank != 2 && input.Shape.Rank != 3) {
+		b.setError(errors.New("GroupSlice requires a rank-2/3 input"))
+		return nil
+	}
+	if width == 0 || groups == 0 || stride < width ||
+		groups-1 > (math.MaxUint64-offset-width)/stride ||
+		offset+(groups-1)*stride+width > input.Shape.Dims[0] {
+		b.setError(errors.New("GroupSlice range exceeds input dimension zero"))
+		return nil
+	}
+	dimensions := []uint64{width, groups, input.Shape.Dims[1]}
+	if input.Shape.Rank == 3 {
+		dimensions = append(dimensions, input.Shape.Dims[2])
+	}
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add(
+		"",
+		input.Type,
+		shape,
+		OpGroupSlice,
+		[]*Tensor{input},
+		GroupSliceAttributes{Offset: offset, Width: width, Groups: groups, Stride: stride},
+	)
+}
+
+// FlatSlice copies a contiguous element range and gives it the requested
+// logical shape.
+func (b *Builder) FlatSlice(input *Tensor, offset uint64, dimensions ...uint64) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil {
+		b.setError(errors.New("FlatSlice input is nil"))
+		return nil
+	}
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	inputElements, inputErr := input.Shape.Elements()
+	outputElements, outputErr := shape.Elements()
+	if inputErr != nil || outputErr != nil {
+		b.setError(errors.Join(inputErr, outputErr))
+		return nil
+	}
+	if offset > inputElements || outputElements > inputElements-offset {
+		b.setError(errors.New("FlatSlice range exceeds input storage"))
+		return nil
+	}
+	return b.add(
+		"",
+		input.Type,
+		shape,
+		OpFlatSlice,
+		[]*Tensor{input},
+		FlatSliceAttributes{Offset: offset},
+	)
+}
+
+// Attention computes grouped-query scaled dot-product attention. Q has shape
+// [key width, query heads, tokens], K is [key width, KV heads, tokens], and V
+// is [value width, KV heads, tokens].
+func (b *Builder) Attention(query, key, value *Tensor, scale float32, causal bool) *Tensor {
+	return b.AttentionWithOffset(query, key, value, scale, causal, 0)
+}
+
+// AttentionWithOffset permits query to represent only the suffix beginning at
+// queryStart in a longer cached key/value sequence.
+func (b *Builder) AttentionWithOffset(
+	query, key, value *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+) *Tensor {
+	return b.attentionWithWindow(query, key, value, nil, scale, causal, queryStart, 0)
+}
+
+// AttentionWithRelativeBias computes full bidirectional attention and adds
+// T5-style bucketed relative-position bias. Bias has shape [heads, buckets].
+func (b *Builder) AttentionWithRelativeBias(
+	query, key, value, bias *Tensor,
+	scale float32,
+) *Tensor {
+	return b.attentionWithWindow(query, key, value, bias, scale, false, 0, 0)
+}
+
+func (b *Builder) AttentionWindowWithOffset(
+	query, key, value *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+	window uint32,
+) *Tensor {
+	if window == 0 {
+		b.setError(errors.New("attention window must be positive"))
+		return nil
+	}
+	return b.attentionWithWindow(query, key, value, nil, scale, causal, queryStart, window)
+}
+
+func (b *Builder) attentionWithWindow(
+	query, key, value, bias *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+	window uint32,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if query == nil || key == nil || value == nil {
+		b.setError(errors.New("attention input is nil"))
+		return nil
+	}
+	if query.Type != key.Type || query.Type != value.Type {
+		b.setError(errors.New("attention input types differ"))
+		return nil
+	}
+	if query.Shape.Rank != 3 || key.Shape.Rank != 3 || value.Shape.Rank != 3 {
+		b.setError(errors.New("attention inputs must have rank 3"))
+		return nil
+	}
+	if query.Shape.Dims[0] != key.Shape.Dims[0] {
+		b.setError(errors.New("attention query/key widths differ"))
+		return nil
+	}
+	if key.Shape.Dims[1] != value.Shape.Dims[1] {
+		b.setError(errors.New("attention key/value head counts differ"))
+		return nil
+	}
+	if key.Shape.Dims[2] != value.Shape.Dims[2] {
+		b.setError(errors.New("attention key/value token counts differ"))
+		return nil
+	}
+	if uint64(queryStart) > key.Shape.Dims[2] ||
+		query.Shape.Dims[2] > key.Shape.Dims[2]-uint64(queryStart) {
+		b.setError(fmt.Errorf(
+			"attention query range [%d,%d) exceeds key/value token count %d",
+			queryStart,
+			uint64(queryStart)+query.Shape.Dims[2],
+			key.Shape.Dims[2],
+		))
+		return nil
+	}
+	if query.Shape.Dims[1]%key.Shape.Dims[1] != 0 {
+		b.setError(errors.New("attention query head count is not divisible by KV head count"))
+		return nil
+	}
+	if scale <= 0 {
+		b.setError(errors.New("attention scale must be positive"))
+		return nil
+	}
+	var relativeBuckets uint32
+	if bias != nil {
+		if causal || queryStart != 0 || window != 0 {
+			b.setError(errors.New("relative-bias attention must be full and bidirectional"))
+			return nil
+		}
+		if bias.Type != query.Type || bias.Shape.Rank != 2 ||
+			bias.Shape.Dims[0] != query.Shape.Dims[1] ||
+			bias.Shape.Dims[1] < 4 || bias.Shape.Dims[1]%2 != 0 ||
+			bias.Shape.Dims[1] > math.MaxUint32 {
+			b.setError(errors.New("attention relative bias must have shape [query heads, even buckets >= 4]"))
+			return nil
+		}
+		relativeBuckets = uint32(bias.Shape.Dims[1])
+	}
+	shape, err := NewShape(value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	inputs := []*Tensor{query, key, value}
+	if bias != nil {
+		inputs = append(inputs, bias)
+	}
+	return b.add(
+		"",
+		query.Type,
+		shape,
+		OpAttention,
+		inputs,
+		AttentionAttributes{
+			Scale: scale, Causal: causal, QueryStart: queryStart, Window: window,
+			RelativeBuckets: relativeBuckets,
+		},
+	)
+}
+
+// Concat joins rank-2/3 tensors along dimension zero, or rank-3 tensors along
+// the token dimension.
+func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if left == nil || right == nil {
+		b.setError(errors.New("concat input is nil"))
+		return nil
+	}
+	if left.Type != right.Type {
+		b.setError(errors.New("concat input types differ"))
+		return nil
+	}
+	if left.Shape.Rank != right.Shape.Rank ||
+		(left.Shape.Rank != 2 && left.Shape.Rank != 3) ||
+		(axis != 0 && (axis != 2 || left.Shape.Rank != 3)) {
+		b.setError(errors.New("concat supports rank-2/3 axis 0 and rank-3 axis 2"))
+		return nil
+	}
+	dimensions := left.Shape.Slice()
+	for dimension := range left.Shape.Rank {
+		if uint32(dimension) != axis && left.Shape.Dims[dimension] != right.Shape.Dims[dimension] {
+			b.setError(errors.New("concat non-joined dimensions differ"))
+			return nil
+		}
+	}
+	if left.Shape.Dims[axis] > math.MaxUint64-right.Shape.Dims[axis] {
+		b.setError(errors.New("concat joined dimension overflows"))
+		return nil
+	}
+	dimensions[axis] += right.Shape.Dims[axis]
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", left.Type, shape, OpConcat, []*Tensor{left, right}, ConcatAttributes{Axis: axis})
+}
+
+func (b *Builder) unary(op Op, input *Tensor, attrs any) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil {
+		b.setError(fmt.Errorf("%s input is nil", op))
+		return nil
+	}
+	return b.add("", input.Type, input.Shape, op, []*Tensor{input}, attrs)
+}
+
+func (b *Builder) binary(op Op, left, right *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if left == nil || right == nil {
+		b.setError(fmt.Errorf("%s input is nil", op))
+		return nil
+	}
+	if left.Type != right.Type {
+		b.setError(fmt.Errorf("%s input types differ: %s and %s", op, left.Type, right.Type))
+		return nil
+	}
+	shape, err := broadcastShape(left.Shape, right.Shape)
+	if err != nil {
+		b.setError(fmt.Errorf("%s: %w", op, err))
+		return nil
+	}
+	return b.add("", left.Type, shape, op, []*Tensor{left, right}, nil)
+}
+
+func broadcastShape(left, right Shape) (Shape, error) {
+	rank := left.Rank
+	if right.Rank > rank {
+		rank = right.Rank
+	}
+	dimensions := make([]uint64, rank)
+	for axis := uint8(0); axis < rank; axis++ {
+		leftDimension := left.Dims[axis]
+		rightDimension := right.Dims[axis]
+		if leftDimension != rightDimension && leftDimension != 1 && rightDimension != 1 {
+			return Shape{}, fmt.Errorf(
+				"input shapes %v and %v cannot broadcast at dimension %d",
+				left.Slice(),
+				right.Slice(),
+				axis,
+			)
+		}
+		if leftDimension > rightDimension {
+			dimensions[axis] = leftDimension
+		} else {
+			dimensions[axis] = rightDimension
+		}
+	}
+	return NewShape(dimensions...)
+}
+
+func (b *Builder) add(
+	name string,
+	dataType dtype.Type,
+	shape Shape,
+	op Op,
+	inputs []*Tensor,
+	attrs any,
+) *Tensor {
+	stride, err := contiguousStride(dataType, shape)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	tensor := &Tensor{
+		ID:     b.nextID,
+		Name:   name,
+		Type:   dataType,
+		Shape:  shape,
+		Stride: stride,
+		Op:     op,
+		Inputs: inputs,
+		Attrs:  attrs,
+	}
+	b.nextID++
+	b.nodes = append(b.nodes, tensor)
+	return tensor
+}
+
+func (b *Builder) setError(err error) {
+	if b.err == nil {
+		b.err = err
+	}
+}
+
+func contiguousStride(dataType dtype.Type, shape Shape) ([MaxDimensions]uint64, error) {
+	traits, ok := dataType.Traits()
+	if !ok {
+		return [MaxDimensions]uint64{}, fmt.Errorf("unknown tensor type %d", dataType)
+	}
+	if shape.Dims[0]%traits.BlockSize != 0 {
+		return [MaxDimensions]uint64{}, fmt.Errorf(
+			"row width %d is not divisible by %s block size %d",
+			shape.Dims[0],
+			traits.Name,
+			traits.BlockSize,
+		)
+	}
+	stride := [MaxDimensions]uint64{}
+	stride[0] = traits.TypeSize
+	rowBlocks := shape.Dims[0] / traits.BlockSize
+	if rowBlocks > math.MaxUint64/stride[0] {
+		return stride, errors.New("tensor row stride overflows uint64")
+	}
+	stride[1] = rowBlocks * stride[0]
+	for index := 2; index < MaxDimensions; index++ {
+		if shape.Dims[index-1] > math.MaxUint64/stride[index-1] {
+			return stride, errors.New("tensor stride overflows uint64")
+		}
+		stride[index] = stride[index-1] * shape.Dims[index-1]
+	}
+	return stride, nil
+}

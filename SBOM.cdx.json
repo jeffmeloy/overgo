@@ -1,0 +1,717 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "component:nvidia-cuda-driver-api",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement"
+          }
+        }
+      ],
+      "name": "NVIDIA CUDA Driver API",
+      "type": "framework",
+      "version": "13.2-compatible"
+    },
+    {
+      "bom-ref": "component:nvidia-cuda-toolkit",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement"
+          }
+        }
+      ],
+      "name": "NVIDIA CUDA Toolkit",
+      "type": "framework",
+      "version": "12.9.86"
+    },
+    {
+      "bom-ref": "file:internal/cuda/kernel/ops_f32.ptx",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e266a1e2ae700cd960937c28eff503e1d5aa2682745210b71cbaab4acd179cbb"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "internal/cuda/kernel/ops_f32.ptx",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:internal/cuda/kernel/vector_add.ptx",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "internal/cuda/kernel/vector_add.ptx",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:internal/quant/iq_tables_generated.go",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "693d1e3c47a7861b58bc8ef5fc41bf4132c97ac848e81782ecd7fedd67b71a41"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "internal/quant/iq_tables_generated.go",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/iq_tables_generated.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e40dee7da7aed613de7b1c291aa8dd10a9be046db10fdb00077bf4072e5d64e7"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "kernels/cuda/iq_tables_generated.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32.cu",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "76587d4444951416746a0ec567458b0f2311eeb2fcb117edecc9b79367f71531"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "kernels/cuda/ops_f32.cu",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/vector_add.cu",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7fa0eddf7b06b367f1bb2f72e8f0325eb6b00f790a860d0ccad032461e2da9e2"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "kernels/cuda/vector_add.cu",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/manifest.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a324735d728f32ff25fa573884e875afbe321924aa75097826e2e00132f46a88"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "kernels/manifest.json",
+      "type": "file"
+    },
+    {
+      "bom-ref": "pkg:github/ggml-org/llama.cpp@42fc243060709331ff9b158a9ed2cbe37219ae83",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "llama.cpp compatibility baseline",
+      "purl": "pkg:github/ggml-org/llama.cpp@42fc243060709331ff9b158a9ed2cbe37219ae83",
+      "type": "library",
+      "version": "42fc243060709331ff9b158a9ed2cbe37219ae83"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/MakeNowJust/heredoc@v1.0.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/MakeNowJust/heredoc",
+      "purl": "pkg:golang/github.com/MakeNowJust/heredoc@v1.0.0",
+      "type": "library",
+      "version": "v1.0.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/davecgh/go-spew@v1.1.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/davecgh/go-spew",
+      "purl": "pkg:golang/github.com/davecgh/go-spew@v1.1.1",
+      "type": "library",
+      "version": "v1.1.1"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/dustin/go-humanize@v1.0.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/dustin/go-humanize",
+      "purl": "pkg:golang/github.com/dustin/go-humanize@v1.0.1",
+      "type": "library",
+      "version": "v1.0.1"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/go-logr/logr@v1.4.2",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/go-logr/logr",
+      "purl": "pkg:golang/github.com/go-logr/logr@v1.4.2",
+      "type": "library",
+      "version": "v1.4.2"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/go-task/slim-sprig/v3@v3.0.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/go-task/slim-sprig/v3",
+      "purl": "pkg:golang/github.com/go-task/slim-sprig/v3@v3.0.0",
+      "type": "library",
+      "version": "v3.0.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/google/go-cmp@v0.7.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/google/go-cmp",
+      "purl": "pkg:golang/github.com/google/go-cmp@v0.7.0",
+      "type": "library",
+      "version": "v0.7.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/google/gofuzz@v1.0.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/google/gofuzz",
+      "purl": "pkg:golang/github.com/google/gofuzz@v1.0.0",
+      "type": "library",
+      "version": "v1.0.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/google/pprof@v0.0.0-20250403155104-27863c87afa6",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/google/pprof",
+      "purl": "pkg:golang/github.com/google/pprof@v0.0.0-20250403155104-27863c87afa6",
+      "type": "library",
+      "version": "v0.0.0-20250403155104-27863c87afa6"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/hexops/gotextdiff@v1.0.3",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/hexops/gotextdiff",
+      "purl": "pkg:golang/github.com/hexops/gotextdiff@v1.0.3",
+      "type": "library",
+      "version": "v1.0.3"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/json-iterator/go@v1.1.12",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/json-iterator/go",
+      "purl": "pkg:golang/github.com/json-iterator/go@v1.1.12",
+      "type": "library",
+      "version": "v1.1.12"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd",
+      "licenses": [
+        {
+          "license": {
+            "name": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "github.com/modern-go/concurrent",
+      "purl": "pkg:golang/github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd",
+      "type": "library",
+      "version": "v0.0.0-20180306012644-bacd9c7ef1dd"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/modern-go/reflect2@v1.0.2",
+      "licenses": [
+        {
+          "license": {
+            "name": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "github.com/modern-go/reflect2",
+      "purl": "pkg:golang/github.com/modern-go/reflect2@v1.0.2",
+      "type": "library",
+      "version": "v1.0.2"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/nikolalohinski/gonja/v2@v2.9.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/nikolalohinski/gonja/v2",
+      "purl": "pkg:golang/github.com/nikolalohinski/gonja/v2@v2.9.0",
+      "type": "library",
+      "version": "v2.9.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/onsi/ginkgo/v2@v2.23.4",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/onsi/ginkgo/v2",
+      "purl": "pkg:golang/github.com/onsi/ginkgo/v2@v2.23.4",
+      "type": "library",
+      "version": "v2.23.4"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/onsi/gomega@v1.37.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/onsi/gomega",
+      "purl": "pkg:golang/github.com/onsi/gomega@v1.37.0",
+      "type": "library",
+      "version": "v1.37.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/pkg/errors@v0.9.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "BSD-2-Clause"
+          }
+        }
+      ],
+      "name": "github.com/pkg/errors",
+      "purl": "pkg:golang/github.com/pkg/errors@v0.9.1",
+      "type": "library",
+      "version": "v0.9.1"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/pmezard/go-difflib@v1.0.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/pmezard/go-difflib",
+      "purl": "pkg:golang/github.com/pmezard/go-difflib@v1.0.0",
+      "type": "library",
+      "version": "v1.0.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/sirupsen/logrus@v1.9.3",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/sirupsen/logrus",
+      "purl": "pkg:golang/github.com/sirupsen/logrus@v1.9.3",
+      "type": "library",
+      "version": "v1.9.3"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/stretchr/objx@v0.1.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/stretchr/objx",
+      "purl": "pkg:golang/github.com/stretchr/objx@v0.1.0",
+      "type": "library",
+      "version": "v0.1.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/stretchr/testify@v1.7.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/stretchr/testify",
+      "purl": "pkg:golang/github.com/stretchr/testify@v1.7.0",
+      "type": "library",
+      "version": "v1.7.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/yargevad/filepathx@v1.0.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/yargevad/filepathx",
+      "purl": "pkg:golang/github.com/yargevad/filepathx@v1.0.0",
+      "type": "library",
+      "version": "v1.0.0"
+    },
+    {
+      "bom-ref": "pkg:golang/go.uber.org/automaxprocs@v1.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "go.uber.org/automaxprocs",
+      "purl": "pkg:golang/go.uber.org/automaxprocs@v1.6.0",
+      "type": "library",
+      "version": "v1.6.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/exp@v0.0.0-20240719175910-8a7402abbf56",
+      "licenses": [
+        {
+          "license": {
+            "name": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "golang.org/x/exp",
+      "purl": "pkg:golang/golang.org/x/exp@v0.0.0-20240719175910-8a7402abbf56",
+      "type": "library",
+      "version": "v0.0.0-20240719175910-8a7402abbf56"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/mod@v0.35.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "golang.org/x/mod",
+      "purl": "pkg:golang/golang.org/x/mod@v0.35.0",
+      "type": "library",
+      "version": "v0.35.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/net@v0.37.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "golang.org/x/net",
+      "purl": "pkg:golang/golang.org/x/net@v0.37.0",
+      "type": "library",
+      "version": "v0.37.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/sync@v0.20.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "golang.org/x/sync",
+      "purl": "pkg:golang/golang.org/x/sync@v0.20.0",
+      "type": "library",
+      "version": "v0.20.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/sys@v0.32.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "golang.org/x/sys",
+      "purl": "pkg:golang/golang.org/x/sys@v0.32.0",
+      "type": "library",
+      "version": "v0.32.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/text@v0.37.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "golang.org/x/text",
+      "purl": "pkg:golang/golang.org/x/text@v0.37.0",
+      "type": "library",
+      "version": "v0.37.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/tools@v0.44.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "golang.org/x/tools",
+      "purl": "pkg:golang/golang.org/x/tools@v0.44.0",
+      "type": "library",
+      "version": "v0.44.0"
+    },
+    {
+      "bom-ref": "pkg:golang/gopkg.in/check.v1@v1.0.0-20190902080502-41f04d3bba15",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "gopkg.in/check.v1",
+      "purl": "pkg:golang/gopkg.in/check.v1@v1.0.0-20190902080502-41f04d3bba15",
+      "type": "library",
+      "version": "v1.0.0-20190902080502-41f04d3bba15"
+    },
+    {
+      "bom-ref": "pkg:golang/gopkg.in/yaml.v3@v3.0.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "gopkg.in/yaml.v3",
+      "purl": "pkg:golang/gopkg.in/yaml.v3@v3.0.1",
+      "type": "library",
+      "version": "v3.0.1"
+    },
+    {
+      "bom-ref": "pkg:golang/stdlib@1.26",
+      "licenses": [
+        {
+          "license": {
+            "name": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "Go standard library",
+      "purl": "pkg:golang/stdlib@1.26",
+      "type": "framework",
+      "version": "1.26"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [
+        "component:nvidia-cuda-driver-api",
+        "component:nvidia-cuda-toolkit",
+        "file:internal/cuda/kernel/ops_f32.ptx",
+        "file:internal/cuda/kernel/vector_add.ptx",
+        "file:internal/quant/iq_tables_generated.go",
+        "file:kernels/cuda/iq_tables_generated.cuh",
+        "file:kernels/cuda/ops_f32.cu",
+        "file:kernels/cuda/vector_add.cu",
+        "file:kernels/manifest.json",
+        "pkg:github/ggml-org/llama.cpp@42fc243060709331ff9b158a9ed2cbe37219ae83",
+        "pkg:golang/github.com/MakeNowJust/heredoc@v1.0.0",
+        "pkg:golang/github.com/davecgh/go-spew@v1.1.1",
+        "pkg:golang/github.com/dustin/go-humanize@v1.0.1",
+        "pkg:golang/github.com/go-logr/logr@v1.4.2",
+        "pkg:golang/github.com/go-task/slim-sprig/v3@v3.0.0",
+        "pkg:golang/github.com/google/go-cmp@v0.7.0",
+        "pkg:golang/github.com/google/gofuzz@v1.0.0",
+        "pkg:golang/github.com/google/pprof@v0.0.0-20250403155104-27863c87afa6",
+        "pkg:golang/github.com/hexops/gotextdiff@v1.0.3",
+        "pkg:golang/github.com/json-iterator/go@v1.1.12",
+        "pkg:golang/github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd",
+        "pkg:golang/github.com/modern-go/reflect2@v1.0.2",
+        "pkg:golang/github.com/nikolalohinski/gonja/v2@v2.9.0",
+        "pkg:golang/github.com/onsi/ginkgo/v2@v2.23.4",
+        "pkg:golang/github.com/onsi/gomega@v1.37.0",
+        "pkg:golang/github.com/pkg/errors@v0.9.1",
+        "pkg:golang/github.com/pmezard/go-difflib@v1.0.0",
+        "pkg:golang/github.com/sirupsen/logrus@v1.9.3",
+        "pkg:golang/github.com/stretchr/objx@v0.1.0",
+        "pkg:golang/github.com/stretchr/testify@v1.7.0",
+        "pkg:golang/github.com/yargevad/filepathx@v1.0.0",
+        "pkg:golang/go.uber.org/automaxprocs@v1.6.0",
+        "pkg:golang/golang.org/x/exp@v0.0.0-20240719175910-8a7402abbf56",
+        "pkg:golang/golang.org/x/mod@v0.35.0",
+        "pkg:golang/golang.org/x/net@v0.37.0",
+        "pkg:golang/golang.org/x/sync@v0.20.0",
+        "pkg:golang/golang.org/x/sys@v0.32.0",
+        "pkg:golang/golang.org/x/text@v0.37.0",
+        "pkg:golang/golang.org/x/tools@v0.44.0",
+        "pkg:golang/gopkg.in/check.v1@v1.0.0-20190902080502-41f04d3bba15",
+        "pkg:golang/gopkg.in/yaml.v3@v3.0.1",
+        "pkg:golang/stdlib@1.26"
+      ],
+      "ref": "pkg:golang/llamacpp2go"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "pkg:golang/llamacpp2go",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "llamacpp2go",
+      "purl": "pkg:golang/llamacpp2go",
+      "type": "application",
+      "version": "0.0.0+upstream.42fc2430"
+    },
+    "properties": [
+      {
+        "name": "llamacpp2go:cgo",
+        "value": "false"
+      },
+      {
+        "name": "llamacpp2go:cuda-target",
+        "value": "compute_89"
+      },
+      {
+        "name": "llamacpp2go:upstream-commit",
+        "value": "42fc243060709331ff9b158a9ed2cbe37219ae83"
+      }
+    ],
+    "tools": {
+      "components": [
+        {
+          "bom-ref": "component:llamacpp2go-sbom-generator",
+          "licenses": [
+            {
+              "license": {
+                "name": "NOASSERTION"
+              }
+            }
+          ],
+          "name": "llamacpp2go sbom generator",
+          "type": "application",
+          "version": "1"
+        }
+      ]
+    }
+  },
+  "specVersion": "1.6",
+  "version": 1
+}

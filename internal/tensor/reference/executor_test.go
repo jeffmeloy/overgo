@@ -1,0 +1,455 @@
+package reference
+
+import (
+	"math"
+	"testing"
+
+	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/dtype"
+)
+
+func TestExecuteElementwiseNormSoftmax(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(4, 2)
+	left := builder.Input("left", dtype.F32, shape)
+	right := builder.Input("right", dtype.F32, shape)
+	output := builder.Softmax(builder.RMSNorm(builder.Add(left, right), 1e-5))
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	leftValue, _ := NewValue(shape, []float32{1, 2, 3, 4, -1, -2, -3, -4})
+	rightValue, _ := NewValue(shape, []float32{1, 1, 1, 1, 1, 1, 1, 1})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		left:  leftValue,
+		right: rightValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := results[output]
+	for row := 0; row < 2; row++ {
+		var sum float32
+		for _, value := range got.Data[row*4 : row*4+4] {
+			sum += value
+		}
+		if math.Abs(float64(sum-1)) > 1e-6 {
+			t.Fatalf("softmax row %d sums to %v", row, sum)
+		}
+	}
+}
+
+func TestExecuteSigmoidSoftplusAndL2Norm(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(3, 2))
+	sigmoid := builder.Sigmoid(input)
+	softplus := builder.Softplus(input)
+	normalized := builder.L2Norm(builder.Add(sigmoid, softplus), 1e-6)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	value, _ := NewValue(input.Shape, []float32{-100, 0, 100, -2, 1, 3})
+	results, err := Execute(
+		[]*tensor.Tensor{sigmoid, softplus, normalized},
+		map[*tensor.Tensor]Value{input: value},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[sigmoid].Data[0] != 0 || results[sigmoid].Data[1] != 0.5 ||
+		results[softplus].Data[2] != 100 {
+		t.Fatalf("unexpected sigmoid/softplus values: %v %v", results[sigmoid].Data, results[softplus].Data)
+	}
+	for row := range 2 {
+		var sumSquares float64
+		for _, item := range results[normalized].Data[row*3 : row*3+3] {
+			sumSquares += float64(item) * float64(item)
+		}
+		if math.Abs(sumSquares-1) > 1e-6 {
+			t.Fatalf("L2Norm row %d squared norm = %v", row, sumSquares)
+		}
+	}
+}
+
+func TestExecuteSSMConv(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(5, 2, 1))
+	weights := builder.Input("weights", dtype.F32, tensor.MustShape(3, 2))
+	output := builder.SSMConv(input, weights)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	inputValue, _ := NewValue(input.Shape, []float32{
+		1, 2, 3, 4, 5,
+		10, 20, 30, 40, 50,
+	})
+	weightValue, _ := NewValue(weights.Shape, []float32{
+		1, 0, -1,
+		0.1, 0.2, 0.3,
+	})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:   inputValue,
+		weights: weightValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{-2, 14, -2, 20, -2, 26}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("SSMConv output[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
+func TestExecuteGatedDeltaNet(t *testing.T) {
+	builder := tensor.NewBuilder()
+	q := builder.Input("q", dtype.F32, tensor.MustShape(2, 1, 2, 1))
+	k := builder.Input("k", dtype.F32, tensor.MustShape(2, 1, 2, 1))
+	v := builder.Input("v", dtype.F32, tensor.MustShape(2, 1, 2, 1))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, 2, 1))
+	beta := builder.Input("beta", dtype.F32, tensor.MustShape(1, 1, 2, 1))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 1, 1))
+	output := builder.GatedDeltaNet(q, k, v, gate, beta, state)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	qValue, _ := NewValue(q.Shape, []float32{1, 1, 1, -1})
+	kValue, _ := NewValue(k.Shape, []float32{1, 0, 0, 1})
+	vValue, _ := NewValue(v.Shape, []float32{2, 3, 4, 5})
+	gateValue, _ := NewValue(gate.Shape, []float32{0, 0})
+	betaValue, _ := NewValue(beta.Shape, []float32{1, 1})
+	stateValue, _ := NewValue(state.Shape, []float32{0, 0, 0, 0})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		q: qValue, k: kValue, v: vValue, gate: gateValue,
+		beta: betaValue, state: stateValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootTwo := float32(math.Sqrt(2))
+	want := []float32{
+		rootTwo, 3 / rootTwo,
+		-rootTwo, -rootTwo,
+		2, 4, 3, 5,
+	}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("GatedDeltaNet output[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
+func TestExecuteQwen35LayoutOperations(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	query := builder.GroupSlice(input, 0, 2, 2, 4)
+	gate := builder.GroupSlice(input, 2, 2, 2, 4)
+	transposed := builder.Transpose2D(input)
+	state := builder.Input("state", dtype.F32, tensor.MustShape(1, 8))
+	convInput := builder.Concat(state, transposed, 0)
+	slice := builder.FlatSlice(convInput, 3, 5)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	inputValue, _ := NewValue(input.Shape, []float32{
+		0, 1, 2, 3, 4, 5, 6, 7,
+		10, 11, 12, 13, 14, 15, 16, 17,
+	})
+	stateValue, _ := NewValue(state.Shape, []float32{
+		-1, -2, -3, -4, -5, -6, -7, -8,
+	})
+	results, err := Execute(
+		[]*tensor.Tensor{query, gate, transposed, convInput, slice},
+		map[*tensor.Tensor]Value{input: inputValue, state: stateValue},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqual := func(name string, got, want []float32) {
+		t.Helper()
+		if len(got) != len(want) {
+			t.Fatalf("%s length = %d, want %d", name, len(got), len(want))
+		}
+		for index := range want {
+			if got[index] != want[index] {
+				t.Fatalf("%s[%d] = %v, want %v", name, index, got[index], want[index])
+			}
+		}
+	}
+	assertEqual("query", results[query].Data, []float32{0, 1, 4, 5, 10, 11, 14, 15})
+	assertEqual("gate", results[gate].Data, []float32{2, 3, 6, 7, 12, 13, 16, 17})
+	assertEqual("transpose", results[transposed].Data, []float32{
+		0, 10, 1, 11, 2, 12, 3, 13, 4, 14, 5, 15, 6, 16, 7, 17,
+	})
+	assertEqual("concat", results[convInput].Data, []float32{
+		-1, 0, 10, -2, 1, 11, -3, 2, 12, -4, 3, 13,
+		-5, 4, 14, -6, 5, 15, -7, 6, 16, -8, 7, 17,
+	})
+	assertEqual("flat slice", results[slice].Data, []float32{-2, 1, 11, -3, 2})
+}
+
+func TestExecuteRoPEMulti(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))
+	positions := [4][]uint32{
+		{1},
+		{2},
+		{3},
+		{4},
+	}
+	output := builder.RoPEMulti(
+		input,
+		positions,
+		[4]int32{1, 1, 1, 1},
+		8,
+		10000,
+	)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	inputValue, _ := NewValue(input.Shape, []float32{1, 2, 3, 4, 5, 6, 7, 8})
+	results, err := Execute(
+		[]*tensor.Tensor{output},
+		map[*tensor.Tensor]Value{input: inputValue},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make([]float32, 8)
+	for pair, position := range []float64{1, 2, 3, 4} {
+		theta := position * math.Pow(10000, -2*float64(pair)/8)
+		cosine, sine := float32(math.Cos(theta)), float32(math.Sin(theta))
+		want[pair] = inputValue.Data[pair]*cosine - inputValue.Data[pair+4]*sine
+		want[pair+4] = inputValue.Data[pair]*sine + inputValue.Data[pair+4]*cosine
+	}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("RoPEMulti output[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
+func TestExecuteMulMatGGMLSemantics(t *testing.T) {
+	builder := tensor.NewBuilder()
+	left := builder.Input("weights", dtype.F32, tensor.MustShape(3, 2))
+	right := builder.Input("input", dtype.F32, tensor.MustShape(3, 2))
+	output := builder.MulMat(left, right)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	leftValue, _ := NewValue(left.Shape, []float32{
+		1, 2, 3,
+		4, 5, 6,
+	})
+	rightValue, _ := NewValue(right.Shape, []float32{
+		1, 0, 0,
+		0, 1, 0,
+	})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		left:  leftValue,
+		right: rightValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1, 4, 2, 5}
+	got := results[output].Data
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("result[%d] = %v, want %v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestExecuteEmbeddingWeightedNormAndSwiGLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	table := builder.Input("table", dtype.F32, tensor.MustShape(4, 3))
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(4))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(4, 2))
+	embedding := builder.GetRows(table, []uint32{2, 0})
+	output := builder.SwiGLU(builder.WeightedRMSNorm(embedding, weight, 1e-5), up)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	tableValue, _ := NewValue(table.Shape, []float32{
+		1, 2, 3, 4,
+		5, 6, 7, 8,
+		9, 10, 11, 12,
+	})
+	weightValue, _ := NewValue(weight.Shape, []float32{1, 2, 3, 4})
+	upValue, _ := NewValue(up.Shape, []float32{1, 1, 1, 1, 2, 2, 2, 2})
+	results, err := Execute([]*tensor.Tensor{embedding, output}, map[*tensor.Tensor]Value{
+		table:  tableValue,
+		weight: weightValue,
+		up:     upValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEmbedding := []float32{9, 10, 11, 12, 1, 2, 3, 4}
+	for i, want := range wantEmbedding {
+		if results[embedding].Data[i] != want {
+			t.Fatalf("embedding[%d] = %v, want %v", i, results[embedding].Data[i], want)
+		}
+	}
+	if len(results[output].Data) != 8 {
+		t.Fatalf("output length = %d", len(results[output].Data))
+	}
+}
+
+func TestExecuteRoPENeoX(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 2))
+	output := builder.RoPENeoX(input, []uint32{0, 1}, 4, 10000)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	inputValue, _ := NewValue(input.Shape, []float32{
+		1, 2, 3, 4,
+		1, 2, 3, 4,
+	})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: inputValue})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := results[output].Data
+	for i, want := range []float32{1, 2, 3, 4} {
+		if got[i] != want {
+			t.Fatalf("position-zero value[%d] = %v, want %v", i, got[i], want)
+		}
+	}
+	cosine := float32(math.Cos(1))
+	sine := float32(math.Sin(1))
+	want := []float32{
+		1*cosine - 3*sine,
+		2*float32(math.Cos(0.01)) - 4*float32(math.Sin(0.01)),
+		1*sine + 3*cosine,
+		2*float32(math.Sin(0.01)) + 4*float32(math.Cos(0.01)),
+	}
+	for i := range want {
+		if difference := math.Abs(float64(got[4+i] - want[i])); difference > 1e-6 {
+			t.Fatalf("position-one value[%d] = %v, want %v", i, got[4+i], want[i])
+		}
+	}
+}
+
+func TestExecuteRoPENormal(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 2))
+	output := builder.RoPENormal(input, []uint32{0, 1}, 4, 10000)
+	feed, err := NewValue(input.Shape, []float32{
+		1, 2, 3, 4,
+		1, 2, 3, 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: feed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := results[output].Data
+	want := []float32{
+		1, 2, 3, 4,
+		-1.1426396, 1.9220756, 2.9598503, 4.0297995,
+	}
+	for index := range want {
+		if difference := math.Abs(float64(got[index] - want[index])); difference > 1e-5 {
+			t.Fatalf("normal RoPE value[%d] = %v, want %v", index, got[index], want[index])
+		}
+	}
+}
+
+func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(2, 1, 2))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(2, 1, 2))
+	output := builder.Attention(query, key, value, 1, true)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	queryValue, _ := NewValue(query.Shape, make([]float32, 8))
+	keyValue, _ := NewValue(key.Shape, make([]float32, 4))
+	valueValue, _ := NewValue(value.Shape, []float32{1, 2, 3, 4})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: queryValue,
+		key:   keyValue,
+		value: valueValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{
+		1, 2, 1, 2,
+		2, 3, 2, 3,
+	}
+	for i := range want {
+		if results[output].Data[i] != want[i] {
+			t.Fatalf("attention[%d] = %v, want %v", i, results[output].Data[i], want[i])
+		}
+	}
+}
+
+func TestExecuteCachedAttentionAndConcat(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 1))
+	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(2, 1, 2))
+	newKey := builder.Input("new_key", dtype.F32, tensor.MustShape(2, 1, 1))
+	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(2, 1, 2))
+	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(2, 1, 1))
+	key := builder.Concat(pastKey, newKey, 2)
+	value := builder.Concat(pastValue, newValue, 2)
+	output := builder.AttentionWithOffset(query, key, value, 1, true, 2)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	zeroQuery, _ := NewValue(query.Shape, make([]float32, 4))
+	zeroPastKey, _ := NewValue(pastKey.Shape, make([]float32, 4))
+	zeroNewKey, _ := NewValue(newKey.Shape, make([]float32, 2))
+	pastValueData, _ := NewValue(pastValue.Shape, []float32{1, 2, 3, 4})
+	newValueData, _ := NewValue(newValue.Shape, []float32{5, 6})
+	results, err := Execute([]*tensor.Tensor{key, value, output}, map[*tensor.Tensor]Value{
+		query:     zeroQuery,
+		pastKey:   zeroPastKey,
+		newKey:    zeroNewKey,
+		pastValue: pastValueData,
+		newValue:  newValueData,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := results[key].Shape.Dims[2]; got != 3 {
+		t.Fatalf("cached key token count = %d, want 3", got)
+	}
+	want := []float32{3, 4, 3, 4}
+	for index := range want {
+		if results[output].Data[index] != want[index] {
+			t.Fatalf("cached attention[%d] = %v, want %v", index, results[output].Data[index], want[index])
+		}
+	}
+}
+
+func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
+	bias := builder.Input("bias", dtype.F32, tensor.MustShape(1, 4))
+	output := builder.AttentionWithRelativeBias(query, key, value, bias, 1)
+	zeroShape := tensor.MustShape(1, 1, 2)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: zeroShape, Data: []float32{0, 0}},
+		key:   {Shape: zeroShape, Data: []float32{0, 0}},
+		value: {Shape: zeroShape, Data: []float32{1, 3}},
+		bias:  {Shape: tensor.MustShape(1, 4), Data: []float32{0, 0, 0, 10}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := results[output].Data
+	if math.Abs(float64(got[0]-2.9999092)) > 1e-5 ||
+		math.Abs(float64(got[1]-2)) > 1e-5 {
+		t.Fatalf("relative-bias attention = %v, want approximately [2.9999092 2]", got)
+	}
+}

@@ -38,6 +38,7 @@ type LayerWeights struct {
 	RopeFactors             *gguf.TensorInfo
 	FeedForwardNorm         gguf.TensorInfo
 	FeedForwardNormBias     *gguf.TensorInfo
+	FeedForwardExpertNorm   *gguf.TensorInfo
 	FeedForwardGate         gguf.TensorInfo
 	FeedForwardUp           gguf.TensorInfo
 	FeedForwardDown         gguf.TensorInfo
@@ -902,7 +903,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "bailingmoe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "lfm2moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
@@ -1034,18 +1035,30 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			if spec.Architecture == "phimoe" && layer.AttentionOutputBias == nil {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 			}
-			continue
+			if spec.Architecture == "arctic" {
+				expertNorm, normErr := required(prefix+"ffn_norm_exps.weight", uint64(spec.EmbeddingLength))
+				if normErr != nil {
+					return Weights{}, normErr
+				}
+				layer.FeedForwardExpertNorm = &expertNorm
+			} else {
+				continue
+			}
+		}
+		feedForwardLength := spec.FeedForwardLength
+		if spec.Architecture == "arctic" {
+			feedForwardLength = spec.EmbeddingLength
 		}
 		if !usesGateFreeFFN(spec.Architecture) {
 			if layer.FeedForwardGate, err = required(
 				prefix+"ffn_gate.weight",
 				uint64(spec.EmbeddingLength),
-				uint64(spec.FeedForwardLength),
+				uint64(feedForwardLength),
 			); err != nil {
 				return Weights{}, err
 			}
 		}
-		feedForwardUpLength := uint64(spec.FeedForwardLength)
+		feedForwardUpLength := uint64(feedForwardLength)
 		if usesFusedGateUp(spec.Architecture) {
 			feedForwardUpLength *= 2
 		}
@@ -1058,7 +1071,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if layer.FeedForwardDown, err = required(
 			prefix+"ffn_down.weight",
-			uint64(spec.FeedForwardLength),
+			uint64(feedForwardLength),
 			uint64(spec.EmbeddingLength),
 		); err != nil {
 			return Weights{}, err

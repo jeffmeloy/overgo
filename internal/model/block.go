@@ -37,6 +37,7 @@ type LayerGraphWeights struct {
 	RopeFactors             *tensor.Tensor
 	FeedForwardNorm         *tensor.Tensor
 	FeedForwardNormBias     *tensor.Tensor
+	FeedForwardExpertNorm   *tensor.Tensor
 	FeedForwardGate         *tensor.Tensor
 	FeedForwardUp           *tensor.Tensor
 	FeedForwardDown         *tensor.Tensor
@@ -459,6 +460,7 @@ func BuildDenseBlockCachedForLayer(
 	isBailingMoE := spec.Architecture == "bailingmoe"
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
+	isArctic := spec.Architecture == "arctic"
 	isQwen2MoE := spec.Architecture == "qwen2moe"
 	headCount := spec.LayerHeadCount(layerIndex)
 	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
@@ -472,7 +474,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isBailingMoE && !isBailingMoE2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isBailingMoE && !isBailingMoE2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -505,6 +507,12 @@ func BuildDenseBlockCachedForLayer(
 		}
 		if isLFM2MoE {
 			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
+		}
+		if isArctic {
+			required["feed-forward expert norm"] = weights.FeedForwardExpertNorm
+			required["feed-forward gate"] = weights.FeedForwardGate
+			required["feed-forward up"] = weights.FeedForwardUp
+			required["feed-forward down"] = weights.FeedForwardDown
 		}
 	} else {
 		required["feed-forward up"] = weights.FeedForwardUp
@@ -937,6 +945,25 @@ func BuildDenseBlockCachedForLayer(
 		attention = builder.Scale(attention, spec.ResidualScale)
 	}
 	residual := builder.Add(input, attention)
+	if isArctic {
+		denseInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+		denseGate := builder.MulMat(weights.FeedForwardGate, denseInput)
+		denseUp := builder.MulMat(weights.FeedForwardUp, denseInput)
+		dense := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(denseGate, denseUp))
+		denseOutput := builder.Add(residual, dense)
+		expertInput := builder.WeightedRMSNorm(input, weights.FeedForwardExpertNorm, spec.RMSNormEpsilon)
+		experts := builder.MoE(
+			expertInput, weights.FeedForwardRouter,
+			weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+			weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
+			spec.ExpertWeightsScale,
+		)
+		output := builder.Add(denseOutput, experts)
+		if err := builder.Err(); err != nil {
+			return DenseBlockResult{}, err
+		}
+		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	}
 
 	parallelResidual := usesParallelResidual(spec.Architecture) ||
 		(spec.Architecture == "gptneox" && spec.ParallelResidual) ||

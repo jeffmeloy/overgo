@@ -136,6 +136,46 @@ func TestHostLayerGraphInputsPermitDenseFusedQKV(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitParallelDenseAndMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	expertNorm := value(8)
+	router := value(8, 4)
+	gateExperts := value(8, 12, 4)
+	upExperts := value(8, 12, 4)
+	downExperts := value(12, 8, 4)
+	layer := HostLayer{
+		AttentionNorm:          value(8),
+		AttentionQ:             value(8, 8),
+		AttentionK:             value(8, 4),
+		AttentionV:             value(8, 4),
+		AttentionOutput:        value(8, 8),
+		FeedForwardNorm:        value(8),
+		FeedForwardExpertNorm:  &expertNorm,
+		FeedForwardGate:        value(8, 8),
+		FeedForwardUp:          value(8, 8),
+		FeedForwardDown:        value(8, 8),
+		FeedForwardRouter:      &router,
+		FeedForwardGateExperts: &gateExperts,
+		FeedForwardUpExperts:   &upExperts,
+		FeedForwardDownExperts: &downExperts,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if graph.FeedForwardGate == nil || graph.FeedForwardUp == nil || graph.FeedForwardDown == nil ||
+		graph.FeedForwardExpertNorm == nil || graph.FeedForwardRouter == nil ||
+		graph.FeedForwardGateExperts == nil || graph.FeedForwardUpExperts == nil ||
+		graph.FeedForwardDownExperts == nil || len(feeds) != 14 {
+		t.Fatalf("unexpected parallel dense/MoE graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitPostNormalizedBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

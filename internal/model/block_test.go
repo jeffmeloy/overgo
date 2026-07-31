@@ -92,6 +92,58 @@ func TestBuildDenseQwen3MoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildArcticParallelDenseAndMoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "arctic", EmbeddingLength: 8, FeedForwardLength: 12,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12,
+		ExpertWeightsScale: 1, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.FeedForwardGate = builder.Input("dense_gate", dtype.F32, tensor.MustShape(8, 8))
+	weights.FeedForwardUp = builder.Input("dense_up", dtype.F32, tensor.MustShape(8, 8))
+	weights.FeedForwardDown = builder.Input("dense_down", dtype.F32, tensor.MustShape(8, 8))
+	weights.FeedForwardExpertNorm = builder.Input("expert_norm", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var rope, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENormal:
+			rope++
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if moe == nil {
+		t.Fatal("Arctic graph is missing MoE operation")
+	}
+	attrs := moe.Attrs.(tensor.MoEAttributes)
+	if attrs.Routing != tensor.MoERoutingSoftmax || !attrs.NormalizeTopKProb ||
+		attrs.TopK != 2 || attrs.Scale != 1 || rope != 2 || silu != 1 {
+		t.Fatalf("unexpected Arctic graph: attrs=%+v rope=%d silu=%d", attrs, rope, silu)
+	}
+	if len(moe.Inputs) == 0 || len(moe.Inputs[0].Inputs) == 0 ||
+		len(moe.Inputs[0].Inputs[0].Inputs) == 0 || moe.Inputs[0].Inputs[0].Inputs[0] != input {
+		t.Fatal("Arctic expert norm is not rooted at pre-attention input")
+	}
+}
+
 func TestBuildBailingMoEBlockUsesNormalizedSoftmaxAndSharedExpert(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -42,6 +42,7 @@ type HostLayer struct {
 	RopeFactors             *reference.Value
 	FeedForwardNorm         reference.Value
 	FeedForwardNormBias     *reference.Value
+	FeedForwardExpertNorm   *reference.Value
 	FeedForwardGate         reference.Value
 	FeedForwardUp           reference.Value
 	FeedForwardDown         reference.Value
@@ -292,7 +293,7 @@ func LoadHostLayer(
 		destination *reference.Value
 		info        gguf.TensorInfo
 	}{}
-	if info.FeedForwardRouter == nil {
+	if info.FeedForwardUp.Name != "" && info.FeedForwardDown.Name != "" {
 		items = append(items,
 			struct {
 				destination *reference.Value
@@ -461,6 +462,7 @@ func LoadHostLayer(
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
 		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
+		{info.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
@@ -546,7 +548,7 @@ func (layer *HostLayer) GraphInputs(
 		return node
 	}
 	result := LayerGraphWeights{}
-	if layer.FeedForwardRouter == nil {
+	if layer.FeedForwardUp.Shape.Rank != 0 && layer.FeedForwardDown.Shape.Rank != 0 {
 		result.FeedForwardUp = input("ffn_up.weight", layer.FeedForwardUp)
 		result.FeedForwardDown = input("ffn_down.weight", layer.FeedForwardDown)
 	}
@@ -622,6 +624,7 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_gate.bias", layer.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{"ffn_up.bias", layer.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{"ffn_down.bias", layer.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{"ffn_norm_exps.weight", layer.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{"ffn_gate.scale", layer.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{"ffn_up.scale", layer.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{"ffn_down.scale", layer.FeedForwardDownScale, &result.FeedForwardDownScale},

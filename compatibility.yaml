@@ -849,6 +849,23 @@ models:
       - sequential-squared-relu
       - optional-tied-output
     real_model_validation: pending-fixture
+  arctic:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - pre-rmsnorm
+      - normal-rope
+      - parallel-dense-and-moe-ffn
+      - embedding-width-dense-swiglu
+      - separately-normalized-packed-swiglu-experts
+      - normalized-softmax-top-k-routing
+      - routed-weight-scaling
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   baichuan:
     status: experimental
     variants:

@@ -174,7 +174,8 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 			*info.FeedForwardUpExperts,
 			*info.FeedForwardDownExperts,
 		)
-	} else {
+	}
+	if info.FeedForwardUp.Name != "" && info.FeedForwardDown.Name != "" {
 		required = append(required, info.FeedForwardUp, info.FeedForwardDown)
 	}
 	if info.Recurrent {
@@ -224,13 +225,16 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	if info.FeedForwardNormBias != nil {
 		required = append(required, *info.FeedForwardNormBias)
 	}
+	if info.FeedForwardExpertNorm != nil {
+		required = append(required, *info.FeedForwardExpertNorm)
+	}
 	for _, tensorInfo := range required {
 		if _, ok := w.Lookup(tensorInfo.Name); !ok {
 			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", tensorInfo.Name)
 		}
 	}
 	result := LayerGraphWeights{}
-	if info.FeedForwardRouter == nil {
+	if info.FeedForwardUp.Name != "" && info.FeedForwardDown.Name != "" {
 		result.FeedForwardUp = input(info.FeedForwardUp)
 		result.FeedForwardDown = input(info.FeedForwardDown)
 	}
@@ -266,6 +270,9 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	}
 	if info.FeedForwardNormBias != nil {
 		result.FeedForwardNormBias = input(*info.FeedForwardNormBias)
+	}
+	if info.FeedForwardExpertNorm != nil {
+		result.FeedForwardExpertNorm = input(*info.FeedForwardExpertNorm)
 	}
 	if info.AttentionQNorm != nil {
 		if _, ok := w.Lookup(info.AttentionQNorm.Name); !ok {

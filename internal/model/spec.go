@@ -108,6 +108,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture != "llama" && architecture != "internlm2" &&
 		architecture != "arcee" &&
 		architecture != "apertus" &&
+		architecture != "arctic" &&
 		architecture != "baichuan" &&
 		architecture != "bailingmoe" &&
 		architecture != "bailingmoe2" &&
@@ -783,7 +784,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -802,6 +803,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); ok {
 			spec.ExpertFeedForward = value
+		}
+		if architecture == "arctic" {
+			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
 		spec.ExpertWeightsScale = 1
 		if value, ok := optional[float32](
@@ -1236,6 +1240,12 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen2-MoE expert metadata is invalid")
 	}
+	if s.Architecture == "arctic" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("Arctic expert metadata is invalid")
+	}
 	if s.Architecture == "bailingmoe" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
@@ -1572,6 +1582,7 @@ func usesPostOnlyNorm(architecture string) bool {
 
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
+		architecture == "arctic" ||
 		architecture == "internlm2" ||
 		architecture == "arcee" ||
 		architecture == "baichuan" ||

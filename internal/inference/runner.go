@@ -516,6 +516,7 @@ func (r *Runner) layerDeviceInputs(
 		{info.AttentionVBias, &result.AttentionVBias},
 		{info.AttentionOutputBias, &result.AttentionOutputBias},
 		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
+		{info.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
@@ -577,7 +578,7 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
-	if info.FeedForwardRouter == nil {
+	if info.FeedForwardUp.Name != "" && info.FeedForwardDown.Name != "" {
 		if result.FeedForwardUp, err = input(info.FeedForwardUp); err != nil {
 			return result, nil, err
 		}
@@ -2443,6 +2444,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardUpBias,
 			layer.FeedForwardDownBias,
 			layer.FeedForwardNormBias,
+			layer.FeedForwardExpertNorm,
 			layer.FeedForwardGateScale,
 			layer.FeedForwardUpScale,
 			layer.FeedForwardDownScale,

@@ -1683,6 +1683,62 @@ func TestBuildDensePhiMoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildDenseEXAOneMoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "exaone-moe", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 16,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.5,
+		SharedExpertFF: 12, ExpertGatingFunc: 2, ExpertWeightsNorm: true,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 500000,
+		SlidingWindow: 128, SlidingPattern: 4, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:             builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:             builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionQNorm:         builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionKNorm:         builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+		FeedForwardSharedGate:  builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	local, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, _ := tensor.Topological(local.Output)
+	var moe *tensor.Tensor
+	var rope, window, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENeoX:
+			rope++
+		case tensor.OpAttention:
+			if node.Attrs.(tensor.AttentionAttributes).Window > 0 {
+				window++
+			}
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if moe == nil || moe.Attrs.(tensor.MoEAttributes).Routing != tensor.MoERoutingSigmoid ||
+		len(moe.Inputs) != 6 || rope != 2 || window != 1 || silu < 1 {
+		t.Fatalf("unexpected EXAONE-MoE graph: moe=%v rope=%d window=%d silu=%d", moe != nil, rope, window, silu)
+	}
+}
+
 func TestBuildDenseApertus(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

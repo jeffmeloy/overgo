@@ -1412,6 +1412,29 @@ models:
     limitations:
       - native-quantized-expert-kernels-pending
     real_model_validation: pending-fixture
+  exaone-moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - pre-rmsnorm
+      - per-head-qk-rmsnorm
+      - scalar-or-per-layer-sliding-pattern
+      - local-layer-only-neox-rope
+      - leading-dense-swiglu-blocks
+      - softmax-or-sigmoid-top-k-routing
+      - optional-selection-correction-bias
+      - optional-selected-weight-normalization
+      - routed-weight-scaling
+      - packed-swiglu-experts
+      - always-on-shared-expert
+      - preserved-unexecuted-nextn-mtp-layers
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - native-quantized-expert-kernels-pending
+      - nextn-mtp-prediction-pending
+    real_model_validation: pending-fixture
   qwen35:
     status: experimental
     types:

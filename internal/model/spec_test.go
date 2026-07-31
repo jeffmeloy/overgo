@@ -153,6 +153,42 @@ func TestReadPhiMoESpec(t *testing.T) {
 	}
 }
 
+func TestReadEXAOneMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "exaone-moe"),
+		metadata("exaone-moe.block_count", gguf.ValueTypeUint32, uint32(5)),
+		metadata("exaone-moe.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("exaone-moe.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("exaone-moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("exaone-moe.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("exaone-moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("exaone-moe.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("exaone-moe.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("exaone-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("exaone-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("exaone-moe.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("exaone-moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.5)),
+		metadata("exaone-moe.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("exaone-moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("exaone-moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("exaone-moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("exaone-moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("exaone-moe.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(500000)),
+		metadata("exaone-moe.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		{Key: "exaone-moe.attention.sliding_window_pattern", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool, Data: []bool{true, true, false, true}}},
+		metadata("exaone-moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.BlockCount != 4 || spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 ||
+		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm ||
+		!spec.IsSlidingLayer(0) || spec.IsSlidingLayer(2) || spec.UsesRoPE(2) {
+		t.Fatalf("unexpected EXAONE-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "dream"),

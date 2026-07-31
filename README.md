@@ -6,7 +6,7 @@ bounded-host and F32-preload paths, AFMoE, text-only Qwen3.5 hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell,
 dense Cohere2/Command R, Dream non-causal inference, Falcon, Gemma 1/2/3,
 GLM4, GPT-2/GPT-NeoX, Granite, Chameleon decoders with projected soft-token input,
-InternLM2, EXAONE/EXAONE 4, XVERSE, Jais2, Maincoder, MiniCPM, compatible MPT,
+InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais2, Maincoder, MiniCPM, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2, Nemotron, OLMo/OLMo2/OLMoE,
 Orion, Phi-2/Phi-3/PhiMoE, PLaMo/PLM MLA, dense Refact,
 RND1 non-causal MoE, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5/UMT5

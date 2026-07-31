@@ -63,6 +63,7 @@ type Spec struct {
 	RopeDimensionSWA      uint32
 	LayerHeadCounts       []uint32
 	LayerKVHeadCounts     []uint32
+	SlidingLayers         []bool
 	XIELUAlphaN           []float32
 	XIELUAlphaP           []float32
 	XIELUBeta             []float32
@@ -122,6 +123,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "exaone4" &&
+		architecture != "exaone-moe" &&
 		architecture != "smollm3" &&
 		architecture != "minicpm" &&
 		architecture != "granite" &&
@@ -610,6 +612,36 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
+	if architecture == "exaone-moe" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("EXAONE-MoE NextN/MTP layer count is invalid")
+			}
+			spec.BlockCount -= nextN
+		}
+		spec.RopeFrequencySWA = spec.RopeFrequencyBase
+		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
+			spec.RopeFrequencySWA = value
+		}
+		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.SlidingPattern = 4
+		if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
+			spec.SlidingPattern = value
+		} else if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); arrayErr != nil {
+			return Spec{}, arrayErr
+		} else if ok {
+			if len(layers) != int(spec.BlockCount) {
+				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
+			}
+			spec.SlidingLayers = append([]bool(nil), layers...)
+		}
+	}
 	if architecture == "falcon" {
 		spec.RopeDimensionCount, _ = optional[uint32](
 			values,
@@ -730,7 +762,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
+	if architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -807,6 +839,21 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.RopeFrequencySWA = value
 			}
 		}
+	}
+	if architecture == "exaone-moe" {
+		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF = spec.ExpertFeedForward
+		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
+			spec.SharedExpertFF = value
+		}
+		spec.SharedExpertCount, _ = optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32)
+		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+		if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
 	if architecture == "laguna" {
 		if spec.ExpertFeedForward, err = required[uint32](
@@ -964,6 +1011,9 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 			s.SlidingPattern > 0 &&
 			block%s.SlidingPattern != 0
 	}
+	if block < uint32(len(s.SlidingLayers)) {
+		return s.SlidingLayers[block]
+	}
 	return usesSlidingAttention(s.Architecture) &&
 		block < s.BlockCount &&
 		s.SlidingWindow > 0 &&
@@ -989,6 +1039,9 @@ func (s Spec) LayerKVHeadCount(block uint32) uint32 {
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
+	if s.Architecture == "exaone-moe" {
+		return s.IsSlidingLayer(block)
+	}
 	return !s.RopeDisabled &&
 		(s.BlockCount == 0 || block < s.BlockCount) &&
 		(s.NoRopeLayerStep == 0 || (block+1)%s.NoRopeLayerStep != 0)
@@ -1189,6 +1242,23 @@ func (s Spec) validate() error {
 			return errors.New("AFMoE sliding-attention metadata is invalid")
 		}
 	}
+	if s.Architecture == "exaone-moe" {
+		switch {
+		case s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("EXAONE-MoE leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
+			return errors.New("EXAONE-MoE expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("EXAONE-MoE expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("EXAONE-MoE expert weight scale is invalid")
+		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
+			return errors.New("EXAONE-MoE rotary/head dimensions are invalid")
+		case s.SlidingWindow == 0 || (len(s.SlidingLayers) == 0 && s.SlidingPattern < 2) || s.RopeFrequencySWA <= 0:
+			return errors.New("EXAONE-MoE sliding attention metadata is invalid")
+		}
+	}
 	if s.Architecture == "lfm2" {
 		if s.ShortConvCacheLength < 2 || len(s.RecurrentLayers) != int(s.BlockCount) {
 			return errors.New("LFM2 short-convolution metadata is invalid")
@@ -1367,7 +1437,7 @@ func hasPostNorm(architecture string) bool {
 
 func usesSlidingAttention(architecture string) bool {
 	return architecture == "afmoe" || (architecture == "gemma2" || architecture == "gemma3") ||
-		architecture == "exaone4" || architecture == "olmo2" || architecture == "cohere2"
+		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" || architecture == "cohere2"
 }
 
 func usesPostOnlyNorm(architecture string) bool {

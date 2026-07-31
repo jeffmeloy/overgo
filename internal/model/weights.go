@@ -673,7 +673,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			(spec.Architecture == "lfm2" && !layer.Recurrent) {
@@ -901,6 +901,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
 			for name, shapeAndDestination := range map[string]struct {
@@ -954,6 +955,28 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}{[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown}
 				}
 				for name, shapeAndDestination := range shared {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "exaone-moe" {
+				if bias, ok := tensors[prefix+"exp_probs_b.bias"]; ok {
+					if bias.Type != dtype.F32 || bias.Dimensions != 1 || bias.Shape[0] != uint64(spec.ExpertCount) {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", bias.Name, bias.Shape)
+					}
+					layer.FeedForwardExpertBias = &bias
+				}
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
 					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
 					if itemErr != nil {
 						return Weights{}, itemErr

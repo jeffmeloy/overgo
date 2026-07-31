@@ -17,7 +17,7 @@
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
 | Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, RMSNorm/affine LayerNorm, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, ALiBi, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, MLA decomposition, softmax/sigmoid top-k routed SwiGLU MoE with correction bias, GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload Qwen2-MoE, Qwen3-MoE, AFMoE, Laguna MoE, OLMoE, and PhiMoE, text-only hybrid Qwen3.5, non-causal no-cache Dream and RND1 MoE, hybrid LFM2, PLM MLA, Chameleon decoders with projected soft-token overrides, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2, Orion, Phi-2/Phi-3, PLaMo, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload Qwen2-MoE, Qwen3-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, and EXAONE-MoE, text-only hybrid Qwen3.5, non-causal no-cache Dream and RND1 MoE, hybrid LFM2, PLM MLA, Chameleon decoders with projected soft-token overrides, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2, Orion, Phi-2/Phi-3, PLaMo, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Six tokenizer corpora match 280 upstream cases; BERT WordPiece and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -866,6 +866,15 @@ rotated query, and executes normalized softmax top-k packed SwiGLU experts.
 Metadata, strict catalog, graph-semantics, and complete reference/CUDA block
 differential tests pass. Real-model validation remains pending because no
 PhiMoE GGUF is available locally.
+
+EXAONE-MoE now preserves scalar-period or explicit per-layer sliding-attention
+metadata, applies per-head Q/K RMSNorm and RoPE only on local layers, supports
+leading dense blocks, and combines metadata-selected softmax/sigmoid routed
+experts with optional selection correction bias and an always-on shared
+expert. Preserved NextN/MTP layers are removed from the executable block count.
+Metadata, strict catalog, graph, and complete reference/CUDA block differential
+tests pass; real-model validation is pending because no EXAONE-MoE GGUF is
+available locally.
 
 RND1 now reuses the normalized softmax top-k MoE executor inside the explicit
 full-sequence non-causal path. Its Q/K-normalized NeoX-RoPE attention, expert

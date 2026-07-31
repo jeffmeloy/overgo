@@ -399,6 +399,18 @@ func (b *Builder) MoE(
 	return b.moe(input, router, gate, up, down, nil, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
 }
 
+// MoESoftmaxWithSelectionBias applies softmax routing and uses selectionBias
+// only to choose the top-k experts. The unbiased probabilities weight the
+// selected expert outputs.
+func (b *Builder) MoESoftmaxWithSelectionBias(
+	input, router, gate, up, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
+}
+
 // MoESigmoid applies sigmoid routing, selects experts using the optional
 // correction bias, and weights the selected experts with the unbiased scores.
 func (b *Builder) MoESigmoid(

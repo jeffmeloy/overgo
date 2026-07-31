@@ -121,6 +121,49 @@ func TestBuildDenseLlamaBlockUsesNormalRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDenseLlamaBlockUsesLinearRoPEScale(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "llama",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		RopeScalingType:   "linear",
+		RopeScalingFactor: 8,
+		RMSNormEpsilon:    1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ropeCount := 0
+	for _, node := range nodes {
+		if node.Op != tensor.OpRoPENormal {
+			continue
+		}
+		ropeCount++
+		attributes := node.Attrs.(tensor.RoPEAttributes)
+		if attributes.FrequencyScale != 0.125 {
+			t.Fatalf("RoPE frequency scale = %v, want 0.125", attributes.FrequencyScale)
+		}
+	}
+	if ropeCount != 2 {
+		t.Fatalf("normal RoPE count = %d, want 2", ropeCount)
+	}
+}
+
 func TestBuildDenseBlockConsumesProjectionBiases(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

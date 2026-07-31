@@ -416,7 +416,9 @@
   `rope_freqs.weight` tensors apply one validated divisor per rotary pair on
   both the CPU reference and CUDA paths, including streamed, preloaded-F32,
   and native-quantized execution. Unsupported long/short RoPE factors,
-  and scaling modes not lowered to tensors are rejected before execution.
+  YaRN, and LongRoPE modes are rejected before execution. Metadata-driven
+  linear scaling is applied to Llama normal RoPE and Qwen/Gemma NeoX RoPE and
+  composes with per-pair factors.
 - Dense attention Q/K/V/output and feed-forward gate/up/down projection biases
   are shape-validated, loaded through streamed, preloaded-F32, and
   native-quantized paths, and applied with broadcast additions on CPU and

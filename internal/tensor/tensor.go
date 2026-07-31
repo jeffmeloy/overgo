@@ -460,6 +460,33 @@ func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions
 	return b.rope(OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, frequencyBase, 1, nil)
 }
 
+func (b *Builder) RoPENormalScaled(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+	frequencyScale float32,
+) *Tensor {
+	return b.rope(
+		OpRoPENormal, "rope_normal", input, positions,
+		rotaryDimensions, frequencyBase, frequencyScale, nil,
+	)
+}
+
+func (b *Builder) RoPENormalScaledWithFactors(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+	frequencyScale float32,
+	frequencyFactors *Tensor,
+) *Tensor {
+	return b.rope(
+		OpRoPENormal, "rope_normal", input, positions,
+		rotaryDimensions, frequencyBase, frequencyScale, frequencyFactors,
+	)
+}
+
 // RoPENormalWithFactors applies one frequency divisor per rotary pair.
 func (b *Builder) RoPENormalWithFactors(
 	input *Tensor,

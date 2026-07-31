@@ -61,6 +61,33 @@ func TestReadSpecDerivesHeadLength(t *testing.T) {
 	}
 }
 
+func TestReadSpecAcceptsLinearRoPEScaling(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "llama"),
+		metadata("llama.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("llama.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("llama.embedding_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("llama.feed_forward_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("llama.attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("llama.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("llama.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("llama.rope.scaling.type", gguf.ValueTypeString, "linear"),
+		metadata("llama.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("llama.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.RopeScalingType != "linear" || spec.RopeScalingFactor != 4 {
+		t.Fatalf(
+			"RoPE scaling = %q/%v, want linear/4",
+			spec.RopeScalingType,
+			spec.RopeScalingFactor,
+		)
+	}
+}
+
 func TestReadQwen35Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen35"),

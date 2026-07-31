@@ -240,16 +240,24 @@ func BuildDenseBlockCachedForLayer(
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
 	if spec.Architecture == "llama" {
+		frequencyScale := float32(1)
+		if spec.RopeScalingType == "linear" {
+			frequencyScale = 1 / spec.RopeScalingFactor
+		}
 		if weights.RopeFactors != nil {
-			query = builder.RoPENormalWithFactors(
-				query, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			query = builder.RoPENormalScaledWithFactors(
+				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
 			)
-			key = builder.RoPENormalWithFactors(
-				key, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			key = builder.RoPENormalScaledWithFactors(
+				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
 			)
 		} else {
-			query = builder.RoPENormal(query, positions, spec.KeyLength, spec.RopeFrequencyBase)
-			key = builder.RoPENormal(key, positions, spec.KeyLength, spec.RopeFrequencyBase)
+			query = builder.RoPENormalScaled(
+				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+			)
+			key = builder.RoPENormalScaled(
+				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+			)
 		}
 	} else if spec.Architecture == "gemma3" {
 		frequencyBase := spec.RopeFrequencyBase
@@ -274,16 +282,24 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	} else {
+		frequencyScale := float32(1)
+		if spec.RopeScalingType == "linear" {
+			frequencyScale = 1 / spec.RopeScalingFactor
+		}
 		if weights.RopeFactors != nil {
-			query = builder.RoPENeoXWithFactors(
-				query, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			query = builder.RoPENeoXScaledWithFactors(
+				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
 			)
-			key = builder.RoPENeoXWithFactors(
-				key, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			key = builder.RoPENeoXScaledWithFactors(
+				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
 			)
 		} else {
-			query = builder.RoPENeoX(query, positions, spec.KeyLength, spec.RopeFrequencyBase)
-			key = builder.RoPENeoX(key, positions, spec.KeyLength, spec.RopeFrequencyBase)
+			query = builder.RoPENeoXScaled(
+				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+			)
+			key = builder.RoPENeoXScaled(
+				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+			)
 		}
 	}
 

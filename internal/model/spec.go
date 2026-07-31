@@ -21,6 +21,7 @@ type Spec struct {
 	ValueLength       uint32
 	RopeFrequencyBase float32
 	RopeFrequencySWA  float32
+	RopeScalingType   string
 	RopeScalingFactor float32
 	RMSNormEpsilon    float32
 	VocabularySize    uint32
@@ -119,13 +120,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			prefix+"rope.scaling.type",
 			gguf.ValueTypeString,
 		); ok && scalingType != "" && scalingType != "none" {
-			if architecture != "gemma3" || scalingType != "linear" {
+			if architecture == "qwen35" || scalingType != "linear" {
 				return Spec{}, fmt.Errorf(
 					"model architecture %q uses unsupported RoPE scaling type %q",
 					architecture,
 					scalingType,
 				)
 			}
+			spec.RopeScalingType = scalingType
 			if spec.RopeScalingFactor, err = required[float32](
 				values,
 				prefix+"rope.scaling.factor",
@@ -340,6 +342,9 @@ func (s Spec) validate() error {
 		case s.SlidingWindow > 0 && s.SlidingPattern < 2:
 			return errors.New("Gemma 3 sliding attention pattern must be at least 2")
 		}
+	}
+	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
+		return errors.New("linear RoPE scaling factor must be positive")
 	}
 	return nil
 }

@@ -599,11 +599,12 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 	ropeFactors := builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
 	rope := builder.RoPENeoX(ropeInput, []uint32{0, 17}, 4, 1_000_000)
 	normalRope := builder.RoPENormal(ropeInput, []uint32{0, 17}, 4, 1_000_000)
-	factoredRope := builder.RoPENormalWithFactors(
+	factoredRope := builder.RoPENormalScaledWithFactors(
 		ropeInput,
 		[]uint32{0, 17},
 		4,
 		1_000_000,
+		0.25,
 		ropeFactors,
 	)
 	if err := builder.Err(); err != nil {

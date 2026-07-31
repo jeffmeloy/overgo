@@ -824,7 +824,8 @@ models:
     constraints:
       - dense
       - optional-projection-biases
-      - ordinary-rope-or-per-pair-rope-factors
+      - ordinary-or-linear-rope
+      - optional-per-pair-rope-factors
       - no-longrope-or-yarn-factor-selection
     tokenizers:
       - llama-spm

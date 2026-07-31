@@ -248,6 +248,36 @@ func TestReadWeightsAFMoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsOLMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "olmoe", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 12, ExpertWeightsScale: 1,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		VocabularySize: 32,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 8),
+		tensorInfo("blk.0.attn_v.weight", 8, 8), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_q_norm.weight", 8), tensorInfo("blk.0.attn_k_norm.weight", 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_gate_exps.weight", 8, 12, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 8, 12, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 12, 8, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.AttentionQNorm == nil || layer.AttentionQNorm.Shape[0] != 8 ||
+		layer.AttentionKNorm == nil || layer.FeedForwardRouter == nil {
+		t.Fatalf("unexpected OLMoE catalog: %+v", layer)
+	}
+}
+
 func TestReadWeightsChameleon(t *testing.T) {
 	spec := Spec{
 		Architecture: "chameleon", BlockCount: 1, EmbeddingLength: 8,

@@ -418,6 +418,7 @@ func BuildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
+	isOLMoE := spec.Architecture == "olmoe"
 	isPostOnlyNorm := usesPostOnlyNorm(spec.Architecture)
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	isChameleon := spec.Architecture == "chameleon"
@@ -436,7 +437,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE && !isQwen2MoE {
+		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -517,6 +518,10 @@ func BuildDenseBlockCachedForLayer(
 		required["attention K norm"] = weights.AttentionKNorm
 	}
 	if isChameleon {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+	}
+	if isOLMoE {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
@@ -620,7 +625,7 @@ func BuildDenseBlockCachedForLayer(
 			value = builder.Add(value, weights.AttentionVBias)
 		}
 	}
-	if isOLMo2 {
+	if isOLMo2 || isOLMoE {
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
@@ -927,23 +932,25 @@ func BuildDenseBlockCachedForLayer(
 				)
 				feedForward = builder.Add(feedForward, shared)
 			}
-		} else if isQwen2MoE {
+		} else if isQwen2MoE || isOLMoE {
 			feedForward = builder.MoE(
 				normalized, weights.FeedForwardRouter,
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
 				weights.FeedForwardDownExperts, spec.ExpertUsedCount, false,
 				spec.ExpertWeightsScale,
 			)
-			sharedGateWeight := builder.Reshape(
-				weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
-			)
-			sharedScale := builder.Sigmoid(builder.MulMat(sharedGateWeight, normalized))
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(
-				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-			)
-			feedForward = builder.Add(feedForward, builder.Multiply(shared, sharedScale))
+			if isQwen2MoE {
+				sharedGateWeight := builder.Reshape(
+					weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
+				)
+				sharedScale := builder.Sigmoid(builder.MulMat(sharedGateWeight, normalized))
+				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+				shared := builder.MulMat(
+					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+				)
+				feedForward = builder.Add(feedForward, builder.Multiply(shared, sharedScale))
+			}
 		} else {
 			feedForward = builder.MoE(
 				normalized,

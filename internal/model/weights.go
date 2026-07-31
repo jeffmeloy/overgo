@@ -746,6 +746,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
+		if spec.Architecture == "olmoe" {
+			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			kNorm, normErr := required(prefix+"attn_k_norm.weight", keyLength)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionQNorm = &qNorm
+			layer.AttentionKNorm = &kNorm
+		}
 		if spec.Architecture == "command-r" && spec.BlockCount >= 64 {
 			qNorm, normErr := required(
 				prefix+"attn_q_norm.weight",
@@ -887,7 +899,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "rnd1" ||
+		if spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
 			for name, shapeAndDestination := range map[string]struct {

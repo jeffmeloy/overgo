@@ -97,6 +97,32 @@ func TestReadQwen2MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadOLMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "olmoe"),
+		metadata("olmoe.block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("olmoe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("olmoe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("olmoe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("olmoe.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("olmoe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("olmoe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("olmoe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("olmoe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("olmoe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("olmoe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("olmoe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "olmoe" || spec.ExpertFeedForward != 12 ||
+		spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 {
+		t.Fatalf("unexpected OLMoE spec: %+v", spec)
+	}
+}
+
 func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "dream"),

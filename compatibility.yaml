@@ -831,6 +831,18 @@ models:
       - llama-spm
       - llama3-bpe
     real_model_validation: pending-fixture
+  qwen2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quant
+    features:
+      - projection-biases
+      - optional-output-bias
+      - neox-rope
+      - swiglu
+    real_model_validation: pending-fixture
   qwen3:
     status: experimental
     types:

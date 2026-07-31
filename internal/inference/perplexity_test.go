@@ -33,6 +33,22 @@ func TestApplyLogitSoftcap(t *testing.T) {
 	}
 }
 
+func TestAddOutputBiasBroadcastsAcrossTokens(t *testing.T) {
+	logits := []float32{1, 2, 3, 4, 5, 6}
+	if err := addOutputBias(logits, []float32{0.5, -1, 2}); err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1.5, 1, 5, 4.5, 4, 8}
+	for index := range want {
+		if logits[index] != want[index] {
+			t.Fatalf("biased logits[%d] = %v, want %v", index, logits[index], want[index])
+		}
+	}
+	if err := addOutputBias([]float32{1, 2}, []float32{1, 2, 3}); err == nil {
+		t.Fatal("incompatible output bias was accepted")
+	}
+}
+
 func TestNegativeLogProbability(t *testing.T) {
 	got, err := negativeLogProbability([]float32{1, 2, 3}, 2)
 	if err != nil {

@@ -231,6 +231,9 @@ func (r *Runner) logitsBatch(
 			if err != nil {
 				return nil, err
 			}
+			if err := addOutputBias(logits, r.outputBias); err != nil {
+				return nil, err
+			}
 			result = append(result, logits...)
 		}
 		return applyLogitSoftcap(result, r.spec.FinalLogitSoftcap), nil
@@ -242,6 +245,15 @@ func (r *Runner) logitsBatch(
 	}
 	input := builder.Input("perplexity.logits.input", dtype.F32, hidden.Shape)
 	output := builder.MulMat(table, input)
+	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{table: pointer}
+	if r.weights.OutputBias != nil {
+		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
+		if biasErr != nil {
+			return nil, biasErr
+		}
+		deviceFeeds[bias] = biasPointer
+		output = builder.Add(output, bias)
+	}
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
@@ -249,7 +261,7 @@ func (r *Runner) logitsBatch(
 		ctx,
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{input: hidden},
-		map[*tensor.Tensor]driver.DevicePtr{table: pointer},
+		deviceFeeds,
 	)
 	if err != nil {
 		return nil, err

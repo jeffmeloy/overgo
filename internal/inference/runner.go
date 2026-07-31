@@ -102,6 +102,7 @@ type Runner struct {
 	worker        *device.Worker
 	deviceWeights *model.DeviceF32Weights
 	rawWeights    *model.DeviceWeights
+	outputBias    []float32
 
 	mu                  sync.Mutex
 	closed              bool
@@ -162,6 +163,18 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	vocab, err := tokenizer.Load(file)
 	if err != nil {
 		return fail(err)
+	}
+	var outputBias []float32
+	if weights.OutputBias != nil {
+		value, loadErr := model.LoadHostTensor(
+			context.Background(),
+			file,
+			*weights.OutputBias,
+		)
+		if loadErr != nil {
+			return fail(loadErr)
+		}
+		outputBias = append([]float32(nil), value.Data...)
 	}
 	var cuda *executor.Executor
 	var worker *device.Worker
@@ -259,6 +272,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		worker:              worker,
 		deviceWeights:       deviceWeights,
 		rawWeights:          rawWeights,
+		outputBias:          outputBias,
 		promptCacheCapacity: promptCacheCapacity,
 	}, nil
 }
@@ -1513,6 +1527,9 @@ func (r *Runner) logits(
 		if err != nil {
 			return nil, err
 		}
+		if err := addOutputBias(logits, r.outputBias); err != nil {
+			return nil, err
+		}
 		return applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap), nil
 	}
 	builder := tensor.NewBuilder()
@@ -1523,6 +1540,15 @@ func (r *Runner) logits(
 	inputShape := tensor.MustShape(uint64(len(hidden)), 1)
 	input := builder.Input("logits.input", dtype.F32, inputShape)
 	output := builder.MulMat(table, input)
+	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{table: pointer}
+	if r.weights.OutputBias != nil {
+		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
+		if biasErr != nil {
+			return nil, biasErr
+		}
+		deviceFeeds[bias] = biasPointer
+		output = builder.Add(output, bias)
+	}
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
@@ -1534,7 +1560,7 @@ func (r *Runner) logits(
 		ctx,
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
-		map[*tensor.Tensor]driver.DevicePtr{table: pointer},
+		deviceFeeds,
 	)
 	if err != nil {
 		return nil, err
@@ -1555,6 +1581,23 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 	return logits
 }
 
+func addOutputBias(logits, bias []float32) error {
+	if len(bias) == 0 {
+		return nil
+	}
+	if len(logits)%len(bias) != 0 {
+		return fmt.Errorf(
+			"inference: %d logits are not divisible by output bias length %d",
+			len(logits),
+			len(bias),
+		)
+	}
+	for index := range logits {
+		logits[index] += bias[index%len(bias)]
+	}
+	return nil
+}
+
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
 	names := map[string]struct{}{
 		weights.TokenEmbedding.Name: {},
@@ -1562,6 +1605,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	}
 	if weights.Output != nil {
 		names[weights.Output.Name] = struct{}{}
+	}
+	if weights.OutputBias != nil {
+		names[weights.OutputBias.Name] = struct{}{}
 	}
 	for _, layer := range weights.Layers {
 		infos := []gguf.TensorInfo{

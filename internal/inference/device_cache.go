@@ -455,6 +455,14 @@ func (r *Runner) forwardDeviceCachedLocked(
 	}
 	lastHidden := builder.FlatSlice(current, hiddenElements-width, width, 1)
 	logitsTensor := builder.MulMat(outputTable, lastHidden)
+	if r.weights.OutputBias != nil {
+		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
+		if biasErr != nil {
+			return reference.Value{}, nil, biasErr
+		}
+		deviceFeeds[bias] = biasPointer
+		logitsTensor = builder.Add(logitsTensor, bias)
+	}
 	if err := builder.Err(); err != nil {
 		return reference.Value{}, nil, err
 	}

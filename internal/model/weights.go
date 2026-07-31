@@ -50,6 +50,7 @@ type Weights struct {
 	TokenEmbedding gguf.TensorInfo
 	OutputNorm     gguf.TensorInfo
 	Output         *gguf.TensorInfo
+	OutputBias     *gguf.TensorInfo
 	Layers         []LayerWeights
 }
 
@@ -163,6 +164,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", output.Name, output.Shape)
 		}
 		result.Output = &output
+	}
+	if outputBias, ok := tensors["output.bias"]; ok {
+		if outputBias.Type != dtype.F32 ||
+			outputBias.Dimensions != 1 ||
+			outputBias.Shape[0] != uint64(spec.VocabularySize) {
+			return Weights{}, fmt.Errorf(
+				"tensor %q has incompatible shape %v",
+				outputBias.Name,
+				outputBias.Shape,
+			)
+		}
+		result.OutputBias = &outputBias
 	}
 
 	queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)

@@ -40,6 +40,29 @@ func TestReadQwen3Spec(t *testing.T) {
 	}
 }
 
+func TestReadQwen2Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen2"),
+		metadata("qwen2.block_count", gguf.ValueTypeUint32, uint32(28)),
+		metadata("qwen2.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("qwen2.embedding_length", gguf.ValueTypeUint32, uint32(3584)),
+		metadata("qwen2.feed_forward_length", gguf.ValueTypeUint32, uint32(18944)),
+		metadata("qwen2.attention.head_count", gguf.ValueTypeUint32, uint32(28)),
+		metadata("qwen2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen2.attention.key_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("qwen2.attention.value_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("qwen2.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("qwen2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "qwen2" || spec.BlockCount != 28 || spec.KeyLength != 128 {
+		t.Fatalf("unexpected Qwen 2 spec: %+v", spec)
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

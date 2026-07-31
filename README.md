@@ -1,11 +1,12 @@
 # llamacpp2go
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
-Its current executable model subset is dense Qwen3, text-only Qwen3.5 hybrid
+Its current executable model subset is dense Qwen 2/3, text-only Qwen3.5 hybrid
 gated-delta-net models, Gemma 1/2/3 decoders, T5/UMT5 encoders, and dense
 Llama-family decoders, including projection biases and converted Llama 3
-per-pair RoPE factors plus metadata-driven linear RoPE scaling. Gemma attention
-and final-logit softcapping are honored on CPU and CUDA when declared.
+per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output
+projection biases and Gemma attention/final-logit softcapping are honored in
+every inference mode.
 
 The target is a Go-owned model and tensor runtime that calls NVIDIA's installed
 Windows DLLs directly. CUDA kernels are reproducible binary assets and are the

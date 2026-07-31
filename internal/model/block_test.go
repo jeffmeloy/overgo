@@ -42,6 +42,52 @@ func TestBuildDenseQwen3Block(t *testing.T) {
 	}
 }
 
+func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "qwen2",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 1_000_000,
+		RMSNormEpsilon:    1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	weights.AttentionQBias = builder.Input("attn_q.bias", dtype.F32, tensor.MustShape(8))
+	weights.AttentionKBias = builder.Input("attn_k.bias", dtype.F32, tensor.MustShape(4))
+	weights.AttentionVBias = builder.Input("attn_v.bias", dtype.F32, tensor.MustShape(4))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var neoxCount int
+	found := map[string]bool{}
+	for _, node := range nodes {
+		if node.Op == tensor.OpRoPENeoX {
+			neoxCount++
+		}
+		found[node.Name] = true
+	}
+	if neoxCount != 2 {
+		t.Fatalf("Qwen 2 NeoX RoPE count = %d, want 2", neoxCount)
+	}
+	for _, name := range []string{"attn_q.bias", "attn_k.bias", "attn_v.bias"} {
+		if !found[name] {
+			t.Fatalf("Qwen 2 projection bias %q is disconnected", name)
+		}
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

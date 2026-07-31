@@ -68,7 +68,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
-	if architecture != "llama" && architecture != "qwen3" &&
+	if architecture != "llama" && architecture != "qwen2" &&
+		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
 		architecture != "gemma2" &&
 		architecture != "gemma3" &&

@@ -162,9 +162,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	}
 	// Validate all lookups first so a missing optional pointer cannot be hidden
 	// behind a later builder error.
-	required := []gguf.TensorInfo{
-		info.AttentionOutput,
-	}
+	required := []gguf.TensorInfo{}
 	if info.FeedForwardRouter != nil {
 		if info.FeedForwardGateExperts == nil || info.FeedForwardUpExperts == nil ||
 			info.FeedForwardDownExperts == nil {
@@ -179,10 +177,29 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	} else {
 		required = append(required, info.FeedForwardUp, info.FeedForwardDown)
 	}
-	if info.AttentionQKV != nil {
-		required = append(required, *info.AttentionQKV)
+	if info.Recurrent {
+		var recurrent []*gguf.TensorInfo
+		if info.ShortConvKernel != nil {
+			recurrent = []*gguf.TensorInfo{info.ShortConvKernel, info.ShortConvInput, info.ShortConvOutput}
+		} else {
+			recurrent = []*gguf.TensorInfo{
+				info.AttentionQKV, info.AttentionGate, info.SSMConv1D, info.SSMTimeStep,
+				info.SSMA, info.SSMBeta, info.SSMAlpha, info.SSMNorm, info.SSMOutput,
+			}
+		}
+		for _, item := range recurrent {
+			if item == nil {
+				return LayerGraphWeights{}, nil, errors.New("F32 device recurrent layer catalog is incomplete")
+			}
+			required = append(required, *item)
+		}
 	} else {
-		required = append(required, info.AttentionQ, info.AttentionK, info.AttentionV)
+		required = append(required, info.AttentionOutput)
+		if info.AttentionQKV != nil {
+			required = append(required, *info.AttentionQKV)
+		} else {
+			required = append(required, info.AttentionQ, info.AttentionK, info.AttentionV)
+		}
 	}
 	if info.FeedForwardGate.Name != "" {
 		required = append(required, info.FeedForwardGate)
@@ -210,19 +227,20 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", tensorInfo.Name)
 		}
 	}
-	result := LayerGraphWeights{
-		AttentionOutput: input(info.AttentionOutput),
-	}
+	result := LayerGraphWeights{}
 	if info.FeedForwardRouter == nil {
 		result.FeedForwardUp = input(info.FeedForwardUp)
 		result.FeedForwardDown = input(info.FeedForwardDown)
 	}
-	if info.AttentionQKV != nil {
-		result.AttentionQKV = input(*info.AttentionQKV)
-	} else {
-		result.AttentionQ = input(info.AttentionQ)
-		result.AttentionK = input(info.AttentionK)
-		result.AttentionV = input(info.AttentionV)
+	if !info.Recurrent {
+		result.AttentionOutput = input(info.AttentionOutput)
+		if info.AttentionQKV != nil {
+			result.AttentionQKV = input(*info.AttentionQKV)
+		} else {
+			result.AttentionQ = input(info.AttentionQ)
+			result.AttentionK = input(info.AttentionK)
+			result.AttentionV = input(info.AttentionV)
+		}
 	}
 	if info.FeedForwardGate.Name != "" {
 		result.FeedForwardGate = input(info.FeedForwardGate)
@@ -276,6 +294,18 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{info.AttentionQKV, &result.AttentionQKV},
+		{info.AttentionGate, &result.AttentionGate},
+		{info.SSMConv1D, &result.SSMConv1D},
+		{info.SSMTimeStep, &result.SSMTimeStep},
+		{info.SSMA, &result.SSMA},
+		{info.SSMBeta, &result.SSMBeta},
+		{info.SSMAlpha, &result.SSMAlpha},
+		{info.SSMNorm, &result.SSMNorm},
+		{info.SSMOutput, &result.SSMOutput},
+		{info.ShortConvKernel, &result.ShortConvKernel},
+		{info.ShortConvInput, &result.ShortConvInput},
+		{info.ShortConvOutput, &result.ShortConvOutput},
 	} {
 		if item.info == nil {
 			continue

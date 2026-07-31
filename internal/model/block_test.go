@@ -146,6 +146,46 @@ func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	}
 }
 
+func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "lfm2", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 1, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RMSNormEpsilon: 1e-6, ShortConvCacheLength: 3,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:   builder.Input("operator_norm", dtype.F32, tensor.MustShape(4)),
+		ShortConvInput:  builder.Input("conv_in", dtype.F32, tensor.MustShape(4, 12)),
+		ShortConvKernel: builder.Input("conv_kernel", dtype.F32, tensor.MustShape(3, 4)),
+		ShortConvOutput: builder.Input("conv_out", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+	}
+	state := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 4))
+	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
+	result, err := BuildLFM2BlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(state.Shape) ||
+		!result.Value.Shape.Equal(reserved.Shape) {
+		t.Fatalf("unexpected LFM2 result: %+v", result)
+	}
+	nodes, _ := tensor.Topological(result.Output)
+	found := false
+	for _, node := range nodes {
+		found = found || node.Op == tensor.OpSSMConv
+	}
+	if !found {
+		t.Fatal("LFM2 graph has no short convolution")
+	}
+}
+
 func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

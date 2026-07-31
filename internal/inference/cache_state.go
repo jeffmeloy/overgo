@@ -91,6 +91,22 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		uint64(cache.Tokens),
 	)
 	for index, layer := range cache.Layers {
+		if r.spec.Architecture == "lfm2" &&
+			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent {
+			convShape := tensor.MustShape(
+				uint64(r.spec.ShortConvCacheLength-1), uint64(r.spec.EmbeddingLength),
+			)
+			if !layer.Key.Shape.Equal(convShape) || !layer.Value.Shape.Equal(tensor.MustShape(1)) {
+				return fmt.Errorf("inference: LFM2 recurrent cache layer %d shape is invalid", index)
+			}
+			if err := validateStateValue(layer.Key); err != nil {
+				return fmt.Errorf("inference: LFM2 recurrent cache layer %d convolution: %w", index, err)
+			}
+			if err := validateStateValue(layer.Value); err != nil {
+				return fmt.Errorf("inference: LFM2 recurrent cache layer %d reserved state: %w", index, err)
+			}
+			continue
+		}
 		if r.spec.Architecture == "qwen35" &&
 			index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent {
@@ -192,9 +208,7 @@ func (r *Runner) RemoveCacheRange(
 		Position: effectiveCachePosition(cache),
 	}
 	for index, layer := range cache.Layers {
-		recurrent := r.spec.Architecture == "qwen35" &&
-			index < len(r.weights.Layers) &&
-			r.weights.Layers[index].Recurrent
+		recurrent := index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
 		if recurrent {
 			result.Layers[index] = LayerCache{
 				Key:   cloneStateValue(layer.Key),

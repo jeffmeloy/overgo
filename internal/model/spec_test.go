@@ -93,6 +93,35 @@ func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	}
 }
 
+func TestReadLFM2HybridSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "lfm2"),
+		metadata("lfm2.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("lfm2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("lfm2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("lfm2.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("lfm2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "lfm2.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32,
+			Data: []uint32{0, 1, 0},
+		}},
+		metadata("lfm2.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("lfm2.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("lfm2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("lfm2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("lfm2.shortconv.l_cache", gguf.ValueTypeUint32, uint32(4)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "lfm2" || spec.HeadCountKV != 1 ||
+		spec.ShortConvCacheLength != 4 || !spec.IsRecurrentLayer(0) ||
+		spec.IsRecurrentLayer(1) || !spec.IsRecurrentLayer(2) {
+		t.Fatalf("unexpected LFM2 spec: %+v", spec)
+	}
+}
+
 func TestReadQwen2Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen2"),

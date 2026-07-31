@@ -7,7 +7,7 @@ gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell,
 dense Cohere2/Command R, Dream non-causal inference, Falcon, Gemma 1/2/3,
 GLM4, GPT-2/GPT-NeoX, Granite,
 InternLM2, EXAONE/EXAONE 4, XVERSE, Jais2, Maincoder, MiniCPM, compatible MPT,
-dense Mistral 3, Nemotron, OLMo/OLMo2, Orion, Phi-2/Phi-3, PLaMo, dense Refact,
+dense Mistral 3, hybrid LFM2, Nemotron, OLMo/OLMo2, Orion, Phi-2/Phi-3, PLaMo, dense Refact,
 Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5/UMT5
 encoders, and dense Llama-family decoders, including projection biases and converted Llama 3
 per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output

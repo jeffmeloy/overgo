@@ -129,6 +129,48 @@ func TestReadWeightsDream(t *testing.T) {
 	}
 }
 
+func TestReadWeightsLFM2Hybrid(t *testing.T) {
+	spec := Spec{
+		Architecture: "lfm2", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		ShortConvCacheLength: 4, RecurrentLayers: []bool{true, false},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("token_embd_norm.weight", 8),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 16),
+			tensorInfo(prefix+"ffn_up.weight", 8, 16),
+			tensorInfo(prefix+"ffn_down.weight", 16, 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.0.shortconv.conv.weight", 4, 8),
+		tensorInfo("blk.0.shortconv.in_proj.weight", 8, 24),
+		tensorInfo("blk.0.shortconv.out_proj.weight", 8, 8),
+		tensorInfo("blk.1.attn_q.weight", 8, 8),
+		tensorInfo("blk.1.attn_k.weight", 8, 4),
+		tensorInfo("blk.1.attn_v.weight", 8, 4),
+		tensorInfo("blk.1.attn_output.weight", 8, 8),
+		tensorInfo("blk.1.attn_q_norm.weight", 4),
+		tensorInfo("blk.1.attn_k_norm.weight", 4),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !weights.Layers[0].Recurrent || weights.Layers[0].ShortConvKernel == nil ||
+		weights.Layers[1].Recurrent || weights.Layers[1].AttentionQNorm == nil {
+		t.Fatalf("unexpected LFM2 weights: %+v", weights.Layers)
+	}
+}
+
 func TestReadWeightsQwen2WithOutputBias(t *testing.T) {
 	spec := Spec{
 		Architecture:      "qwen2",

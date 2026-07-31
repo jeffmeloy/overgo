@@ -72,8 +72,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
 	for layerIndex := range cache.Keys {
-		recurrent := r.spec.Architecture == "qwen35" &&
-			r.weights.Layers[layerIndex].Recurrent
+		recurrent := r.weights.Layers[layerIndex].Recurrent
 		if recurrent {
 			continue
 		}
@@ -144,8 +143,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	}
 	copies := make([]executor.DeviceCopy, 0, len(cache.Keys)*2)
 	for layerIndex := range cache.Keys {
-		recurrent := r.spec.Architecture == "qwen35" &&
-			r.weights.Layers[layerIndex].Recurrent
+		recurrent := r.weights.Layers[layerIndex].Recurrent
 		for _, item := range []struct {
 			label string
 			value executor.DeviceValue

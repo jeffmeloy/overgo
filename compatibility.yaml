@@ -949,6 +949,23 @@ models:
       - iterative-mask-transfer-sampler-pending
       - diffusion-cli-pending
     real_model_validation: pending-fixture
+  lfm2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - per-layer-attention-convolution-schedule
+      - qk-rmsnorm-attention
+      - optional-sliding-attention
+      - gated-channel-wise-short-convolution
+      - serializable-hybrid-cache
+      - swiglu
+    limitations:
+      - native-quantized-convolution-kernel-pending
+      - centered-non-causal-convolution-pending
+      - moe-variant-pending
+    real_model_validation: pending-fixture
   jais2:
     status: experimental
     features:

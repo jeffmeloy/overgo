@@ -1583,6 +1583,67 @@ func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 3e-5)
 }
 
+func TestExecutorLFM2ShortConvolutionBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "lfm2", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 1, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RMSNormEpsilon: 1e-6, ShortConvCacheLength: 3,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:   builder.Input("operator_norm", dtype.F32, tensor.MustShape(4)),
+		ShortConvInput:  builder.Input("conv_in", dtype.F32, tensor.MustShape(4, 12)),
+		ShortConvKernel: builder.Input("conv_kernel", dtype.F32, tensor.MustShape(3, 4)),
+		ShortConvOutput: builder.Input("conv_out", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+	}
+	state := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 4))
+	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
+	result, err := model.BuildLFM2BlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:    patternedValue(input.Shape, 3, 0.2, 0),
+		state:    patternedValue(state.Shape, 5, 0.1, 0),
+		reserved: patternedValue(reserved.Shape, 7, 0.1, 0),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.ShortConvInput, weights.ShortConvKernel, weights.ShortConvOutput,
+		weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.08, 0)
+	}
+	feeds[weights.AttentionNorm] = patternedValue(weights.AttentionNorm.Shape, 21, 0.03, 1)
+	feeds[weights.FeedForwardNorm] = patternedValue(weights.FeedForwardNorm.Shape, 23, 0.03, 1)
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 5e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 1e-6)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 0)
+}
+
 func TestExecutorSoftcappedWindowAttentionMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

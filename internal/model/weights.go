@@ -50,6 +50,9 @@ type LayerWeights struct {
 	FeedForwardGateExperts *gguf.TensorInfo
 	FeedForwardUpExperts   *gguf.TensorInfo
 	FeedForwardDownExperts *gguf.TensorInfo
+	ShortConvKernel        *gguf.TensorInfo
+	ShortConvInput         *gguf.TensorInfo
+	ShortConvOutput        *gguf.TensorInfo
 
 	AttentionQKV     *gguf.TensorInfo
 	AttentionQKVBias *gguf.TensorInfo
@@ -169,6 +172,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	outputNormName := "output_norm.weight"
 	if spec.Architecture == "t5encoder" {
 		outputNormName = "enc.output_norm.weight"
+	} else if spec.Architecture == "lfm2" {
+		outputNormName = "token_embd_norm.weight"
 	}
 	if !spec.UsesUnweightedLayerNorm() {
 		if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
@@ -529,6 +534,31 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					return Weights{}, err
 				}
 			}
+		} else if spec.Architecture == "lfm2" && spec.IsRecurrentLayer(block) {
+			layer.Recurrent = true
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"shortconv.conv.weight": {
+					[]uint64{uint64(spec.ShortConvCacheLength), uint64(spec.EmbeddingLength)},
+					&layer.ShortConvKernel,
+				},
+				"shortconv.in_proj.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), 3 * uint64(spec.EmbeddingLength)},
+					&layer.ShortConvInput,
+				},
+				"shortconv.out_proj.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)},
+					&layer.ShortConvOutput,
+				},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
 		} else {
 			if spec.Architecture == "apertus" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
@@ -599,7 +629,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
-			(spec.Architecture == "qwen35" && !layer.Recurrent) {
+			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
+			(spec.Architecture == "lfm2" && !layer.Recurrent) {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
 			if normErr != nil {
 				return Weights{}, normErr

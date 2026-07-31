@@ -49,6 +49,9 @@ type LayerGraphWeights struct {
 	FeedForwardGateExperts *tensor.Tensor
 	FeedForwardUpExperts   *tensor.Tensor
 	FeedForwardDownExperts *tensor.Tensor
+	ShortConvKernel        *tensor.Tensor
+	ShortConvInput         *tensor.Tensor
+	ShortConvOutput        *tensor.Tensor
 
 	AttentionQKV     *tensor.Tensor
 	AttentionQKVBias *tensor.Tensor
@@ -180,6 +183,92 @@ type Qwen35BlockResult struct {
 	ConvState *tensor.Tensor
 	SSMState  *tensor.Tensor
 	Recurrent bool
+}
+
+type LFM2BlockResult struct {
+	Output    *tensor.Tensor
+	Key       *tensor.Tensor
+	Value     *tensor.Tensor
+	Recurrent bool
+}
+
+// BuildLFM2BlockCached constructs either an attention block or an LFM2 gated
+// short-convolution block. Recurrent blocks keep their convolution window in
+// Key; Value is a one-element reserved state so the common hybrid-cache ABI
+// remains stable.
+func BuildLFM2BlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	recurrent bool,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (LFM2BlockResult, error) {
+	if spec.Architecture != "lfm2" {
+		return LFM2BlockResult{}, errors.New("LFM2 block requires lfm2 architecture")
+	}
+	if !recurrent {
+		result, err := BuildDenseBlockCachedForLayer(
+			builder, input, spec, weights, positions, pastKey, pastValue, layerIndex,
+		)
+		return LFM2BlockResult{
+			Output: result.Output, Key: result.Key, Value: result.Value,
+		}, err
+	}
+	if builder == nil || input == nil || pastKey == nil || pastValue == nil {
+		return LFM2BlockResult{}, errors.New("LFM2 recurrent block input or state is nil")
+	}
+	required := map[string]*tensor.Tensor{
+		"operator norm":            weights.AttentionNorm,
+		"short-convolution input":  weights.ShortConvInput,
+		"short-convolution kernel": weights.ShortConvKernel,
+		"short-convolution output": weights.ShortConvOutput,
+		"feed-forward norm":        weights.FeedForwardNorm,
+		"feed-forward gate":        weights.FeedForwardGate,
+		"feed-forward up":          weights.FeedForwardUp,
+		"feed-forward down":        weights.FeedForwardDown,
+	}
+	for name, item := range required {
+		if item == nil {
+			return LFM2BlockResult{}, fmt.Errorf("LFM2 recurrent block %s weight is nil", name)
+		}
+	}
+	if input.Shape.Rank != 2 || len(positions) == 0 ||
+		uint64(len(positions)) != input.Shape.Dims[1] {
+		return LFM2BlockResult{}, errors.New("LFM2 recurrent block input shape is invalid")
+	}
+	embedding := uint64(spec.EmbeddingLength)
+	window := uint64(spec.ShortConvCacheLength - 1)
+	if !pastKey.Shape.Equal(tensor.MustShape(window, embedding)) ||
+		!pastValue.Shape.Equal(tensor.MustShape(1)) {
+		return LFM2BlockResult{}, errors.New("LFM2 recurrent cache shape is invalid")
+	}
+	tokens := uint64(len(positions))
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	mixed := builder.MulMat(weights.ShortConvInput, normalized)
+	b := builder.Reshape(builder.GroupSlice(mixed, 0, embedding, 1, 3*embedding), embedding, tokens)
+	c := builder.Reshape(builder.GroupSlice(mixed, embedding, embedding, 1, 3*embedding), embedding, tokens)
+	x := builder.Reshape(builder.GroupSlice(mixed, 2*embedding, embedding, 1, 3*embedding), embedding, tokens)
+	convInput := builder.Concat(pastKey, builder.Transpose2D(builder.Multiply(b, x)), 0)
+	nextState := builder.GroupSlice(convInput, tokens, window, 1, window)
+	nextState = builder.Reshape(nextState, window, embedding)
+	convolved := builder.SSMConv(convInput, weights.ShortConvKernel)
+	shortConv := builder.MulMat(weights.ShortConvOutput, builder.Multiply(c, convolved))
+	residual := builder.Add(input, shortConv)
+	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	gate := builder.MulMat(weights.FeedForwardGate, normalized)
+	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	output := builder.Add(residual, feedForward)
+	nextReserved := builder.Scale(pastValue, 1)
+	if err := builder.Err(); err != nil {
+		return LFM2BlockResult{}, err
+	}
+	return LFM2BlockResult{
+		Output: output, Key: nextState, Value: nextReserved, Recurrent: true,
+	}, nil
 }
 
 // BuildDenseBlock constructs one pre-normalized grouped-query transformer
@@ -405,7 +494,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 
-	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}

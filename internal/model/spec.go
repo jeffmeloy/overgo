@@ -40,6 +40,7 @@ type Spec struct {
 	ExpertUsedCount       uint32
 	ExpertFeedForward     uint32
 	ExpertWeightsScale    float32
+	ShortConvCacheLength  uint32
 	SlidingWindow         uint32
 	SlidingPattern        uint32
 	RelativeBuckets       uint32
@@ -99,6 +100,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
+		architecture != "lfm2" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "exaone4" &&
@@ -165,6 +167,31 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				gguf.ValueTypeUint32,
 			); ok {
 				spec.HeadCountKV = value
+			}
+		}
+	} else if architecture == "lfm2" {
+		counts, countErr := requiredArray[uint32](
+			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
+		)
+		if countErr != nil {
+			return Spec{}, countErr
+		}
+		if len(counts) != int(spec.BlockCount) {
+			return Spec{}, fmt.Errorf(
+				"metadata %q has %d values, need %d",
+				prefix+"attention.head_count_kv", len(counts), spec.BlockCount,
+			)
+		}
+		spec.RecurrentLayers = make([]bool, len(counts))
+		for index, count := range counts {
+			if count == 0 {
+				spec.RecurrentLayers[index] = true
+				continue
+			}
+			if spec.HeadCountKV == 0 {
+				spec.HeadCountKV = count
+			} else if spec.HeadCountKV != count {
+				return Spec{}, errors.New("LFM2 attention layers use differing positive KV head counts")
 			}
 		}
 	} else {
@@ -660,6 +687,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ExpertWeightsScale = value
 		}
 	}
+	if architecture == "lfm2" {
+		if spec.ShortConvCacheLength, err = required[uint32](
+			values, prefix+"shortconv.l_cache", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if value, ok := optional[uint32](
+			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
+		); ok {
+			spec.SlidingWindow = value
+		}
+	}
 	if architecture == "gemma2" || architecture == "gemma3" ||
 		architecture == "olmo2" || architecture == "cohere2" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
@@ -732,6 +771,9 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
+	if s.Architecture == "lfm2" {
+		return block < s.BlockCount && s.SlidingWindow > 0 && !s.IsRecurrentLayer(block)
+	}
 	return usesSlidingAttention(s.Architecture) &&
 		block < s.BlockCount &&
 		s.SlidingWindow > 0 &&
@@ -853,6 +895,19 @@ func (s Spec) validate() error {
 			math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
+	}
+	if s.Architecture == "lfm2" {
+		if s.ShortConvCacheLength < 2 || len(s.RecurrentLayers) != int(s.BlockCount) {
+			return errors.New("LFM2 short-convolution metadata is invalid")
+		}
+		var recurrent, attention bool
+		for _, item := range s.RecurrentLayers {
+			recurrent = recurrent || item
+			attention = attention || !item
+		}
+		if !recurrent || !attention {
+			return errors.New("LFM2 requires both convolution and attention layers")
+		}
 	}
 	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {
 		return errors.New("Jais2 requires matching attention and KV head counts")

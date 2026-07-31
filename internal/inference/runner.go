@@ -395,16 +395,61 @@ func (r *Runner) layerDeviceInputs(
 		recurrent := []struct {
 			info        *gguf.TensorInfo
 			destination **tensor.Tensor
-		}{
-			{info.AttentionQKV, &result.AttentionQKV},
-			{info.AttentionGate, &result.AttentionGate},
-			{info.SSMConv1D, &result.SSMConv1D},
-			{info.SSMTimeStep, &result.SSMTimeStep},
-			{info.SSMA, &result.SSMA},
-			{info.SSMBeta, &result.SSMBeta},
-			{info.SSMAlpha, &result.SSMAlpha},
-			{info.SSMNorm, &result.SSMNorm},
-			{info.SSMOutput, &result.SSMOutput},
+		}{}
+		if info.ShortConvKernel != nil {
+			recurrent = append(recurrent,
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.ShortConvKernel, &result.ShortConvKernel},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.ShortConvInput, &result.ShortConvInput},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.ShortConvOutput, &result.ShortConvOutput},
+			)
+		} else {
+			recurrent = append(recurrent,
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.AttentionQKV, &result.AttentionQKV},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.AttentionGate, &result.AttentionGate},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMConv1D, &result.SSMConv1D},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMTimeStep, &result.SSMTimeStep},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMA, &result.SSMA},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMBeta, &result.SSMBeta},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMAlpha, &result.SSMAlpha},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMNorm, &result.SSMNorm},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMOutput, &result.SSMOutput},
+			)
 		}
 		for _, item := range recurrent {
 			if item.info == nil {
@@ -840,7 +885,7 @@ func (r *Runner) forwardCachedLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: nextPosition + uint32(len(tokenIDs)),
 	}
-	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" {
+	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" && r.spec.Architecture != "lfm2" {
 		return r.forwardDenseLayersPreloaded(ctx, activation, positions, cache, nextCache)
 	}
 	for layerIndex, layerInfo := range r.weights.Layers {
@@ -1077,6 +1122,9 @@ func (r *Runner) runLayerCached(
 			past,
 		)
 	}
+	if r.spec.Architecture == "lfm2" {
+		return r.runLFM2LayerCached(ctx, activation, info, layerIndex, positions, past)
+	}
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
@@ -1143,6 +1191,85 @@ func (r *Runner) runLayerCached(
 		Key:   results[result.Key],
 		Value: results[result.Value],
 	}, nil
+}
+
+func (r *Runner) runLFM2LayerCached(
+	ctx context.Context,
+	activation reference.Value,
+	info model.LayerWeights,
+	layerIndex int,
+	positions []uint32,
+	past *LayerCache,
+) (reference.Value, LayerCache, error) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, activation.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var graphWeights model.LayerGraphWeights
+	var err error
+	if r.hasPreloadedWeights() {
+		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
+	} else {
+		var hostLayer model.HostLayer
+		hostLayer, err = model.LoadHostLayer(ctx, r.file, info)
+		if err == nil {
+			var layerFeeds map[*tensor.Tensor]reference.Value
+			graphWeights, layerFeeds, err = hostLayer.GraphInputs(builder, fmt.Sprintf("blk.%d.", layerIndex))
+			for node, value := range layerFeeds {
+				hostFeeds[node] = value
+			}
+		}
+	}
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
+	}
+	var pastKey, pastValue *tensor.Tensor
+	if info.Recurrent {
+		keyValue := reference.Value{}
+		valueValue := reference.Value{}
+		if past == nil {
+			shape := tensor.MustShape(
+				uint64(r.spec.ShortConvCacheLength-1), uint64(r.spec.EmbeddingLength),
+			)
+			elements, _ := shape.Elements()
+			keyValue = reference.Value{Shape: shape, Data: make([]float32, int(elements))}
+			valueValue = reference.Value{Shape: tensor.MustShape(1), Data: []float32{0}}
+		} else {
+			keyValue, valueValue = past.Key, past.Value
+		}
+		pastKey = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, keyValue.Shape)
+		pastValue = builder.Input(fmt.Sprintf("blk.%d.reserved_state", layerIndex), dtype.F32, valueValue.Shape)
+		hostFeeds[pastKey], hostFeeds[pastValue] = keyValue, valueValue
+	} else if past != nil {
+		pastKey = builder.Input(fmt.Sprintf("blk.%d.cache_key", layerIndex), dtype.F32, past.Key.Shape)
+		pastValue = builder.Input(fmt.Sprintf("blk.%d.cache_value", layerIndex), dtype.F32, past.Value.Shape)
+		hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
+	}
+	result, err := model.BuildLFM2BlockCached(
+		builder, input, r.spec, graphWeights, positions, info.Recurrent, pastKey, pastValue,
+		uint32(layerIndex),
+	)
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
+	}
+	output := result.Output
+	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
+		output, err = r.applyDeviceOutputNorm(builder, output, deviceFeeds)
+		if err != nil {
+			return reference.Value{}, LayerCache{}, err
+		}
+	}
+	outputs := []*tensor.Tensor{output, result.Key, result.Value}
+	var results map[*tensor.Tensor]reference.Value
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
+	} else {
+		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
+	}
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
+	}
+	return results[output], LayerCache{Key: results[result.Key], Value: results[result.Value]}, nil
 }
 
 func (r *Runner) runDenseLayerNoCache(
@@ -1483,7 +1610,7 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
-	useDeviceCache := r.hasPreloadedWeights()
+	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -2115,6 +2242,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 				layer.SSMAlpha,
 				layer.SSMNorm,
 				layer.SSMOutput,
+				layer.ShortConvKernel,
+				layer.ShortConvInput,
+				layer.ShortConvOutput,
 			} {
 				if pointer != nil {
 					infos = append(infos, *pointer)

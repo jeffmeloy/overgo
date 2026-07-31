@@ -54,6 +54,9 @@ type HostLayer struct {
 	FeedForwardGateExperts *reference.Value
 	FeedForwardUpExperts   *reference.Value
 	FeedForwardDownExperts *reference.Value
+	ShortConvKernel        *reference.Value
+	ShortConvInput         *reference.Value
+	ShortConvOutput        *reference.Value
 
 	AttentionQKV     *reference.Value
 	AttentionQKVBias *reference.Value
@@ -312,16 +315,61 @@ func LoadHostLayer(
 		optionalItems := []struct {
 			destination **reference.Value
 			info        *gguf.TensorInfo
-		}{
-			{&result.AttentionQKV, info.AttentionQKV},
-			{&result.AttentionGate, info.AttentionGate},
-			{&result.SSMConv1D, info.SSMConv1D},
-			{&result.SSMTimeStep, info.SSMTimeStep},
-			{&result.SSMA, info.SSMA},
-			{&result.SSMBeta, info.SSMBeta},
-			{&result.SSMAlpha, info.SSMAlpha},
-			{&result.SSMNorm, info.SSMNorm},
-			{&result.SSMOutput, info.SSMOutput},
+		}{}
+		if info.ShortConvKernel != nil {
+			optionalItems = append(optionalItems,
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.ShortConvKernel, info.ShortConvKernel},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.ShortConvInput, info.ShortConvInput},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.ShortConvOutput, info.ShortConvOutput},
+			)
+		} else {
+			optionalItems = append(optionalItems,
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.AttentionQKV, info.AttentionQKV},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.AttentionGate, info.AttentionGate},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMConv1D, info.SSMConv1D},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMTimeStep, info.SSMTimeStep},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMA, info.SSMA},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMBeta, info.SSMBeta},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMAlpha, info.SSMAlpha},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMNorm, info.SSMNorm},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMOutput, info.SSMOutput},
+			)
 		}
 		for _, item := range optionalItems {
 			if item.info == nil {
@@ -510,6 +558,10 @@ func (layer *HostLayer) GraphInputs(
 		} else {
 			result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
 		}
+	} else if layer.ShortConvKernel != nil {
+		result.ShortConvKernel = input("shortconv.conv.weight", *layer.ShortConvKernel)
+		result.ShortConvInput = input("shortconv.in_proj.weight", *layer.ShortConvInput)
+		result.ShortConvOutput = input("shortconv.out_proj.weight", *layer.ShortConvOutput)
 	} else {
 		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
 		result.AttentionK = input("attn_k.weight", layer.AttentionK)

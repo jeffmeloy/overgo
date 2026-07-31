@@ -633,6 +633,7 @@ extern "C" __global__ void attention_f32(
         unsigned int key_value_tokens,
         float scale,
         float softcap,
+        float max_alibi_bias,
         unsigned int causal,
         unsigned int query_start,
         unsigned int window,
@@ -656,6 +657,19 @@ extern "C" __global__ void attention_f32(
     const unsigned int query_offset =
         (query_token * query_heads + query_head) * key_width;
 
+	unsigned int n_head_log2 = 1;
+	while (n_head_log2 * 2 <= query_heads) {
+		n_head_log2 *= 2;
+	}
+	float alibi_slope = 0.0f;
+	if (max_alibi_bias > 0.0f) {
+		const float m0 = powf(2.0f, -max_alibi_bias / (float) n_head_log2);
+		const float m1 = powf(2.0f, -(max_alibi_bias / 2.0f) / (float) n_head_log2);
+		alibi_slope = query_head < n_head_log2
+			? powf(m0, (float) (query_head + 1))
+			: powf(m1, (float) (2 * (query_head - n_head_log2) + 1));
+	}
+
     float maximum = -3.402823466e+38F;
     for (unsigned int key_token = key_first; key_token < key_limit; ++key_token) {
         const unsigned int key_offset =
@@ -665,6 +679,11 @@ extern "C" __global__ void attention_f32(
             dot += query[query_offset + channel] * key[key_offset + channel];
         }
         float score = dot * scale;
+		if (alibi_slope > 0.0f) {
+			const int query_position = (int) query_start + (int) query_token;
+			const int distance = query_position - (int) key_token;
+			score -= (float) (distance < 0 ? -distance : distance) * alibi_slope;
+		}
         if (relative_bias != nullptr) {
             const unsigned int half = relative_buckets / 2;
             const unsigned int max_exact = half / 2;
@@ -698,6 +717,11 @@ extern "C" __global__ void attention_f32(
             dot += query[query_offset + channel] * key[key_offset + channel];
         }
         float score = dot * scale;
+		if (alibi_slope > 0.0f) {
+			const int query_position = (int) query_start + (int) query_token;
+			const int distance = query_position - (int) key_token;
+			score -= (float) (distance < 0 ? -distance : distance) * alibi_slope;
+		}
         if (relative_bias != nullptr) {
             const unsigned int half = relative_buckets / 2;
             const unsigned int max_exact = half / 2;

@@ -1871,6 +1871,7 @@ func launchNode(
 		relativeBuckets := attributes.RelativeBuckets
 		scale := attributes.Scale
 		softcap := attributes.Softcap
+		maxALiBiBias := attributes.MaxALiBiBias
 		var causal uint32
 		if attributes.Causal {
 			causal = 1
@@ -1891,6 +1892,7 @@ func launchNode(
 			unsafe.Pointer(&keyValueTokens),
 			unsafe.Pointer(&scale),
 			unsafe.Pointer(&softcap),
+			unsafe.Pointer(&maxALiBiBias),
 			unsafe.Pointer(&causal),
 			unsafe.Pointer(&queryStart),
 			unsafe.Pointer(&window),
@@ -1911,6 +1913,7 @@ func launchNode(
 		runtime.KeepAlive(keyValueTokens)
 		runtime.KeepAlive(scale)
 		runtime.KeepAlive(softcap)
+		runtime.KeepAlive(maxALiBiBias)
 		runtime.KeepAlive(causal)
 		runtime.KeepAlive(queryStart)
 		runtime.KeepAlive(window)

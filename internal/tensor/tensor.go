@@ -124,6 +124,7 @@ type RoPEMultiAttributes struct {
 type AttentionAttributes struct {
 	Scale           float32
 	Softcap         float32
+	MaxALiBiBias    float32
 	Causal          bool
 	QueryStart      uint32
 	Window          uint32
@@ -800,7 +801,20 @@ func (b *Builder) AttentionWithOffset(
 	causal bool,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, nil, scale, 0, causal, queryStart, 0)
+	return b.attentionWithWindow(query, key, value, nil, scale, 0, 0, causal, queryStart, 0)
+}
+
+// AttentionALiBiWithOffset applies llama.cpp-compatible head slopes to a
+// linear relative-position mask. maxBias controls the steepest slope.
+func (b *Builder) AttentionALiBiWithOffset(
+	query, key, value *Tensor,
+	scale, maxBias float32,
+	causal bool,
+	queryStart uint32,
+) *Tensor {
+	return b.attentionWithWindow(
+		query, key, value, nil, scale, 0, maxBias, causal, queryStart, 0,
+	)
 }
 
 // AttentionSoftcappedWithOffset applies cap*tanh(score/cap) before softmax.
@@ -812,7 +826,7 @@ func (b *Builder) AttentionSoftcappedWithOffset(
 	queryStart uint32,
 ) *Tensor {
 	return b.attentionWithWindow(
-		query, key, value, nil, scale, softcap, causal, queryStart, 0,
+		query, key, value, nil, scale, softcap, 0, causal, queryStart, 0,
 	)
 }
 
@@ -822,7 +836,7 @@ func (b *Builder) AttentionWithRelativeBias(
 	query, key, value, bias *Tensor,
 	scale float32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, bias, scale, 0, false, 0, 0)
+	return b.attentionWithWindow(query, key, value, bias, scale, 0, 0, false, 0, 0)
 }
 
 func (b *Builder) AttentionWindowWithOffset(
@@ -836,7 +850,7 @@ func (b *Builder) AttentionWindowWithOffset(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, scale, 0, causal, queryStart, window)
+	return b.attentionWithWindow(query, key, value, nil, scale, 0, 0, causal, queryStart, window)
 }
 
 func (b *Builder) AttentionWindowSoftcappedWithOffset(
@@ -852,7 +866,7 @@ func (b *Builder) AttentionWindowSoftcappedWithOffset(
 		return nil
 	}
 	return b.attentionWithWindow(
-		query, key, value, nil, scale, softcap, causal, queryStart, window,
+		query, key, value, nil, scale, softcap, 0, causal, queryStart, window,
 	)
 }
 
@@ -860,6 +874,7 @@ func (b *Builder) attentionWithWindow(
 	query, key, value, bias *Tensor,
 	scale float32,
 	softcap float32,
+	maxALiBiBias float32,
 	causal bool,
 	queryStart uint32,
 	window uint32,
@@ -914,8 +929,17 @@ func (b *Builder) attentionWithWindow(
 		b.setError(errors.New("attention softcap must be finite and non-negative"))
 		return nil
 	}
+	if maxALiBiBias < 0 || math.IsNaN(float64(maxALiBiBias)) ||
+		math.IsInf(float64(maxALiBiBias), 0) {
+		b.setError(errors.New("attention ALiBi bias must be finite and non-negative"))
+		return nil
+	}
 	var relativeBuckets uint32
 	if bias != nil {
+		if maxALiBiBias > 0 {
+			b.setError(errors.New("attention cannot combine learned relative bias and ALiBi"))
+			return nil
+		}
 		if causal || queryStart != 0 || window != 0 {
 			b.setError(errors.New("relative-bias attention must be full and bidirectional"))
 			return nil
@@ -945,7 +969,7 @@ func (b *Builder) attentionWithWindow(
 		OpAttention,
 		inputs,
 		AttentionAttributes{
-			Scale: scale, Softcap: softcap, Causal: causal,
+			Scale: scale, Softcap: softcap, MaxALiBiBias: maxALiBiBias, Causal: causal,
 			QueryStart: queryStart, Window: window,
 			RelativeBuckets: relativeBuckets,
 		},

@@ -789,6 +789,12 @@ func attention(
 	}
 	output := make([]float32, valueWidth*queryHeads*queryTokens)
 	groupSize := queryHeads / keyValueHeads
+	nHeadLog2 := 1
+	for nHeadLog2*2 <= queryHeads {
+		nHeadLog2 *= 2
+	}
+	m0 := math.Pow(2, -float64(attributes.MaxALiBiBias)/float64(nHeadLog2))
+	m1 := math.Pow(2, -float64(attributes.MaxALiBiBias/2)/float64(nHeadLog2))
 	scores := make([]float64, keyValueTokens)
 	for queryToken := 0; queryToken < queryTokens; queryToken++ {
 		keyLimit := keyValueTokens
@@ -801,6 +807,14 @@ func attention(
 		}
 		for queryHead := 0; queryHead < queryHeads; queryHead++ {
 			keyValueHead := queryHead / groupSize
+			alibiSlope := 0.0
+			if attributes.MaxALiBiBias > 0 {
+				if queryHead < nHeadLog2 {
+					alibiSlope = math.Pow(m0, float64(queryHead+1))
+				} else {
+					alibiSlope = math.Pow(m1, float64(2*(queryHead-nHeadLog2)+1))
+				}
+			}
 			maximum := math.Inf(-1)
 			queryOffset := (queryToken*queryHeads + queryHead) * keyWidth
 			for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
@@ -810,6 +824,10 @@ func attention(
 					dot += float64(query.Data[queryOffset+channel]) * float64(key.Data[keyOffset+channel])
 				}
 				score := dot * float64(attributes.Scale)
+				if alibiSlope != 0 {
+					queryPosition := int(attributes.QueryStart) + queryToken
+					score -= math.Abs(float64(queryPosition-keyToken)) * alibiSlope
+				}
 				if bias != nil {
 					bucket := relativePositionBucket(
 						queryToken,

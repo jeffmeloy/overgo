@@ -64,6 +64,97 @@ func TestReadQwen2Spec(t *testing.T) {
 	}
 }
 
+func TestReadGPT2AndStarCoderLearnedPositionSpecs(t *testing.T) {
+	for _, architecture := range []string{"gpt2", "starcoder"} {
+		t.Run(architecture, func(t *testing.T) {
+			prefix := architecture + "."
+			file := &gguf.File{Metadata: []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, architecture),
+				metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(128)),
+				metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(16)),
+				metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(64)),
+				metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+				metadata(prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+				metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+			}}
+			spec, err := ReadSpec(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if spec.Architecture != architecture || spec.HeadCountKV != 4 ||
+				spec.KeyLength != 4 || !spec.RopeDisabled || spec.UsesRoPE(0) ||
+				!spec.UsesLayerNorm() {
+				t.Fatalf("unexpected learned-position spec: %+v", spec)
+			}
+		})
+	}
+}
+
+func TestReadBloomALiBiSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "bloom"),
+		metadata("bloom.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bloom.context_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("bloom.embedding_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("bloom.feed_forward_length", gguf.ValueTypeUint32, uint32(64)),
+		metadata("bloom.attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("bloom.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("bloom.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !spec.RopeDisabled || spec.MaxALiBiBias != 8 || spec.HeadCountKV != 4 ||
+		!spec.UsesLayerNorm() {
+		t.Fatalf("unexpected Bloom spec: %+v", spec)
+	}
+}
+
+func TestReadMPTAndRefactALiBiSpecs(t *testing.T) {
+	tests := []struct {
+		architecture string
+		layerNorm    bool
+	}{
+		{architecture: "mpt", layerNorm: true},
+		{architecture: "refact", layerNorm: false},
+	}
+	for _, test := range tests {
+		t.Run(test.architecture, func(t *testing.T) {
+			prefix := test.architecture + "."
+			metadataItems := []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, test.architecture),
+				metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(128)),
+				metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(16)),
+				metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(64)),
+				metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+				metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"attention.max_alibi_bias", gguf.ValueTypeFloat32, float32(8)),
+				metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+			}
+			if test.layerNorm {
+				metadataItems = append(metadataItems, metadata(
+					prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5),
+				))
+			} else {
+				metadataItems = append(metadataItems, metadata(
+					prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5),
+				))
+			}
+			spec, err := ReadSpec(&gguf.File{Metadata: metadataItems})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !spec.RopeDisabled || spec.MaxALiBiBias != 8 ||
+				spec.HeadCountKV != 2 || spec.UsesLayerNorm() != test.layerNorm {
+				t.Fatalf("unexpected %s spec: %+v", test.architecture, spec)
+			}
+		})
+	}
+}
+
 func TestReadInternLM2EXAONEAndXVERSESpecs(t *testing.T) {
 	for _, architecture := range []string{"internlm2", "exaone", "xverse"} {
 		t.Run(architecture, func(t *testing.T) {

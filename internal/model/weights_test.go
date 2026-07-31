@@ -93,6 +93,118 @@ func TestReadWeightsQwen2WithOutputBias(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGPT2AndStarCoder(t *testing.T) {
+	for _, architecture := range []string{"gpt2", "starcoder"} {
+		t.Run(architecture, func(t *testing.T) {
+			spec := Spec{
+				Architecture: architecture, BlockCount: 1, ContextLength: 16,
+				EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2,
+				HeadCountKV: 2, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+				LayerNormEpsilon: 1e-5, RopeDisabled: true,
+			}
+			file := &gguf.File{Tensors: []gguf.TensorInfo{
+				tensorInfo("token_embd.weight", 8, 32),
+				tensorInfo("position_embd.weight", 8, 16),
+				tensorInfo("output_norm.weight", 8), tensorInfo("output_norm.bias", 8),
+				tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+				tensorInfo("blk.0.attn_qkv.weight", 8, 24), tensorInfo("blk.0.attn_qkv.bias", 24),
+				tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+				tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_norm.bias", 8),
+				tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_up.bias", 16),
+				tensorInfo("blk.0.ffn_down.weight", 16, 8), tensorInfo("blk.0.ffn_down.bias", 8),
+			}}
+			weights, err := ReadWeights(file, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			layer := weights.Layers[0]
+			if weights.PositionEmbedding == nil || layer.AttentionQKV == nil ||
+				layer.AttentionQKVBias == nil || layer.FeedForwardGate.Name != "" {
+				t.Fatalf("unexpected %s weights: %+v", architecture, weights)
+			}
+		})
+	}
+}
+
+func TestReadWeightsBloom(t *testing.T) {
+	spec := Spec{
+		Architecture: "bloom", BlockCount: 1, ContextLength: 16,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2,
+		HeadCountKV: 2, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
+		tensorInfo("output_norm.weight", 8), tensorInfo("output_norm.bias", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24), tensorInfo("blk.0.attn_qkv.bias", 24),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_norm.bias", 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_up.bias", 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8), tensorInfo("blk.0.ffn_down.bias", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.TokenEmbeddingNorm == nil || weights.TokenEmbeddingNormBias == nil ||
+		weights.Layers[0].AttentionQKV == nil || weights.Layers[0].AttentionQKVBias == nil {
+		t.Fatalf("unexpected Bloom weights: %+v", weights)
+	}
+}
+
+func TestReadWeightsMPTBiasFreeVariant(t *testing.T) {
+	spec := Spec{
+		Architecture: "mpt", BlockCount: 1, ContextLength: 16,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2,
+		HeadCountKV: 2, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("position_embd.weight", 8, 16),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.PositionEmbedding == nil || weights.OutputNormBias != nil ||
+		weights.Layers[0].AttentionQKV == nil || weights.Layers[0].AttentionNormBias != nil {
+		t.Fatalf("unexpected MPT weights: %+v", weights)
+	}
+}
+
+func TestReadWeightsDenseRefact(t *testing.T) {
+	spec := Spec{
+		Architecture: "refact", BlockCount: 1, ContextLength: 16,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2,
+		HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		RMSNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 4),
+		tensorInfo("blk.0.attn_v.weight", 8, 4), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(weights.Layers) != 1 || weights.Layers[0].FeedForwardGate.Name == "" {
+		t.Fatalf("unexpected Refact weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsInternLM2EXAONEAndXVERSE(t *testing.T) {
 	for _, architecture := range []string{"internlm2", "exaone", "xverse"} {
 		t.Run(architecture, func(t *testing.T) {

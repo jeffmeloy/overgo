@@ -647,10 +647,18 @@ func (r *Runner) forwardCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
+	activation, err = r.addPositionEmbeddings(ctx, activation, positions)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
 	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
 		for index := range activation.Data {
 			activation.Data[index] *= scale
 		}
+	}
+	activation, err = r.applyTokenEmbeddingNorm(ctx, activation)
+	if err != nil {
+		return reference.Value{}, nil, err
 	}
 	nextCache := &KVCache{
 		Layers:   make([]LayerCache, len(r.weights.Layers)),
@@ -1566,11 +1574,19 @@ func matchesStopSequence(text string, stops []string) bool {
 }
 
 func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.Value, error) {
+	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
+}
+
+func (r *Runner) loadRows(
+	ctx context.Context,
+	info gguf.TensorInfo,
+	rows []uint32,
+) (reference.Value, error) {
 	if !r.hasPreloadedWeights() {
-		return model.LoadHostRows(ctx, r.file, r.weights.TokenEmbedding, rows)
+		return model.LoadHostRows(ctx, r.file, info, rows)
 	}
 	builder := tensor.NewBuilder()
-	table, pointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
+	table, pointer, err := r.deviceInput(builder, info)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1584,6 +1600,99 @@ func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.V
 		nil,
 		map[*tensor.Tensor]driver.DevicePtr{table: pointer},
 	)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return results[output], nil
+}
+
+func (r *Runner) addPositionEmbeddings(
+	ctx context.Context,
+	activation reference.Value,
+	positions []uint32,
+) (reference.Value, error) {
+	if r.weights.PositionEmbedding == nil {
+		return activation, nil
+	}
+	for _, position := range positions {
+		if position >= r.spec.ContextLength {
+			return reference.Value{}, fmt.Errorf(
+				"inference: learned position %d exceeds context length %d",
+				position,
+				r.spec.ContextLength,
+			)
+		}
+	}
+	positionRows, err := r.loadRows(ctx, *r.weights.PositionEmbedding, positions)
+	if err != nil {
+		return reference.Value{}, fmt.Errorf("inference: load position embeddings: %w", err)
+	}
+	if positionRows.Shape != activation.Shape || len(positionRows.Data) != len(activation.Data) {
+		return reference.Value{}, errors.New("inference: position embedding shape differs from token embeddings")
+	}
+	for index := range activation.Data {
+		activation.Data[index] += positionRows.Data[index]
+	}
+	return activation, nil
+}
+
+func (r *Runner) applyTokenEmbeddingNorm(
+	ctx context.Context,
+	activation reference.Value,
+) (reference.Value, error) {
+	if r.weights.TokenEmbeddingNorm == nil {
+		return activation, nil
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("token_embd_norm.input", dtype.F32, activation.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	weightInput := (*tensor.Tensor)(nil)
+	biasInput := (*tensor.Tensor)(nil)
+	if r.hasPreloadedWeights() {
+		var pointer driver.DevicePtr
+		var err error
+		weightInput, pointer, err = r.deviceInput(builder, *r.weights.TokenEmbeddingNorm)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		deviceFeeds[weightInput] = pointer
+		if r.weights.TokenEmbeddingNormBias != nil {
+			biasInput, pointer, err = r.deviceInput(builder, *r.weights.TokenEmbeddingNormBias)
+			if err != nil {
+				return reference.Value{}, err
+			}
+			deviceFeeds[biasInput] = pointer
+		}
+	} else {
+		weight, err := model.LoadHostTensor(ctx, r.file, *r.weights.TokenEmbeddingNorm)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		weightInput = builder.Input("token_embd_norm.weight", dtype.F32, weight.Shape)
+		hostFeeds[weightInput] = weight
+		if r.weights.TokenEmbeddingNormBias != nil {
+			bias, biasErr := model.LoadHostTensor(ctx, r.file, *r.weights.TokenEmbeddingNormBias)
+			if biasErr != nil {
+				return reference.Value{}, biasErr
+			}
+			biasInput = builder.Input("token_embd_norm.bias", dtype.F32, bias.Shape)
+			hostFeeds[biasInput] = bias
+		}
+	}
+	output := model.ApplyNormalization(builder, input, weightInput, biasInput, r.spec)
+	if err := builder.Err(); err != nil {
+		return reference.Value{}, err
+	}
+	var results map[*tensor.Tensor]reference.Value
+	var err error
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(
+			ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds,
+		)
+	} else {
+		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
+	}
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1692,6 +1801,15 @@ func addOutputBias(logits, bias []float32) error {
 
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
 	names := map[string]struct{}{weights.TokenEmbedding.Name: {}}
+	if weights.PositionEmbedding != nil {
+		names[weights.PositionEmbedding.Name] = struct{}{}
+	}
+	if weights.TokenEmbeddingNorm != nil {
+		names[weights.TokenEmbeddingNorm.Name] = struct{}{}
+	}
+	if weights.TokenEmbeddingNormBias != nil {
+		names[weights.TokenEmbeddingNormBias.Name] = struct{}{}
+	}
 	if weights.OutputNorm.Name != "" {
 		names[weights.OutputNorm.Name] = struct{}{}
 	}

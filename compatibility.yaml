@@ -861,6 +861,65 @@ models:
     limitations:
       - 13b-alibi-rejected
     real_model_validation: pending-fixture
+  bloom:
+    status: experimental
+    features:
+      - affine-token-embedding-layernorm
+      - affine-block-and-output-layernorm
+      - required-contiguous-fused-qkv
+      - llama-cpp-compatible-alibi
+      - sequential-gelu
+      - required-projection-biases
+      - tied-or-untied-output
+    real_model_validation: pending-fixture
+  gpt2:
+    status: experimental
+    features:
+      - learned-absolute-position-embeddings
+      - affine-layernorm
+      - required-contiguous-fused-qkv
+      - sequential-gelu
+      - required-projection-biases
+      - tied-or-untied-output
+    real_model_validation: pending-fixture
+  starcoder:
+    status: experimental
+    features:
+      - learned-absolute-position-embeddings
+      - affine-layernorm
+      - required-contiguous-fused-qkv
+      - sequential-gelu
+      - required-projection-biases
+      - tied-or-untied-output
+    real_model_validation: pending-fixture
+  mpt:
+    status: experimental
+    features:
+      - optional-learned-absolute-position-embeddings
+      - optional-bias-affine-layernorm
+      - required-contiguous-fused-qkv
+      - optional-projection-biases
+      - optional-llama-cpp-compatible-alibi
+      - sequential-gelu
+      - tied-or-untied-output
+    limitations:
+      - qk-layernorm-variants-rejected
+      - activation-scale-variants-rejected
+      - nonzero-qkv-clamp-rejected
+    real_model_validation: pending-fixture
+  refact:
+    status: experimental
+    constraints:
+      - dense
+    features:
+      - rmsnorm
+      - llama-cpp-compatible-alibi
+      - fused-or-separate-qkv
+      - parallel-swiglu
+      - tied-or-untied-output
+    limitations:
+      - expert-layers-rejected
+    real_model_validation: pending-fixture
   codeshell:
     status: experimental
     features:

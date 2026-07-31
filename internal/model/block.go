@@ -73,6 +73,9 @@ func ApplyNormalization(
 		return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
 	}
 	if spec.UsesLayerNorm() {
+		if bias == nil {
+			return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
+		}
 		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
 	}
 	return builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
@@ -281,7 +284,7 @@ func BuildDenseBlockCachedForLayer(
 				required["feed-forward norm"] = weights.FeedForwardNorm
 			}
 		}
-		if spec.UsesLayerNorm() {
+		if spec.RequiresLayerNormBias() {
 			required["attention norm bias"] = weights.AttentionNormBias
 			if !usesParallelResidual(spec.Architecture) && spec.Architecture != "stablelm" {
 				required["feed-forward norm bias"] = weights.FeedForwardNormBias
@@ -547,7 +550,12 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	} else {
-		if spec.AttentionSoftcap > 0 {
+		if spec.MaxALiBiBias > 0 {
+			attention = builder.AttentionALiBiWithOffset(
+				query, cacheKey, cacheValue, attentionScale, spec.MaxALiBiBias,
+				true, queryStart,
+			)
+		} else if spec.AttentionSoftcap > 0 {
 			attention = builder.AttentionSoftcappedWithOffset(
 				query, cacheKey, cacheValue, attentionScale, spec.AttentionSoftcap,
 				true, queryStart,

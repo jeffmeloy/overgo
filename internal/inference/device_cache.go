@@ -307,8 +307,47 @@ func (r *Runner) forwardDeviceCachedLocked(
 	current := builder.GetRows(embeddingTable, rows)
 	hostFeeds := map[*tensor.Tensor]reference.Value{}
 	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{embeddingTable: embeddingPointer}
+	if r.weights.PositionEmbedding != nil {
+		for _, position := range positions {
+			if position >= r.spec.ContextLength {
+				return reference.Value{}, nil, fmt.Errorf(
+					"inference: learned position %d exceeds context length %d",
+					position,
+					r.spec.ContextLength,
+				)
+			}
+		}
+		positionTable, positionPointer, positionErr := r.deviceInput(
+			builder, *r.weights.PositionEmbedding,
+		)
+		if positionErr != nil {
+			return reference.Value{}, nil, positionErr
+		}
+		deviceFeeds[positionTable] = positionPointer
+		current = builder.Add(current, builder.GetRows(positionTable, positions))
+	}
 	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
 		current = builder.Scale(current, scale)
+	}
+	if r.weights.TokenEmbeddingNorm != nil {
+		normWeight, normPointer, normErr := r.deviceInput(
+			builder, *r.weights.TokenEmbeddingNorm,
+		)
+		if normErr != nil {
+			return reference.Value{}, nil, normErr
+		}
+		deviceFeeds[normWeight] = normPointer
+		var normBias *tensor.Tensor
+		if r.weights.TokenEmbeddingNormBias != nil {
+			normBias, normPointer, normErr = r.deviceInput(
+				builder, *r.weights.TokenEmbeddingNormBias,
+			)
+			if normErr != nil {
+				return reference.Value{}, nil, normErr
+			}
+			deviceFeeds[normBias] = normPointer
+		}
+		current = model.ApplyNormalization(builder, current, normWeight, normBias, r.spec)
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))

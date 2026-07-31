@@ -1793,6 +1793,135 @@ func TestBuildDenseBlockConsumesProjectionBiases(t *testing.T) {
 	}
 }
 
+func TestBuildGPT2DenseBlockUsesLearnedPositionsWithoutRoPE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "gpt2", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	weights.FeedForwardGate = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
+	weights.AttentionQKVBias = builder.Input("attn_qkv.bias", dtype.F32, tensor.MustShape(24))
+	weights.AttentionOutputBias = builder.Input("attn_output.bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardUpBias = builder.Input("ffn_up.bias", dtype.F32, tensor.MustShape(16))
+	weights.FeedForwardDownBias = builder.Input("ffn_down.bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{3, 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rope, gelu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRoPENormal, tensor.OpRoPENeoX:
+			rope++
+		case tensor.OpGELU:
+			gelu++
+		}
+	}
+	if rope != 0 || gelu != 1 {
+		t.Fatalf("GPT-2 graph has RoPE=%d GELU=%d, want 0/1", rope, gelu)
+	}
+}
+
+func TestBuildBloomDenseBlockUsesALiBiWithoutRoPE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "bloom", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	weights.FeedForwardGate = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
+	weights.AttentionQKVBias = builder.Input("attn_qkv.bias", dtype.F32, tensor.MustShape(24))
+	weights.AttentionOutputBias = builder.Input("attn_output.bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardUpBias = builder.Input("ffn_up.bias", dtype.F32, tensor.MustShape(16))
+	weights.FeedForwardDownBias = builder.Input("ffn_down.bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attentionCount int
+	for _, node := range nodes {
+		if node.Op == tensor.OpRoPENormal || node.Op == tensor.OpRoPENeoX {
+			t.Fatal("Bloom graph unexpectedly contains RoPE")
+		}
+		if node.Op == tensor.OpAttention {
+			attentionCount++
+			attributes := node.Attrs.(tensor.AttentionAttributes)
+			if attributes.MaxALiBiBias != 8 || !attributes.Causal {
+				t.Fatalf("unexpected Bloom attention attributes: %+v", attributes)
+			}
+		}
+	}
+	if attentionCount != 1 {
+		t.Fatalf("Bloom graph has %d attention nodes, want 1", attentionCount)
+	}
+}
+
+func TestBuildMPTBiasFreeBlockUsesALiBi(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "mpt", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionNormBias = nil
+	weights.FeedForwardNormBias = nil
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	weights.FeedForwardGate = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gelu, alibi int
+	for _, node := range nodes {
+		if node.Op == tensor.OpGELU {
+			gelu++
+		}
+		if node.Op == tensor.OpAttention &&
+			node.Attrs.(tensor.AttentionAttributes).MaxALiBiBias == 8 {
+			alibi++
+		}
+	}
+	if gelu != 1 || alibi != 1 {
+		t.Fatalf("MPT graph has GELU=%d ALiBi=%d, want 1/1", gelu, alibi)
+	}
+}
+
 func TestBuildQwen35AttentionBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := qwen35TestSpec()

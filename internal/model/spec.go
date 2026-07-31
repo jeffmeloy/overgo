@@ -27,6 +27,7 @@ type Spec struct {
 	RopeAttentionFactor   float32
 	OriginalContextLength uint32
 	AttentionScale        float32
+	MaxALiBiBias          float32
 	EmbeddingScale        float32
 	ResidualScale         float32
 	LogitScale            float32
@@ -87,6 +88,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "apertus" &&
 		architecture != "baichuan" &&
 		architecture != "bitnet" &&
+		architecture != "bloom" &&
 		architecture != "codeshell" &&
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
@@ -98,9 +100,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "minicpm" &&
 		architecture != "granite" &&
 		architecture != "glm4" &&
+		architecture != "gpt2" &&
 		architecture != "gptneox" &&
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
+		architecture != "mpt" &&
 		architecture != "nemotron" &&
 		architecture != "olmo" &&
 		architecture != "orion" &&
@@ -109,10 +113,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "plamo" &&
 		architecture != "seed_oss" &&
 		architecture != "stablelm" &&
+		architecture != "starcoder" &&
 		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
+		architecture != "refact" &&
 		architecture != "gemma2" &&
 		architecture != "gemma3" &&
 		architecture != "falcon" &&
@@ -139,9 +145,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "t5encoder" || architecture == "gptneox" || architecture == "falcon" {
+	if architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "mpt" ||
+		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
-		if architecture == "gptneox" || architecture == "falcon" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "mpt" {
 			if value, ok := optional[uint32](
 				values,
 				prefix+"attention.head_count_kv",
@@ -169,7 +176,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ValueLength = headLength
 		}
 	}
-	if architecture != "t5encoder" {
+	if architecture == "bloom" || architecture == "gpt2" || architecture == "mpt" ||
+		architecture == "refact" || architecture == "starcoder" {
+		// These architectures use ALiBi or learned absolute rows instead of RoPE.
+		spec.RopeDisabled = true
+	} else if architecture != "t5encoder" {
 		if architecture == "gptneox" || architecture == "falcon" {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](
@@ -205,6 +216,30 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 					return Spec{}, err
 				}
 			}
+		}
+	}
+	if architecture == "bloom" || architecture == "mpt" || architecture == "refact" {
+		if architecture != "mpt" {
+			spec.MaxALiBiBias = 8
+		}
+		if value, ok := optional[float32](
+			values, prefix+"attention.max_alibi_bias", gguf.ValueTypeFloat32,
+		); ok {
+			spec.MaxALiBiBias = value
+		}
+	}
+	if architecture == "mpt" {
+		if clamp, ok := optional[float32](
+			values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32,
+		); ok && clamp != 0 {
+			return Spec{}, errors.New("MPT attention QKV clamping is not supported")
+		}
+	}
+	if architecture == "refact" {
+		if expertCount, ok := optional[uint32](
+			values, prefix+"expert_count", gguf.ValueTypeUint32,
+		); ok && expertCount > 0 {
+			return Spec{}, errors.New("Refact expert layers are not supported")
 		}
 	}
 	if spec.UsesLayerNorm() || spec.UsesWeightOnlyLayerNorm() || spec.UsesUnweightedLayerNorm() {
@@ -699,7 +734,12 @@ func (s Spec) UsesLayerNorm() bool {
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
 		s.Architecture == "stablelm" ||
+		s.Architecture == "mpt" ||
 		usesSequentialGELU(s.Architecture)
+}
+
+func (s Spec) RequiresLayerNormBias() bool {
+	return s.UsesLayerNorm() && s.Architecture != "mpt"
 }
 
 func (s Spec) UsesUnweightedLayerNorm() bool {
@@ -728,7 +768,7 @@ func (s Spec) validate() error {
 		return errors.New("attention head count is not divisible by KV head count")
 	case s.KeyLength == 0 || s.ValueLength == 0:
 		return errors.New("model attention key/value length is zero")
-	case s.Architecture != "t5encoder" && s.RopeFrequencyBase <= 0:
+	case s.Architecture != "t5encoder" && !s.RopeDisabled && s.RopeFrequencyBase <= 0:
 		return errors.New("model RoPE frequency base must be positive")
 	case (s.UsesLayerNorm() || s.UsesWeightOnlyLayerNorm() || s.UsesUnweightedLayerNorm()) && s.LayerNormEpsilon <= 0:
 		return errors.New("model LayerNorm epsilon must be positive")
@@ -891,6 +931,10 @@ func (s Spec) validate() error {
 		math.IsInf(float64(s.AttentionScale), 0) {
 		return errors.New("attention scale must be finite and non-negative")
 	}
+	if s.MaxALiBiBias < 0 || math.IsNaN(float64(s.MaxALiBiBias)) ||
+		math.IsInf(float64(s.MaxALiBiBias), 0) {
+		return errors.New("maximum ALiBi bias must be finite and non-negative")
+	}
 	if s.EmbeddingScale < 0 ||
 		math.IsNaN(float64(s.EmbeddingScale)) ||
 		math.IsInf(float64(s.EmbeddingScale), 0) {
@@ -952,8 +996,9 @@ func usesParallelResidual(architecture string) bool {
 }
 
 func usesSequentialGELU(architecture string) bool {
-	return architecture == "codeshell" || architecture == "gptneox" ||
-		architecture == "phi2" || architecture == "starcoder2"
+	return architecture == "bloom" || architecture == "codeshell" || architecture == "gpt2" ||
+		architecture == "gptneox" || architecture == "phi2" ||
+		architecture == "starcoder" || architecture == "starcoder2"
 }
 
 func usesGateFreeFFN(architecture string) bool {
@@ -970,7 +1015,7 @@ func supportsLongRoPE(architecture string) bool {
 }
 
 func usesGELU(architecture string) bool {
-	return architecture == "falcon" || usesSequentialGELU(architecture)
+	return architecture == "falcon" || architecture == "mpt" || usesSequentialGELU(architecture)
 }
 
 func usesSquaredReLU(architecture string) bool {

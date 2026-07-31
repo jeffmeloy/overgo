@@ -302,6 +302,31 @@ func TestExecuteQwen35LayoutOperations(t *testing.T) {
 	assertEqual("flat slice", results[slice].Data, []float32{-2, 1, 11, -3, 2})
 }
 
+func TestExecuteAttentionALiBiMatchesLlamaSlope(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
+	output := builder.AttentionALiBiWithOffset(query, key, value, 1, 2, true, 1)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	queryValue, _ := NewValue(query.Shape, []float32{0})
+	keyValue, _ := NewValue(key.Shape, []float32{0, 0})
+	valueValue, _ := NewValue(value.Shape, []float32{1, 3})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: queryValue, key: keyValue, value: valueValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	older := math.Exp(-0.25) // one-token distance times the single-head 2^-2 slope
+	want := float32((older + 3) / (older + 1))
+	if got := results[output].Data[0]; math.Abs(float64(got-want)) > 1e-6 {
+		t.Fatalf("ALiBi attention = %v, want %v", got, want)
+	}
+}
+
 func TestExecuteRoPEMulti(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))

@@ -787,10 +787,17 @@ claiming an unverified port; independent compatibility work continues.
 
 Contiguous fused QKV projection and bias loading/slicing is shared by the
 dense host, preloaded-device, and cache execution paths and is enabled for
-Phi-2. Other fused-QKV families remain architecture-gated until their distinct
-position encoding, residual topology, normalization, and tensor-layout rules
-are implemented and tested; the presence of `attn_qkv` alone is not treated as
-proof of compatibility.
+Phi-2, GPT-NeoX, and Falcon. Remaining fused-QKV families stay
+architecture-gated until their distinct position encoding, residual topology,
+normalization, and tensor-layout rules are implemented and tested; the
+presence of `attn_qkv` alone is not treated as proof of compatibility.
+
+Phi-3 is the next viable dense target, but its fused `ffn_up` gate/up layout
+and per-request LongRoPE short/long factor selection still need a shared graph
+path. Bloom is deferred separately because it requires an input embedding
+LayerNorm and ALiBi attention. GPT-2/StarCoder-style families also require
+learned absolute-position embedding support. These architectures remain
+rejected rather than being partially enabled.
 
 ## Working rules
 

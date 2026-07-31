@@ -258,6 +258,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if (spec.Architecture == "internlm2" ||
 		spec.Architecture == "apertus" ||
 		spec.Architecture == "baichuan" ||
+		spec.Architecture == "bailingmoe" ||
 		spec.Architecture == "xverse" ||
 		spec.Architecture == "olmo2" ||
 		spec.Architecture == "nemotron" ||
@@ -900,7 +901,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "bailingmoe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
@@ -969,6 +970,22 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.FeedForwardExpertBias = &bias
 				}
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "bailingmoe" {
 				for name, shapeAndDestination := range map[string]struct {
 					shape       []uint64
 					destination **gguf.TensorInfo

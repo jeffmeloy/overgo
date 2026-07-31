@@ -70,6 +70,40 @@ func TestReadQwen3MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadBailingMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "bailingmoe"),
+		metadata("bailingmoe.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("bailingmoe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("bailingmoe.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("bailingmoe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("bailingmoe.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("bailingmoe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("bailingmoe.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("bailingmoe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("bailingmoe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("bailingmoe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("bailingmoe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("bailingmoe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("bailingmoe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "bailingmoe" || spec.ExpertCount != 8 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+		spec.SharedExpertCount != 2 || spec.SharedExpertFF != 12 ||
+		spec.ExpertWeightsScale != 1.25 || !spec.ExpertWeightsNorm ||
+		spec.LeadingDenseBlocks != 1 || !usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected BailingMoE spec: %+v", spec)
+	}
+}
+
 func TestReadQwen2MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen2moe"),

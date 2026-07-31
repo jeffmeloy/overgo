@@ -1002,6 +1002,23 @@ models:
       - optional-shared-experts
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  bailingmoe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - pre-rmsnorm
+      - normal-rope
+      - softmax-top-k-routing
+      - optional-selected-weight-normalization
+      - routed-weight-scaling
+      - packed-swiglu-experts
+      - always-on-shared-experts
+      - serializable-prefix-editable-kv-cache
+      - required-untied-output
+    real_model_validation: pending-fixture
   lfm2:
     status: experimental
     execution:
@@ -1385,9 +1402,6 @@ models:
       - selected-probability-normalization
       - routed-weight-scaling
       - packed-swiglu-experts
-    limitations:
-      - shared-experts-pending
-      - grouped-and-sigmoid-routing-pending
     real_model_validation: pending-fixture
   qwen2moe:
     status: experimental

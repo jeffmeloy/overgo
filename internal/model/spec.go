@@ -109,6 +109,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "arcee" &&
 		architecture != "apertus" &&
 		architecture != "baichuan" &&
+		architecture != "bailingmoe" &&
 		architecture != "bitnet" &&
 		architecture != "bloom" &&
 		architecture != "codeshell" &&
@@ -768,7 +769,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
+	if isLlamaMoE || architecture == "bailingmoe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -780,7 +781,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		if spec.ExpertUsedCount == 0 {
-			return Spec{}, errors.New("Qwen3-MoE expert used count is zero")
+			return Spec{}, errors.New("expert used count is zero")
 		}
 		spec.ExpertFeedForward = spec.FeedForwardLength / spec.ExpertUsedCount
 		if value, ok := optional[uint32](
@@ -794,6 +795,21 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok {
 			spec.ExpertWeightsScale = value
 		}
+	}
+	if architecture == "bailingmoe" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.SharedExpertCount, err = required[uint32](
+			values, prefix+"expert_shared_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
 	if architecture == "qwen2moe" {
 		if spec.ExpertFeedForward == 0 {
@@ -1169,6 +1185,19 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen2-MoE expert metadata is invalid")
 	}
+	if s.Architecture == "bailingmoe" {
+		switch {
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			s.SharedExpertFF == 0:
+			return errors.New("BailingMoE expert metadata is invalid")
+		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
+			return errors.New("BailingMoE shared expert width overflows")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("BailingMoE expert weight scale is invalid")
+		}
+	}
 	if s.Architecture == "olmoe" &&
 		(s.HeadCountKV != s.HeadCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
 			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
@@ -1461,6 +1490,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "internlm2" ||
 		architecture == "arcee" ||
 		architecture == "baichuan" ||
+		architecture == "bailingmoe" ||
 		architecture == "cohere2" ||
 		architecture == "command-r" ||
 		architecture == "chameleon" ||

@@ -3363,8 +3363,11 @@ type anthropicTokenCountRequest struct {
 }
 
 type anthropicContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type  string          `json:"type"`
+	Text  string          `json:"text,omitempty"`
+	ID    string          `json:"id,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
 }
 
 type anthropicUsage struct {
@@ -3416,39 +3419,83 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		)
 		return
 	}
-	toolsConfigured := rawJSONConfigured(body.Tools)
-	if len(body.Tools) != 0 {
-		var tools []json.RawMessage
-		if err := json.Unmarshal(body.Tools, &tools); err == nil && len(tools) == 0 {
-			toolsConfigured = false
-		}
-	}
-	if toolsConfigured ||
-		rawJSONConfigured(body.ToolChoice) ||
-		rawJSONConfigured(body.Thinking) {
+	if rawJSONConfigured(body.Thinking) {
 		writeError(
 			response,
 			http.StatusBadRequest,
 			"invalid_request_error",
-			"Anthropic tools and thinking blocks are not supported",
+			"Anthropic thinking blocks are not supported",
 		)
 		return
+	}
+	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if len(toolSelection.active) != 0 {
+		if _, ok := h.generator.(ChatOutputParser); !ok {
+			writeError(
+				response,
+				http.StatusNotImplemented,
+				"unsupported_operation",
+				"tool-call output parsing is unavailable",
+			)
+			return
+		}
 	}
 	messages, err := parseAnthropicMessages(body.System, body.Messages)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prompt, err := formatter.FormatChat(messages)
+	var prompt string
+	if len(toolSelection.prompt) == 0 {
+		prompt, err = formatter.FormatChat(messages)
+	} else {
+		prompt, err = formatChatRequest(
+			formatter,
+			messages,
+			toolSelection.prompt,
+			nil,
+			map[string]any{"enable_thinking": false},
+		)
+	}
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	sampler, err := h.newSampler(samplingParameters{
+	samplingParams := samplingParameters{
 		Temperature: body.Temperature,
 		TopP:        body.TopP,
 		TopK:        body.TopK,
-	})
+	}
+	if len(toolSelection.active) != 0 {
+		provider, ok := h.generator.(ChatToolGrammarProvider)
+		if !ok {
+			writeError(
+				response,
+				http.StatusNotImplemented,
+				"unsupported_operation",
+				"tool-call grammar generation is unavailable",
+			)
+			return
+		}
+		source, root, patterns, grammarErr := provider.ChatToolGrammar(
+			toolSelection.active,
+			toolSelection.required,
+			false,
+		)
+		if grammarErr != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", grammarErr.Error())
+			return
+		}
+		samplingParams.Grammar = source
+		samplingParams.GrammarRoot = root
+		samplingParams.GrammarLazy = len(patterns) != 0
+		samplingParams.GrammarTriggerPatterns = patterns
+	}
+	sampler, err := h.newSampler(samplingParams)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -3471,6 +3518,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			*body.MaxTokens,
 			body.StopSequences,
 			messageID,
+			toolSelection.active,
 		)
 		return
 	}
@@ -3508,9 +3556,25 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		value := filter.StoppingWord()
 		stopSequence = &value
 	}
-	content := []anthropicContentBlock{}
-	if output.Len() > 0 {
-		content = append(content, anthropicContentBlock{Type: "text", Text: output.String()})
+	message := inference.ChatMessage{Role: "assistant", Content: output.String()}
+	if len(toolSelection.active) != 0 {
+		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
+			output.String(),
+			toolSelection.active,
+		)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+	}
+	content, err := anthropicBlocks(message, "toolu_"+strings.TrimPrefix(messageID, "msg_"))
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	if len(message.ToolCalls) != 0 {
+		stopReason = "tool_use"
+		stopSequence = nil
 	}
 	writeJSON(response, http.StatusOK, anthropicResponse{
 		ID:           messageID,
@@ -3537,6 +3601,7 @@ func (h *Handler) streamAnthropicMessages(
 	maxTokens int,
 	stops []string,
 	messageID string,
+	tools []inference.ChatTool,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -3586,6 +3651,7 @@ func (h *Handler) streamAnthropicMessages(
 	filter := newStopFilter(stops)
 	generatedTokens := 0
 	textStarted := false
+	var buffered strings.Builder
 	emitText := func(piece string) error {
 		if piece == "" {
 			return nil
@@ -3624,7 +3690,12 @@ func (h *Handler) streamAnthropicMessages(
 			ContextShift:  h.config.ContextShift,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++
-				return emitText(filter.Accept(event.Piece))
+				piece := filter.Accept(event.Piece)
+				if len(tools) != 0 {
+					buffered.WriteString(piece)
+					return request.Context().Err()
+				}
+				return emitText(piece)
 			},
 		},
 	)
@@ -3635,14 +3706,11 @@ func (h *Handler) streamAnthropicMessages(
 		})
 		return
 	}
-	if err := emitText(filter.Flush()); err != nil {
-		return
-	}
-	if textStarted {
-		if err := writeEvent("content_block_stop", map[string]any{
-			"type":  "content_block_stop",
-			"index": 0,
-		}); err != nil {
+	flushed := filter.Flush()
+	if len(tools) != 0 {
+		buffered.WriteString(flushed)
+	} else {
+		if err := emitText(flushed); err != nil {
 			return
 		}
 	}
@@ -3650,8 +3718,86 @@ func (h *Handler) streamAnthropicMessages(
 	if !filter.Stopped() && generatedTokens >= maxTokens {
 		stopReason = "max_tokens"
 	}
+	if len(tools) != 0 {
+		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(
+			buffered.String(),
+			tools,
+		)
+		if parseErr != nil {
+			_ = writeEvent("error", map[string]any{
+				"type":  "error",
+				"error": errorEnvelope("generation_error", parseErr.Error()).Error,
+			})
+			return
+		}
+		blocks, blockErr := anthropicBlocks(
+			message,
+			"toolu_"+strings.TrimPrefix(messageID, "msg_"),
+		)
+		if blockErr != nil {
+			_ = writeEvent("error", map[string]any{
+				"type":  "error",
+				"error": errorEnvelope("generation_error", blockErr.Error()).Error,
+			})
+			return
+		}
+		for index, block := range blocks {
+			startBlock := map[string]any{
+				"type": block.Type,
+			}
+			if block.Type == "text" {
+				startBlock["text"] = ""
+			} else {
+				startBlock["id"] = block.ID
+				startBlock["name"] = block.Name
+				startBlock["input"] = map[string]any{}
+			}
+			if err := writeEvent("content_block_start", map[string]any{
+				"type":          "content_block_start",
+				"index":         index,
+				"content_block": startBlock,
+			}); err != nil {
+				return
+			}
+			var delta map[string]any
+			if block.Type == "text" {
+				delta = map[string]any{
+					"type": "text_delta",
+					"text": block.Text,
+				}
+			} else {
+				delta = map[string]any{
+					"type":         "input_json_delta",
+					"partial_json": string(block.Input),
+				}
+			}
+			if err := writeEvent("content_block_delta", map[string]any{
+				"type":  "content_block_delta",
+				"index": index,
+				"delta": delta,
+			}); err != nil {
+				return
+			}
+			if err := writeEvent("content_block_stop", map[string]any{
+				"type":  "content_block_stop",
+				"index": index,
+			}); err != nil {
+				return
+			}
+		}
+		if len(message.ToolCalls) != 0 {
+			stopReason = "tool_use"
+		}
+	} else if textStarted {
+		if err := writeEvent("content_block_stop", map[string]any{
+			"type":  "content_block_stop",
+			"index": 0,
+		}); err != nil {
+			return
+		}
+	}
 	var stopSequence any
-	if filter.Stopped() {
+	if filter.Stopped() && stopReason != "tool_use" {
 		stopSequence = filter.StoppingWord()
 	}
 	if err := writeEvent("message_delta", map[string]any{
@@ -3691,22 +3837,18 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
 		return
 	}
-	toolsConfigured := rawJSONConfigured(body.Tools)
-	if len(body.Tools) != 0 {
-		var tools []json.RawMessage
-		if err := json.Unmarshal(body.Tools, &tools); err == nil && len(tools) == 0 {
-			toolsConfigured = false
-		}
-	}
-	if toolsConfigured ||
-		rawJSONConfigured(body.ToolChoice) ||
-		rawJSONConfigured(body.Thinking) {
+	if rawJSONConfigured(body.Thinking) {
 		writeError(
 			response,
 			http.StatusBadRequest,
 			"invalid_request_error",
-			"Anthropic tools and thinking blocks are not supported",
+			"Anthropic thinking blocks are not supported",
 		)
+		return
+	}
+	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
 	messages, err := parseAnthropicMessages(body.System, body.Messages)
@@ -3714,7 +3856,18 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prompt, err := formatter.FormatChat(messages)
+	var prompt string
+	if len(toolSelection.prompt) == 0 {
+		prompt, err = formatter.FormatChat(messages)
+	} else {
+		prompt, err = formatChatRequest(
+			formatter,
+			messages,
+			toolSelection.prompt,
+			nil,
+			map[string]any{"enable_thinking": false},
+		)
+	}
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -3771,11 +3924,15 @@ func parseAnthropicMessages(
 		if item.Role != "user" && item.Role != "assistant" {
 			return nil, fmt.Errorf("message %d has unsupported role %q", index, item.Role)
 		}
-		content, err := parseAnthropicContent(item.Content, fmt.Sprintf("message %d", index))
+		parsed, err := parseAnthropicMessage(
+			item.Role,
+			item.Content,
+			fmt.Sprintf("message %d", index),
+		)
 		if err != nil {
 			return nil, err
 		}
-		messages = append(messages, inference.ChatMessage{Role: item.Role, Content: content})
+		messages = append(messages, parsed...)
 	}
 	return messages, nil
 }

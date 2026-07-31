@@ -282,9 +282,13 @@ envelope. Streaming emits the named Responses lifecycle events through
 `/v1/responses/input_tokens` expose the corresponding no-generation count.
 Continuation IDs, tools, and multimodal/file inputs are rejected explicitly.
 Text-only Anthropic-compatible `/v1/messages` supports buffered and named-SSE
-streaming replies with Anthropic content blocks, stop fields, and usage.
+streaming replies with Anthropic text/tool-use content blocks, stop fields,
+and usage. Tool definitions, auto/any/named choice, assistant `tool_use`,
+user `tool_result`, schema-constrained generation, call-complete streaming
+`input_json_delta`, and tool-aware token counting share the GGUF Jinja
+formatter used by OpenAI chat.
 `/v1/messages/count_tokens` accepts the same string or multipart text
-system/message forms. Anthropic tools, thinking, and image blocks are rejected
+system/message forms. Anthropic thinking and image blocks remain rejected
 until their template/runtime semantics are available.
 Authenticated `GET /lora-adapters` truthfully reports an empty loaded-adapter
 list. `POST /lora-adapters` accepts the empty disable-all list and rejects

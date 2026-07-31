@@ -34,6 +34,7 @@ type ChatMessage struct {
 	ReasoningContent string         `json:"reasoning_content,omitempty"`
 	Name             string         `json:"name,omitempty"`
 	ToolCallID       string         `json:"tool_call_id,omitempty"`
+	ToolResultError  bool           `json:"is_error,omitempty"`
 	ToolCalls        []ChatToolCall `json:"tool_calls,omitempty"`
 }
 
@@ -76,6 +77,7 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 		ReasoningContent string         `json:"reasoning_content,omitempty"`
 		Name             string         `json:"name,omitempty"`
 		ToolCallID       string         `json:"tool_call_id,omitempty"`
+		ToolResultError  bool           `json:"is_error,omitempty"`
 		ToolCalls        []ChatToolCall `json:"tool_calls,omitempty"`
 	}{
 		Role:             m.Role,
@@ -83,6 +85,7 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 		ReasoningContent: m.ReasoningContent,
 		Name:             m.Name,
 		ToolCallID:       m.ToolCallID,
+		ToolResultError:  m.ToolResultError,
 		ToolCalls:        m.ToolCalls,
 	})
 }
@@ -97,6 +100,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 		ReasoningContent string          `json:"reasoning_content"`
 		Name             string          `json:"name"`
 		ToolCallID       string          `json:"tool_call_id"`
+		ToolResultError  bool            `json:"is_error"`
 		ToolCalls        json.RawMessage `json:"tool_calls"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -164,6 +168,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 	m.ReasoningContent = wire.ReasoningContent
 	m.Name = wire.Name
 	m.ToolCallID = wire.ToolCallID
+	m.ToolResultError = wire.ToolResultError
 	m.ToolCalls = toolCalls
 	return nil
 }
@@ -313,6 +318,9 @@ func (r *Runner) formatJinjaChat(
 		}
 		if message.ToolCallID != "" {
 			wireMessages[index]["tool_call_id"] = message.ToolCallID
+		}
+		if message.ToolResultError {
+			wireMessages[index]["is_error"] = true
 		}
 		if len(message.ToolCalls) != 0 {
 			calls := make([]chatTemplateToolCall, len(message.ToolCalls))

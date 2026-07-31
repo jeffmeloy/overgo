@@ -59,12 +59,14 @@ func TestChatMessageDecodesToolCallsAndToolResult(t *testing.T) {
 	}
 	var result ChatMessage
 	if err := json.Unmarshal(
-		[]byte(`{"role":"tool","tool_call_id":"call_1","name":"weather","content":"sunny"}`),
+		[]byte(`{"role":"tool","tool_call_id":"call_1","name":"weather","content":"failed","is_error":true}`),
 		&result,
 	); err != nil {
 		t.Fatal(err)
 	}
-	if result.ToolCallID != "call_1" || result.Name != "weather" {
+	if result.ToolCallID != "call_1" ||
+		result.Name != "weather" ||
+		!result.ToolResultError {
 		t.Fatalf("tool result = %+v", result)
 	}
 	for _, data := range []string{

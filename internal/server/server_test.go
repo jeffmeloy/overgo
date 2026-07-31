@@ -3304,6 +3304,48 @@ func TestAnthropicInputTokensTextForms(t *testing.T) {
 	}
 }
 
+func TestAnthropicInputTokensIncludeToolsAndResults(t *testing.T) {
+	generator := &fakeGenerator{}
+	handler := newTestHandler(t, generator)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/messages/count_tokens",
+			strings.NewReader(
+				`{"tools":[{"name":"weather","input_schema":{"type":"object"}}],`+
+					`"messages":[`+
+					`{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"weather","input":{"city":"Paris"}}]},`+
+					`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"Sunny"}]}`+
+					`]}`,
+			),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result map[string]int
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["input_tokens"] != 3 {
+		t.Fatalf("result = %+v", result)
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if len(generator.chatOptions.Tools) != 1 ||
+		len(generator.chatMessages) != 2 ||
+		len(generator.chatMessages[0].ToolCalls) != 1 ||
+		generator.chatMessages[1].Role != "tool" {
+		t.Fatalf(
+			"formatted options/messages = %+v / %+v",
+			generator.chatOptions,
+			generator.chatMessages,
+		)
+	}
+}
+
 func TestBufferedAnthropicMessages(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
@@ -3335,6 +3377,50 @@ func TestBufferedAnthropicMessages(t *testing.T) {
 		result.Usage.InputTokens != 2 ||
 		result.Usage.OutputTokens != 2 {
 		t.Fatalf("response = %+v body=%s", result, response.Body.String())
+	}
+}
+
+func TestBufferedAnthropicToolUse(t *testing.T) {
+	generator := &fakeGenerator{
+		pieces: []string{
+			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+		},
+	}
+	handler := newTestHandler(t, generator)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/messages",
+			strings.NewReader(
+				`{"max_tokens":1,"tool_choice":{"type":"any"},`+
+					`"tools":[{"name":"weather","description":"forecast",`+
+					`"input_schema":{"type":"object","properties":{"city":{"type":"string"}}}}],`+
+					`"messages":[{"role":"user","content":"weather?"}]}`,
+			),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result anthropicResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.StopReason != "tool_use" ||
+		len(result.Content) != 1 ||
+		result.Content[0].Type != "tool_use" ||
+		result.Content[0].ID == "" ||
+		result.Content[0].Name != "weather" ||
+		string(result.Content[0].Input) != `{"city":"Paris"}` {
+		t.Fatalf("tool response = %+v body=%s", result, response.Body.String())
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if len(generator.chatOptions.Tools) != 1 ||
+		generator.chatOptions.Tools[0].Function.Name != "weather" {
+		t.Fatalf("formatted tools = %+v", generator.chatOptions.Tools)
 	}
 }
 
@@ -3419,6 +3505,79 @@ func TestStreamingAnthropicMessagesLifecycle(t *testing.T) {
 		!strings.Contains(body, `"stop_reason":"max_tokens"`) ||
 		!strings.Contains(body, `"output_tokens":2`) {
 		t.Fatalf("stream body = %s", body)
+	}
+}
+
+func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{
+		pieces: []string{
+			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+		},
+	})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/messages",
+			strings.NewReader(
+				`{"max_tokens":1,"stream":true,"tool_choice":{"type":"tool","name":"weather"},`+
+					`"tools":[{"name":"weather","input_schema":{"type":"object"}}],`+
+					`"messages":[{"role":"user","content":"weather?"}]}`,
+			),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, fragment := range []string{
+		"event: message_start",
+		`"id":"toolu_`,
+		`"type":"tool_use"`,
+		`"name":"weather"`,
+		`"type":"input_json_delta"`,
+		`"partial_json":"{\"city\":\"Paris\"}"`,
+		`"stop_reason":"tool_use"`,
+		"event: message_stop",
+	} {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("tool stream lacks %q:\n%s", fragment, body)
+		}
+	}
+	if strings.Contains(body, "<tool_call>") {
+		t.Fatalf("tool stream leaked template syntax:\n%s", body)
+	}
+}
+
+func TestParseAnthropicToolHistory(t *testing.T) {
+	messages, err := parseAnthropicMessages(
+		nil,
+		json.RawMessage(`[
+			{"role":"assistant","content":[
+				{"type":"text","text":"Checking."},
+				{"type":"tool_use","id":"toolu_1","name":"weather","input":{"city":"Paris"}}
+			]},
+			{"role":"user","content":[
+				{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"Sunny"}],"is_error":true},
+				{"type":"text","text":"Thanks"}
+			]}
+		]`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 3 ||
+		messages[0].Content != "Checking." ||
+		len(messages[0].ToolCalls) != 1 ||
+		messages[0].ToolCalls[0].ID != "toolu_1" ||
+		messages[1].Role != "tool" ||
+		messages[1].ToolCallID != "toolu_1" ||
+		!messages[1].ToolResultError ||
+		messages[1].Content != "Sunny" ||
+		messages[2].Role != "user" ||
+		messages[2].Content != "Thanks" {
+		t.Fatalf("parsed messages = %+v", messages)
 	}
 }
 

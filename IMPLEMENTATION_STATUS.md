@@ -257,7 +257,11 @@
   and the named message/content-block SSE lifecycle, including native stop
   reasons/sequences and cache/input/output usage without llama timing fields.
   `/v1/messages/count_tokens` supports string and multipart text system/message
-  content through the identical prompt formatter.
+  content through the identical prompt formatter. Anthropic tool definitions
+  and auto/any/named selection use the same schema grammar and GGUF Jinja tool
+  context as OpenAI chat. Assistant `tool_use` and user `tool_result` history,
+  buffered tool blocks, call-complete streaming `input_json_delta` blocks, and
+  tool-aware counting are supported.
 - Authenticated `/lora-adapters` exposes a truthful empty adapter list for this
   no-LoRA runtime. Empty disable-all POST requests succeed with the pinned
   envelope; non-empty activation is rejected explicitly.
@@ -509,9 +513,9 @@
 - Text-only OpenAI Responses generation, streaming, and token counting are
   supported. Continuation IDs, tools, reasoning items, and multimodal/file
   inputs remain pending.
-- Text-only Anthropic generation, streaming, and counting are supported.
-  Anthropic tool use/results, thinking blocks, images, and tool-aware Jinja
-  contexts remain pending.
+- Text-only Anthropic generation, streaming, counting, tool use/results, and
+  tool-aware Jinja contexts are supported. Thinking blocks, images, and
+  token-incremental tool-input deltas remain pending.
 - LoRA model loading, tensor application, and per-request/global scaling remain
   pending; the control-plane endpoint does not claim adapters are loaded.
 - Native completion supports strings, exact/mixed token sequences, bounded

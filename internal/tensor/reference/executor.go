@@ -124,6 +124,22 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = float16Round(gelu)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpXIELU:
+		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid xIELU attributes")
+		}
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			if value > 0 {
+				output[i] = attributes.AlphaP*value*value + attributes.Beta*value
+				continue
+			}
+			minimum := float32(math.Min(float64(value), float64(attributes.Epsilon)))
+			output[i] = (float32(math.Expm1(float64(minimum)))-value)*attributes.AlphaN +
+				attributes.Beta*value
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpReLUSquared:
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {

@@ -47,6 +47,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	silu := builder.SiLU(norm)
 	sigmoid := builder.Sigmoid(norm)
 	softplus := builder.Softplus(builder.GELU(silu))
+	xielu := builder.XIELU(scale, 0.8, 0.2, 0.5, -0.1)
 	l2Norm := builder.L2Norm(builder.Add(sigmoid, softplus), 1e-6)
 	output := builder.Softmax(l2Norm)
 	if err := builder.Err(); err != nil {
@@ -61,7 +62,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	leftValue, _ := reference.NewValue(shape, leftData)
 	rightValue, _ := reference.NewValue(shape, rightData)
 	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	want, err := reference.Execute([]*tensor.Tensor{output, layerNorm, reluSquared}, feeds)
+	want, err := reference.Execute([]*tensor.Tensor{output, layerNorm, reluSquared, xielu}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	defer cuda.Close()
 	got, err := cuda.Execute(
 		context.Background(),
-		[]*tensor.Tensor{output, layerNorm, reluSquared},
+		[]*tensor.Tensor{output, layerNorm, reluSquared, xielu},
 		feeds,
 	)
 	if err != nil {
@@ -82,6 +83,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 2e-5)
 	compare(t, got[layerNorm].Data, want[layerNorm].Data, 2e-5)
 	compare(t, got[reluSquared].Data, want[reluSquared].Data, 2e-5)
+	compare(t, got[xielu].Data, want[xielu].Data, 2e-5)
 }
 
 func TestExecutorRetainedOutputLifetime(t *testing.T) {

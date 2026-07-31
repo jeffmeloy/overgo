@@ -671,6 +671,7 @@ type functionSet struct {
 	copy              driver.Function
 	silu              driver.Function
 	gelu              driver.Function
+	xielu             driver.Function
 	reluSquared       driver.Function
 	sigmoid           driver.Function
 	softplus          driver.Function
@@ -839,6 +840,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"copy_f32", &result.copy},
 		{"silu_f32", &result.silu},
 		{"gelu_f32", &result.gelu},
+		{"xielu_f32", &result.xielu},
 		{"relu_squared_f32", &result.reluSquared},
 		{"sigmoid_f32", &result.sigmoid},
 		{"softplus_f32", &result.softplus},
@@ -1047,6 +1049,38 @@ func launchNode(
 		err = launch1D(state, function, count, args)
 		runtime.KeepAlive(input)
 		runtime.KeepAlive(output)
+		runtime.KeepAlive(count)
+		return err
+	case tensor.OpXIELU:
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
+		if !ok {
+			return errors.New("invalid xIELU attributes")
+		}
+		input := pointers[node.Inputs[0]]
+		alphaN := attributes.AlphaN
+		alphaP := attributes.AlphaP
+		beta := attributes.Beta
+		epsilon := attributes.Epsilon
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input),
+			unsafe.Pointer(&output),
+			unsafe.Pointer(&alphaN),
+			unsafe.Pointer(&alphaP),
+			unsafe.Pointer(&beta),
+			unsafe.Pointer(&epsilon),
+			unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.xielu, count, args)
+		runtime.KeepAlive(input)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(alphaN)
+		runtime.KeepAlive(alphaP)
+		runtime.KeepAlive(beta)
+		runtime.KeepAlive(epsilon)
 		runtime.KeepAlive(count)
 		return err
 	case tensor.OpL2Norm:

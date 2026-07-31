@@ -38,6 +38,7 @@ const (
 	OpGELU
 	OpLayerNorm
 	OpReLUSquared
+	OpXIELU
 )
 
 var opNames = [...]string{
@@ -67,6 +68,7 @@ var opNames = [...]string{
 	"gelu",
 	"layer_norm",
 	"relu_squared",
+	"xielu",
 }
 
 func (o Op) String() string {
@@ -89,6 +91,13 @@ type LayerNormAttributes struct {
 }
 
 type L2NormAttributes struct {
+	Epsilon float32
+}
+
+type XIELUAttributes struct {
+	AlphaN  float32
+	AlphaP  float32
+	Beta    float32
 	Epsilon float32
 }
 
@@ -226,6 +235,19 @@ func (b *Builder) SiLU(input *Tensor) *Tensor {
 
 func (b *Builder) GELU(input *Tensor) *Tensor {
 	return b.unary(OpGELU, input, nil)
+}
+
+func (b *Builder) XIELU(input *Tensor, alphaN, alphaP, beta, epsilon float32) *Tensor {
+	parameters := []float32{alphaN, alphaP, beta, epsilon}
+	for _, parameter := range parameters {
+		if math.IsNaN(float64(parameter)) || math.IsInf(float64(parameter), 0) {
+			b.setError(errors.New("xIELU parameters must be finite"))
+			return nil
+		}
+	}
+	return b.unary(OpXIELU, input, XIELUAttributes{
+		AlphaN: alphaN, AlphaP: alphaP, Beta: beta, Epsilon: epsilon,
+	})
 }
 
 func (b *Builder) ReLUSquared(input *Tensor) *Tensor {

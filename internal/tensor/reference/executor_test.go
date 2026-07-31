@@ -63,6 +63,29 @@ func TestExecuteReLUSquared(t *testing.T) {
 	}
 }
 
+func TestExecuteXIELU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(5))
+	output := builder.XIELU(input, 0.8, 0.2, 0.5, -0.1)
+	value, _ := NewValue(input.Shape, []float32{-2, -0.5, 0, 1.5, 3})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{
+		(float32(math.Expm1(-2))+2)*0.8 - 1,
+		(float32(math.Expm1(-0.5))+0.5)*0.8 - 0.25,
+		float32(math.Expm1(-0.1)) * 0.8,
+		0.2*1.5*1.5 + 0.5*1.5,
+		0.2*3*3 + 0.5*3,
+	}
+	for index, item := range results[output].Data {
+		if math.Abs(float64(item-want[index])) > 1e-6 {
+			t.Fatalf("xIELU[%d] = %v, want %v", index, item, want[index])
+		}
+	}
+}
+
 func TestExecuteAffineLayerNorm(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))

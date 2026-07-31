@@ -1,6 +1,7 @@
 package tensor
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -93,6 +94,25 @@ func TestBuilderQwen35UnaryPrimitives(t *testing.T) {
 	invalid.L2Norm(invalid.Input("input", dtype.F32, MustShape(1)), -1)
 	if invalid.Err() == nil {
 		t.Fatal("negative L2Norm epsilon was accepted")
+	}
+}
+
+func TestBuilderXIELU(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(4, 3))
+	output := builder.XIELU(input, 0.8, 0.2, 0.5, -1e-6)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes, ok := output.Attrs.(XIELUAttributes)
+	if output.Op != OpXIELU || !ok || attributes.AlphaN != 0.8 || attributes.Epsilon != -1e-6 {
+		t.Fatalf("unexpected xIELU node: %#v", output)
+	}
+
+	invalid := NewBuilder()
+	invalid.XIELU(invalid.Input("input", dtype.F32, MustShape(1)), float32(math.NaN()), 0, 0, 0)
+	if invalid.Err() == nil {
+		t.Fatal("non-finite xIELU parameter was accepted")
 	}
 }
 

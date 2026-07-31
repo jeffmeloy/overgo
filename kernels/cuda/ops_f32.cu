@@ -153,6 +153,26 @@ extern "C" __global__ void gelu_f32(
     }
 }
 
+extern "C" __global__ void xielu_f32(
+        const float * input,
+        float * output,
+        float alpha_n,
+        float alpha_p,
+        float beta,
+        float epsilon,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const float value = input[index];
+        if (value > 0.0f) {
+            output[index] = alpha_p * value * value + beta * value;
+        } else {
+            const float minimum = fminf(value, epsilon);
+            output[index] = (expm1f(minimum) - value) * alpha_n + beta * value;
+        }
+    }
+}
+
 extern "C" __global__ void relu_squared_f32(
         const float * input,
         float * output,

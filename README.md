@@ -2,7 +2,7 @@
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
 Its current executable model subset is dense Qwen 2/3, text-only Qwen3.5 hybrid
-gated-delta-net models, Arcee, Baichuan 7B, CodeShell, Gemma 1/2/3, Granite, InternLM2, EXAONE, XVERSE, Jais2, Maincoder, MiniCPM, dense Mistral 3, Nemotron, Orion, StarCoder2, OLMo2 and SmolLM3 decoders, T5/UMT5
+gated-delta-net models, Arcee, Baichuan 7B, CodeShell, Gemma 1/2/3, Granite, InternLM2, EXAONE, XVERSE, Jais2, Maincoder, MiniCPM, dense Mistral 3, Nemotron, OLMo/OLMo2, Orion, StarCoder2 and SmolLM3 decoders, T5/UMT5
 encoders, and dense Llama-family decoders, including projection biases and converted Llama 3
 per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output
 projection biases and Gemma attention/final-logit softcapping are honored in

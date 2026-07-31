@@ -455,6 +455,34 @@ func TestReadJais2Spec(t *testing.T) {
 	}
 }
 
+func TestReadOLMoSpec(t *testing.T) {
+	metadataValues := []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "olmo"),
+		metadata("olmo.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("olmo.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("olmo.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("olmo.feed_forward_length", gguf.ValueTypeUint32, uint32(11008)),
+		metadata("olmo.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("olmo.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("olmo.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("olmo.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}
+	spec, err := ReadSpec(&gguf.File{Metadata: metadataValues})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "olmo" || !spec.UsesUnweightedLayerNorm() || spec.KeyLength != 128 {
+		t.Fatalf("unexpected OLMo spec: %+v", spec)
+	}
+	metadataValues = append(metadataValues,
+		metadata("olmo.attention.clamp_kqv", gguf.ValueTypeFloat32, float32(8)),
+	)
+	if _, err := ReadSpec(&gguf.File{Metadata: metadataValues}); err == nil ||
+		!strings.Contains(err.Error(), "clamping") {
+		t.Fatalf("OLMo clamp error = %v, want explicit rejection", err)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

@@ -337,6 +337,9 @@ func (r *Runner) applyDeviceOutputNorm(
 	input *tensor.Tensor,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (*tensor.Tensor, error) {
+	if r.spec.UsesUnweightedLayerNorm() {
+		return builder.LayerNorm(input, r.spec.LayerNormEpsilon), builder.Err()
+	}
 	weight, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
 	if err != nil {
 		return nil, err
@@ -1011,6 +1014,27 @@ func (r *Runner) runQwen35LayerCached(
 }
 
 func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) (reference.Value, error) {
+	if r.spec.UsesUnweightedLayerNorm() {
+		builder := tensor.NewBuilder()
+		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
+		output := builder.LayerNorm(input, r.spec.LayerNormEpsilon)
+		feeds := map[*tensor.Tensor]reference.Value{input: activation}
+		var (
+			results map[*tensor.Tensor]reference.Value
+			err     error
+		)
+		if r.hasPreloadedWeights() {
+			results, err = r.cuda.ExecuteWithDeviceFeeds(
+				ctx, []*tensor.Tensor{output}, feeds, nil,
+			)
+		} else {
+			results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
+		}
+		if err != nil {
+			return reference.Value{}, err
+		}
+		return results[output], nil
+	}
 	if r.hasPreloadedWeights() {
 		builder := tensor.NewBuilder()
 		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
@@ -1641,9 +1665,9 @@ func addOutputBias(logits, bias []float32) error {
 }
 
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
-	names := map[string]struct{}{
-		weights.TokenEmbedding.Name: {},
-		weights.OutputNorm.Name:     {},
+	names := map[string]struct{}{weights.TokenEmbedding.Name: {}}
+	if weights.OutputNorm.Name != "" {
+		names[weights.OutputNorm.Name] = struct{}{}
 	}
 	if weights.OutputNormBias != nil {
 		names[weights.OutputNormBias.Name] = struct{}{}

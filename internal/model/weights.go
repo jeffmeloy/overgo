@@ -115,8 +115,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if spec.Architecture == "t5encoder" {
 		outputNormName = "enc.output_norm.weight"
 	}
-	if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
-		return Weights{}, err
+	if !spec.UsesUnweightedLayerNorm() {
+		if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
+			return Weights{}, err
+		}
 	}
 	if spec.UsesLayerNorm() {
 		outputNormBias, biasErr := required("output_norm.bias", uint64(spec.EmbeddingLength))
@@ -261,7 +263,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.RopeFactors = &ropeFactors
 		}
-		if spec.Architecture != "olmo2" {
+		if spec.Architecture != "olmo2" && !spec.UsesUnweightedLayerNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
@@ -464,7 +466,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "qwen35" {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
-		if spec.Architecture != "olmo2" {
+		if spec.Architecture != "olmo2" && !spec.UsesUnweightedLayerNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}

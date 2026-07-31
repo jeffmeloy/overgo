@@ -54,6 +54,9 @@ func ApplyNormalization(
 	input, weight, bias *tensor.Tensor,
 	spec Spec,
 ) *tensor.Tensor {
+	if spec.UsesUnweightedLayerNorm() {
+		return builder.LayerNorm(input, spec.LayerNormEpsilon)
+	}
 	if spec.UsesLayerNorm() {
 		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
 	}
@@ -227,7 +230,7 @@ func BuildDenseBlockCachedForLayer(
 		required["attention K norm"] = weights.AttentionKNorm
 		required["attention post norm"] = weights.AttentionPostNorm
 		required["feed-forward post norm"] = weights.FeedForwardPostNorm
-	} else {
+	} else if !spec.UsesUnweightedLayerNorm() {
 		required["attention norm"] = weights.AttentionNorm
 		required["feed-forward norm"] = weights.FeedForwardNorm
 		if spec.UsesLayerNorm() {

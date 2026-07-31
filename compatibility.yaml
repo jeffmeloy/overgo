@@ -866,6 +866,16 @@ models:
       - optional-projection-biases
       - untied-output-projection
     real_model_validation: pending-fixture
+  olmo:
+    status: experimental
+    features:
+      - unweighted-layernorm
+      - normal-rope
+      - swiglu
+      - optional-tied-output
+    limitations:
+      - nonzero-qkv-clamp-rejected
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

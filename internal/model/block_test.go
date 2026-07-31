@@ -746,6 +746,47 @@ func TestBuildDenseJais2UsesBiasesAndSquaredReLU(t *testing.T) {
 	}
 }
 
+func TestBuildDenseOLMoUsesUnweightedLayerNorm(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "olmo", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionNorm = nil
+	weights.AttentionNormBias = nil
+	weights.FeedForwardNorm = nil
+	weights.FeedForwardNormBias = nil
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layerNorm, multiplyNorm, normalRoPE int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpLayerNorm:
+			layerNorm++
+		case tensor.OpRoPENormal:
+			normalRoPE++
+		case tensor.OpMultiply:
+			for _, inputNode := range node.Inputs {
+				if inputNode.Op == tensor.OpLayerNorm {
+					multiplyNorm++
+				}
+			}
+		}
+	}
+	if layerNorm != 2 || multiplyNorm != 0 || normalRoPE != 2 {
+		t.Fatalf("OLMo graph LayerNorm/weighted/normal-RoPE = %d/%d/%d", layerNorm, multiplyNorm, normalRoPE)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

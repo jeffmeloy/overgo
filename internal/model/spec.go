@@ -88,6 +88,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
 		architecture != "nemotron" &&
+		architecture != "olmo" &&
 		architecture != "orion" &&
 		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
@@ -165,7 +166,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if spec.UsesLayerNorm() {
+	if spec.UsesLayerNorm() || spec.UsesUnweightedLayerNorm() {
 		if spec.LayerNormEpsilon, err = required[float32](
 			values,
 			prefix+"attention.layer_norm_epsilon",
@@ -288,6 +289,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if architecture == "smollm3" {
 		spec.NoRopeLayerStep = 4
+	}
+	if architecture == "olmo" {
+		if clamp, ok := optional[float32](
+			values,
+			prefix+"attention.clamp_kqv",
+			gguf.ValueTypeFloat32,
+		); ok && clamp != 0 {
+			return Spec{}, errors.New("OLMo attention QKV clamping is not supported")
+		}
 	}
 	if architecture == "t5encoder" {
 		if spec.RelativeBuckets, err = required[uint32](
@@ -466,6 +476,10 @@ func (s Spec) UsesLayerNorm() bool {
 		usesSequentialGELU(s.Architecture)
 }
 
+func (s Spec) UsesUnweightedLayerNorm() bool {
+	return s.Architecture == "olmo"
+}
+
 func (s Spec) validate() error {
 	switch {
 	case s.BlockCount == 0:
@@ -486,9 +500,9 @@ func (s Spec) validate() error {
 		return errors.New("model attention key/value length is zero")
 	case s.Architecture != "t5encoder" && s.RopeFrequencyBase <= 0:
 		return errors.New("model RoPE frequency base must be positive")
-	case s.UsesLayerNorm() && s.LayerNormEpsilon <= 0:
+	case (s.UsesLayerNorm() || s.UsesUnweightedLayerNorm()) && s.LayerNormEpsilon <= 0:
 		return errors.New("model LayerNorm epsilon must be positive")
-	case !s.UsesLayerNorm() && s.RMSNormEpsilon <= 0:
+	case !s.UsesLayerNorm() && !s.UsesUnweightedLayerNorm() && s.RMSNormEpsilon <= 0:
 		return errors.New("model RMSNorm epsilon must be positive")
 	}
 	if s.Architecture == "t5encoder" && s.RelativeBuckets == 0 {
@@ -611,6 +625,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "baichuan" ||
 		architecture == "granite" ||
 		architecture == "minicpm" ||
+		architecture == "olmo" ||
 		architecture == "maincoder" ||
 		architecture == "mistral3" ||
 		architecture == "smollm3" ||

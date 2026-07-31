@@ -42,6 +42,7 @@ type Spec struct {
 	ExpertWeightsScale    float32
 	LeadingDenseBlocks    uint32
 	SharedExpertFF        uint32
+	SharedExpertCount     uint32
 	ExpertGatingFunc      uint32
 	ExpertWeightsNorm     bool
 	ShortConvCacheLength  uint32
@@ -115,6 +116,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
+		architecture != "afmoe" &&
 		architecture != "laguna" &&
 		architecture != "lfm2" &&
 		architecture != "xverse" &&
@@ -641,6 +643,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "smollm3" {
 		spec.NoRopeLayerStep = 4
 	}
+	if architecture == "afmoe" {
+		spec.NoRopeLayerStep = 4
+	}
 	if architecture == "olmo" {
 		if clamp, ok := optional[float32](
 			values,
@@ -722,7 +727,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "qwen3moe" || architecture == "rnd1" || architecture == "laguna" {
+	if architecture == "qwen3moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -747,6 +752,44 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
 		); ok {
 			spec.ExpertWeightsScale = value
+		}
+	}
+	if architecture == "afmoe" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if value, ok := optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32); ok {
+			spec.LeadingDenseBlocks = value
+		}
+		if spec.SharedExpertCount, err = required[uint32](
+			values, prefix+"expert_shared_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+		spec.ExpertGatingFunc = 2
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
+			spec.ExpertGatingFunc = value
+		}
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
+			spec.SlidingWindow = value
+		}
+		if spec.SlidingWindow > 0 {
+			spec.SlidingPattern = 4
+			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
+				spec.SlidingPattern = value
+			}
+			spec.RopeFrequencySWA = spec.RopeFrequencyBase
+			if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
+				spec.RopeFrequencySWA = value
+			}
 		}
 	}
 	if architecture == "laguna" {
@@ -939,7 +982,7 @@ func (s Spec) InputEmbeddingScale() float32 {
 	if s.EmbeddingScale > 0 {
 		return s.EmbeddingScale
 	}
-	if isGemmaArchitecture(s.Architecture) {
+	if s.Architecture == "afmoe" || isGemmaArchitecture(s.Architecture) {
 		return float32(math.Sqrt(float64(s.EmbeddingLength)))
 	}
 	return 1
@@ -1086,6 +1129,28 @@ func (s Spec) validate() error {
 		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0 ||
 			s.RopeDimensionSWA == 0 || s.RopeDimensionSWA > s.KeyLength || s.RopeDimensionSWA%2 != 0):
 			return errors.New("Laguna sliding-attention metadata is invalid")
+		}
+	}
+	if s.Architecture == "afmoe" {
+		switch {
+		case s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("AFMoE leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
+			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+			s.ExpertFeedForward == 0:
+			return errors.New("AFMoE expert metadata is invalid")
+		case s.ExpertGatingFunc != 2:
+			return errors.New("AFMoE requires sigmoid expert routing")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("AFMoE expert weight scale is invalid")
+		case s.SharedExpertCount > 0 && s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
+			return errors.New("AFMoE shared expert width overflows")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength:
+			return errors.New("AFMoE rotary/head dimensions are invalid")
+		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0):
+			return errors.New("AFMoE sliding-attention metadata is invalid")
 		}
 	}
 	if s.Architecture == "lfm2" {
@@ -1260,12 +1325,12 @@ func isGemmaArchitecture(architecture string) bool {
 }
 
 func hasPostNorm(architecture string) bool {
-	return architecture == "exaone4" || architecture == "gemma2" ||
+	return architecture == "afmoe" || architecture == "exaone4" || architecture == "gemma2" ||
 		architecture == "gemma3" || architecture == "glm4"
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return (architecture == "gemma2" || architecture == "gemma3") ||
+	return architecture == "afmoe" || (architecture == "gemma2" || architecture == "gemma3") ||
 		architecture == "exaone4" || architecture == "olmo2" || architecture == "cohere2"
 }
 

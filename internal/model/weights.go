@@ -671,7 +671,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			(spec.Architecture == "lfm2" && !layer.Recurrent) {
@@ -686,7 +686,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
-		if spec.Architecture == "laguna" {
+		if spec.Architecture == "laguna" || spec.Architecture == "afmoe" {
 			gate, ok := tensors[prefix+"attn_gate.weight"]
 			if !ok {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_gate.weight")
@@ -695,7 +695,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
 			}
 			heads := uint64(spec.LayerHeadCount(block))
-			if gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
+			if spec.Architecture == "afmoe" && gate.Shape[1] != heads*uint64(spec.ValueLength) {
+				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d", gate.Name, gate.Shape[1], heads*uint64(spec.ValueLength))
+			}
+			if spec.Architecture == "laguna" && gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
 				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d or %d", gate.Name, gate.Shape[1], heads, heads*uint64(spec.ValueLength))
 			}
 			layer.AttentionOutputGate = &gate
@@ -884,6 +887,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" ||
+			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       []uint64
@@ -912,24 +916,30 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
-			if spec.Architecture == "laguna" {
-				for name, shapeAndDestination := range map[string]struct {
+			if spec.Architecture == "laguna" || spec.Architecture == "afmoe" {
+				shared := map[string]struct {
 					shape       []uint64
 					destination **gguf.TensorInfo
 				}{
 					"exp_probs_b.bias": {
 						[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias,
 					},
-					"ffn_gate_shexp.weight": {
-						[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate,
-					},
-					"ffn_up_shexp.weight": {
-						[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp,
-					},
-					"ffn_down_shexp.weight": {
-						[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown,
-					},
-				} {
+				}
+				if spec.SharedExpertFF > 0 {
+					shared["ffn_gate_shexp.weight"] = struct {
+						shape       []uint64
+						destination **gguf.TensorInfo
+					}{[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate}
+					shared["ffn_up_shexp.weight"] = struct {
+						shape       []uint64
+						destination **gguf.TensorInfo
+					}{[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp}
+					shared["ffn_down_shexp.weight"] = struct {
+						shape       []uint64
+						destination **gguf.TensorInfo
+					}{[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown}
+				}
+				for name, shapeAndDestination := range shared {
 					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
 					if itemErr != nil {
 						return Weights{}, itemErr

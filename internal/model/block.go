@@ -421,6 +421,7 @@ func BuildDenseBlockCachedForLayer(
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	isChameleon := spec.Architecture == "chameleon"
 	isLaguna := spec.Architecture == "laguna"
+	isAFMoE := spec.Architecture == "afmoe"
 	headCount := spec.LayerHeadCount(layerIndex)
 	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
 	if spec.Architecture == "apertus" &&
@@ -433,18 +434,20 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna {
+		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert gate"] = weights.FeedForwardGateExperts
 		required["feed-forward expert up"] = weights.FeedForwardUpExperts
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
-		if isLaguna {
+		if isLaguna || isAFMoE {
 			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
-			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
-			required["feed-forward shared up"] = weights.FeedForwardSharedUp
-			required["feed-forward shared down"] = weights.FeedForwardSharedDown
+			if spec.SharedExpertFF > 0 {
+				required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+				required["feed-forward shared up"] = weights.FeedForwardSharedUp
+				required["feed-forward shared down"] = weights.FeedForwardSharedDown
+			}
 		}
 	} else {
 		required["feed-forward up"] = weights.FeedForwardUp
@@ -509,7 +512,7 @@ func BuildDenseBlockCachedForLayer(
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
-	if isLaguna {
+	if isLaguna || isAFMoE {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 		required["attention output gate"] = weights.AttentionOutputGate
@@ -542,8 +545,13 @@ func BuildDenseBlockCachedForLayer(
 	}
 	feedForwardNormalized := normalized
 	var attentionGate *tensor.Tensor
-	if isLaguna {
-		attentionGate = builder.Softplus(builder.MulMat(weights.AttentionOutputGate, normalized))
+	if isLaguna || isAFMoE {
+		attentionGate = builder.MulMat(weights.AttentionOutputGate, normalized)
+		if isLaguna {
+			attentionGate = builder.Softplus(attentionGate)
+		} else {
+			attentionGate = builder.Sigmoid(attentionGate)
+		}
 	}
 	if spec.Architecture == "falcon" && weights.AttentionNorm2 != nil {
 		if weights.AttentionNorm2Bias == nil {
@@ -613,7 +621,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -734,6 +742,9 @@ func BuildDenseBlockCachedForLayer(
 		if isOLMo2 && spec.IsSlidingLayer(layerIndex) {
 			frequencyScale = 1
 		}
+		if isAFMoE && spec.IsSlidingLayer(layerIndex) {
+			frequencyBase = spec.RopeFrequencySWA
+		}
 		if weights.RopeFactors != nil {
 			query = builder.RoPENeoXScaledWithFactors(
 				query, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
@@ -832,6 +843,9 @@ func BuildDenseBlockCachedForLayer(
 	if isLaguna && weights.AttentionOutputGate.Shape.Dims[1] != uint64(headCount) {
 		attention = builder.Multiply(attention, attentionGate)
 	}
+	if isAFMoE {
+		attention = builder.Multiply(attention, attentionGate)
+	}
 	if spec.Architecture == "bitnet" {
 		attention = builder.WeightedRMSNorm(
 			attention, weights.AttentionSubNorm, spec.RMSNormEpsilon,
@@ -890,19 +904,21 @@ func BuildDenseBlockCachedForLayer(
 	// and FFN run in parallel before both branches are added to the residual.
 	if usesExperts {
 		var feedForward *tensor.Tensor
-		if isLaguna {
+		if isLaguna || isAFMoE {
 			feedForward = builder.MoESigmoid(
 				normalized, weights.FeedForwardRouter,
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
 				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
 				spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
 			)
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(
-				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-			)
-			feedForward = builder.Add(feedForward, shared)
+			if spec.SharedExpertFF > 0 {
+				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+				shared := builder.MulMat(
+					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+				)
+				feedForward = builder.Add(feedForward, shared)
+			}
 		} else {
 			feedForward = builder.MoE(
 				normalized,

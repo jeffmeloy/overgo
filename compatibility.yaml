@@ -984,6 +984,26 @@ models:
     limitations:
       - native-quantized-expert-kernels-pending
     real_model_validation: pending-fixture
+  afmoe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - mup-square-root-embedding-scale
+      - dual-pre-and-post-rmsnorm
+      - qk-rmsnorm
+      - per-element-sigmoid-attention-gate
+      - periodic-no-rope-layers
+      - interleaved-sliding-attention
+      - optional-leading-dense-swiglu-blocks
+      - sigmoid-top-k-routing-with-selection-correction-bias
+      - optional-selected-weight-normalization
+      - optional-shared-experts
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - native-quantized-expert-kernels-pending
+    real_model_validation: pending-fixture
   lfm2:
     status: experimental
     execution:

@@ -162,6 +162,39 @@ func TestReadLagunaSpecPreservesPerLayerHeadsAndHybridRoPE(t *testing.T) {
 	}
 }
 
+func TestReadAFMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),
+		metadata("afmoe.block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("afmoe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("afmoe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("afmoe.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("afmoe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("afmoe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("afmoe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("afmoe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("afmoe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("afmoe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("afmoe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("afmoe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("afmoe.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("afmoe.expert_weights_scale", gguf.ValueTypeFloat32, float32(2.826)),
+		metadata("afmoe.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("afmoe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("afmoe.attention.sliding_window", gguf.ValueTypeUint32, uint32(64)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "afmoe" || spec.ExpertGatingFunc != 2 ||
+		spec.SharedExpertCount != 2 || spec.SharedExpertFF != 12 ||
+		!spec.ExpertWeightsNorm || spec.NoRopeLayerStep != 4 ||
+		!spec.IsSlidingLayer(0) || spec.InputEmbeddingScale() != float32(math.Sqrt(8)) {
+		t.Fatalf("unexpected AFMoE spec: %+v", spec)
+	}
+}
+
 func TestReadChameleonSandwichSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "chameleon"),

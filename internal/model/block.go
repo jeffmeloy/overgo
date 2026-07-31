@@ -57,6 +57,9 @@ func ApplyNormalization(
 	if spec.UsesUnweightedLayerNorm() {
 		return builder.LayerNorm(input, spec.LayerNormEpsilon)
 	}
+	if spec.UsesWeightOnlyLayerNorm() {
+		return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
+	}
 	if spec.UsesLayerNorm() {
 		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
 	}
@@ -232,7 +235,9 @@ func BuildDenseBlockCachedForLayer(
 		required["feed-forward post norm"] = weights.FeedForwardPostNorm
 	} else if !spec.UsesUnweightedLayerNorm() {
 		required["attention norm"] = weights.AttentionNorm
-		required["feed-forward norm"] = weights.FeedForwardNorm
+		if spec.Architecture != "cohere2" {
+			required["feed-forward norm"] = weights.FeedForwardNorm
+		}
 		if spec.UsesLayerNorm() {
 			required["attention norm bias"] = weights.AttentionNormBias
 			required["feed-forward norm bias"] = weights.FeedForwardNormBias
@@ -285,27 +290,35 @@ func BuildDenseBlockCachedForLayer(
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
+	rotaryDimensions := spec.KeyLength
+	if spec.RopeDimensionCount > 0 {
+		rotaryDimensions = spec.RopeDimensionCount
+	}
 	if !spec.UsesRoPE(layerIndex) {
 		// Some dense architectures intentionally leave periodic layers
 		// position-independent.
 	} else if usesNormalRoPE(spec.Architecture) {
+		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
 		}
+		if spec.Architecture == "cohere2" && spec.IsSlidingLayer(layerIndex) {
+			frequencyBase = spec.RopeFrequencySWA
+		}
 		if weights.RopeFactors != nil {
 			query = builder.RoPENormalScaledWithFactors(
-				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
+				query, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
 			)
 			key = builder.RoPENormalScaledWithFactors(
-				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
+				key, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
 			)
 		} else {
 			query = builder.RoPENormalScaled(
-				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+				query, positions, rotaryDimensions, frequencyBase, frequencyScale,
 			)
 			key = builder.RoPENormalScaled(
-				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+				key, positions, rotaryDimensions, frequencyBase, frequencyScale,
 			)
 		}
 	} else if isGemmaArchitecture(spec.Architecture) {
@@ -324,20 +337,21 @@ func BuildDenseBlockCachedForLayer(
 		}
 		if weights.RopeFactors != nil {
 			query = builder.RoPENeoXScaledWithFactors(
-				query, positions, spec.KeyLength, frequencyBase, frequencyScale, weights.RopeFactors,
+				query, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
 			)
 			key = builder.RoPENeoXScaledWithFactors(
-				key, positions, spec.KeyLength, frequencyBase, frequencyScale, weights.RopeFactors,
+				key, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
 			)
 		} else {
 			query = builder.RoPENeoXScaled(
-				query, positions, spec.KeyLength, frequencyBase, frequencyScale,
+				query, positions, rotaryDimensions, frequencyBase, frequencyScale,
 			)
 			key = builder.RoPENeoXScaled(
-				key, positions, spec.KeyLength, frequencyBase, frequencyScale,
+				key, positions, rotaryDimensions, frequencyBase, frequencyScale,
 			)
 		}
 	} else {
+		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
@@ -347,17 +361,17 @@ func BuildDenseBlockCachedForLayer(
 		}
 		if weights.RopeFactors != nil {
 			query = builder.RoPENeoXScaledWithFactors(
-				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
+				query, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
 			)
 			key = builder.RoPENeoXScaledWithFactors(
-				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors,
+				key, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
 			)
 		} else {
 			query = builder.RoPENeoXScaled(
-				query, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+				query, positions, rotaryDimensions, frequencyBase, frequencyScale,
 			)
 			key = builder.RoPENeoXScaled(
-				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
+				key, positions, rotaryDimensions, frequencyBase, frequencyScale,
 			)
 		}
 	}
@@ -441,12 +455,16 @@ func BuildDenseBlockCachedForLayer(
 	}
 	residual := builder.Add(input, attention)
 
-	normalized = residual
-	if !isOLMo2 {
-		normalized = ApplyNormalization(
-			builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
-		)
+	if spec.Architecture != "cohere2" {
+		normalized = residual
+		if !isOLMo2 {
+			normalized = ApplyNormalization(
+				builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
+			)
+		}
 	}
+	// Cohere2 leaves normalized pointing at the block input so attention and
+	// FFN run in parallel before both branches are added to the residual.
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	if weights.FeedForwardUpBias != nil {
 		up = builder.Add(up, weights.FeedForwardUpBias)

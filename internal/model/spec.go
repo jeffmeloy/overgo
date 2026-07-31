@@ -79,6 +79,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "arcee" &&
 		architecture != "baichuan" &&
 		architecture != "codeshell" &&
+		architecture != "cohere2" &&
 		architecture != "jais2" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
@@ -167,7 +168,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if spec.UsesLayerNorm() || spec.UsesUnweightedLayerNorm() {
+	if spec.UsesLayerNorm() || spec.UsesWeightOnlyLayerNorm() || spec.UsesUnweightedLayerNorm() {
 		if spec.LayerNormEpsilon, err = required[float32](
 			values,
 			prefix+"attention.layer_norm_epsilon",
@@ -267,6 +268,26 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, mappingErr
 		} else if ok && len(mapping) > 0 {
 			return Spec{}, errors.New("Granite vision deepstack is not supported")
+		}
+	}
+	if architecture == "cohere2" {
+		if spec.LogitScale, err = required[float32](
+			values,
+			prefix+"logit_scale",
+			gguf.ValueTypeFloat32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.RopeDimensionCount, err = required[uint32](
+			values,
+			prefix+"rope.dimension_count",
+			gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if pattern, ok := values[prefix+"attention.sliding_window_pattern"]; ok &&
+			pattern.Type != gguf.ValueTypeUint32 {
+			return Spec{}, errors.New("Cohere2 array sliding attention patterns are not supported")
 		}
 	}
 	if architecture == "baichuan" && spec.BlockCount != 32 {
@@ -373,7 +394,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if architecture == "gemma2" || architecture == "gemma3" ||
-		architecture == "olmo2" {
+		architecture == "olmo2" || architecture == "cohere2" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
 		if architecture == "gemma3" {
 			spec.RopeFrequencySWA = 10000
@@ -410,9 +431,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			); ok {
 				spec.SlidingPattern = value
 			}
+			if architecture == "cohere2" {
+				spec.NoRopeLayerStep = spec.SlidingPattern
+			}
 		}
 	}
-	if tokens, ok := values["tokenizer.ggml.tokens"]; ok {
+	spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
+	if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
 		if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
 			return Spec{}, errors.New(`metadata "tokenizer.ggml.tokens" must be a string array`)
 		}
@@ -465,6 +490,9 @@ func (s Spec) InputEmbeddingScale() float32 {
 
 func (s Spec) OutputLogitMultiplier() float32 {
 	if s.LogitScale > 0 {
+		if s.Architecture == "cohere2" {
+			return s.LogitScale
+		}
 		return 1 / s.LogitScale
 	}
 	return 1
@@ -479,6 +507,10 @@ func (s Spec) UsesLayerNorm() bool {
 
 func (s Spec) UsesUnweightedLayerNorm() bool {
 	return s.Architecture == "olmo"
+}
+
+func (s Spec) UsesWeightOnlyLayerNorm() bool {
+	return s.Architecture == "cohere2"
 }
 
 func (s Spec) validate() error {
@@ -501,9 +533,9 @@ func (s Spec) validate() error {
 		return errors.New("model attention key/value length is zero")
 	case s.Architecture != "t5encoder" && s.RopeFrequencyBase <= 0:
 		return errors.New("model RoPE frequency base must be positive")
-	case (s.UsesLayerNorm() || s.UsesUnweightedLayerNorm()) && s.LayerNormEpsilon <= 0:
+	case (s.UsesLayerNorm() || s.UsesWeightOnlyLayerNorm() || s.UsesUnweightedLayerNorm()) && s.LayerNormEpsilon <= 0:
 		return errors.New("model LayerNorm epsilon must be positive")
-	case !s.UsesLayerNorm() && !s.UsesUnweightedLayerNorm() && s.RMSNormEpsilon <= 0:
+	case !s.UsesLayerNorm() && !s.UsesWeightOnlyLayerNorm() && !s.UsesUnweightedLayerNorm() && s.RMSNormEpsilon <= 0:
 		return errors.New("model RMSNorm epsilon must be positive")
 	}
 	if s.Architecture == "t5encoder" && s.RelativeBuckets == 0 {
@@ -569,6 +601,19 @@ func (s Spec) validate() error {
 			return errors.New("OLMo2 sliding attention pattern must be at least 2")
 		}
 	}
+	if s.Architecture == "cohere2" {
+		switch {
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0:
+			return errors.New("Cohere2 rotary dimension count is invalid")
+		case s.RopeFrequencySWA <= 0:
+			return errors.New("Cohere2 sliding RoPE frequency base must be positive")
+		case s.SlidingWindow == 0:
+			return errors.New("Cohere2 sliding attention window is zero")
+		case s.SlidingPattern < 2:
+			return errors.New("Cohere2 sliding attention pattern must be at least 2")
+		}
+	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
@@ -616,7 +661,7 @@ func hasGemmaPostNorm(architecture string) bool {
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return hasGemmaPostNorm(architecture) || architecture == "olmo2"
+	return hasGemmaPostNorm(architecture) || architecture == "olmo2" || architecture == "cohere2"
 }
 
 func usesNormalRoPE(architecture string) bool {
@@ -624,6 +669,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "internlm2" ||
 		architecture == "arcee" ||
 		architecture == "baichuan" ||
+		architecture == "cohere2" ||
 		architecture == "granite" ||
 		architecture == "minicpm" ||
 		architecture == "olmo" ||

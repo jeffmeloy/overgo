@@ -886,6 +886,19 @@ models:
       - post-attention-named-pre-ffn-norm
       - optional-tied-output
     real_model_validation: pending-fixture
+  cohere2:
+    status: experimental
+    constraints:
+      - dense
+    features:
+      - weight-only-layernorm
+      - parallel-attention-ffn-residual
+      - partial-normal-rope-on-sliding-layers
+      - periodic-full-attention-without-rope
+      - direct-logit-scale
+      - swiglu
+      - tied-output
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

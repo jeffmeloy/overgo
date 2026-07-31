@@ -817,6 +817,74 @@ func TestBuildDenseSeedOSSUsesNeoXAndAttentionScale(t *testing.T) {
 	}
 }
 
+func TestBuildDenseCohere2UsesParallelResidualAndPartialSlidingRoPE(t *testing.T) {
+	for _, test := range []struct {
+		layer      uint32
+		wantRoPE   int
+		wantWindow uint32
+	}{
+		{layer: 0, wantRoPE: 2, wantWindow: 128},
+		{layer: 3, wantRoPE: 0, wantWindow: 0},
+	} {
+		builder := tensor.NewBuilder()
+		spec := Spec{
+			Architecture: "cohere2", BlockCount: 4, EmbeddingLength: 8,
+			FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
+			RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+			LayerNormEpsilon: 1e-5, SlidingWindow: 128,
+			SlidingPattern: 4, NoRopeLayerStep: 4,
+		}
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+		weights := denseBlockInputs(builder, spec)
+		weights.FeedForwardNorm = nil
+		weights.FeedForwardNormBias = nil
+		output, err := BuildDenseBlockCachedForLayer(
+			builder, input, spec, weights, []uint32{0, 1}, nil, nil, test.layer,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes, err := tensor.Topological(output.Output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ropeCount, layerNormCount int
+		var window uint32
+		var attentionInput, feedForwardInput *tensor.Tensor
+		for _, node := range nodes {
+			switch node.Op {
+			case tensor.OpLayerNorm:
+				layerNormCount++
+			case tensor.OpRoPENormal:
+				ropeCount++
+				attributes := node.Attrs.(tensor.RoPEAttributes)
+				if attributes.RotaryDimensions != 2 || attributes.FrequencyBase != 20000 {
+					t.Fatalf("unexpected Cohere2 RoPE attributes: %+v", attributes)
+				}
+			case tensor.OpAttention:
+				window = node.Attrs.(tensor.AttentionAttributes).Window
+			case tensor.OpMulMat:
+				if node.Inputs[0].Name == "attn_q" {
+					attentionInput = node.Inputs[1]
+				}
+				if node.Inputs[0].Name == "ffn_up" {
+					feedForwardInput = node.Inputs[1]
+				}
+			}
+		}
+		if ropeCount != test.wantRoPE || window != test.wantWindow || layerNormCount != 1 {
+			t.Fatalf(
+				"Cohere2 layer %d has RoPE=%d window=%d LayerNorm=%d",
+				test.layer, ropeCount, window, layerNormCount,
+			)
+		}
+		if attentionInput == nil || attentionInput != feedForwardInput {
+			t.Fatal("Cohere2 attention and FFN do not share the normalized block input")
+		}
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

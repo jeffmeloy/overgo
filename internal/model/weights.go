@@ -175,7 +175,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		return result, nil
 	}
-	if output, ok := tensors["output.weight"]; ok {
+	if output, ok := tensors["output.weight"]; ok && spec.Architecture != "cohere2" {
 		if output.Dimensions != 2 ||
 			output.Shape[0] != uint64(spec.EmbeddingLength) ||
 			output.Shape[1] != uint64(spec.VocabularySize) {
@@ -251,10 +251,14 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					ropeFactors.Name,
 				)
 			}
-			if spec.KeyLength%2 != 0 ||
+			rotaryDimensions := spec.KeyLength
+			if spec.RopeDimensionCount > 0 {
+				rotaryDimensions = spec.RopeDimensionCount
+			}
+			if rotaryDimensions%2 != 0 ||
 				ropeFactors.Type != dtype.F32 ||
 				ropeFactors.Dimensions != 1 ||
-				ropeFactors.Shape[0] != uint64(spec.KeyLength/2) {
+				ropeFactors.Shape[0] != uint64(rotaryDimensions/2) {
 				return Weights{}, fmt.Errorf(
 					"tensor %q has incompatible shape %v",
 					ropeFactors.Name,
@@ -466,7 +470,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "qwen35" || spec.Architecture == "seed_oss" {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
-		if spec.Architecture != "olmo2" && !spec.UsesUnweightedLayerNorm() {
+		if spec.Architecture != "olmo2" && spec.Architecture != "cohere2" &&
+			!spec.UsesUnweightedLayerNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}

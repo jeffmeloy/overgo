@@ -375,6 +375,44 @@ func TestBuildHunyuanMoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildQwenBlock(t *testing.T) {
+	b := tensor.NewBuilder()
+	s := Spec{Architecture: "qwen", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6}
+	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	w := LayerGraphWeights{
+		AttentionNorm:    b.Input("an", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:     b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionQKVBias: b.Input("qkvb", dtype.F32, tensor.MustShape(24)),
+		AttentionOutput:  b.Input("o", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:  b.Input("fn", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:  b.Input("fg", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:    b.Input("fu", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:  b.Input("fd", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	r, err := BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, _ := tensor.Topological(r.Output)
+	var slices, rope, silu int
+	for _, n := range nodes {
+		if n.Op == tensor.OpGroupSlice {
+			slices++
+		}
+		if n.Op == tensor.OpRoPENeoX {
+			rope++
+		}
+		if n.Op == tensor.OpSiLU {
+			silu++
+		}
+	}
+	if slices != 3 || rope != 2 || silu != 1 {
+		t.Fatalf("Qwen ops: slices=%d rope=%d SiLU=%d", slices, rope, silu)
+	}
+}
+
 func TestBuildArcticParallelDenseAndMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

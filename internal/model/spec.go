@@ -161,6 +161,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "phimoe" &&
 		architecture != "plamo" &&
 		architecture != "plm" &&
+		architecture != "qwen" &&
 		architecture != "seed_oss" &&
 		architecture != "stablelm" &&
 		architecture != "starcoder" &&
@@ -223,7 +224,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" ||
+	if architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
 		if architecture == "gptneox" || architecture == "falcon" || architecture == "mpt" {
@@ -794,6 +795,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			gguf.ValueTypeUint32,
 		); ok && expertCount > 0 {
 			return Spec{}, errors.New("Mistral 3 expert layers are not supported")
+		}
+	}
+	if architecture == "qwen" {
+		if spec.FeedForwardLength == 0 || spec.FeedForwardLength%2 != 0 {
+			return Spec{}, errors.New("Qwen feed-forward length must be positive and even")
+		}
+		spec.FeedForwardLength /= 2
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
 		}
 	}
 	if architecture == "smollm3" {
@@ -1953,6 +1964,11 @@ func (s Spec) validate() error {
 	if s.Architecture == "gptneox" && s.RopeDimensionCount > 0 &&
 		(s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("GPT-NeoX rotary dimension count is invalid")
+	}
+	if s.Architecture == "qwen" &&
+		(s.HeadCountKV != s.HeadCount || s.RopeDimensionCount == 0 ||
+			s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
+		return errors.New("Qwen attention metadata is invalid")
 	}
 	if s.Architecture == "glm4" &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||

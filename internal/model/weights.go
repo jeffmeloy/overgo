@@ -275,6 +275,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "phi2" ||
 		spec.Architecture == "phimoe" ||
 		spec.Architecture == "plamo" ||
+		spec.Architecture == "qwen" ||
 		spec.Architecture == "stablelm" ||
 		spec.Architecture == "codeshell") &&
 		result.Output == nil {
@@ -626,10 +627,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
-				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
+				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight",
 						uint64(spec.EmbeddingLength),
@@ -652,7 +653,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 						}
 						layer.AttentionQKVBias = &qkvBias
 					}
-					if (spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "starcoder") && layer.AttentionQKVBias == nil {
+					if (spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "qwen" || spec.Architecture == "starcoder") && layer.AttentionQKVBias == nil {
 						return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_qkv.bias")
 					}
 				}

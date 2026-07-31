@@ -814,6 +814,19 @@ cuda:
     - MXFP4
     - NVFP4
 models:
+  qwen:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - rmsnorm
+      - required-contiguous-fused-qkv-with-bias
+      - neox-rope
+      - swiglu
+      - required-untied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   apertus:
     status: experimental
     features:

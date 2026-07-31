@@ -330,6 +330,28 @@ func TestReadWeightsMellum(t *testing.T) {
 	}
 }
 
+func TestReadWeightsQwen(t *testing.T) {
+	spec := Spec{Architecture: "qwen", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 4,
+		ValueLength: 4, VocabularySize: 32}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24), tensorInfo("blk.0.attn_qkv.bias", 24),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8),
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Output == nil || weights.Layers[0].AttentionQKV == nil ||
+		weights.Layers[0].AttentionQKVBias == nil {
+		t.Fatalf("unexpected Qwen catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsBailingMoE(t *testing.T) {
 	spec := Spec{
 		Architecture: "bailingmoe", BlockCount: 1, EmbeddingLength: 8,

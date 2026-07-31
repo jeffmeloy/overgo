@@ -2855,6 +2855,48 @@ func TestExecutorMellumBlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorQwenBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	b := tensor.NewBuilder()
+	s := model.Spec{Architecture: "qwen", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6}
+	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	w := model.LayerGraphWeights{
+		AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)), AttentionQKVBias: b.Input("qkvb", dtype.F32, tensor.MustShape(24)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{in: patternedValue(in.Shape, 3, 0.2, 0)}
+	for i, n := range []*tensor.Tensor{w.AttentionQKV, w.AttentionQKVBias, w.AttentionOutput, w.FeedForwardGate, w.FeedForwardUp, w.FeedForwardDown} {
+		feeds[n] = patternedValue(n.Shape, i+11, 0.05, 0)
+	}
+	for i, n := range []*tensor.Tensor{w.AttentionNorm, w.FeedForwardNorm} {
+		feeds[n] = patternedValue(n.Shape, i+31, 0.03, 1)
+	}
+	outputs := []*tensor.Tensor{r.Output, r.Key, r.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[r.Output].Data, want[r.Output].Data, 1e-3)
+	compare(t, got[r.Key].Data, want[r.Key].Data, 7e-5)
+	compare(t, got[r.Value].Data, want[r.Value].Data, 5e-5)
+}
+
 func TestExecutorDBRXBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

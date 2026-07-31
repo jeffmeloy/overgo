@@ -647,6 +647,27 @@ func TestReadMellumSpec(t *testing.T) {
 	}
 }
 
+func TestReadQwenSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen"),
+		metadata("qwen.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("qwen.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("qwen.feed_forward_length", gguf.ValueTypeUint32, uint32(24)),
+		metadata("qwen.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("qwen.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("qwen.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.FeedForwardLength != 12 || spec.HeadCountKV != 2 || spec.RopeDimensionCount != 4 {
+		t.Fatalf("unexpected Qwen spec: %+v", spec)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

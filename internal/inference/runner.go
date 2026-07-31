@@ -405,14 +405,20 @@ func (r *Runner) layerDeviceInputs(
 			}
 		}
 	} else {
-		if result.AttentionQ, err = input(info.AttentionQ); err != nil {
-			return result, nil, err
-		}
-		if result.AttentionK, err = input(info.AttentionK); err != nil {
-			return result, nil, err
-		}
-		if result.AttentionV, err = input(info.AttentionV); err != nil {
-			return result, nil, err
+		if info.AttentionQKV != nil {
+			if result.AttentionQKV, err = input(*info.AttentionQKV); err != nil {
+				return result, nil, err
+			}
+		} else {
+			if result.AttentionQ, err = input(info.AttentionQ); err != nil {
+				return result, nil, err
+			}
+			if result.AttentionK, err = input(info.AttentionK); err != nil {
+				return result, nil, err
+			}
+			if result.AttentionV, err = input(info.AttentionV); err != nil {
+				return result, nil, err
+			}
 		}
 		if result.AttentionOutput, err = input(info.AttentionOutput); err != nil {
 			return result, nil, err
@@ -427,6 +433,7 @@ func (r *Runner) layerDeviceInputs(
 		info        *gguf.TensorInfo
 		destination **tensor.Tensor
 	}{
+		{info.AttentionQKVBias, &result.AttentionQKVBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
@@ -1703,13 +1710,12 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 				}
 			}
 		} else {
-			infos = append(
-				infos,
-				layer.AttentionQ,
-				layer.AttentionK,
-				layer.AttentionV,
-				layer.AttentionOutput,
-			)
+			if layer.AttentionQKV != nil {
+				infos = append(infos, *layer.AttentionQKV)
+			} else {
+				infos = append(infos, layer.AttentionQ, layer.AttentionK, layer.AttentionV)
+			}
+			infos = append(infos, layer.AttentionOutput)
 		}
 		for _, info := range infos {
 			if info.Name != "" {
@@ -1721,6 +1727,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		}
 		for _, pointer := range []*gguf.TensorInfo{
 			layer.AttentionNormBias,
+			layer.AttentionQKVBias,
 			layer.AttentionQBias,
 			layer.AttentionKBias,
 			layer.AttentionVBias,

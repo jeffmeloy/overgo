@@ -230,6 +230,30 @@ func TestReadStableLMSpec(t *testing.T) {
 	}
 }
 
+func TestReadPhi2Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "phi2"),
+		metadata("phi2.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("phi2.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("phi2.embedding_length", gguf.ValueTypeUint32, uint32(2560)),
+		metadata("phi2.feed_forward_length", gguf.ValueTypeUint32, uint32(10240)),
+		metadata("phi2.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("phi2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(32)),
+		metadata("phi2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("phi2.rope.dimension_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("phi2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "phi2" || spec.KeyLength != 80 ||
+		spec.RopeDimensionCount != 32 || !spec.UsesLayerNorm() ||
+		!usesParallelResidual(spec.Architecture) {
+		t.Fatalf("unexpected Phi-2 spec: %+v", spec)
+	}
+}
+
 func TestReadSmolLM3Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),

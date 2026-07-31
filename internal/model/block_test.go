@@ -1037,6 +1037,76 @@ func TestBuildDenseStableLMOptionalNormLayouts(t *testing.T) {
 	}
 }
 
+func TestBuildDensePhi2FusedQKVAndQueryScale(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "phi2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
+		RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
+	weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(24))
+	weights.AttentionOutputBias = builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardNorm = nil
+	weights.FeedForwardNormBias = nil
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUpBias = builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardDownBias = builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var slices, ropeCount, geluCount int
+	var attentionScale, queryScale float32
+	var attentionInput, feedForwardInput *tensor.Tensor
+	offsets := map[uint64]bool{}
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpGroupSlice:
+			slices++
+			offsets[node.Attrs.(tensor.GroupSliceAttributes).Offset] = true
+		case tensor.OpRoPENeoX:
+			ropeCount++
+			if node.Attrs.(tensor.RoPEAttributes).RotaryDimensions != 2 {
+				t.Fatal("Phi-2 partial rotary dimension was not honored")
+			}
+		case tensor.OpGELU:
+			geluCount++
+		case tensor.OpScale:
+			queryScale = node.Attrs.(tensor.ScaleAttributes).Value
+		case tensor.OpAttention:
+			attentionScale = node.Attrs.(tensor.AttentionAttributes).Scale
+		case tensor.OpMulMat:
+			if node.Inputs[0].Name == "attn_qkv" {
+				attentionInput = node.Inputs[1]
+			}
+			if node.Inputs[0].Name == "ffn_up" {
+				feedForwardInput = node.Inputs[1]
+			}
+		}
+	}
+	if slices != 3 || !offsets[0] || !offsets[8] || !offsets[16] ||
+		ropeCount != 2 || geluCount != 1 || queryScale != 0.5 || attentionScale != 1 {
+		t.Fatalf(
+			"unexpected Phi-2 graph: slices=%d offsets=%v rope=%d GELU=%d qscale=%v ascale=%v",
+			slices, offsets, ropeCount, geluCount, queryScale, attentionScale,
+		)
+	}
+	if attentionInput == nil || attentionInput != feedForwardInput {
+		t.Fatal("Phi-2 attention and FFN do not share the normalized block input")
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

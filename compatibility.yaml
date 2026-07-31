@@ -930,6 +930,18 @@ models:
       - swiglu
       - untied-output-projection
     real_model_validation: pending-fixture
+  phi2:
+    status: experimental
+    features:
+      - affine-layernorm
+      - contiguous-fused-or-separate-qkv
+      - optional-qkv-biases
+      - partial-neox-rope
+      - query-pre-scaling
+      - parallel-gelu-ffn
+      - required-output-bias
+      - untied-output-projection
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

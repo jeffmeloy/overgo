@@ -40,15 +40,16 @@ type HostLayer struct {
 	FeedForwardDownBias   *reference.Value
 	FeedForwardPostNorm   *reference.Value
 
-	AttentionQKV  *reference.Value
-	AttentionGate *reference.Value
-	SSMConv1D     *reference.Value
-	SSMTimeStep   *reference.Value
-	SSMA          *reference.Value
-	SSMBeta       *reference.Value
-	SSMAlpha      *reference.Value
-	SSMNorm       *reference.Value
-	SSMOutput     *reference.Value
+	AttentionQKV     *reference.Value
+	AttentionQKVBias *reference.Value
+	AttentionGate    *reference.Value
+	SSMConv1D        *reference.Value
+	SSMTimeStep      *reference.Value
+	SSMA             *reference.Value
+	SSMBeta          *reference.Value
+	SSMAlpha         *reference.Value
+	SSMNorm          *reference.Value
+	SSMOutput        *reference.Value
 }
 
 // LoadHostTensor reads and dequantizes one GGUF tensor.
@@ -309,24 +310,32 @@ func LoadHostLayer(
 			*item.destination = &value
 		}
 	} else {
-		items = append(items,
-			struct {
-				destination *reference.Value
-				info        gguf.TensorInfo
-			}{&result.AttentionQ, info.AttentionQ},
-			struct {
-				destination *reference.Value
-				info        gguf.TensorInfo
-			}{&result.AttentionK, info.AttentionK},
-			struct {
-				destination *reference.Value
-				info        gguf.TensorInfo
-			}{&result.AttentionV, info.AttentionV},
-			struct {
-				destination *reference.Value
-				info        gguf.TensorInfo
-			}{&result.AttentionOutput, info.AttentionOutput},
-		)
+		if info.AttentionQKV != nil {
+			value, valueErr := LoadHostTensor(ctx, file, *info.AttentionQKV)
+			if valueErr != nil {
+				return HostLayer{}, valueErr
+			}
+			result.AttentionQKV = &value
+		} else {
+			items = append(items,
+				struct {
+					destination *reference.Value
+					info        gguf.TensorInfo
+				}{&result.AttentionQ, info.AttentionQ},
+				struct {
+					destination *reference.Value
+					info        gguf.TensorInfo
+				}{&result.AttentionK, info.AttentionK},
+				struct {
+					destination *reference.Value
+					info        gguf.TensorInfo
+				}{&result.AttentionV, info.AttentionV},
+			)
+		}
+		items = append(items, struct {
+			destination *reference.Value
+			info        gguf.TensorInfo
+		}{&result.AttentionOutput, info.AttentionOutput})
 	}
 	for _, item := range items {
 		if err := load(item.destination, item.info); err != nil {
@@ -345,6 +354,7 @@ func LoadHostLayer(
 		destination **reference.Value
 	}{
 		{info.AttentionNormBias, &result.AttentionNormBias},
+		{info.AttentionQKVBias, &result.AttentionQKVBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
@@ -442,14 +452,18 @@ func (layer *HostLayer) GraphInputs(
 	}
 	if layer.AttentionQKV != nil {
 		result.AttentionQKV = input("attn_qkv.weight", *layer.AttentionQKV)
-		result.AttentionGate = input("attn_gate.weight", *layer.AttentionGate)
-		result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
-		result.SSMTimeStep = input("ssm_dt.bias", *layer.SSMTimeStep)
-		result.SSMA = input("ssm_a", *layer.SSMA)
-		result.SSMBeta = input("ssm_beta.weight", *layer.SSMBeta)
-		result.SSMAlpha = input("ssm_alpha.weight", *layer.SSMAlpha)
-		result.SSMNorm = input("ssm_norm.weight", *layer.SSMNorm)
-		result.SSMOutput = input("ssm_out.weight", *layer.SSMOutput)
+		if layer.AttentionGate != nil {
+			result.AttentionGate = input("attn_gate.weight", *layer.AttentionGate)
+			result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
+			result.SSMTimeStep = input("ssm_dt.bias", *layer.SSMTimeStep)
+			result.SSMA = input("ssm_a", *layer.SSMA)
+			result.SSMBeta = input("ssm_beta.weight", *layer.SSMBeta)
+			result.SSMAlpha = input("ssm_alpha.weight", *layer.SSMAlpha)
+			result.SSMNorm = input("ssm_norm.weight", *layer.SSMNorm)
+			result.SSMOutput = input("ssm_out.weight", *layer.SSMOutput)
+		} else {
+			result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
+		}
 	} else {
 		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
 		result.AttentionK = input("attn_k.weight", layer.AttentionK)
@@ -464,6 +478,7 @@ func (layer *HostLayer) GraphInputs(
 		value       *reference.Value
 		destination **tensor.Tensor
 	}{
+		{"attn_qkv.bias", layer.AttentionQKVBias, &result.AttentionQKVBias},
 		{"attn_q.bias", layer.AttentionQBias, &result.AttentionQBias},
 		{"attn_k.bias", layer.AttentionKBias, &result.AttentionKBias},
 		{"attn_v.bias", layer.AttentionVBias, &result.AttentionVBias},

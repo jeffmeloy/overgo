@@ -35,15 +35,16 @@ type LayerGraphWeights struct {
 	FeedForwardDownBias   *tensor.Tensor
 	FeedForwardPostNorm   *tensor.Tensor
 
-	AttentionQKV  *tensor.Tensor
-	AttentionGate *tensor.Tensor
-	SSMConv1D     *tensor.Tensor
-	SSMTimeStep   *tensor.Tensor
-	SSMA          *tensor.Tensor
-	SSMBeta       *tensor.Tensor
-	SSMAlpha      *tensor.Tensor
-	SSMNorm       *tensor.Tensor
-	SSMOutput     *tensor.Tensor
+	AttentionQKV     *tensor.Tensor
+	AttentionQKVBias *tensor.Tensor
+	AttentionGate    *tensor.Tensor
+	SSMConv1D        *tensor.Tensor
+	SSMTimeStep      *tensor.Tensor
+	SSMA             *tensor.Tensor
+	SSMBeta          *tensor.Tensor
+	SSMAlpha         *tensor.Tensor
+	SSMNorm          *tensor.Tensor
+	SSMOutput        *tensor.Tensor
 }
 
 // ApplyNormalization applies the architecture's learned pre/post
@@ -215,12 +216,22 @@ func BuildDenseBlockCachedForLayer(
 	isOLMo2 := spec.Architecture == "olmo2"
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	required := map[string]*tensor.Tensor{
-		"attention Q":       weights.AttentionQ,
-		"attention K":       weights.AttentionK,
-		"attention V":       weights.AttentionV,
 		"attention output":  weights.AttentionOutput,
 		"feed-forward up":   weights.FeedForwardUp,
 		"feed-forward down": weights.FeedForwardDown,
+	}
+	if weights.AttentionQKV != nil {
+		required["attention QKV"] = weights.AttentionQKV
+		if weights.AttentionQBias != nil || weights.AttentionKBias != nil || weights.AttentionVBias != nil {
+			return DenseBlockResult{}, errors.New("dense fused QKV cannot use separate projection biases")
+		}
+	} else {
+		required["attention Q"] = weights.AttentionQ
+		required["attention K"] = weights.AttentionK
+		required["attention V"] = weights.AttentionV
+		if weights.AttentionQKVBias != nil {
+			return DenseBlockResult{}, errors.New("dense fused QKV bias has no fused projection")
+		}
 	}
 	if !usesGateFreeFFN(spec.Architecture) {
 		required["feed-forward gate"] = weights.FeedForwardGate
@@ -243,7 +254,7 @@ func BuildDenseBlockCachedForLayer(
 		}
 		if spec.UsesLayerNorm() {
 			required["attention norm bias"] = weights.AttentionNormBias
-			if spec.Architecture != "stablelm" {
+			if !usesParallelResidual(spec.Architecture) && spec.Architecture != "stablelm" {
 				required["feed-forward norm bias"] = weights.FeedForwardNormBias
 			}
 		}
@@ -275,17 +286,44 @@ func BuildDenseBlockCachedForLayer(
 			builder, input, weights.AttentionNorm, weights.AttentionNormBias, spec,
 		)
 	}
-	query := builder.MulMat(weights.AttentionQ, normalized)
-	key := builder.MulMat(weights.AttentionK, normalized)
-	value := builder.MulMat(weights.AttentionV, normalized)
-	if weights.AttentionQBias != nil {
-		query = builder.Add(query, weights.AttentionQBias)
-	}
-	if weights.AttentionKBias != nil {
-		key = builder.Add(key, weights.AttentionKBias)
-	}
-	if weights.AttentionVBias != nil {
-		value = builder.Add(value, weights.AttentionVBias)
+	var query, key, value *tensor.Tensor
+	if weights.AttentionQKV != nil {
+		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
+		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
+		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+		mixed := builder.MulMat(weights.AttentionQKV, normalized)
+		if weights.AttentionQKVBias != nil {
+			mixed = builder.Add(mixed, weights.AttentionQKVBias)
+		}
+		stride := queryLength + keyLength + valueLength
+		query = builder.Reshape(
+			builder.GroupSlice(mixed, 0, queryLength, 1, stride),
+			queryLength,
+			tokens,
+		)
+		key = builder.Reshape(
+			builder.GroupSlice(mixed, queryLength, keyLength, 1, stride),
+			keyLength,
+			tokens,
+		)
+		value = builder.Reshape(
+			builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride),
+			valueLength,
+			tokens,
+		)
+	} else {
+		query = builder.MulMat(weights.AttentionQ, normalized)
+		key = builder.MulMat(weights.AttentionK, normalized)
+		value = builder.MulMat(weights.AttentionV, normalized)
+		if weights.AttentionQBias != nil {
+			query = builder.Add(query, weights.AttentionQBias)
+		}
+		if weights.AttentionKBias != nil {
+			key = builder.Add(key, weights.AttentionKBias)
+		}
+		if weights.AttentionVBias != nil {
+			value = builder.Add(value, weights.AttentionVBias)
+		}
 	}
 	if isOLMo2 {
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
@@ -424,6 +462,12 @@ func BuildDenseBlockCachedForLayer(
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	if spec.AttentionScale > 0 {
 		attentionScale = spec.AttentionScale
+	}
+	if spec.Architecture == "phi2" {
+		// Phi-2 scales the rotated query before the dot product to preserve
+		// upstream precision behavior.
+		query = builder.Scale(query, attentionScale)
+		attentionScale = 1
 	}
 	if isGemmaArchitecture(spec.Architecture) {
 		// Gemma scales Q before the attention dot product, rather than scaling

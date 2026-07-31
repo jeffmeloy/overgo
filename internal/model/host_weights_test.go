@@ -109,6 +109,33 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitDenseFusedQKV(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	qkv := value(8, 24)
+	qkvBias := value(24)
+	layer := HostLayer{
+		AttentionNorm:    value(8),
+		AttentionQKV:     &qkv,
+		AttentionQKVBias: &qkvBias,
+		AttentionOutput:  value(8, 8),
+		FeedForwardUp:    value(8, 12),
+		FeedForwardDown:  value(12, 8),
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 6 || graph.AttentionQKV == nil || graph.AttentionQKVBias == nil ||
+		graph.AttentionQ != nil || graph.AttentionOutput == nil {
+		t.Fatalf("unexpected fused-QKV graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitPostNormalizedBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

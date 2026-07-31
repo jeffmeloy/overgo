@@ -36,15 +36,16 @@ type LayerWeights struct {
 	FeedForwardDownBias   *gguf.TensorInfo
 	FeedForwardPostNorm   *gguf.TensorInfo
 
-	AttentionQKV  *gguf.TensorInfo
-	AttentionGate *gguf.TensorInfo
-	SSMConv1D     *gguf.TensorInfo
-	SSMTimeStep   *gguf.TensorInfo
-	SSMA          *gguf.TensorInfo
-	SSMBeta       *gguf.TensorInfo
-	SSMAlpha      *gguf.TensorInfo
-	SSMNorm       *gguf.TensorInfo
-	SSMOutput     *gguf.TensorInfo
+	AttentionQKV     *gguf.TensorInfo
+	AttentionQKVBias *gguf.TensorInfo
+	AttentionGate    *gguf.TensorInfo
+	SSMConv1D        *gguf.TensorInfo
+	SSMTimeStep      *gguf.TensorInfo
+	SSMA             *gguf.TensorInfo
+	SSMBeta          *gguf.TensorInfo
+	SSMAlpha         *gguf.TensorInfo
+	SSMNorm          *gguf.TensorInfo
+	SSMOutput        *gguf.TensorInfo
 }
 
 // Weights is a validated initial Llama/Qwen3 tensor catalog.
@@ -190,6 +191,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "olmo2" ||
 		spec.Architecture == "nemotron" ||
 		spec.Architecture == "orion" ||
+		spec.Architecture == "phi2" ||
 		spec.Architecture == "plamo" ||
 		spec.Architecture == "stablelm" ||
 		spec.Architecture == "codeshell") &&
@@ -207,6 +209,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			)
 		}
 		result.OutputBias = &outputBias
+	}
+	if spec.Architecture == "phi2" && result.OutputBias == nil {
+		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
 
 	queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
@@ -372,26 +377,59 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		} else {
-			if layer.AttentionQ, err = required(
-				prefix+"attn_q.weight",
-				uint64(spec.EmbeddingLength),
-				queryLength,
-			); err != nil {
-				return Weights{}, err
+			if spec.Architecture == "phi2" {
+				if _, ok := tensors[prefix+"attn_qkv.weight"]; ok {
+					qkv, qkvErr := required(
+						prefix+"attn_qkv.weight",
+						uint64(spec.EmbeddingLength),
+						queryLength+keyLength+valueLength,
+					)
+					if qkvErr != nil {
+						return Weights{}, qkvErr
+					}
+					layer.AttentionQKV = &qkv
+					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
+						qkvBias, biasErr := required(
+							prefix+"attn_qkv.bias",
+							queryLength+keyLength+valueLength,
+						)
+						if biasErr != nil {
+							return Weights{}, biasErr
+						}
+						if qkvBias.Type != dtype.F32 {
+							return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", qkvBias.Name)
+						}
+						layer.AttentionQKVBias = &qkvBias
+					}
+				}
 			}
-			if layer.AttentionK, err = required(
-				prefix+"attn_k.weight",
-				uint64(spec.EmbeddingLength),
-				keyLength,
-			); err != nil {
-				return Weights{}, err
-			}
-			if layer.AttentionV, err = required(
-				prefix+"attn_v.weight",
-				uint64(spec.EmbeddingLength),
-				valueLength,
-			); err != nil {
-				return Weights{}, err
+			if layer.AttentionQKV == nil {
+				if spec.Architecture == "phi2" {
+					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
+						return Weights{}, errors.New("Phi-2 fused QKV bias has no fused weight")
+					}
+				}
+				if layer.AttentionQ, err = required(
+					prefix+"attn_q.weight",
+					uint64(spec.EmbeddingLength),
+					queryLength,
+				); err != nil {
+					return Weights{}, err
+				}
+				if layer.AttentionK, err = required(
+					prefix+"attn_k.weight",
+					uint64(spec.EmbeddingLength),
+					keyLength,
+				); err != nil {
+					return Weights{}, err
+				}
+				if layer.AttentionV, err = required(
+					prefix+"attn_v.weight",
+					uint64(spec.EmbeddingLength),
+					valueLength,
+				); err != nil {
+					return Weights{}, err
+				}
 			}
 			if layer.AttentionOutput, err = required(
 				prefix+"attn_output.weight",
@@ -475,14 +513,27 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if !layer.Recurrent {
+			if item, ok := tensors[prefix+"attn_output.bias"]; ok {
+				if item.Type != dtype.F32 ||
+					item.Dimensions != 1 ||
+					item.Shape[0] != uint64(spec.EmbeddingLength) {
+					return Weights{}, fmt.Errorf(
+						"tensor %q has incompatible shape %v",
+						item.Name,
+						item.Shape,
+					)
+				}
+				layer.AttentionOutputBias = &item
+			}
+		}
+		if !layer.Recurrent && layer.AttentionQKV == nil {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       uint64
 				destination **gguf.TensorInfo
 			}{
-				"attn_q.bias":      {layer.AttentionQ.Shape[1], &layer.AttentionQBias},
-				"attn_k.bias":      {layer.AttentionK.Shape[1], &layer.AttentionKBias},
-				"attn_v.bias":      {layer.AttentionV.Shape[1], &layer.AttentionVBias},
-				"attn_output.bias": {uint64(spec.EmbeddingLength), &layer.AttentionOutputBias},
+				"attn_q.bias": {layer.AttentionQ.Shape[1], &layer.AttentionQBias},
+				"attn_k.bias": {layer.AttentionK.Shape[1], &layer.AttentionKBias},
+				"attn_v.bias": {layer.AttentionV.Shape[1], &layer.AttentionVBias},
 			} {
 				if item, ok := tensors[prefix+name]; ok {
 					if item.Type != dtype.F32 ||

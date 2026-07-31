@@ -92,6 +92,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "nemotron" &&
 		architecture != "olmo" &&
 		architecture != "orion" &&
+		architecture != "phi2" &&
 		architecture != "plamo" &&
 		architecture != "seed_oss" &&
 		architecture != "stablelm" &&
@@ -294,6 +295,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if architecture == "stablelm" {
+		if spec.RopeDimensionCount, err = required[uint32](
+			values,
+			prefix+"rope.dimension_count",
+			gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+	}
+	if architecture == "phi2" {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values,
 			prefix+"rope.dimension_count",
@@ -639,6 +649,11 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("StableLM rotary dimension count is invalid")
 	}
+	if s.Architecture == "phi2" &&
+		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0) {
+		return errors.New("Phi-2 rotary dimension count is invalid")
+	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
@@ -706,11 +721,12 @@ func usesNormalRoPE(architecture string) bool {
 }
 
 func usesParallelResidual(architecture string) bool {
-	return architecture == "cohere2" || architecture == "command-r" || architecture == "plamo"
+	return architecture == "cohere2" || architecture == "command-r" ||
+		architecture == "phi2" || architecture == "plamo"
 }
 
 func usesSequentialGELU(architecture string) bool {
-	return architecture == "codeshell" || architecture == "starcoder2"
+	return architecture == "codeshell" || architecture == "phi2" || architecture == "starcoder2"
 }
 
 func usesGateFreeFFN(architecture string) bool {

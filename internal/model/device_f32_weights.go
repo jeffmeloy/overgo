@@ -163,12 +163,14 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	// Validate all lookups first so a missing optional pointer cannot be hidden
 	// behind a later builder error.
 	required := []gguf.TensorInfo{
-		info.AttentionQ,
-		info.AttentionK,
-		info.AttentionV,
 		info.AttentionOutput,
 		info.FeedForwardUp,
 		info.FeedForwardDown,
+	}
+	if info.AttentionQKV != nil {
+		required = append(required, *info.AttentionQKV)
+	} else {
+		required = append(required, info.AttentionQ, info.AttentionK, info.AttentionV)
 	}
 	if info.FeedForwardGate.Name != "" {
 		required = append(required, info.FeedForwardGate)
@@ -191,12 +193,16 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		}
 	}
 	result := LayerGraphWeights{
-		AttentionQ:      input(info.AttentionQ),
-		AttentionK:      input(info.AttentionK),
-		AttentionV:      input(info.AttentionV),
 		AttentionOutput: input(info.AttentionOutput),
 		FeedForwardUp:   input(info.FeedForwardUp),
 		FeedForwardDown: input(info.FeedForwardDown),
+	}
+	if info.AttentionQKV != nil {
+		result.AttentionQKV = input(*info.AttentionQKV)
+	} else {
+		result.AttentionQ = input(info.AttentionQ)
+		result.AttentionK = input(info.AttentionK)
+		result.AttentionV = input(info.AttentionV)
 	}
 	if info.FeedForwardGate.Name != "" {
 		result.FeedForwardGate = input(info.FeedForwardGate)
@@ -223,6 +229,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		info        *gguf.TensorInfo
 		destination **tensor.Tensor
 	}{
+		{info.AttentionQKVBias, &result.AttentionQKVBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},

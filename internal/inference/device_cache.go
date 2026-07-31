@@ -307,10 +307,8 @@ func (r *Runner) forwardDeviceCachedLocked(
 	current := builder.GetRows(embeddingTable, rows)
 	hostFeeds := map[*tensor.Tensor]reference.Value{}
 	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{embeddingTable: embeddingPointer}
-	if r.spec.Architecture == "gemma" ||
-		r.spec.Architecture == "gemma2" ||
-		r.spec.Architecture == "gemma3" {
-		current = builder.Scale(current, float32(math.Sqrt(float64(r.spec.EmbeddingLength))))
+	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
+		current = builder.Scale(current, scale)
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
@@ -462,6 +460,9 @@ func (r *Runner) forwardDeviceCachedLocked(
 		}
 		deviceFeeds[bias] = biasPointer
 		logitsTensor = builder.Add(logitsTensor, bias)
+	}
+	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+		logitsTensor = builder.Scale(logitsTensor, scale)
 	}
 	if err := builder.Err(); err != nil {
 		return reference.Value{}, nil, err

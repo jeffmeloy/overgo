@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -147,6 +148,58 @@ func TestReadSmolLM3Spec(t *testing.T) {
 		!spec.UsesRoPE(2) ||
 		spec.UsesRoPE(3) {
 		t.Fatalf("unexpected SmolLM3 spec: %+v", spec)
+	}
+}
+
+func TestReadMiniCPMSpecScales(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "minicpm"),
+		metadata("minicpm.block_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("minicpm.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("minicpm.embedding_length", gguf.ValueTypeUint32, uint32(2304)),
+		metadata("minicpm.feed_forward_length", gguf.ValueTypeUint32, uint32(5760)),
+		metadata("minicpm.attention.head_count", gguf.ValueTypeUint32, uint32(36)),
+		metadata("minicpm.attention.head_count_kv", gguf.ValueTypeUint32, uint32(36)),
+		metadata("minicpm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("minicpm.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("minicpm.embedding_scale", gguf.ValueTypeFloat32, float32(10)),
+		metadata("minicpm.residual_scale", gguf.ValueTypeFloat32, float32(0.2)),
+		metadata("minicpm.logit_scale", gguf.ValueTypeFloat32, float32(0.5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "minicpm" ||
+		spec.EmbeddingScale != 10 ||
+		spec.ResidualScale != 0.2 ||
+		spec.LogitScale != 0.5 ||
+		spec.InputEmbeddingScale() != 10 ||
+		spec.OutputLogitMultiplier() != 2 {
+		t.Fatalf("unexpected MiniCPM spec: %+v", spec)
+	}
+}
+
+func TestReadMiniCPMSpecUsesBackwardCompatibleScaleDefaults(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "minicpm"),
+		metadata("minicpm.block_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("minicpm.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("minicpm.embedding_length", gguf.ValueTypeUint32, uint32(2304)),
+		metadata("minicpm.feed_forward_length", gguf.ValueTypeUint32, uint32(5760)),
+		metadata("minicpm.attention.head_count", gguf.ValueTypeUint32, uint32(36)),
+		metadata("minicpm.attention.head_count_kv", gguf.ValueTypeUint32, uint32(36)),
+		metadata("minicpm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("minicpm.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.EmbeddingScale != 12 ||
+		math.Abs(float64(spec.ResidualScale)-1.4/math.Sqrt(40)) > 1e-7 ||
+		math.Abs(float64(spec.LogitScale)-256.0/2304.0) > 1e-7 {
+		t.Fatalf("unexpected MiniCPM default scales: %+v", spec)
 	}
 }
 

@@ -589,10 +589,7 @@ func (r *Runner) forwardCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if r.spec.Architecture == "gemma" ||
-		r.spec.Architecture == "gemma2" ||
-		r.spec.Architecture == "gemma3" {
-		scale := float32(math.Sqrt(float64(r.spec.EmbeddingLength)))
+	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
 		for index := range activation.Data {
 			activation.Data[index] *= scale
 		}
@@ -1534,6 +1531,7 @@ func (r *Runner) logits(
 		if err := addOutputBias(logits, r.outputBias); err != nil {
 			return nil, err
 		}
+		scaleLogits(logits, r.spec.OutputLogitMultiplier())
 		return applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap), nil
 	}
 	builder := tensor.NewBuilder()
@@ -1552,6 +1550,9 @@ func (r *Runner) logits(
 		}
 		deviceFeeds[bias] = biasPointer
 		output = builder.Add(output, bias)
+	}
+	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+		output = builder.Scale(output, scale)
 	}
 	if err := builder.Err(); err != nil {
 		return nil, err
@@ -1573,6 +1574,15 @@ func (r *Runner) logits(
 		results[output].Data,
 		r.spec.FinalLogitSoftcap,
 	), nil
+}
+
+func scaleLogits(logits []float32, scale float32) {
+	if scale == 1 {
+		return
+	}
+	for index := range logits {
+		logits[index] *= scale
+	}
 }
 
 func applyLogitSoftcap(logits []float32, cap float32) []float32 {

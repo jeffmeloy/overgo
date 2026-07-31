@@ -33,6 +33,17 @@ func TestApplyLogitSoftcap(t *testing.T) {
 	}
 }
 
+func TestScaleLogits(t *testing.T) {
+	logits := []float32{-2, 0.5, 4}
+	scaleLogits(logits, 0.25)
+	want := []float32{-0.5, 0.125, 1}
+	for index := range want {
+		if logits[index] != want[index] {
+			t.Fatalf("scaled logit %d = %v, want %v", index, logits[index], want[index])
+		}
+	}
+}
+
 func TestAddOutputBiasBroadcastsAcrossTokens(t *testing.T) {
 	logits := []float32{1, 2, 3, 4, 5, 6}
 	if err := addOutputBias(logits, []float32{0.5, -1, 2}); err != nil {

@@ -234,6 +234,7 @@ func (r *Runner) logitsBatch(
 			if err := addOutputBias(logits, r.outputBias); err != nil {
 				return nil, err
 			}
+			scaleLogits(logits, r.spec.OutputLogitMultiplier())
 			result = append(result, logits...)
 		}
 		return applyLogitSoftcap(result, r.spec.FinalLogitSoftcap), nil
@@ -253,6 +254,9 @@ func (r *Runner) logitsBatch(
 		}
 		deviceFeeds[bias] = biasPointer
 		output = builder.Add(output, bias)
+	}
+	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+		output = builder.Scale(output, scale)
 	}
 	if err := builder.Err(); err != nil {
 		return nil, err

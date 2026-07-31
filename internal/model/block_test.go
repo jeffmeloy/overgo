@@ -304,6 +304,44 @@ func TestBuildDenseSmolLM3SkipsPeriodicRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDenseMiniCPMScalesResidualBranches(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "minicpm",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		ResidualScale:     0.25,
+		RMSNormEpsilon:    1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var residualScales int
+	for _, node := range nodes {
+		if node.Op == tensor.OpScale &&
+			node.Attrs.(tensor.ScaleAttributes).Value == 0.25 {
+			residualScales++
+		}
+	}
+	if residualScales != 2 {
+		t.Fatalf("MiniCPM residual scale count = %d, want 2", residualScales)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -25,6 +25,9 @@ type Spec struct {
 	RopeScalingType   string
 	RopeScalingFactor float32
 	AttentionScale    float32
+	EmbeddingScale    float32
+	ResidualScale     float32
+	LogitScale        float32
 	AttentionSoftcap  float32
 	FinalLogitSoftcap float32
 	RMSNormEpsilon    float32
@@ -74,6 +77,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "smollm3" &&
+		architecture != "minicpm" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -171,6 +175,32 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		prefix+"attention.scale",
 		gguf.ValueTypeFloat32,
 	)
+	if architecture == "minicpm" {
+		spec.EmbeddingScale = 12
+		spec.ResidualScale = float32(1.4 / math.Sqrt(float64(spec.BlockCount)))
+		spec.LogitScale = 256 / float32(spec.EmbeddingLength)
+		if value, ok := optional[float32](
+			values,
+			prefix+"embedding_scale",
+			gguf.ValueTypeFloat32,
+		); ok {
+			spec.EmbeddingScale = value
+		}
+		if value, ok := optional[float32](
+			values,
+			prefix+"residual_scale",
+			gguf.ValueTypeFloat32,
+		); ok {
+			spec.ResidualScale = value
+		}
+		if value, ok := optional[float32](
+			values,
+			prefix+"logit_scale",
+			gguf.ValueTypeFloat32,
+		); ok {
+			spec.LogitScale = value
+		}
+	}
 	if architecture == "smollm3" {
 		spec.NoRopeLayerStep = 4
 	}
@@ -326,6 +356,23 @@ func (s Spec) UsesRoPE(block uint32) bool {
 		(s.NoRopeLayerStep == 0 || (block+1)%s.NoRopeLayerStep != 0)
 }
 
+func (s Spec) InputEmbeddingScale() float32 {
+	if s.EmbeddingScale > 0 {
+		return s.EmbeddingScale
+	}
+	if isGemmaArchitecture(s.Architecture) {
+		return float32(math.Sqrt(float64(s.EmbeddingLength)))
+	}
+	return 1
+}
+
+func (s Spec) OutputLogitMultiplier() float32 {
+	if s.LogitScale > 0 {
+		return 1 / s.LogitScale
+	}
+	return 1
+}
+
 func (s Spec) validate() error {
 	switch {
 	case s.BlockCount == 0:
@@ -427,6 +474,22 @@ func (s Spec) validate() error {
 		math.IsInf(float64(s.AttentionScale), 0) {
 		return errors.New("attention scale must be finite and non-negative")
 	}
+	if s.EmbeddingScale < 0 ||
+		math.IsNaN(float64(s.EmbeddingScale)) ||
+		math.IsInf(float64(s.EmbeddingScale), 0) {
+		return errors.New("embedding scale must be finite and non-negative")
+	}
+	if s.ResidualScale < 0 ||
+		math.IsNaN(float64(s.ResidualScale)) ||
+		math.IsInf(float64(s.ResidualScale), 0) {
+		return errors.New("residual scale must be finite and non-negative")
+	}
+	if s.LogitScale < 0 ||
+		math.IsNaN(float64(s.LogitScale)) ||
+		math.IsInf(float64(s.LogitScale), 0) ||
+		(s.Architecture == "minicpm" && s.LogitScale == 0) {
+		return errors.New("logit scale must be finite and positive when required")
+	}
 	return nil
 }
 
@@ -445,6 +508,7 @@ func usesSlidingAttention(architecture string) bool {
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
 		architecture == "internlm2" ||
+		architecture == "minicpm" ||
 		architecture == "smollm3" ||
 		architecture == "xverse"
 }

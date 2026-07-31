@@ -398,6 +398,9 @@ func BuildDenseBlockCachedForLayer(
 			attention, weights.AttentionPostNorm, spec.RMSNormEpsilon,
 		)
 	}
+	if spec.ResidualScale > 0 {
+		attention = builder.Scale(attention, spec.ResidualScale)
+	}
 	residual := builder.Add(input, attention)
 
 	normalized = residual
@@ -424,6 +427,9 @@ func BuildDenseBlockCachedForLayer(
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)
+	}
+	if spec.ResidualScale > 0 {
+		feedForward = builder.Scale(feedForward, spec.ResidualScale)
 	}
 	output := builder.Add(residual, feedForward)
 	if err := builder.Err(); err != nil {

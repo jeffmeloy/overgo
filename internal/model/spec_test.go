@@ -342,6 +342,45 @@ func TestReadGPTNeoXSpec(t *testing.T) {
 	}
 }
 
+func TestReadTextGLM4Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "glm4"),
+		metadata("glm4.block_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("glm4.context_length", gguf.ValueTypeUint32, uint32(131072)),
+		metadata("glm4.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("glm4.feed_forward_length", gguf.ValueTypeUint32, uint32(13696)),
+		metadata("glm4.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("glm4.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("glm4.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("glm4.rope.dimension_count", gguf.ValueTypeUint32, uint32(64)),
+		metadata("glm4.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "glm4" || spec.KeyLength != 128 ||
+		spec.RopeDimensionCount != 64 || !usesNormalRoPE(spec.Architecture) ||
+		!hasPostNorm(spec.Architecture) || !usesFusedGateUp(spec.Architecture) {
+		t.Fatalf("unexpected GLM4 spec: %+v", spec)
+	}
+
+	file.Metadata = append(file.Metadata, metadata("glm4.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)))
+	if _, err := ReadSpec(file); err == nil || !strings.Contains(err.Error(), "NextN/MTP") {
+		t.Fatalf("GLM4 NextN error = %v", err)
+	}
+	file.Metadata[len(file.Metadata)-1] = gguf.Metadata{
+		Key: "glm4.rope.dimension_sections",
+		Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32,
+			Data: []int32{16, 24, 24, 0},
+		},
+	}
+	if _, err := ReadSpec(file); err == nil || !strings.Contains(err.Error(), "multimodal RoPE") {
+		t.Fatalf("GLM4 multimodal error = %v", err)
+	}
+}
+
 func TestReadFalconSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "falcon"),

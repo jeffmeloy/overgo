@@ -1287,6 +1287,54 @@ func TestBuildDenseGPTNeoXResidualModes(t *testing.T) {
 	}
 }
 
+func TestBuildDenseGLM4(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "glm4", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16))
+	weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(16))
+	weights.AttentionPostNorm = builder.Input("post_attention_norm", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardPostNorm = builder.Input("post_ffw_norm", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUp = builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 24))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var slices, rmsNorms, rope, silu int
+	var attentionScale float32
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpGroupSlice:
+			slices++
+		case tensor.OpRMSNorm:
+			rmsNorms++
+		case tensor.OpRoPENormal:
+			rope++
+		case tensor.OpSiLU:
+			silu++
+		case tensor.OpAttention:
+			attentionScale = node.Attrs.(tensor.AttentionAttributes).Scale
+		}
+	}
+	if slices != 5 || rmsNorms != 4 || rope != 2 || silu != 1 || attentionScale != 0.5 {
+		t.Fatalf("unexpected GLM4 graph: slices=%d RMSNorm=%d RoPE=%d SiLU=%d attention=%v", slices, rmsNorms, rope, silu, attentionScale)
+	}
+}
+
 func TestBuildDenseFalconNormLayouts(t *testing.T) {
 	for _, secondNorm := range []bool{false, true} {
 		name := "7b-shared-norm"

@@ -569,7 +569,7 @@ func BuildDenseBlockCachedForLayer(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
-	if hasGemmaPostNorm(spec.Architecture) || isOLMo2 {
+	if hasPostNorm(spec.Architecture) || isOLMo2 {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
 			return DenseBlockResult{}, errors.New("dense post-normalized block requires post norm weights")
 		}
@@ -618,7 +618,7 @@ func BuildDenseBlockCachedForLayer(
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
 	var activation *tensor.Tensor
-	if spec.Architecture == "phi3" {
+	if usesFusedGateUp(spec.Architecture) {
 		width := uint64(spec.FeedForwardLength)
 		stride := 2 * width
 		gate := builder.Reshape(
@@ -665,7 +665,7 @@ func BuildDenseBlockCachedForLayer(
 	if weights.FeedForwardDownBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 	}
-	if hasGemmaPostNorm(spec.Architecture) || isOLMo2 {
+	if hasPostNorm(spec.Architecture) || isOLMo2 {
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)

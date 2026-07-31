@@ -96,6 +96,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "smollm3" &&
 		architecture != "minicpm" &&
 		architecture != "granite" &&
+		architecture != "glm4" &&
 		architecture != "gptneox" &&
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
@@ -406,6 +407,31 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			gguf.ValueTypeBool,
 		); err != nil {
 			return Spec{}, err
+		}
+	}
+	if architecture == "glm4" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); ok {
+			spec.RopeDimensionCount = value
+		}
+		if nextN, ok := optional[uint32](
+			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
+		); ok && nextN > 0 {
+			return Spec{}, errors.New("GLM4 NextN/MTP layers are not supported")
+		}
+		if sections, ok, sectionsErr := optionalArray[int32](
+			values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
+		); sectionsErr != nil {
+			return Spec{}, sectionsErr
+		} else if ok {
+			if len(sections) != 4 {
+				return Spec{}, fmt.Errorf("metadata %q has %d values, need 4", prefix+"rope.dimension_sections", len(sections))
+			}
+			if sections[0] > 0 && sections[1] > 0 {
+				return Spec{}, errors.New("GLM4 multimodal RoPE is not supported")
+			}
 		}
 	}
 	if architecture == "falcon" {
@@ -791,6 +817,11 @@ func (s Spec) validate() error {
 		(s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("GPT-NeoX rotary dimension count is invalid")
 	}
+	if s.Architecture == "glm4" &&
+		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0) {
+		return errors.New("GLM4 rotary dimension count is invalid")
+	}
 	if s.Architecture == "falcon" && s.RopeDimensionCount > 0 &&
 		s.RopeDimensionCount != s.KeyLength {
 		return errors.New("Falcon rotary dimension count must equal the key length")
@@ -837,12 +868,13 @@ func isGemmaArchitecture(architecture string) bool {
 	return architecture == "gemma" || architecture == "gemma2" || architecture == "gemma3"
 }
 
-func hasGemmaPostNorm(architecture string) bool {
-	return architecture == "gemma2" || architecture == "gemma3"
+func hasPostNorm(architecture string) bool {
+	return architecture == "gemma2" || architecture == "gemma3" || architecture == "glm4"
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return hasGemmaPostNorm(architecture) || architecture == "olmo2" || architecture == "cohere2"
+	return (architecture == "gemma2" || architecture == "gemma3") ||
+		architecture == "olmo2" || architecture == "cohere2"
 }
 
 func usesNormalRoPE(architecture string) bool {
@@ -853,6 +885,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "cohere2" ||
 		architecture == "command-r" ||
 		architecture == "granite" ||
+		architecture == "glm4" ||
 		architecture == "minicpm" ||
 		architecture == "olmo" ||
 		architecture == "maincoder" ||
@@ -872,8 +905,12 @@ func usesSequentialGELU(architecture string) bool {
 }
 
 func usesGateFreeFFN(architecture string) bool {
-	return architecture == "apertus" || architecture == "phi3" ||
+	return architecture == "apertus" || usesFusedGateUp(architecture) ||
 		usesSquaredReLU(architecture) || usesGELU(architecture)
+}
+
+func usesFusedGateUp(architecture string) bool {
+	return architecture == "glm4" || architecture == "phi3"
 }
 
 func supportsLongRoPE(architecture string) bool {

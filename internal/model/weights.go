@@ -474,7 +474,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gptneox" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gptneox" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "gptneox" || spec.Architecture == "falcon" {
@@ -506,7 +506,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if layer.AttentionQKV == nil {
-				if spec.Architecture == "apertus" || spec.Architecture == "phi2" || spec.Architecture == "phi3" {
+				if spec.Architecture == "apertus" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" {
 					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
 						return Weights{}, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 					}
@@ -651,7 +651,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
-		if hasGemmaPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
+		if hasPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
 			attentionPostNorm, normErr := required(
 				prefix+"post_attention_norm.weight",
 				uint64(spec.EmbeddingLength),
@@ -717,7 +717,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		feedForwardUpLength := uint64(spec.FeedForwardLength)
-		if spec.Architecture == "phi3" {
+		if usesFusedGateUp(spec.Architecture) {
 			feedForwardUpLength *= 2
 		}
 		if layer.FeedForwardUp, err = required(

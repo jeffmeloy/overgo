@@ -1001,6 +1001,21 @@ models:
       - optional-second-attention-layernorm
       - tied-or-untied-output
     real_model_validation: pending-fixture
+  glm4:
+    status: experimental
+    constraints:
+      - text-only
+    features:
+      - pre-and-post-rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - optional-qkv-bias
+      - partial-normal-rope
+      - fused-gate-up-swiglu
+      - tied-or-untied-output
+    limitations:
+      - multimodal-rope-rejected
+      - nextn-mtp-rejected
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

@@ -668,6 +668,27 @@ func TestReadQwenSpec(t *testing.T) {
 	}
 }
 
+func TestReadChatGLMSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "chatglm"),
+		metadata("chatglm.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("chatglm.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("chatglm.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("chatglm.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("chatglm.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("chatglm.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("chatglm.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("chatglm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.RopeDimensionCount != 4 || !usesNormalRoPE(spec.Architecture) || !usesFusedGateUp(spec.Architecture) {
+		t.Fatalf("unexpected ChatGLM spec: %+v", spec)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

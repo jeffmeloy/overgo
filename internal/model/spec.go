@@ -118,6 +118,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "bloom" &&
 		architecture != "codeshell" &&
 		architecture != "chameleon" &&
+		architecture != "chatglm" &&
 		architecture != "dream" &&
 		architecture != "deepseek" &&
 		architecture != "deci" &&
@@ -802,6 +803,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, errors.New("Qwen feed-forward length must be positive and even")
 		}
 		spec.FeedForwardLength /= 2
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+	}
+	if architecture == "chatglm" {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -1970,6 +1977,11 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("Qwen attention metadata is invalid")
 	}
+	if s.Architecture == "chatglm" &&
+		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength) {
+		return errors.New("ChatGLM attention metadata is invalid")
+	}
 	if s.Architecture == "glm4" &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0) {
@@ -2063,6 +2075,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "cohere2" ||
 		architecture == "command-r" ||
 		architecture == "chameleon" ||
+		architecture == "chatglm" ||
 		architecture == "granite" ||
 		architecture == "granitemoe" ||
 		architecture == "glm4" ||
@@ -2091,7 +2104,7 @@ func usesGateFreeFFN(architecture string) bool {
 }
 
 func usesFusedGateUp(architecture string) bool {
-	return architecture == "glm4" || architecture == "phi3"
+	return architecture == "chatglm" || architecture == "glm4" || architecture == "phi3"
 }
 
 func supportsLongRoPE(architecture string) bool {

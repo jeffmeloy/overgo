@@ -92,6 +92,38 @@ func TestReadSpecAcceptsLinearRoPEScaling(t *testing.T) {
 	}
 }
 
+func TestReadGemma2SpecDefaults(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gemma2"),
+		metadata("gemma2.block_count", gguf.ValueTypeUint32, uint32(26)),
+		metadata("gemma2.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("gemma2.embedding_length", gguf.ValueTypeUint32, uint32(2304)),
+		metadata("gemma2.feed_forward_length", gguf.ValueTypeUint32, uint32(9216)),
+		metadata("gemma2.attention.head_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gemma2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma2.attention.key_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("gemma2.attention.value_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("gemma2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("gemma2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("gemma2.attn_logit_softcapping", gguf.ValueTypeFloat32, float32(50)),
+		metadata("gemma2.final_logit_softcapping", gguf.ValueTypeFloat32, float32(30)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gemma2" ||
+		spec.RopeFrequencySWA != 10000 ||
+		spec.SlidingWindow != 4096 ||
+		spec.SlidingPattern != 2 ||
+		spec.AttentionSoftcap != 50 ||
+		spec.FinalLogitSoftcap != 30 ||
+		!spec.IsSlidingLayer(0) ||
+		spec.IsSlidingLayer(1) {
+		t.Fatalf("unexpected Gemma 2 spec: %+v", spec)
+	}
+}
+
 func TestReadQwen35Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen35"),

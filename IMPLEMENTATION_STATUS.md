@@ -15,9 +15,9 @@
 | CUDA driver loading | Complete | Direct `nvcuda.dll` calls, device inventory validated |
 | CUDA execution | In progress | Persistent resources, cuBLAS F32, native quantized embedding/matmul, and fused Qwen3.5 recurrent kernels validated on RTX 4090 |
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
-| Tensor graph | In progress | Typed IR, layout transforms, broadcasting, embeddings, scaled normal/NeoX RoPE, sliding/gated GQA, bidirectional T5 relative-position attention, GELU/SwiGLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
+| Tensor graph | In progress | Typed IR, layout transforms, broadcasting, embeddings, scaled normal/NeoX RoPE, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, GELU/SwiGLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen3, text-only hybrid Qwen3.5, Gemma 3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen3, text-only hybrid Qwen3.5, Gemma 2/3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Six tokenizer corpora match 280 upstream cases; BERT WordPiece and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -466,6 +466,13 @@
   relative delta). The pinned CPU server now provides raw generation IDs:
   for `Hello`, both runtimes produce generated IDs
   `[255999, 1018, 3689]`, yielding `Hello**What` after the prompt IDs.
+- Gemma 2 metadata and dense graphs are supported with the upstream defaults
+  for alternating 4096-token sliding attention, split-half NeoX RoPE,
+  embedding and query scaling, attention-logit and final-logit softcapping,
+  post-attention/post-FFN norms, and GEGLU. Attention softcapping has CPU/CUDA
+  differential coverage and kernel ABI v3 validation. The tensor catalog and
+  graph currently have synthetic coverage; real-model oracle validation is
+  pending a local Gemma 2 fixture.
 - The real UMT5 XXL encoder passes strict 24-layer T5 metadata and tensor
   catalog validation. Its SentencePiece UGM tokenizer produces
   `[23231, 3914, 332]` for `Hello world!`, exactly matching the pinned

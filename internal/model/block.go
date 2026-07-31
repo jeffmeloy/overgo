@@ -259,12 +259,19 @@ func BuildDenseBlockCachedForLayer(
 				key, positions, spec.KeyLength, spec.RopeFrequencyBase, frequencyScale,
 			)
 		}
-	} else if spec.Architecture == "gemma3" {
+	} else if isGemmaArchitecture(spec.Architecture) {
 		frequencyBase := spec.RopeFrequencyBase
-		frequencyScale := 1 / spec.RopeScalingFactor
+		frequencyScale := float32(1)
+		if spec.Architecture == "gemma3" {
+			frequencyScale = 1 / spec.RopeScalingFactor
+		} else if spec.RopeScalingType == "linear" {
+			frequencyScale = 1 / spec.RopeScalingFactor
+		}
 		if spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
-			frequencyScale = 1
+			if spec.Architecture == "gemma3" {
+				frequencyScale = 1
+			}
 		}
 		if weights.RopeFactors != nil {
 			query = builder.RoPENeoXScaledWithFactors(
@@ -315,21 +322,40 @@ func BuildDenseBlockCachedForLayer(
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-	if spec.Architecture == "gemma3" {
+	if isGemmaArchitecture(spec.Architecture) {
 		// Gemma scales Q before the attention dot product, rather than scaling
 		// the accumulated score. Preserve that ordering for quantized parity.
+		if spec.Architecture == "gemma2" && spec.BlockCount == 46 {
+			attentionScale = float32(1 / math.Sqrt(
+				float64(spec.EmbeddingLength)/float64(spec.HeadCount),
+			))
+		}
 		query = builder.Scale(query, attentionScale)
 		attentionScale = 1
 	}
 	var attention *tensor.Tensor
 	if spec.IsSlidingLayer(layerIndex) {
-		attention = builder.AttentionWindowWithOffset(
-			query, cacheKey, cacheValue, attentionScale, true, queryStart, spec.SlidingWindow,
-		)
+		if spec.AttentionSoftcap > 0 {
+			attention = builder.AttentionWindowSoftcappedWithOffset(
+				query, cacheKey, cacheValue, attentionScale, spec.AttentionSoftcap,
+				true, queryStart, spec.SlidingWindow,
+			)
+		} else {
+			attention = builder.AttentionWindowWithOffset(
+				query, cacheKey, cacheValue, attentionScale, true, queryStart, spec.SlidingWindow,
+			)
+		}
 	} else {
-		attention = builder.AttentionWithOffset(
-			query, cacheKey, cacheValue, attentionScale, true, queryStart,
-		)
+		if spec.AttentionSoftcap > 0 {
+			attention = builder.AttentionSoftcappedWithOffset(
+				query, cacheKey, cacheValue, attentionScale, spec.AttentionSoftcap,
+				true, queryStart,
+			)
+		} else {
+			attention = builder.AttentionWithOffset(
+				query, cacheKey, cacheValue, attentionScale, true, queryStart,
+			)
+		}
 	}
 	attention = builder.Reshape(
 		attention,
@@ -340,9 +366,9 @@ func BuildDenseBlockCachedForLayer(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
-	if spec.Architecture == "gemma3" {
+	if isGemmaArchitecture(spec.Architecture) {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
-			return DenseBlockResult{}, errors.New("Gemma 3 block requires post norm weights")
+			return DenseBlockResult{}, errors.New("Gemma block requires post norm weights")
 		}
 		attention = builder.WeightedRMSNorm(
 			attention, weights.AttentionPostNorm, spec.RMSNormEpsilon,
@@ -360,14 +386,14 @@ func BuildDenseBlockCachedForLayer(
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
 	activation := builder.SwiGLU(gate, up)
-	if spec.Architecture == "gemma3" {
+	if isGemmaArchitecture(spec.Architecture) {
 		activation = builder.GEGLU(gate, up)
 	}
 	feedForward := builder.MulMat(weights.FeedForwardDown, activation)
 	if weights.FeedForwardDownBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 	}
-	if spec.Architecture == "gemma3" {
+	if isGemmaArchitecture(spec.Architecture) {
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)

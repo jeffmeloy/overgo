@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+
+	cudaKernel "llamacpp2go/internal/cuda/kernel"
 )
 
 func TestPTXEntriesSorted(t *testing.T) {
@@ -48,9 +51,9 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	document := `{
+	document := fmt.Sprintf(`{
   "schema": 2,
-  "abiVersion": 2,
+  "abiVersion": %d,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -72,7 +75,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
       "functions": ["x"]
     }]
   }]
-}`
+}`, cudaKernel.BundleABIVersion)
 	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(manifestPath)), []byte(document), 0o644); err != nil {
 		t.Fatal(err)
 	}

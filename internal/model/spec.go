@@ -24,6 +24,7 @@ type Spec struct {
 	RopeFrequencySWA  float32
 	RopeScalingType   string
 	RopeScalingFactor float32
+	AttentionSoftcap  float32
 	FinalLogitSoftcap float32
 	RMSNormEpsilon    float32
 	VocabularySize    uint32
@@ -68,7 +69,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	if architecture != "llama" && architecture != "qwen3" &&
-		architecture != "qwen35" && architecture != "gemma3" &&
+		architecture != "qwen35" && architecture != "gemma2" &&
+		architecture != "gemma3" &&
 		architecture != "t5encoder" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
@@ -151,6 +153,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		prefix+"final_logit_softcapping",
 		gguf.ValueTypeFloat32,
 	)
+	spec.AttentionSoftcap, _ = optional[float32](
+		values,
+		prefix+"attn_logit_softcapping",
+		gguf.ValueTypeFloat32,
+	)
 	if architecture == "t5encoder" {
 		if spec.RelativeBuckets, err = required[uint32](
 			values,
@@ -223,8 +230,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "gemma3" {
-		spec.RopeFrequencySWA = 10000
+	if architecture == "gemma2" || architecture == "gemma3" {
+		spec.RopeFrequencySWA = spec.RopeFrequencyBase
+		if architecture == "gemma3" {
+			spec.RopeFrequencySWA = 10000
+		}
 		if value, ok := optional[float32](
 			values,
 			prefix+"rope.freq_base_swa",
@@ -232,13 +242,21 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok {
 			spec.RopeFrequencySWA = value
 		}
-		spec.SlidingWindow, _ = optional[uint32](
+		if architecture == "gemma2" {
+			spec.SlidingWindow = 4096
+		}
+		if value, ok := optional[uint32](
 			values,
 			prefix+"attention.sliding_window",
 			gguf.ValueTypeUint32,
-		)
+		); ok {
+			spec.SlidingWindow = value
+		}
 		if spec.SlidingWindow > 0 {
-			spec.SlidingPattern = 6
+			spec.SlidingPattern = 2
+			if architecture == "gemma3" {
+				spec.SlidingPattern = 6
+			}
 			if value, ok := optional[uint32](
 				values,
 				prefix+"attention.sliding_window_pattern",
@@ -276,7 +294,7 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
-	return s.Architecture == "gemma3" &&
+	return isGemmaArchitecture(s.Architecture) &&
 		block < s.BlockCount &&
 		s.SlidingWindow > 0 &&
 		s.SlidingPattern > 0 &&
@@ -350,6 +368,14 @@ func (s Spec) validate() error {
 			return errors.New("Gemma 3 sliding attention pattern must be at least 2")
 		}
 	}
+	if s.Architecture == "gemma2" {
+		switch {
+		case s.RopeFrequencySWA <= 0:
+			return errors.New("Gemma 2 sliding RoPE frequency base must be positive")
+		case s.SlidingWindow > 0 && s.SlidingPattern < 2:
+			return errors.New("Gemma 2 sliding attention pattern must be at least 2")
+		}
+	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
@@ -358,7 +384,16 @@ func (s Spec) validate() error {
 		math.IsInf(float64(s.FinalLogitSoftcap), 0) {
 		return errors.New("final logit softcap must be finite and non-negative")
 	}
+	if s.AttentionSoftcap < 0 ||
+		math.IsNaN(float64(s.AttentionSoftcap)) ||
+		math.IsInf(float64(s.AttentionSoftcap), 0) {
+		return errors.New("attention logit softcap must be finite and non-negative")
+	}
 	return nil
+}
+
+func isGemmaArchitecture(architecture string) bool {
+	return architecture == "gemma2" || architecture == "gemma3"
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

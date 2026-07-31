@@ -763,6 +763,10 @@ func attention(
 					)
 					score += float64(bias.Data[bucket*queryHeads+queryHead])
 				}
+				if attributes.Softcap > 0 {
+					cap := float64(attributes.Softcap)
+					score = cap * math.Tanh(score/cap)
+				}
 				scores[keyToken] = score
 				if score > maximum {
 					maximum = score

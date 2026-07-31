@@ -574,6 +574,7 @@ extern "C" __global__ void attention_f32(
         unsigned int query_tokens,
         unsigned int key_value_tokens,
         float scale,
+        float softcap,
         unsigned int causal,
         unsigned int query_start,
         unsigned int window,
@@ -623,6 +624,9 @@ extern "C" __global__ void attention_f32(
             }
             score += relative_bias[bucket * query_heads + query_head];
         }
+        if (softcap > 0.0f) {
+            score = softcap * tanhf(score / softcap);
+        }
         maximum = fmaxf(maximum, score);
     }
 
@@ -652,6 +656,9 @@ extern "C" __global__ void attention_f32(
                 bucket += large < half ? large : half - 1;
             }
             score += relative_bias[bucket * query_heads + query_head];
+        }
+        if (softcap > 0.0f) {
+            score = softcap * tanhf(score / softcap);
         }
         const float probability = expf(score - maximum);
         const unsigned int value_offset =

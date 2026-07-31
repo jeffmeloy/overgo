@@ -421,6 +421,31 @@ func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	}
 }
 
+func TestExecuteSoftcappedAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
+	output := builder.AttentionSoftcappedWithOffset(query, key, value, 1, 2, false, 0)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: query.Shape, Data: []float32{1}},
+		key:   {Shape: key.Shape, Data: []float32{10, -10}},
+		value: {Shape: value.Shape, Data: []float32{1, 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	capped := 2 * math.Tanh(5)
+	want := float32((math.Exp(capped) + 3*math.Exp(-capped)) /
+		(math.Exp(capped) + math.Exp(-capped)))
+	if difference := math.Abs(float64(results[output].Data[0] - want)); difference > 1e-6 {
+		t.Fatalf("softcapped attention = %v, want %v", results[output].Data[0], want)
+	}
+}
+
 func TestExecuteCachedAttentionAndConcat(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 1))

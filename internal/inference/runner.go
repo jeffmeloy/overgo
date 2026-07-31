@@ -571,7 +571,7 @@ func (r *Runner) forwardCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if r.spec.Architecture == "gemma3" {
+	if r.spec.Architecture == "gemma2" || r.spec.Architecture == "gemma3" {
 		scale := float32(math.Sqrt(float64(r.spec.EmbeddingLength)))
 		for index := range activation.Data {
 			activation.Data[index] *= scale

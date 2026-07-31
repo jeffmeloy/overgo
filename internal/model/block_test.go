@@ -164,6 +164,68 @@ func TestBuildDenseLlamaBlockUsesLinearRoPEScale(t *testing.T) {
 	}
 }
 
+func TestBuildDenseGemma2BlockUsesSoftcappedSlidingAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "gemma2",
+		BlockCount:        26,
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		RopeFrequencySWA:  10000,
+		RopeScalingType:   "linear",
+		RopeScalingFactor: 4,
+		AttentionSoftcap:  50,
+		RMSNormEpsilon:    1e-6,
+		SlidingWindow:     4096,
+		SlidingPattern:    2,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	weights.AttentionPostNorm = builder.Input(
+		"post_attention_norm", dtype.F32, tensor.MustShape(8),
+	)
+	weights.FeedForwardPostNorm = builder.Input(
+		"post_ffw_norm", dtype.F32, tensor.MustShape(8),
+	)
+	output, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attentionCount, neoxCount int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attentionCount++
+			attributes := node.Attrs.(tensor.AttentionAttributes)
+			if attributes.Softcap != 50 || attributes.Window != 4096 || attributes.Scale != 1 {
+				t.Fatalf("unexpected Gemma 2 attention attributes: %+v", attributes)
+			}
+		case tensor.OpRoPENeoX:
+			neoxCount++
+			attributes := node.Attrs.(tensor.RoPEAttributes)
+			if attributes.FrequencyScale != 0.25 {
+				t.Fatalf("Gemma 2 sliding RoPE scale = %v, want 0.25", attributes.FrequencyScale)
+			}
+		}
+	}
+	if attentionCount != 1 || neoxCount != 2 {
+		t.Fatalf("Gemma 2 graph has attention=%d NeoX RoPE=%d, want 1/2", attentionCount, neoxCount)
+	}
+}
+
 func TestBuildDenseBlockConsumesProjectionBiases(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

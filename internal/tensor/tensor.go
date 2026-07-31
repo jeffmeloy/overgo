@@ -106,6 +106,7 @@ type RoPEMultiAttributes struct {
 
 type AttentionAttributes struct {
 	Scale           float32
+	Softcap         float32
 	Causal          bool
 	QueryStart      uint32
 	Window          uint32
@@ -752,7 +753,20 @@ func (b *Builder) AttentionWithOffset(
 	causal bool,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, nil, scale, causal, queryStart, 0)
+	return b.attentionWithWindow(query, key, value, nil, scale, 0, causal, queryStart, 0)
+}
+
+// AttentionSoftcappedWithOffset applies cap*tanh(score/cap) before softmax.
+func (b *Builder) AttentionSoftcappedWithOffset(
+	query, key, value *Tensor,
+	scale float32,
+	softcap float32,
+	causal bool,
+	queryStart uint32,
+) *Tensor {
+	return b.attentionWithWindow(
+		query, key, value, nil, scale, softcap, causal, queryStart, 0,
+	)
 }
 
 // AttentionWithRelativeBias computes full bidirectional attention and adds
@@ -761,7 +775,7 @@ func (b *Builder) AttentionWithRelativeBias(
 	query, key, value, bias *Tensor,
 	scale float32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, bias, scale, false, 0, 0)
+	return b.attentionWithWindow(query, key, value, bias, scale, 0, false, 0, 0)
 }
 
 func (b *Builder) AttentionWindowWithOffset(
@@ -775,12 +789,30 @@ func (b *Builder) AttentionWindowWithOffset(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, scale, causal, queryStart, window)
+	return b.attentionWithWindow(query, key, value, nil, scale, 0, causal, queryStart, window)
+}
+
+func (b *Builder) AttentionWindowSoftcappedWithOffset(
+	query, key, value *Tensor,
+	scale float32,
+	softcap float32,
+	causal bool,
+	queryStart uint32,
+	window uint32,
+) *Tensor {
+	if window == 0 {
+		b.setError(errors.New("attention window must be positive"))
+		return nil
+	}
+	return b.attentionWithWindow(
+		query, key, value, nil, scale, softcap, causal, queryStart, window,
+	)
 }
 
 func (b *Builder) attentionWithWindow(
 	query, key, value, bias *Tensor,
 	scale float32,
+	softcap float32,
 	causal bool,
 	queryStart uint32,
 	window uint32,
@@ -830,6 +862,11 @@ func (b *Builder) attentionWithWindow(
 		b.setError(errors.New("attention scale must be positive"))
 		return nil
 	}
+	if softcap < 0 || math.IsNaN(float64(softcap)) ||
+		math.IsInf(float64(softcap), 0) {
+		b.setError(errors.New("attention softcap must be finite and non-negative"))
+		return nil
+	}
 	var relativeBuckets uint32
 	if bias != nil {
 		if causal || queryStart != 0 || window != 0 {
@@ -861,7 +898,8 @@ func (b *Builder) attentionWithWindow(
 		OpAttention,
 		inputs,
 		AttentionAttributes{
-			Scale: scale, Causal: causal, QueryStart: queryStart, Window: window,
+			Scale: scale, Softcap: softcap, Causal: causal,
+			QueryStart: queryStart, Window: window,
 			RelativeBuckets: relativeBuckets,
 		},
 	)

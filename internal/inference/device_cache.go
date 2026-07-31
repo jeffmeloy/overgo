@@ -307,7 +307,7 @@ func (r *Runner) forwardDeviceCachedLocked(
 	current := builder.GetRows(embeddingTable, rows)
 	hostFeeds := map[*tensor.Tensor]reference.Value{}
 	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{embeddingTable: embeddingPointer}
-	if r.spec.Architecture == "gemma3" {
+	if r.spec.Architecture == "gemma2" || r.spec.Architecture == "gemma3" {
 		current = builder.Scale(current, float32(math.Sqrt(float64(r.spec.EmbeddingLength))))
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))

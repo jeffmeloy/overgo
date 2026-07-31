@@ -815,19 +815,30 @@ func repeatHeads(shape tensor.Shape, input Value) Value {
 }
 
 func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (Value, error) {
-	if len(inputs) != 5 && len(inputs) != 6 {
-		return Value{}, errors.New("MoE requires five inputs and an optional selection bias")
+	wantInputs := 4
+	if attributes.Gated {
+		wantInputs = 5
 	}
-	input, router, gate, up, down := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+	if len(inputs) != wantInputs && len(inputs) != wantInputs+1 {
+		return Value{}, errors.New("MoE input count is invalid")
+	}
+	input, router := inputs[0], inputs[1]
+	var gate Value
+	next := 2
+	if attributes.Gated {
+		gate = inputs[next]
+		next++
+	}
+	up, down := inputs[next], inputs[next+1]
 	var selectionBias []float32
-	if len(inputs) == 6 {
-		selectionBias = inputs[5].Data
+	if len(inputs) == wantInputs+1 {
+		selectionBias = inputs[wantInputs].Data
 	}
 	hidden := int(input.Shape.Dims[0])
 	tokens := int(input.Shape.Dims[1])
 	experts := int(attributes.Experts)
 	topK := int(attributes.TopK)
-	intermediate := int(gate.Shape.Dims[1])
+	intermediate := int(up.Shape.Dims[1])
 	if hidden <= 0 || tokens <= 0 || experts <= 0 || topK <= 0 || topK > experts {
 		return Value{}, errors.New("invalid MoE dimensions")
 	}
@@ -899,10 +910,15 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 					base := (expert*intermediate + inner) * hidden
 					var gateDot, upDot float64
 					for channel := 0; channel < hidden; channel++ {
-						gateDot += float64(x[channel]) * float64(gate.Data[base+channel])
+						if attributes.Gated {
+							gateDot += float64(x[channel]) * float64(gate.Data[base+channel])
+						}
 						upDot += float64(x[channel]) * float64(up.Data[base+channel])
 					}
-					activation := gateDot / (1 + math.Exp(-gateDot)) * upDot
+					activation := upDot / (1 + math.Exp(-upDot))
+					if attributes.Gated {
+						activation = gateDot / (1 + math.Exp(-gateDot)) * upDot
+					}
 					downIndex := (expert*hidden+outputChannel)*intermediate + inner
 					expertOutput += activation * float64(down.Data[downIndex])
 				}

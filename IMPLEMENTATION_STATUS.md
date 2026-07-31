@@ -15,9 +15,9 @@
 | CUDA driver loading | Complete | Direct `nvcuda.dll` calls, device inventory validated |
 | CUDA execution | In progress | Persistent resources, cuBLAS F32, native quantized embedding/matmul/routed-expert decode, fused Qwen3.5 recurrent kernels, and correctness-first routed MoE validated on RTX 4090 |
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
-| Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, RMSNorm/affine LayerNorm, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, ALiBi, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, MLA decomposition, softmax/sigmoid top-k routed SwiGLU MoE with correction bias, GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
+| Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, RMSNorm/affine LayerNorm, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, ALiBi, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, MLA decomposition, softmax/sigmoid top-k routed gated or ungated SiLU MoE with correction bias, GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, DeepSeek v1, Qwen2-MoE, Qwen3-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3.5, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM MLA, Chameleon decoders with projected soft-token overrides, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Phi-2/Phi-3, PLaMo, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, DeepSeek v1, GraniteMoE, Qwen2-MoE, Qwen3-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3.5, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM MLA, Chameleon decoders with projected soft-token overrides, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Phi-2/Phi-3, PLaMo, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Seven tokenizer corpora match 326 upstream cases; BERT WordPiece and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -509,10 +509,12 @@
   and retained-device inference. Standard and linear-scaled normal RoPE are
   supported; LongRoPE variants remain pending. Real-model validation is pending
   a local fixture.
-- Dense text-only Granite decoders support metadata-driven embedding,
-  residual-branch, attention, and inverse-logit scales, plus Granite's optional
-  no-RoPE mode. Expert, vision deepstack, and LongRoPE variants are rejected
-  explicitly. Real-model validation is pending a local fixture.
+- Text-only Granite and GraniteMoE decoders support metadata-driven embedding,
+  residual-branch, attention, and inverse-logit scales, optional no-RoPE mode,
+  and LongRoPE short/long factor selection. GraniteMoE adds normalized softmax
+  top-k gated or ungated SiLU experts plus an optional shared SwiGLU expert.
+  Vision deepstack remains rejected explicitly. Real-model validation is
+  pending a local fixture.
 - Maincoder dense decoders support normal consecutive-pair RoPE followed by
   per-head Q/K RMSNorm, preserving the upstream operation order, with the
   standard tied-output RMSNorm/SwiGLU catalog. Real-model validation is pending
@@ -853,6 +855,14 @@ The complete 46-case upstream tokenizer oracle, metadata, strict mixed-layer
 catalog, graph semantics, and reference/CUDA block differential pass. The local
 fixture inventory contains only tokenizer data, so real-model logit validation
 remains pending-fixture.
+
+GraniteMoE now loads normalized softmax top-k packed experts with either gated
+SwiGLU or ungated SiLU activation, plus its optional shared SwiGLU expert. It
+inherits Granite's embedding, residual, attention, inverse-logit, no-RoPE, and
+LongRoPE behavior. Metadata, strict catalog, graph semantics, primitive
+reference coverage, and complete reference/CUDA block differential tests pass.
+Real-model validation remains pending because no GraniteMoE GGUF is available
+locally.
 
 BailingMoE2 adds fused QKV projection, per-head Q/K RMSNorm, NeoX RoPE, leading
 dense SwiGLU blocks, optional selection correction bias, metadata-selected

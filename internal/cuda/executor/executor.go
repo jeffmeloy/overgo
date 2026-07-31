@@ -1222,7 +1222,11 @@ func launchNode(
 		return err
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
-		if !ok || (len(node.Inputs) != 5 && len(node.Inputs) != 6) ||
+		wantInputs := 4
+		if attributes.Gated {
+			wantInputs = 5
+		}
+		if !ok || (len(node.Inputs) != wantInputs && len(node.Inputs) != wantInputs+1) ||
 			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid) {
 			return errors.New("invalid MoE attributes")
 		}
@@ -1238,29 +1242,35 @@ func launchNode(
 		if err != nil {
 			return err
 		}
-		intermediate, err := uint32Checked(node.Inputs[2].Shape.Dims[1], "MoE intermediate width")
+		next := 2
+		var gate driver.DevicePtr
+		if attributes.Gated {
+			gate = pointers[node.Inputs[next]]
+			next++
+		}
+		upNode, downNode := node.Inputs[next], node.Inputs[next+1]
+		intermediate, err := uint32Checked(upNode.Shape.Dims[1], "MoE intermediate width")
 		if err != nil {
 			return err
 		}
 		input := pointers[node.Inputs[0]]
 		router := pointers[node.Inputs[1]]
-		gate := pointers[node.Inputs[2]]
-		up := pointers[node.Inputs[3]]
-		down := pointers[node.Inputs[4]]
-		if node.Inputs[2].Type != node.Inputs[3].Type || node.Inputs[2].Type != node.Inputs[4].Type {
+		up := pointers[upNode]
+		down := pointers[downNode]
+		if upNode.Type != downNode.Type || attributes.Gated && node.Inputs[2].Type != upNode.Type {
 			return errors.New("MoE expert storage types differ")
 		}
 		var expertStorage uint32
-		if node.Inputs[2].Type == dtype.F32 {
+		if upNode.Type == dtype.F32 {
 			expertStorage = uint32(dtype.F32)
-		} else if nativeQuantizedType(node.Inputs[2].Type) {
-			expertStorage = uint32(node.Inputs[2].Type)
+		} else if nativeQuantizedType(upNode.Type) {
+			expertStorage = uint32(upNode.Type)
 		} else {
-			return fmt.Errorf("MoE expert storage type %s is unsupported", node.Inputs[2].Type)
+			return fmt.Errorf("MoE expert storage type %s is unsupported", upNode.Type)
 		}
 		var selectionBias driver.DevicePtr
-		if len(node.Inputs) == 6 {
-			selectionBias = pointers[node.Inputs[5]]
+		if len(node.Inputs) == wantInputs+1 {
+			selectionBias = pointers[node.Inputs[wantInputs]]
 		}
 		experts := attributes.Experts
 		topK := attributes.TopK
@@ -1270,12 +1280,17 @@ func launchNode(
 		}
 		scale := attributes.Scale
 		routing := uint32(attributes.Routing)
+		var gated uint32
+		if attributes.Gated {
+			gated = 1
+		}
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&input), unsafe.Pointer(&router), unsafe.Pointer(&gate),
 			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&output),
 			unsafe.Pointer(&hidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
 			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
+			unsafe.Pointer(&gated),
 			unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.moe, count, args)

@@ -729,6 +729,7 @@ extern "C" __global__ void moe_f32(
 		unsigned int routing,
         float routed_scale,
 		unsigned int expert_storage,
+		unsigned int gated,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
@@ -799,12 +800,14 @@ extern "C" __global__ void moe_f32(
             float gate_dot = 0.0f;
             float up_dot = 0.0f;
             for (unsigned int channel = 0; channel < hidden; ++channel) {
-				gate_dot += x[channel] * moe_expert_value(
+				if (gated) gate_dot += x[channel] * moe_expert_value(
 					gate, weight_offset + channel, expert_storage);
 				up_dot += x[channel] * moe_expert_value(
 					up, weight_offset + channel, expert_storage);
             }
-            const float activation = gate_dot / (1.0f + expf(-gate_dot)) * up_dot;
+			const float activation = gated
+				? gate_dot / (1.0f + expf(-gate_dot)) * up_dot
+				: up_dot / (1.0f + expf(-up_dot));
             const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + inner;
 			expert_output += activation * moe_expert_value(
 				down, down_offset, expert_storage);

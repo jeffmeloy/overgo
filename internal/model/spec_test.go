@@ -1256,6 +1256,56 @@ func TestReadGraniteDenseSpec(t *testing.T) {
 	}
 }
 
+func TestReadGraniteLongRoPESpec(t *testing.T) {
+	file := &gguf.File{Metadata: append(graniteMetadata(),
+		metadata("granite.rope.scaling.type", gguf.ValueTypeString, "longrope"),
+		metadata("granite.rope.dimension_count", gguf.ValueTypeUint32, uint32(128)),
+		metadata("granite.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(2048)),
+	)}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.RopeScalingType != "longrope" || spec.RopeDimensionCount != 128 ||
+		spec.OriginalContextLength != 2048 || !supportsLongRoPE(spec.Architecture) {
+		t.Fatalf("unexpected Granite LongRoPE spec: %+v", spec)
+	}
+}
+
+func TestReadGraniteMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "granitemoe"),
+		metadata("granitemoe.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granitemoe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("granitemoe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("granitemoe.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("granitemoe.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("granitemoe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granitemoe.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(5)),
+		metadata("granitemoe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granitemoe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("granitemoe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("granitemoe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("granitemoe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("granitemoe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("granitemoe.logit_scale", gguf.ValueTypeFloat32, float32(8)),
+		metadata("granitemoe.embedding_scale", gguf.ValueTypeFloat32, float32(2)),
+		metadata("granitemoe.residual_scale", gguf.ValueTypeFloat32, float32(0.5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "granitemoe" || spec.ExpertCount != 8 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+		spec.SharedExpertFF != 5 || !spec.ExpertWeightsNorm ||
+		spec.ExpertWeightsScale != 1 || spec.EmbeddingScale != 2 ||
+		spec.ResidualScale != 0.5 || spec.OutputLogitMultiplier() != 0.125 ||
+		!usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected GraniteMoE spec: %+v", spec)
+	}
+}
+
 func TestReadGraniteRejectsNonDenseVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("granite.expert_count", gguf.ValueTypeUint32, uint32(8)),

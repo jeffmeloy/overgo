@@ -135,6 +135,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "smollm3" &&
 		architecture != "minicpm" &&
 		architecture != "granite" &&
+		architecture != "granitemoe" &&
 		architecture != "glm4" &&
 		architecture != "gpt2" &&
 		architecture != "gptneox" &&
@@ -427,7 +428,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.LogitScale = value
 		}
 	}
-	if architecture == "granite" {
+	if architecture == "granite" || architecture == "granitemoe" {
 		if spec.LogitScale, err = required[float32](
 			values,
 			prefix+"logit_scale",
@@ -445,6 +446,27 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			prefix+"residual_scale",
 			gguf.ValueTypeFloat32,
 		)
+		spec.RopeDimensionCount = spec.KeyLength
+		spec.RopeDimensionCount, _ = optional[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		)
+		if spec.RopeDimensionCount == 0 {
+			spec.RopeDimensionCount = spec.KeyLength
+		}
+		spec.OriginalContextLength = spec.ContextLength
+		spec.OriginalContextLength, _ = optional[uint32](
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
+		)
+		if spec.OriginalContextLength == 0 {
+			spec.OriginalContextLength = spec.ContextLength
+		}
+		spec.RopeAttentionFactor = 1
+		spec.RopeAttentionFactor, _ = optional[float32](
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
+		)
+		if spec.RopeAttentionFactor == 0 {
+			spec.RopeAttentionFactor = 1
+		}
 		ropeEnabled := true
 		if value, ok := optional[bool](
 			values,
@@ -454,12 +476,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			ropeEnabled = value
 		}
 		spec.RopeDisabled = !ropeEnabled
-		if expertCount, ok := optional[uint32](
-			values,
-			prefix+"expert_count",
-			gguf.ValueTypeUint32,
-		); ok && expertCount > 0 {
-			return Spec{}, errors.New("Granite expert layers are not supported")
+		if architecture == "granite" {
+			if expertCount, ok := optional[uint32](
+				values,
+				prefix+"expert_count",
+				gguf.ValueTypeUint32,
+			); ok && expertCount > 0 {
+				return Spec{}, errors.New("Granite expert layers are not supported")
+			}
 		}
 		if mapping, ok, mappingErr := optionalArray[int32](
 			values,
@@ -795,7 +819,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -824,6 +848,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok {
 			spec.ExpertWeightsScale = value
 		}
+	}
+	if architecture == "granitemoe" {
+		spec.ExpertFeedForward = spec.FeedForwardLength
+		spec.ExpertWeightsNorm = true
+		spec.SharedExpertFF, _ = optional[uint32](
+			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
+		)
 	}
 	if architecture == "bailingmoe" {
 		if spec.ExpertFeedForward, err = required[uint32](
@@ -1313,6 +1344,20 @@ func (s Spec) validate() error {
 			return errors.New("DeepSeek expert weight scale is invalid")
 		}
 	}
+	if s.Architecture == "granitemoe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("GraniteMoE expert metadata is invalid")
+	}
+	if (s.Architecture == "granite" || s.Architecture == "granitemoe") &&
+		s.RopeScalingType == "longrope" &&
+		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
+			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
+			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
+		return errors.New("Granite LongRoPE metadata is invalid")
+	}
 	if s.Architecture == "bailingmoe2" {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
@@ -1623,7 +1668,7 @@ func (s Spec) validate() error {
 	if s.LogitScale < 0 ||
 		math.IsNaN(float64(s.LogitScale)) ||
 		math.IsInf(float64(s.LogitScale), 0) ||
-		((s.Architecture == "minicpm" || s.Architecture == "granite") &&
+		((s.Architecture == "minicpm" || s.Architecture == "granite" || s.Architecture == "granitemoe") &&
 			s.LogitScale == 0) {
 		return errors.New("logit scale must be finite and positive when required")
 	}
@@ -1661,6 +1706,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "command-r" ||
 		architecture == "chameleon" ||
 		architecture == "granite" ||
+		architecture == "granitemoe" ||
 		architecture == "glm4" ||
 		architecture == "minicpm" ||
 		architecture == "olmo" ||
@@ -1691,7 +1737,8 @@ func usesFusedGateUp(architecture string) bool {
 }
 
 func supportsLongRoPE(architecture string) bool {
-	return architecture == "apertus" || architecture == "phi3" || architecture == "phimoe"
+	return architecture == "apertus" || architecture == "granite" || architecture == "granitemoe" ||
+		architecture == "phi3" || architecture == "phimoe"
 }
 
 func usesGELU(architecture string) bool {

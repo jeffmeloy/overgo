@@ -146,6 +146,7 @@ type MoEAttributes struct {
 	NormalizeTopKProb bool
 	Scale             float32
 	Routing           MoERouting
+	Gated             bool
 }
 
 type MoERouting uint32
@@ -399,6 +400,15 @@ func (b *Builder) MoE(
 	return b.moe(input, router, gate, up, down, nil, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
 }
 
+func (b *Builder) MoEUngated(
+	input, router, up, down *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, router, nil, up, down, nil, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
+}
+
 // MoESoftmaxWithSelectionBias: applies softmax routing and uses selectionBias
 // only to choose top-k experts; unbiased probabilities weight
 // selected expert outputs
@@ -432,7 +442,7 @@ func (b *Builder) moe(
 	if b.err != nil {
 		return nil
 	}
-	if input == nil || router == nil || gate == nil || up == nil || down == nil {
+	if input == nil || router == nil || up == nil || down == nil {
 		b.setError(errors.New("MoE input is nil"))
 		return nil
 	}
@@ -440,42 +450,51 @@ func (b *Builder) moe(
 		b.setError(errors.New("MoE input and router must be F32"))
 		return nil
 	}
-	if gate.Type != up.Type || gate.Type != down.Type ||
-		(gate.Type != dtype.F32 && !nativeQuantizedType(gate.Type)) {
+	expertType := up.Type
+	if up.Type != down.Type || gate != nil && gate.Type != up.Type ||
+		(expertType != dtype.F32 && !nativeQuantizedType(expertType)) {
 		b.setError(errors.New("MoE experts must share F32 or native quantized storage"))
 		return nil
 	}
-	if input.Shape.Rank != 2 || router.Shape.Rank != 2 || gate.Shape.Rank != 3 ||
-		up.Shape.Rank != 3 || down.Shape.Rank != 3 {
+	if input.Shape.Rank != 2 || router.Shape.Rank != 2 ||
+		gate != nil && gate.Shape.Rank != 3 || up.Shape.Rank != 3 || down.Shape.Rank != 3 {
 		b.setError(errors.New("MoE input ranks are invalid"))
 		return nil
 	}
 	hidden := input.Shape.Dims[0]
 	experts := router.Shape.Dims[1]
-	intermediate := gate.Shape.Dims[1]
+	intermediate := up.Shape.Dims[1]
 	if hidden == 0 || experts == 0 || experts > math.MaxUint32 || topK == 0 ||
 		uint64(topK) > experts || topK > 16 || scale == 0 ||
 		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) ||
-		router.Shape.Dims[0] != hidden || gate.Shape.Dims[0] != hidden ||
-		up.Shape.Dims[0] != hidden || up.Shape.Dims[1] != intermediate ||
-		gate.Shape.Dims[2] != experts || up.Shape.Dims[2] != experts ||
+		router.Shape.Dims[0] != hidden || up.Shape.Dims[0] != hidden ||
+		up.Shape.Dims[2] != experts ||
 		down.Shape.Dims[0] != intermediate || down.Shape.Dims[1] != hidden ||
 		down.Shape.Dims[2] != experts {
 		b.setError(errors.New("MoE dimensions or routing attributes are invalid"))
+		return nil
+	}
+	if gate != nil && (gate.Shape.Dims[0] != hidden || gate.Shape.Dims[1] != intermediate ||
+		gate.Shape.Dims[2] != experts) {
+		b.setError(errors.New("MoE gate dimensions are invalid"))
 		return nil
 	}
 	if routing != MoERoutingSoftmax && routing != MoERoutingSigmoid {
 		b.setError(errors.New("MoE routing function is invalid"))
 		return nil
 	}
-	if nativeQuantizedType(gate.Type) {
-		traits, _ := gate.Type.Traits()
+	if nativeQuantizedType(expertType) {
+		traits, _ := expertType.Traits()
 		if hidden%traits.BlockSize != 0 || intermediate%traits.BlockSize != 0 {
-			b.setError(fmt.Errorf("%s MoE hidden and intermediate widths must be block aligned", gate.Type))
+			b.setError(fmt.Errorf("%s MoE hidden and intermediate widths must be block aligned", expertType))
 			return nil
 		}
 	}
-	inputs := []*Tensor{input, router, gate, up, down}
+	inputs := []*Tensor{input, router}
+	if gate != nil {
+		inputs = append(inputs, gate)
+	}
+	inputs = append(inputs, up, down)
 	if selectionBias != nil {
 		if selectionBias.Type != dtype.F32 || selectionBias.Shape.Rank != 1 ||
 			selectionBias.Shape.Dims[0] != experts {
@@ -487,7 +506,7 @@ func (b *Builder) moe(
 	return b.add("", dtype.F32, input.Shape, OpMoE,
 		inputs, MoEAttributes{
 			Experts: uint32(experts), TopK: topK,
-			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing,
+			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing, Gated: gate != nil,
 		})
 }
 

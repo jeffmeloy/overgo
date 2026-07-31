@@ -906,23 +906,20 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "llada-moe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "lfm2moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
-			for name, shapeAndDestination := range map[string]struct {
+			expertTensors := map[string]struct {
 				shape       []uint64
 				destination **gguf.TensorInfo
 			}{
 				"ffn_gate_inp.weight": {
 					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)},
 					&layer.FeedForwardRouter,
-				},
-				"ffn_gate_exps.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)},
-					&layer.FeedForwardGateExperts,
 				},
 				"ffn_up_exps.weight": {
 					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)},
@@ -932,12 +929,47 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)},
 					&layer.FeedForwardDownExperts,
 				},
-			} {
+			}
+			if spec.Architecture != "granitemoe" {
+				expertTensors["ffn_gate_exps.weight"] = struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)},
+					&layer.FeedForwardGateExperts,
+				}
+			}
+			for name, shapeAndDestination := range expertTensors {
 				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
 				if itemErr != nil {
 					return Weights{}, itemErr
 				}
 				*shapeAndDestination.destination = &item
+			}
+			if spec.Architecture == "granitemoe" {
+				if item, ok := tensors[prefix+"ffn_gate_exps.weight"]; ok {
+					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
+						item.Shape[1] != uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+					}
+					layer.FeedForwardGateExperts = &item
+				}
+				if spec.SharedExpertFF > 0 {
+					for name, shapeAndDestination := range map[string]struct {
+						shape       []uint64
+						destination **gguf.TensorInfo
+					}{
+						"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+						"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+						"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+					} {
+						item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+						if itemErr != nil {
+							return Weights{}, itemErr
+						}
+						*shapeAndDestination.destination = &item
+					}
+				}
 			}
 			if spec.Architecture == "laguna" || spec.Architecture == "afmoe" {
 				shared := map[string]struct {

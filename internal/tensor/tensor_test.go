@@ -183,6 +183,32 @@ func TestBuilderSoftmaxMoEWithSelectionBias(t *testing.T) {
 	}
 }
 
+func TestBuilderUngatedMoE(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, MustShape(2, 3))
+	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
+	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
+	output := builder.MoEUngated(input, router, up, down, 2, true, 1.5)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(MoEAttributes)
+	if attributes.Gated || attributes.Routing != MoERoutingSoftmax || len(output.Inputs) != 4 {
+		t.Fatalf("unexpected ungated MoE graph: %+v", output)
+	}
+
+	quantized := NewBuilder()
+	quantizedInput := quantized.Input("input", dtype.F32, MustShape(32, 1))
+	quantizedRouter := quantized.Input("router", dtype.F32, MustShape(32, 3))
+	quantizedUp := quantized.Input("up", dtype.Q8_0, MustShape(32, 32, 3))
+	quantizedDown := quantized.Input("down", dtype.Q8_0, MustShape(32, 32, 3))
+	quantized.MoEUngated(quantizedInput, quantizedRouter, quantizedUp, quantizedDown, 2, true, 1)
+	if err := quantized.Err(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBuilderQ8MoE(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(32, 1))

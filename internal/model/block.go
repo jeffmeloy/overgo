@@ -460,6 +460,7 @@ func BuildDenseBlockCachedForLayer(
 	isBailingMoE := spec.Architecture == "bailingmoe"
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
 	isDeepSeek := spec.Architecture == "deepseek"
+	isGraniteMoE := spec.Architecture == "granitemoe"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
@@ -476,11 +477,13 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isGraniteMoE && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
-		required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+		if !isGraniteMoE || weights.FeedForwardGateExperts != nil {
+			required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+		}
 		required["feed-forward expert up"] = weights.FeedForwardUpExperts
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
 		if isLaguna || isAFMoE {
@@ -503,6 +506,11 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
 		if isBailingMoE || isDeepSeek {
+			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+			required["feed-forward shared up"] = weights.FeedForwardSharedUp
+			required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		}
+		if isGraniteMoE && spec.SharedExpertFF > 0 {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
@@ -835,7 +843,7 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	}
-	if supportsLongRoPE(spec.Architecture) && spec.RopeAttentionFactor != 1 {
+	if supportsLongRoPE(spec.Architecture) && spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
 		query = builder.Scale(query, spec.RopeAttentionFactor)
 		key = builder.Scale(key, spec.RopeAttentionFactor)
 	}
@@ -1058,6 +1066,29 @@ func BuildDenseBlockCachedForLayer(
 				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
 			)
 			feedForward = builder.Add(feedForward, shared)
+		} else if isGraniteMoE {
+			if weights.FeedForwardGateExperts == nil {
+				feedForward = builder.MoEUngated(
+					normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
+					spec.ExpertWeightsScale,
+				)
+			} else {
+				feedForward = builder.MoE(
+					normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
+					spec.ExpertWeightsScale,
+				)
+			}
+			if spec.SharedExpertFF > 0 {
+				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+				shared := builder.MulMat(
+					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+				)
+				feedForward = builder.Add(feedForward, shared)
+			}
 		} else if isLLaDAMoE {
 			feedForward = builder.MoE(
 				normalized, weights.FeedForwardRouter,
@@ -1095,6 +1126,9 @@ func BuildDenseBlockCachedForLayer(
 				true,
 				spec.ExpertWeightsScale,
 			)
+		}
+		if isGraniteMoE && spec.ResidualScale > 0 {
+			feedForward = builder.Scale(feedForward, spec.ResidualScale)
 		}
 		output := builder.Add(residual, feedForward)
 		if err := builder.Err(); err != nil {

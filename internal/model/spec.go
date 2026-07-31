@@ -27,6 +27,7 @@ type Spec struct {
 	RopeAttentionFactor   float32
 	OriginalContextLength uint32
 	AttentionScale        float32
+	AttentionClamp        float32
 	MaxALiBiBias          float32
 	EmbeddingScale        float32
 	ResidualScale         float32
@@ -119,6 +120,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "chameleon" &&
 		architecture != "dream" &&
 		architecture != "deepseek" &&
+		architecture != "dbrx" &&
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
@@ -360,6 +362,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32,
 		); ok && clamp != 0 {
 			return Spec{}, errors.New("MPT attention QKV clamping is not supported")
+		}
+	}
+	if architecture == "dbrx" {
+		if spec.AttentionClamp, err = required[float32](
+			values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32,
+		); err != nil {
+			return Spec{}, err
 		}
 	}
 	if architecture == "refact" {
@@ -819,7 +828,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -848,6 +857,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok {
 			spec.ExpertWeightsScale = value
 		}
+	}
+	if architecture == "dbrx" {
+		spec.ExpertFeedForward = spec.FeedForwardLength
+		spec.ExpertWeightsNorm = true
 	}
 	if architecture == "granitemoe" {
 		spec.ExpertFeedForward = spec.FeedForwardLength
@@ -1208,7 +1221,8 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Architecture == "falcon" ||
+	return s.Architecture == "dbrx" ||
+		s.Architecture == "falcon" ||
 		s.Architecture == "jais" ||
 		s.Architecture == "nemotron" ||
 		s.Architecture == "jais2" ||
@@ -1219,7 +1233,8 @@ func (s Spec) UsesLayerNorm() bool {
 }
 
 func (s Spec) RequiresLayerNormBias() bool {
-	return s.Architecture == "phimoe" || (s.UsesLayerNorm() && s.Architecture != "mpt")
+	return s.Architecture == "phimoe" ||
+		(s.UsesLayerNorm() && s.Architecture != "dbrx" && s.Architecture != "mpt")
 }
 
 func (s Spec) UsesUnweightedLayerNorm() bool {
@@ -1349,6 +1364,14 @@ func (s Spec) validate() error {
 			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("GraniteMoE expert metadata is invalid")
+	}
+	if s.Architecture == "dbrx" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			s.AttentionClamp < 0 || math.IsNaN(float64(s.AttentionClamp)) ||
+			math.IsInf(float64(s.AttentionClamp), 0) || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("DBRX expert or attention metadata is invalid")
 	}
 	if (s.Architecture == "granite" || s.Architecture == "granitemoe") &&
 		s.RopeScalingType == "longrope" &&

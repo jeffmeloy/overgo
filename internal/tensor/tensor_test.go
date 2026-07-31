@@ -209,6 +209,25 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	}
 }
 
+func TestBuilderClamp(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(3))
+	output := builder.Clamp(input, -2, 3)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(ClampAttributes)
+	if output.Op != OpClamp || attributes.Minimum != -2 || attributes.Maximum != 3 {
+		t.Fatalf("unexpected clamp graph: %+v", output)
+	}
+
+	invalid := NewBuilder()
+	invalid.Clamp(invalid.Input("input", dtype.F32, MustShape(1)), 2, -1)
+	if invalid.Err() == nil {
+		t.Fatal("clamp accepted reversed bounds")
+	}
+}
+
 func TestBuilderQ8MoE(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(32, 1))

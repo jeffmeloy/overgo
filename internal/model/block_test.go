@@ -92,6 +92,52 @@ func TestBuildDenseQwen3MoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildDBRXBlockUsesClampedFusedQKVAndNormalizedMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "dbrx", EmbeddingLength: 8, FeedForwardLength: 6,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		AttentionClamp: 2, RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ, weights.AttentionK, weights.AttentionV = nil, nil, nil
+	weights.AttentionQKV = builder.Input("qkv", dtype.F32, tensor.MustShape(8, 16))
+	weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clamp, moe *tensor.Tensor
+	var rope, layerNorm int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpClamp:
+			clamp = node
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENeoX:
+			rope++
+		case tensor.OpLayerNorm:
+			layerNorm++
+		}
+	}
+	if clamp == nil || clamp.Attrs.(tensor.ClampAttributes) != (tensor.ClampAttributes{Minimum: -2, Maximum: 2}) ||
+		moe == nil || !moe.Attrs.(tensor.MoEAttributes).NormalizeTopKProb || rope != 2 || layerNorm != 2 {
+		t.Fatalf("unexpected DBRX graph: clamp=%+v moe=%+v rope=%d layer_norm=%d", clamp, moe, rope, layerNorm)
+	}
+}
+
 func TestBuildArcticParallelDenseAndMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

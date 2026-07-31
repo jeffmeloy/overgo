@@ -460,6 +460,7 @@ func BuildDenseBlockCachedForLayer(
 	isBailingMoE := spec.Architecture == "bailingmoe"
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
 	isDeepSeek := spec.Architecture == "deepseek"
+	isDBRX := spec.Architecture == "dbrx"
 	isGraniteMoE := spec.Architecture == "granitemoe"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
 	isArctic := spec.Architecture == "arctic"
@@ -477,7 +478,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isGraniteMoE && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isGraniteMoE && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -654,6 +655,9 @@ func BuildDenseBlockCachedForLayer(
 		mixed := builder.MulMat(weights.AttentionQKV, normalized)
 		if weights.AttentionQKVBias != nil {
 			mixed = builder.Add(mixed, weights.AttentionQKVBias)
+		}
+		if isDBRX && spec.AttentionClamp > 0 {
+			mixed = builder.Clamp(mixed, -spec.AttentionClamp, spec.AttentionClamp)
 		}
 		stride := queryLength + keyLength + valueLength
 		query = builder.Reshape(

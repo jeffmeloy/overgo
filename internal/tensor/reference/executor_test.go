@@ -63,6 +63,23 @@ func TestExecuteReLUSquared(t *testing.T) {
 	}
 }
 
+func TestExecuteClamp(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(5))
+	output := builder.Clamp(input, -1, 2)
+	value, _ := NewValue(input.Shape, []float32{-3, -1, 0.5, 2, 4})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{-1, -1, 0.5, 2, 2}
+	for index, item := range results[output].Data {
+		if item != want[index] {
+			t.Fatalf("clamp[%d] = %v, want %v", index, item, want[index])
+		}
+	}
+}
+
 func TestExecuteXIELU(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(5))

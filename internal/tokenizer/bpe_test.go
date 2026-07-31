@@ -64,6 +64,12 @@ func TestBailingPreTokenizersUseQwen2Segmentation(t *testing.T) {
 	}
 }
 
+func TestDBRXPreTokenizerUsesLlama3Segmentation(t *testing.T) {
+	if !supportedPreTokenizer("dbrx") || !isLlama3Pre("dbrx") {
+		t.Fatal("DBRX pre-tokenizer is not mapped to Llama 3 segmentation")
+	}
+}
+
 func TestPreTokenizeDeepSeekLLM(t *testing.T) {
 	tests := []struct {
 		text string

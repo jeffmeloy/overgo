@@ -1212,6 +1212,24 @@ models:
       - swiglu
       - tied-output
     real_model_validation: pending-fixture
+  dbrx:
+    status: experimental
+    tokenizers:
+      - dbrx-bpe
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - weight-only-layernorm
+      - required-contiguous-fused-qkv
+      - symmetric-qkv-clamp
+      - neox-rope
+      - normalized-softmax-top-k-routing
+      - packed-swiglu-experts
+      - required-untied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   command-r:
     status: experimental
     features:

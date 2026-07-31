@@ -123,7 +123,7 @@ func isQwen2Pre(pre string) bool {
 
 func isLlama3Pre(pre string) bool {
 	switch pre {
-	case "llama3", "llama-v3", "llama-bpe":
+	case "dbrx", "llama3", "llama-v3", "llama-bpe":
 		return true
 	default:
 		return false

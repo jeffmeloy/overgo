@@ -54,6 +54,18 @@ extern "C" __global__ void multiply_f32(
     }
 }
 
+extern "C" __global__ void clamp_f32(
+        const float * input,
+        float * output,
+        float minimum,
+        float maximum,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = fminf(fmaxf(input[index], minimum), maximum);
+    }
+}
+
 __device__ unsigned int broadcast_index(
         unsigned int index,
         unsigned int input_0,

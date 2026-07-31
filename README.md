@@ -4,7 +4,7 @@
 Its current executable model subset is dense Qwen 2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1, Qwen2-MoE/Qwen3-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3.5 hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell,
-dense Cohere2/Command R, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3,
+dense Cohere2/Command R, DBRX, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3,
 GLM4, GPT-2/GPT-NeoX, Granite/GraniteMoE, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,

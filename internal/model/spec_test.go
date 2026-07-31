@@ -164,6 +164,36 @@ func TestReadDeepSeekSpec(t *testing.T) {
 	}
 }
 
+func TestReadDBRXSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "dbrx"),
+		metadata("dbrx.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dbrx.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("dbrx.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("dbrx.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("dbrx.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("dbrx.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dbrx.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("dbrx.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dbrx.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("dbrx.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("dbrx.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("dbrx.attention.clamp_kqv", gguf.ValueTypeFloat32, float32(8)),
+		metadata("dbrx.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("dbrx.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "dbrx" || spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 ||
+		spec.ExpertFeedForward != 6 || spec.ExpertWeightsScale != 1.25 || !spec.ExpertWeightsNorm ||
+		spec.AttentionClamp != 8 || !spec.UsesLayerNorm() || spec.RequiresLayerNormBias() ||
+		usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected DBRX spec: %+v", spec)
+	}
+}
+
 func TestReadBailingMoE2SpecTrimsNextNLayers(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "bailingmoe2"),

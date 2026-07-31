@@ -668,6 +668,7 @@ type functionSet struct {
 	broadcastAdd      driver.Function
 	broadcastMultiply driver.Function
 	scale             driver.Function
+	clamp             driver.Function
 	copy              driver.Function
 	silu              driver.Function
 	gelu              driver.Function
@@ -839,6 +840,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"broadcast_add_f32", &result.broadcastAdd},
 		{"broadcast_multiply_f32", &result.broadcastMultiply},
 		{"scale_f32", &result.scale},
+		{"clamp_f32", &result.clamp},
 		{"copy_f32", &result.copy},
 		{"silu_f32", &result.silu},
 		{"gelu_f32", &result.gelu},
@@ -1027,6 +1029,28 @@ func launchNode(
 		runtime.KeepAlive(input)
 		runtime.KeepAlive(output)
 		runtime.KeepAlive(scale)
+		runtime.KeepAlive(count)
+		return err
+	case tensor.OpClamp:
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		attributes, ok := node.Attrs.(tensor.ClampAttributes)
+		if !ok {
+			return errors.New("invalid clamp attributes")
+		}
+		input := pointers[node.Inputs[0]]
+		minimum, maximum := attributes.Minimum, attributes.Maximum
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&minimum),
+			unsafe.Pointer(&maximum), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.clamp, count, args)
+		runtime.KeepAlive(input)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(minimum)
+		runtime.KeepAlive(maximum)
 		runtime.KeepAlive(count)
 		return err
 	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus:

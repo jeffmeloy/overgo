@@ -41,6 +41,7 @@ const (
 	OpXIELU
 	OpMoE
 	OpRepeatHeads
+	OpClamp
 )
 
 var opNames = [...]string{
@@ -73,6 +74,7 @@ var opNames = [...]string{
 	"xielu",
 	"moe",
 	"repeat_heads",
+	"clamp",
 }
 
 func (o Op) String() string {
@@ -84,6 +86,11 @@ func (o Op) String() string {
 
 type ScaleAttributes struct {
 	Value float32
+}
+
+type ClampAttributes struct {
+	Minimum float32
+	Maximum float32
 }
 
 type RMSNormAttributes struct {
@@ -227,6 +234,15 @@ func (b *Builder) Multiply(left, right *Tensor) *Tensor {
 
 func (b *Builder) Scale(input *Tensor, value float32) *Tensor {
 	return b.unary(OpScale, input, ScaleAttributes{Value: value})
+}
+
+func (b *Builder) Clamp(input *Tensor, minimum, maximum float32) *Tensor {
+	if math.IsNaN(float64(minimum)) || math.IsNaN(float64(maximum)) ||
+		math.IsInf(float64(minimum), 0) || math.IsInf(float64(maximum), 0) || minimum > maximum {
+		b.setError(errors.New("clamp bounds are invalid"))
+		return nil
+	}
+	return b.unary(OpClamp, input, ClampAttributes{Minimum: minimum, Maximum: maximum})
 }
 
 func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {

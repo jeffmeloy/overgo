@@ -86,6 +86,16 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = value * attributes.Value
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpClamp:
+		attributes, ok := node.Attrs.(tensor.ClampAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid clamp attributes")
+		}
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			output[i] = min(max(value, attributes.Minimum), attributes.Maximum)
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpRMSNorm:
 		attributes, ok := node.Attrs.(tensor.RMSNormAttributes)
 		if !ok {

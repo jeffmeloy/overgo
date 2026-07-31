@@ -786,6 +786,28 @@ func TestReadPLaMoSpec(t *testing.T) {
 	}
 }
 
+func TestReadJaisSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "jais"),
+		metadata("jais.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jais.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("jais.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("jais.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("jais.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jais.attention.max_alibi_bias", gguf.ValueTypeFloat32, float32(8)),
+		metadata("jais.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "jais" || spec.HeadCountKV != 2 || spec.KeyLength != 4 ||
+		spec.AttentionScale != 0.25 || spec.MaxALiBiBias != 8 || spec.UsesRoPE(0) ||
+		!spec.UsesLayerNorm() || !spec.RequiresLayerNormBias() {
+		t.Fatalf("unexpected Jais spec: %+v", spec)
+	}
+}
+
 func TestReadStableLMSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "stablelm"),

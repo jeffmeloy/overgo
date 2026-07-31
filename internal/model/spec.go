@@ -105,7 +105,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
-	if architecture != "llama" && architecture != "internlm2" &&
+	if architecture != "llama" && architecture != "internlm2" && architecture != "jais" &&
 		architecture != "arcee" &&
 		architecture != "apertus" &&
 		architecture != "arctic" &&
@@ -203,7 +203,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "mpt" ||
+	if architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
 		if architecture == "gptneox" || architecture == "falcon" || architecture == "mpt" {
@@ -266,7 +266,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ValueLength = headLength
 		}
 	}
-	if architecture == "bloom" || architecture == "gpt2" || architecture == "mpt" ||
+	if architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" ||
 		architecture == "refact" || architecture == "starcoder" {
 		// architectures use ALiBi or learned absolute rows instead of RoPE
 		spec.RopeDisabled = true
@@ -334,7 +334,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "bloom" || architecture == "mpt" || architecture == "refact" {
+	if architecture == "bloom" || architecture == "jais" || architecture == "mpt" || architecture == "refact" {
 		if architecture != "mpt" {
 			spec.MaxALiBiBias = 8
 		}
@@ -385,11 +385,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		prefix+"attn_logit_softcapping",
 		gguf.ValueTypeFloat32,
 	)
-	spec.AttentionScale, _ = optional[float32](
-		values,
-		prefix+"attention.scale",
-		gguf.ValueTypeFloat32,
-	)
+	if architecture == "jais" {
+		spec.AttentionScale = 1 / float32(spec.KeyLength)
+	}
+	if value, ok := optional[float32](values, prefix+"attention.scale", gguf.ValueTypeFloat32); ok {
+		spec.AttentionScale = value
+	}
 	if architecture == "minicpm" {
 		spec.EmbeddingScale = 12
 		spec.ResidualScale = float32(1.4 / math.Sqrt(float64(spec.BlockCount)))
@@ -1146,6 +1147,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 
 func (s Spec) UsesLayerNorm() bool {
 	return s.Architecture == "falcon" ||
+		s.Architecture == "jais" ||
 		s.Architecture == "nemotron" ||
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||

@@ -1102,6 +1102,17 @@ models:
       - native-quantized-convolution-kernel-pending
       - centered-non-causal-convolution-pending
     real_model_validation: pending-fixture
+  jais:
+    status: experimental
+    features:
+      - affine-layernorm
+      - required-biased-fused-qkv
+      - optional-alibi
+      - inverse-head-width-attention-scale
+      - biased-parallel-swiglu
+      - required-untied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   jais2:
     status: experimental
     features:

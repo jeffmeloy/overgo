@@ -1431,6 +1431,54 @@ func TestBuildDenseJais2UsesBiasesAndSquaredReLU(t *testing.T) {
 	}
 }
 
+func TestBuildDenseJaisUsesBiasedFusedQKVAndALiBi(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "jais", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDisabled: true, AttentionScale: 0.25, MaxALiBiBias: 8, LayerNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ, weights.AttentionK, weights.AttentionV = nil, nil, nil
+	weights.AttentionQKV = builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24))
+	weights.AttentionQKVBias = builder.Input("qkv_bias", dtype.F32, tensor.MustShape(24))
+	weights.AttentionOutputBias = builder.Input("output_bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardGateBias = builder.Input("gate_bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardUpBias = builder.Input("up_bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardDownBias = builder.Input("down_bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention *tensor.Tensor
+	var layerNorm, rope, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attention = node
+		case tensor.OpLayerNorm:
+			layerNorm++
+		case tensor.OpRoPENormal, tensor.OpRoPENeoX:
+			rope++
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if attention == nil {
+		t.Fatal("Jais graph is missing attention")
+	}
+	attrs := attention.Attrs.(tensor.AttentionAttributes)
+	if attrs.Scale != 0.25 || attrs.MaxALiBiBias != 8 || !attrs.Causal ||
+		layerNorm != 2 || rope != 0 || silu != 1 {
+		t.Fatalf("unexpected Jais graph: attention=%+v norm=%d rope=%d silu=%d", attrs, layerNorm, rope, silu)
+	}
+}
+
 func TestBuildDenseOLMoUsesUnweightedLayerNorm(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -261,6 +261,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "baichuan" ||
 		spec.Architecture == "bailingmoe" ||
 		spec.Architecture == "bailingmoe2" ||
+		spec.Architecture == "jais" ||
 		spec.Architecture == "xverse" ||
 		spec.Architecture == "olmo2" ||
 		spec.Architecture == "nemotron" ||
@@ -609,10 +610,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
-				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
+				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight",
 						uint64(spec.EmbeddingLength),
@@ -635,7 +636,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 						}
 						layer.AttentionQKVBias = &qkvBias
 					}
-					if (spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "starcoder") && layer.AttentionQKVBias == nil {
+					if (spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "starcoder") && layer.AttentionQKVBias == nil {
 						return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_qkv.bias")
 					}
 				}
@@ -1114,6 +1115,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				"attn_k.bias":      layer.AttentionKBias,
 				"attn_v.bias":      layer.AttentionVBias,
 				"attn_output.bias": layer.AttentionOutputBias,
+				"ffn_up.bias":      layer.FeedForwardUpBias,
+				"ffn_down.bias":    layer.FeedForwardDownBias,
+			} {
+				if item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				}
+			}
+		}
+		if spec.Architecture == "jais" {
+			for name, item := range map[string]*gguf.TensorInfo{
+				"attn_output.bias": layer.AttentionOutputBias,
+				"ffn_gate.bias":    layer.FeedForwardGateBias,
 				"ffn_up.bias":      layer.FeedForwardUpBias,
 				"ffn_down.bias":    layer.FeedForwardDownBias,
 			} {

@@ -1373,6 +1373,38 @@ func TestReadWeightsJais2(t *testing.T) {
 	}
 }
 
+func TestReadWeightsJais(t *testing.T) {
+	spec := Spec{
+		Architecture: "jais", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8), tensorInfo("output_norm.bias", 8),
+		tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24), tensorInfo("blk.0.attn_qkv.bias", 24),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_norm.bias", 8),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_gate.bias", 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_up.bias", 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8), tensorInfo("blk.0.ffn_down.bias", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output == nil || weights.OutputNormBias == nil || layer.AttentionQKV == nil ||
+		layer.AttentionQKVBias == nil || layer.AttentionQ.Name != "" ||
+		layer.AttentionNormBias == nil || layer.FeedForwardNormBias == nil ||
+		layer.AttentionOutputBias == nil || layer.FeedForwardGateBias == nil ||
+		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil {
+		t.Fatalf("unexpected Jais weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsOLMoWithoutNormTensors(t *testing.T) {
 	spec := Spec{
 		Architecture: "olmo", BlockCount: 1, EmbeddingLength: 8,

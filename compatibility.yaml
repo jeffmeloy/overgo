@@ -1189,6 +1189,25 @@ models:
       - tied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  deci:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - per-layer-query-kv-and-feed-forward-schedules
+      - full-attention-layers
+      - projection-only-linear-attention-layers
+      - attention-free-layers
+      - zero-width-dummy-layers
+      - contiguous-fused-or-separate-qkv
+      - optional-projection-and-mlp-biases
+      - normal-or-longrope-factors
+      - swiglu
+      - optional-tied-output
+      - compact-serializable-sentinel-cache-for-non-kv-layers
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   seed_oss:
     status: experimental
     features:

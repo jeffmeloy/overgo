@@ -197,6 +197,42 @@ func TestReadWeightsOpenELMPerLayerWidths(t *testing.T) {
 	}
 }
 
+func TestReadWeightsDeciSparseLayers(t *testing.T) {
+	spec := Spec{
+		Architecture: "deci", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 12, LayerFeedForward: []uint32{12, 12, 12, 0},
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 2, 0, 0},
+		LayerKVHeadCounts: []uint32{1, 0, 0, 0}, KeyLength: 4, ValueLength: 4,
+		VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_qkv.weight", 8, 16),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.1.attn_norm.weight", 8), tensorInfo("blk.1.attn_output.weight", 8, 8),
+	}
+	for block := 0; block < 3; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 12),
+			tensorInfo(prefix+"ffn_up.weight", 8, 12),
+			tensorInfo(prefix+"ffn_down.weight", 12, 8),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[0].AttentionQKV == nil || weights.Layers[0].AttentionOutput.Name == "" ||
+		weights.Layers[1].AttentionQ.Name != "" || weights.Layers[1].AttentionOutput.Name == "" ||
+		weights.Layers[2].AttentionNorm.Name != "" || weights.Layers[2].FeedForwardUp.Name == "" ||
+		weights.Layers[3].AttentionNorm.Name != "" || weights.Layers[3].FeedForwardNorm.Name != "" ||
+		weights.Layers[3].FeedForwardUp.Name != "" {
+		t.Fatalf("unexpected Deci catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsBailingMoE(t *testing.T) {
 	spec := Spec{
 		Architecture: "bailingmoe", BlockCount: 1, EmbeddingLength: 8,

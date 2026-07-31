@@ -405,6 +405,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if spec.Architecture != "olmo2" && !usesPostOnlyNorm(spec.Architecture) &&
+			(spec.Architecture != "deci" || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
@@ -468,7 +469,17 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
-		if spec.Architecture == "qwen35" {
+		if spec.Architecture == "deci" && spec.LayerHeadCount(block) == 0 {
+			// Attention-free layer.
+		} else if spec.Architecture == "deci" && spec.LayerKVHeadCount(block) == 0 {
+			if layer.AttentionOutput, err = required(
+				prefix+"attn_output.weight",
+				uint64(spec.EmbeddingLength),
+				uint64(spec.EmbeddingLength),
+			); err != nil {
+				return Weights{}, err
+			}
+		} else if spec.Architecture == "qwen35" {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
 				keyDimension := uint64(spec.SSMStateSize) * uint64(spec.SSMGroupCount)
@@ -614,7 +625,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -840,7 +851,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.AttentionOutputBias = &item
 			}
 		}
-		if !layer.Recurrent && layer.AttentionQKV == nil {
+		if !layer.Recurrent && layer.AttentionQKV == nil &&
+			(spec.Architecture != "deci" || spec.LayerKVHeadCount(block) > 0) {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       uint64
 				destination **gguf.TensorInfo
@@ -907,6 +919,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
 			}
 		} else if spec.Architecture != "olmo2" && !usesPostOnlyNorm(spec.Architecture) &&
+			(spec.Architecture != "deci" || spec.LayerFeedForwardLength(block) > 0) &&
 			!usesParallelResidual(spec.Architecture) &&
 			!spec.UsesUnweightedLayerNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
@@ -1126,6 +1139,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		feedForwardLength := spec.LayerFeedForwardLength(block)
+		if spec.Architecture == "deci" && feedForwardLength == 0 {
+			continue
+		}
 		if spec.Architecture == "arctic" {
 			feedForwardLength = spec.EmbeddingLength
 		}

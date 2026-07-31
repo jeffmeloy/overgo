@@ -26,6 +26,37 @@ func TestKVCacheStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDeciSentinelCacheValidationAndRangeRemoval(t *testing.T) {
+	runner := &Runner{spec: model.Spec{
+		Architecture: "deci", BlockCount: 1, KeyLength: 4, ValueLength: 4,
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2},
+		LayerKVHeadCounts: []uint32{0},
+	}}
+	sentinel, err := reference.NewValue(
+		tensor.MustShape(1, 1, 3), []float32{1, 2, 3},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := &KVCache{
+		Layers: []LayerCache{{Key: sentinel, Value: sentinel}},
+		Tokens: 3, Position: 3,
+	}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+	trimmed, err := runner.RemoveCacheRange(cache, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantShape := tensor.MustShape(1, 1, 2)
+	if !trimmed.Layers[0].Key.Shape.Equal(wantShape) ||
+		!trimmed.Layers[0].Value.Shape.Equal(wantShape) ||
+		!reflect.DeepEqual(trimmed.Layers[0].Key.Data, []float32{1, 3}) {
+		t.Fatalf("trimmed Deci sentinel cache = %+v", trimmed)
+	}
+}
+
 func TestKVCacheStateLoadsLegacyVersion(t *testing.T) {
 	runner := cacheTestRunner()
 	current, err := runner.SaveCache(cacheTestValue(t))

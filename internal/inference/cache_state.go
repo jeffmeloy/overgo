@@ -97,6 +97,19 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 			continue
 		}
+		if r.spec.Architecture == "deci" && r.spec.LayerKVHeadCount(uint32(index)) == 0 {
+			sentinelShape := tensor.MustShape(1, 1, uint64(cache.Tokens))
+			if !layer.Key.Shape.Equal(sentinelShape) || !layer.Value.Shape.Equal(sentinelShape) {
+				return fmt.Errorf("inference: Deci sentinel cache layer %d shape is invalid", index)
+			}
+			if err := validateStateValue(layer.Key); err != nil {
+				return fmt.Errorf("inference: Deci sentinel cache layer %d key: %w", index, err)
+			}
+			if err := validateStateValue(layer.Value); err != nil {
+				return fmt.Errorf("inference: Deci sentinel cache layer %d value: %w", index, err)
+			}
+			continue
+		}
 		keyShape := tensor.MustShape(
 			uint64(r.spec.KeyLength),
 			uint64(r.spec.LayerKVHeadCount(uint32(index))),

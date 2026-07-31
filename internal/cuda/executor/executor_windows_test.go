@@ -2943,6 +2943,93 @@ func TestExecutorOpenELMBlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorDeciMixedLayersMatchReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "deci", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 12, LayerFeedForward: []uint32{12, 12, 12, 0},
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 2, 0, 0},
+		LayerKVHeadCounts: []uint32{1, 0, 0, 0}, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	current := input
+	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
+	keys := make([]*tensor.Tensor, 4)
+	values := make([]*tensor.Tensor, 4)
+	for layer := uint32(0); layer < 4; layer++ {
+		weights := model.LayerGraphWeights{}
+		weighted := make([]*tensor.Tensor, 0, 7)
+		if layer == 0 {
+			weights.AttentionNorm = builder.Input("full_attn_norm", dtype.F32, tensor.MustShape(8))
+			weights.AttentionQKV = builder.Input("full_qkv", dtype.F32, tensor.MustShape(8, 16))
+			weights.AttentionOutput = builder.Input("full_attn_out", dtype.F32, tensor.MustShape(8, 8))
+			weighted = append(weighted, weights.AttentionNorm)
+			feeds[weights.AttentionQKV] = patternedValue(weights.AttentionQKV.Shape, 11, 0.05, 0)
+			feeds[weights.AttentionOutput] = patternedValue(weights.AttentionOutput.Shape, 13, 0.05, 0)
+		}
+		if layer == 1 {
+			weights.AttentionNorm = builder.Input("linear_attn_norm", dtype.F32, tensor.MustShape(8))
+			weights.AttentionOutput = builder.Input("linear_attn_out", dtype.F32, tensor.MustShape(8, 8))
+			weights.AttentionOutputBias = builder.Input("linear_attn_bias", dtype.F32, tensor.MustShape(8))
+			weighted = append(weighted, weights.AttentionNorm)
+			feeds[weights.AttentionOutput] = patternedValue(weights.AttentionOutput.Shape, 17, 0.05, 0)
+			feeds[weights.AttentionOutputBias] = patternedValue(weights.AttentionOutputBias.Shape, 19, 0.02, 0)
+		}
+		if layer < 3 {
+			weights.FeedForwardNorm = builder.Input(fmt.Sprintf("ffn_norm_%d", layer), dtype.F32, tensor.MustShape(8))
+			weights.FeedForwardGate = builder.Input(fmt.Sprintf("ffn_gate_%d", layer), dtype.F32, tensor.MustShape(8, 12))
+			weights.FeedForwardUp = builder.Input(fmt.Sprintf("ffn_up_%d", layer), dtype.F32, tensor.MustShape(8, 12))
+			weights.FeedForwardDown = builder.Input(fmt.Sprintf("ffn_down_%d", layer), dtype.F32, tensor.MustShape(12, 8))
+			weights.FeedForwardGateBias = builder.Input(fmt.Sprintf("ffn_gate_bias_%d", layer), dtype.F32, tensor.MustShape(12))
+			weights.FeedForwardUpBias = builder.Input(fmt.Sprintf("ffn_up_bias_%d", layer), dtype.F32, tensor.MustShape(12))
+			weights.FeedForwardDownBias = builder.Input(fmt.Sprintf("ffn_down_bias_%d", layer), dtype.F32, tensor.MustShape(8))
+			weighted = append(weighted, weights.FeedForwardNorm)
+			for index, node := range []*tensor.Tensor{
+				weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown,
+				weights.FeedForwardGateBias, weights.FeedForwardUpBias, weights.FeedForwardDownBias,
+			} {
+				feeds[node] = patternedValue(node.Shape, int(layer)*20+index+23, 0.04, 0)
+			}
+		}
+		for index, node := range weighted {
+			feeds[node] = patternedValue(node.Shape, int(layer)*10+index+41, 0.03, 1)
+		}
+		result, err := model.BuildDenseBlockCachedForLayer(
+			builder, current, spec, weights, []uint32{0, 1, 2}, nil, nil, layer,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		current, keys[layer], values[layer] = result.Output, result.Key, result.Value
+	}
+	outputs := []*tensor.Tensor{current}
+	for layer := range keys {
+		outputs = append(outputs, keys[layer], values[layer])
+	}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[current].Data, want[current].Data, 1e-3)
+	for layer := range keys {
+		compare(t, got[keys[layer]].Data, want[keys[layer]].Data, 7e-5)
+		compare(t, got[values[layer]].Data, want[values[layer]].Data, 7e-5)
+	}
+}
+
 func TestExecutorBailingMoE2BlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

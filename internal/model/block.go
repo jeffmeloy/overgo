@@ -460,6 +460,7 @@ func BuildDenseBlockCachedForLayer(
 	isBailingMoE := spec.Architecture == "bailingmoe"
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
 	isDeepSeek := spec.Architecture == "deepseek"
+	isDeci := spec.Architecture == "deci"
 	isDBRX := spec.Architecture == "dbrx"
 	isDOTS1 := spec.Architecture == "dots1"
 	isGraniteMoE := spec.Architecture == "granitemoe"
@@ -471,6 +472,11 @@ func BuildDenseBlockCachedForLayer(
 	isQwen2MoE := spec.Architecture == "qwen2moe"
 	headCount := spec.LayerHeadCount(layerIndex)
 	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
+	if isDeci && (spec.LayerFeedForwardLength(layerIndex) == 0 || headCount == 0 || kvHeadCount == 0) {
+		return buildDeciSparseBlockCached(
+			builder, input, spec, weights, positions, pastKey, pastValue, layerIndex,
+		)
+	}
 	if spec.Architecture == "apertus" &&
 		(int(layerIndex) >= len(spec.XIELUAlphaN) || int(layerIndex) >= len(spec.XIELUAlphaP) ||
 			int(layerIndex) >= len(spec.XIELUBeta) || int(layerIndex) >= len(spec.XIELUEpsilon)) {
@@ -1250,6 +1256,79 @@ func BuildDenseBlockCachedForLayer(
 		feedForward = builder.Scale(feedForward, spec.ResidualScale)
 	}
 	output := builder.Add(residual, feedForward)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
+func buildDeciSparseBlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey *tensor.Tensor,
+	pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Deci position count is invalid")
+	}
+	if (pastKey == nil) != (pastValue == nil) {
+		return DenseBlockResult{}, errors.New("Deci cache must contain both sentinel tensors")
+	}
+	sentinel := builder.GroupSlice(input, 0, 1, 1, input.Shape.Dims[0])
+	cacheKey, cacheValue := sentinel, sentinel
+	if pastKey != nil {
+		wantPrefix := tensor.MustShape(1, 1, pastKey.Shape.Dims[2])
+		if !pastKey.Shape.Equal(wantPrefix) || !pastValue.Shape.Equal(wantPrefix) {
+			return DenseBlockResult{}, errors.New("Deci sentinel cache shape is invalid")
+		}
+		cacheKey = builder.Concat(pastKey, sentinel, 2)
+		cacheValue = builder.Concat(pastValue, sentinel, 2)
+	}
+	if spec.LayerFeedForwardLength(layerIndex) == 0 {
+		return DenseBlockResult{Output: input, Key: cacheKey, Value: cacheValue}, builder.Err()
+	}
+	ffnInput := input
+	if spec.LayerHeadCount(layerIndex) > 0 {
+		if weights.AttentionNorm == nil || weights.AttentionOutput == nil {
+			return DenseBlockResult{}, errors.New("Deci linear-attention weights are incomplete")
+		}
+		projected := builder.MulMat(
+			weights.AttentionOutput,
+			builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon),
+		)
+		if weights.AttentionOutputBias != nil {
+			projected = builder.Add(projected, weights.AttentionOutputBias)
+		}
+		ffnInput = builder.Add(projected, input)
+	}
+	for name, weight := range map[string]*tensor.Tensor{
+		"norm": weights.FeedForwardNorm,
+		"gate": weights.FeedForwardGate,
+		"up":   weights.FeedForwardUp,
+		"down": weights.FeedForwardDown,
+	} {
+		if weight == nil {
+			return DenseBlockResult{}, fmt.Errorf("Deci feed-forward %s weight is nil", name)
+		}
+	}
+	normalized := builder.WeightedRMSNorm(ffnInput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	gate := builder.MulMat(weights.FeedForwardGate, normalized)
+	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	if weights.FeedForwardGateBias != nil {
+		gate = builder.Add(gate, weights.FeedForwardGateBias)
+	}
+	if weights.FeedForwardUpBias != nil {
+		up = builder.Add(up, weights.FeedForwardUpBias)
+	}
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	if weights.FeedForwardDownBias != nil {
+		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+	}
+	output := builder.Add(feedForward, ffnInput)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}

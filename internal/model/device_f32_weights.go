@@ -195,12 +195,14 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 			required = append(required, *item)
 		}
 	} else {
-		required = append(required, info.AttentionOutput)
+		if info.AttentionOutput.Name != "" {
+			required = append(required, info.AttentionOutput)
+		}
 		if info.AttentionQKV != nil {
 			required = append(required, *info.AttentionQKV)
 		} else if info.AttentionKVAMQA != nil {
 			required = append(required, info.AttentionQ, *info.AttentionKVAMQA, *info.AttentionKVANorm, *info.AttentionKVB)
-		} else {
+		} else if info.AttentionQ.Name != "" {
 			required = append(required, info.AttentionQ, info.AttentionK, info.AttentionV)
 		}
 	}
@@ -239,12 +241,14 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		result.FeedForwardDown = input(info.FeedForwardDown)
 	}
 	if !info.Recurrent {
-		result.AttentionOutput = input(info.AttentionOutput)
+		if info.AttentionOutput.Name != "" {
+			result.AttentionOutput = input(info.AttentionOutput)
+		}
 		if info.AttentionQKV != nil {
 			result.AttentionQKV = input(*info.AttentionQKV)
 		} else if info.AttentionKVAMQA != nil {
 			result.AttentionQ = input(info.AttentionQ)
-		} else {
+		} else if info.AttentionQ.Name != "" {
 			result.AttentionQ = input(info.AttentionQ)
 			result.AttentionK = input(info.AttentionK)
 			result.AttentionV = input(info.AttentionV)

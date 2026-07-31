@@ -43,6 +43,73 @@ func TestBuildDenseQwen3Block(t *testing.T) {
 	}
 }
 
+func TestBuildDeciSparseLayerModes(t *testing.T) {
+	spec := Spec{
+		Architecture: "deci", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 12, LayerFeedForward: []uint32{12, 12, 12, 0},
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 2, 0, 0},
+		LayerKVHeadCounts: []uint32{1, 0, 0, 0}, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	for _, test := range []struct {
+		name       string
+		layer      uint32
+		mulMatWant int
+		dummy      bool
+	}{
+		{name: "linear", layer: 1, mulMatWant: 4},
+		{name: "attention-free", layer: 2, mulMatWant: 3},
+		{name: "dummy", layer: 3, dummy: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+			weights := LayerGraphWeights{}
+			if !test.dummy {
+				weights.FeedForwardNorm = builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8))
+				weights.FeedForwardGate = builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12))
+				weights.FeedForwardUp = builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12))
+				weights.FeedForwardDown = builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8))
+			}
+			if test.layer == 1 {
+				weights.AttentionNorm = builder.Input("attn_norm", dtype.F32, tensor.MustShape(8))
+				weights.AttentionOutput = builder.Input("attn_output", dtype.F32, tensor.MustShape(8, 8))
+			}
+			pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(1, 1, 2))
+			pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(1, 1, 2))
+			result, err := BuildDenseBlockCachedForLayer(
+				builder, input, spec, weights, []uint32{2, 3, 4}, pastKey, pastValue, test.layer,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.dummy && result.Output != input {
+				t.Fatal("dummy Deci layer changed activation")
+			}
+			if !result.Key.Shape.Equal(tensor.MustShape(1, 1, 5)) ||
+				!result.Value.Shape.Equal(tensor.MustShape(1, 1, 5)) {
+				t.Fatalf("sentinel cache shapes = %v/%v", result.Key.Shape.Slice(), result.Value.Shape.Slice())
+			}
+			nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var mulMats int
+			for _, node := range nodes {
+				if node.Op == tensor.OpAttention {
+					t.Fatal("sparse Deci layer built attention")
+				}
+				if node.Op == tensor.OpMulMat {
+					mulMats++
+				}
+			}
+			if mulMats != test.mulMatWant {
+				t.Fatalf("MulMat count = %d, want %d", mulMats, test.mulMatWant)
+			}
+		})
+	}
+}
+
 func TestBuildDenseQwen3MoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

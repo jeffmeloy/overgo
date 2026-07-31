@@ -470,7 +470,9 @@ func (r *Runner) layerDeviceInputs(
 			}
 		}
 	} else {
-		if info.AttentionQKV != nil {
+		if info.AttentionOutput.Name == "" {
+			// Attention-free layer.
+		} else if info.AttentionQKV != nil {
 			if result.AttentionQKV, err = input(*info.AttentionQKV); err != nil {
 				return result, nil, err
 			}
@@ -478,7 +480,7 @@ func (r *Runner) layerDeviceInputs(
 			if result.AttentionQ, err = input(info.AttentionQ); err != nil {
 				return result, nil, err
 			}
-		} else {
+		} else if info.AttentionQ.Name != "" {
 			if result.AttentionQ, err = input(info.AttentionQ); err != nil {
 				return result, nil, err
 			}
@@ -489,8 +491,10 @@ func (r *Runner) layerDeviceInputs(
 				return result, nil, err
 			}
 		}
-		if result.AttentionOutput, err = input(info.AttentionOutput); err != nil {
-			return result, nil, err
+		if info.AttentionOutput.Name != "" {
+			if result.AttentionOutput, err = input(info.AttentionOutput); err != nil {
+				return result, nil, err
+			}
 		}
 	}
 	if info.AttentionQNorm != nil {

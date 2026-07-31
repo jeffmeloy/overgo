@@ -510,6 +510,38 @@ func TestReadOpenELMSpecPreservesPerLayerWidths(t *testing.T) {
 	}
 }
 
+func TestReadDeciSpecPreservesSparseLayerSchedule(t *testing.T) {
+	array := func(key string, values []uint32) gguf.Metadata {
+		return gguf.Metadata{Key: key, Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: values,
+		}}
+	}
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "deci"),
+		metadata("deci.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deci.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("deci.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		array("deci.feed_forward_length", []uint32{12, 12, 12, 0}),
+		array("deci.attention.head_count", []uint32{2, 2, 0, 0}),
+		array("deci.attention.head_count_kv", []uint32{1, 0, 0, 0}),
+		metadata("deci.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deci.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deci.rope.freq_base", gguf.ValueTypeFloat32, float32(500000)),
+		metadata("deci.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deci.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "deci" || spec.HeadCount != 2 || spec.HeadCountKV != 1 ||
+		spec.FeedForwardLength != 12 || spec.LayerHeadCount(2) != 0 ||
+		spec.LayerKVHeadCount(1) != 0 || spec.LayerFeedForwardLength(3) != 0 ||
+		spec.RopeDimensionCount != 4 || !usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected Deci spec: %+v", spec)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

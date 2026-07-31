@@ -120,6 +120,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "chameleon" &&
 		architecture != "dream" &&
 		architecture != "deepseek" &&
+		architecture != "deci" &&
 		architecture != "dbrx" &&
 		architecture != "dots1" &&
 		architecture != "cohere2" &&
@@ -201,21 +202,21 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "openelm" {
+	if architecture == "deci" || architecture == "openelm" {
 		if spec.LayerFeedForward, err = requiredLayerUint32(values, prefix+"feed_forward_length", spec.BlockCount); err != nil {
 			return Spec{}, err
 		}
-		spec.FeedForwardLength = spec.LayerFeedForward[0]
+		spec.FeedForwardLength = firstPositive(spec.LayerFeedForward)
 	} else if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "laguna" || architecture == "openelm" {
+	if architecture == "deci" || architecture == "laguna" || architecture == "openelm" {
 		if spec.LayerHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count", spec.BlockCount,
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.HeadCount = spec.LayerHeadCounts[0]
+		spec.HeadCount = firstPositive(spec.LayerHeadCounts)
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
@@ -231,13 +232,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.HeadCountKV = value
 			}
 		}
-	} else if architecture == "laguna" || architecture == "openelm" {
+	} else if architecture == "deci" || architecture == "laguna" || architecture == "openelm" {
 		if spec.LayerKVHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count_kv", spec.BlockCount,
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.HeadCountKV = spec.LayerKVHeadCounts[0]
+		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
 	} else if architecture == "lfm2" || architecture == "lfm2moe" {
 		counts, countErr := requiredArray[uint32](
 			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
@@ -555,6 +556,26 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
 		); err != nil {
 			return Spec{}, err
+		}
+		spec.RopeAttentionFactor = 1
+		if value, ok := optional[float32](
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
+		); ok {
+			spec.RopeAttentionFactor = value
+		}
+	}
+	if architecture == "deci" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); ok {
+			spec.RopeDimensionCount = value
+		}
+		spec.OriginalContextLength = spec.ContextLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
+		); ok {
+			spec.OriginalContextLength = value
 		}
 		spec.RopeAttentionFactor = 1
 		if value, ok := optional[float32](
@@ -1693,6 +1714,34 @@ func (s Spec) validate() error {
 			}
 		}
 	}
+	if s.Architecture == "deci" {
+		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerFeedForward) != int(s.BlockCount) {
+			return errors.New("Deci per-layer metadata is invalid")
+		}
+		var fullAttention bool
+		for block := uint32(0); block < s.BlockCount; block++ {
+			heads := s.LayerHeadCount(block)
+			kvHeads := s.LayerKVHeadCount(block)
+			if heads == 0 && kvHeads != 0 || kvHeads > 0 && (heads == 0 || heads%kvHeads != 0) {
+				return fmt.Errorf("Deci layer %d attention head metadata is invalid", block)
+			}
+			fullAttention = fullAttention || kvHeads > 0
+		}
+		if !fullAttention {
+			return errors.New("Deci requires at least one full-attention layer")
+		}
+		if s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength {
+			return errors.New("Deci rotary/head dimensions are invalid")
+		}
+		if s.RopeScalingType == "longrope" &&
+			(s.OriginalContextLength == 0 || s.RopeAttentionFactor <= 0 ||
+				math.IsNaN(float64(s.RopeAttentionFactor)) || math.IsInf(float64(s.RopeAttentionFactor), 0)) {
+			return errors.New("Deci LongRoPE metadata is invalid")
+		}
+	}
 	if s.Architecture == "gemma3" {
 		switch {
 		case s.RopeFrequencySWA <= 0:
@@ -1858,6 +1907,7 @@ func usesPostOnlyNorm(architecture string) bool {
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
 		architecture == "arctic" ||
+		architecture == "deci" ||
 		architecture == "llada" ||
 		architecture == "internlm2" ||
 		architecture == "arcee" ||
@@ -1899,8 +1949,17 @@ func usesFusedGateUp(architecture string) bool {
 }
 
 func supportsLongRoPE(architecture string) bool {
-	return architecture == "apertus" || architecture == "granite" || architecture == "granitemoe" ||
+	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitemoe" ||
 		architecture == "phi3" || architecture == "phimoe"
+}
+
+func firstPositive(values []uint32) uint32 {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func usesGELU(architecture string) bool {

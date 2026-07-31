@@ -394,7 +394,9 @@ func LoadHostLayer(
 			*item.destination = &value
 		}
 	} else {
-		if info.AttentionQKV != nil {
+		if info.AttentionOutput.Name == "" {
+			// Attention-free layer.
+		} else if info.AttentionQKV != nil {
 			value, valueErr := LoadHostTensor(ctx, file, *info.AttentionQKV)
 			if valueErr != nil {
 				return HostLayer{}, valueErr
@@ -405,7 +407,7 @@ func LoadHostLayer(
 				destination *reference.Value
 				info        gguf.TensorInfo
 			}{&result.AttentionQ, info.AttentionQ})
-		} else {
+		} else if info.AttentionQ.Name != "" {
 			items = append(items,
 				struct {
 					destination *reference.Value
@@ -421,10 +423,12 @@ func LoadHostLayer(
 				}{&result.AttentionV, info.AttentionV},
 			)
 		}
-		items = append(items, struct {
-			destination *reference.Value
-			info        gguf.TensorInfo
-		}{&result.AttentionOutput, info.AttentionOutput})
+		if info.AttentionOutput.Name != "" {
+			items = append(items, struct {
+				destination *reference.Value
+				info        gguf.TensorInfo
+			}{&result.AttentionOutput, info.AttentionOutput})
+		}
 	}
 	for _, item := range items {
 		if err := load(item.destination, item.info); err != nil {
@@ -573,7 +577,9 @@ func (layer *HostLayer) GraphInputs(
 	if layer.FeedForwardNormBias != nil {
 		result.FeedForwardNormBias = input("ffn_norm.bias", *layer.FeedForwardNormBias)
 	}
-	if layer.AttentionQKV != nil {
+	if layer.AttentionOutput.Shape.Rank == 0 {
+		// Attention-free layer.
+	} else if layer.AttentionQKV != nil {
 		result.AttentionQKV = input("attn_qkv.weight", *layer.AttentionQKV)
 		if layer.AttentionGate != nil {
 			result.AttentionGate = input("attn_gate.weight", *layer.AttentionGate)
@@ -594,10 +600,12 @@ func (layer *HostLayer) GraphInputs(
 	} else if layer.AttentionKVAMQA != nil {
 		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
-	} else {
+	} else if layer.AttentionQ.Shape.Rank != 0 {
 		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
 		result.AttentionK = input("attn_k.weight", layer.AttentionK)
 		result.AttentionV = input("attn_v.weight", layer.AttentionV)
+		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
+	} else {
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
 	}
 	if layer.AttentionQNorm != nil {

@@ -689,6 +689,40 @@ func TestReadChatGLMSpec(t *testing.T) {
 	}
 }
 
+func TestReadHunyuanDenseSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "hunyuan-dense"),
+		metadata("hunyuan-dense.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan-dense.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("hunyuan-dense.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("hunyuan-dense.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("hunyuan-dense.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan-dense.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("hunyuan-dense.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("hunyuan-dense.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("hunyuan-dense.rope.scaling.alpha", gguf.ValueTypeFloat32, float32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.RopeDimensionCount != 4 || spec.RopeFrequencyBase != 40000 {
+		t.Fatalf("unexpected Hunyuan-Dense spec: %+v", spec)
+	}
+	file.Metadata = append(file.Metadata, gguf.Metadata{
+		Key: "hunyuan-dense.rope.dimension_sections",
+		Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32,
+			Data: []int32{1, 0, 0, 0}},
+	})
+	if _, err = ReadSpec(file); err == nil || !strings.Contains(err.Error(), "multidimensional") {
+		t.Fatalf("Hunyuan-Dense multidimensional RoPE error = %v", err)
+	}
+	file.Metadata[len(file.Metadata)-1].Value.Data = []int32{0, 0, 0}
+	if _, err = ReadSpec(file); err == nil || !strings.Contains(err.Error(), "need 4") {
+		t.Fatalf("Hunyuan-Dense RoPE sections error = %v", err)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

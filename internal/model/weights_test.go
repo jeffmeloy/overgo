@@ -364,6 +364,18 @@ func TestReadWeightsChatGLM(t *testing.T) {
 	}
 }
 
+func TestReadWeightsHunyuanDense(t *testing.T) {
+	s := Spec{Architecture: "hunyuan-dense", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32}
+	tensors := []gguf.TensorInfo{tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8), tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_qkv.weight", 8, 16), tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_q_norm.weight", 4), tensorInfo("blk.0.attn_k_norm.weight", 4), tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8)}
+	w, err := ReadWeights(&gguf.File{Tensors: tensors}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Layers[0].AttentionQKV == nil || w.Layers[0].AttentionQNorm == nil || w.Layers[0].AttentionKNorm == nil {
+		t.Fatalf("unexpected Hunyuan-Dense catalog: %+v", w)
+	}
+}
+
 func TestReadWeightsBailingMoE(t *testing.T) {
 	spec := Spec{
 		Architecture: "bailingmoe", BlockCount: 1, EmbeddingLength: 8,

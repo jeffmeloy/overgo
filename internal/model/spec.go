@@ -147,6 +147,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "gpt2" &&
 		architecture != "gptneox" &&
 		architecture != "grok" &&
+		architecture != "hunyuan-dense" &&
 		architecture != "hunyuan-moe" &&
 		architecture != "maincoder" &&
 		architecture != "mellum" &&
@@ -812,6 +813,31 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
+		}
+	}
+	if architecture == "hunyuan-dense" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if sections, ok, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32); sectionsErr != nil {
+			return Spec{}, sectionsErr
+		} else if ok {
+			if len(sections) != 4 {
+				return Spec{}, fmt.Errorf("metadata %q has %d values, need 4", prefix+"rope.dimension_sections", len(sections))
+			}
+			for _, section := range sections {
+				if section != 0 {
+					return Spec{}, errors.New("Hunyuan-Dense multidimensional RoPE is not supported")
+				}
+			}
+		}
+		if alpha, ok := optional[float32](values, prefix+"rope.scaling.alpha", gguf.ValueTypeFloat32); ok && alpha != 0 {
+			if alpha < 0 || spec.KeyLength <= 2 || math.IsNaN(float64(alpha)) || math.IsInf(float64(alpha), 0) {
+				return Spec{}, errors.New("Hunyuan-Dense XDRoPE alpha is invalid")
+			}
+			exponent := float64(spec.KeyLength) / float64(spec.KeyLength-2)
+			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
 	if architecture == "smollm3" {
@@ -1982,6 +2008,12 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength) {
 		return errors.New("ChatGLM attention metadata is invalid")
 	}
+	if s.Architecture == "hunyuan-dense" &&
+		(s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
+			s.RopeDimensionCount%2 != 0 || s.RopeFrequencyBase <= 0 ||
+			math.IsNaN(float64(s.RopeFrequencyBase)) || math.IsInf(float64(s.RopeFrequencyBase), 0)) {
+		return errors.New("Hunyuan-Dense attention metadata is invalid")
+	}
 	if s.Architecture == "glm4" &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0) {
@@ -2078,6 +2110,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "chatglm" ||
 		architecture == "granite" ||
 		architecture == "granitemoe" ||
+		architecture == "hunyuan-dense" ||
 		architecture == "glm4" ||
 		architecture == "minicpm" ||
 		architecture == "olmo" ||

@@ -466,6 +466,7 @@ func BuildDenseBlockCachedForLayer(
 	isGraniteMoE := spec.Architecture == "granitemoe"
 	isGrok := spec.Architecture == "grok"
 	isHunyuanMoE := spec.Architecture == "hunyuan-moe"
+	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense"
 	isMellum := spec.Architecture == "mellum"
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
@@ -902,7 +903,7 @@ func BuildDenseBlockCachedForLayer(
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
-	if isHunyuanMoE {
+	if isHunyuan {
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}

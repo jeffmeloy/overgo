@@ -1325,6 +1325,22 @@ models:
       - optional-tied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  hunyuan-dense:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - xdrope-adjusted-normal-rope
+      - post-rope-qk-rmsnorm
+      - swiglu
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    constraints:
+      - text-only-zero-multidimensional-rope-sections
+    real_model_validation: pending-fixture
   dots1:
     status: experimental
     execution:

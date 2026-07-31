@@ -378,6 +378,24 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
+	for _, item := range []struct {
+		info        *gguf.TensorInfo
+		destination **tensor.Tensor
+	}{
+		{info.AttentionQBias, &result.AttentionQBias},
+		{info.AttentionKBias, &result.AttentionKBias},
+		{info.AttentionVBias, &result.AttentionVBias},
+		{info.AttentionOutputBias, &result.AttentionOutputBias},
+		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
+		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
+		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+	} {
+		if item.info != nil {
+			if *item.destination, err = input(*item.info); err != nil {
+				return result, nil, err
+			}
+		}
+	}
 	if info.AttentionKNorm != nil {
 		if result.AttentionKNorm, err = input(*info.AttentionKNorm); err != nil {
 			return result, nil, err
@@ -1560,6 +1578,19 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		}
 		if layer.AttentionQNorm != nil {
 			names[layer.AttentionQNorm.Name] = struct{}{}
+		}
+		for _, pointer := range []*gguf.TensorInfo{
+			layer.AttentionQBias,
+			layer.AttentionKBias,
+			layer.AttentionVBias,
+			layer.AttentionOutputBias,
+			layer.FeedForwardGateBias,
+			layer.FeedForwardUpBias,
+			layer.FeedForwardDownBias,
+		} {
+			if pointer != nil {
+				names[pointer.Name] = struct{}{}
+			}
 		}
 		if layer.AttentionKNorm != nil {
 			names[layer.AttentionKNorm.Name] = struct{}{}

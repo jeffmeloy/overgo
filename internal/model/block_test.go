@@ -121,6 +121,57 @@ func TestBuildDenseLlamaBlockUsesNormalRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDenseBlockConsumesProjectionBiases(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "llama",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		RMSNormEpsilon:    1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	weights.AttentionQBias = builder.Input("attn_q.bias", dtype.F32, tensor.MustShape(8))
+	weights.AttentionKBias = builder.Input("attn_k.bias", dtype.F32, tensor.MustShape(4))
+	weights.AttentionVBias = builder.Input("attn_v.bias", dtype.F32, tensor.MustShape(4))
+	weights.AttentionOutputBias = builder.Input("attn_output.bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardGateBias = builder.Input("ffn_gate.bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardUpBias = builder.Input("ffn_up.bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardDownBias = builder.Input("ffn_down.bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := make(map[string]bool)
+	for _, node := range nodes {
+		found[node.Name] = true
+	}
+	for _, name := range []string{
+		"attn_q.bias",
+		"attn_k.bias",
+		"attn_v.bias",
+		"attn_output.bias",
+		"ffn_gate.bias",
+		"ffn_up.bias",
+		"ffn_down.bias",
+	} {
+		if !found[name] {
+			t.Fatalf("projection bias %q is not connected to the graph", name)
+		}
+	}
+}
+
 func TestBuildQwen35AttentionBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := qwen35TestSpec()

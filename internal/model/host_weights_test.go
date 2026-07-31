@@ -67,27 +67,43 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	qNorm := value(4)
 	kNorm := value(4)
 	ropeFactors := value(2)
+	attentionQBias := value(8)
+	attentionKBias := value(4)
+	attentionVBias := value(4)
+	attentionOutputBias := value(8)
+	feedForwardGateBias := value(12)
+	feedForwardUpBias := value(12)
+	feedForwardDownBias := value(8)
 	layer := HostLayer{
-		AttentionNorm:   value(8),
-		AttentionQ:      value(8, 8),
-		AttentionK:      value(8, 4),
-		AttentionV:      value(8, 4),
-		AttentionOutput: value(8, 8),
-		AttentionQNorm:  &qNorm,
-		AttentionKNorm:  &kNorm,
-		RopeFactors:     &ropeFactors,
-		FeedForwardNorm: value(8),
-		FeedForwardGate: value(8, 12),
-		FeedForwardUp:   value(8, 12),
-		FeedForwardDown: value(12, 8),
+		AttentionNorm:       value(8),
+		AttentionQ:          value(8, 8),
+		AttentionK:          value(8, 4),
+		AttentionV:          value(8, 4),
+		AttentionOutput:     value(8, 8),
+		AttentionQNorm:      &qNorm,
+		AttentionKNorm:      &kNorm,
+		RopeFactors:         &ropeFactors,
+		AttentionQBias:      &attentionQBias,
+		AttentionKBias:      &attentionKBias,
+		AttentionVBias:      &attentionVBias,
+		AttentionOutputBias: &attentionOutputBias,
+		FeedForwardNorm:     value(8),
+		FeedForwardGate:     value(8, 12),
+		FeedForwardUp:       value(8, 12),
+		FeedForwardDown:     value(12, 8),
+		FeedForwardGateBias: &feedForwardGateBias,
+		FeedForwardUpBias:   &feedForwardUpBias,
+		FeedForwardDownBias: &feedForwardDownBias,
 	}
 	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(feeds) != 12 ||
+	if len(feeds) != 19 ||
 		graph.AttentionQNorm == nil ||
 		graph.RopeFactors == nil ||
+		graph.AttentionOutputBias == nil ||
+		graph.FeedForwardDownBias == nil ||
 		graph.FeedForwardDown == nil {
 		t.Fatalf("unexpected graph inputs or feed count: %d", len(feeds))
 	}

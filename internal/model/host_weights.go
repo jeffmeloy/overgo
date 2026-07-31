@@ -20,6 +20,10 @@ type HostLayer struct {
 	AttentionK            reference.Value
 	AttentionV            reference.Value
 	AttentionOutput       reference.Value
+	AttentionQBias        *reference.Value
+	AttentionKBias        *reference.Value
+	AttentionVBias        *reference.Value
+	AttentionOutputBias   *reference.Value
 	AttentionQNorm        *reference.Value
 	AttentionKNorm        *reference.Value
 	AttentionPostNorm     *reference.Value
@@ -29,6 +33,9 @@ type HostLayer struct {
 	FeedForwardGate       reference.Value
 	FeedForwardUp         reference.Value
 	FeedForwardDown       reference.Value
+	FeedForwardGateBias   *reference.Value
+	FeedForwardUpBias     *reference.Value
+	FeedForwardDownBias   *reference.Value
 	FeedForwardPostNorm   *reference.Value
 
 	AttentionQKV  *reference.Value
@@ -316,6 +323,27 @@ func LoadHostLayer(
 		}
 		result.AttentionQNorm = &value
 	}
+	for _, item := range []struct {
+		info        *gguf.TensorInfo
+		destination **reference.Value
+	}{
+		{info.AttentionQBias, &result.AttentionQBias},
+		{info.AttentionKBias, &result.AttentionKBias},
+		{info.AttentionVBias, &result.AttentionVBias},
+		{info.AttentionOutputBias, &result.AttentionOutputBias},
+		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
+		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
+		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+	} {
+		if item.info == nil {
+			continue
+		}
+		value, err := LoadHostTensor(ctx, file, *item.info)
+		if err != nil {
+			return HostLayer{}, err
+		}
+		*item.destination = &value
+	}
 	if info.AttentionKNorm != nil {
 		value, err := LoadHostTensor(ctx, file, *info.AttentionKNorm)
 		if err != nil {
@@ -399,6 +427,23 @@ func (layer *HostLayer) GraphInputs(
 	}
 	if layer.AttentionQNorm != nil {
 		result.AttentionQNorm = input("attn_q_norm.weight", *layer.AttentionQNorm)
+	}
+	for _, item := range []struct {
+		name        string
+		value       *reference.Value
+		destination **tensor.Tensor
+	}{
+		{"attn_q.bias", layer.AttentionQBias, &result.AttentionQBias},
+		{"attn_k.bias", layer.AttentionKBias, &result.AttentionKBias},
+		{"attn_v.bias", layer.AttentionVBias, &result.AttentionVBias},
+		{"attn_output.bias", layer.AttentionOutputBias, &result.AttentionOutputBias},
+		{"ffn_gate.bias", layer.FeedForwardGateBias, &result.FeedForwardGateBias},
+		{"ffn_up.bias", layer.FeedForwardUpBias, &result.FeedForwardUpBias},
+		{"ffn_down.bias", layer.FeedForwardDownBias, &result.FeedForwardDownBias},
+	} {
+		if item.value != nil {
+			*item.destination = input(item.name, *item.value)
+		}
 	}
 	if layer.AttentionKNorm != nil {
 		result.AttentionKNorm = input("attn_k_norm.weight", *layer.AttentionKNorm)

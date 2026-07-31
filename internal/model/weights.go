@@ -16,6 +16,10 @@ type LayerWeights struct {
 	AttentionK            gguf.TensorInfo
 	AttentionV            gguf.TensorInfo
 	AttentionOutput       gguf.TensorInfo
+	AttentionQBias        *gguf.TensorInfo
+	AttentionKBias        *gguf.TensorInfo
+	AttentionVBias        *gguf.TensorInfo
+	AttentionOutputBias   *gguf.TensorInfo
 	AttentionQNorm        *gguf.TensorInfo
 	AttentionKNorm        *gguf.TensorInfo
 	AttentionPostNorm     *gguf.TensorInfo
@@ -25,6 +29,9 @@ type LayerWeights struct {
 	FeedForwardGate       gguf.TensorInfo
 	FeedForwardUp         gguf.TensorInfo
 	FeedForwardDown       gguf.TensorInfo
+	FeedForwardGateBias   *gguf.TensorInfo
+	FeedForwardUpBias     *gguf.TensorInfo
+	FeedForwardDownBias   *gguf.TensorInfo
 	FeedForwardPostNorm   *gguf.TensorInfo
 
 	AttentionQKV  *gguf.TensorInfo
@@ -165,7 +172,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	result.Layers = make([]LayerWeights, spec.BlockCount)
 	for block := uint32(0); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
-		for _, unsupported := range []string{
+		biasNames := []string{
 			"attn_q.bias",
 			"attn_k.bias",
 			"attn_v.bias",
@@ -173,6 +180,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			"ffn_gate.bias",
 			"ffn_up.bias",
 			"ffn_down.bias",
+		}
+		if spec.Architecture == "qwen35" {
+			for _, name := range biasNames {
+				if _, ok := tensors[prefix+name]; ok {
+					return Weights{}, fmt.Errorf(
+						"tensor %q requires unsupported Qwen3.5 projection biases",
+						prefix+name,
+					)
+				}
+			}
+		}
+		for _, unsupported := range []string{
 			"rope_factors_long.weight",
 			"rope_factors_short.weight",
 		} {
@@ -335,6 +354,30 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
+		if !layer.Recurrent {
+			for name, shapeAndDestination := range map[string]struct {
+				shape       uint64
+				destination **gguf.TensorInfo
+			}{
+				"attn_q.bias":      {layer.AttentionQ.Shape[1], &layer.AttentionQBias},
+				"attn_k.bias":      {layer.AttentionK.Shape[1], &layer.AttentionKBias},
+				"attn_v.bias":      {layer.AttentionV.Shape[1], &layer.AttentionVBias},
+				"attn_output.bias": {uint64(spec.EmbeddingLength), &layer.AttentionOutputBias},
+			} {
+				if item, ok := tensors[prefix+name]; ok {
+					if item.Type != dtype.F32 ||
+						item.Dimensions != 1 ||
+						item.Shape[0] != shapeAndDestination.shape {
+						return Weights{}, fmt.Errorf(
+							"tensor %q has incompatible shape %v",
+							item.Name,
+							item.Shape,
+						)
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+		}
 		if spec.Architecture == "gemma3" {
 			attentionPostNorm, normErr := required(
 				prefix+"post_attention_norm.weight",
@@ -380,6 +423,27 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			uint64(spec.EmbeddingLength),
 		); err != nil {
 			return Weights{}, err
+		}
+		for name, shapeAndDestination := range map[string]struct {
+			shape       uint64
+			destination **gguf.TensorInfo
+		}{
+			"ffn_gate.bias": {uint64(spec.FeedForwardLength), &layer.FeedForwardGateBias},
+			"ffn_up.bias":   {uint64(spec.FeedForwardLength), &layer.FeedForwardUpBias},
+			"ffn_down.bias": {uint64(spec.EmbeddingLength), &layer.FeedForwardDownBias},
+		} {
+			if item, ok := tensors[prefix+name]; ok {
+				if item.Type != dtype.F32 ||
+					item.Dimensions != 1 ||
+					item.Shape[0] != shapeAndDestination.shape {
+					return Weights{}, fmt.Errorf(
+						"tensor %q has incompatible shape %v",
+						item.Name,
+						item.Shape,
+					)
+				}
+				*shapeAndDestination.destination = &item
+			}
 		}
 	}
 	return result, nil

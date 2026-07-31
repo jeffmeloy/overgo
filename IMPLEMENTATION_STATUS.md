@@ -416,8 +416,11 @@
   `rope_freqs.weight` tensors apply one validated divisor per rotary pair on
   both the CPU reference and CUDA paths, including streamed, preloaded-F32,
   and native-quantized execution. Unsupported long/short RoPE factors,
-  scaling modes not lowered to tensors, and bias tensors are rejected before
-  execution.
+  and scaling modes not lowered to tensors are rejected before execution.
+- Dense attention Q/K/V/output and feed-forward gate/up/down projection biases
+  are shape-validated, loaded through streamed, preloaded-F32, and
+  native-quantized paths, and applied with broadcast additions on CPU and
+  CUDA.
 - Qwen3.5 prerequisite graph operations Sigmoid, numerically stable Softplus,
   and row-wise L2Norm match between the CPU reference and CUDA executors.
 - Qwen3.5 projection layout extraction, rank-2 transposition, axis-zero
@@ -541,7 +544,8 @@
   rates. Its `params` object retains the effective sampler, stop, cache, and
   context-shift settings. Its `next_token` object reports decoded/remaining
   counts and truthfully reports no pending token in the synchronous runtime.
-- Llama execution currently covers dense, bias-free models with ordinary RoPE
+- Llama execution currently covers dense models with optional projection
+  biases and ordinary RoPE
   or converted Llama 3 per-pair frequency factors. LongRoPE/YaRN tensor
   selection, MoE, and model-specific attention variants are rejected.
 - The Qwen3.5 graph supports true multi-axis positions, but the text generation
@@ -634,7 +638,7 @@ and ternary fixtures but no real Llama weight file. The pinned upstream
 Llama SPM/BPE vocabulary fixtures and synthetic dense-block CPU/CUDA tests,
 including converted Llama 3 frequency factors, pass. Final logits, greedy
 tokens, and performance for the Llama path remain deferred until a compatible
-dense, bias-free Llama GGUF is available.
+dense Llama GGUF is available.
 
 ### Deferred: real-model infill oracle
 

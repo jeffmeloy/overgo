@@ -674,10 +674,33 @@ func TestExecutorDenseQwen3BlockMatchesReference(t *testing.T) {
 		AttentionOutput: builder.Input("attn_output", dtype.F32, tensor.MustShape(8, 8)),
 		AttentionQNorm:  builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(4)),
 		AttentionKNorm:  builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionQBias:  builder.Input("attn_q_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionKBias:  builder.Input("attn_k_bias", dtype.F32, tensor.MustShape(4)),
+		AttentionVBias:  builder.Input("attn_v_bias", dtype.F32, tensor.MustShape(4)),
+		AttentionOutputBias: builder.Input(
+			"attn_output_bias",
+			dtype.F32,
+			tensor.MustShape(8),
+		),
 		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
 		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+		FeedForwardGateBias: builder.Input(
+			"ffn_gate_bias",
+			dtype.F32,
+			tensor.MustShape(12),
+		),
+		FeedForwardUpBias: builder.Input(
+			"ffn_up_bias",
+			dtype.F32,
+			tensor.MustShape(12),
+		),
+		FeedForwardDownBias: builder.Input(
+			"ffn_down_bias",
+			dtype.F32,
+			tensor.MustShape(8),
+		),
 	}
 	output, err := model.BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
 	if err != nil {
@@ -703,6 +726,17 @@ func TestExecutorDenseQwen3BlockMatchesReference(t *testing.T) {
 		weights.FeedForwardNorm,
 	} {
 		feeds[node] = patternedValue(node.Shape, index+13, 0.03, 1)
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQBias,
+		weights.AttentionKBias,
+		weights.AttentionVBias,
+		weights.AttentionOutputBias,
+		weights.FeedForwardGateBias,
+		weights.FeedForwardUpBias,
+		weights.FeedForwardDownBias,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+20, 0.02, -0.01)
 	}
 	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
 	if err != nil {

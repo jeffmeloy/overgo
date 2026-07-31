@@ -15,6 +15,10 @@ type LayerGraphWeights struct {
 	AttentionK            *tensor.Tensor
 	AttentionV            *tensor.Tensor
 	AttentionOutput       *tensor.Tensor
+	AttentionQBias        *tensor.Tensor
+	AttentionKBias        *tensor.Tensor
+	AttentionVBias        *tensor.Tensor
+	AttentionOutputBias   *tensor.Tensor
 	AttentionQNorm        *tensor.Tensor
 	AttentionKNorm        *tensor.Tensor
 	AttentionPostNorm     *tensor.Tensor
@@ -24,6 +28,9 @@ type LayerGraphWeights struct {
 	FeedForwardGate       *tensor.Tensor
 	FeedForwardUp         *tensor.Tensor
 	FeedForwardDown       *tensor.Tensor
+	FeedForwardGateBias   *tensor.Tensor
+	FeedForwardUpBias     *tensor.Tensor
+	FeedForwardDownBias   *tensor.Tensor
 	FeedForwardPostNorm   *tensor.Tensor
 
 	AttentionQKV  *tensor.Tensor
@@ -211,6 +218,15 @@ func BuildDenseBlockCachedForLayer(
 	query := builder.MulMat(weights.AttentionQ, normalized)
 	key := builder.MulMat(weights.AttentionK, normalized)
 	value := builder.MulMat(weights.AttentionV, normalized)
+	if weights.AttentionQBias != nil {
+		query = builder.Add(query, weights.AttentionQBias)
+	}
+	if weights.AttentionKBias != nil {
+		key = builder.Add(key, weights.AttentionKBias)
+	}
+	if weights.AttentionVBias != nil {
+		value = builder.Add(value, weights.AttentionVBias)
+	}
 
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
@@ -305,6 +321,9 @@ func BuildDenseBlockCachedForLayer(
 		tokens,
 	)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if weights.AttentionOutputBias != nil {
+		attention = builder.Add(attention, weights.AttentionOutputBias)
+	}
 	if spec.Architecture == "gemma3" {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
 			return DenseBlockResult{}, errors.New("Gemma 3 block requires post norm weights")
@@ -318,11 +337,20 @@ func BuildDenseBlockCachedForLayer(
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	gate := builder.MulMat(weights.FeedForwardGate, normalized)
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	if weights.FeedForwardGateBias != nil {
+		gate = builder.Add(gate, weights.FeedForwardGateBias)
+	}
+	if weights.FeedForwardUpBias != nil {
+		up = builder.Add(up, weights.FeedForwardUpBias)
+	}
 	activation := builder.SwiGLU(gate, up)
 	if spec.Architecture == "gemma3" {
 		activation = builder.GEGLU(gate, up)
 	}
 	feedForward := builder.MulMat(weights.FeedForwardDown, activation)
+	if weights.FeedForwardDownBias != nil {
+		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+	}
 	if spec.Architecture == "gemma3" {
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,

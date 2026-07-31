@@ -195,6 +195,26 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		}
 		result.AttentionQNorm = input(*info.AttentionQNorm)
 	}
+	for _, item := range []struct {
+		info        *gguf.TensorInfo
+		destination **tensor.Tensor
+	}{
+		{info.AttentionQBias, &result.AttentionQBias},
+		{info.AttentionKBias, &result.AttentionKBias},
+		{info.AttentionVBias, &result.AttentionVBias},
+		{info.AttentionOutputBias, &result.AttentionOutputBias},
+		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
+		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
+		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+	} {
+		if item.info == nil {
+			continue
+		}
+		if _, ok := w.Lookup(item.info.Name); !ok {
+			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", item.info.Name)
+		}
+		*item.destination = input(*item.info)
+	}
 	if info.AttentionKNorm != nil {
 		if _, ok := w.Lookup(info.AttentionKNorm.Name); !ok {
 			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", info.AttentionKNorm.Name)

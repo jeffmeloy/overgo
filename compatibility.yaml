@@ -823,7 +823,7 @@ models:
       - Q8_K
     constraints:
       - dense
-      - bias-free
+      - optional-projection-biases
       - ordinary-rope-or-per-pair-rope-factors
       - no-longrope-or-yarn-factor-selection
     tokenizers:

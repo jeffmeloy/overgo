@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -281,6 +282,66 @@ func TestBuildGrokBlockUsesYaRNPostNormAndGELUMoE(t *testing.T) {
 			"unexpected Grok graph: moe=%+v yarn=%d attention=%+v GELU=%d RMSNorm=%d",
 			attrs, yarn, attention, gelu, rmsNorm,
 		)
+	}
+}
+
+func TestBuildMellumSlidingAndYaRNBlocks(t *testing.T) {
+	for _, layer := range []uint32{0, 3} {
+		t.Run(fmt.Sprintf("layer=%d", layer), func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: "mellum", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 12,
+				ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+				ExpertWeightsScale: 1, ExpertWeightsNorm: true,
+				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+				RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+				RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 2048,
+				YaRNExtFactor: 1, YaRNAttentionFactor: 1.25, YaRNBetaFast: 32, YaRNBetaSlow: 1,
+				SlidingWindow: 128, SlidingPattern: 4, RMSNormEpsilon: 1e-6,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := LayerGraphWeights{
+				AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+				AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+				AttentionK:             builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+				AttentionV:             builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+				AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+				AttentionQNorm:         builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+				AttentionKNorm:         builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+				FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+				FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+				FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+				FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+				FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+			}
+			result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, layer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, _ := tensor.Topological(result.Output)
+			var attention tensor.AttentionAttributes
+			var rope tensor.RoPEAttributes
+			var moe tensor.MoEAttributes
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpAttention:
+					attention = node.Attrs.(tensor.AttentionAttributes)
+				case tensor.OpRoPENeoX:
+					rope = node.Attrs.(tensor.RoPEAttributes)
+				case tensor.OpMoE:
+					moe = node.Attrs.(tensor.MoEAttributes)
+				}
+			}
+			if moe.TopK != 2 || !moe.NormalizeTopKProb || moe.Activation != tensor.MoEActivationSiLU {
+				t.Fatalf("unexpected Mellum MoE: %+v", moe)
+			}
+			if layer == 0 && (attention.Window != 128 || rope.FrequencyBase != 20000 || rope.OriginalContext != 0) {
+				t.Fatalf("unexpected Mellum sliding graph: attention=%+v rope=%+v", attention, rope)
+			}
+			if layer == 3 && (attention.Window != 0 || rope.OriginalContext != 2048 || rope.AttentionFactor != 1.25) {
+				t.Fatalf("unexpected Mellum full graph: attention=%+v rope=%+v", attention, rope)
+			}
+		})
 	}
 }
 

@@ -465,6 +465,7 @@ func BuildDenseBlockCachedForLayer(
 	isDOTS1 := spec.Architecture == "dots1"
 	isGraniteMoE := spec.Architecture == "granitemoe"
 	isGrok := spec.Architecture == "grok"
+	isMellum := spec.Architecture == "mellum"
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
@@ -488,7 +489,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isGrok && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isGrok && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -728,7 +729,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isLLaDAMoE || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isLLaDAMoE || isMellum || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -787,7 +788,7 @@ func BuildDenseBlockCachedForLayer(
 				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
 			)
 		}
-	} else if isGrok && spec.RopeScalingType == "yarn" {
+	} else if (isGrok || isMellum) && spec.RopeScalingType == "yarn" && !spec.IsSlidingLayer(layerIndex) {
 		frequencyScale := float32(1) / spec.RopeScalingFactor
 		query = builder.RoPENeoXYaRN(
 			query, positions, rotaryDimensions, spec.OriginalContextLength,
@@ -863,6 +864,10 @@ func BuildDenseBlockCachedForLayer(
 		}
 		if (isAFMoE || isEXAOneMoE || isSmallThinker) && spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
+		}
+		if isMellum && spec.IsSlidingLayer(layerIndex) {
+			frequencyBase = spec.RopeFrequencySWA
+			frequencyScale = 1
 		}
 		if weights.RopeFactors != nil {
 			query = builder.RoPENeoXScaledWithFactors(

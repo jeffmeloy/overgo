@@ -1267,6 +1267,24 @@ models:
       - optional-tied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  mellum:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - rmsnorm
+      - separate-qkv
+      - per-head-qk-rmsnorm
+      - neox-linear-or-yarn-rope
+      - scalar-or-per-layer-sliding-window-pattern
+      - unscaled-rope-on-sliding-layers
+      - normalized-softmax-top-k-routing
+      - packed-swiglu-experts
+      - required-untied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   dots1:
     status: experimental
     execution:

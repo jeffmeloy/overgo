@@ -264,6 +264,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "dbrx" ||
 		spec.Architecture == "dots1" ||
 		spec.Architecture == "minimax-m2" ||
+		spec.Architecture == "mellum" ||
 		spec.Architecture == "jais" ||
 		spec.Architecture == "llada-moe" ||
 		spec.Architecture == "xverse" ||
@@ -692,7 +693,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
@@ -945,7 +946,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grok" || spec.Architecture == "llada-moe" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grok" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "dots1" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||

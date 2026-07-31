@@ -615,6 +615,38 @@ func TestReadGrokSpecUsesLegacyDefaults(t *testing.T) {
 	}
 }
 
+func TestReadMellumSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "mellum"),
+		metadata("mellum.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mellum.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("mellum.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("mellum.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("mellum.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("mellum.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("mellum.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("mellum.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("mellum.rope.scaling.type", gguf.ValueTypeString, "yarn"),
+		metadata("mellum.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("mellum.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("mellum.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		metadata("mellum.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mellum.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("mellum.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mellum.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("mellum.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertFeedForward != 6 || !spec.ExpertWeightsNorm ||
+		spec.RopeDimensionCount != 4 || spec.RopeScalingType != "yarn" ||
+		spec.RopeFrequencySWA != 20000 || !spec.IsSlidingLayer(0) || spec.IsSlidingLayer(3) {
+		t.Fatalf("unexpected Mellum spec: %+v", spec)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

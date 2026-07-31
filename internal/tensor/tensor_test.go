@@ -183,6 +183,44 @@ func TestBuilderSoftmaxMoEWithSelectionBias(t *testing.T) {
 	}
 }
 
+func TestBuilderQ8MoE(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(32, 1))
+	router := builder.Input("router", dtype.F32, MustShape(32, 4))
+	gate := builder.Input("gate", dtype.Q8_0, MustShape(32, 32, 4))
+	up := builder.Input("up", dtype.Q8_0, MustShape(32, 32, 4))
+	down := builder.Input("down", dtype.Q8_0, MustShape(32, 32, 4))
+	output := builder.MoE(input, router, gate, up, down, 2, true, 1)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Type != dtype.F32 || !output.Shape.Equal(input.Shape) {
+		t.Fatalf("unexpected Q8_0 MoE output: %+v", output)
+	}
+
+	invalid := NewBuilder()
+	invalidInput := invalid.Input("input", dtype.F32, MustShape(16, 1))
+	invalidRouter := invalid.Input("router", dtype.F32, MustShape(16, 4))
+	invalidGate := invalid.Input("gate", dtype.Q8_0, MustShape(16, 32, 4))
+	invalidUp := invalid.Input("up", dtype.Q8_0, MustShape(16, 32, 4))
+	invalidDown := invalid.Input("down", dtype.Q8_0, MustShape(32, 16, 4))
+	invalid.MoE(invalidInput, invalidRouter, invalidGate, invalidUp, invalidDown, 2, true, 1)
+	if invalid.Err() == nil {
+		t.Fatal("Q8_0 MoE accepted an unaligned hidden width")
+	}
+
+	mixed := NewBuilder()
+	mixedInput := mixed.Input("input", dtype.F32, MustShape(32, 1))
+	mixedRouter := mixed.Input("router", dtype.F32, MustShape(32, 4))
+	mixedGate := mixed.Input("gate", dtype.Q8_0, MustShape(32, 32, 4))
+	mixedUp := mixed.Input("up", dtype.F32, MustShape(32, 32, 4))
+	mixedDown := mixed.Input("down", dtype.Q8_0, MustShape(32, 32, 4))
+	mixed.MoE(mixedInput, mixedRouter, mixedGate, mixedUp, mixedDown, 2, true, 1)
+	if mixed.Err() == nil {
+		t.Fatal("MoE accepted mixed expert storage types")
+	}
+}
+
 func TestBuilderGatedDeltaNet(t *testing.T) {
 	builder := NewBuilder()
 	q := builder.Input("q", dtype.F32, MustShape(4, 2, 3, 2))

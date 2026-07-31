@@ -146,6 +146,127 @@ func TestExecutorMoEMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 5e-5)
 }
 
+func TestExecutorQ8_0MoEMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	inputShape := tensor.MustShape(32, 2)
+	routerShape := tensor.MustShape(32, 4)
+	gateShape := tensor.MustShape(32, 32, 4)
+	downShape := tensor.MustShape(32, 32, 4)
+	inputValue := patternedValue(inputShape, 3, 0.08, 0)
+	routerValue := patternedValue(routerShape, 5, 0.06, 0)
+	gateValue := patternedValue(gateShape, 7, 0.04, 0)
+	upValue := patternedValue(gateShape, 11, 0.04, 0)
+	downValue := patternedValue(downShape, 13, 0.04, 0)
+
+	quantize := func(value reference.Value) ([]byte, reference.Value) {
+		t.Helper()
+		storage, err := quant.Quantize(dtype.Q8_0, value.Data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dequantized, err := quant.Dequantize(dtype.Q8_0, storage, uint64(len(value.Data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := reference.NewValue(value.Shape, dequantized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return storage, result
+	}
+	gateStorage, gateReference := quantize(gateValue)
+	upStorage, upReference := quantize(upValue)
+	downStorage, downReference := quantize(downValue)
+
+	referenceBuilder := tensor.NewBuilder()
+	referenceInput := referenceBuilder.Input("input", dtype.F32, inputShape)
+	referenceRouter := referenceBuilder.Input("router", dtype.F32, routerShape)
+	referenceGate := referenceBuilder.Input("gate", dtype.F32, gateShape)
+	referenceUp := referenceBuilder.Input("up", dtype.F32, gateShape)
+	referenceDown := referenceBuilder.Input("down", dtype.F32, downShape)
+	referenceOutput := referenceBuilder.MoE(
+		referenceInput, referenceRouter, referenceGate, referenceUp, referenceDown, 2, true, 1.25,
+	)
+	want, err := reference.Execute(
+		[]*tensor.Tensor{referenceOutput},
+		map[*tensor.Tensor]reference.Value{
+			referenceInput:  inputValue,
+			referenceRouter: routerValue,
+			referenceGate:   gateReference,
+			referenceUp:     upReference,
+			referenceDown:   downReference,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, inputShape)
+	router := builder.Input("router", dtype.F32, routerShape)
+	gate := builder.Input("gate", dtype.Q8_0, gateShape)
+	up := builder.Input("up", dtype.Q8_0, gateShape)
+	down := builder.Input("down", dtype.Q8_0, downShape)
+	output := builder.MoE(input, router, gate, up, down, 2, true, 1.25)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr, 3)
+	storages := []struct {
+		node *tensor.Tensor
+		data []byte
+	}{{gate, gateStorage}, {up, upStorage}, {down, downStorage}}
+	var allocations []driver.DevicePtr
+	err = worker.Do(context.Background(), func(state *device.State) error {
+		for _, item := range storages {
+			pointer, allocateErr := state.Driver.MemAlloc(uint64(len(item.data)))
+			if allocateErr != nil {
+				return allocateErr
+			}
+			allocations = append(allocations, pointer)
+			deviceFeeds[item.node] = pointer
+			if copyErr := state.Driver.MemcpyHtoD(pointer, item.data); copyErr != nil {
+				return copyErr
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Do(context.Background(), func(state *device.State) error {
+		for _, pointer := range allocations {
+			if err := state.Driver.MemFree(pointer); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	cuda, err := NewWithWorker(worker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.ExecuteWithDeviceFeeds(
+		context.Background(),
+		[]*tensor.Tensor{output},
+		map[*tensor.Tensor]reference.Value{input: inputValue, router: routerValue},
+		deviceFeeds,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[referenceOutput].Data, 2e-4)
+}
+
 func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

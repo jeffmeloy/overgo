@@ -676,12 +676,27 @@ extern "C" __global__ void rope_multi_f32(
         : x0 * sine + x1 * cosine;
 }
 
+__device__ float moe_expert_value(
+        const void * weights,
+        size_t index,
+        unsigned int storage) {
+    if (storage == 0) {
+        return reinterpret_cast<const float *>(weights)[index];
+    }
+    const unsigned char * bytes = reinterpret_cast<const unsigned char *>(weights);
+    const unsigned char * block = bytes + (index / 32) * 34;
+    const float scale = __half2float(*reinterpret_cast<const __half *>(block));
+    const signed char value =
+        *(reinterpret_cast<const signed char *>(block + 2) + index % 32);
+    return scale * (float) value;
+}
+
 extern "C" __global__ void moe_f32(
         const float * input,
         const float * router,
-        const float * gate,
-        const float * up,
-        const float * down,
+		const void * gate,
+		const void * up,
+		const void * down,
 		const float * selection_bias,
         float * output,
         unsigned int hidden,
@@ -692,6 +707,7 @@ extern "C" __global__ void moe_f32(
         unsigned int normalize_top_k,
 		unsigned int routing,
         float routed_scale,
+		unsigned int expert_storage,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
@@ -762,12 +778,15 @@ extern "C" __global__ void moe_f32(
             float gate_dot = 0.0f;
             float up_dot = 0.0f;
             for (unsigned int channel = 0; channel < hidden; ++channel) {
-                gate_dot += x[channel] * gate[weight_offset + channel];
-                up_dot += x[channel] * up[weight_offset + channel];
+				gate_dot += x[channel] * moe_expert_value(
+					gate, weight_offset + channel, expert_storage);
+				up_dot += x[channel] * moe_expert_value(
+					up, weight_offset + channel, expert_storage);
             }
             const float activation = gate_dot / (1.0f + expf(-gate_dot)) * up_dot;
             const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + inner;
-            expert_output += activation * down[down_offset];
+			expert_output += activation * moe_expert_value(
+				down, down_offset, expert_storage);
         }
         result += route * expert_output;
     }

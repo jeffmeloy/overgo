@@ -8,12 +8,12 @@ import (
 
 const (
 	// BundleABIVersion: incremented for incompatible kernel launch contracts
-	BundleABIVersion = 6
+	BundleABIVersion = 7
 	// BundleTarget: PTX virtual architecture pinned by manifest
 	BundleTarget = "compute_89"
 
 	VectorAddSHA256 = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	OpsF32SHA256    = "7c87bb0f5a42f046b387e92dfe8f2274a7295d45af1d07128fede35b03d4dfe7"
+	OpsF32SHA256    = "8ed9c0ee4938f7c9a2bc01182f2fb9d25ef882c1ec0a393b961dac45a6cc0a19"
 )
 
 // ValidateAssets: fails closed when embedded PTX differs from kernel bundle

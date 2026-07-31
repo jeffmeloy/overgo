@@ -436,9 +436,13 @@ func (b *Builder) moe(
 		b.setError(errors.New("MoE input is nil"))
 		return nil
 	}
-	if input.Type != dtype.F32 || router.Type != dtype.F32 || gate.Type != dtype.F32 ||
-		up.Type != dtype.F32 || down.Type != dtype.F32 {
-		b.setError(errors.New("MoE currently requires F32 inputs"))
+	if input.Type != dtype.F32 || router.Type != dtype.F32 {
+		b.setError(errors.New("MoE input and router must be F32"))
+		return nil
+	}
+	if gate.Type != up.Type || gate.Type != down.Type ||
+		(gate.Type != dtype.F32 && gate.Type != dtype.Q8_0) {
+		b.setError(errors.New("MoE experts must share F32 or Q8_0 storage"))
 		return nil
 	}
 	if input.Shape.Rank != 2 || router.Shape.Rank != 2 || gate.Shape.Rank != 3 ||
@@ -463,6 +467,13 @@ func (b *Builder) moe(
 	if routing != MoERoutingSoftmax && routing != MoERoutingSigmoid {
 		b.setError(errors.New("MoE routing function is invalid"))
 		return nil
+	}
+	if gate.Type == dtype.Q8_0 {
+		traits, _ := dtype.Q8_0.Traits()
+		if hidden%traits.BlockSize != 0 || intermediate%traits.BlockSize != 0 {
+			b.setError(errors.New("Q8_0 MoE hidden and intermediate widths must be block aligned"))
+			return nil
+		}
 	}
 	inputs := []*Tensor{input, router, gate, up, down}
 	if selectionBias != nil {

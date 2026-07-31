@@ -1247,6 +1247,17 @@ func launchNode(
 		gate := pointers[node.Inputs[2]]
 		up := pointers[node.Inputs[3]]
 		down := pointers[node.Inputs[4]]
+		if node.Inputs[2].Type != node.Inputs[3].Type || node.Inputs[2].Type != node.Inputs[4].Type {
+			return errors.New("MoE expert storage types differ")
+		}
+		var expertStorage uint32
+		switch node.Inputs[2].Type {
+		case dtype.F32:
+		case dtype.Q8_0:
+			expertStorage = 1
+		default:
+			return fmt.Errorf("MoE expert storage type %s is unsupported", node.Inputs[2].Type)
+		}
 		var selectionBias driver.DevicePtr
 		if len(node.Inputs) == 6 {
 			selectionBias = pointers[node.Inputs[5]]
@@ -1264,7 +1275,8 @@ func launchNode(
 			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&output),
 			unsafe.Pointer(&hidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
-			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&count),
+			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
+			unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.moe, count, args)
 		runtime.KeepAlive(args)

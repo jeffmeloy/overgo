@@ -954,6 +954,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - non-causal-full-sequence-attention
       - no-kv-cache
@@ -963,13 +964,14 @@ models:
       - all-position-hidden-states-and-logits
     limitations:
       - iterative-diffusion-sampler-pending
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   laguna:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - per-layer-query-and-kv-head-counts
       - qk-rmsnorm
@@ -982,13 +984,14 @@ models:
       - always-on-shared-expert
       - serializable-prefix-editable-kv-cache
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   afmoe:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - mup-square-root-embedding-scale
       - dual-pre-and-post-rmsnorm
@@ -1002,7 +1005,7 @@ models:
       - optional-shared-experts
       - serializable-prefix-editable-kv-cache
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   lfm2:
     status: experimental
@@ -1135,6 +1138,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - affine-rmsnorm
       - contiguous-fused-or-separate-qkv
@@ -1147,7 +1151,7 @@ models:
       - required-untied-output-and-bias
       - serializable-prefix-editable-kv-cache
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   gptneox:
     status: experimental
@@ -1198,6 +1202,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - mixtral-normalized-softmax-top-k-routing
       - mixtral-packed-swiglu-experts
@@ -1208,7 +1213,7 @@ models:
       - optional-per-pair-rope-factors
       - no-longrope-or-yarn-factor-selection
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
     tokenizers:
       - llama-spm
       - llama3-bpe
@@ -1381,6 +1386,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - qwen3-qk-rmsnorm
       - neox-rope
@@ -1389,7 +1395,7 @@ models:
       - routed-weight-scaling
       - packed-swiglu-experts
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
       - shared-experts-pending
       - grouped-and-sigmoid-routing-pending
     real_model_validation: pending-fixture
@@ -1398,6 +1404,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - neox-rope
       - unnormalized-softmax-top-k-routing
@@ -1405,13 +1412,14 @@ models:
       - sigmoid-gated-shared-expert
       - serializable-prefix-editable-kv-cache
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   olmoe:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - full-projection-qk-rmsnorm
       - neox-rope
@@ -1421,13 +1429,14 @@ models:
     constraints:
       - matching-query-and-kv-head-counts
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   exaone-moe:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
+      - native-q8-experts
     features:
       - pre-rmsnorm
       - per-head-qk-rmsnorm
@@ -1443,7 +1452,7 @@ models:
       - preserved-unexecuted-nextn-mtp-layers
       - serializable-prefix-editable-kv-cache
     limitations:
-      - native-quantized-expert-kernels-pending
+      - non-q8-native-expert-kernels-pending
       - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   qwen35:

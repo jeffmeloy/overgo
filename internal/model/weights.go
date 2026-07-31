@@ -378,7 +378,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
-		if isGemmaArchitecture(spec.Architecture) {
+		if hasGemmaPostNorm(spec.Architecture) {
 			attentionPostNorm, normErr := required(
 				prefix+"post_attention_norm.weight",
 				uint64(spec.EmbeddingLength),

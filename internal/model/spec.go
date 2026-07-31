@@ -69,7 +69,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	if architecture != "llama" && architecture != "qwen3" &&
-		architecture != "qwen35" && architecture != "gemma2" &&
+		architecture != "qwen35" && architecture != "gemma" &&
+		architecture != "gemma2" &&
 		architecture != "gemma3" &&
 		architecture != "t5encoder" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
@@ -294,7 +295,7 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
-	return isGemmaArchitecture(s.Architecture) &&
+	return hasGemmaPostNorm(s.Architecture) &&
 		block < s.BlockCount &&
 		s.SlidingWindow > 0 &&
 		s.SlidingPattern > 0 &&
@@ -393,6 +394,10 @@ func (s Spec) validate() error {
 }
 
 func isGemmaArchitecture(architecture string) bool {
+	return architecture == "gemma" || architecture == "gemma2" || architecture == "gemma3"
+}
+
+func hasGemmaPostNorm(architecture string) bool {
 	return architecture == "gemma2" || architecture == "gemma3"
 }
 

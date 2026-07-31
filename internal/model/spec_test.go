@@ -124,6 +124,31 @@ func TestReadGemma2SpecDefaults(t *testing.T) {
 	}
 }
 
+func TestReadGemmaSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gemma"),
+		metadata("gemma.block_count", gguf.ValueTypeUint32, uint32(18)),
+		metadata("gemma.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("gemma.embedding_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("gemma.feed_forward_length", gguf.ValueTypeUint32, uint32(16384)),
+		metadata("gemma.attention.head_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gemma.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("gemma.attention.key_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("gemma.attention.value_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("gemma.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("gemma.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gemma" ||
+		spec.BlockCount != 18 ||
+		spec.IsSlidingLayer(0) {
+		t.Fatalf("unexpected Gemma spec: %+v", spec)
+	}
+}
+
 func TestReadQwen35Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen35"),

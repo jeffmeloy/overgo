@@ -873,6 +873,18 @@ models:
       - stream-ordered-zero-state-initialization
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
+  gemma:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quant
+    features:
+      - tied-output-embedding
+      - embedding-and-query-scaling
+      - neox-rope
+      - geglu
+    real_model_validation: pending-fixture
   gemma2:
     status: experimental
     execution:

@@ -366,7 +366,7 @@ func BuildDenseBlockCachedForLayer(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
-	if isGemmaArchitecture(spec.Architecture) {
+	if hasGemmaPostNorm(spec.Architecture) {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
 			return DenseBlockResult{}, errors.New("Gemma block requires post norm weights")
 		}
@@ -393,7 +393,7 @@ func BuildDenseBlockCachedForLayer(
 	if weights.FeedForwardDownBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 	}
-	if isGemmaArchitecture(spec.Architecture) {
+	if hasGemmaPostNorm(spec.Architecture) {
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)

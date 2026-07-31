@@ -254,7 +254,10 @@ func BuildDenseBlockCachedForLayer(
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
-	if usesNormalRoPE(spec.Architecture) {
+	if !spec.UsesRoPE(layerIndex) {
+		// Some dense architectures intentionally leave periodic layers
+		// position-independent.
+	} else if usesNormalRoPE(spec.Architecture) {
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
@@ -340,6 +343,9 @@ func BuildDenseBlockCachedForLayer(
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	if spec.AttentionScale > 0 {
+		attentionScale = spec.AttentionScale
+	}
 	if isGemmaArchitecture(spec.Architecture) {
 		// Gemma scales Q before the attention dot product, rather than scaling
 		// the accumulated score. Preserve that ordering for quantized parity.

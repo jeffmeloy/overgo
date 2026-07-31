@@ -124,6 +124,32 @@ func TestReadOLMo2SlidingSpec(t *testing.T) {
 	}
 }
 
+func TestReadSmolLM3Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),
+		metadata("smollm3.block_count", gguf.ValueTypeUint32, uint32(36)),
+		metadata("smollm3.context_length", gguf.ValueTypeUint32, uint32(65536)),
+		metadata("smollm3.embedding_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("smollm3.feed_forward_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("smollm3.attention.head_count", gguf.ValueTypeUint32, uint32(16)),
+		metadata("smollm3.attention.head_count_kv", gguf.ValueTypeUint32, uint32(4)),
+		metadata("smollm3.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("smollm3.attention.scale", gguf.ValueTypeFloat32, float32(0.125)),
+		metadata("smollm3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "smollm3" ||
+		spec.NoRopeLayerStep != 4 ||
+		spec.AttentionScale != 0.125 ||
+		!spec.UsesRoPE(2) ||
+		spec.UsesRoPE(3) {
+		t.Fatalf("unexpected SmolLM3 spec: %+v", spec)
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

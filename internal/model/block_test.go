@@ -242,6 +242,68 @@ func TestBuildDenseOLMo2PostNormalizedSlidingBlock(t *testing.T) {
 	}
 }
 
+func TestBuildDenseSmolLM3SkipsPeriodicRoPE(t *testing.T) {
+	for _, test := range []struct {
+		layer    uint32
+		wantRoPE int
+	}{
+		{2, 2},
+		{3, 0},
+	} {
+		builder := tensor.NewBuilder()
+		spec := Spec{
+			Architecture:      "smollm3",
+			BlockCount:        36,
+			EmbeddingLength:   8,
+			FeedForwardLength: 12,
+			HeadCount:         2,
+			HeadCountKV:       1,
+			KeyLength:         4,
+			ValueLength:       4,
+			RopeFrequencyBase: 10000,
+			AttentionScale:    0.25,
+			RMSNormEpsilon:    1e-6,
+			NoRopeLayerStep:   4,
+		}
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+		weights := denseBlockInputs(builder, spec)
+		weights.AttentionQNorm = nil
+		weights.AttentionKNorm = nil
+		result, err := BuildDenseBlockCachedForLayer(
+			builder,
+			input,
+			spec,
+			weights,
+			[]uint32{0, 1},
+			nil,
+			nil,
+			test.layer,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes, err := tensor.Topological(result.Output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ropeCount int
+		for _, node := range nodes {
+			if node.Op == tensor.OpRoPENormal {
+				ropeCount++
+			}
+			if node.Op == tensor.OpAttention {
+				attributes := node.Attrs.(tensor.AttentionAttributes)
+				if attributes.Scale != 0.25 {
+					t.Fatalf("SmolLM3 attention scale = %v, want 0.25", attributes.Scale)
+				}
+			}
+		}
+		if ropeCount != test.wantRoPE {
+			t.Fatalf("SmolLM3 layer %d RoPE count = %d, want %d", test.layer, ropeCount, test.wantRoPE)
+		}
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

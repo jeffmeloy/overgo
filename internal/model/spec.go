@@ -24,6 +24,7 @@ type Spec struct {
 	RopeFrequencySWA  float32
 	RopeScalingType   string
 	RopeScalingFactor float32
+	AttentionScale    float32
 	AttentionSoftcap  float32
 	FinalLogitSoftcap float32
 	RMSNormEpsilon    float32
@@ -31,6 +32,7 @@ type Spec struct {
 	SlidingWindow     uint32
 	SlidingPattern    uint32
 	RelativeBuckets   uint32
+	NoRopeLayerStep   uint32
 
 	// Qwen3.5 hybrid recurrent-attention metadata.
 	RopeDimensionCount    uint32
@@ -71,6 +73,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture != "llama" && architecture != "internlm2" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
+		architecture != "smollm3" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -163,6 +166,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		prefix+"attn_logit_softcapping",
 		gguf.ValueTypeFloat32,
 	)
+	spec.AttentionScale, _ = optional[float32](
+		values,
+		prefix+"attention.scale",
+		gguf.ValueTypeFloat32,
+	)
+	if architecture == "smollm3" {
+		spec.NoRopeLayerStep = 4
+	}
 	if architecture == "t5encoder" {
 		if spec.RelativeBuckets, err = required[uint32](
 			values,
@@ -310,6 +321,11 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 		block%s.SlidingPattern < s.SlidingPattern-1
 }
 
+func (s Spec) UsesRoPE(block uint32) bool {
+	return (s.BlockCount == 0 || block < s.BlockCount) &&
+		(s.NoRopeLayerStep == 0 || (block+1)%s.NoRopeLayerStep != 0)
+}
+
 func (s Spec) validate() error {
 	switch {
 	case s.BlockCount == 0:
@@ -406,6 +422,11 @@ func (s Spec) validate() error {
 		math.IsInf(float64(s.AttentionSoftcap), 0) {
 		return errors.New("attention logit softcap must be finite and non-negative")
 	}
+	if s.AttentionScale < 0 ||
+		math.IsNaN(float64(s.AttentionScale)) ||
+		math.IsInf(float64(s.AttentionScale), 0) {
+		return errors.New("attention scale must be finite and non-negative")
+	}
 	return nil
 }
 
@@ -424,6 +445,7 @@ func usesSlidingAttention(architecture string) bool {
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
 		architecture == "internlm2" ||
+		architecture == "smollm3" ||
 		architecture == "xverse"
 }
 

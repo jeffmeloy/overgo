@@ -862,6 +862,14 @@ models:
       - neox-rope
       - swiglu
     real_model_validation: pending-fixture
+  smollm3:
+    status: experimental
+    features:
+      - periodic-no-rope-layers
+      - metadata-attention-scale
+      - normal-rope
+      - swiglu
+    real_model_validation: pending-fixture
   qwen2:
     status: experimental
     execution:

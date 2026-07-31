@@ -50,7 +50,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 	}
 	document := `{
   "schema": 2,
-  "abiVersion": 1,
+  "abiVersion": 2,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",

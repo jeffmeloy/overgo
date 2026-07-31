@@ -411,9 +411,13 @@
 - `/v1/chat/completions` provides non-streaming and SSE responses for ChatML
   vocabularies. Formatting validates roles, rejects boundary injection, and
   tokenizes boundary markers as control tokens; a real Qwen3 decode passes.
-- Dense Llama graph construction now uses consecutive-pair normal RoPE rather
-  than Qwen3's split-half NeoX layout. Unsupported RoPE scaling, learned RoPE
-  factors, and bias tensors are rejected before execution.
+- Dense Llama graph construction uses consecutive-pair normal RoPE rather
+  than Qwen3's split-half NeoX layout. Converted Llama 3
+  `rope_freqs.weight` tensors apply one validated divisor per rotary pair on
+  both the CPU reference and CUDA paths, including streamed, preloaded-F32,
+  and native-quantized execution. Unsupported long/short RoPE factors,
+  scaling modes not lowered to tensors, and bias tensors are rejected before
+  execution.
 - Qwen3.5 prerequisite graph operations Sigmoid, numerically stable Softplus,
   and row-wise L2Norm match between the CPU reference and CUDA executors.
 - Qwen3.5 projection layout extraction, rank-2 transposition, axis-zero
@@ -537,9 +541,9 @@
   rates. Its `params` object retains the effective sampler, stop, cache, and
   context-shift settings. Its `next_token` object reports decoded/remaining
   counts and truthfully reports no pending token in the synchronous runtime.
-- Llama execution currently covers only dense, bias-free models without RoPE
-  scaling/factor tensors; MoE, Llama 3.x scaling, and model-specific attention
-  variants are rejected.
+- Llama execution currently covers dense, bias-free models with ordinary RoPE
+  or converted Llama 3 per-pair frequency factors. LongRoPE/YaRN tensor
+  selection, MoE, and model-specific attention variants are rejected.
 - The Qwen3.5 graph supports true multi-axis positions, but the text generation
   API currently supplies the same sequential position to every MRoPE axis.
   Image/video input plumbing, MTP heads, Qwen3.5 MoE, rollback snapshots, and
@@ -627,10 +631,10 @@ release binaries.
 
 The available local GGUF inventory has Qwen3, Qwen3.5, Gemma, T5, diffusion,
 and ternary fixtures but no real Llama weight file. The pinned upstream
-Llama SPM/BPE vocabulary fixtures and synthetic dense-block CPU/CUDA tests
-pass. Final logits, greedy tokens, and performance for the Llama path remain
-deferred until a compatible dense, bias-free, unscaled-RoPE Llama GGUF is
-available.
+Llama SPM/BPE vocabulary fixtures and synthetic dense-block CPU/CUDA tests,
+including converted Llama 3 frequency factors, pass. Final logits, greedy
+tokens, and performance for the Llama path remain deferred until a compatible
+dense, bias-free Llama GGUF is available.
 
 ### Deferred: real-model infill oracle
 

@@ -213,6 +213,12 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		}
 		result.AttentionRelativeBias = input(*info.AttentionRelativeBias)
 	}
+	if info.RopeFactors != nil {
+		if _, ok := w.Lookup(info.RopeFactors.Name); !ok {
+			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", info.RopeFactors.Name)
+		}
+		result.RopeFactors = input(*info.RopeFactors)
+	}
 	if info.FeedForwardPostNorm != nil {
 		if _, ok := w.Lookup(info.FeedForwardPostNorm.Name); !ok {
 			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", info.FeedForwardPostNorm.Name)

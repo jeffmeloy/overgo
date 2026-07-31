@@ -433,6 +433,7 @@ extern "C" __global__ void get_rows_f32(
 extern "C" __global__ void rope_neox_f32(
         const float * input,
         const unsigned int * positions,
+        const float * frequency_factors,
         float * output,
         unsigned int width,
         unsigned int heads,
@@ -457,7 +458,8 @@ extern "C" __global__ void rope_neox_f32(
     const unsigned int pair_offset = row * width + pair;
     const float theta =
         (float) positions[token] * frequency_scale *
-        powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions);
+        powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
+        (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
     float sine;
     float cosine;
     sincosf(theta, &sine, &cosine);
@@ -471,6 +473,7 @@ extern "C" __global__ void rope_neox_f32(
 extern "C" __global__ void rope_normal_f32(
         const float * input,
         const unsigned int * positions,
+        const float * frequency_factors,
         float * output,
         unsigned int width,
         unsigned int heads,
@@ -494,7 +497,8 @@ extern "C" __global__ void rope_normal_f32(
     const unsigned int pair_offset = row * width + pair * 2;
     const float theta =
         (float) positions[token] * frequency_scale *
-        powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions);
+        powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
+        (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
     float sine;
     float cosine;
     sincosf(theta, &sine, &cosine);

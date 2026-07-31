@@ -70,6 +70,36 @@ func TestExecuteSigmoidSoftplusAndL2Norm(t *testing.T) {
 	}
 }
 
+func TestExecuteRoPENormalWithFrequencyFactors(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 1))
+	factors := builder.Input("factors", dtype.F32, tensor.MustShape(2))
+	output := builder.RoPENormalWithFactors(input, []uint32{2}, 4, 1, factors)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	inputValue, _ := NewValue(input.Shape, []float32{1, 0, 1, 0})
+	factorValue, _ := NewValue(factors.Shape, []float32{1, 2})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:   inputValue,
+		factors: factorValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{
+		float32(math.Cos(2)),
+		float32(math.Sin(2)),
+		float32(math.Cos(1)),
+		float32(math.Sin(1)),
+	}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("RoPE output[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
 func TestExecuteSSMConv(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(5, 2, 1))

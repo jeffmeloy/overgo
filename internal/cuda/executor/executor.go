@@ -1641,6 +1641,10 @@ func launchNode(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
+		var frequencyFactors driver.DevicePtr
+		if len(node.Inputs) == 2 {
+			frequencyFactors = pointers[node.Inputs[1]]
+		}
 		positions, ok := attributePointers[node]
 		if !ok {
 			return errors.New("RoPE position storage is unavailable")
@@ -1651,6 +1655,7 @@ func launchNode(
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&input),
 			unsafe.Pointer(&positions),
+			unsafe.Pointer(&frequencyFactors),
 			unsafe.Pointer(&output),
 			unsafe.Pointer(&width),
 			unsafe.Pointer(&heads),
@@ -1667,6 +1672,7 @@ func launchNode(
 		err = launch1D(state, function, count, args)
 		runtime.KeepAlive(input)
 		runtime.KeepAlive(positions)
+		runtime.KeepAlive(frequencyFactors)
 		runtime.KeepAlive(output)
 		runtime.KeepAlive(width)
 		runtime.KeepAlive(heads)

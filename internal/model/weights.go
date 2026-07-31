@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/tensor/dtype"
 )
 
 // LayerWeights is the initial dense transformer weight set.
@@ -19,6 +20,7 @@ type LayerWeights struct {
 	AttentionKNorm        *gguf.TensorInfo
 	AttentionPostNorm     *gguf.TensorInfo
 	AttentionRelativeBias *gguf.TensorInfo
+	RopeFactors           *gguf.TensorInfo
 	FeedForwardNorm       gguf.TensorInfo
 	FeedForwardGate       gguf.TensorInfo
 	FeedForwardUp         gguf.TensorInfo
@@ -171,7 +173,6 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			"ffn_gate.bias",
 			"ffn_up.bias",
 			"ffn_down.bias",
-			"rope_freqs.weight",
 			"rope_factors_long.weight",
 			"rope_factors_short.weight",
 		} {
@@ -183,6 +184,25 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		layer := &result.Layers[block]
+		if ropeFactors, ok := tensors[prefix+"rope_freqs.weight"]; ok {
+			if spec.Architecture == "qwen35" {
+				return Weights{}, fmt.Errorf(
+					"tensor %q requires unsupported multi-axis RoPE factors",
+					ropeFactors.Name,
+				)
+			}
+			if spec.KeyLength%2 != 0 ||
+				ropeFactors.Type != dtype.F32 ||
+				ropeFactors.Dimensions != 1 ||
+				ropeFactors.Shape[0] != uint64(spec.KeyLength/2) {
+				return Weights{}, fmt.Errorf(
+					"tensor %q has incompatible shape %v",
+					ropeFactors.Name,
+					ropeFactors.Shape,
+				)
+			}
+			layer.RopeFactors = &ropeFactors
+		}
 		if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 			return Weights{}, err
 		}

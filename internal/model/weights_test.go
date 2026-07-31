@@ -32,6 +32,7 @@ func TestReadWeightsQwen3(t *testing.T) {
 		tensorInfo("blk.0.attn_output.weight", 8, 8),
 		tensorInfo("blk.0.attn_q_norm.weight", 4),
 		tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.rope_freqs.weight", 2),
 		tensorInfo("blk.0.ffn_norm.weight", 8),
 		tensorInfo("blk.0.ffn_gate.weight", 8, 16),
 		tensorInfo("blk.0.ffn_up.weight", 8, 16),
@@ -41,8 +42,42 @@ func TestReadWeightsQwen3(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(weights.Layers) != 1 || weights.Layers[0].AttentionQNorm == nil {
+	if len(weights.Layers) != 1 ||
+		weights.Layers[0].AttentionQNorm == nil ||
+		weights.Layers[0].RopeFactors == nil {
 		t.Fatalf("unexpected weights: %+v", weights)
+	}
+}
+
+func TestReadWeightsRejectsRoPEFactorShape(t *testing.T) {
+	spec := Spec{
+		Architecture:      "llama",
+		BlockCount:        1,
+		EmbeddingLength:   8,
+		FeedForwardLength: 16,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		VocabularySize:    32,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4),
+		tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.rope_freqs.weight", 3),
+		tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}}
+	_, err := ReadWeights(file, spec)
+	if err == nil || !strings.Contains(err.Error(), "incompatible shape") {
+		t.Fatalf("error = %v, want incompatible RoPE factor shape", err)
 	}
 }
 

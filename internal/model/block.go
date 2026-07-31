@@ -19,6 +19,7 @@ type LayerGraphWeights struct {
 	AttentionKNorm        *tensor.Tensor
 	AttentionPostNorm     *tensor.Tensor
 	AttentionRelativeBias *tensor.Tensor
+	RopeFactors           *tensor.Tensor
 	FeedForwardNorm       *tensor.Tensor
 	FeedForwardGate       *tensor.Tensor
 	FeedForwardUp         *tensor.Tensor
@@ -223,8 +224,17 @@ func BuildDenseBlockCachedForLayer(
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
 	if spec.Architecture == "llama" {
-		query = builder.RoPENormal(query, positions, spec.KeyLength, spec.RopeFrequencyBase)
-		key = builder.RoPENormal(key, positions, spec.KeyLength, spec.RopeFrequencyBase)
+		if weights.RopeFactors != nil {
+			query = builder.RoPENormalWithFactors(
+				query, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			)
+			key = builder.RoPENormalWithFactors(
+				key, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			)
+		} else {
+			query = builder.RoPENormal(query, positions, spec.KeyLength, spec.RopeFrequencyBase)
+			key = builder.RoPENormal(key, positions, spec.KeyLength, spec.RopeFrequencyBase)
+		}
 	} else if spec.Architecture == "gemma3" {
 		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := 1 / spec.RopeScalingFactor
@@ -232,15 +242,33 @@ func BuildDenseBlockCachedForLayer(
 			frequencyBase = spec.RopeFrequencySWA
 			frequencyScale = 1
 		}
-		query = builder.RoPENeoXScaled(
-			query, positions, spec.KeyLength, frequencyBase, frequencyScale,
-		)
-		key = builder.RoPENeoXScaled(
-			key, positions, spec.KeyLength, frequencyBase, frequencyScale,
-		)
+		if weights.RopeFactors != nil {
+			query = builder.RoPENeoXScaledWithFactors(
+				query, positions, spec.KeyLength, frequencyBase, frequencyScale, weights.RopeFactors,
+			)
+			key = builder.RoPENeoXScaledWithFactors(
+				key, positions, spec.KeyLength, frequencyBase, frequencyScale, weights.RopeFactors,
+			)
+		} else {
+			query = builder.RoPENeoXScaled(
+				query, positions, spec.KeyLength, frequencyBase, frequencyScale,
+			)
+			key = builder.RoPENeoXScaled(
+				key, positions, spec.KeyLength, frequencyBase, frequencyScale,
+			)
+		}
 	} else {
-		query = builder.RoPENeoX(query, positions, spec.KeyLength, spec.RopeFrequencyBase)
-		key = builder.RoPENeoX(key, positions, spec.KeyLength, spec.RopeFrequencyBase)
+		if weights.RopeFactors != nil {
+			query = builder.RoPENeoXWithFactors(
+				query, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			)
+			key = builder.RoPENeoXWithFactors(
+				key, positions, spec.KeyLength, spec.RopeFrequencyBase, weights.RopeFactors,
+			)
+		} else {
+			query = builder.RoPENeoX(query, positions, spec.KeyLength, spec.RopeFrequencyBase)
+			key = builder.RoPENeoX(key, positions, spec.KeyLength, spec.RopeFrequencyBase)
+		}
 	}
 
 	cacheKey := key

@@ -410,7 +410,7 @@ func nativeQuantizedType(value dtype.Type) bool {
 // RoPENeoX applies the split-half rotary layout used by Qwen3. Input shape is
 // [head width, heads, tokens] (optionally with a batch dimension).
 func (b *Builder) RoPENeoX(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
-	return b.rope(OpRoPENeoX, "rope_neox", input, positions, rotaryDimensions, frequencyBase, 1)
+	return b.rope(OpRoPENeoX, "rope_neox", input, positions, rotaryDimensions, frequencyBase, 1, nil)
 }
 
 func (b *Builder) RoPENeoXScaled(
@@ -422,14 +422,56 @@ func (b *Builder) RoPENeoXScaled(
 ) *Tensor {
 	return b.rope(
 		OpRoPENeoX, "rope_neox", input, positions,
-		rotaryDimensions, frequencyBase, frequencyScale,
+		rotaryDimensions, frequencyBase, frequencyScale, nil,
+	)
+}
+
+func (b *Builder) RoPENeoXScaledWithFactors(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+	frequencyScale float32,
+	frequencyFactors *Tensor,
+) *Tensor {
+	return b.rope(
+		OpRoPENeoX, "rope_neox", input, positions,
+		rotaryDimensions, frequencyBase, frequencyScale, frequencyFactors,
+	)
+}
+
+// RoPENeoXWithFactors applies one frequency divisor per rotary pair.
+func (b *Builder) RoPENeoXWithFactors(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+	frequencyFactors *Tensor,
+) *Tensor {
+	return b.rope(
+		OpRoPENeoX, "rope_neox", input, positions,
+		rotaryDimensions, frequencyBase, 1, frequencyFactors,
 	)
 }
 
 // RoPENormal applies rotary embeddings to consecutive channel pairs, as used
 // by the Llama architecture family.
 func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
-	return b.rope(OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, frequencyBase, 1)
+	return b.rope(OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, frequencyBase, 1, nil)
+}
+
+// RoPENormalWithFactors applies one frequency divisor per rotary pair.
+func (b *Builder) RoPENormalWithFactors(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	frequencyBase float32,
+	frequencyFactors *Tensor,
+) *Tensor {
+	return b.rope(
+		OpRoPENormal, "rope_normal", input, positions,
+		rotaryDimensions, frequencyBase, 1, frequencyFactors,
+	)
 }
 
 // RoPEMulti applies llama.cpp's split-half multi-axis rotary layout. Positions
@@ -492,6 +534,7 @@ func (b *Builder) rope(
 	rotaryDimensions uint32,
 	frequencyBase float32,
 	frequencyScale float32,
+	frequencyFactors *Tensor,
 ) *Tensor {
 	if b.err != nil {
 		return nil
@@ -520,13 +563,29 @@ func (b *Builder) rope(
 		b.setError(fmt.Errorf("%s frequency scale must be positive", name))
 		return nil
 	}
+	if frequencyFactors != nil {
+		if frequencyFactors.Type != dtype.F32 ||
+			frequencyFactors.Shape.Rank != 1 ||
+			frequencyFactors.Shape.Dims[0] != uint64(rotaryDimensions/2) {
+			b.setError(fmt.Errorf(
+				"%s frequency factors must be F32 with shape [%d]",
+				name,
+				rotaryDimensions/2,
+			))
+			return nil
+		}
+	}
 	attributes := RoPEAttributes{
 		Positions:        append([]uint32(nil), positions...),
 		RotaryDimensions: rotaryDimensions,
 		FrequencyBase:    frequencyBase,
 		FrequencyScale:   frequencyScale,
 	}
-	return b.add("", input.Type, input.Shape, operation, []*Tensor{input}, attributes)
+	inputs := []*Tensor{input}
+	if frequencyFactors != nil {
+		inputs = append(inputs, frequencyFactors)
+	}
+	return b.add("", input.Type, input.Shape, operation, inputs, attributes)
 }
 
 // Reshape changes only the logical dimensions and preserves contiguous order.

@@ -168,13 +168,13 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		if !ok {
 			return Value{}, errors.New("invalid rope_neox attributes")
 		}
-		return ropeNeoX(node.Shape, inputs[0], attributes)
+		return ropeNeoX(node.Shape, inputs, attributes)
 	case tensor.OpRoPENormal:
 		attributes, ok := node.Attrs.(tensor.RoPEAttributes)
 		if !ok {
 			return Value{}, errors.New("invalid rope_normal attributes")
 		}
-		return ropeNormal(node.Shape, inputs[0], attributes)
+		return ropeNormal(node.Shape, inputs, attributes)
 	case tensor.OpRoPEMulti:
 		attributes, ok := node.Attrs.(tensor.RoPEMultiAttributes)
 		if !ok {
@@ -556,7 +556,8 @@ func getRows(shape tensor.Shape, table Value, rows []uint32) (Value, error) {
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func ropeNeoX(shape tensor.Shape, input Value, attributes tensor.RoPENeoXAttributes) (Value, error) {
+func ropeNeoX(shape tensor.Shape, inputs []Value, attributes tensor.RoPENeoXAttributes) (Value, error) {
+	input := inputs[0]
 	width := int(shape.Dims[0])
 	heads := int(shape.Dims[1])
 	tokens := int(shape.Dims[2])
@@ -568,6 +569,10 @@ func ropeNeoX(shape tensor.Shape, input Value, attributes tensor.RoPENeoXAttribu
 	if len(attributes.Positions) != tokens {
 		return Value{}, errors.New("rope_neox position count differs from token count")
 	}
+	factors, err := ropeFrequencyFactors(inputs, rotary)
+	if err != nil {
+		return Value{}, err
+	}
 	output := append([]float32(nil), input.Data...)
 	half := rotary / 2
 	for batch := 0; batch < batches; batch++ {
@@ -578,7 +583,7 @@ func ropeNeoX(shape tensor.Shape, input Value, attributes tensor.RoPENeoXAttribu
 					theta := float64(position) * float64(attributes.FrequencyScale) * math.Pow(
 						float64(attributes.FrequencyBase),
 						-2*float64(pairIndex)/float64(rotary),
-					)
+					) / float64(factors[pairIndex])
 					cosine := float32(math.Cos(theta))
 					sine := float32(math.Sin(theta))
 					x0 := input.Data[offset+pairIndex]
@@ -592,7 +597,8 @@ func ropeNeoX(shape tensor.Shape, input Value, attributes tensor.RoPENeoXAttribu
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func ropeNormal(shape tensor.Shape, input Value, attributes tensor.RoPEAttributes) (Value, error) {
+func ropeNormal(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttributes) (Value, error) {
+	input := inputs[0]
 	width := int(shape.Dims[0])
 	heads := int(shape.Dims[1])
 	tokens := int(shape.Dims[2])
@@ -604,6 +610,10 @@ func ropeNormal(shape tensor.Shape, input Value, attributes tensor.RoPEAttribute
 	if len(attributes.Positions) != tokens {
 		return Value{}, errors.New("rope_normal position count differs from token count")
 	}
+	factors, err := ropeFrequencyFactors(inputs, rotary)
+	if err != nil {
+		return Value{}, err
+	}
 	output := append([]float32(nil), input.Data...)
 	for batch := 0; batch < batches; batch++ {
 		for tokenIndex, position := range attributes.Positions {
@@ -613,7 +623,7 @@ func ropeNormal(shape tensor.Shape, input Value, attributes tensor.RoPEAttribute
 					theta := float64(position) * float64(attributes.FrequencyScale) * math.Pow(
 						float64(attributes.FrequencyBase),
 						-2*float64(pairIndex)/float64(rotary),
-					)
+					) / float64(factors[pairIndex])
 					cosine := float32(math.Cos(theta))
 					sine := float32(math.Sin(theta))
 					first := offset + pairIndex*2
@@ -626,6 +636,29 @@ func ropeNormal(shape tensor.Shape, input Value, attributes tensor.RoPEAttribute
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
+}
+
+func ropeFrequencyFactors(inputs []Value, rotary int) ([]float32, error) {
+	factors := make([]float32, rotary/2)
+	for index := range factors {
+		factors[index] = 1
+	}
+	if len(inputs) == 1 {
+		return factors, nil
+	}
+	if len(inputs) != 2 ||
+		inputs[1].Shape.Rank != 1 ||
+		inputs[1].Shape.Dims[0] != uint64(len(factors)) ||
+		len(inputs[1].Data) != len(factors) {
+		return nil, errors.New("RoPE frequency factors have invalid shape")
+	}
+	for index, factor := range inputs[1].Data {
+		if factor <= 0 || math.IsNaN(float64(factor)) || math.IsInf(float64(factor), 0) {
+			return nil, errors.New("RoPE frequency factor must be finite and positive")
+		}
+		factors[index] = factor
+	}
+	return factors, nil
 }
 
 func ropeMulti(

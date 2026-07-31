@@ -66,6 +66,7 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	}
 	qNorm := value(4)
 	kNorm := value(4)
+	ropeFactors := value(2)
 	layer := HostLayer{
 		AttentionNorm:   value(8),
 		AttentionQ:      value(8, 8),
@@ -74,6 +75,7 @@ func TestHostLayerGraphInputs(t *testing.T) {
 		AttentionOutput: value(8, 8),
 		AttentionQNorm:  &qNorm,
 		AttentionKNorm:  &kNorm,
+		RopeFactors:     &ropeFactors,
 		FeedForwardNorm: value(8),
 		FeedForwardGate: value(8, 12),
 		FeedForwardUp:   value(8, 12),
@@ -83,7 +85,10 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(feeds) != 11 || graph.AttentionQNorm == nil || graph.FeedForwardDown == nil {
+	if len(feeds) != 12 ||
+		graph.AttentionQNorm == nil ||
+		graph.RopeFactors == nil ||
+		graph.FeedForwardDown == nil {
 		t.Fatalf("unexpected graph inputs or feed count: %d", len(feeds))
 	}
 }

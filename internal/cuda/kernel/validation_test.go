@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -16,7 +17,8 @@ func TestValidateAssetRejectsDifferentContent(t *testing.T) {
 	if err == nil {
 		t.Fatal("changed kernel asset was accepted")
 	}
-	if !strings.Contains(err.Error(), "ABI v1") || !strings.Contains(err.Error(), BundleTarget) {
+	if !strings.Contains(err.Error(), fmt.Sprintf("ABI v%d", BundleABIVersion)) ||
+		!strings.Contains(err.Error(), BundleTarget) {
 		t.Fatalf("error lacks bundle identity: %v", err)
 	}
 }

@@ -24,6 +24,7 @@ type HostLayer struct {
 	AttentionKNorm        *reference.Value
 	AttentionPostNorm     *reference.Value
 	AttentionRelativeBias *reference.Value
+	RopeFactors           *reference.Value
 	FeedForwardNorm       reference.Value
 	FeedForwardGate       reference.Value
 	FeedForwardUp         reference.Value
@@ -336,6 +337,13 @@ func LoadHostLayer(
 		}
 		result.AttentionRelativeBias = &value
 	}
+	if info.RopeFactors != nil {
+		value, err := LoadHostTensor(ctx, file, *info.RopeFactors)
+		if err != nil {
+			return HostLayer{}, err
+		}
+		result.RopeFactors = &value
+	}
 	if info.FeedForwardPostNorm != nil {
 		value, err := LoadHostTensor(ctx, file, *info.FeedForwardPostNorm)
 		if err != nil {
@@ -400,6 +408,9 @@ func (layer *HostLayer) GraphInputs(
 	}
 	if layer.AttentionRelativeBias != nil {
 		result.AttentionRelativeBias = input("attn_rel_b.weight", *layer.AttentionRelativeBias)
+	}
+	if layer.RopeFactors != nil {
+		result.RopeFactors = input("rope_freqs.weight", *layer.RopeFactors)
 	}
 	if layer.FeedForwardPostNorm != nil {
 		result.FeedForwardPostNorm = input("post_ffw_norm.weight", *layer.FeedForwardPostNorm)

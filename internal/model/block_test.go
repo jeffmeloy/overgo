@@ -95,6 +95,7 @@ func TestBuildDenseLlamaBlockUsesNormalRoPE(t *testing.T) {
 	weights := denseBlockInputs(builder, spec)
 	weights.AttentionQNorm = nil
 	weights.AttentionKNorm = nil
+	weights.RopeFactors = builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
 	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +108,9 @@ func TestBuildDenseLlamaBlockUsesNormalRoPE(t *testing.T) {
 	for _, node := range nodes {
 		if node.Op == tensor.OpRoPENormal {
 			normalCount++
+			if len(node.Inputs) != 2 || node.Inputs[1] != weights.RopeFactors {
+				t.Fatal("Llama RoPE node does not consume frequency factors")
+			}
 		}
 		if node.Op == tensor.OpRoPENeoX {
 			t.Fatal("Llama block unexpectedly uses NeoX RoPE")

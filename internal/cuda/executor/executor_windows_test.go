@@ -596,8 +596,16 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 	embedding := builder.GetRows(table, []uint32{2, 0})
 	swiglu := builder.SwiGLU(builder.WeightedRMSNorm(embedding, weight, 1e-5), up)
 	ropeInput := builder.Input("rope", dtype.F32, tensor.MustShape(4, 1, 2))
+	ropeFactors := builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
 	rope := builder.RoPENeoX(ropeInput, []uint32{0, 17}, 4, 1_000_000)
 	normalRope := builder.RoPENormal(ropeInput, []uint32{0, 17}, 4, 1_000_000)
+	factoredRope := builder.RoPENormalWithFactors(
+		ropeInput,
+		[]uint32{0, 17},
+		4,
+		1_000_000,
+		ropeFactors,
+	)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -612,13 +620,15 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 		1, 2, 3, 4,
 		-1, -2, -3, -4,
 	})
+	ropeFactorValue, _ := reference.NewValue(ropeFactors.Shape, []float32{1, 8})
 	feeds := map[*tensor.Tensor]reference.Value{
-		table:     tableValue,
-		weight:    weightValue,
-		up:        upValue,
-		ropeInput: ropeValue,
+		table:       tableValue,
+		weight:      weightValue,
+		up:          upValue,
+		ropeInput:   ropeValue,
+		ropeFactors: ropeFactorValue,
 	}
-	outputs := []*tensor.Tensor{embedding, swiglu, rope, normalRope}
+	outputs := []*tensor.Tensor{embedding, swiglu, rope, normalRope, factoredRope}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -636,6 +646,7 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 	compare(t, got[swiglu].Data, want[swiglu].Data, 3e-5)
 	compare(t, got[rope].Data, want[rope].Data, 3e-5)
 	compare(t, got[normalRope].Data, want[normalRope].Data, 3e-5)
+	compare(t, got[factoredRope].Data, want[factoredRope].Data, 3e-5)
 }
 
 func TestExecutorDenseQwen3BlockMatchesReference(t *testing.T) {

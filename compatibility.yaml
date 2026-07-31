@@ -824,7 +824,8 @@ models:
     constraints:
       - dense
       - bias-free
-      - unscaled-rope
+      - ordinary-rope-or-per-pair-rope-factors
+      - no-longrope-or-yarn-factor-selection
     tokenizers:
       - llama-spm
       - llama3-bpe

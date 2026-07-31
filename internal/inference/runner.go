@@ -393,6 +393,11 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
+	if info.RopeFactors != nil {
+		if result.RopeFactors, err = input(*info.RopeFactors); err != nil {
+			return result, nil, err
+		}
+	}
 	if info.FeedForwardPostNorm != nil {
 		if result.FeedForwardPostNorm, err = input(*info.FeedForwardPostNorm); err != nil {
 			return result, nil, err
@@ -1564,6 +1569,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		}
 		if layer.AttentionRelativeBias != nil {
 			names[layer.AttentionRelativeBias.Name] = struct{}{}
+		}
+		if layer.RopeFactors != nil {
+			names[layer.RopeFactors.Name] = struct{}{}
 		}
 		if layer.FeedForwardPostNorm != nil {
 			names[layer.FeedForwardPostNorm.Name] = struct{}{}

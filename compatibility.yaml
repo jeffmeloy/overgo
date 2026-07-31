@@ -942,6 +942,19 @@ models:
       - required-output-bias
       - untied-output-projection
     real_model_validation: pending-fixture
+  phi3:
+    status: experimental
+    constraints:
+      - dense
+    features:
+      - rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - optional-qkv-bias
+      - query-pre-scaling
+      - fused-gate-up-swiglu
+      - longrope-short-long-factor-selection
+      - tied-or-untied-output
+    real_model_validation: pending-fixture
   gptneox:
     status: experimental
     features:

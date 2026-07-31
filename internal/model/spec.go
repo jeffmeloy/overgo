@@ -10,35 +10,37 @@ import (
 
 // Spec contains the common transformer metadata needed to construct a model.
 type Spec struct {
-	Architecture      string
-	Name              string
-	BlockCount        uint32
-	ContextLength     uint32
-	EmbeddingLength   uint32
-	FeedForwardLength uint32
-	HeadCount         uint32
-	HeadCountKV       uint32
-	KeyLength         uint32
-	ValueLength       uint32
-	RopeFrequencyBase float32
-	RopeFrequencySWA  float32
-	RopeScalingType   string
-	RopeScalingFactor float32
-	AttentionScale    float32
-	EmbeddingScale    float32
-	ResidualScale     float32
-	LogitScale        float32
-	AttentionSoftcap  float32
-	FinalLogitSoftcap float32
-	RMSNormEpsilon    float32
-	LayerNormEpsilon  float32
-	VocabularySize    uint32
-	SlidingWindow     uint32
-	SlidingPattern    uint32
-	RelativeBuckets   uint32
-	NoRopeLayerStep   uint32
-	RopeDisabled      bool
-	ParallelResidual  bool
+	Architecture          string
+	Name                  string
+	BlockCount            uint32
+	ContextLength         uint32
+	EmbeddingLength       uint32
+	FeedForwardLength     uint32
+	HeadCount             uint32
+	HeadCountKV           uint32
+	KeyLength             uint32
+	ValueLength           uint32
+	RopeFrequencyBase     float32
+	RopeFrequencySWA      float32
+	RopeScalingType       string
+	RopeScalingFactor     float32
+	RopeAttentionFactor   float32
+	OriginalContextLength uint32
+	AttentionScale        float32
+	EmbeddingScale        float32
+	ResidualScale         float32
+	LogitScale            float32
+	AttentionSoftcap      float32
+	FinalLogitSoftcap     float32
+	RMSNormEpsilon        float32
+	LayerNormEpsilon      float32
+	VocabularySize        uint32
+	SlidingWindow         uint32
+	SlidingPattern        uint32
+	RelativeBuckets       uint32
+	NoRopeLayerStep       uint32
+	RopeDisabled          bool
+	ParallelResidual      bool
 
 	// Qwen3.5 hybrid recurrent-attention metadata.
 	RopeDimensionCount    uint32
@@ -95,6 +97,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "olmo" &&
 		architecture != "orion" &&
 		architecture != "phi2" &&
+		architecture != "phi3" &&
 		architecture != "plamo" &&
 		architecture != "seed_oss" &&
 		architecture != "stablelm" &&
@@ -176,7 +179,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			prefix+"rope.scaling.type",
 			gguf.ValueTypeString,
 		); ok && scalingType != "" && scalingType != "none" {
-			if architecture == "qwen35" || scalingType != "linear" {
+			if architecture == "qwen35" ||
+				(scalingType != "linear" && !(architecture == "phi3" && scalingType == "longrope")) {
 				return Spec{}, fmt.Errorf(
 					"model architecture %q uses unsupported RoPE scaling type %q",
 					architecture,
@@ -184,12 +188,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				)
 			}
 			spec.RopeScalingType = scalingType
-			if spec.RopeScalingFactor, err = required[float32](
-				values,
-				prefix+"rope.scaling.factor",
-				gguf.ValueTypeFloat32,
-			); err != nil {
-				return Spec{}, err
+			if scalingType == "linear" {
+				if spec.RopeScalingFactor, err = required[float32](
+					values,
+					prefix+"rope.scaling.factor",
+					gguf.ValueTypeFloat32,
+				); err != nil {
+					return Spec{}, err
+				}
 			}
 		}
 	}
@@ -331,6 +337,24 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			gguf.ValueTypeUint32,
 		); err != nil {
 			return Spec{}, err
+		}
+	}
+	if architecture == "phi3" {
+		if spec.RopeDimensionCount, err = required[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.OriginalContextLength, err = required[uint32](
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.RopeAttentionFactor = 1
+		if value, ok := optional[float32](
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
+		); ok {
+			spec.RopeAttentionFactor = value
 		}
 	}
 	if architecture == "gptneox" {
@@ -697,6 +721,13 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("Phi-2 rotary dimension count is invalid")
 	}
+	if s.Architecture == "phi3" &&
+		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
+			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
+			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
+		return errors.New("Phi-3 RoPE metadata is invalid")
+	}
 	if s.Architecture == "gptneox" && s.RopeDimensionCount > 0 &&
 		(s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("GPT-NeoX rotary dimension count is invalid")
@@ -782,7 +813,7 @@ func usesSequentialGELU(architecture string) bool {
 }
 
 func usesGateFreeFFN(architecture string) bool {
-	return usesSquaredReLU(architecture) || usesGELU(architecture)
+	return architecture == "phi3" || usesSquaredReLU(architecture) || usesGELU(architecture)
 }
 
 func usesGELU(architecture string) bool {

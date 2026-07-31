@@ -457,6 +457,10 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	}
+	if spec.Architecture == "phi3" && spec.RopeAttentionFactor != 1 {
+		query = builder.Scale(query, spec.RopeAttentionFactor)
+		key = builder.Scale(key, spec.RopeAttentionFactor)
+	}
 	if spec.Architecture == "maincoder" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
@@ -480,9 +484,9 @@ func BuildDenseBlockCachedForLayer(
 	if spec.AttentionScale > 0 {
 		attentionScale = spec.AttentionScale
 	}
-	if spec.Architecture == "phi2" {
-		// Phi-2 scales the rotated query before the dot product to preserve
-		// upstream precision behavior.
+	if spec.Architecture == "phi2" || spec.Architecture == "phi3" {
+		// Phi decoders scale the rotated query before the dot product to
+		// preserve upstream precision behavior.
 		query = builder.Scale(query, attentionScale)
 		attentionScale = 1
 	}
@@ -576,7 +580,17 @@ func BuildDenseBlockCachedForLayer(
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
 	var activation *tensor.Tensor
-	if usesGELU(spec.Architecture) {
+	if spec.Architecture == "phi3" {
+		width := uint64(spec.FeedForwardLength)
+		stride := 2 * width
+		gate := builder.Reshape(
+			builder.GroupSlice(up, 0, width, 1, stride), width, tokens,
+		)
+		up = builder.Reshape(
+			builder.GroupSlice(up, width, width, 1, stride), width, tokens,
+		)
+		activation = builder.SwiGLU(gate, up)
+	} else if usesGELU(spec.Architecture) {
 		activation = builder.GELU(up)
 	} else if usesSquaredReLU(spec.Architecture) {
 		activation = builder.ReLUSquared(up)

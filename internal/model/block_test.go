@@ -1107,6 +1107,60 @@ func TestBuildDensePhi2FusedQKVAndQueryScale(t *testing.T) {
 	}
 }
 
+func TestBuildDensePhi3FusedProjectionsAndLongRoPE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "phi3", BlockCount: 1, ContextLength: 128,
+		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+		RopeScalingType: "longrope", RopeAttentionFactor: 1.25, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
+	weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(24))
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUp = builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 24))
+	weights.RopeFactors = builder.Input("rope_long", dtype.F32, tensor.MustShape(2))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var slices, silu, ropeWithFactors, queryPrescale, ropeScale int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpGroupSlice:
+			slices++
+		case tensor.OpSiLU:
+			silu++
+		case tensor.OpRoPENeoX:
+			if len(node.Inputs) == 2 && node.Inputs[1] == weights.RopeFactors {
+				ropeWithFactors++
+			}
+		case tensor.OpScale:
+			value := node.Attrs.(tensor.ScaleAttributes).Value
+			if value == 0.5 {
+				queryPrescale++
+			}
+			if value == 1.25 {
+				ropeScale++
+			}
+		}
+	}
+	if slices != 5 || silu != 1 || ropeWithFactors != 2 ||
+		queryPrescale != 1 || ropeScale != 2 {
+		t.Fatalf("unexpected Phi-3 graph: slices=%d SiLU=%d rope=%d qscale=%d rope-scale=%d", slices, silu, ropeWithFactors, queryPrescale, ropeScale)
+	}
+}
+
 func TestBuildDenseGPTNeoXResidualModes(t *testing.T) {
 	for _, parallel := range []bool{false, true} {
 		name := "sequential"

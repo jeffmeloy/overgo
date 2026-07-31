@@ -248,6 +248,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			"rope_factors_short.weight",
 		} {
 			if _, ok := tensors[prefix+unsupported]; ok {
+				if spec.Architecture == "phi3" {
+					continue
+				}
 				return Weights{}, fmt.Errorf(
 					"tensor %q requires an unsupported dense-decoder feature",
 					prefix+unsupported,
@@ -277,6 +280,39 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				)
 			}
 			layer.RopeFactors = &ropeFactors
+		}
+		if spec.Architecture == "phi3" {
+			longName := prefix + "rope_factors_long.weight"
+			shortName := prefix + "rope_factors_short.weight"
+			longFactors, hasLong := tensors[longName]
+			shortFactors, hasShort := tensors[shortName]
+			if block > 0 {
+				if !hasLong {
+					longFactors, hasLong = tensors["blk.0.rope_factors_long.weight"]
+				}
+				if !hasShort {
+					shortFactors, hasShort = tensors["blk.0.rope_factors_short.weight"]
+				}
+			}
+			if hasLong != hasShort {
+				return Weights{}, errors.New("Phi-3 LongRoPE factor tensors must both be present or absent")
+			}
+			if spec.RopeScalingType == "longrope" && !hasLong {
+				return Weights{}, errors.New("Phi-3 LongRoPE factor tensors are missing")
+			}
+			if hasLong {
+				for _, item := range []gguf.TensorInfo{longFactors, shortFactors} {
+					if item.Type != dtype.F32 || item.Dimensions != 1 ||
+						item.Shape[0] != uint64(spec.RopeDimensionCount/2) {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+					}
+				}
+				if spec.ContextLength > spec.OriginalContextLength {
+					layer.RopeFactors = &longFactors
+				} else {
+					layer.RopeFactors = &shortFactors
+				}
+			}
 		}
 		if spec.Architecture != "olmo2" && !spec.UsesUnweightedLayerNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
@@ -396,7 +432,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		} else {
-			if spec.Architecture == "phi2" || spec.Architecture == "gptneox" ||
+			if spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gptneox" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "gptneox" || spec.Architecture == "falcon" {
@@ -428,9 +464,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if layer.AttentionQKV == nil {
-				if spec.Architecture == "phi2" {
+				if spec.Architecture == "phi2" || spec.Architecture == "phi3" {
 					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
-						return Weights{}, errors.New("Phi-2 fused QKV bias has no fused weight")
+						return Weights{}, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 					}
 				}
 				if layer.AttentionQ, err = required(
@@ -638,10 +674,14 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
+		feedForwardUpLength := uint64(spec.FeedForwardLength)
+		if spec.Architecture == "phi3" {
+			feedForwardUpLength *= 2
+		}
 		if layer.FeedForwardUp, err = required(
 			prefix+"ffn_up.weight",
 			uint64(spec.EmbeddingLength),
-			uint64(spec.FeedForwardLength),
+			feedForwardUpLength,
 		); err != nil {
 			return Weights{}, err
 		}

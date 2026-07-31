@@ -254,6 +254,33 @@ func TestReadPhi2Spec(t *testing.T) {
 	}
 }
 
+func TestReadPhi3LongRoPESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "phi3"),
+		metadata("phi3.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("phi3.context_length", gguf.ValueTypeUint32, uint32(131072)),
+		metadata("phi3.embedding_length", gguf.ValueTypeUint32, uint32(3072)),
+		metadata("phi3.feed_forward_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("phi3.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("phi3.attention.head_count_kv", gguf.ValueTypeUint32, uint32(32)),
+		metadata("phi3.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("phi3.rope.dimension_count", gguf.ValueTypeUint32, uint32(96)),
+		metadata("phi3.rope.scaling.type", gguf.ValueTypeString, "longrope"),
+		metadata("phi3.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("phi3.rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1.19)),
+		metadata("phi3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "phi3" || spec.KeyLength != 96 ||
+		spec.RopeScalingType != "longrope" || spec.OriginalContextLength != 4096 ||
+		spec.RopeAttentionFactor != 1.19 || spec.RMSNormEpsilon != 1e-5 {
+		t.Fatalf("unexpected Phi-3 spec: %+v", spec)
+	}
+}
+
 func TestReadGPTNeoXSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "gptneox"),

@@ -942,6 +942,17 @@ models:
       - required-output-bias
       - untied-output-projection
     real_model_validation: pending-fixture
+  gptneox:
+    status: experimental
+    features:
+      - affine-layernorm
+      - required-contiguous-fused-qkv
+      - required-projection-biases
+      - partial-neox-rope
+      - metadata-selected-parallel-or-sequential-residual
+      - gelu-ffn
+      - untied-output-projection
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

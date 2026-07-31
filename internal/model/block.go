@@ -527,8 +527,15 @@ func BuildDenseBlockCachedForLayer(
 	residual := builder.Add(input, attention)
 
 	parallelResidual := usesParallelResidual(spec.Architecture) ||
+		(spec.Architecture == "gptneox" && spec.ParallelResidual) ||
 		(spec.Architecture == "stablelm" && weights.FeedForwardNorm == nil)
-	if !parallelResidual {
+	if spec.Architecture == "gptneox" && spec.ParallelResidual {
+		// GPT-NeoX parallel blocks use a distinct FFN LayerNorm over the
+		// original residual input rather than sharing the attention norm.
+		normalized = ApplyNormalization(
+			builder, input, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
+		)
+	} else if !parallelResidual {
 		normalized = residual
 		if !isOLMo2 {
 			if spec.Architecture == "stablelm" && weights.FeedForwardNormBias == nil {

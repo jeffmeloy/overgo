@@ -254,6 +254,30 @@ func TestReadPhi2Spec(t *testing.T) {
 	}
 }
 
+func TestReadGPTNeoXSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gptneox"),
+		metadata("gptneox.block_count", gguf.ValueTypeUint32, uint32(24)),
+		metadata("gptneox.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("gptneox.embedding_length", gguf.ValueTypeUint32, uint32(1024)),
+		metadata("gptneox.feed_forward_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("gptneox.attention.head_count", gguf.ValueTypeUint32, uint32(16)),
+		metadata("gptneox.rope.dimension_count", gguf.ValueTypeUint32, uint32(16)),
+		metadata("gptneox.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("gptneox.use_parallel_residual", gguf.ValueTypeBool, true),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gptneox" || spec.HeadCountKV != 16 ||
+		spec.KeyLength != 64 || spec.RopeDimensionCount != 16 ||
+		spec.RopeFrequencyBase != 10000 || !spec.ParallelResidual ||
+		!spec.UsesLayerNorm() {
+		t.Fatalf("unexpected GPT-NeoX spec: %+v", spec)
+	}
+}
+
 func TestReadSmolLM3Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),

@@ -1107,6 +1107,68 @@ func TestBuildDensePhi2FusedQKVAndQueryScale(t *testing.T) {
 	}
 }
 
+func TestBuildDenseGPTNeoXResidualModes(t *testing.T) {
+	for _, parallel := range []bool{false, true} {
+		name := "sequential"
+		if parallel {
+			name = "parallel"
+		}
+		t.Run(name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: "gptneox", BlockCount: 1, EmbeddingLength: 8,
+				FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+				KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
+				RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+				ParallelResidual: parallel,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := denseBlockInputs(builder, spec)
+			weights.AttentionQ = nil
+			weights.AttentionK = nil
+			weights.AttentionV = nil
+			weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
+			weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(24))
+			weights.AttentionOutputBias = builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(8))
+			weights.FeedForwardGate = nil
+			weights.FeedForwardUpBias = builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(12))
+			weights.FeedForwardDownBias = builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(8))
+			output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var layerNorms, normsOverInput, slices, gelu int
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpLayerNorm:
+					layerNorms++
+					if node.Inputs[0] == input {
+						normsOverInput++
+					}
+				case tensor.OpGroupSlice:
+					slices++
+				case tensor.OpGELU:
+					gelu++
+				}
+			}
+			wantNormsOverInput := 1
+			if parallel {
+				wantNormsOverInput = 2
+			}
+			if layerNorms != 2 || normsOverInput != wantNormsOverInput || slices != 3 || gelu != 1 {
+				t.Fatalf(
+					"unexpected GPT-NeoX graph: layernorms=%d roots=%d slices=%d GELU=%d",
+					layerNorms, normsOverInput, slices, gelu,
+				)
+			}
+		})
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

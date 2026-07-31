@@ -902,6 +902,38 @@ func TestReadWeightsPhi2FusedQKV(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGPTNeoX(t *testing.T) {
+	spec := Spec{
+		Architecture: "gptneox", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
+		VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8), tensorInfo("output_norm.bias", 8),
+		tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24), tensorInfo("blk.0.attn_qkv.bias", 24),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_norm.bias", 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_up.bias", 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8), tensorInfo("blk.0.ffn_down.bias", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output == nil || layer.AttentionQKV == nil || layer.AttentionQKVBias == nil ||
+		layer.AttentionQ.Name != "" || layer.FeedForwardNorm.Name == "" ||
+		layer.FeedForwardNormBias == nil || layer.AttentionOutputBias == nil ||
+		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil ||
+		layer.FeedForwardGate.Name != "" {
+		t.Fatalf("unexpected GPT-NeoX weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsGemma2(t *testing.T) {
 	spec := Spec{
 		Architecture:      "gemma2",

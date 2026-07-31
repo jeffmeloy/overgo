@@ -38,6 +38,7 @@ type Spec struct {
 	RelativeBuckets   uint32
 	NoRopeLayerStep   uint32
 	RopeDisabled      bool
+	ParallelResidual  bool
 
 	// Qwen3.5 hybrid recurrent-attention metadata.
 	RopeDimensionCount    uint32
@@ -87,6 +88,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "smollm3" &&
 		architecture != "minicpm" &&
 		architecture != "granite" &&
+		architecture != "gptneox" &&
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
 		architecture != "nemotron" &&
@@ -125,8 +127,17 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "t5encoder" {
+	if architecture == "t5encoder" || architecture == "gptneox" {
 		spec.HeadCountKV = spec.HeadCount
+		if architecture == "gptneox" {
+			if value, ok := optional[uint32](
+				values,
+				prefix+"attention.head_count_kv",
+				gguf.ValueTypeUint32,
+			); ok {
+				spec.HeadCountKV = value
+			}
+		}
 	} else {
 		if spec.HeadCountKV, err = required[uint32](values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -147,7 +158,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if architecture != "t5encoder" {
-		if spec.RopeFrequencyBase, err = required[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); err != nil {
+		if architecture == "gptneox" {
+			spec.RopeFrequencyBase = 10000
+			if value, ok := optional[float32](
+				values,
+				prefix+"rope.freq_base",
+				gguf.ValueTypeFloat32,
+			); ok {
+				spec.RopeFrequencyBase = value
+			}
+		} else if spec.RopeFrequencyBase, err = required[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err
 		}
 		if scalingType, ok := optional[string](
@@ -308,6 +328,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values,
 			prefix+"rope.dimension_count",
 			gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+	}
+	if architecture == "gptneox" {
+		spec.RopeDimensionCount, _ = optional[uint32](
+			values,
+			prefix+"rope.dimension_count",
+			gguf.ValueTypeUint32,
+		)
+		if spec.ParallelResidual, err = required[bool](
+			values,
+			prefix+"use_parallel_residual",
+			gguf.ValueTypeBool,
 		); err != nil {
 			return Spec{}, err
 		}
@@ -654,6 +688,10 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("Phi-2 rotary dimension count is invalid")
 	}
+	if s.Architecture == "gptneox" && s.RopeDimensionCount > 0 &&
+		(s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
+		return errors.New("GPT-NeoX rotary dimension count is invalid")
+	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
@@ -726,7 +764,8 @@ func usesParallelResidual(architecture string) bool {
 }
 
 func usesSequentialGELU(architecture string) bool {
-	return architecture == "codeshell" || architecture == "phi2" || architecture == "starcoder2"
+	return architecture == "codeshell" || architecture == "gptneox" ||
+		architecture == "phi2" || architecture == "starcoder2"
 }
 
 func usesGateFreeFFN(architecture string) bool {

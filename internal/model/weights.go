@@ -191,6 +191,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "olmo2" ||
 		spec.Architecture == "nemotron" ||
 		spec.Architecture == "orion" ||
+		spec.Architecture == "gptneox" ||
 		spec.Architecture == "phi2" ||
 		spec.Architecture == "plamo" ||
 		spec.Architecture == "stablelm" ||
@@ -377,8 +378,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		} else {
-			if spec.Architecture == "phi2" {
-				if _, ok := tensors[prefix+"attn_qkv.weight"]; ok {
+			if spec.Architecture == "phi2" || spec.Architecture == "gptneox" {
+				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
+				if hasQKV || spec.Architecture == "gptneox" {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight",
 						uint64(spec.EmbeddingLength),
@@ -400,6 +402,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 							return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", qkvBias.Name)
 						}
 						layer.AttentionQKVBias = &qkvBias
+					}
+					if spec.Architecture == "gptneox" && layer.AttentionQKVBias == nil {
+						return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_qkv.bias")
 					}
 				}
 			}

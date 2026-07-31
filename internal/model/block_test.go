@@ -92,6 +92,60 @@ func TestBuildDenseQwen3MoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:       "dream",
+		EmbeddingLength:    8,
+		FeedForwardLength:  12,
+		HeadCount:          2,
+		HeadCountKV:        1,
+		KeyLength:          4,
+		ValueLength:        4,
+		RopeFrequencyBase:  10000,
+		RMSNormEpsilon:     1e-6,
+		NonCausalAttention: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, node := range nodes {
+		if node.Op == tensor.OpAttention {
+			found = true
+			if node.Attrs.(tensor.AttentionAttributes).Causal {
+				t.Fatal("Dream attention is causal")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("Dream block graph has no attention operation")
+	}
+
+	cacheBuilder := tensor.NewBuilder()
+	cacheInput := cacheBuilder.Input("input", dtype.F32, tensor.MustShape(8, 1))
+	cacheWeights := denseBlockInputs(cacheBuilder, spec)
+	cacheWeights.AttentionQNorm = nil
+	cacheWeights.AttentionKNorm = nil
+	pastKey := cacheBuilder.Input("past_key", dtype.F32, tensor.MustShape(4, 1, 1))
+	pastValue := cacheBuilder.Input("past_value", dtype.F32, tensor.MustShape(4, 1, 1))
+	_, err = BuildDenseBlockCached(
+		cacheBuilder, cacheInput, spec, cacheWeights, []uint32{1}, pastKey, pastValue,
+	)
+	if err == nil || !strings.Contains(err.Error(), "does not support a KV cache") {
+		t.Fatalf("cached Dream block error = %v", err)
+	}
+}
+
 func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

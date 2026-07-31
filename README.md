@@ -4,7 +4,8 @@
 Its current executable model subset is dense Qwen 2/3, Qwen3-MoE through the
 bounded-host and F32-preload paths, text-only Qwen3.5 hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell,
-dense Cohere2/Command R, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite,
+dense Cohere2/Command R, Dream non-causal inference, Falcon, Gemma 1/2/3,
+GLM4, GPT-2/GPT-NeoX, Granite,
 InternLM2, EXAONE/EXAONE 4, XVERSE, Jais2, Maincoder, MiniCPM, compatible MPT,
 dense Mistral 3, Nemotron, OLMo/OLMo2, Orion, Phi-2/Phi-3, PLaMo, dense Refact,
 Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5/UMT5

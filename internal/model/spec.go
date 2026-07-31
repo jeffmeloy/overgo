@@ -46,6 +46,7 @@ type Spec struct {
 	NoRopeLayerStep       uint32
 	RopeDisabled          bool
 	ParallelResidual      bool
+	NonCausalAttention    bool
 	XIELUAlphaN           []float32
 	XIELUAlphaP           []float32
 	XIELUBeta             []float32
@@ -94,6 +95,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "bitnet" &&
 		architecture != "bloom" &&
 		architecture != "codeshell" &&
+		architecture != "dream" &&
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
@@ -131,6 +133,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
+	if architecture == "dream" {
+		spec.NonCausalAttention = true
+	}
 	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
 		spec.Name = value
 	}

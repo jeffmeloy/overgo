@@ -1550,6 +1550,39 @@ func TestExecutorCachedAttentionMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 3e-5)
 }
 
+func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 3))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 3))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(4, 1, 3))
+	output := builder.Attention(query, key, value, 0.5, false)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		query: patternedValue(query.Shape, 31, 0.4, 0),
+		key:   patternedValue(key.Shape, 37, 0.3, 0),
+		value: patternedValue(value.Shape, 41, 0.2, 0),
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 3e-5)
+}
+
 func TestExecutorSoftcappedWindowAttentionMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

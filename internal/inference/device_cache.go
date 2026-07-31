@@ -269,6 +269,9 @@ func (r *Runner) forwardDeviceCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (reference.Value, *deviceKVCache, error) {
+	if r.spec.NonCausalAttention {
+		return reference.Value{}, nil, errors.New("inference: non-causal models do not support a device KV cache")
+	}
 	if len(tokenIDs) == 0 {
 		return reference.Value{}, nil, errors.New("inference: token sequence is empty")
 	}

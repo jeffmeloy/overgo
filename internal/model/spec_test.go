@@ -70,6 +70,29 @@ func TestReadQwen3MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadDreamSpecIsNonCausal(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "dream"),
+		metadata("dream.block_count", gguf.ValueTypeUint32, uint32(28)),
+		metadata("dream.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("dream.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("dream.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("dream.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dream.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("dream.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("dream.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("dream.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("dream.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "dream" || !spec.NonCausalAttention {
+		t.Fatalf("unexpected Dream spec: %+v", spec)
+	}
+}
+
 func TestReadQwen2Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen2"),

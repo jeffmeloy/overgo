@@ -553,8 +553,174 @@ func (r *Runner) forwardLocked(
 	if r.spec.Architecture == "t5encoder" {
 		return r.forwardT5EncoderLocked(ctx, tokenIDs)
 	}
+	if r.spec.NonCausalAttention {
+		return r.forwardNonCausalLocked(ctx, tokenIDs)
+	}
 	hidden, _, err := r.forwardCachedLocked(ctx, tokenIDs, nil)
 	return hidden, err
+}
+
+// ForwardNonCausal evaluates an entire bidirectional token sequence without
+// creating or consuming decoder cache state.
+func (r *Runner) ForwardNonCausal(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (reference.Value, error) {
+	if r == nil {
+		return reference.Value{}, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, errors.New("inference: runner is closed")
+	}
+	if !r.spec.NonCausalAttention {
+		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
+	}
+	return r.forwardNonCausalLocked(ctx, tokenIDs)
+}
+
+// ForwardNonCausalLogits evaluates a complete bidirectional sequence and
+// returns vocabulary logits for every position in shape [vocabulary, tokens].
+// It never creates or mutates decoder cache state.
+func (r *Runner) ForwardNonCausalLogits(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (reference.Value, error) {
+	if r == nil {
+		return reference.Value{}, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, errors.New("inference: runner is closed")
+	}
+	if !r.spec.NonCausalAttention {
+		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
+	}
+	hidden, err := r.forwardNonCausalLocked(ctx, tokenIDs)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return r.projectAllLogits(ctx, hidden)
+}
+
+func (r *Runner) forwardNonCausalLocked(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (reference.Value, error) {
+	if len(tokenIDs) == 0 {
+		return reference.Value{}, errors.New("inference: token sequence is empty")
+	}
+	if len(tokenIDs) > int(r.spec.ContextLength) {
+		return reference.Value{}, fmt.Errorf(
+			"inference: token count %d exceeds context length %d",
+			len(tokenIDs), r.spec.ContextLength,
+		)
+	}
+	rows := make([]uint32, len(tokenIDs))
+	positions := make([]uint32, len(tokenIDs))
+	for index, id := range tokenIDs {
+		if id < 0 || int(id) >= r.vocab.Len() {
+			return reference.Value{}, fmt.Errorf("inference: token ID %d is out of range", id)
+		}
+		rows[index] = uint32(id)
+		positions[index] = uint32(index)
+	}
+	activation, err := r.loadEmbeddings(ctx, rows)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	activation, err = r.addPositionEmbeddings(ctx, activation, positions)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
+		for index := range activation.Data {
+			activation.Data[index] *= scale
+		}
+	}
+	activation, err = r.applyTokenEmbeddingNorm(ctx, activation)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	if r.hasPreloadedWeights() {
+		return r.forwardDenseLayersNoCachePreloaded(ctx, activation, positions)
+	}
+	for layerIndex, layerInfo := range r.weights.Layers {
+		activation, err = r.runDenseLayerNoCache(
+			ctx, activation, layerInfo, layerIndex, positions,
+		)
+		if err != nil {
+			return reference.Value{}, fmt.Errorf("inference layer %d: %w", layerIndex, err)
+		}
+	}
+	return r.runOutputNorm(ctx, activation)
+}
+
+func (r *Runner) projectAllLogits(
+	ctx context.Context,
+	hidden reference.Value,
+) (reference.Value, error) {
+	if hidden.Shape.Rank != 2 || hidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) {
+		return reference.Value{}, errors.New("inference: non-causal hidden-state shape is incompatible")
+	}
+	outputInfo := r.weights.TokenEmbedding
+	if r.weights.Output != nil {
+		outputInfo = *r.weights.Output
+	}
+	shape := tensor.MustShape(uint64(r.spec.VocabularySize), hidden.Shape.Dims[1])
+	if !r.hasPreloadedWeights() {
+		elements, err := shape.Elements()
+		if err != nil || elements > uint64(math.MaxInt) {
+			return reference.Value{}, errors.New("inference: non-causal logits shape is too large")
+		}
+		result := reference.Value{Shape: shape, Data: make([]float32, 0, int(elements))}
+		width := int(hidden.Shape.Dims[0])
+		for token := 0; token < int(hidden.Shape.Dims[1]); token++ {
+			start := token * width
+			logits, err := r.logits(ctx, outputInfo, hidden.Data[start:start+width])
+			if err != nil {
+				return reference.Value{}, err
+			}
+			result.Data = append(result.Data, logits...)
+		}
+		return result, nil
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("non_causal.hidden", dtype.F32, hidden.Shape)
+	table, pointer, err := r.deviceInput(builder, outputInfo)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	output := builder.MulMat(table, input)
+	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{table: pointer}
+	if r.weights.OutputBias != nil {
+		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
+		if biasErr != nil {
+			return reference.Value{}, biasErr
+		}
+		deviceFeeds[bias] = biasPointer
+		output = builder.Add(output, bias)
+	}
+	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+		output = builder.Scale(output, scale)
+	}
+	if err := builder.Err(); err != nil {
+		return reference.Value{}, err
+	}
+	results, err := r.cuda.ExecuteWithDeviceFeeds(
+		ctx,
+		[]*tensor.Tensor{output},
+		map[*tensor.Tensor]reference.Value{input: hidden},
+		deviceFeeds,
+	)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	result := results[output]
+	result.Data = applyLogitSoftcap(result.Data, r.spec.FinalLogitSoftcap)
+	return result, nil
 }
 
 func (r *Runner) forwardT5EncoderLocked(
@@ -605,6 +771,9 @@ func (r *Runner) ForwardCached(
 	defer r.mu.Unlock()
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
+	}
+	if r.spec.NonCausalAttention {
+		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
 }
@@ -782,6 +951,59 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	return results[current], nextCache, nil
 }
 
+func (r *Runner) forwardDenseLayersNoCachePreloaded(
+	ctx context.Context,
+	activation reference.Value,
+	positions []uint32,
+) (reference.Value, error) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("model.input", dtype.F32, activation.Shape)
+	current := input
+	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	for layerIndex, info := range r.weights.Layers {
+		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		for node, pointer := range layerFeeds {
+			deviceFeeds[node] = pointer
+		}
+		result, err := model.BuildDenseBlockCachedForLayer(
+			builder,
+			current,
+			r.spec,
+			graphWeights,
+			positions,
+			nil,
+			nil,
+			uint32(layerIndex),
+		)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		current = result.Output
+	}
+	var err error
+	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	if err := builder.Err(); err != nil {
+		return reference.Value{}, err
+	}
+	results, err := r.cuda.ExecuteWithDeviceFeeds(
+		ctx,
+		[]*tensor.Tensor{current},
+		hostFeeds,
+		deviceFeeds,
+	)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return results[current], nil
+}
+
 func (r *Runner) runT5EncoderLayer(
 	ctx context.Context,
 	activation reference.Value,
@@ -921,6 +1143,49 @@ func (r *Runner) runLayerCached(
 		Key:   results[result.Key],
 		Value: results[result.Value],
 	}, nil
+}
+
+func (r *Runner) runDenseLayerNoCache(
+	ctx context.Context,
+	activation reference.Value,
+	info model.LayerWeights,
+	layerIndex int,
+	positions []uint32,
+) (reference.Value, error) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, activation.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
+	hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	graphWeights, layerFeeds, err := hostLayer.GraphInputs(
+		builder, fmt.Sprintf("blk.%d.", layerIndex),
+	)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	for node, value := range layerFeeds {
+		hostFeeds[node] = value
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder,
+		input,
+		r.spec,
+		graphWeights,
+		positions,
+		nil,
+		nil,
+		uint32(layerIndex),
+	)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	results, err := r.cuda.Execute(ctx, []*tensor.Tensor{result.Output}, hostFeeds)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return results[result.Output], nil
 }
 
 func (r *Runner) runQwen35LayerCached(
@@ -1165,6 +1430,9 @@ func (r *Runner) Generate(
 	}
 	if r.spec.Architecture == "t5encoder" {
 		return nil, "", errors.New("inference: T5 encoder models do not generate tokens")
+	}
+	if r.spec.NonCausalAttention {
+		return nil, "", errors.New("inference: non-causal models require diffusion generation")
 	}
 	if options.MaxNewTokens < 0 {
 		return nil, "", errors.New("inference: max new tokens is negative")

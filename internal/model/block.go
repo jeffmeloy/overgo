@@ -325,6 +325,9 @@ func BuildDenseBlockCachedForLayer(
 	if (pastKey == nil) != (pastValue == nil) {
 		return DenseBlockResult{}, errors.New("dense block past key/value cache must both be present")
 	}
+	if spec.NonCausalAttention && pastKey != nil {
+		return DenseBlockResult{}, errors.New("non-causal dense block does not support a KV cache")
+	}
 
 	tokens := uint64(len(positions))
 	normalized := input
@@ -565,19 +568,20 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	} else {
+		causal := !spec.NonCausalAttention
 		if spec.MaxALiBiBias > 0 {
 			attention = builder.AttentionALiBiWithOffset(
 				query, cacheKey, cacheValue, attentionScale, spec.MaxALiBiBias,
-				true, queryStart,
+				causal, queryStart,
 			)
 		} else if spec.AttentionSoftcap > 0 {
 			attention = builder.AttentionSoftcappedWithOffset(
 				query, cacheKey, cacheValue, attentionScale, spec.AttentionSoftcap,
-				true, queryStart,
+				causal, queryStart,
 			)
 		} else {
 			attention = builder.AttentionWithOffset(
-				query, cacheKey, cacheValue, attentionScale, true, queryStart,
+				query, cacheKey, cacheValue, attentionScale, causal, queryStart,
 			)
 		}
 	}

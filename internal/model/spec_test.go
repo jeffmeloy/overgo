@@ -1428,6 +1428,35 @@ func TestReadDOTS1Spec(t *testing.T) {
 	}
 }
 
+func TestReadMiniMaxM2Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "minimax-m2"),
+		metadata("minimax-m2.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minimax-m2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("minimax-m2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("minimax-m2.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("minimax-m2.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("minimax-m2.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minimax-m2.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("minimax-m2.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minimax-m2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minimax-m2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("minimax-m2.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("minimax-m2.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("minimax-m2.rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minimax-m2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("minimax-m2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertFeedForward != 6 || !spec.ExpertWeightsNorm ||
+		spec.ExpertGatingFunc != 2 || spec.RopeDimensionCount != 2 {
+		t.Fatalf("unexpected MiniMax-M2 spec: %+v", spec)
+	}
+}
+
 func TestReadGraniteRejectsNonDenseVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("granite.expert_count", gguf.ValueTypeUint32, uint32(8)),

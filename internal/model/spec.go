@@ -138,6 +138,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "smollm3" &&
 		architecture != "smallthinker" &&
 		architecture != "minicpm" &&
+		architecture != "minimax-m2" &&
 		architecture != "granite" &&
 		architecture != "granitemoe" &&
 		architecture != "glm4" &&
@@ -852,7 +853,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -925,6 +926,29 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.LeadingDenseBlocks, _ = optional[uint32](
 			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
 		)
+	}
+	if architecture == "minimax-m2" {
+		expertWidth, widthErr := required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		)
+		if widthErr != nil {
+			return Spec{}, widthErr
+		}
+		if expertWidth != spec.FeedForwardLength {
+			return Spec{}, errors.New("MiniMax-M2 expert width differs from packed tensor width")
+		}
+		spec.ExpertFeedForward = spec.FeedForwardLength
+		spec.ExpertWeightsNorm = true
+		if spec.ExpertGatingFunc, err = required[uint32](
+			values, prefix+"expert_gating_func", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.RopeDimensionCount, err = required[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
 	}
 	if architecture == "bailingmoe" {
 		if spec.ExpertFeedForward, err = required[uint32](
@@ -1470,6 +1494,21 @@ func (s Spec) validate() error {
 			return errors.New("DOTS1 rotary dimension must equal key length")
 		case s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength:
 			return errors.New("DOTS1 requires full-head matching key/value attention")
+		}
+	}
+	if s.Architecture == "minimax-m2" {
+		switch {
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+			return errors.New("MiniMax-M2 expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("MiniMax-M2 expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("MiniMax-M2 expert weight scale is invalid")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength:
+			return errors.New("MiniMax-M2 rotary/head dimensions are invalid")
 		}
 	}
 	if (s.Architecture == "granite" || s.Architecture == "granitemoe") &&

@@ -263,6 +263,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "bailingmoe2" ||
 		spec.Architecture == "dbrx" ||
 		spec.Architecture == "dots1" ||
+		spec.Architecture == "minimax-m2" ||
 		spec.Architecture == "jais" ||
 		spec.Architecture == "llada-moe" ||
 		spec.Architecture == "xverse" ||
@@ -613,7 +614,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -755,6 +756,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionKNorm = &kNorm
 		}
 		if spec.Architecture == "olmoe" {
+			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			kNorm, normErr := required(prefix+"attn_k_norm.weight", keyLength)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionQNorm = &qNorm
+			layer.AttentionKNorm = &kNorm
+		}
+		if spec.Architecture == "minimax-m2" {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)
 			if normErr != nil {
 				return Weights{}, normErr
@@ -910,7 +923,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "llada-moe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "llada-moe" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "dots1" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||
@@ -1080,6 +1093,16 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if spec.Architecture == "lfm2moe" {
+				bias, biasErr := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				if bias.Type != dtype.F32 {
+					return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
+				}
+				layer.FeedForwardExpertBias = &bias
+			}
+			if spec.Architecture == "minimax-m2" {
 				bias, biasErr := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
 				if biasErr != nil {
 					return Weights{}, biasErr

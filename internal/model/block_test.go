@@ -2373,6 +2373,50 @@ func TestBuildDOTS1MoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildMiniMaxM2Block(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "minimax-m2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 6, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:           builder.Input("qkv", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionQNorm:         builder.Input("q_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionKNorm:         builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+	}
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, _ := tensor.Topological(output)
+	var moe *tensor.Tensor
+	var rope int
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			moe = node
+		}
+		if node.Op == tensor.OpRoPENeoX && node.Attrs.(tensor.RoPEAttributes).RotaryDimensions == 2 {
+			rope++
+		}
+	}
+	if moe == nil || moe.Attrs.(tensor.MoEAttributes).Routing != tensor.MoERoutingSigmoid ||
+		!moe.Attrs.(tensor.MoEAttributes).NormalizeTopKProb || len(moe.Inputs) != 7 || rope != 2 {
+		t.Fatalf("unexpected MiniMax-M2 graph: moe=%v rope=%d", moe != nil, rope)
+	}
+}
+
 func TestBuildDenseApertus(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

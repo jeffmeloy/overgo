@@ -464,6 +464,7 @@ func BuildDenseBlockCachedForLayer(
 	isDOTS1 := spec.Architecture == "dots1"
 	isGraniteMoE := spec.Architecture == "granitemoe"
 	isSmallThinker := spec.Architecture == "smallthinker"
+	isMiniMaxM2 := spec.Architecture == "minimax-m2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
@@ -480,7 +481,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isSmallThinker && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -519,6 +520,9 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
 		if isLFM2MoE {
+			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
+		}
+		if isMiniMaxM2 {
 			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
 		}
 		if isArctic {
@@ -591,6 +595,10 @@ func BuildDenseBlockCachedForLayer(
 		required["attention K norm"] = weights.AttentionKNorm
 	}
 	if isOLMoE {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+	}
+	if isMiniMaxM2 {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
@@ -704,7 +712,7 @@ func BuildDenseBlockCachedForLayer(
 			value = builder.Add(value, weights.AttentionVBias)
 		}
 	}
-	if isOLMo2 || isOLMoE {
+	if isOLMo2 || isOLMoE || isMiniMaxM2 {
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
@@ -1026,6 +1034,22 @@ func BuildDenseBlockCachedForLayer(
 				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
 				spec.ExpertWeightsScale, routing,
 			)
+		} else if isMiniMaxM2 {
+			if spec.ExpertGatingFunc == 2 {
+				feedForward = builder.MoESigmoid(
+					normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+				)
+			} else {
+				feedForward = builder.MoESoftmaxWithSelectionBias(
+					normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+				)
+			}
 		} else if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE || isDOTS1) && spec.ExpertGatingFunc == 2) {
 			feedForward = builder.MoESigmoid(
 				normalized, weights.FeedForwardRouter,

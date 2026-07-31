@@ -1335,6 +1335,64 @@ func TestBuildDenseGLM4(t *testing.T) {
 	}
 }
 
+func TestBuildDenseEXAONE4SlidingPattern(t *testing.T) {
+	for _, test := range []struct {
+		layer      uint32
+		wantRoPE   int
+		wantWindow uint32
+	}{
+		{layer: 0, wantRoPE: 2, wantWindow: 4096},
+		{layer: 3, wantRoPE: 0, wantWindow: 0},
+	} {
+		builder := tensor.NewBuilder()
+		spec := Spec{
+			Architecture: "exaone4", BlockCount: 64, EmbeddingLength: 8,
+			FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+			RopeFrequencyBase: 1_000_000, RMSNormEpsilon: 1e-5,
+			SlidingWindow: 4096, SlidingPattern: 4, NoRopeLayerStep: 4,
+		}
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+		weights := denseBlockInputs(builder, spec)
+		weights.AttentionNorm = nil
+		weights.AttentionNormBias = nil
+		weights.FeedForwardNorm = nil
+		weights.FeedForwardNormBias = nil
+		weights.AttentionQ = nil
+		weights.AttentionK = nil
+		weights.AttentionV = nil
+		weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16))
+		weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(16))
+		weights.AttentionPostNorm = builder.Input("post_attention_norm", dtype.F32, tensor.MustShape(8))
+		weights.FeedForwardPostNorm = builder.Input("post_ffw_norm", dtype.F32, tensor.MustShape(8))
+		result, err := BuildDenseBlockCachedForLayer(
+			builder, input, spec, weights, []uint32{0, 1}, nil, nil, test.layer,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes, err := tensor.Topological(result.Output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rmsNorms, rope int
+		var window uint32
+		for _, node := range nodes {
+			switch node.Op {
+			case tensor.OpRMSNorm:
+				rmsNorms++
+			case tensor.OpRoPENeoX:
+				rope++
+			case tensor.OpAttention:
+				window = node.Attrs.(tensor.AttentionAttributes).Window
+			}
+		}
+		if rmsNorms != 4 || rope != test.wantRoPE || window != test.wantWindow {
+			t.Fatalf("EXAONE 4 layer %d graph: RMSNorm=%d RoPE=%d window=%d", test.layer, rmsNorms, rope, window)
+		}
+	}
+}
+
 func TestBuildDenseFalconNormLayouts(t *testing.T) {
 	for _, secondNorm := range []bool{false, true} {
 		name := "7b-shared-norm"

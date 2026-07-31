@@ -324,7 +324,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
-		if spec.Architecture != "olmo2" && !spec.UsesUnweightedLayerNorm() {
+		if spec.Architecture != "olmo2" && !usesPostOnlyNorm(spec.Architecture) &&
+			!spec.UsesUnweightedLayerNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
@@ -474,7 +475,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gptneox" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gptneox" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "gptneox" || spec.Architecture == "falcon" {
@@ -506,7 +507,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if layer.AttentionQKV == nil {
-				if spec.Architecture == "apertus" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" {
+				if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" {
 					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
 						return Weights{}, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 					}
@@ -541,7 +542,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "qwen3" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
@@ -691,7 +692,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			} else if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
 				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
 			}
-		} else if spec.Architecture != "olmo2" && !usesParallelResidual(spec.Architecture) &&
+		} else if spec.Architecture != "olmo2" && !usesPostOnlyNorm(spec.Architecture) &&
+			!usesParallelResidual(spec.Architecture) &&
 			!spec.UsesUnweightedLayerNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err

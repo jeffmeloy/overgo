@@ -93,6 +93,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "jais2" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
+		architecture != "exaone4" &&
 		architecture != "smollm3" &&
 		architecture != "minicpm" &&
 		architecture != "granite" &&
@@ -432,6 +433,42 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if sections[0] > 0 && sections[1] > 0 {
 				return Spec{}, errors.New("GLM4 multimodal RoPE is not supported")
 			}
+		}
+	}
+	if architecture == "exaone4" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); ok {
+			spec.RopeDimensionCount = value
+		}
+		if nextN, ok := optional[uint32](
+			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
+		); ok && nextN > 0 {
+			return Spec{}, errors.New("EXAONE 4 NextN/MTP layers are not supported")
+		}
+		spec.RopeFrequencySWA = spec.RopeFrequencyBase
+		if value, ok := optional[float32](
+			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32,
+		); ok {
+			spec.RopeFrequencySWA = value
+		}
+		if spec.BlockCount == 64 {
+			spec.SlidingWindow = 4096
+		}
+		if value, ok := optional[uint32](
+			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
+		); ok {
+			spec.SlidingWindow = value
+		}
+		if spec.SlidingWindow > 0 {
+			spec.SlidingPattern = 4
+			if value, ok := optional[uint32](
+				values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32,
+			); ok {
+				spec.SlidingPattern = value
+			}
+			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
 	if architecture == "falcon" {
@@ -822,6 +859,16 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("GLM4 rotary dimension count is invalid")
 	}
+	if s.Architecture == "exaone4" {
+		switch {
+		case s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0:
+			return errors.New("EXAONE 4 rotary dimension count must equal the key length")
+		case s.SlidingWindow > 0 && s.SlidingPattern < 2:
+			return errors.New("EXAONE 4 sliding attention pattern must be at least 2")
+		case s.SlidingWindow > 0 && s.RopeFrequencySWA <= 0:
+			return errors.New("EXAONE 4 sliding RoPE frequency base must be positive")
+		}
+	}
 	if s.Architecture == "falcon" && s.RopeDimensionCount > 0 &&
 		s.RopeDimensionCount != s.KeyLength {
 		return errors.New("Falcon rotary dimension count must equal the key length")
@@ -869,12 +916,17 @@ func isGemmaArchitecture(architecture string) bool {
 }
 
 func hasPostNorm(architecture string) bool {
-	return architecture == "gemma2" || architecture == "gemma3" || architecture == "glm4"
+	return architecture == "exaone4" || architecture == "gemma2" ||
+		architecture == "gemma3" || architecture == "glm4"
 }
 
 func usesSlidingAttention(architecture string) bool {
 	return (architecture == "gemma2" || architecture == "gemma3") ||
-		architecture == "olmo2" || architecture == "cohere2"
+		architecture == "exaone4" || architecture == "olmo2" || architecture == "cohere2"
+}
+
+func usesPostOnlyNorm(architecture string) bool {
+	return architecture == "exaone4"
 }
 
 func usesNormalRoPE(architecture string) bool {

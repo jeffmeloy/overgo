@@ -225,6 +225,7 @@ func BuildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
+	isPostOnlyNorm := usesPostOnlyNorm(spec.Architecture)
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	if spec.Architecture == "apertus" &&
 		(int(layerIndex) >= len(spec.XIELUAlphaN) || int(layerIndex) >= len(spec.XIELUAlphaP) ||
@@ -263,7 +264,12 @@ func BuildDenseBlockCachedForLayer(
 		required["feed-forward up bias"] = weights.FeedForwardUpBias
 		required["feed-forward down bias"] = weights.FeedForwardDownBias
 	}
-	if isOLMo2 {
+	if isPostOnlyNorm {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+		required["attention post norm"] = weights.AttentionPostNorm
+		required["feed-forward post norm"] = weights.FeedForwardPostNorm
+	} else if isOLMo2 {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 		required["attention post norm"] = weights.AttentionPostNorm
@@ -304,7 +310,7 @@ func BuildDenseBlockCachedForLayer(
 
 	tokens := uint64(len(positions))
 	normalized := input
-	if !isOLMo2 {
+	if !isOLMo2 && !isPostOnlyNorm {
 		normalized = ApplyNormalization(
 			builder, input, weights.AttentionNorm, weights.AttentionNormBias, spec,
 		)
@@ -378,7 +384,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 
-	if spec.Architecture == "apertus" || spec.Architecture == "qwen3" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -595,7 +601,7 @@ func BuildDenseBlockCachedForLayer(
 		)
 	} else if !parallelResidual {
 		normalized = residual
-		if !isOLMo2 {
+		if !isOLMo2 && !isPostOnlyNorm {
 			if spec.Architecture == "stablelm" && weights.FeedForwardNormBias == nil {
 				normalized = builder.Multiply(
 					builder.LayerNorm(residual, spec.LayerNormEpsilon),

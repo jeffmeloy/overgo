@@ -381,6 +381,35 @@ func TestReadTextGLM4Spec(t *testing.T) {
 	}
 }
 
+func TestReadEXAONE4Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "exaone4"),
+		metadata("exaone4.block_count", gguf.ValueTypeUint32, uint32(64)),
+		metadata("exaone4.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("exaone4.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("exaone4.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("exaone4.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("exaone4.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("exaone4.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("exaone4.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "exaone4" || spec.RopeDimensionCount != 4 ||
+		spec.SlidingWindow != 4096 || spec.SlidingPattern != 4 ||
+		spec.NoRopeLayerStep != 4 || !spec.IsSlidingLayer(0) ||
+		spec.IsSlidingLayer(3) || !spec.UsesRoPE(0) || spec.UsesRoPE(3) ||
+		!usesPostOnlyNorm(spec.Architecture) {
+		t.Fatalf("unexpected EXAONE 4 spec: %+v", spec)
+	}
+	file.Metadata = append(file.Metadata, metadata("exaone4.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)))
+	if _, err := ReadSpec(file); err == nil || !strings.Contains(err.Error(), "NextN/MTP") {
+		t.Fatalf("EXAONE 4 NextN error = %v", err)
+	}
+}
+
 func TestReadFalconSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "falcon"),

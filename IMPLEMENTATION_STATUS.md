@@ -457,7 +457,9 @@
 - The real Gemma 3 12B IQ4_XS file now passes strict metadata and all 48-layer
   weight catalog validation. Its graph executes with embedding scaling,
   per-head Q/K norms, alternating local/global scaled RoPE, sliding attention,
-  attention/FFN post norms, and GEGLU on native IQ4_XS/Q6_K CUDA weights.
+  attention/FFN post norms, GEGLU, and optional metadata-driven final-logit
+  softcapping on native IQ4_XS/Q6_K CUDA weights. Softcapping is applied
+  consistently to streamed, preloaded/device-cache, and perplexity logits.
   The oracle-compatible evaluator now resets BOS at every disjoint window, as
   llama.cpp does for BOS-enabled vocabularies. On a diverse 126-token probe,
   Go reports PPL `33.2276` versus the pinned CPU oracle's `33.1217` (0.32%

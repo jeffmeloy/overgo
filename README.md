@@ -4,7 +4,8 @@
 Its current executable model subset is dense Qwen3, text-only Qwen3.5 hybrid
 gated-delta-net models, Gemma 3 decoders, T5/UMT5 encoders, and dense
 Llama-family decoders, including projection biases and converted Llama 3
-per-pair RoPE factors plus metadata-driven linear RoPE scaling.
+per-pair RoPE factors plus metadata-driven linear RoPE scaling. Gemma 3 final
+logit softcapping is honored across generation and perplexity when declared.
 
 The target is a Go-owned model and tensor runtime that calls NVIDIA's installed
 Windows DLLs directly. CUDA kernels are reproducible binary assets and are the

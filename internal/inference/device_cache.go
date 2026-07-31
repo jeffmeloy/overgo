@@ -485,7 +485,10 @@ func (r *Runner) forwardDeviceCachedLocked(
 	if err != nil {
 		return fail(err)
 	}
-	next.Logits = logits.Data
+	next.Logits = applyLogitSoftcap(
+		logits.Data,
+		r.spec.FinalLogitSoftcap,
+	)
 	var ok bool
 	for layerIndex := range keys {
 		next.Keys[layerIndex], ok = retained.Value(keys[layerIndex])

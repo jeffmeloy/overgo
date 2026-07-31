@@ -233,7 +233,7 @@ func (r *Runner) logitsBatch(
 			}
 			result = append(result, logits...)
 		}
-		return result, nil
+		return applyLogitSoftcap(result, r.spec.FinalLogitSoftcap), nil
 	}
 	builder := tensor.NewBuilder()
 	table, pointer, err := r.deviceInput(builder, outputInfo)
@@ -254,7 +254,10 @@ func (r *Runner) logitsBatch(
 	if err != nil {
 		return nil, err
 	}
-	return results[output].Data, nil
+	return applyLogitSoftcap(
+		results[output].Data,
+		r.spec.FinalLogitSoftcap,
+	), nil
 }
 
 func negativeLogProbability(logits []float32, target int) (float64, error) {

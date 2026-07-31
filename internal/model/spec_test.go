@@ -73,17 +73,21 @@ func TestReadSpecAcceptsLinearRoPEScaling(t *testing.T) {
 		metadata("llama.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
 		metadata("llama.rope.scaling.type", gguf.ValueTypeString, "linear"),
 		metadata("llama.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("llama.final_logit_softcapping", gguf.ValueTypeFloat32, float32(30)),
 		metadata("llama.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.RopeScalingType != "linear" || spec.RopeScalingFactor != 4 {
+	if spec.RopeScalingType != "linear" ||
+		spec.RopeScalingFactor != 4 ||
+		spec.FinalLogitSoftcap != 30 {
 		t.Fatalf(
-			"RoPE scaling = %q/%v, want linear/4",
+			"scaling = %q/%v softcap=%v, want linear/4/30",
 			spec.RopeScalingType,
 			spec.RopeScalingFactor,
+			spec.FinalLogitSoftcap,
 		)
 	}
 }

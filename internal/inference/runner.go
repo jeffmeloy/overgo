@@ -1501,7 +1501,17 @@ func (r *Runner) logits(
 	hidden []float32,
 ) ([]float32, error) {
 	if !r.hasPreloadedWeights() {
-		return model.DotRows(ctx, r.file, outputInfo, hidden, 1024)
+		logits, err := model.DotRows(
+			ctx,
+			r.file,
+			outputInfo,
+			hidden,
+			1024,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap), nil
 	}
 	builder := tensor.NewBuilder()
 	table, pointer, err := r.deviceInput(builder, outputInfo)
@@ -1527,7 +1537,20 @@ func (r *Runner) logits(
 	if err != nil {
 		return nil, err
 	}
-	return results[output].Data, nil
+	return applyLogitSoftcap(
+		results[output].Data,
+		r.spec.FinalLogitSoftcap,
+	), nil
+}
+
+func applyLogitSoftcap(logits []float32, cap float32) []float32 {
+	if cap <= 0 {
+		return logits
+	}
+	for index, value := range logits {
+		logits[index] = cap * float32(math.Tanh(float64(value/cap)))
+	}
+	return logits
 }
 
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {

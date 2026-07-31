@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"llamacpp2go/internal/gguf"
 )
@@ -23,6 +24,7 @@ type Spec struct {
 	RopeFrequencySWA  float32
 	RopeScalingType   string
 	RopeScalingFactor float32
+	FinalLogitSoftcap float32
 	RMSNormEpsilon    float32
 	VocabularySize    uint32
 	SlidingWindow     uint32
@@ -144,6 +146,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	); err != nil {
 		return Spec{}, err
 	}
+	spec.FinalLogitSoftcap, _ = optional[float32](
+		values,
+		prefix+"final_logit_softcapping",
+		gguf.ValueTypeFloat32,
+	)
 	if architecture == "t5encoder" {
 		if spec.RelativeBuckets, err = required[uint32](
 			values,
@@ -345,6 +352,11 @@ func (s Spec) validate() error {
 	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
+	}
+	if s.FinalLogitSoftcap < 0 ||
+		math.IsNaN(float64(s.FinalLogitSoftcap)) ||
+		math.IsInf(float64(s.FinalLogitSoftcap), 0) {
+		return errors.New("final logit softcap must be finite and non-negative")
 	}
 	return nil
 }

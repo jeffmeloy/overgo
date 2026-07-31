@@ -5,6 +5,34 @@ import (
 	"testing"
 )
 
+func TestApplyLogitSoftcap(t *testing.T) {
+	logits := []float32{-100, -10, 0, 10, 100}
+	got := applyLogitSoftcap(logits, 10)
+	for index, want := range []float32{
+		-10,
+		-7.6159415,
+		0,
+		7.6159415,
+		10,
+	} {
+		if difference := math.Abs(float64(got[index] - want)); difference > 0.001 {
+			t.Fatalf(
+				"softcap[%d] = %v, want %v (difference %v)",
+				index,
+				got[index],
+				want,
+				difference,
+			)
+		}
+	}
+	plain := []float32{-2, 3}
+	if result := applyLogitSoftcap(plain, 0); &result[0] != &plain[0] ||
+		result[0] != -2 ||
+		result[1] != 3 {
+		t.Fatalf("disabled softcap changed logits: %v", result)
+	}
+}
+
 func TestNegativeLogProbability(t *testing.T) {
 	got, err := negativeLogProbability([]float32{1, 2, 3}, 2)
 	if err != nil {

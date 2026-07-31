@@ -902,6 +902,14 @@ models:
       - vision-deepstack-rejected
       - longrope-not-yet-supported
     real_model_validation: pending-fixture
+  maincoder:
+    status: experimental
+    features:
+      - normal-rope
+      - post-rope-qk-rmsnorm
+      - swiglu
+      - tied-output
+    real_model_validation: pending-fixture
   qwen2:
     status: experimental
     execution:

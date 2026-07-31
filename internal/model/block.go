@@ -330,6 +330,13 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	}
+	if spec.Architecture == "maincoder" {
+		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
+			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
+		}
+		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+	}
 
 	cacheKey := key
 	cacheValue := value

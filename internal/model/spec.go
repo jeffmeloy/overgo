@@ -80,6 +80,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "smollm3" &&
 		architecture != "minicpm" &&
 		architecture != "granite" &&
+		architecture != "maincoder" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -558,6 +559,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "internlm2" ||
 		architecture == "granite" ||
 		architecture == "minicpm" ||
+		architecture == "maincoder" ||
 		architecture == "smollm3" ||
 		architecture == "xverse"
 }

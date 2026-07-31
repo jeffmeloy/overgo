@@ -363,6 +363,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if spec.Architecture == "qwen3" || spec.Architecture == "gemma3" ||
+			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
 			if normErr != nil {

@@ -389,6 +389,46 @@ func TestBuildDenseGraniteHonorsRoPESwitchAndScales(t *testing.T) {
 	}
 }
 
+func TestBuildDenseMaincoderNormalizesQKAfterRoPE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "maincoder",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		RMSNormEpsilon:    1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range nodes {
+		if node.Op != tensor.OpAttention {
+			continue
+		}
+		for index, qk := range node.Inputs[:2] {
+			if qk.Op != tensor.OpMultiply ||
+				len(qk.Inputs) != 2 ||
+				qk.Inputs[0].Op != tensor.OpRMSNorm ||
+				qk.Inputs[0].Inputs[0].Op != tensor.OpRoPENormal {
+				t.Fatalf("Maincoder attention input %d is not post-RoPE normalized", index)
+			}
+		}
+		return
+	}
+	t.Fatal("Maincoder attention node was not found")
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

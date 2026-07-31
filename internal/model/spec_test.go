@@ -244,6 +244,30 @@ func TestReadGraniteRejectsNonDenseVariants(t *testing.T) {
 	}
 }
 
+func TestReadMaincoderSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "maincoder"),
+		metadata("maincoder.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("maincoder.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("maincoder.embedding_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("maincoder.feed_forward_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("maincoder.attention.head_count", gguf.ValueTypeUint32, uint32(16)),
+		metadata("maincoder.attention.head_count_kv", gguf.ValueTypeUint32, uint32(4)),
+		metadata("maincoder.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("maincoder.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "maincoder" ||
+		spec.KeyLength != 128 ||
+		spec.ValueLength != 128 ||
+		!spec.UsesRoPE(0) {
+		t.Fatalf("unexpected Maincoder spec: %+v", spec)
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

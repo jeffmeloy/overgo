@@ -18,6 +18,11 @@ type LayerGraphWeights struct {
 	AttentionK            *tensor.Tensor
 	AttentionV            *tensor.Tensor
 	AttentionOutput       *tensor.Tensor
+	AttentionQScale       *tensor.Tensor
+	AttentionKScale       *tensor.Tensor
+	AttentionVScale       *tensor.Tensor
+	AttentionOutputScale  *tensor.Tensor
+	AttentionSubNorm      *tensor.Tensor
 	AttentionQBias        *tensor.Tensor
 	AttentionKBias        *tensor.Tensor
 	AttentionVBias        *tensor.Tensor
@@ -32,6 +37,10 @@ type LayerGraphWeights struct {
 	FeedForwardGate       *tensor.Tensor
 	FeedForwardUp         *tensor.Tensor
 	FeedForwardDown       *tensor.Tensor
+	FeedForwardGateScale  *tensor.Tensor
+	FeedForwardUpScale    *tensor.Tensor
+	FeedForwardDownScale  *tensor.Tensor
+	FeedForwardSubNorm    *tensor.Tensor
 	FeedForwardGateBias   *tensor.Tensor
 	FeedForwardUpBias     *tensor.Tensor
 	FeedForwardDownBias   *tensor.Tensor
@@ -238,6 +247,10 @@ func BuildDenseBlockCachedForLayer(
 	if spec.Architecture == "falcon" && weights.AttentionNorm2 == nil && weights.AttentionNorm2Bias != nil {
 		return DenseBlockResult{}, errors.New("Falcon secondary attention norm bias has no weight")
 	}
+	if spec.Architecture == "bitnet" {
+		required["attention sub norm"] = weights.AttentionSubNorm
+		required["feed-forward sub norm"] = weights.FeedForwardSubNorm
+	}
 	if !usesGateFreeFFN(spec.Architecture) {
 		required["feed-forward gate"] = weights.FeedForwardGate
 	} else if usesSequentialGELU(spec.Architecture) {
@@ -332,6 +345,15 @@ func BuildDenseBlockCachedForLayer(
 		query = builder.MulMat(weights.AttentionQ, normalized)
 		key = builder.MulMat(weights.AttentionK, normalized)
 		value = builder.MulMat(weights.AttentionV, normalized)
+		if weights.AttentionQScale != nil {
+			query = builder.Multiply(query, weights.AttentionQScale)
+		}
+		if weights.AttentionKScale != nil {
+			key = builder.Multiply(key, weights.AttentionKScale)
+		}
+		if weights.AttentionVScale != nil {
+			value = builder.Multiply(value, weights.AttentionVScale)
+		}
 		if weights.AttentionQBias != nil {
 			query = builder.Add(query, weights.AttentionQBias)
 		}
@@ -530,7 +552,15 @@ func BuildDenseBlockCachedForLayer(
 		uint64(spec.HeadCount)*uint64(spec.ValueLength),
 		tokens,
 	)
+	if spec.Architecture == "bitnet" {
+		attention = builder.WeightedRMSNorm(
+			attention, weights.AttentionSubNorm, spec.RMSNormEpsilon,
+		)
+	}
 	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if weights.AttentionOutputScale != nil {
+		attention = builder.Multiply(attention, weights.AttentionOutputScale)
+	}
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
@@ -576,6 +606,9 @@ func BuildDenseBlockCachedForLayer(
 	// Cohere decoders leave normalized pointing at the block input so attention
 	// and FFN run in parallel before both branches are added to the residual.
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	if weights.FeedForwardUpScale != nil {
+		up = builder.Multiply(up, weights.FeedForwardUpScale)
+	}
 	if weights.FeedForwardUpBias != nil {
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
@@ -596,6 +629,9 @@ func BuildDenseBlockCachedForLayer(
 		activation = builder.ReLUSquared(up)
 	} else {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)
+		if weights.FeedForwardGateScale != nil {
+			gate = builder.Multiply(gate, weights.FeedForwardGateScale)
+		}
 		if weights.FeedForwardGateBias != nil {
 			gate = builder.Add(gate, weights.FeedForwardGateBias)
 		}
@@ -604,7 +640,15 @@ func BuildDenseBlockCachedForLayer(
 			activation = builder.GEGLU(gate, up)
 		}
 	}
+	if spec.Architecture == "bitnet" {
+		activation = builder.WeightedRMSNorm(
+			activation, weights.FeedForwardSubNorm, spec.RMSNormEpsilon,
+		)
+	}
 	feedForward := builder.MulMat(weights.FeedForwardDown, activation)
+	if weights.FeedForwardDownScale != nil {
+		feedForward = builder.Multiply(feedForward, weights.FeedForwardDownScale)
+	}
 	if weights.FeedForwardDownBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 	}

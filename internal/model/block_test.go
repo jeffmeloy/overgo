@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"llamacpp2go/internal/tensor"
@@ -1291,6 +1292,50 @@ func TestBuildDenseFalconNormLayouts(t *testing.T) {
 				t.Fatal("Falcon-40B attention and FFN unexpectedly share a norm")
 			}
 		})
+	}
+}
+
+func TestBuildDenseBitNetSubNormsAndScales(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "bitnet", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionSubNorm = builder.Input("attn_sub_norm", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardSubNorm = builder.Input("ffn_sub_norm", dtype.F32, tensor.MustShape(12))
+	scale := func(name string) *tensor.Tensor {
+		return builder.Input(name, dtype.F32, tensor.MustShape(1))
+	}
+	weights.AttentionQScale = scale("attn_q_scale")
+	weights.AttentionKScale = scale("attn_k_scale")
+	weights.AttentionVScale = scale("attn_v_scale")
+	weights.AttentionOutputScale = scale("attn_output_scale")
+	weights.FeedForwardGateScale = scale("ffn_gate_scale")
+	weights.FeedForwardUpScale = scale("ffn_up_scale")
+	weights.FeedForwardDownScale = scale("ffn_down_scale")
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rmsNorms, scaleMultiplies int
+	for _, node := range nodes {
+		if node.Op == tensor.OpRMSNorm {
+			rmsNorms++
+		}
+		if node.Op == tensor.OpMultiply && len(node.Inputs) == 2 &&
+			strings.HasSuffix(node.Inputs[1].Name, "_scale") {
+			scaleMultiplies++
+		}
+	}
+	if rmsNorms != 4 || scaleMultiplies != 7 {
+		t.Fatalf("unexpected BitNet graph: RMSNorms=%d scale-multiplies=%d", rmsNorms, scaleMultiplies)
 	}
 }
 

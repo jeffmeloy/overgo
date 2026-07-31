@@ -443,6 +443,11 @@ func (r *Runner) layerDeviceInputs(
 		info        *gguf.TensorInfo
 		destination **tensor.Tensor
 	}{
+		{info.AttentionQScale, &result.AttentionQScale},
+		{info.AttentionKScale, &result.AttentionKScale},
+		{info.AttentionVScale, &result.AttentionVScale},
+		{info.AttentionOutputScale, &result.AttentionOutputScale},
+		{info.AttentionSubNorm, &result.AttentionSubNorm},
 		{info.AttentionQKVBias, &result.AttentionQKVBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
@@ -452,6 +457,10 @@ func (r *Runner) layerDeviceInputs(
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
+		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
+		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
+		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 	} {
 		if item.info != nil {
 			if *item.destination, err = input(*item.info); err != nil {
@@ -1739,6 +1748,11 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.AttentionNormBias,
 			layer.AttentionNorm2,
 			layer.AttentionNorm2Bias,
+			layer.AttentionQScale,
+			layer.AttentionKScale,
+			layer.AttentionVScale,
+			layer.AttentionOutputScale,
+			layer.AttentionSubNorm,
 			layer.AttentionQKVBias,
 			layer.AttentionQBias,
 			layer.AttentionKBias,
@@ -1748,6 +1762,10 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardUpBias,
 			layer.FeedForwardDownBias,
 			layer.FeedForwardNormBias,
+			layer.FeedForwardGateScale,
+			layer.FeedForwardUpScale,
+			layer.FeedForwardDownScale,
+			layer.FeedForwardSubNorm,
 		} {
 			if pointer != nil {
 				names[pointer.Name] = struct{}{}

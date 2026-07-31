@@ -81,6 +81,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture != "llama" && architecture != "internlm2" &&
 		architecture != "arcee" &&
 		architecture != "baichuan" &&
+		architecture != "bitnet" &&
 		architecture != "codeshell" &&
 		architecture != "cohere2" &&
 		architecture != "command-r" &&

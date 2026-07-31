@@ -23,6 +23,11 @@ type HostLayer struct {
 	AttentionK            reference.Value
 	AttentionV            reference.Value
 	AttentionOutput       reference.Value
+	AttentionQScale       *reference.Value
+	AttentionKScale       *reference.Value
+	AttentionVScale       *reference.Value
+	AttentionOutputScale  *reference.Value
+	AttentionSubNorm      *reference.Value
 	AttentionQBias        *reference.Value
 	AttentionKBias        *reference.Value
 	AttentionVBias        *reference.Value
@@ -37,6 +42,10 @@ type HostLayer struct {
 	FeedForwardGate       reference.Value
 	FeedForwardUp         reference.Value
 	FeedForwardDown       reference.Value
+	FeedForwardGateScale  *reference.Value
+	FeedForwardUpScale    *reference.Value
+	FeedForwardDownScale  *reference.Value
+	FeedForwardSubNorm    *reference.Value
 	FeedForwardGateBias   *reference.Value
 	FeedForwardUpBias     *reference.Value
 	FeedForwardDownBias   *reference.Value
@@ -355,6 +364,11 @@ func LoadHostLayer(
 		info        *gguf.TensorInfo
 		destination **reference.Value
 	}{
+		{info.AttentionQScale, &result.AttentionQScale},
+		{info.AttentionKScale, &result.AttentionKScale},
+		{info.AttentionVScale, &result.AttentionVScale},
+		{info.AttentionOutputScale, &result.AttentionOutputScale},
+		{info.AttentionSubNorm, &result.AttentionSubNorm},
 		{info.AttentionNormBias, &result.AttentionNormBias},
 		{info.AttentionNorm2, &result.AttentionNorm2},
 		{info.AttentionNorm2Bias, &result.AttentionNorm2Bias},
@@ -367,6 +381,10 @@ func LoadHostLayer(
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
 		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
+		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
+		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
+		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
+		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 	} {
 		if item.info == nil {
 			continue
@@ -488,6 +506,11 @@ func (layer *HostLayer) GraphInputs(
 		value       *reference.Value
 		destination **tensor.Tensor
 	}{
+		{"attn_q.scale", layer.AttentionQScale, &result.AttentionQScale},
+		{"attn_k.scale", layer.AttentionKScale, &result.AttentionKScale},
+		{"attn_v.scale", layer.AttentionVScale, &result.AttentionVScale},
+		{"attn_output.scale", layer.AttentionOutputScale, &result.AttentionOutputScale},
+		{"attn_sub_norm.weight", layer.AttentionSubNorm, &result.AttentionSubNorm},
 		{"attn_qkv.bias", layer.AttentionQKVBias, &result.AttentionQKVBias},
 		{"attn_q.bias", layer.AttentionQBias, &result.AttentionQBias},
 		{"attn_k.bias", layer.AttentionKBias, &result.AttentionKBias},
@@ -496,6 +519,10 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_gate.bias", layer.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{"ffn_up.bias", layer.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{"ffn_down.bias", layer.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{"ffn_gate.scale", layer.FeedForwardGateScale, &result.FeedForwardGateScale},
+		{"ffn_up.scale", layer.FeedForwardUpScale, &result.FeedForwardUpScale},
+		{"ffn_down.scale", layer.FeedForwardDownScale, &result.FeedForwardDownScale},
+		{"ffn_sub_norm.weight", layer.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 	} {
 		if item.value != nil {
 			*item.destination = input(item.name, *item.value)

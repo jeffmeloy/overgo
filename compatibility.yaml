@@ -814,6 +814,17 @@ cuda:
     - MXFP4
     - NVFP4
 models:
+  bitnet:
+    status: experimental
+    features:
+      - rmsnorm
+      - attention-and-ffn-sub-layer-rmsnorm
+      - optional-scalar-projection-scales
+      - neox-rope
+      - swiglu
+      - tied-output
+      - ternary-weight-decoding
+    real_model_validation: pending-fixture
   arcee:
     status: experimental
     features:

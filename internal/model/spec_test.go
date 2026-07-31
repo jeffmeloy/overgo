@@ -328,6 +328,28 @@ func TestReadFalconSpec(t *testing.T) {
 	}
 }
 
+func TestReadBitNetSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "bitnet"),
+		metadata("bitnet.block_count", gguf.ValueTypeUint32, uint32(26)),
+		metadata("bitnet.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("bitnet.embedding_length", gguf.ValueTypeUint32, uint32(2560)),
+		metadata("bitnet.feed_forward_length", gguf.ValueTypeUint32, uint32(6912)),
+		metadata("bitnet.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("bitnet.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("bitnet.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("bitnet.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "bitnet" || spec.KeyLength != 80 ||
+		spec.HeadCountKV != 8 || spec.RMSNormEpsilon != 1e-5 {
+		t.Fatalf("unexpected BitNet spec: %+v", spec)
+	}
+}
+
 func TestReadSmolLM3Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),

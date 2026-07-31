@@ -19,6 +19,11 @@ type LayerWeights struct {
 	AttentionK            gguf.TensorInfo
 	AttentionV            gguf.TensorInfo
 	AttentionOutput       gguf.TensorInfo
+	AttentionQScale       *gguf.TensorInfo
+	AttentionKScale       *gguf.TensorInfo
+	AttentionVScale       *gguf.TensorInfo
+	AttentionOutputScale  *gguf.TensorInfo
+	AttentionSubNorm      *gguf.TensorInfo
 	AttentionQBias        *gguf.TensorInfo
 	AttentionKBias        *gguf.TensorInfo
 	AttentionVBias        *gguf.TensorInfo
@@ -33,6 +38,10 @@ type LayerWeights struct {
 	FeedForwardGate       gguf.TensorInfo
 	FeedForwardUp         gguf.TensorInfo
 	FeedForwardDown       gguf.TensorInfo
+	FeedForwardGateScale  *gguf.TensorInfo
+	FeedForwardUpScale    *gguf.TensorInfo
+	FeedForwardDownScale  *gguf.TensorInfo
+	FeedForwardSubNorm    *gguf.TensorInfo
 	FeedForwardGateBias   *gguf.TensorInfo
 	FeedForwardUpBias     *gguf.TensorInfo
 	FeedForwardDownBias   *gguf.TensorInfo
@@ -343,6 +352,38 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			} else if _, ok := tensors[prefix+"attn_norm_2.bias"]; ok {
 				return Weights{}, errors.New("Falcon secondary attention norm bias has no weight")
+			}
+		}
+		if spec.Architecture == "bitnet" {
+			attentionSubNorm, subNormErr := required(
+				prefix+"attn_sub_norm.weight", uint64(spec.EmbeddingLength),
+			)
+			if subNormErr != nil {
+				return Weights{}, subNormErr
+			}
+			feedForwardSubNorm, subNormErr := required(
+				prefix+"ffn_sub_norm.weight", uint64(spec.FeedForwardLength),
+			)
+			if subNormErr != nil {
+				return Weights{}, subNormErr
+			}
+			layer.AttentionSubNorm = &attentionSubNorm
+			layer.FeedForwardSubNorm = &feedForwardSubNorm
+			for name, destination := range map[string]**gguf.TensorInfo{
+				"attn_q.scale":      &layer.AttentionQScale,
+				"attn_k.scale":      &layer.AttentionKScale,
+				"attn_v.scale":      &layer.AttentionVScale,
+				"attn_output.scale": &layer.AttentionOutputScale,
+				"ffn_gate.scale":    &layer.FeedForwardGateScale,
+				"ffn_up.scale":      &layer.FeedForwardUpScale,
+				"ffn_down.scale":    &layer.FeedForwardDownScale,
+			} {
+				if item, ok := tensors[prefix+name]; ok {
+					if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != 1 {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+					}
+					*destination = &item
+				}
 			}
 		}
 		if spec.Architecture == "qwen35" {

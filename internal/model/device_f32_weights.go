@@ -241,6 +241,11 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		info        *gguf.TensorInfo
 		destination **tensor.Tensor
 	}{
+		{info.AttentionQScale, &result.AttentionQScale},
+		{info.AttentionKScale, &result.AttentionKScale},
+		{info.AttentionVScale, &result.AttentionVScale},
+		{info.AttentionOutputScale, &result.AttentionOutputScale},
+		{info.AttentionSubNorm, &result.AttentionSubNorm},
 		{info.AttentionQKVBias, &result.AttentionQKVBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
@@ -249,6 +254,10 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
+		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
+		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
+		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 	} {
 		if item.info == nil {
 			continue

@@ -463,7 +463,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.FeedForwardPostNorm = &feedForwardPostNorm
 		}
 		feedForwardNormName := "ffn_norm.weight"
-		if spec.Architecture == "qwen35" {
+		if spec.Architecture == "qwen35" || spec.Architecture == "seed_oss" {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
 		if spec.Architecture != "olmo2" && !spec.UsesUnweightedLayerNorm() {

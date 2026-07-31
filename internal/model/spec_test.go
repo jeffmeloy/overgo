@@ -483,6 +483,28 @@ func TestReadOLMoSpec(t *testing.T) {
 	}
 }
 
+func TestReadSeedOSSSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "seed_oss"),
+		metadata("seed_oss.block_count", gguf.ValueTypeUint32, uint32(64)),
+		metadata("seed_oss.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("seed_oss.embedding_length", gguf.ValueTypeUint32, uint32(5120)),
+		metadata("seed_oss.feed_forward_length", gguf.ValueTypeUint32, uint32(13824)),
+		metadata("seed_oss.attention.head_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("seed_oss.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("seed_oss.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("seed_oss.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("seed_oss.attention.scale", gguf.ValueTypeFloat32, float32(0.125)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "seed_oss" || spec.AttentionScale != 0.125 || spec.KeyLength != 128 {
+		t.Fatalf("unexpected Seed-OSS spec: %+v", spec)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

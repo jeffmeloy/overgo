@@ -90,6 +90,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "nemotron" &&
 		architecture != "olmo" &&
 		architecture != "orion" &&
+		architecture != "seed_oss" &&
 		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&

@@ -876,6 +876,16 @@ models:
     limitations:
       - nonzero-qkv-clamp-rejected
     real_model_validation: pending-fixture
+  seed_oss:
+    status: experimental
+    features:
+      - rmsnorm
+      - neox-rope
+      - metadata-attention-scale
+      - swiglu
+      - post-attention-named-pre-ffn-norm
+      - optional-tied-output
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

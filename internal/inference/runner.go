@@ -89,6 +89,16 @@ type KVCache struct {
 	Position uint32
 }
 
+// EmbeddingOverride replaces one token-embedding column before learned
+// positions, model-specific embedding scaling, and embedding normalization are
+// applied. TokenIndex is local to the token chunk passed to the Forward call.
+// This is the decoder-side bridge used by multimodal encoders and other soft
+// prompt producers.
+type EmbeddingOverride struct {
+	TokenIndex uint32
+	Embedding  []float32
+}
+
 // Runner is a correctness-first Llama/Qwen inference runtime with an editable
 // host attention/recurrent cache and optional persistent F32 or
 // native-quantized weights.
@@ -464,6 +474,10 @@ func (r *Runner) layerDeviceInputs(
 			if result.AttentionQKV, err = input(*info.AttentionQKV); err != nil {
 				return result, nil, err
 			}
+		} else if info.AttentionKVAMQA != nil {
+			if result.AttentionQ, err = input(info.AttentionQ); err != nil {
+				return result, nil, err
+			}
 		} else {
 			if result.AttentionQ, err = input(info.AttentionQ); err != nil {
 				return result, nil, err
@@ -494,6 +508,8 @@ func (r *Runner) layerDeviceInputs(
 		{info.AttentionOutputScale, &result.AttentionOutputScale},
 		{info.AttentionSubNorm, &result.AttentionSubNorm},
 		{info.AttentionQKVBias, &result.AttentionQKVBias},
+		{info.AttentionQNormBias, &result.AttentionQNormBias},
+		{info.AttentionKNormBias, &result.AttentionKNormBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
@@ -510,6 +526,9 @@ func (r *Runner) layerDeviceInputs(
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
+		{info.AttentionKVANorm, &result.AttentionKVANorm},
+		{info.AttentionKVB, &result.AttentionKVB},
 	} {
 		if item.info != nil {
 			if *item.destination, err = input(*item.info); err != nil {
@@ -589,6 +608,28 @@ func (r *Runner) Forward(ctx context.Context, tokenIDs []tokenizer.TokenID) (ref
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
 	return r.forwardLocked(ctx, tokenIDs)
+}
+
+// ForwardWithEmbeddingOverrides evaluates a causal decoder after replacing
+// selected token lookup results with caller-provided soft-token embeddings.
+func (r *Runner) ForwardWithEmbeddingOverrides(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	overrides []EmbeddingOverride,
+) (reference.Value, error) {
+	if r == nil {
+		return reference.Value{}, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, errors.New("inference: runner is closed")
+	}
+	if r.spec.Architecture == "t5encoder" || r.spec.NonCausalAttention {
+		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
+	}
+	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides)
+	return hidden, err
 }
 
 func (r *Runner) forwardLocked(
@@ -764,7 +805,7 @@ func (r *Runner) projectAllLogits(
 		return reference.Value{}, err
 	}
 	result := results[output]
-	result.Data = applyLogitSoftcap(result.Data, r.spec.FinalLogitSoftcap)
+	result.Data = r.finalizeLogits(result.Data)
 	return result, nil
 }
 
@@ -823,10 +864,42 @@ func (r *Runner) ForwardCached(
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
 }
 
+// ForwardCachedWithEmbeddingOverrides is the cache-producing form of
+// ForwardWithEmbeddingOverrides. Override indices address only the newly
+// supplied chunk, allowing its returned cache to continue normal decoding.
+func (r *Runner) ForwardCachedWithEmbeddingOverrides(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	cache *KVCache,
+	overrides []EmbeddingOverride,
+) (reference.Value, *KVCache, error) {
+	if r == nil {
+		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, nil, errors.New("inference: runner is closed")
+	}
+	if r.spec.NonCausalAttention {
+		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
+	}
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides)
+}
+
 func (r *Runner) forwardCachedLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
+) (reference.Value, *KVCache, error) {
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil)
+}
+
+func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	cache *KVCache,
+	overrides []EmbeddingOverride,
 ) (reference.Value, *KVCache, error) {
 	if r.spec.Architecture == "t5encoder" {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
@@ -867,6 +940,9 @@ func (r *Runner) forwardCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
+	if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
+		return reference.Value{}, nil, err
+	}
 	activation, err = r.addPositionEmbeddings(ctx, activation, positions)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -885,7 +961,8 @@ func (r *Runner) forwardCachedLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: nextPosition + uint32(len(tokenIDs)),
 	}
-	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" && r.spec.Architecture != "lfm2" {
+	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" &&
+		r.spec.Architecture != "lfm2" && r.spec.Architecture != "plm" {
 		return r.forwardDenseLayersPreloaded(ctx, activation, positions, cache, nextCache)
 	}
 	for layerIndex, layerInfo := range r.weights.Layers {
@@ -914,6 +991,50 @@ func (r *Runner) forwardCachedLocked(
 		}
 	}
 	return activation, nextCache, nil
+}
+
+func applyEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride) error {
+	if len(overrides) == 0 {
+		return nil
+	}
+	if activation == nil || activation.Shape.Rank != 2 {
+		return errors.New("inference: token embeddings have invalid shape")
+	}
+	width := int(activation.Shape.Dims[0])
+	tokens := activation.Shape.Dims[1]
+	if width <= 0 || len(activation.Data) != width*int(tokens) {
+		return errors.New("inference: token embeddings have invalid storage")
+	}
+	seen := make(map[uint32]struct{}, len(overrides))
+	for overrideIndex, override := range overrides {
+		if uint64(override.TokenIndex) >= tokens {
+			return fmt.Errorf(
+				"inference: embedding override %d token index %d is out of range for %d tokens",
+				overrideIndex, override.TokenIndex, tokens,
+			)
+		}
+		if _, duplicate := seen[override.TokenIndex]; duplicate {
+			return fmt.Errorf("inference: duplicate embedding override for token index %d", override.TokenIndex)
+		}
+		seen[override.TokenIndex] = struct{}{}
+		if len(override.Embedding) != width {
+			return fmt.Errorf(
+				"inference: embedding override %d width %d differs from model width %d",
+				overrideIndex, len(override.Embedding), width,
+			)
+		}
+		for valueIndex, value := range override.Embedding {
+			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+				return fmt.Errorf(
+					"inference: embedding override %d contains non-finite value at %d",
+					overrideIndex, valueIndex,
+				)
+			}
+		}
+		start := int(override.TokenIndex) * width
+		copy(activation.Data[start:start+width], override.Embedding)
+	}
+	return nil
 }
 
 func (r *Runner) forwardDenseLayersPreloaded(
@@ -1157,16 +1278,26 @@ func (r *Runner) runLayerCached(
 		hostFeeds[pastKey] = past.Key
 		hostFeeds[pastValue] = past.Value
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
-		builder,
-		input,
-		r.spec,
-		graphWeights,
-		positions,
-		pastKey,
-		pastValue,
-		uint32(layerIndex),
+	var (
+		result model.DenseBlockResult
+		err    error
 	)
+	if r.spec.Architecture == "plm" {
+		result, err = model.BuildPLMBlockCached(
+			builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
+		)
+	} else {
+		result, err = model.BuildDenseBlockCachedForLayer(
+			builder,
+			input,
+			r.spec,
+			graphWeights,
+			positions,
+			pastKey,
+			pastValue,
+			uint32(layerIndex),
+		)
+	}
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -1610,7 +1741,8 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
-	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2"
+	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
+		r.spec.Architecture != "plm"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -2120,7 +2252,7 @@ func (r *Runner) logits(
 			return nil, err
 		}
 		scaleLogits(logits, r.spec.OutputLogitMultiplier())
-		return applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap), nil
+		return r.finalizeLogits(logits), nil
 	}
 	builder := tensor.NewBuilder()
 	table, pointer, err := r.deviceInput(builder, outputInfo)
@@ -2158,10 +2290,7 @@ func (r *Runner) logits(
 	if err != nil {
 		return nil, err
 	}
-	return applyLogitSoftcap(
-		results[output].Data,
-		r.spec.FinalLogitSoftcap,
-	), nil
+	return r.finalizeLogits(results[output].Data), nil
 }
 
 func scaleLogits(logits []float32, scale float32) {
@@ -2179,6 +2308,27 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 	}
 	for index, value := range logits {
 		logits[index] = cap * float32(math.Tanh(float64(value/cap)))
+	}
+	return logits
+}
+
+func (r *Runner) finalizeLogits(logits []float32) []float32 {
+	logits = applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap)
+	if r.spec.Architecture != "chameleon" || r.spec.VocabularySize == 0 {
+		return logits
+	}
+	vocabulary := int(r.spec.VocabularySize)
+	if len(logits)%vocabulary != 0 {
+		return logits
+	}
+	end := 8196
+	if end > vocabulary {
+		end = vocabulary
+	}
+	for base := 0; base < len(logits); base += vocabulary {
+		for token := 4; token < end; token++ {
+			logits[base+token] = -math.MaxFloat32
+		}
 	}
 	return logits
 }
@@ -2276,6 +2426,8 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.AttentionOutputScale,
 			layer.AttentionSubNorm,
 			layer.AttentionQKVBias,
+			layer.AttentionQNormBias,
+			layer.AttentionKNormBias,
 			layer.AttentionQBias,
 			layer.AttentionKBias,
 			layer.AttentionVBias,
@@ -2292,6 +2444,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardGateExperts,
 			layer.FeedForwardUpExperts,
 			layer.FeedForwardDownExperts,
+			layer.AttentionKVAMQA,
+			layer.AttentionKVANorm,
+			layer.AttentionKVB,
 		} {
 			if pointer != nil {
 				names[pointer.Name] = struct{}{}

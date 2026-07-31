@@ -129,6 +129,24 @@ func TestBuilderSSMConv(t *testing.T) {
 	}
 }
 
+func TestBuilderRepeatHeads(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1, 3))
+	output := builder.RepeatHeads(input, 4)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !output.Shape.Equal(MustShape(2, 4, 3)) {
+		t.Fatalf("RepeatHeads output shape = %v", output.Shape.Slice())
+	}
+
+	invalid := NewBuilder()
+	invalid.RepeatHeads(invalid.Input("input", dtype.F32, MustShape(2, 2, 3)), 4)
+	if invalid.Err() == nil {
+		t.Fatal("RepeatHeads accepted multiple input heads")
+	}
+}
+
 func TestBuilderGatedDeltaNet(t *testing.T) {
 	builder := NewBuilder()
 	q := builder.Input("q", dtype.F32, MustShape(4, 2, 3, 2))

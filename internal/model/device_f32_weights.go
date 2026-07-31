@@ -197,6 +197,8 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		required = append(required, info.AttentionOutput)
 		if info.AttentionQKV != nil {
 			required = append(required, *info.AttentionQKV)
+		} else if info.AttentionKVAMQA != nil {
+			required = append(required, info.AttentionQ, *info.AttentionKVAMQA, *info.AttentionKVANorm, *info.AttentionKVB)
 		} else {
 			required = append(required, info.AttentionQ, info.AttentionK, info.AttentionV)
 		}
@@ -236,6 +238,8 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		result.AttentionOutput = input(info.AttentionOutput)
 		if info.AttentionQKV != nil {
 			result.AttentionQKV = input(*info.AttentionQKV)
+		} else if info.AttentionKVAMQA != nil {
+			result.AttentionQ = input(info.AttentionQ)
 		} else {
 			result.AttentionQ = input(info.AttentionQ)
 			result.AttentionK = input(info.AttentionK)
@@ -279,6 +283,8 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.AttentionOutputScale, &result.AttentionOutputScale},
 		{info.AttentionSubNorm, &result.AttentionSubNorm},
 		{info.AttentionQKVBias, &result.AttentionQKVBias},
+		{info.AttentionQNormBias, &result.AttentionQNormBias},
+		{info.AttentionKNormBias, &result.AttentionKNormBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
@@ -306,6 +312,9 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.ShortConvKernel, &result.ShortConvKernel},
 		{info.ShortConvInput, &result.ShortConvInput},
 		{info.ShortConvOutput, &result.ShortConvOutput},
+		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
+		{info.AttentionKVANorm, &result.AttentionKVANorm},
+		{info.AttentionKVB, &result.AttentionKVB},
 	} {
 		if item.info == nil {
 			continue

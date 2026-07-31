@@ -190,6 +190,54 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	t.Logf("incremental/full max absolute difference = %g", maximum)
 }
 
+func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	if modelPath == "" {
+		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+	}
+	runner, err := Open(modelPath, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	ctx := context.Background()
+	replacement, err := runner.loadEmbeddings(ctx, []uint32{27})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := runner.Forward(ctx, []tokenizer.TokenID{9707, 27})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, cache, err := runner.ForwardCachedWithEmbeddingOverrides(
+		ctx,
+		[]tokenizer.TokenID{9707, 9707},
+		nil,
+		[]EmbeddingOverride{{TokenIndex: 1, Embedding: append([]float32(nil), replacement.Data...)}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cache.Tokens != 2 || cache.Position != 2 {
+		t.Fatalf("override cache count/position = %d/%d, want 2/2", cache.Tokens, cache.Position)
+	}
+	if len(got.Data) != len(want.Data) {
+		t.Fatalf("override output length = %d, want %d", len(got.Data), len(want.Data))
+	}
+	for index := range want.Data {
+		if difference := math.Abs(float64(got.Data[index] - want.Data[index])); difference > 5e-4 {
+			t.Fatalf("override output[%d] delta = %g", index, difference)
+		}
+	}
+	_, cache, err = runner.ForwardCached(ctx, []tokenizer.TokenID{18}, cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cache.Tokens != 3 || cache.Position != 3 {
+		t.Fatalf("continued cache count/position = %d/%d, want 3/3", cache.Tokens, cache.Position)
+	}
+}
+
 func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
 	if modelPath == "" {

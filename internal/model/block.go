@@ -29,6 +29,8 @@ type LayerGraphWeights struct {
 	AttentionOutputBias    *tensor.Tensor
 	AttentionQNorm         *tensor.Tensor
 	AttentionKNorm         *tensor.Tensor
+	AttentionQNormBias     *tensor.Tensor
+	AttentionKNormBias     *tensor.Tensor
 	AttentionPostNorm      *tensor.Tensor
 	AttentionRelativeBias  *tensor.Tensor
 	RopeFactors            *tensor.Tensor
@@ -52,6 +54,9 @@ type LayerGraphWeights struct {
 	ShortConvKernel        *tensor.Tensor
 	ShortConvInput         *tensor.Tensor
 	ShortConvOutput        *tensor.Tensor
+	AttentionKVAMQA        *tensor.Tensor
+	AttentionKVANorm       *tensor.Tensor
+	AttentionKVB           *tensor.Tensor
 
 	AttentionQKV     *tensor.Tensor
 	AttentionQKVBias *tensor.Tensor
@@ -192,6 +197,92 @@ type LFM2BlockResult struct {
 	Recurrent bool
 }
 
+// BuildPLMBlockCached constructs PLM's multi-head latent-attention block.
+// The compressed KV projection is normalized and expanded into per-head
+// non-positional keys/values, while one shared positional key is repeated
+// across heads after RoPE.
+func BuildPLMBlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "plm" {
+		return DenseBlockResult{}, errors.New("PLM block requires plm architecture")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
+		"attention KV-A": weights.AttentionKVAMQA, "attention KV-A norm": weights.AttentionKVANorm,
+		"attention KV-B": weights.AttentionKVB, "attention output": weights.AttentionOutput,
+		"feed-forward norm": weights.FeedForwardNorm, "feed-forward up": weights.FeedForwardUp,
+		"feed-forward down": weights.FeedForwardDown,
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("PLM block %s weight is nil", name)
+		}
+	}
+	if builder == nil || input == nil || input.Shape.Rank != 2 || len(positions) == 0 ||
+		uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("PLM block input shape is invalid")
+	}
+	if (pastKey == nil) != (pastValue == nil) {
+		return DenseBlockResult{}, errors.New("PLM cache must contain both key and value")
+	}
+	tokens := uint64(len(positions))
+	heads := uint64(spec.HeadCount)
+	keyWidth := uint64(spec.KeyLength)
+	ropeWidth := uint64(spec.RopeDimensionCount)
+	nopeWidth := keyWidth - ropeWidth
+	valueWidth := uint64(spec.ValueLength)
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
+	qNoPE := builder.GroupSlice(queryMixed, 0, nopeWidth, heads, keyWidth)
+	qPE := builder.GroupSlice(queryMixed, nopeWidth, ropeWidth, heads, keyWidth)
+	kvPE := builder.MulMat(weights.AttentionKVAMQA, normalized)
+	kvCompressed := builder.Reshape(
+		builder.GroupSlice(kvPE, 0, uint64(spec.KVLoRARank), 1, uint64(spec.KVLoRARank)+ropeWidth),
+		uint64(spec.KVLoRARank), tokens,
+	)
+	kPE := builder.Reshape(
+		builder.GroupSlice(kvPE, uint64(spec.KVLoRARank), ropeWidth, 1, uint64(spec.KVLoRARank)+ropeWidth),
+		ropeWidth, 1, tokens,
+	)
+	kvCompressed = builder.WeightedRMSNorm(kvCompressed, weights.AttentionKVANorm, spec.RMSNormEpsilon)
+	kv := builder.MulMat(weights.AttentionKVB, kvCompressed)
+	stride := nopeWidth + valueWidth
+	kNoPE := builder.GroupSlice(kv, 0, nopeWidth, heads, stride)
+	value := builder.GroupSlice(kv, nopeWidth, valueWidth, heads, stride)
+	qPE = builder.RoPENeoX(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase)
+	kPE = builder.RoPENeoX(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase)
+	kPEHeads := builder.RepeatHeads(kPE, spec.HeadCount)
+	query := builder.Concat(qNoPE, qPE, 0)
+	key := builder.Concat(kNoPE, kPEHeads, 0)
+	cacheKey, cacheValue := key, value
+	var queryStart uint32
+	if pastKey != nil {
+		queryStart = uint32(pastKey.Shape.Dims[2])
+		cacheKey = builder.Concat(pastKey, key, 2)
+		cacheValue = builder.Concat(pastValue, value, 2)
+	}
+	attention := builder.AttentionWithOffset(
+		query, cacheKey, cacheValue, float32(1/math.Sqrt(float64(spec.KeyLength))), true, queryStart,
+	)
+	attention = builder.Reshape(attention, heads*valueWidth, tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	residual := builder.Add(input, attention)
+	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.ReLUSquared(up))
+	output := builder.Add(residual, feedForward)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
 // BuildLFM2BlockCached constructs either an attention block or an LFM2 gated
 // short-convolution block. Recurrent blocks keep their convolution window in
 // Key; Value is a one-element reserved state so the common hybrid-cache ABI
@@ -323,6 +414,7 @@ func BuildDenseBlockCachedForLayer(
 	isOLMo2 := spec.Architecture == "olmo2"
 	isPostOnlyNorm := usesPostOnlyNorm(spec.Architecture)
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
+	isChameleon := spec.Architecture == "chameleon"
 	if spec.Architecture == "apertus" &&
 		(int(layerIndex) >= len(spec.XIELUAlphaN) || int(layerIndex) >= len(spec.XIELUAlphaP) ||
 			int(layerIndex) >= len(spec.XIELUBeta) || int(layerIndex) >= len(spec.XIELUEpsilon)) {
@@ -399,6 +491,10 @@ func BuildDenseBlockCachedForLayer(
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
+	if isChameleon {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+	}
 	if spec.Architecture == "stablelm" &&
 		(weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {
 		return DenseBlockResult{}, errors.New("StableLM Q/K norm weights must both be present or absent")
@@ -420,7 +516,7 @@ func BuildDenseBlockCachedForLayer(
 
 	tokens := uint64(len(positions))
 	normalized := input
-	if !isOLMo2 && !isPostOnlyNorm {
+	if !isOLMo2 && !isPostOnlyNorm && !spec.SandwichNorm {
 		normalized = ApplyNormalization(
 			builder, input, weights.AttentionNorm, weights.AttentionNormBias, spec,
 		)
@@ -504,6 +600,16 @@ func BuildDenseBlockCachedForLayer(
 	if isCommandRQKNorm {
 		query = ApplyNormalization(builder, query, weights.AttentionQNorm, nil, spec)
 		key = ApplyNormalization(builder, key, weights.AttentionKNorm, nil, spec)
+	}
+	if isChameleon {
+		query = builder.Multiply(builder.LayerNorm(query, spec.QKNormEpsilon), weights.AttentionQNorm)
+		key = builder.Multiply(builder.LayerNorm(key, spec.QKNormEpsilon), weights.AttentionKNorm)
+		if weights.AttentionQNormBias != nil {
+			query = builder.Add(query, weights.AttentionQNormBias)
+		}
+		if weights.AttentionKNormBias != nil {
+			key = builder.Add(key, weights.AttentionKNormBias)
+		}
 	}
 	if spec.Architecture == "stablelm" && weights.AttentionQNorm != nil {
 		query = builder.Multiply(
@@ -691,6 +797,9 @@ func BuildDenseBlockCachedForLayer(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
+	if spec.SandwichNorm {
+		attention = builder.WeightedRMSNorm(attention, weights.AttentionNorm, spec.RMSNormEpsilon)
+	}
 	if hasPostNorm(spec.Architecture) || isOLMo2 {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
 			return DenseBlockResult{}, errors.New("dense post-normalized block requires post norm weights")
@@ -717,7 +826,7 @@ func BuildDenseBlockCachedForLayer(
 		)
 	} else if !parallelResidual {
 		normalized = residual
-		if !isOLMo2 && !isPostOnlyNorm {
+		if !isOLMo2 && !isPostOnlyNorm && !spec.SandwichNorm {
 			if spec.Architecture == "stablelm" && weights.FeedForwardNormBias == nil {
 				normalized = builder.Multiply(
 					builder.LayerNorm(residual, spec.LayerNormEpsilon),
@@ -803,6 +912,11 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if weights.FeedForwardDownBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+	}
+	if spec.SandwichNorm {
+		feedForward = builder.WeightedRMSNorm(
+			feedForward, weights.FeedForwardNorm, spec.RMSNormEpsilon,
+		)
 	}
 	if hasPostNorm(spec.Architecture) || isOLMo2 {
 		feedForward = builder.WeightedRMSNorm(

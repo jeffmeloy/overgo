@@ -186,6 +186,91 @@ func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	}
 }
 
+func TestBuildPLMMLABlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "plm", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
+		KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:    builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:       builder.Input("q", dtype.F32, tensor.MustShape(8, 12)),
+		AttentionKVAMQA:  builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm: builder.Input("kv_a_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKVB:     builder.Input("kv_b", dtype.F32, tensor.MustShape(3, 16)),
+		AttentionOutput:  builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:  builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	result, err := BuildPLMBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) ||
+		!result.Key.Shape.Equal(tensor.MustShape(6, 2, 2)) ||
+		!result.Value.Shape.Equal(tensor.MustShape(4, 2, 2)) {
+		t.Fatalf("unexpected PLM result: %+v", result)
+	}
+	nodes, _ := tensor.Topological(result.Output)
+	var attention, repeatHeads bool
+	for _, node := range nodes {
+		attention = attention || node.Op == tensor.OpAttention
+		repeatHeads = repeatHeads || node.Op == tensor.OpRepeatHeads
+	}
+	if !attention {
+		t.Fatal("PLM graph has no attention")
+	}
+	if !repeatHeads {
+		t.Fatal("PLM graph does not repeat its shared positional key")
+	}
+}
+
+func TestBuildChameleonSandwichBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "chameleon", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5, QKNormEpsilon: 1e-5,
+		SandwichNorm: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionNormBias = nil
+	weights.FeedForwardNormBias = nil
+	weights.AttentionQNorm = builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(4, 2))
+	weights.AttentionKNorm = builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(4, 1))
+	weights.AttentionQNormBias = builder.Input("attn_q_norm_bias", dtype.F32, tensor.MustShape(4, 2))
+	weights.AttentionKNormBias = builder.Input("attn_k_norm_bias", dtype.F32, tensor.MustShape(4, 1))
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layerNorms, rmsNorms, normalRoPE int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpLayerNorm:
+			layerNorms++
+		case tensor.OpRMSNorm:
+			rmsNorms++
+		case tensor.OpRoPENormal:
+			normalRoPE++
+		}
+	}
+	if layerNorms != 2 || rmsNorms != 2 || normalRoPE != 2 {
+		t.Fatalf("Chameleon norm/RoPE counts = %d/%d/%d, want 2/2/2", layerNorms, rmsNorms, normalRoPE)
+	}
+}
+
 func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -3,6 +3,8 @@ package inference
 import (
 	"math"
 	"testing"
+
+	"llamacpp2go/internal/model"
 )
 
 func TestApplyLogitSoftcap(t *testing.T) {
@@ -30,6 +32,23 @@ func TestApplyLogitSoftcap(t *testing.T) {
 		result[0] != -2 ||
 		result[1] != 3 {
 		t.Fatalf("disabled softcap changed logits: %v", result)
+	}
+}
+
+func TestChameleonImageLogitsAreSuppressed(t *testing.T) {
+	runner := &Runner{spec: model.Spec{Architecture: "chameleon", VocabularySize: 8200}}
+	logits := make([]float32, 2*8200)
+	for index := range logits {
+		logits[index] = float32(index)
+	}
+	runner.finalizeLogits(logits)
+	for _, base := range []int{0, 8200} {
+		if logits[base+3] == -math.MaxFloat32 || logits[base+8196] == -math.MaxFloat32 {
+			t.Fatal("text logit was suppressed")
+		}
+		if logits[base+4] != -math.MaxFloat32 || logits[base+8195] != -math.MaxFloat32 {
+			t.Fatal("image-token logit was not suppressed")
+		}
 	}
 }
 

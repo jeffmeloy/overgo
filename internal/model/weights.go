@@ -30,6 +30,8 @@ type LayerWeights struct {
 	AttentionOutputBias    *gguf.TensorInfo
 	AttentionQNorm         *gguf.TensorInfo
 	AttentionKNorm         *gguf.TensorInfo
+	AttentionQNormBias     *gguf.TensorInfo
+	AttentionKNormBias     *gguf.TensorInfo
 	AttentionPostNorm      *gguf.TensorInfo
 	AttentionRelativeBias  *gguf.TensorInfo
 	RopeFactors            *gguf.TensorInfo
@@ -53,6 +55,9 @@ type LayerWeights struct {
 	ShortConvKernel        *gguf.TensorInfo
 	ShortConvInput         *gguf.TensorInfo
 	ShortConvOutput        *gguf.TensorInfo
+	AttentionKVAMQA        *gguf.TensorInfo
+	AttentionKVANorm       *gguf.TensorInfo
+	AttentionKVB           *gguf.TensorInfo
 
 	AttentionQKV     *gguf.TensorInfo
 	AttentionQKVBias *gguf.TensorInfo
@@ -559,6 +564,40 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
+		} else if spec.Architecture == "plm" {
+			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
+			if layer.AttentionQ, err = required(
+				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
+			); err != nil {
+				return Weights{}, err
+			}
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"attn_kv_a_mqa.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank + spec.RopeDimensionCount)},
+					&layer.AttentionKVAMQA,
+				},
+				"attn_kv_a_norm.weight": {
+					[]uint64{uint64(spec.KVLoRARank)}, &layer.AttentionKVANorm,
+				},
+				"attn_kv_b.weight": {
+					[]uint64{uint64(spec.KVLoRARank), uint64(spec.HeadCount) * (nope + uint64(spec.ValueLength))},
+					&layer.AttentionKVB,
+				},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
+			if layer.AttentionOutput, err = required(
+				prefix+"attn_output.weight", uint64(spec.HeadCount)*uint64(spec.ValueLength), uint64(spec.EmbeddingLength),
+			); err != nil {
+				return Weights{}, err
+			}
 		} else {
 			if spec.Architecture == "apertus" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
@@ -641,6 +680,36 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
+		}
+		if spec.Architecture == "chameleon" {
+			qNorm, normErr := required(
+				prefix+"attn_q_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCount),
+			)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			kNorm, normErr := required(
+				prefix+"attn_k_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCountKV),
+			)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionQNorm = &qNorm
+			layer.AttentionKNorm = &kNorm
+			if _, ok := tensors[prefix+"attn_q_norm.bias"]; ok {
+				bias, biasErr := required(prefix+"attn_q_norm.bias", uint64(spec.KeyLength), uint64(spec.HeadCount))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				layer.AttentionQNormBias = &bias
+			}
+			if _, ok := tensors[prefix+"attn_k_norm.bias"]; ok {
+				bias, biasErr := required(prefix+"attn_k_norm.bias", uint64(spec.KeyLength), uint64(spec.HeadCountKV))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				layer.AttentionKNormBias = &bias
+			}
 		}
 		if spec.Architecture == "olmo2" {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)

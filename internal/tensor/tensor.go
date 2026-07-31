@@ -40,6 +40,7 @@ const (
 	OpReLUSquared
 	OpXIELU
 	OpMoE
+	OpRepeatHeads
 )
 
 var opNames = [...]string{
@@ -71,6 +72,7 @@ var opNames = [...]string{
 	"relu_squared",
 	"xielu",
 	"moe",
+	"repeat_heads",
 }
 
 func (o Op) String() string {
@@ -138,6 +140,10 @@ type MoEAttributes struct {
 	TopK              uint32
 	NormalizeTopKProb bool
 	Scale             float32
+}
+
+type RepeatHeadsAttributes struct {
+	Heads uint32
 }
 
 type ConcatAttributes struct {
@@ -413,6 +419,25 @@ func (b *Builder) MoE(
 			Experts: uint32(experts), TopK: topK,
 			NormalizeTopKProb: normalizeTopKProb, Scale: scale,
 		})
+}
+
+// RepeatHeads broadcasts a single head in a [width,1,tokens] tensor across
+// the requested head count without changing the token ordering.
+func (b *Builder) RepeatHeads(input *Tensor, heads uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Rank != 3 ||
+		input.Shape.Dims[1] != 1 || heads == 0 {
+		b.setError(errors.New("RepeatHeads requires rank-3 F32 [width,1,tokens] input and positive heads"))
+		return nil
+	}
+	shape, err := NewShape(input.Shape.Dims[0], uint64(heads), input.Shape.Dims[2])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpRepeatHeads, []*Tensor{input}, RepeatHeadsAttributes{Heads: heads})
 }
 
 // SwiGLU computes SiLU(gate) * up.

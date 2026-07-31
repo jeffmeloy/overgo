@@ -129,6 +129,33 @@ func TestReadWeightsDream(t *testing.T) {
 	}
 }
 
+func TestReadWeightsChameleon(t *testing.T) {
+	spec := Spec{
+		Architecture: "chameleon", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 8200,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 8200), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_q_norm.weight", 4, 2), tensorInfo("blk.0.attn_q_norm.bias", 4, 2),
+		tensorInfo("blk.0.attn_k_norm.weight", 4, 1), tensorInfo("blk.0.attn_k_norm.bias", 4, 1),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
+		layer.AttentionQNormBias == nil || layer.AttentionKNormBias == nil {
+		t.Fatalf("unexpected Chameleon weights: %+v", layer)
+	}
+}
+
 func TestReadWeightsLFM2Hybrid(t *testing.T) {
 	spec := Spec{
 		Architecture: "lfm2", BlockCount: 2, EmbeddingLength: 8,
@@ -168,6 +195,33 @@ func TestReadWeightsLFM2Hybrid(t *testing.T) {
 	if !weights.Layers[0].Recurrent || weights.Layers[0].ShortConvKernel == nil ||
 		weights.Layers[1].Recurrent || weights.Layers[1].AttentionQNorm == nil {
 		t.Fatalf("unexpected LFM2 weights: %+v", weights.Layers)
+	}
+}
+
+func TestReadWeightsPLMMLA(t *testing.T) {
+	spec := Spec{
+		Architecture: "plm", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 6, ValueLength: 4, VocabularySize: 32,
+		KVLoRARank: 3, RopeDimensionCount: 2,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 12),
+		tensorInfo("blk.0.attn_kv_a_mqa.weight", 8, 5),
+		tensorInfo("blk.0.attn_kv_a_norm.weight", 3),
+		tensorInfo("blk.0.attn_kv_b.weight", 3, 16),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[0].AttentionKVAMQA == nil || weights.Layers[0].AttentionKVANorm == nil ||
+		weights.Layers[0].AttentionKVB == nil || weights.Layers[0].FeedForwardGate.Name != "" {
+		t.Fatalf("unexpected PLM weights: %+v", weights.Layers[0])
 	}
 }
 

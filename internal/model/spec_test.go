@@ -93,6 +93,29 @@ func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	}
 }
 
+func TestReadChameleonSandwichSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "chameleon"),
+		metadata("chameleon.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("chameleon.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("chameleon.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("chameleon.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("chameleon.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("chameleon.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("chameleon.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("chameleon.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("chameleon.swin_norm", gguf.ValueTypeBool, true),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "chameleon" || !spec.SandwichNorm ||
+		spec.QKNormEpsilon != 1e-5 || spec.KeyLength != 4 {
+		t.Fatalf("unexpected Chameleon spec: %+v", spec)
+	}
+}
+
 func TestReadLFM2HybridSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "lfm2"),
@@ -119,6 +142,31 @@ func TestReadLFM2HybridSpec(t *testing.T) {
 		spec.ShortConvCacheLength != 4 || !spec.IsRecurrentLayer(0) ||
 		spec.IsRecurrentLayer(1) || !spec.IsRecurrentLayer(2) {
 		t.Fatalf("unexpected LFM2 spec: %+v", spec)
+	}
+}
+
+func TestReadPLMMLASpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "plm"),
+		metadata("plm.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plm.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("plm.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("plm.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("plm.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plm.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plm.attention.key_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("plm.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("plm.attention.kv_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata("plm.rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("plm.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "plm" || spec.KVLoRARank != 3 || spec.RopeDimensionCount != 2 {
+		t.Fatalf("unexpected PLM spec: %+v", spec)
 	}
 }
 

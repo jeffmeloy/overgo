@@ -709,6 +709,20 @@ extern "C" __global__ void moe_f32(
     output[index] = result;
 }
 
+extern "C" __global__ void repeat_heads_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int heads,
+		unsigned int tokens,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) return;
+	const unsigned int token = index / (width * heads);
+	const unsigned int column = index % width;
+	if (token < tokens) output[index] = input[(size_t) token * width + column];
+}
+
 extern "C" __global__ void attention_f32(
         const float * query,
         const float * key,

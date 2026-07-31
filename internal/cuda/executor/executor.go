@@ -679,6 +679,7 @@ type functionSet struct {
 	ssmConv           driver.Function
 	gatedDeltaNet     driver.Function
 	moe               driver.Function
+	repeatHeads       driver.Function
 	transpose2D       driver.Function
 	groupSlice        driver.Function
 	flatSlice         driver.Function
@@ -849,6 +850,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"ssm_conv_f32", &result.ssmConv},
 		{"gated_delta_net_f32", &result.gatedDeltaNet},
 		{"moe_f32", &result.moe},
+		{"repeat_heads_f32", &result.repeatHeads},
 		{"transpose_2d_f32", &result.transpose2D},
 		{"group_slice_f32", &result.groupSlice},
 		{"flat_slice_f32", &result.flatSlice},
@@ -1259,6 +1261,32 @@ func launchNode(
 			unsafe.Pointer(&scale), unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.moe, count, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpRepeatHeads:
+		attributes, ok := node.Attrs.(tensor.RepeatHeadsAttributes)
+		if !ok || attributes.Heads == 0 || len(node.Inputs) != 1 {
+			return errors.New("invalid RepeatHeads attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		width, err := uint32Checked(node.Shape.Dims[0], "RepeatHeads width")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(node.Shape.Dims[2], "RepeatHeads token count")
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		heads := attributes.Heads
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width),
+			unsafe.Pointer(&heads), unsafe.Pointer(&tokens), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.repeatHeads, count, args)
 		runtime.KeepAlive(args)
 		return err
 	case tensor.OpTranspose2D:

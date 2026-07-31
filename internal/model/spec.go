@@ -41,6 +41,8 @@ type Spec struct {
 	ExpertFeedForward     uint32
 	ExpertWeightsScale    float32
 	ShortConvCacheLength  uint32
+	KVLoRARank            uint32
+	QKNormEpsilon         float32
 	SlidingWindow         uint32
 	SlidingPattern        uint32
 	RelativeBuckets       uint32
@@ -48,6 +50,7 @@ type Spec struct {
 	RopeDisabled          bool
 	ParallelResidual      bool
 	NonCausalAttention    bool
+	SandwichNorm          bool
 	XIELUAlphaN           []float32
 	XIELUAlphaP           []float32
 	XIELUBeta             []float32
@@ -96,6 +99,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "bitnet" &&
 		architecture != "bloom" &&
 		architecture != "codeshell" &&
+		architecture != "chameleon" &&
 		architecture != "dream" &&
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
@@ -119,6 +123,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "phi2" &&
 		architecture != "phi3" &&
 		architecture != "plamo" &&
+		architecture != "plm" &&
 		architecture != "seed_oss" &&
 		architecture != "stablelm" &&
 		architecture != "starcoder" &&
@@ -137,6 +142,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	spec := Spec{Architecture: architecture}
 	if architecture == "dream" {
 		spec.NonCausalAttention = true
+	}
+	if architecture == "chameleon" {
+		spec.QKNormEpsilon = 1e-5
+		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
 	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
 		spec.Name = value
@@ -699,6 +708,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SlidingWindow = value
 		}
 	}
+	if architecture == "plm" {
+		if spec.KVLoRARank, err = required[uint32](
+			values, prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.RopeDimensionCount, err = required[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+	}
 	if architecture == "gemma2" || architecture == "gemma3" ||
 		architecture == "olmo2" || architecture == "cohere2" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
@@ -909,6 +930,14 @@ func (s Spec) validate() error {
 			return errors.New("LFM2 requires both convolution and attention layers")
 		}
 	}
+	if s.Architecture == "plm" &&
+		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
+			s.RopeDimensionCount >= s.KeyLength || s.HeadCountKV != s.HeadCount) {
+		return errors.New("PLM MLA metadata is invalid")
+	}
+	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
+		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
+	}
 	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {
 		return errors.New("Jais2 requires matching attention and KV head counts")
 	}
@@ -1080,6 +1109,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "baichuan" ||
 		architecture == "cohere2" ||
 		architecture == "command-r" ||
+		architecture == "chameleon" ||
 		architecture == "granite" ||
 		architecture == "glm4" ||
 		architecture == "minicpm" ||
@@ -1119,7 +1149,7 @@ func usesGELU(architecture string) bool {
 }
 
 func usesSquaredReLU(architecture string) bool {
-	return architecture == "arcee" || architecture == "jais2" || architecture == "nemotron"
+	return architecture == "arcee" || architecture == "jais2" || architecture == "nemotron" || architecture == "plm"
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

@@ -1583,6 +1583,128 @@ func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 3e-5)
 }
 
+func TestExecutorChameleonSandwichBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "chameleon", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5, QKNormEpsilon: 1e-5,
+		SandwichNorm: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:      builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:         builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:         builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:         builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:    builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionQNorm:     builder.Input("q_norm", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionKNorm:     builder.Input("k_norm", dtype.F32, tensor.MustShape(4, 1)),
+		AttentionQNormBias: builder.Input("q_norm_bias", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionKNormBias: builder.Input("k_norm_bias", dtype.F32, tensor.MustShape(4, 1)),
+		FeedForwardNorm:    builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:    builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:      builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:    builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQ, weights.AttentionK, weights.AttentionV, weights.AttentionOutput,
+		weights.AttentionQNormBias, weights.AttentionKNormBias,
+		weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.08, 0)
+	}
+	feeds[weights.AttentionNorm] = patternedValue(weights.AttentionNorm.Shape, 31, 0.03, 1)
+	feeds[weights.AttentionQNorm] = patternedValue(weights.AttentionQNorm.Shape, 37, 0.03, 1)
+	feeds[weights.AttentionKNorm] = patternedValue(weights.AttentionKNorm.Shape, 41, 0.03, 1)
+	feeds[weights.FeedForwardNorm] = patternedValue(weights.FeedForwardNorm.Shape, 43, 0.03, 1)
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 5e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
+func TestExecutorPLMMLABlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "plm", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
+		KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:    builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:       builder.Input("q", dtype.F32, tensor.MustShape(8, 12)),
+		AttentionKVAMQA:  builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm: builder.Input("kv_a_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKVB:     builder.Input("kv_b", dtype.F32, tensor.MustShape(3, 16)),
+		AttentionOutput:  builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:  builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	result, err := model.BuildPLMBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input: patternedValue(input.Shape, 3, 0.2, 0),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQ, weights.AttentionKVAMQA, weights.AttentionKVB,
+		weights.AttentionOutput, weights.FeedForwardUp, weights.FeedForwardDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.08, 0)
+	}
+	feeds[weights.AttentionNorm] = patternedValue(weights.AttentionNorm.Shape, 23, 0.03, 1)
+	feeds[weights.AttentionKVANorm] = patternedValue(weights.AttentionKVANorm.Shape, 29, 0.03, 1)
+	feeds[weights.FeedForwardNorm] = patternedValue(weights.FeedForwardNorm.Shape, 31, 0.03, 1)
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 5e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorLFM2ShortConvolutionBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

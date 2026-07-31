@@ -661,7 +661,7 @@ Deliverables are family-based, not file-count-based:
 4. encoder-decoder;
 5. recurrent and state-space;
 6. hybrid;
-7. multimodal/diffusion;
+7. multimodal encoders and remaining diffusion samplers (projected soft-token decoder input is implemented);
 8. specialized remaining models.
 
 Gate for each family:

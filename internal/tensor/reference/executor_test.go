@@ -573,6 +573,24 @@ func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	}
 }
 
+func TestExecuteRepeatHeads(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1, 2))
+	output := builder.RepeatHeads(input, 3)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input: {Shape: input.Shape, Data: []float32{1, 2, 3, 4}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1, 2, 1, 2, 1, 2, 3, 4, 3, 4, 3, 4}
+	for index := range want {
+		if results[output].Data[index] != want[index] {
+			t.Fatalf("RepeatHeads[%d] = %v, want %v", index, results[output].Data[index], want[index])
+		}
+	}
+}
+
 func TestExecuteSoftcappedAttention(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))

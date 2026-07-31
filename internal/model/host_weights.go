@@ -34,6 +34,8 @@ type HostLayer struct {
 	AttentionOutputBias    *reference.Value
 	AttentionQNorm         *reference.Value
 	AttentionKNorm         *reference.Value
+	AttentionQNormBias     *reference.Value
+	AttentionKNormBias     *reference.Value
 	AttentionPostNorm      *reference.Value
 	AttentionRelativeBias  *reference.Value
 	RopeFactors            *reference.Value
@@ -57,6 +59,9 @@ type HostLayer struct {
 	ShortConvKernel        *reference.Value
 	ShortConvInput         *reference.Value
 	ShortConvOutput        *reference.Value
+	AttentionKVAMQA        *reference.Value
+	AttentionKVANorm       *reference.Value
+	AttentionKVB           *reference.Value
 
 	AttentionQKV     *reference.Value
 	AttentionQKVBias *reference.Value
@@ -388,6 +393,11 @@ func LoadHostLayer(
 				return HostLayer{}, valueErr
 			}
 			result.AttentionQKV = &value
+		} else if info.AttentionKVAMQA != nil {
+			items = append(items, struct {
+				destination *reference.Value
+				info        gguf.TensorInfo
+			}{&result.AttentionQ, info.AttentionQ})
 		} else {
 			items = append(items,
 				struct {
@@ -434,6 +444,8 @@ func LoadHostLayer(
 		{info.AttentionNorm2, &result.AttentionNorm2},
 		{info.AttentionNorm2Bias, &result.AttentionNorm2Bias},
 		{info.AttentionQKVBias, &result.AttentionQKVBias},
+		{info.AttentionQNormBias, &result.AttentionQNormBias},
+		{info.AttentionKNormBias, &result.AttentionKNormBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
@@ -450,6 +462,9 @@ func LoadHostLayer(
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
+		{info.AttentionKVANorm, &result.AttentionKVANorm},
+		{info.AttentionKVB, &result.AttentionKVB},
 	} {
 		if item.info == nil {
 			continue
@@ -562,6 +577,9 @@ func (layer *HostLayer) GraphInputs(
 		result.ShortConvKernel = input("shortconv.conv.weight", *layer.ShortConvKernel)
 		result.ShortConvInput = input("shortconv.in_proj.weight", *layer.ShortConvInput)
 		result.ShortConvOutput = input("shortconv.out_proj.weight", *layer.ShortConvOutput)
+	} else if layer.AttentionKVAMQA != nil {
+		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
+		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
 	} else {
 		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
 		result.AttentionK = input("attn_k.weight", layer.AttentionK)
@@ -582,6 +600,8 @@ func (layer *HostLayer) GraphInputs(
 		{"attn_output.scale", layer.AttentionOutputScale, &result.AttentionOutputScale},
 		{"attn_sub_norm.weight", layer.AttentionSubNorm, &result.AttentionSubNorm},
 		{"attn_qkv.bias", layer.AttentionQKVBias, &result.AttentionQKVBias},
+		{"attn_q_norm.bias", layer.AttentionQNormBias, &result.AttentionQNormBias},
+		{"attn_k_norm.bias", layer.AttentionKNormBias, &result.AttentionKNormBias},
 		{"attn_q.bias", layer.AttentionQBias, &result.AttentionQBias},
 		{"attn_k.bias", layer.AttentionKBias, &result.AttentionKBias},
 		{"attn_v.bias", layer.AttentionVBias, &result.AttentionVBias},
@@ -597,6 +617,9 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_gate_exps.weight", layer.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{"ffn_up_exps.weight", layer.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{"ffn_down_exps.weight", layer.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{"attn_kv_a_mqa.weight", layer.AttentionKVAMQA, &result.AttentionKVAMQA},
+		{"attn_kv_a_norm.weight", layer.AttentionKVANorm, &result.AttentionKVANorm},
+		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},
 	} {
 		if item.value != nil {
 			*item.destination = input(item.name, *item.value)

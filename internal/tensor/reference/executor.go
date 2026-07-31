@@ -177,6 +177,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid MoE attributes")
 		}
 		return moe(node.Shape, inputs, attributes)
+	case tensor.OpRepeatHeads:
+		attributes, ok := node.Attrs.(tensor.RepeatHeadsAttributes)
+		if !ok || attributes.Heads == 0 {
+			return Value{}, errors.New("invalid RepeatHeads attributes")
+		}
+		return repeatHeads(node.Shape, inputs[0]), nil
 	case tensor.OpTranspose2D:
 		return transpose2D(node.Shape, inputs[0])
 	case tensor.OpGroupSlice:
@@ -769,6 +775,21 @@ func ropeMulti(
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
+}
+
+func repeatHeads(shape tensor.Shape, input Value) Value {
+	width := int(input.Shape.Dims[0])
+	tokens := int(input.Shape.Dims[2])
+	heads := int(shape.Dims[1])
+	output := make([]float32, width*heads*tokens)
+	for token := 0; token < tokens; token++ {
+		source := input.Data[token*width : (token+1)*width]
+		for head := 0; head < heads; head++ {
+			destination := (token*heads + head) * width
+			copy(output[destination:destination+width], source)
+		}
+	}
+	return Value{Shape: shape, Data: output}
 }
 
 func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (Value, error) {

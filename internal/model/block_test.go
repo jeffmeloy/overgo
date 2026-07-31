@@ -430,6 +430,47 @@ func TestBuildDenseMaincoderNormalizesQKAfterRoPE(t *testing.T) {
 	t.Fatal("Maincoder attention node was not found")
 }
 
+func TestBuildDenseOrionUsesAffineLayerNorm(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "orion",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		LayerNormEpsilon:  1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layerNormCount, ropeCount int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpLayerNorm:
+			layerNormCount++
+		case tensor.OpRoPENeoX:
+			ropeCount++
+		}
+	}
+	if layerNormCount != 2 || ropeCount != 2 {
+		t.Fatalf(
+			"Orion graph has LayerNorm=%d RoPE=%d, want 2/2",
+			layerNormCount,
+			ropeCount,
+		)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{
@@ -956,16 +997,18 @@ func denseBlockInputs(builder *tensor.Builder, spec Spec) LayerGraphWeights {
 	value := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
 	attentionOutput := uint64(spec.HeadCount) * uint64(spec.ValueLength)
 	return LayerGraphWeights{
-		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(embedding)),
-		AttentionQ:      builder.Input("attn_q", dtype.F32, tensor.MustShape(embedding, query)),
-		AttentionK:      builder.Input("attn_k", dtype.F32, tensor.MustShape(embedding, keyValue)),
-		AttentionV:      builder.Input("attn_v", dtype.F32, tensor.MustShape(embedding, value)),
-		AttentionOutput: builder.Input("attn_output", dtype.F32, tensor.MustShape(attentionOutput, embedding)),
-		AttentionQNorm:  builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(uint64(spec.KeyLength))),
-		AttentionKNorm:  builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(uint64(spec.KeyLength))),
-		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(embedding)),
-		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(embedding, feedForward)),
-		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(embedding, feedForward)),
-		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(feedForward, embedding)),
+		AttentionNorm:       builder.Input("attn_norm", dtype.F32, tensor.MustShape(embedding)),
+		AttentionNormBias:   builder.Input("attn_norm_bias", dtype.F32, tensor.MustShape(embedding)),
+		AttentionQ:          builder.Input("attn_q", dtype.F32, tensor.MustShape(embedding, query)),
+		AttentionK:          builder.Input("attn_k", dtype.F32, tensor.MustShape(embedding, keyValue)),
+		AttentionV:          builder.Input("attn_v", dtype.F32, tensor.MustShape(embedding, value)),
+		AttentionOutput:     builder.Input("attn_output", dtype.F32, tensor.MustShape(attentionOutput, embedding)),
+		AttentionQNorm:      builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(uint64(spec.KeyLength))),
+		AttentionKNorm:      builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(uint64(spec.KeyLength))),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(embedding)),
+		FeedForwardNormBias: builder.Input("ffn_norm_bias", dtype.F32, tensor.MustShape(embedding)),
+		FeedForwardGate:     builder.Input("ffn_gate", dtype.F32, tensor.MustShape(embedding, feedForward)),
+		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(embedding, feedForward)),
+		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(feedForward, embedding)),
 	}
 }

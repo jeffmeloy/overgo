@@ -332,6 +332,27 @@ func (r *Runner) deviceInput(
 	return nil, 0, fmt.Errorf("inference: device tensor %q is not preloaded", info.Name)
 }
 
+func (r *Runner) applyDeviceOutputNorm(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+) (*tensor.Tensor, error) {
+	weight, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
+	if err != nil {
+		return nil, err
+	}
+	deviceFeeds[weight] = pointer
+	var bias *tensor.Tensor
+	if r.weights.OutputNormBias != nil {
+		bias, pointer, err = r.deviceInput(builder, *r.weights.OutputNormBias)
+		if err != nil {
+			return nil, err
+		}
+		deviceFeeds[bias] = pointer
+	}
+	return model.ApplyNormalization(builder, input, weight, bias, r.spec), builder.Err()
+}
+
 func (r *Runner) layerDeviceInputs(
 	builder *tensor.Builder,
 	info model.LayerWeights,
@@ -349,6 +370,11 @@ func (r *Runner) layerDeviceInputs(
 	var err error
 	if info.AttentionNorm.Name != "" {
 		if result.AttentionNorm, err = input(info.AttentionNorm); err != nil {
+			return result, nil, err
+		}
+	}
+	if info.AttentionNormBias != nil {
+		if result.AttentionNormBias, err = input(*info.AttentionNormBias); err != nil {
 			return result, nil, err
 		}
 	}
@@ -402,6 +428,7 @@ func (r *Runner) layerDeviceInputs(
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
 		{info.AttentionOutputBias, &result.AttentionOutputBias},
+		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
@@ -685,12 +712,10 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		keys[layerIndex] = result.Key
 		values[layerIndex] = result.Value
 	}
-	normWeight, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
+	current, err := r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	deviceFeeds[normWeight] = pointer
-	current = builder.WeightedRMSNorm(current, normWeight, r.spec.RMSNormEpsilon)
 	if err := builder.Err(); err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -832,17 +857,8 @@ func (r *Runner) runLayerCached(
 	}
 	outputTensor := result.Output
 	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
-		normWeight, pointer, normErr := r.deviceInput(builder, r.weights.OutputNorm)
-		if normErr != nil {
-			return reference.Value{}, LayerCache{}, normErr
-		}
-		deviceFeeds[normWeight] = pointer
-		outputTensor = builder.WeightedRMSNorm(
-			result.Output,
-			normWeight,
-			r.spec.RMSNormEpsilon,
-		)
-		if err := builder.Err(); err != nil {
+		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, deviceFeeds)
+		if err != nil {
 			return reference.Value{}, LayerCache{}, err
 		}
 	}
@@ -960,17 +976,8 @@ func (r *Runner) runQwen35LayerCached(
 	}
 	outputTensor := result.Output
 	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
-		normWeight, pointer, normErr := r.deviceInput(builder, r.weights.OutputNorm)
-		if normErr != nil {
-			return reference.Value{}, LayerCache{}, normErr
-		}
-		deviceFeeds[normWeight] = pointer
-		outputTensor = builder.WeightedRMSNorm(
-			result.Output,
-			normWeight,
-			r.spec.RMSNormEpsilon,
-		)
-		if err := builder.Err(); err != nil {
+		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, deviceFeeds)
+		if err != nil {
 			return reference.Value{}, LayerCache{}, err
 		}
 	}
@@ -1009,7 +1016,16 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 		if err != nil {
 			return reference.Value{}, err
 		}
-		output := builder.WeightedRMSNorm(input, weightInput, r.spec.RMSNormEpsilon)
+		deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{weightInput: pointer}
+		var biasInput *tensor.Tensor
+		if r.weights.OutputNormBias != nil {
+			biasInput, pointer, err = r.deviceInput(builder, *r.weights.OutputNormBias)
+			if err != nil {
+				return reference.Value{}, err
+			}
+			deviceFeeds[biasInput] = pointer
+		}
+		output := model.ApplyNormalization(builder, input, weightInput, biasInput, r.spec)
 		if err := builder.Err(); err != nil {
 			return reference.Value{}, err
 		}
@@ -1017,7 +1033,7 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 			ctx,
 			[]*tensor.Tensor{output},
 			map[*tensor.Tensor]reference.Value{input: activation},
-			map[*tensor.Tensor]driver.DevicePtr{weightInput: pointer},
+			deviceFeeds,
 		)
 		if err != nil {
 			return reference.Value{}, err
@@ -1031,14 +1047,24 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 	builder := tensor.NewBuilder()
 	input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
 	weightInput := builder.Input("output_norm.weight", dtype.F32, weight.Shape)
-	output := builder.WeightedRMSNorm(input, weightInput, r.spec.RMSNormEpsilon)
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:       activation,
+		weightInput: weight,
+	}
+	var biasInput *tensor.Tensor
+	if r.weights.OutputNormBias != nil {
+		bias, biasErr := model.LoadHostTensor(ctx, r.file, *r.weights.OutputNormBias)
+		if biasErr != nil {
+			return reference.Value{}, biasErr
+		}
+		biasInput = builder.Input("output_norm.bias", dtype.F32, bias.Shape)
+		feeds[biasInput] = bias
+	}
+	output := model.ApplyNormalization(builder, input, weightInput, biasInput, r.spec)
 	if err := builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
-	results, err := r.cuda.Execute(ctx, []*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
-		input:       activation,
-		weightInput: weight,
-	})
+	results, err := r.cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1617,6 +1643,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		weights.TokenEmbedding.Name: {},
 		weights.OutputNorm.Name:     {},
 	}
+	if weights.OutputNormBias != nil {
+		names[weights.OutputNormBias.Name] = struct{}{}
+	}
 	if weights.Output != nil {
 		names[weights.Output.Name] = struct{}{}
 	}
@@ -1665,6 +1694,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			names[layer.AttentionQNorm.Name] = struct{}{}
 		}
 		for _, pointer := range []*gguf.TensorInfo{
+			layer.AttentionNormBias,
 			layer.AttentionQBias,
 			layer.AttentionKBias,
 			layer.AttentionVBias,
@@ -1672,6 +1702,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardGateBias,
 			layer.FeedForwardUpBias,
 			layer.FeedForwardDownBias,
+			layer.FeedForwardNormBias,
 		} {
 			if pointer != nil {
 				names[pointer.Name] = struct{}{}

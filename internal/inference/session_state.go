@@ -196,6 +196,7 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 			r.spec.ValueLength,
 			math.Float32bits(r.spec.RopeFrequencyBase),
 			math.Float32bits(r.spec.RMSNormEpsilon),
+			math.Float32bits(r.spec.LayerNormEpsilon),
 			r.spec.VocabularySize,
 			r.spec.RopeDimensionCount,
 			r.spec.SSMConvKernel,

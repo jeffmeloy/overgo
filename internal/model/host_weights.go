@@ -16,6 +16,7 @@ import (
 // HostLayer is one dense layer dequantized to contiguous F32 values.
 type HostLayer struct {
 	AttentionNorm         reference.Value
+	AttentionNormBias     *reference.Value
 	AttentionQ            reference.Value
 	AttentionK            reference.Value
 	AttentionV            reference.Value
@@ -30,6 +31,7 @@ type HostLayer struct {
 	AttentionRelativeBias *reference.Value
 	RopeFactors           *reference.Value
 	FeedForwardNorm       reference.Value
+	FeedForwardNormBias   *reference.Value
 	FeedForwardGate       reference.Value
 	FeedForwardUp         reference.Value
 	FeedForwardDown       reference.Value
@@ -337,6 +339,7 @@ func LoadHostLayer(
 		info        *gguf.TensorInfo
 		destination **reference.Value
 	}{
+		{info.AttentionNormBias, &result.AttentionNormBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
@@ -344,6 +347,7 @@ func LoadHostLayer(
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
 	} {
 		if item.info == nil {
 			continue
@@ -420,8 +424,14 @@ func (layer *HostLayer) GraphInputs(
 	if layer.AttentionNorm.Shape.Rank != 0 {
 		result.AttentionNorm = input("attn_norm.weight", layer.AttentionNorm)
 	}
+	if layer.AttentionNormBias != nil {
+		result.AttentionNormBias = input("attn_norm.bias", *layer.AttentionNormBias)
+	}
 	if layer.FeedForwardNorm.Shape.Rank != 0 {
 		result.FeedForwardNorm = input("ffn_norm.weight", layer.FeedForwardNorm)
+	}
+	if layer.FeedForwardNormBias != nil {
+		result.FeedForwardNormBias = input("ffn_norm.bias", *layer.FeedForwardNormBias)
 	}
 	if layer.AttentionQKV != nil {
 		result.AttentionQKV = input("attn_qkv.weight", *layer.AttentionQKV)

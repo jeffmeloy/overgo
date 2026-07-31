@@ -12,6 +12,7 @@ import (
 type LayerWeights struct {
 	Recurrent             bool
 	AttentionNorm         gguf.TensorInfo
+	AttentionNormBias     *gguf.TensorInfo
 	AttentionQ            gguf.TensorInfo
 	AttentionK            gguf.TensorInfo
 	AttentionV            gguf.TensorInfo
@@ -26,6 +27,7 @@ type LayerWeights struct {
 	AttentionRelativeBias *gguf.TensorInfo
 	RopeFactors           *gguf.TensorInfo
 	FeedForwardNorm       gguf.TensorInfo
+	FeedForwardNormBias   *gguf.TensorInfo
 	FeedForwardGate       gguf.TensorInfo
 	FeedForwardUp         gguf.TensorInfo
 	FeedForwardDown       gguf.TensorInfo
@@ -49,6 +51,7 @@ type LayerWeights struct {
 type Weights struct {
 	TokenEmbedding gguf.TensorInfo
 	OutputNorm     gguf.TensorInfo
+	OutputNormBias *gguf.TensorInfo
 	Output         *gguf.TensorInfo
 	OutputBias     *gguf.TensorInfo
 	Layers         []LayerWeights
@@ -109,6 +112,13 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
 		return Weights{}, err
 	}
+	if spec.UsesLayerNorm() {
+		outputNormBias, biasErr := required("output_norm.bias", uint64(spec.EmbeddingLength))
+		if biasErr != nil {
+			return Weights{}, biasErr
+		}
+		result.OutputNormBias = &outputNormBias
+	}
 	if spec.Architecture == "t5encoder" {
 		result.Layers = make([]LayerWeights, spec.BlockCount)
 		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
@@ -167,7 +177,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	}
 	if (spec.Architecture == "internlm2" ||
 		spec.Architecture == "xverse" ||
-		spec.Architecture == "olmo2") &&
+		spec.Architecture == "olmo2" ||
+		spec.Architecture == "orion") &&
 		result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
 	}
@@ -244,6 +255,16 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture != "olmo2" {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
+			}
+			if spec.UsesLayerNorm() {
+				attentionNormBias, biasErr := required(
+					prefix+"attn_norm.bias",
+					uint64(spec.EmbeddingLength),
+				)
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				layer.AttentionNormBias = &attentionNormBias
 			}
 		}
 		if spec.Architecture == "qwen35" {
@@ -437,6 +458,16 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture != "olmo2" {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
+			}
+			if spec.UsesLayerNorm() {
+				feedForwardNormBias, biasErr := required(
+					prefix+"ffn_norm.bias",
+					uint64(spec.EmbeddingLength),
+				)
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
 		if layer.FeedForwardGate, err = required(

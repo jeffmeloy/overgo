@@ -282,6 +282,32 @@ func TestReadDenseMistral3Spec(t *testing.T) {
 	}
 }
 
+func TestReadOrionSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "orion"),
+		metadata("orion.block_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("orion.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("orion.embedding_length", gguf.ValueTypeUint32, uint32(5120)),
+		metadata("orion.feed_forward_length", gguf.ValueTypeUint32, uint32(13696)),
+		metadata("orion.attention.head_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("orion.attention.head_count_kv", gguf.ValueTypeUint32, uint32(40)),
+		metadata("orion.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("orion.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "orion" ||
+		!spec.UsesLayerNorm() ||
+		spec.LayerNormEpsilon != 1e-5 ||
+		spec.RMSNormEpsilon != 0 ||
+		spec.KeyLength != 128 ||
+		!spec.UsesRoPE(0) {
+		t.Fatalf("unexpected Orion spec: %+v", spec)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

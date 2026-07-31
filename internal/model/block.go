@@ -11,6 +11,7 @@ import (
 // LayerGraphWeights are the graph inputs for one dense Llama/Qwen3 block.
 type LayerGraphWeights struct {
 	AttentionNorm         *tensor.Tensor
+	AttentionNormBias     *tensor.Tensor
 	AttentionQ            *tensor.Tensor
 	AttentionK            *tensor.Tensor
 	AttentionV            *tensor.Tensor
@@ -25,6 +26,7 @@ type LayerGraphWeights struct {
 	AttentionRelativeBias *tensor.Tensor
 	RopeFactors           *tensor.Tensor
 	FeedForwardNorm       *tensor.Tensor
+	FeedForwardNormBias   *tensor.Tensor
 	FeedForwardGate       *tensor.Tensor
 	FeedForwardUp         *tensor.Tensor
 	FeedForwardDown       *tensor.Tensor
@@ -42,6 +44,20 @@ type LayerGraphWeights struct {
 	SSMAlpha      *tensor.Tensor
 	SSMNorm       *tensor.Tensor
 	SSMOutput     *tensor.Tensor
+}
+
+// ApplyNormalization applies the architecture's learned pre/post
+// normalization. Dense LayerNorm architectures require an affine bias while
+// RMSNorm architectures intentionally ignore it.
+func ApplyNormalization(
+	builder *tensor.Builder,
+	input, weight, bias *tensor.Tensor,
+	spec Spec,
+) *tensor.Tensor {
+	if spec.UsesLayerNorm() {
+		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
+	}
+	return builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
 }
 
 // BuildT5EncoderBlock constructs one full, bidirectional T5 encoder block.
@@ -208,6 +224,10 @@ func BuildDenseBlockCachedForLayer(
 	} else {
 		required["attention norm"] = weights.AttentionNorm
 		required["feed-forward norm"] = weights.FeedForwardNorm
+		if spec.UsesLayerNorm() {
+			required["attention norm bias"] = weights.AttentionNormBias
+			required["feed-forward norm bias"] = weights.FeedForwardNormBias
+		}
 	}
 	for name, item := range required {
 		if item == nil {
@@ -224,7 +244,9 @@ func BuildDenseBlockCachedForLayer(
 	tokens := uint64(len(positions))
 	normalized := input
 	if !isOLMo2 {
-		normalized = builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+		normalized = ApplyNormalization(
+			builder, input, weights.AttentionNorm, weights.AttentionNormBias, spec,
+		)
 	}
 	query := builder.MulMat(weights.AttentionQ, normalized)
 	key := builder.MulMat(weights.AttentionK, normalized)
@@ -412,7 +434,9 @@ func BuildDenseBlockCachedForLayer(
 
 	normalized = residual
 	if !isOLMo2 {
-		normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+		normalized = ApplyNormalization(
+			builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
+		)
 	}
 	gate := builder.MulMat(weights.FeedForwardGate, normalized)
 	up := builder.MulMat(weights.FeedForwardUp, normalized)

@@ -31,6 +31,7 @@ type Spec struct {
 	AttentionSoftcap  float32
 	FinalLogitSoftcap float32
 	RMSNormEpsilon    float32
+	LayerNormEpsilon  float32
 	VocabularySize    uint32
 	SlidingWindow     uint32
 	SlidingPattern    uint32
@@ -82,6 +83,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "granite" &&
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
+		architecture != "orion" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -157,12 +159,22 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if spec.RMSNormEpsilon, err = required[float32](
-		values,
-		prefix+"attention.layer_norm_rms_epsilon",
-		gguf.ValueTypeFloat32,
-	); err != nil {
-		return Spec{}, err
+	if architecture == "orion" {
+		if spec.LayerNormEpsilon, err = required[float32](
+			values,
+			prefix+"attention.layer_norm_epsilon",
+			gguf.ValueTypeFloat32,
+		); err != nil {
+			return Spec{}, err
+		}
+	} else {
+		if spec.RMSNormEpsilon, err = required[float32](
+			values,
+			prefix+"attention.layer_norm_rms_epsilon",
+			gguf.ValueTypeFloat32,
+		); err != nil {
+			return Spec{}, err
+		}
 	}
 	spec.FinalLogitSoftcap, _ = optional[float32](
 		values,
@@ -438,6 +450,10 @@ func (s Spec) OutputLogitMultiplier() float32 {
 	return 1
 }
 
+func (s Spec) UsesLayerNorm() bool {
+	return s.Architecture == "orion"
+}
+
 func (s Spec) validate() error {
 	switch {
 	case s.BlockCount == 0:
@@ -458,7 +474,9 @@ func (s Spec) validate() error {
 		return errors.New("model attention key/value length is zero")
 	case s.Architecture != "t5encoder" && s.RopeFrequencyBase <= 0:
 		return errors.New("model RoPE frequency base must be positive")
-	case s.RMSNormEpsilon <= 0:
+	case s.UsesLayerNorm() && s.LayerNormEpsilon <= 0:
+		return errors.New("model LayerNorm epsilon must be positive")
+	case !s.UsesLayerNorm() && s.RMSNormEpsilon <= 0:
 		return errors.New("model RMSNorm epsilon must be positive")
 	}
 	if s.Architecture == "t5encoder" && s.RelativeBuckets == 0 {

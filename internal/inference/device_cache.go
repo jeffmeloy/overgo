@@ -431,12 +431,10 @@ func (r *Runner) forwardDeviceCachedLocked(
 			values[layerIndex] = result.Value
 		}
 	}
-	normWeight, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
+	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	deviceFeeds[normWeight] = pointer
-	current = builder.WeightedRMSNorm(current, normWeight, r.spec.RMSNormEpsilon)
 	outputInfo := r.weights.TokenEmbedding
 	if r.weights.Output != nil {
 		outputInfo = *r.weights.Output

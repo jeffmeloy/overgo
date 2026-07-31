@@ -41,6 +41,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	add := builder.Add(left, right)
 	multiply := builder.Multiply(add, right)
 	scale := builder.Scale(multiply, 0.25)
+	layerNorm := builder.LayerNorm(scale, 1e-5)
 	norm := builder.RMSNorm(scale, 1e-5)
 	silu := builder.SiLU(norm)
 	sigmoid := builder.Sigmoid(norm)
@@ -59,7 +60,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	leftValue, _ := reference.NewValue(shape, leftData)
 	rightValue, _ := reference.NewValue(shape, rightData)
 	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	want, err := reference.Execute([]*tensor.Tensor{output, layerNorm}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,11 +70,12 @@ func TestExecutorMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output, layerNorm}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
 	compare(t, got[output].Data, want[output].Data, 2e-5)
+	compare(t, got[layerNorm].Data, want[layerNorm].Data, 2e-5)
 }
 
 func TestExecutorRetainedOutputLifetime(t *testing.T) {

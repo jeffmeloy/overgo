@@ -680,6 +680,7 @@ type functionSet struct {
 	groupSlice        driver.Function
 	flatSlice         driver.Function
 	rmsNorm           driver.Function
+	layerNorm         driver.Function
 	softmax           driver.Function
 	mulMat            driver.Function
 	getRows           driver.Function
@@ -846,6 +847,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"group_slice_f32", &result.groupSlice},
 		{"flat_slice_f32", &result.flatSlice},
 		{"rms_norm_f32", &result.rmsNorm},
+		{"layer_norm_f32", &result.layerNorm},
 		{"softmax_f32", &result.softmax},
 		{"mul_mat_f32", &result.mulMat},
 		{"get_rows_f32", &result.getRows},
@@ -1299,6 +1301,31 @@ func launchNode(
 			unsafe.Pointer(&epsilon),
 		}
 		err = launch1D(state, functions.rmsNorm, rows, args)
+		runtime.KeepAlive(input)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(width)
+		runtime.KeepAlive(rows)
+		runtime.KeepAlive(epsilon)
+		return err
+	case tensor.OpLayerNorm:
+		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
+		if !ok {
+			return errors.New("invalid LayerNorm attributes")
+		}
+		width, rows, err := rowDimensions32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		epsilon := attributes.Epsilon
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input),
+			unsafe.Pointer(&output),
+			unsafe.Pointer(&width),
+			unsafe.Pointer(&rows),
+			unsafe.Pointer(&epsilon),
+		}
+		err = launch1D(state, functions.layerNorm, rows, args)
 		runtime.KeepAlive(input)
 		runtime.KeepAlive(output)
 		runtime.KeepAlive(width)

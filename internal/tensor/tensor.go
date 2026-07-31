@@ -36,6 +36,7 @@ const (
 	OpFlatSlice
 	OpRoPEMulti
 	OpGELU
+	OpLayerNorm
 )
 
 var opNames = [...]string{
@@ -63,6 +64,7 @@ var opNames = [...]string{
 	"flat_slice",
 	"rope_multi",
 	"gelu",
+	"layer_norm",
 }
 
 func (o Op) String() string {
@@ -77,6 +79,10 @@ type ScaleAttributes struct {
 }
 
 type RMSNormAttributes struct {
+	Epsilon float32
+}
+
+type LayerNormAttributes struct {
 	Epsilon float32
 }
 
@@ -193,6 +199,19 @@ func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
 // WeightedRMSNorm applies RMSNorm and the learned per-channel weight.
 func (b *Builder) WeightedRMSNorm(input, weight *Tensor, epsilon float32) *Tensor {
 	return b.Multiply(b.RMSNorm(input, epsilon), weight)
+}
+
+func (b *Builder) LayerNorm(input *Tensor, epsilon float32) *Tensor {
+	if epsilon <= 0 {
+		b.setError(errors.New("LayerNorm epsilon must be positive"))
+		return nil
+	}
+	return b.unary(OpLayerNorm, input, LayerNormAttributes{Epsilon: epsilon})
+}
+
+// AffineLayerNorm applies LayerNorm and learned per-channel weight and bias.
+func (b *Builder) AffineLayerNorm(input, weight, bias *Tensor, epsilon float32) *Tensor {
+	return b.Add(b.Multiply(b.LayerNorm(input, epsilon), weight), bias)
 }
 
 func (b *Builder) Softmax(input *Tensor) *Tensor {

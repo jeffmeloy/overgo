@@ -370,6 +370,33 @@ extern "C" __global__ void rms_norm_f32(
     }
 }
 
+extern "C" __global__ void layer_norm_f32(
+        const float * input,
+        float * output,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    float sum = 0.0f;
+    for (unsigned int column = 0; column < width; ++column) {
+        sum += input[offset + column];
+    }
+    const float mean = sum / (float) width;
+    float sum_squares = 0.0f;
+    for (unsigned int column = 0; column < width; ++column) {
+        const float centered = input[offset + column] - mean;
+        sum_squares += centered * centered;
+    }
+    const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
+    for (unsigned int column = 0; column < width; ++column) {
+        output[offset + column] = (input[offset + column] - mean) * inverse;
+    }
+}
+
 extern "C" __global__ void softmax_f32(
         const float * input,
         float * output,

@@ -38,6 +38,42 @@ func TestExecuteElementwiseNormSoftmax(t *testing.T) {
 	}
 }
 
+func TestExecuteAffineLayerNorm(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(4))
+	bias := builder.Input("bias", dtype.F32, tensor.MustShape(4))
+	output := builder.AffineLayerNorm(input, weight, bias, 1e-5)
+	inputValue, _ := NewValue(input.Shape, []float32{
+		1, 2, 3, 4,
+		-4, -2, 0, 2,
+	})
+	weightValue, _ := NewValue(weight.Shape, []float32{1, 2, 3, 4})
+	biasValue, _ := NewValue(bias.Shape, []float32{0.5, -0.5, 1, -1})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:  inputValue,
+		weight: weightValue,
+		bias:   biasValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for row := range 2 {
+		values := results[output].Data[row*4 : row*4+4]
+		for column, value := range values {
+			normalized := (value - biasValue.Data[column]) / weightValue.Data[column]
+			if math.IsNaN(float64(normalized)) || math.IsInf(float64(normalized), 0) {
+				t.Fatalf("LayerNorm row %d contains invalid value %v", row, value)
+			}
+		}
+	}
+	normalized := results[output].Data
+	if math.Abs(float64(normalized[0]-(-0.841635))) > 1e-5 ||
+		math.Abs(float64(normalized[3]-4.36654)) > 1e-5 {
+		t.Fatalf("unexpected affine LayerNorm output: %v", normalized)
+	}
+}
+
 func TestExecuteSigmoidSoftplusAndL2Norm(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(3, 2))

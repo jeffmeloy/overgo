@@ -92,6 +92,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid RMSNorm attributes")
 		}
 		return rmsNorm(node.Shape, inputs[0], attributes.Epsilon)
+	case tensor.OpLayerNorm:
+		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid LayerNorm attributes")
+		}
+		return layerNorm(node.Shape, inputs[0], attributes.Epsilon)
 	case tensor.OpSoftmax:
 		return softmax(node.Shape, inputs[0])
 	case tensor.OpSiLU:
@@ -311,6 +317,31 @@ func rmsNorm(shape tensor.Shape, input Value, epsilon float32) (Value, error) {
 		inverse := float32(1 / math.Sqrt(sumSquares/float64(width)+float64(epsilon)))
 		for column, value := range input.Data[row : row+width] {
 			output[row+column] = value * inverse
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func layerNorm(shape tensor.Shape, input Value, epsilon float32) (Value, error) {
+	width := int(shape.Dims[0])
+	if width == 0 || len(input.Data)%width != 0 {
+		return Value{}, errors.New("invalid LayerNorm row width")
+	}
+	output := make([]float32, len(input.Data))
+	for row := 0; row < len(input.Data); row += width {
+		var sum float64
+		for _, value := range input.Data[row : row+width] {
+			sum += float64(value)
+		}
+		mean := sum / float64(width)
+		var sumSquares float64
+		for _, value := range input.Data[row : row+width] {
+			centered := float64(value) - mean
+			sumSquares += centered * centered
+		}
+		inverse := float32(1 / math.Sqrt(sumSquares/float64(width)+float64(epsilon)))
+		for column, value := range input.Data[row : row+width] {
+			output[row+column] = (value - float32(mean)) * inverse
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil

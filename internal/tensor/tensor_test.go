@@ -55,6 +55,28 @@ func TestBuilderBroadcastWeightedNormAndSwiGLU(t *testing.T) {
 	}
 }
 
+func TestBuilderAffineLayerNorm(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(4, 2))
+	weight := builder.Input("weight", dtype.F32, MustShape(4))
+	bias := builder.Input("bias", dtype.F32, MustShape(4))
+	output := builder.AffineLayerNorm(input, weight, bias, 1e-5)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Op != OpAdd ||
+		output.Inputs[0].Op != OpMultiply ||
+		output.Inputs[0].Inputs[0].Op != OpLayerNorm {
+		t.Fatalf("unexpected affine LayerNorm graph ending in %s", output.Op)
+	}
+
+	invalid := NewBuilder()
+	invalid.LayerNorm(invalid.Input("input", dtype.F32, MustShape(1)), 0)
+	if invalid.Err() == nil {
+		t.Fatal("zero LayerNorm epsilon was accepted")
+	}
+}
+
 func TestBuilderQwen35UnaryPrimitives(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 3))

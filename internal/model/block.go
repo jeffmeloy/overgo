@@ -237,16 +237,24 @@ func BuildDenseBlockCachedForLayer(
 	} else if !spec.UsesUnweightedLayerNorm() {
 		required["attention norm"] = weights.AttentionNorm
 		if !usesParallelResidual(spec.Architecture) {
-			required["feed-forward norm"] = weights.FeedForwardNorm
+			if spec.Architecture != "stablelm" {
+				required["feed-forward norm"] = weights.FeedForwardNorm
+			}
 		}
 		if spec.UsesLayerNorm() {
 			required["attention norm bias"] = weights.AttentionNormBias
-			required["feed-forward norm bias"] = weights.FeedForwardNormBias
+			if spec.Architecture != "stablelm" {
+				required["feed-forward norm bias"] = weights.FeedForwardNormBias
+			}
 		}
 	}
 	if isCommandRQKNorm {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
+	}
+	if spec.Architecture == "stablelm" &&
+		(weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {
+		return DenseBlockResult{}, errors.New("StableLM Q/K norm weights must both be present or absent")
 	}
 	for name, item := range required {
 		if item == nil {
@@ -298,6 +306,16 @@ func BuildDenseBlockCachedForLayer(
 	if isCommandRQKNorm {
 		query = ApplyNormalization(builder, query, weights.AttentionQNorm, nil, spec)
 		key = ApplyNormalization(builder, key, weights.AttentionKNorm, nil, spec)
+	}
+	if spec.Architecture == "stablelm" && weights.AttentionQNorm != nil {
+		query = builder.Multiply(
+			builder.LayerNorm(query, spec.LayerNormEpsilon),
+			weights.AttentionQNorm,
+		)
+		key = builder.Multiply(
+			builder.LayerNorm(key, spec.LayerNormEpsilon),
+			weights.AttentionKNorm,
+		)
 	}
 	rotaryDimensions := spec.KeyLength
 	if spec.RopeDimensionCount > 0 {
@@ -464,12 +482,21 @@ func BuildDenseBlockCachedForLayer(
 	}
 	residual := builder.Add(input, attention)
 
-	if !usesParallelResidual(spec.Architecture) {
+	parallelResidual := usesParallelResidual(spec.Architecture) ||
+		(spec.Architecture == "stablelm" && weights.FeedForwardNorm == nil)
+	if !parallelResidual {
 		normalized = residual
 		if !isOLMo2 {
-			normalized = ApplyNormalization(
-				builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
-			)
+			if spec.Architecture == "stablelm" && weights.FeedForwardNormBias == nil {
+				normalized = builder.Multiply(
+					builder.LayerNorm(residual, spec.LayerNormEpsilon),
+					weights.FeedForwardNorm,
+				)
+			} else {
+				normalized = ApplyNormalization(
+					builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec,
+				)
+			}
 		}
 	}
 	// Cohere decoders leave normalized pointing at the block input so attention

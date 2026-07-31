@@ -920,6 +920,16 @@ models:
       - swiglu
       - untied-output-projection
     real_model_validation: pending-fixture
+  stablelm:
+    status: experimental
+    features:
+      - affine-layernorm
+      - partial-neox-rope
+      - optional-per-head-qk-layernorm
+      - sequential-or-parallel-ffn-residual
+      - swiglu
+      - untied-output-projection
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

@@ -207,6 +207,29 @@ func TestReadPLaMoSpec(t *testing.T) {
 	}
 }
 
+func TestReadStableLMSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "stablelm"),
+		metadata("stablelm.block_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("stablelm.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("stablelm.embedding_length", gguf.ValueTypeUint32, uint32(5120)),
+		metadata("stablelm.feed_forward_length", gguf.ValueTypeUint32, uint32(13824)),
+		metadata("stablelm.attention.head_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("stablelm.attention.head_count_kv", gguf.ValueTypeUint32, uint32(5)),
+		metadata("stablelm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("stablelm.rope.dimension_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("stablelm.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "stablelm" || spec.KeyLength != 128 ||
+		spec.RopeDimensionCount != 32 || !spec.UsesLayerNorm() {
+		t.Fatalf("unexpected StableLM spec: %+v", spec)
+	}
+}
+
 func TestReadSmolLM3Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),

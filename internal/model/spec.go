@@ -94,6 +94,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "orion" &&
 		architecture != "plamo" &&
 		architecture != "seed_oss" &&
+		architecture != "stablelm" &&
 		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
@@ -290,6 +291,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if pattern, ok := values[prefix+"attention.sliding_window_pattern"]; ok &&
 			pattern.Type != gguf.ValueTypeUint32 {
 			return Spec{}, errors.New("Cohere2 array sliding attention patterns are not supported")
+		}
+	}
+	if architecture == "stablelm" {
+		if spec.RopeDimensionCount, err = required[uint32](
+			values,
+			prefix+"rope.dimension_count",
+			gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
 		}
 	}
 	if architecture == "command-r" {
@@ -511,6 +521,7 @@ func (s Spec) UsesLayerNorm() bool {
 	return s.Architecture == "nemotron" ||
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
+		s.Architecture == "stablelm" ||
 		usesSequentialGELU(s.Architecture)
 }
 
@@ -622,6 +633,11 @@ func (s Spec) validate() error {
 		case s.SlidingPattern < 2:
 			return errors.New("Cohere2 sliding attention pattern must be at least 2")
 		}
+	}
+	if s.Architecture == "stablelm" &&
+		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0) {
+		return errors.New("StableLM rotary dimension count is invalid")
 	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")

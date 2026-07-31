@@ -191,6 +191,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "nemotron" ||
 		spec.Architecture == "orion" ||
 		spec.Architecture == "plamo" ||
+		spec.Architecture == "stablelm" ||
 		spec.Architecture == "codeshell") &&
 		result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
@@ -446,6 +447,33 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
+		if spec.Architecture == "stablelm" {
+			_, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
+			_, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
+			if hasQNorm != hasKNorm {
+				return Weights{}, errors.New("StableLM Q/K norm tensors must both be present or absent")
+			}
+			if hasQNorm {
+				qNorm, normErr := required(
+					prefix+"attn_q_norm.weight",
+					uint64(spec.KeyLength),
+					uint64(spec.HeadCount),
+				)
+				if normErr != nil {
+					return Weights{}, normErr
+				}
+				kNorm, normErr := required(
+					prefix+"attn_k_norm.weight",
+					uint64(spec.KeyLength),
+					uint64(spec.HeadCountKV),
+				)
+				if normErr != nil {
+					return Weights{}, normErr
+				}
+				layer.AttentionQNorm = &qNorm
+				layer.AttentionKNorm = &kNorm
+			}
+		}
 		if !layer.Recurrent {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       uint64
@@ -492,7 +520,25 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "qwen35" || spec.Architecture == "seed_oss" {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
-		if spec.Architecture != "olmo2" && !usesParallelResidual(spec.Architecture) &&
+		if spec.Architecture == "stablelm" {
+			if _, ok := tensors[prefix+feedForwardNormName]; ok {
+				if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
+					return Weights{}, err
+				}
+				if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
+					feedForwardNormBias, biasErr := required(
+						prefix+"ffn_norm.bias",
+						uint64(spec.EmbeddingLength),
+					)
+					if biasErr != nil {
+						return Weights{}, biasErr
+					}
+					layer.FeedForwardNormBias = &feedForwardNormBias
+				}
+			} else if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
+				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
+			}
+		} else if spec.Architecture != "olmo2" && !usesParallelResidual(spec.Architecture) &&
 			!spec.UsesUnweightedLayerNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err

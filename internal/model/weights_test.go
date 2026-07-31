@@ -830,6 +830,46 @@ func TestReadWeightsPLaMoUsesOneNormPerBlock(t *testing.T) {
 	}
 }
 
+func TestReadWeightsStableLMOptionalNormLayouts(t *testing.T) {
+	for _, sequential := range []bool{false, true} {
+		spec := Spec{
+			Architecture: "stablelm", BlockCount: 1, EmbeddingLength: 8,
+			FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
+			VocabularySize: 32, LayerNormEpsilon: 1e-5,
+		}
+		tensors := []gguf.TensorInfo{
+			tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+			tensorInfo("output_norm.bias", 8), tensorInfo("output.weight", 8, 32),
+			tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+			tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 4),
+			tensorInfo("blk.0.attn_v.weight", 8, 4), tensorInfo("blk.0.attn_output.weight", 8, 8),
+			tensorInfo("blk.0.ffn_gate.weight", 8, 16), tensorInfo("blk.0.ffn_up.weight", 8, 16),
+			tensorInfo("blk.0.ffn_down.weight", 16, 8),
+		}
+		if sequential {
+			tensors = append(tensors,
+				tensorInfo("blk.0.ffn_norm.weight", 8),
+				tensorInfo("blk.0.ffn_norm.bias", 8),
+			)
+		} else {
+			tensors = append(tensors,
+				tensorInfo("blk.0.attn_q_norm.weight", 4, 2),
+				tensorInfo("blk.0.attn_k_norm.weight", 4, 1),
+			)
+		}
+		weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		layer := weights.Layers[0]
+		if sequential != (layer.FeedForwardNorm.Name != "") ||
+			sequential == (layer.AttentionQNorm != nil) {
+			t.Fatalf("unexpected StableLM layout: %+v", layer)
+		}
+	}
+}
+
 func TestReadWeightsGemma2(t *testing.T) {
 	spec := Spec{
 		Architecture:      "gemma2",

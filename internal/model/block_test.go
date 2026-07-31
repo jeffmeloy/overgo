@@ -976,6 +976,67 @@ func TestBuildDensePLaMoUsesParallelResidualAndNeoX(t *testing.T) {
 	}
 }
 
+func TestBuildDenseStableLMOptionalNormLayouts(t *testing.T) {
+	for _, sequential := range []bool{false, true} {
+		builder := tensor.NewBuilder()
+		spec := Spec{
+			Architecture: "stablelm", BlockCount: 40, EmbeddingLength: 8,
+			FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
+			RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+		}
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+		weights := denseBlockInputs(builder, spec)
+		if sequential {
+			weights.AttentionQNorm = nil
+			weights.AttentionKNorm = nil
+		} else {
+			weights.FeedForwardNorm = nil
+			weights.FeedForwardNormBias = nil
+			weights.AttentionQNorm = builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(4, 2))
+			weights.AttentionKNorm = builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(4, 1))
+		}
+		output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes, err := tensor.Topological(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var layerNormCount, ropeCount int
+		var attentionInput, feedForwardInput *tensor.Tensor
+		for _, node := range nodes {
+			switch node.Op {
+			case tensor.OpLayerNorm:
+				layerNormCount++
+			case tensor.OpRoPENeoX:
+				ropeCount++
+				if node.Attrs.(tensor.RoPEAttributes).RotaryDimensions != 2 {
+					t.Fatal("StableLM partial rotary dimension was not honored")
+				}
+			case tensor.OpMulMat:
+				if node.Inputs[0].Name == "attn_q" {
+					attentionInput = node.Inputs[1]
+				}
+				if node.Inputs[0].Name == "ffn_up" {
+					feedForwardInput = node.Inputs[1]
+				}
+			}
+		}
+		wantNorms := 3
+		if sequential {
+			wantNorms = 2
+		}
+		if layerNormCount != wantNorms || ropeCount != 2 {
+			t.Fatalf("StableLM graph has LayerNorm=%d RoPE=%d", layerNormCount, ropeCount)
+		}
+		if (attentionInput == feedForwardInput) == sequential {
+			t.Fatal("StableLM residual topology does not match its FFN norm layout")
+		}
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

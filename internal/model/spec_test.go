@@ -1395,6 +1395,39 @@ func TestReadSmallThinkerWithoutSlidingUsesRoPEEverywhere(t *testing.T) {
 	}
 }
 
+func TestReadDOTS1Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "dots1"),
+		metadata("dots1.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("dots1.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("dots1.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("dots1.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("dots1.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("dots1.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dots1.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("dots1.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dots1.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("dots1.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("dots1.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dots1.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("dots1.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dots1.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dots1.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("dots1.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("dots1.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("dots1.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertFeedForward != 6 || spec.SharedExpertCount != 2 ||
+		spec.SharedExpertFF != 12 || spec.ExpertWeightsScale != 1.25 ||
+		!spec.ExpertWeightsNorm || spec.ExpertGatingFunc != 2 || spec.LeadingDenseBlocks != 1 {
+		t.Fatalf("unexpected DOTS1 spec: %+v", spec)
+	}
+}
+
 func TestReadGraniteRejectsNonDenseVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("granite.expert_count", gguf.ValueTypeUint32, uint32(8)),

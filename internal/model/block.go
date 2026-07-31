@@ -461,6 +461,7 @@ func BuildDenseBlockCachedForLayer(
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
 	isDeepSeek := spec.Architecture == "deepseek"
 	isDBRX := spec.Architecture == "dbrx"
+	isDOTS1 := spec.Architecture == "dots1"
 	isGraniteMoE := spec.Architecture == "granitemoe"
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
@@ -479,7 +480,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isGraniteMoE && !isSmallThinker && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isSmallThinker && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -502,7 +503,7 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
-		if isEXAOneMoE || isBailingMoE2 {
+		if isEXAOneMoE || isBailingMoE2 || isDOTS1 {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
@@ -590,6 +591,10 @@ func BuildDenseBlockCachedForLayer(
 		required["attention K norm"] = weights.AttentionKNorm
 	}
 	if isOLMoE {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+	}
+	if isDOTS1 {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
@@ -708,7 +713,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || spec.Architecture == "exaone4" || isEXAOneMoE || isLLaDAMoE || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isLLaDAMoE || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -1021,7 +1026,7 @@ func BuildDenseBlockCachedForLayer(
 				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
 				spec.ExpertWeightsScale, routing,
 			)
-		} else if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE) && spec.ExpertGatingFunc == 2) {
+		} else if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE || isDOTS1) && spec.ExpertGatingFunc == 2) {
 			feedForward = builder.MoESigmoid(
 				normalized, weights.FeedForwardRouter,
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
@@ -1036,7 +1041,7 @@ func BuildDenseBlockCachedForLayer(
 				)
 				feedForward = builder.Add(feedForward, shared)
 			}
-		} else if isEXAOneMoE || isBailingMoE2 || isLFM2MoE {
+		} else if isEXAOneMoE || isBailingMoE2 || isLFM2MoE || isDOTS1 {
 			if weights.FeedForwardExpertBias != nil {
 				feedForward = builder.MoESoftmaxWithSelectionBias(
 					normalized, weights.FeedForwardRouter,

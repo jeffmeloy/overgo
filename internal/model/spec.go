@@ -121,6 +121,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "dream" &&
 		architecture != "deepseek" &&
 		architecture != "dbrx" &&
+		architecture != "dots1" &&
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
@@ -851,7 +852,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -900,6 +901,30 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); err != nil {
 			return Spec{}, err
 		}
+	}
+	if architecture == "dots1" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.SharedExpertCount, err = required[uint32](
+			values, prefix+"expert_shared_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+		if spec.ExpertGatingFunc, err = required[uint32](
+			values, prefix+"expert_gating_func", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.ExpertWeightsNorm, _ = optional[bool](
+			values, prefix+"expert_weights_norm", gguf.ValueTypeBool,
+		)
+		spec.LeadingDenseBlocks, _ = optional[uint32](
+			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
+		)
 	}
 	if architecture == "bailingmoe" {
 		if spec.ExpertFeedForward, err = required[uint32](
@@ -1424,6 +1449,27 @@ func (s Spec) validate() error {
 			return errors.New("SmallThinker rotary/head dimensions are invalid")
 		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0):
 			return errors.New("SmallThinker sliding-attention metadata is invalid")
+		}
+	}
+	if s.Architecture == "dots1" {
+		switch {
+		case s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("DOTS1 leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			s.SharedExpertFF == 0:
+			return errors.New("DOTS1 expert metadata is invalid")
+		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
+			return errors.New("DOTS1 shared expert width overflows")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("DOTS1 expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("DOTS1 expert weight scale is invalid")
+		case s.RopeDimensionCount > 0 && s.RopeDimensionCount != s.KeyLength:
+			return errors.New("DOTS1 rotary dimension must equal key length")
+		case s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength:
+			return errors.New("DOTS1 requires full-head matching key/value attention")
 		}
 	}
 	if (s.Architecture == "granite" || s.Architecture == "granitemoe") &&

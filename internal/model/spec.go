@@ -81,6 +81,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "minicpm" &&
 		architecture != "granite" &&
 		architecture != "maincoder" &&
+		architecture != "mistral3" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -246,6 +247,22 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, mappingErr
 		} else if ok && len(mapping) > 0 {
 			return Spec{}, errors.New("Granite vision deepstack is not supported")
+		}
+	}
+	if architecture == "mistral3" {
+		if temperatureScale, ok := optional[float32](
+			values,
+			prefix+"attention.temperature_scale",
+			gguf.ValueTypeFloat32,
+		); ok && temperatureScale != 0 {
+			return Spec{}, errors.New("Mistral 3 attention temperature scaling is not supported")
+		}
+		if expertCount, ok := optional[uint32](
+			values,
+			prefix+"expert_count",
+			gguf.ValueTypeUint32,
+		); ok && expertCount > 0 {
+			return Spec{}, errors.New("Mistral 3 expert layers are not supported")
 		}
 	}
 	if architecture == "smollm3" {
@@ -560,6 +577,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "granite" ||
 		architecture == "minicpm" ||
 		architecture == "maincoder" ||
+		architecture == "mistral3" ||
 		architecture == "smollm3" ||
 		architecture == "xverse"
 }

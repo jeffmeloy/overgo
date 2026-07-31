@@ -910,6 +910,22 @@ models:
       - swiglu
       - tied-output
     real_model_validation: pending-fixture
+  mistral3:
+    status: experimental
+    variants:
+      - dense-standard-rope
+      - dense-linear-rope
+    features:
+      - normal-rope
+      - metadata-attention-scale
+      - swiglu
+      - tied-output
+      - optional-projection-biases
+    limitations:
+      - expert-layers-rejected
+      - attention-temperature-scaling-rejected
+      - yarn-and-longrope-not-yet-supported
+    real_model_validation: pending-fixture
   qwen2:
     status: experimental
     execution:

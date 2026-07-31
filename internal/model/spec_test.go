@@ -268,6 +268,32 @@ func TestReadMaincoderSpec(t *testing.T) {
 	}
 }
 
+func TestReadDenseMistral3Spec(t *testing.T) {
+	file := &gguf.File{Metadata: mistral3Metadata()}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "mistral3" ||
+		spec.KeyLength != 128 ||
+		spec.ValueLength != 128 ||
+		!spec.UsesRoPE(0) {
+		t.Fatalf("unexpected Mistral 3 spec: %+v", spec)
+	}
+}
+
+func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
+	for _, extra := range []gguf.Metadata{
+		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("mistral3.attention.temperature_scale", gguf.ValueTypeFloat32, float32(0.1)),
+	} {
+		file := &gguf.File{Metadata: append(mistral3Metadata(), extra)}
+		if _, err := ReadSpec(file); err == nil {
+			t.Fatalf("Mistral 3 variant metadata %q was accepted", extra.Key)
+		}
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),
@@ -529,5 +555,19 @@ func graniteMetadata() []gguf.Metadata {
 		metadata("granite.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
 		metadata("granite.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 		metadata("granite.logit_scale", gguf.ValueTypeFloat32, float32(8)),
+	}
+}
+
+func mistral3Metadata() []gguf.Metadata {
+	return []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "mistral3"),
+		metadata("mistral3.block_count", gguf.ValueTypeUint32, uint32(34)),
+		metadata("mistral3.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("mistral3.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("mistral3.feed_forward_length", gguf.ValueTypeUint32, uint32(14336)),
+		metadata("mistral3.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("mistral3.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("mistral3.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("mistral3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}
 }

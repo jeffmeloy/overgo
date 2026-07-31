@@ -95,6 +95,7 @@ func TestBuildDenseInternLM2EXAONEAndXVERSEUseExpectedRoPE(t *testing.T) {
 	}{
 		{"internlm2", tensor.OpRoPENormal},
 		{"exaone", tensor.OpRoPENeoX},
+		{"mistral3", tensor.OpRoPENormal},
 		{"xverse", tensor.OpRoPENormal},
 	} {
 		t.Run(test.architecture, func(t *testing.T) {

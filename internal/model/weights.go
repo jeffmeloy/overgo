@@ -666,7 +666,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			(spec.Architecture == "lfm2" && !layer.Recurrent) {
@@ -864,7 +864,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if spec.Architecture == "qwen3moe" {
+		if spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       []uint64
 				destination **gguf.TensorInfo

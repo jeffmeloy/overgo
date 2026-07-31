@@ -133,6 +133,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen3moe" &&
 		architecture != "qwen35" && architecture != "gemma" &&
 		architecture != "refact" &&
+		architecture != "rnd1" &&
 		architecture != "gemma2" &&
 		architecture != "gemma3" &&
 		architecture != "falcon" &&
@@ -140,7 +141,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "dream" {
+	if architecture == "dream" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "chameleon" {
@@ -669,7 +670,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "qwen3moe" {
+	if architecture == "qwen3moe" || architecture == "rnd1" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -909,7 +910,7 @@ func (s Spec) validate() error {
 			return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
 		}
 	}
-	if s.Architecture == "qwen3moe" &&
+	if (s.Architecture == "qwen3moe" || s.Architecture == "rnd1") &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
 			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||

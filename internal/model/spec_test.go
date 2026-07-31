@@ -93,6 +93,33 @@ func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	}
 }
 
+func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),
+		metadata("rnd1.block_count", gguf.ValueTypeUint32, uint32(48)),
+		metadata("rnd1.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("rnd1.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("rnd1.feed_forward_length", gguf.ValueTypeUint32, uint32(24)),
+		metadata("rnd1.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("rnd1.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("rnd1.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("rnd1.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("rnd1.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("rnd1.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("rnd1.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("rnd1.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("rnd1.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "rnd1" || !spec.NonCausalAttention ||
+		spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 12 {
+		t.Fatalf("unexpected RND1 spec: %+v", spec)
+	}
+}
+
 func TestReadChameleonSandwichSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "chameleon"),

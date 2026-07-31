@@ -146,6 +146,43 @@ func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	}
 }
 
+func TestBuildRND1BlockUsesNonCausalMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "rnd1", EmbeddingLength: 8, FeedForwardLength: 24,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 1_000_000, RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := denseBlockInputs(builder, spec)
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUp = nil
+	weights.FeedForwardDown = nil
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nonCausal, moe bool
+	for _, node := range nodes {
+		if node.Op == tensor.OpAttention {
+			nonCausal = !node.Attrs.(tensor.AttentionAttributes).Causal
+		}
+		moe = moe || node.Op == tensor.OpMoE
+	}
+	if !nonCausal || !moe {
+		t.Fatalf("RND1 graph non-causal/MoE = %v/%v", nonCausal, moe)
+	}
+}
+
 func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

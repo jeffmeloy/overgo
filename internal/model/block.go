@@ -425,8 +425,8 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if spec.Architecture != "qwen3moe" {
-			return DenseBlockResult{}, errors.New("dense block expert weights require qwen3moe architecture")
+		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" {
+			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert gate"] = weights.FeedForwardGateExperts
@@ -590,7 +590,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 
-	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}

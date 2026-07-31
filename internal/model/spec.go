@@ -146,6 +146,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "gpt2" &&
 		architecture != "gptneox" &&
 		architecture != "grok" &&
+		architecture != "hunyuan-moe" &&
 		architecture != "maincoder" &&
 		architecture != "mellum" &&
 		architecture != "mistral3" &&
@@ -930,7 +931,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "grok" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -965,6 +966,17 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.ExpertWeightsNorm = true
+	}
+	if architecture == "hunyuan-moe" {
+		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF = spec.FeedForwardLength
+		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
+			spec.SharedExpertFF = value
+		}
+		spec.ExpertWeightsNorm = true
+		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if architecture == "grok" {
 		if _, ok := optional[uint32](
@@ -1589,6 +1601,13 @@ func (s Spec) validate() error {
 				s.YaRNAttentionFactor <= 0 || s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0):
 			return errors.New("Mellum YaRN metadata is invalid")
 		}
+	}
+	if s.Architecture == "hunyuan-moe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+			s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
+			s.RopeDimensionCount%2 != 0) {
+		return errors.New("Hunyuan-MoE metadata is invalid")
 	}
 	if s.Architecture == "smallthinker" {
 		switch {

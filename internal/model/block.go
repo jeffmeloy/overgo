@@ -465,6 +465,7 @@ func BuildDenseBlockCachedForLayer(
 	isDOTS1 := spec.Architecture == "dots1"
 	isGraniteMoE := spec.Architecture == "granitemoe"
 	isGrok := spec.Architecture == "grok"
+	isHunyuanMoE := spec.Architecture == "hunyuan-moe"
 	isMellum := spec.Architecture == "mellum"
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
@@ -489,7 +490,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isGrok && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -505,6 +506,11 @@ func BuildDenseBlockCachedForLayer(
 				required["feed-forward shared up"] = weights.FeedForwardSharedUp
 				required["feed-forward shared down"] = weights.FeedForwardSharedDown
 			}
+		}
+		if isHunyuanMoE {
+			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+			required["feed-forward shared up"] = weights.FeedForwardSharedUp
+			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
 		if isQwen2MoE {
 			required["feed-forward shared router"] = weights.FeedForwardSharedRouter
@@ -896,6 +902,10 @@ func BuildDenseBlockCachedForLayer(
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
+	if isHunyuanMoE {
+		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+	}
 
 	cacheKey := key
 	cacheValue := value
@@ -1131,6 +1141,17 @@ func BuildDenseBlockCachedForLayer(
 					spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
 				)
 			}
+			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+			shared := builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp))
+			feedForward = builder.Add(feedForward, shared)
+		} else if isHunyuanMoE {
+			feedForward = builder.MoE(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
+				spec.ExpertWeightsScale,
+			)
 			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
 			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
 			shared := builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp))

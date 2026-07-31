@@ -1285,6 +1285,20 @@ models:
       - required-untied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  hunyuan-moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - post-rope-qk-rmsnorm
+      - normalized-softmax-top-k-routing
+      - packed-swiglu-experts
+      - required-shared-swiglu-expert
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   dots1:
     status: experimental
     execution:

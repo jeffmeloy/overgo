@@ -345,6 +345,36 @@ func TestBuildMellumSlidingAndYaRNBlocks(t *testing.T) {
 	}
 }
 
+func TestBuildHunyuanMoEBlock(t *testing.T) {
+	b := tensor.NewBuilder()
+	s := Spec{Architecture: "hunyuan-moe", EmbeddingLength: 8, FeedForwardLength: 12,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 10,
+		ExpertWeightsScale: 1, ExpertWeightsNorm: true, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6}
+	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	w := LayerGraphWeights{
+		AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQ: b.Input("q", dtype.F32, tensor.MustShape(8, 8)), AttentionK: b.Input("k", dtype.F32, tensor.MustShape(8, 4)), AttentionV: b.Input("v", dtype.F32, tensor.MustShape(8, 4)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter: b.Input("r", dtype.F32, tensor.MustShape(8, 4)), FeedForwardGateExperts: b.Input("ge", dtype.F32, tensor.MustShape(8, 6, 4)), FeedForwardUpExperts: b.Input("ue", dtype.F32, tensor.MustShape(8, 6, 4)), FeedForwardDownExperts: b.Input("de", dtype.F32, tensor.MustShape(6, 8, 4)), FeedForwardSharedGate: b.Input("sg", dtype.F32, tensor.MustShape(8, 10)), FeedForwardSharedUp: b.Input("su", dtype.F32, tensor.MustShape(8, 10)), FeedForwardSharedDown: b.Input("sd", dtype.F32, tensor.MustShape(10, 8)),
+	}
+	r, err := BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, _ := tensor.Topological(r.Output)
+	var moe, silu int
+	for _, n := range nodes {
+		if n.Op == tensor.OpMoE {
+			moe++
+		}
+		if n.Op == tensor.OpSiLU {
+			silu++
+		}
+	}
+	if moe != 1 || silu != 1 {
+		t.Fatalf("Hunyuan-MoE ops: MoE=%d SiLU=%d", moe, silu)
+	}
+}
+
 func TestBuildArcticParallelDenseAndMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

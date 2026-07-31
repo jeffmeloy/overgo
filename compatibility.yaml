@@ -846,6 +846,15 @@ models:
       - output-as-embedding-fallback
       - untied-output-projection
     real_model_validation: pending-fixture
+  nemotron:
+    status: experimental
+    features:
+      - affine-layernorm
+      - neox-rope
+      - sequential-squared-relu
+      - optional-projection-biases
+      - untied-output-projection
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

@@ -451,7 +451,7 @@ func BuildDenseBlockCachedForLayer(
 	var activation *tensor.Tensor
 	if usesSequentialGELU(spec.Architecture) {
 		activation = builder.GELU(up)
-	} else if spec.Architecture == "arcee" {
+	} else if usesSquaredReLU(spec.Architecture) {
 		activation = builder.ReLUSquared(up)
 	} else {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)

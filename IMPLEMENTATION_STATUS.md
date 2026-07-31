@@ -17,7 +17,7 @@
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
 | Tensor graph | In progress | Typed IR, layout transforms, broadcasting, RMSNorm/affine LayerNorm, embeddings, scaled normal/NeoX RoPE, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, GELU/SwiGLU/squared-ReLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, text-only hybrid Qwen3.5, Arcee, Baichuan 7B, CodeShell, Gemma 1/2/3, Granite, InternLM2, EXAONE, XVERSE, Maincoder, MiniCPM, dense Mistral 3, Orion, StarCoder2, OLMo2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, text-only hybrid Qwen3.5, Arcee, Baichuan 7B, CodeShell, Gemma 1/2/3, Granite, InternLM2, EXAONE, XVERSE, Maincoder, MiniCPM, dense Mistral 3, Nemotron, Orion, StarCoder2, OLMo2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Six tokenizer corpora match 280 upstream cases; BERT WordPiece and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -536,6 +536,10 @@
 - Arcee dense decoders support RMSNorm, metadata attention scaling, optional
   tied output embeddings, normal RoPE with optional per-pair factors, and the
   gate-free squared-ReLU FFN. Real-model validation is pending a local fixture.
+- Nemotron dense decoders support affine LayerNorm, split-half NeoX RoPE,
+  gate-free squared-ReLU FFNs, required untied output weights, and optional
+  attention-output/up/down biases. Real-model validation is pending a local
+  fixture.
 - The real UMT5 XXL encoder passes strict 24-layer T5 metadata and tensor
   catalog validation. Its SentencePiece UGM tokenizer produces
   `[23231, 3914, 332]` for `Hello world!`, exactly matching the pinned

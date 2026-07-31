@@ -410,6 +410,30 @@ func TestReadArceeSpec(t *testing.T) {
 	}
 }
 
+func TestReadNemotronSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "nemotron"),
+		metadata("nemotron.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("nemotron.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("nemotron.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("nemotron.feed_forward_length", gguf.ValueTypeUint32, uint32(11008)),
+		metadata("nemotron.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("nemotron.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("nemotron.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("nemotron.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "nemotron" ||
+		!spec.UsesLayerNorm() ||
+		spec.LayerNormEpsilon != 1e-5 ||
+		spec.KeyLength != 128 {
+		t.Fatalf("unexpected Nemotron spec: %+v", spec)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

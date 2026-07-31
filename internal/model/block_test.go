@@ -657,6 +657,53 @@ func TestBuildDenseArceeUsesSquaredReLU(t *testing.T) {
 	}
 }
 
+func TestBuildDenseNemotronUsesAffineNormAndSquaredReLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "nemotron",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		LayerNormEpsilon:  1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layerNorm, squaredReLU, neoXRoPE int
+	for _, node := range nodes {
+		if node == weights.FeedForwardGate {
+			t.Fatal("Nemotron graph unexpectedly consumes an FFN gate")
+		}
+		switch node.Op {
+		case tensor.OpLayerNorm:
+			layerNorm++
+		case tensor.OpReLUSquared:
+			squaredReLU++
+		case tensor.OpRoPENeoX:
+			neoXRoPE++
+		}
+	}
+	if layerNorm != 2 || squaredReLU != 1 || neoXRoPE != 2 {
+		t.Fatalf(
+			"Nemotron graph LayerNorm/squared-ReLU/NeoX = %d/%d/%d, want 2/1/2",
+			layerNorm,
+			squaredReLU,
+			neoXRoPE,
+		)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

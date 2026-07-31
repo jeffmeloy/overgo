@@ -86,6 +86,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "granite" &&
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
+		architecture != "nemotron" &&
 		architecture != "orion" &&
 		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
@@ -163,7 +164,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "orion" || usesSequentialGELU(architecture) {
+	if spec.UsesLayerNorm() {
 		if spec.LayerNormEpsilon, err = required[float32](
 			values,
 			prefix+"attention.layer_norm_epsilon",
@@ -458,7 +459,9 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Architecture == "orion" || usesSequentialGELU(s.Architecture)
+	return s.Architecture == "nemotron" ||
+		s.Architecture == "orion" ||
+		usesSequentialGELU(s.Architecture)
 }
 
 func (s Spec) validate() error {
@@ -614,7 +617,11 @@ func usesSequentialGELU(architecture string) bool {
 }
 
 func usesGateFreeFFN(architecture string) bool {
-	return architecture == "arcee" || usesSequentialGELU(architecture)
+	return usesSquaredReLU(architecture) || usesSequentialGELU(architecture)
+}
+
+func usesSquaredReLU(architecture string) bool {
+	return architecture == "arcee" || architecture == "nemotron"
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

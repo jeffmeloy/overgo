@@ -17,7 +17,7 @@
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
 | Tensor graph | In progress | Typed IR, layout transforms, broadcasting, embeddings, scaled normal/NeoX RoPE, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, GELU/SwiGLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, text-only hybrid Qwen3.5, Gemma 1/2/3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, text-only hybrid Qwen3.5, Gemma 1/2/3, InternLM2, EXAONE, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Six tokenizer corpora match 280 upstream cases; BERT WordPiece and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -482,6 +482,11 @@
   vocabulary-wide output bias is applied before final-logit softcapping in
   streamed, preloaded/device-cache, and perplexity execution. Real-model
   differential validation remains pending a local Qwen 2 fixture.
+- InternLM2 and EXAONE metadata, dense tensor catalogs, and graphs are
+  supported. Both use RMSNorm, separate Q/K/V projections, and SwiGLU;
+  InternLM2 uses normal consecutive-pair RoPE and requires an untied output
+  projection, while EXAONE uses NeoX RoPE with optional per-pair factors and
+  an optional tied output fallback. Real-model validation is pending fixtures.
 - The real UMT5 XXL encoder passes strict 24-layer T5 metadata and tensor
   catalog validation. Its SentencePiece UGM tokenizer produces
   `[23231, 3914, 332]` for `Hello world!`, exactly matching the pinned

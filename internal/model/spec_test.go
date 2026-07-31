@@ -63,6 +63,38 @@ func TestReadQwen2Spec(t *testing.T) {
 	}
 }
 
+func TestReadInternLM2AndEXAONESpecs(t *testing.T) {
+	for _, architecture := range []string{"internlm2", "exaone"} {
+		t.Run(architecture, func(t *testing.T) {
+			prefix := architecture + "."
+			file := &gguf.File{Metadata: []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, architecture),
+				metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(4096)),
+				metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(128)),
+				metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(256)),
+				metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+				metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+				metadata(
+					prefix+"attention.layer_norm_rms_epsilon",
+					gguf.ValueTypeFloat32,
+					float32(1e-6),
+				),
+			}}
+			spec, err := ReadSpec(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if spec.Architecture != architecture ||
+				spec.KeyLength != 32 ||
+				spec.ValueLength != 32 {
+				t.Fatalf("unexpected %s spec: %+v", architecture, spec)
+			}
+		})
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

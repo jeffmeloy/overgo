@@ -165,6 +165,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.Output = &output
 	}
+	if spec.Architecture == "internlm2" && result.Output == nil {
+		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
+	}
 	if outputBias, ok := tensors["output.bias"]; ok {
 		if outputBias.Type != dtype.F32 ||
 			outputBias.Dimensions != 1 ||

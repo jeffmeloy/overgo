@@ -88,6 +88,65 @@ func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
 	}
 }
 
+func TestBuildDenseInternLM2AndEXAONEUseExpectedRoPE(t *testing.T) {
+	for _, test := range []struct {
+		architecture string
+		want         tensor.Op
+	}{
+		{"internlm2", tensor.OpRoPENormal},
+		{"exaone", tensor.OpRoPENeoX},
+	} {
+		t.Run(test.architecture, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture:      test.architecture,
+				EmbeddingLength:   8,
+				FeedForwardLength: 12,
+				HeadCount:         2,
+				HeadCountKV:       1,
+				KeyLength:         4,
+				ValueLength:       4,
+				RopeFrequencyBase: 10000,
+				RMSNormEpsilon:    1e-6,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := denseBlockInputs(builder, spec)
+			weights.AttentionQNorm = nil
+			weights.AttentionKNorm = nil
+			if test.architecture == "exaone" {
+				weights.RopeFactors = builder.Input(
+					"rope_factors",
+					dtype.F32,
+					tensor.MustShape(2),
+				)
+			}
+			output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ropeCount int
+			for _, node := range nodes {
+				if node.Op == test.want {
+					ropeCount++
+					if weights.RopeFactors != nil &&
+						(len(node.Inputs) != 2 || node.Inputs[1] != weights.RopeFactors) {
+						t.Fatal("EXAONE RoPE factors are disconnected")
+					}
+				} else if node.Op == tensor.OpRoPENormal || node.Op == tensor.OpRoPENeoX {
+					t.Fatalf("unexpected RoPE operation %s", node.Op)
+				}
+			}
+			if ropeCount != 2 {
+				t.Fatalf("%s RoPE count = %d, want 2", test.architecture, ropeCount)
+			}
+		})
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

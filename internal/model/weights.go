@@ -534,6 +534,20 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
+		if spec.Architecture == "jais2" {
+			for name, item := range map[string]*gguf.TensorInfo{
+				"attn_q.bias":      layer.AttentionQBias,
+				"attn_k.bias":      layer.AttentionKBias,
+				"attn_v.bias":      layer.AttentionVBias,
+				"attn_output.bias": layer.AttentionOutputBias,
+				"ffn_up.bias":      layer.FeedForwardUpBias,
+				"ffn_down.bias":    layer.FeedForwardDownBias,
+			} {
+				if item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				}
+			}
+		}
 	}
 	return result, nil
 }

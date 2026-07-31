@@ -846,6 +846,17 @@ models:
       - output-as-embedding-fallback
       - untied-output-projection
     real_model_validation: pending-fixture
+  jais2:
+    status: experimental
+    features:
+      - affine-layernorm
+      - neox-rope
+      - sequential-squared-relu
+      - required-projection-biases
+      - optional-tied-output
+    constraints:
+      - matching-query-and-kv-head-counts
+    real_model_validation: pending-fixture
   nemotron:
     status: experimental
     features:

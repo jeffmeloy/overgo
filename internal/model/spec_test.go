@@ -434,6 +434,27 @@ func TestReadNemotronSpec(t *testing.T) {
 	}
 }
 
+func TestReadJais2Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "jais2"),
+		metadata("jais2.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("jais2.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("jais2.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("jais2.feed_forward_length", gguf.ValueTypeUint32, uint32(14336)),
+		metadata("jais2.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("jais2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(32)),
+		metadata("jais2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("jais2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "jais2" || !spec.UsesLayerNorm() || spec.KeyLength != 128 {
+		t.Fatalf("unexpected Jais2 spec: %+v", spec)
+	}
+}
+
 func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),

@@ -704,6 +704,48 @@ func TestBuildDenseNemotronUsesAffineNormAndSquaredReLU(t *testing.T) {
 	}
 }
 
+func TestBuildDenseJais2UsesBiasesAndSquaredReLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "jais2", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQBias = builder.Input("q_bias", dtype.F32, tensor.MustShape(8))
+	weights.AttentionKBias = builder.Input("k_bias", dtype.F32, tensor.MustShape(8))
+	weights.AttentionVBias = builder.Input("v_bias", dtype.F32, tensor.MustShape(8))
+	weights.AttentionOutputBias = builder.Input("o_bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardUpBias = builder.Input("up_bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardDownBias = builder.Input("down_bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layerNorm, squaredReLU, neoX int
+	for _, node := range nodes {
+		if node == weights.FeedForwardGate {
+			t.Fatal("Jais2 graph unexpectedly consumes an FFN gate")
+		}
+		switch node.Op {
+		case tensor.OpLayerNorm:
+			layerNorm++
+		case tensor.OpReLUSquared:
+			squaredReLU++
+		case tensor.OpRoPENeoX:
+			neoX++
+		}
+	}
+	if layerNorm != 2 || squaredReLU != 1 || neoX != 2 {
+		t.Fatalf("Jais2 graph LayerNorm/squared-ReLU/NeoX = %d/%d/%d", layerNorm, squaredReLU, neoX)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

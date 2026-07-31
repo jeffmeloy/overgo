@@ -79,6 +79,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "arcee" &&
 		architecture != "baichuan" &&
 		architecture != "codeshell" &&
+		architecture != "jais2" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "smollm3" &&
@@ -460,6 +461,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 
 func (s Spec) UsesLayerNorm() bool {
 	return s.Architecture == "nemotron" ||
+		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
 		usesSequentialGELU(s.Architecture)
 }
@@ -522,6 +524,9 @@ func (s Spec) validate() error {
 		if sectionPairs == 0 || sectionPairs > int64(s.RopeDimensionCount/2) {
 			return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
 		}
+	}
+	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {
+		return errors.New("Jais2 requires matching attention and KV head counts")
 	}
 	if s.Architecture == "gemma3" {
 		switch {
@@ -621,7 +626,7 @@ func usesGateFreeFFN(architecture string) bool {
 }
 
 func usesSquaredReLU(architecture string) bool {
-	return architecture == "arcee" || architecture == "nemotron"
+	return architecture == "arcee" || architecture == "jais2" || architecture == "nemotron"
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

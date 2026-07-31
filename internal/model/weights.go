@@ -183,7 +183,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	outputNormName := "output_norm.weight"
 	if spec.Architecture == "t5encoder" {
 		outputNormName = "enc.output_norm.weight"
-	} else if spec.Architecture == "lfm2" {
+	} else if spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe" {
 		outputNormName = "token_embd_norm.weight"
 	}
 	if !spec.UsesUnweightedLayerNorm() {
@@ -548,7 +548,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					return Weights{}, err
 				}
 			}
-		} else if spec.Architecture == "lfm2" && spec.IsRecurrentLayer(block) {
+		} else if (spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && spec.IsRecurrentLayer(block) {
 			layer.Recurrent = true
 			for name, shapeAndDestination := range map[string]struct {
 				shape       []uint64
@@ -678,7 +678,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
-			(spec.Architecture == "lfm2" && !layer.Recurrent) {
+			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
 			if normErr != nil {
 				return Weights{}, normErr
@@ -904,6 +904,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "bailingmoe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||
+			(spec.Architecture == "lfm2moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
@@ -1019,6 +1020,16 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					*shapeAndDestination.destination = &item
 				}
+			}
+			if spec.Architecture == "lfm2moe" {
+				bias, biasErr := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				if bias.Type != dtype.F32 {
+					return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
+				}
+				layer.FeedForwardExpertBias = &bias
 			}
 			if spec.Architecture == "phimoe" && layer.AttentionOutputBias == nil {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")

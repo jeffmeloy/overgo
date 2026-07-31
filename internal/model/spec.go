@@ -122,6 +122,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "afmoe" &&
 		architecture != "laguna" &&
 		architecture != "lfm2" &&
+		architecture != "lfm2moe" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "exaone4" &&
@@ -220,7 +221,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.HeadCountKV = spec.LayerKVHeadCounts[0]
-	} else if architecture == "lfm2" {
+	} else if architecture == "lfm2" || architecture == "lfm2moe" {
 		counts, countErr := requiredArray[uint32](
 			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
 		)
@@ -782,7 +783,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
+	if isLlamaMoE || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -822,6 +823,19 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+	}
+	if architecture == "lfm2moe" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.ExpertGatingFunc, err = required[uint32](
+			values, prefix+"expert_gating_func", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
 	if architecture == "bailingmoe2" {
@@ -965,7 +979,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "lfm2" {
+	if architecture == "lfm2" || architecture == "lfm2moe" {
 		if spec.ShortConvCacheLength, err = required[uint32](
 			values, prefix+"shortconv.l_cache", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1061,7 +1075,7 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
-	if s.Architecture == "lfm2" {
+	if s.Architecture == "lfm2" || s.Architecture == "lfm2moe" {
 		return block < s.BlockCount && s.SlidingWindow > 0 && !s.IsRecurrentLayer(block)
 	}
 	if s.Architecture == "laguna" {
@@ -1357,7 +1371,7 @@ func (s Spec) validate() error {
 			return errors.New("EXAONE-MoE sliding attention metadata is invalid")
 		}
 	}
-	if s.Architecture == "lfm2" {
+	if s.Architecture == "lfm2" || s.Architecture == "lfm2moe" {
 		if s.ShortConvCacheLength < 2 || len(s.RecurrentLayers) != int(s.BlockCount) {
 			return errors.New("LFM2 short-convolution metadata is invalid")
 		}
@@ -1368,6 +1382,20 @@ func (s Spec) validate() error {
 		}
 		if !recurrent || !attention {
 			return errors.New("LFM2 requires both convolution and attention layers")
+		}
+		if s.Architecture == "lfm2moe" {
+			switch {
+			case s.LeadingDenseBlocks >= s.BlockCount:
+				return errors.New("LFM2-MoE leading dense block count leaves no MoE layers")
+			case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+				s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+				return errors.New("LFM2-MoE expert metadata is invalid")
+			case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+				return errors.New("LFM2-MoE expert routing function is unsupported")
+			case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+				math.IsInf(float64(s.ExpertWeightsScale), 0):
+				return errors.New("LFM2-MoE expert weight scale is invalid")
+			}
 		}
 	}
 	if s.Architecture == "plm" &&

@@ -438,6 +438,45 @@ func TestReadLFM2HybridSpec(t *testing.T) {
 	}
 }
 
+func TestReadLFM2MoEHybridSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "lfm2moe"),
+		metadata("lfm2moe.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("lfm2moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("lfm2moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("lfm2moe.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("lfm2moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("lfm2moe.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("lfm2moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("lfm2moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("lfm2moe.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("lfm2moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("lfm2moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "lfm2moe.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32,
+			Data: []uint32{0, 1, 0},
+		}},
+		metadata("lfm2moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("lfm2moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("lfm2moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("lfm2moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("lfm2moe.shortconv.l_cache", gguf.ValueTypeUint32, uint32(4)),
+		metadata("lfm2moe.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "lfm2moe" || spec.HeadCountKV != 1 ||
+		spec.ShortConvCacheLength != 4 || spec.LeadingDenseBlocks != 1 ||
+		spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+		spec.ExpertWeightsScale != 1.25 || spec.ExpertGatingFunc != 2 ||
+		!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(1) || !spec.IsRecurrentLayer(2) ||
+		!spec.IsSlidingLayer(1) {
+		t.Fatalf("unexpected LFM2-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadPLMMLASpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "plm"),

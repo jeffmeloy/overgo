@@ -504,6 +504,69 @@ func TestReadWeightsLFM2Hybrid(t *testing.T) {
 	}
 }
 
+func TestReadWeightsLFM2MoEDenseThenHybridMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "lfm2moe", BlockCount: 3, LeadingDenseBlocks: 1,
+		EmbeddingLength: 8, FeedForwardLength: 16,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1.25, ExpertGatingFunc: 2,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		ShortConvCacheLength: 4, RecurrentLayers: []bool{true, false, true},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_embd_norm.weight", 8),
+	}
+	for block := 0; block < 3; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+		)
+		if block == 0 {
+			tensors = append(tensors,
+				tensorInfo(prefix+"ffn_gate.weight", 8, 16),
+				tensorInfo(prefix+"ffn_up.weight", 8, 16),
+				tensorInfo(prefix+"ffn_down.weight", 16, 8),
+			)
+		} else {
+			tensors = append(tensors,
+				tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4),
+				tensorInfo(prefix+"ffn_gate_exps.weight", 8, 6, 4),
+				tensorInfo(prefix+"ffn_up_exps.weight", 8, 6, 4),
+				tensorInfo(prefix+"ffn_down_exps.weight", 6, 8, 4),
+				tensorInfo(prefix+"exp_probs_b.bias", 4),
+			)
+		}
+		if spec.RecurrentLayers[block] {
+			tensors = append(tensors,
+				tensorInfo(prefix+"shortconv.conv.weight", 4, 8),
+				tensorInfo(prefix+"shortconv.in_proj.weight", 8, 24),
+				tensorInfo(prefix+"shortconv.out_proj.weight", 8, 8),
+			)
+		} else {
+			tensors = append(tensors,
+				tensorInfo(prefix+"attn_q.weight", 8, 8),
+				tensorInfo(prefix+"attn_k.weight", 8, 4),
+				tensorInfo(prefix+"attn_v.weight", 8, 4),
+				tensorInfo(prefix+"attn_output.weight", 8, 8),
+				tensorInfo(prefix+"attn_q_norm.weight", 4),
+				tensorInfo(prefix+"attn_k_norm.weight", 4),
+			)
+		}
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !weights.Layers[0].Recurrent || weights.Layers[0].FeedForwardRouter != nil ||
+		weights.Layers[1].Recurrent || weights.Layers[1].AttentionQNorm == nil ||
+		weights.Layers[1].FeedForwardRouter == nil || weights.Layers[1].FeedForwardExpertBias == nil ||
+		!weights.Layers[2].Recurrent || weights.Layers[2].ShortConvKernel == nil ||
+		weights.Layers[2].FeedForwardRouter == nil || weights.Layers[2].FeedForwardExpertBias == nil {
+		t.Fatalf("unexpected LFM2-MoE weights: %+v", weights.Layers)
+	}
+}
+
 func TestReadWeightsPLMMLA(t *testing.T) {
 	spec := Spec{
 		Architecture: "plm", BlockCount: 1, EmbeddingLength: 8,

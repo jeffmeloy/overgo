@@ -81,7 +81,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		)
 	}
 	for index, layer := range cache.Layers {
-		if r.spec.Architecture == "lfm2" &&
+		if (r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe") &&
 			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent {
 			convShape := tensor.MustShape(
 				uint64(r.spec.ShortConvCacheLength-1), uint64(r.spec.EmbeddingLength),

@@ -968,7 +968,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		Position: nextPosition + uint32(len(tokenIDs)),
 	}
 	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" &&
-		r.spec.Architecture != "lfm2" && r.spec.Architecture != "plm" {
+		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" {
 		return r.forwardDenseLayersPreloaded(ctx, activation, positions, cache, nextCache)
 	}
 	for layerIndex, layerInfo := range r.weights.Layers {
@@ -1249,7 +1249,7 @@ func (r *Runner) runLayerCached(
 			past,
 		)
 	}
-	if r.spec.Architecture == "lfm2" {
+	if r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe" {
 		return r.runLFM2LayerCached(ctx, activation, info, layerIndex, positions, past)
 	}
 	builder := tensor.NewBuilder()
@@ -1748,7 +1748,7 @@ func (r *Runner) Generate(
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
-		r.spec.Architecture != "plm"
+		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {

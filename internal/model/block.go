@@ -293,10 +293,8 @@ func BuildPLMBlockCached(
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
-// BuildLFM2BlockCached: constructs either attention block or LFM2 gated
-// short-convolution block; Recurrent blocks keep their convolution window in
-// Key; Value is one-element reserved state so common hybrid-cache ABI
-// remains stable
+// BuildLFM2BlockCached: attention or gated short-convolution block
+// Recurrent cache: Key convolution window; Value reserved ABI slot
 func BuildLFM2BlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -307,8 +305,8 @@ func BuildLFM2BlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (LFM2BlockResult, error) {
-	if spec.Architecture != "lfm2" {
-		return LFM2BlockResult{}, errors.New("LFM2 block requires lfm2 architecture")
+	if spec.Architecture != "lfm2" && spec.Architecture != "lfm2moe" {
+		return LFM2BlockResult{}, errors.New("LFM2 block requires lfm2 or lfm2moe architecture")
 	}
 	if !recurrent {
 		result, err := BuildDenseBlockCachedForLayer(
@@ -327,9 +325,18 @@ func BuildLFM2BlockCached(
 		"short-convolution kernel": weights.ShortConvKernel,
 		"short-convolution output": weights.ShortConvOutput,
 		"feed-forward norm":        weights.FeedForwardNorm,
-		"feed-forward gate":        weights.FeedForwardGate,
-		"feed-forward up":          weights.FeedForwardUp,
-		"feed-forward down":        weights.FeedForwardDown,
+	}
+	usesExperts := weights.FeedForwardRouter != nil
+	if usesExperts {
+		required["feed-forward router"] = weights.FeedForwardRouter
+		required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+		required["feed-forward expert up"] = weights.FeedForwardUpExperts
+		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
+	} else {
+		required["feed-forward gate"] = weights.FeedForwardGate
+		required["feed-forward up"] = weights.FeedForwardUp
+		required["feed-forward down"] = weights.FeedForwardDown
 	}
 	for name, item := range required {
 		if item == nil {
@@ -359,9 +366,28 @@ func BuildLFM2BlockCached(
 	shortConv := builder.MulMat(weights.ShortConvOutput, builder.Multiply(c, convolved))
 	residual := builder.Add(input, shortConv)
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	gate := builder.MulMat(weights.FeedForwardGate, normalized)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	var feedForward *tensor.Tensor
+	if usesExperts {
+		if spec.ExpertGatingFunc == 2 {
+			feedForward = builder.MoESigmoid(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+			)
+		} else {
+			feedForward = builder.MoESoftmaxWithSelectionBias(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+			)
+		}
+	} else {
+		gate := builder.MulMat(weights.FeedForwardGate, normalized)
+		up := builder.MulMat(weights.FeedForwardUp, normalized)
+		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	}
 	output := builder.Add(residual, feedForward)
 	nextReserved := builder.Scale(pastValue, 1)
 	if err := builder.Err(); err != nil {
@@ -432,6 +458,7 @@ func BuildDenseBlockCachedForLayer(
 	isAFMoE := spec.Architecture == "afmoe"
 	isBailingMoE := spec.Architecture == "bailingmoe"
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
+	isLFM2MoE := spec.Architecture == "lfm2moe"
 	isQwen2MoE := spec.Architecture == "qwen2moe"
 	headCount := spec.LayerHeadCount(layerIndex)
 	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
@@ -445,7 +472,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isBailingMoE && !isBailingMoE2 && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isBailingMoE && !isBailingMoE2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -475,6 +502,9 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		}
+		if isLFM2MoE {
+			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
 		}
 	} else {
 		required["feed-forward up"] = weights.FeedForwardUp
@@ -655,7 +685,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || spec.Architecture == "exaone4" || isEXAOneMoE || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || spec.Architecture == "exaone4" || isEXAOneMoE || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -938,7 +968,7 @@ func BuildDenseBlockCachedForLayer(
 	// and FFN run in parallel before both branches are added to residual
 	if usesExperts {
 		var feedForward *tensor.Tensor
-		if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2) && spec.ExpertGatingFunc == 2) {
+		if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE) && spec.ExpertGatingFunc == 2) {
 			feedForward = builder.MoESigmoid(
 				normalized, weights.FeedForwardRouter,
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
@@ -953,7 +983,7 @@ func BuildDenseBlockCachedForLayer(
 				)
 				feedForward = builder.Add(feedForward, shared)
 			}
-		} else if isEXAOneMoE || isBailingMoE2 {
+		} else if isEXAOneMoE || isBailingMoE2 || isLFM2MoE {
 			if weights.FeedForwardExpertBias != nil {
 				feedForward = builder.MoESoftmaxWithSelectionBias(
 					normalized, weights.FeedForwardRouter,

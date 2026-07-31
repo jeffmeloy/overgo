@@ -13,7 +13,7 @@ const (
 	BundleTarget = "compute_89"
 
 	VectorAddSHA256 = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	OpsF32SHA256    = "4ed2a9416fed65a486cb25cefd24d066002a50e28f616547a258463e6cc249f2"
+	OpsF32SHA256    = "5f780bb61222e3185ffef92453103a232ae638003d6515e7dba661471a27c533"
 )
 
 // ValidateAssets fails closed when embedded PTX differs from the kernel bundle

@@ -10,42 +10,46 @@ import (
 
 // LayerWeights is the initial dense transformer weight set.
 type LayerWeights struct {
-	Recurrent             bool
-	AttentionNorm         gguf.TensorInfo
-	AttentionNormBias     *gguf.TensorInfo
-	AttentionNorm2        *gguf.TensorInfo
-	AttentionNorm2Bias    *gguf.TensorInfo
-	AttentionQ            gguf.TensorInfo
-	AttentionK            gguf.TensorInfo
-	AttentionV            gguf.TensorInfo
-	AttentionOutput       gguf.TensorInfo
-	AttentionQScale       *gguf.TensorInfo
-	AttentionKScale       *gguf.TensorInfo
-	AttentionVScale       *gguf.TensorInfo
-	AttentionOutputScale  *gguf.TensorInfo
-	AttentionSubNorm      *gguf.TensorInfo
-	AttentionQBias        *gguf.TensorInfo
-	AttentionKBias        *gguf.TensorInfo
-	AttentionVBias        *gguf.TensorInfo
-	AttentionOutputBias   *gguf.TensorInfo
-	AttentionQNorm        *gguf.TensorInfo
-	AttentionKNorm        *gguf.TensorInfo
-	AttentionPostNorm     *gguf.TensorInfo
-	AttentionRelativeBias *gguf.TensorInfo
-	RopeFactors           *gguf.TensorInfo
-	FeedForwardNorm       gguf.TensorInfo
-	FeedForwardNormBias   *gguf.TensorInfo
-	FeedForwardGate       gguf.TensorInfo
-	FeedForwardUp         gguf.TensorInfo
-	FeedForwardDown       gguf.TensorInfo
-	FeedForwardGateScale  *gguf.TensorInfo
-	FeedForwardUpScale    *gguf.TensorInfo
-	FeedForwardDownScale  *gguf.TensorInfo
-	FeedForwardSubNorm    *gguf.TensorInfo
-	FeedForwardGateBias   *gguf.TensorInfo
-	FeedForwardUpBias     *gguf.TensorInfo
-	FeedForwardDownBias   *gguf.TensorInfo
-	FeedForwardPostNorm   *gguf.TensorInfo
+	Recurrent              bool
+	AttentionNorm          gguf.TensorInfo
+	AttentionNormBias      *gguf.TensorInfo
+	AttentionNorm2         *gguf.TensorInfo
+	AttentionNorm2Bias     *gguf.TensorInfo
+	AttentionQ             gguf.TensorInfo
+	AttentionK             gguf.TensorInfo
+	AttentionV             gguf.TensorInfo
+	AttentionOutput        gguf.TensorInfo
+	AttentionQScale        *gguf.TensorInfo
+	AttentionKScale        *gguf.TensorInfo
+	AttentionVScale        *gguf.TensorInfo
+	AttentionOutputScale   *gguf.TensorInfo
+	AttentionSubNorm       *gguf.TensorInfo
+	AttentionQBias         *gguf.TensorInfo
+	AttentionKBias         *gguf.TensorInfo
+	AttentionVBias         *gguf.TensorInfo
+	AttentionOutputBias    *gguf.TensorInfo
+	AttentionQNorm         *gguf.TensorInfo
+	AttentionKNorm         *gguf.TensorInfo
+	AttentionPostNorm      *gguf.TensorInfo
+	AttentionRelativeBias  *gguf.TensorInfo
+	RopeFactors            *gguf.TensorInfo
+	FeedForwardNorm        gguf.TensorInfo
+	FeedForwardNormBias    *gguf.TensorInfo
+	FeedForwardGate        gguf.TensorInfo
+	FeedForwardUp          gguf.TensorInfo
+	FeedForwardDown        gguf.TensorInfo
+	FeedForwardGateScale   *gguf.TensorInfo
+	FeedForwardUpScale     *gguf.TensorInfo
+	FeedForwardDownScale   *gguf.TensorInfo
+	FeedForwardSubNorm     *gguf.TensorInfo
+	FeedForwardGateBias    *gguf.TensorInfo
+	FeedForwardUpBias      *gguf.TensorInfo
+	FeedForwardDownBias    *gguf.TensorInfo
+	FeedForwardPostNorm    *gguf.TensorInfo
+	FeedForwardRouter      *gguf.TensorInfo
+	FeedForwardGateExperts *gguf.TensorInfo
+	FeedForwardUpExperts   *gguf.TensorInfo
+	FeedForwardDownExperts *gguf.TensorInfo
 
 	AttentionQKV     *gguf.TensorInfo
 	AttentionQKVBias *gguf.TensorInfo
@@ -593,7 +597,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
@@ -759,6 +763,36 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
+		}
+		if spec.Architecture == "qwen3moe" {
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"ffn_gate_inp.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)},
+					&layer.FeedForwardRouter,
+				},
+				"ffn_gate_exps.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)},
+					&layer.FeedForwardGateExperts,
+				},
+				"ffn_up_exps.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)},
+					&layer.FeedForwardUpExperts,
+				},
+				"ffn_down_exps.weight": {
+					[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)},
+					&layer.FeedForwardDownExperts,
+				},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
+			continue
 		}
 		if !usesGateFreeFFN(spec.Architecture) {
 			if layer.FeedForwardGate, err = required(

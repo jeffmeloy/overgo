@@ -36,6 +36,10 @@ type Spec struct {
 	RMSNormEpsilon        float32
 	LayerNormEpsilon      float32
 	VocabularySize        uint32
+	ExpertCount           uint32
+	ExpertUsedCount       uint32
+	ExpertFeedForward     uint32
+	ExpertWeightsScale    float32
 	SlidingWindow         uint32
 	SlidingPattern        uint32
 	RelativeBuckets       uint32
@@ -117,6 +121,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
+		architecture != "qwen3moe" &&
 		architecture != "qwen35" && architecture != "gemma" &&
 		architecture != "refact" &&
 		architecture != "gemma2" &&
@@ -623,6 +628,33 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
+	if architecture == "qwen3moe" {
+		if spec.ExpertCount, err = required[uint32](
+			values, prefix+"expert_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.ExpertUsedCount, err = required[uint32](
+			values, prefix+"expert_used_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.ExpertUsedCount == 0 {
+			return Spec{}, errors.New("Qwen3-MoE expert used count is zero")
+		}
+		spec.ExpertFeedForward = spec.FeedForwardLength / spec.ExpertUsedCount
+		if value, ok := optional[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); ok {
+			spec.ExpertFeedForward = value
+		}
+		spec.ExpertWeightsScale = 1
+		if value, ok := optional[float32](
+			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
+		); ok {
+			spec.ExpertWeightsScale = value
+		}
+	}
 	if architecture == "gemma2" || architecture == "gemma3" ||
 		architecture == "olmo2" || architecture == "cohere2" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
@@ -808,6 +840,14 @@ func (s Spec) validate() error {
 		if sectionPairs == 0 || sectionPairs > int64(s.RopeDimensionCount/2) {
 			return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
 		}
+	}
+	if s.Architecture == "qwen3moe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
+			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+			s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||
+			math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("Qwen3-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {
 		return errors.New("Jais2 requires matching attention and KV head counts")

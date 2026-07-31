@@ -10,41 +10,45 @@ import (
 
 // LayerGraphWeights are the graph inputs for one dense Llama/Qwen3 block.
 type LayerGraphWeights struct {
-	AttentionNorm         *tensor.Tensor
-	AttentionNormBias     *tensor.Tensor
-	AttentionNorm2        *tensor.Tensor
-	AttentionNorm2Bias    *tensor.Tensor
-	AttentionQ            *tensor.Tensor
-	AttentionK            *tensor.Tensor
-	AttentionV            *tensor.Tensor
-	AttentionOutput       *tensor.Tensor
-	AttentionQScale       *tensor.Tensor
-	AttentionKScale       *tensor.Tensor
-	AttentionVScale       *tensor.Tensor
-	AttentionOutputScale  *tensor.Tensor
-	AttentionSubNorm      *tensor.Tensor
-	AttentionQBias        *tensor.Tensor
-	AttentionKBias        *tensor.Tensor
-	AttentionVBias        *tensor.Tensor
-	AttentionOutputBias   *tensor.Tensor
-	AttentionQNorm        *tensor.Tensor
-	AttentionKNorm        *tensor.Tensor
-	AttentionPostNorm     *tensor.Tensor
-	AttentionRelativeBias *tensor.Tensor
-	RopeFactors           *tensor.Tensor
-	FeedForwardNorm       *tensor.Tensor
-	FeedForwardNormBias   *tensor.Tensor
-	FeedForwardGate       *tensor.Tensor
-	FeedForwardUp         *tensor.Tensor
-	FeedForwardDown       *tensor.Tensor
-	FeedForwardGateScale  *tensor.Tensor
-	FeedForwardUpScale    *tensor.Tensor
-	FeedForwardDownScale  *tensor.Tensor
-	FeedForwardSubNorm    *tensor.Tensor
-	FeedForwardGateBias   *tensor.Tensor
-	FeedForwardUpBias     *tensor.Tensor
-	FeedForwardDownBias   *tensor.Tensor
-	FeedForwardPostNorm   *tensor.Tensor
+	AttentionNorm          *tensor.Tensor
+	AttentionNormBias      *tensor.Tensor
+	AttentionNorm2         *tensor.Tensor
+	AttentionNorm2Bias     *tensor.Tensor
+	AttentionQ             *tensor.Tensor
+	AttentionK             *tensor.Tensor
+	AttentionV             *tensor.Tensor
+	AttentionOutput        *tensor.Tensor
+	AttentionQScale        *tensor.Tensor
+	AttentionKScale        *tensor.Tensor
+	AttentionVScale        *tensor.Tensor
+	AttentionOutputScale   *tensor.Tensor
+	AttentionSubNorm       *tensor.Tensor
+	AttentionQBias         *tensor.Tensor
+	AttentionKBias         *tensor.Tensor
+	AttentionVBias         *tensor.Tensor
+	AttentionOutputBias    *tensor.Tensor
+	AttentionQNorm         *tensor.Tensor
+	AttentionKNorm         *tensor.Tensor
+	AttentionPostNorm      *tensor.Tensor
+	AttentionRelativeBias  *tensor.Tensor
+	RopeFactors            *tensor.Tensor
+	FeedForwardNorm        *tensor.Tensor
+	FeedForwardNormBias    *tensor.Tensor
+	FeedForwardGate        *tensor.Tensor
+	FeedForwardUp          *tensor.Tensor
+	FeedForwardDown        *tensor.Tensor
+	FeedForwardGateScale   *tensor.Tensor
+	FeedForwardUpScale     *tensor.Tensor
+	FeedForwardDownScale   *tensor.Tensor
+	FeedForwardSubNorm     *tensor.Tensor
+	FeedForwardGateBias    *tensor.Tensor
+	FeedForwardUpBias      *tensor.Tensor
+	FeedForwardDownBias    *tensor.Tensor
+	FeedForwardPostNorm    *tensor.Tensor
+	FeedForwardRouter      *tensor.Tensor
+	FeedForwardGateExperts *tensor.Tensor
+	FeedForwardUpExperts   *tensor.Tensor
+	FeedForwardDownExperts *tensor.Tensor
 
 	AttentionQKV     *tensor.Tensor
 	AttentionQKVBias *tensor.Tensor
@@ -236,9 +240,20 @@ func BuildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, errors.New("Apertus xIELU parameters are missing for layer")
 	}
 	required := map[string]*tensor.Tensor{
-		"attention output":  weights.AttentionOutput,
-		"feed-forward up":   weights.FeedForwardUp,
-		"feed-forward down": weights.FeedForwardDown,
+		"attention output": weights.AttentionOutput,
+	}
+	usesExperts := weights.FeedForwardRouter != nil
+	if usesExperts {
+		if spec.Architecture != "qwen3moe" {
+			return DenseBlockResult{}, errors.New("dense block expert weights require qwen3moe architecture")
+		}
+		required["feed-forward router"] = weights.FeedForwardRouter
+		required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+		required["feed-forward expert up"] = weights.FeedForwardUpExperts
+		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+	} else {
+		required["feed-forward up"] = weights.FeedForwardUp
+		required["feed-forward down"] = weights.FeedForwardDown
 	}
 	if weights.AttentionQKV != nil {
 		required["attention QKV"] = weights.AttentionQKV
@@ -260,7 +275,7 @@ func BuildDenseBlockCachedForLayer(
 		required["attention sub norm"] = weights.AttentionSubNorm
 		required["feed-forward sub norm"] = weights.FeedForwardSubNorm
 	}
-	if !usesGateFreeFFN(spec.Architecture) {
+	if !usesExperts && !usesGateFreeFFN(spec.Architecture) {
 		required["feed-forward gate"] = weights.FeedForwardGate
 	} else if usesSequentialGELU(spec.Architecture) {
 		required["attention output bias"] = weights.AttentionOutputBias
@@ -387,7 +402,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 
-	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -624,6 +639,23 @@ func BuildDenseBlockCachedForLayer(
 	}
 	// Cohere decoders leave normalized pointing at the block input so attention
 	// and FFN run in parallel before both branches are added to the residual.
+	if usesExperts {
+		feedForward := builder.MoE(
+			normalized,
+			weights.FeedForwardRouter,
+			weights.FeedForwardGateExperts,
+			weights.FeedForwardUpExperts,
+			weights.FeedForwardDownExperts,
+			spec.ExpertUsedCount,
+			true,
+			spec.ExpertWeightsScale,
+		)
+		output := builder.Add(residual, feedForward)
+		if err := builder.Err(); err != nil {
+			return DenseBlockResult{}, err
+		}
+		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	}
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	if weights.FeedForwardUpScale != nil {
 		up = builder.Multiply(up, weights.FeedForwardUpScale)

@@ -43,6 +43,55 @@ func TestBuildDenseQwen3Block(t *testing.T) {
 	}
 }
 
+func TestBuildDenseQwen3MoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:       "qwen3moe",
+		EmbeddingLength:    8,
+		FeedForwardLength:  24,
+		ExpertCount:        4,
+		ExpertUsedCount:    2,
+		ExpertFeedForward:  12,
+		ExpertWeightsScale: 1.25,
+		HeadCount:          2,
+		HeadCountKV:        1,
+		KeyLength:          4,
+		ValueLength:        4,
+		RopeFrequencyBase:  1_000_000,
+		RMSNormEpsilon:     1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := denseBlockInputs(builder, spec)
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUp = nil
+	weights.FeedForwardDown = nil
+	weights.FeedForwardRouter = builder.Input("ffn_router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("ffn_gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardUpExperts = builder.Input("ffn_up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardDownExperts = builder.Input("ffn_down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			moe = node
+		}
+	}
+	if moe == nil {
+		t.Fatalf("Qwen3-MoE graph is missing configured MoE operation: %+v", moe)
+	}
+	attributes := moe.Attrs.(tensor.MoEAttributes)
+	if attributes.TopK != 2 || attributes.Scale != 1.25 || !attributes.NormalizeTopKProb {
+		t.Fatalf("unexpected Qwen3-MoE attributes: %+v", attributes)
+	}
+}
+
 func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

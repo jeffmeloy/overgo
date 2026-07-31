@@ -171,6 +171,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return ssmConv(node.Shape, inputs[0], inputs[1])
 	case tensor.OpGatedDeltaNet:
 		return gatedDeltaNet(node.Shape, inputs)
+	case tensor.OpMoE:
+		attributes, ok := node.Attrs.(tensor.MoEAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid MoE attributes")
+		}
+		return moe(node.Shape, inputs, attributes)
 	case tensor.OpTranspose2D:
 		return transpose2D(node.Shape, inputs[0])
 	case tensor.OpGroupSlice:
@@ -760,6 +766,84 @@ func ropeMulti(
 					output[offset+pair+half] = x0*sine + x1*cosine
 				}
 			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (Value, error) {
+	if len(inputs) != 5 {
+		return Value{}, errors.New("MoE requires five inputs")
+	}
+	input, router, gate, up, down := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+	hidden := int(input.Shape.Dims[0])
+	tokens := int(input.Shape.Dims[1])
+	experts := int(attributes.Experts)
+	topK := int(attributes.TopK)
+	intermediate := int(gate.Shape.Dims[1])
+	if hidden <= 0 || tokens <= 0 || experts <= 0 || topK <= 0 || topK > experts {
+		return Value{}, errors.New("invalid MoE dimensions")
+	}
+	output := make([]float32, hidden*tokens)
+	logits := make([]float64, experts)
+	selected := make([]int, topK)
+	weights := make([]float64, topK)
+	used := make([]bool, experts)
+	for token := 0; token < tokens; token++ {
+		x := input.Data[token*hidden : (token+1)*hidden]
+		maximum := math.Inf(-1)
+		for expert := 0; expert < experts; expert++ {
+			var dot float64
+			for channel := 0; channel < hidden; channel++ {
+				dot += float64(x[channel]) * float64(router.Data[expert*hidden+channel])
+			}
+			logits[expert] = dot
+			maximum = math.Max(maximum, dot)
+		}
+		var denominator float64
+		for _, logit := range logits {
+			denominator += math.Exp(logit - maximum)
+		}
+		clear(used)
+		var selectedSum float64
+		for slot := 0; slot < topK; slot++ {
+			best := -1
+			bestLogit := math.Inf(-1)
+			for expert, logit := range logits {
+				if !used[expert] && (best < 0 || logit > bestLogit) {
+					best, bestLogit = expert, logit
+				}
+			}
+			used[best] = true
+			selected[slot] = best
+			weights[slot] = math.Exp(bestLogit-maximum) / denominator
+			selectedSum += weights[slot]
+		}
+		for slot := range topK {
+			if attributes.NormalizeTopKProb && topK > 1 {
+				weights[slot] = weights[slot] / selectedSum * float64(attributes.Scale)
+			} else {
+				weights[slot] *= float64(attributes.Scale)
+			}
+		}
+		for outputChannel := 0; outputChannel < hidden; outputChannel++ {
+			var routed float64
+			for slot, expert := range selected {
+				var expertOutput float64
+				for inner := 0; inner < intermediate; inner++ {
+					base := (expert*intermediate + inner) * hidden
+					var gateDot, upDot float64
+					for channel := 0; channel < hidden; channel++ {
+						gateDot += float64(x[channel]) * float64(gate.Data[base+channel])
+						upDot += float64(x[channel]) * float64(up.Data[base+channel])
+					}
+					activation := gateDot / (1 + math.Exp(-gateDot)) * upDot
+					downIndex := (expert*hidden+outputChannel)*intermediate + inner
+					expertOutput += activation * float64(down.Data[downIndex])
+				}
+				routed += weights[slot] * expertOutput
+			}
+			output[token*hidden+outputChannel] = float32(routed)
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil

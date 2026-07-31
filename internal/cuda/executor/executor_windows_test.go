@@ -86,6 +86,66 @@ func TestExecutorMatchesReference(t *testing.T) {
 	compare(t, got[xielu].Data, want[xielu].Data, 2e-5)
 }
 
+func TestExecutorMoEMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 2))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 3))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 2, 3))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 2, 3))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(2, 2, 3))
+	output := builder.MoE(input, router, gate, up, down, 2, true, 1.25)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	value := func(shape tensor.Shape, data []float32) reference.Value {
+		result, err := reference.NewValue(shape, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input: value(input.Shape, []float32{0.5, -1, 1.5, 0.25}),
+		router: value(router.Shape, []float32{
+			1, -0.5,
+			-0.25, 0.75,
+			0.5, 0.5,
+		}),
+		gate: value(gate.Shape, []float32{
+			1, 0, 0, 1,
+			0.5, -0.5, 1, 0.25,
+			-1, 0.5, 0.25, 1,
+		}),
+		up: value(up.Shape, []float32{
+			0.25, 1, -0.5, 0.75,
+			1, 0.5, 0.5, -1,
+			0.75, -0.25, 1, 0.5,
+		}),
+		down: value(down.Shape, []float32{
+			1, -0.5, 0.25, 0.75,
+			-0.25, 1, 0.5, -0.75,
+			0.75, 0.25, -1, 0.5,
+		}),
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 5e-5)
+}
+
 func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

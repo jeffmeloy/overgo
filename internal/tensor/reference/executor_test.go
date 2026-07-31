@@ -327,6 +327,49 @@ func TestExecuteAttentionALiBiMatchesLlamaSlope(t *testing.T) {
 	}
 }
 
+func TestExecuteMoETopKNormalization(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
+	output := builder.MoE(input, router, gate, up, down, 2, true, 1)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	values := func(shape tensor.Shape, data []float32) Value {
+		value, err := NewValue(shape, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:  values(input.Shape, []float32{1, 0}),
+		router: values(router.Shape, []float32{1, 0, 0, 0}),
+		gate:   values(gate.Shape, []float32{1, 0, 2, 0}),
+		up:     values(up.Shape, []float32{1, 0, 1, 0}),
+		down:   values(down.Shape, []float32{1, 2, 3, 4}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p0 := math.Exp(1) / (math.Exp(1) + 1)
+	p1 := 1 - p0
+	wantActivation0 := 1 / (1 + math.Exp(-1))
+	wantActivation1 := 2 / (1 + math.Exp(-2))
+	want := []float32{
+		float32(p0*wantActivation0 + p1*3*wantActivation1),
+		float32(p0*2*wantActivation0 + p1*4*wantActivation1),
+	}
+	for index, got := range results[output].Data {
+		if math.Abs(float64(got-want[index])) > 1e-5 {
+			t.Fatalf("MoE output[%d] = %v, want %v", index, got, want[index])
+		}
+	}
+}
+
 func TestExecuteRoPEMulti(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))

@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "2528b1df5360e6db940cb3f106655db1f02100a884ea9e0dee0ce76b05af6b07",
+      "sourceSha256": "2da53fe0cb1b62d2a760885825f15e60a90a3346aebea9ef6d151615337b6d1b",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "4ed2a9416fed65a486cb25cefd24d066002a50e28f616547a258463e6cc249f2",
+      "assetSha256": "5f780bb61222e3185ffef92453103a232ae638003d6515e7dba661471a27c533",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -68,6 +68,7 @@
         "layer_norm_f32",
         "softmax_f32",
         "mul_mat_f32",
+        "moe_f32",
         "get_rows_f32",
         "rope_neox_f32",
         "rope_normal_f32",
@@ -331,6 +332,27 @@
             "mul_mat_iq1_s_f32",
             "mul_mat_iq1_m_f32",
             "mul_mat_q6_K_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32"
+          ],
+          "functions": [
+            "moe_f32"
           ]
         },
         {

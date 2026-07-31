@@ -678,6 +678,7 @@ type functionSet struct {
 	l2Norm            driver.Function
 	ssmConv           driver.Function
 	gatedDeltaNet     driver.Function
+	moe               driver.Function
 	transpose2D       driver.Function
 	groupSlice        driver.Function
 	flatSlice         driver.Function
@@ -847,6 +848,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"l2_norm_f32", &result.l2Norm},
 		{"ssm_conv_f32", &result.ssmConv},
 		{"gated_delta_net_f32", &result.gatedDeltaNet},
+		{"moe_f32", &result.moe},
 		{"transpose_2d_f32", &result.transpose2D},
 		{"group_slice_f32", &result.groupSlice},
 		{"flat_slice_f32", &result.flatSlice},
@@ -1215,6 +1217,49 @@ func launchNode(
 		runtime.KeepAlive(tokens)
 		runtime.KeepAlive(sequences)
 		runtime.KeepAlive(gateWidth)
+		return err
+	case tensor.OpMoE:
+		attributes, ok := node.Attrs.(tensor.MoEAttributes)
+		if !ok || len(node.Inputs) != 5 {
+			return errors.New("invalid MoE attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		hidden, err := uint32Checked(node.Shape.Dims[0], "MoE hidden width")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(node.Shape.Dims[1], "MoE token count")
+		if err != nil {
+			return err
+		}
+		intermediate, err := uint32Checked(node.Inputs[2].Shape.Dims[1], "MoE intermediate width")
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		router := pointers[node.Inputs[1]]
+		gate := pointers[node.Inputs[2]]
+		up := pointers[node.Inputs[3]]
+		down := pointers[node.Inputs[4]]
+		experts := attributes.Experts
+		topK := attributes.TopK
+		var normalize uint32
+		if attributes.NormalizeTopKProb {
+			normalize = 1
+		}
+		scale := attributes.Scale
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&router), unsafe.Pointer(&gate),
+			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&output),
+			unsafe.Pointer(&hidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
+			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
+			unsafe.Pointer(&scale), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.moe, count, args)
+		runtime.KeepAlive(args)
 		return err
 	case tensor.OpTranspose2D:
 		count, err := elementCount32(node.Shape)

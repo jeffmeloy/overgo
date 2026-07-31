@@ -619,6 +619,96 @@ extern "C" __global__ void rope_multi_f32(
         : x0 * sine + x1 * cosine;
 }
 
+extern "C" __global__ void moe_f32(
+        const float * input,
+        const float * router,
+        const float * gate,
+        const float * up,
+        const float * down,
+        float * output,
+        unsigned int hidden,
+        unsigned int tokens,
+        unsigned int experts,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int normalize_top_k,
+        float routed_scale,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int output_channel = index % hidden;
+    const unsigned int token = index / hidden;
+    const float * x = input + (size_t) token * hidden;
+
+    float maximum = -3.402823466e+38F;
+    for (unsigned int expert = 0; expert < experts; ++expert) {
+        const float * weight = router + (size_t) expert * hidden;
+        float logit = 0.0f;
+        for (unsigned int channel = 0; channel < hidden; ++channel) {
+            logit += x[channel] * weight[channel];
+        }
+        maximum = fmaxf(maximum, logit);
+    }
+    float denominator = 0.0f;
+    for (unsigned int expert = 0; expert < experts; ++expert) {
+        const float * weight = router + (size_t) expert * hidden;
+        float logit = 0.0f;
+        for (unsigned int channel = 0; channel < hidden; ++channel) {
+            logit += x[channel] * weight[channel];
+        }
+        denominator += expf(logit - maximum);
+    }
+
+    unsigned int selected[16];
+    float route_weights[16];
+    float selected_sum = 0.0f;
+    for (unsigned int slot = 0; slot < top_k; ++slot) {
+        int best = -1;
+        float best_logit = -3.402823466e+38F;
+        for (unsigned int expert = 0; expert < experts; ++expert) {
+            bool used = false;
+            for (unsigned int prior = 0; prior < slot; ++prior) {
+                used = used || selected[prior] == expert;
+            }
+            if (used) continue;
+            const float * weight = router + (size_t) expert * hidden;
+            float logit = 0.0f;
+            for (unsigned int channel = 0; channel < hidden; ++channel) {
+                logit += x[channel] * weight[channel];
+            }
+            if (best < 0 || logit > best_logit) {
+                best = (int) expert;
+                best_logit = logit;
+            }
+        }
+        selected[slot] = (unsigned int) best;
+        route_weights[slot] = expf(best_logit - maximum) / denominator;
+        selected_sum += route_weights[slot];
+    }
+
+    float result = 0.0f;
+    for (unsigned int slot = 0; slot < top_k; ++slot) {
+        const unsigned int expert = selected[slot];
+        float route = route_weights[slot] * routed_scale;
+        if (normalize_top_k && top_k > 1) route /= selected_sum;
+        float expert_output = 0.0f;
+        for (unsigned int inner = 0; inner < intermediate; ++inner) {
+            const size_t weight_offset = ((size_t) expert * intermediate + inner) * hidden;
+            float gate_dot = 0.0f;
+            float up_dot = 0.0f;
+            for (unsigned int channel = 0; channel < hidden; ++channel) {
+                gate_dot += x[channel] * gate[weight_offset + channel];
+                up_dot += x[channel] * up[weight_offset + channel];
+            }
+            const float activation = gate_dot / (1.0f + expf(-gate_dot)) * up_dot;
+            const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + inner;
+            expert_output += activation * down[down_offset];
+        }
+        result += route * expert_output;
+    }
+    output[index] = result;
+}
+
 extern "C" __global__ void attention_f32(
         const float * query,
         const float * key,

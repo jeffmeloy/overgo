@@ -15,41 +15,45 @@ import (
 
 // HostLayer is one dense layer dequantized to contiguous F32 values.
 type HostLayer struct {
-	AttentionNorm         reference.Value
-	AttentionNormBias     *reference.Value
-	AttentionNorm2        *reference.Value
-	AttentionNorm2Bias    *reference.Value
-	AttentionQ            reference.Value
-	AttentionK            reference.Value
-	AttentionV            reference.Value
-	AttentionOutput       reference.Value
-	AttentionQScale       *reference.Value
-	AttentionKScale       *reference.Value
-	AttentionVScale       *reference.Value
-	AttentionOutputScale  *reference.Value
-	AttentionSubNorm      *reference.Value
-	AttentionQBias        *reference.Value
-	AttentionKBias        *reference.Value
-	AttentionVBias        *reference.Value
-	AttentionOutputBias   *reference.Value
-	AttentionQNorm        *reference.Value
-	AttentionKNorm        *reference.Value
-	AttentionPostNorm     *reference.Value
-	AttentionRelativeBias *reference.Value
-	RopeFactors           *reference.Value
-	FeedForwardNorm       reference.Value
-	FeedForwardNormBias   *reference.Value
-	FeedForwardGate       reference.Value
-	FeedForwardUp         reference.Value
-	FeedForwardDown       reference.Value
-	FeedForwardGateScale  *reference.Value
-	FeedForwardUpScale    *reference.Value
-	FeedForwardDownScale  *reference.Value
-	FeedForwardSubNorm    *reference.Value
-	FeedForwardGateBias   *reference.Value
-	FeedForwardUpBias     *reference.Value
-	FeedForwardDownBias   *reference.Value
-	FeedForwardPostNorm   *reference.Value
+	AttentionNorm          reference.Value
+	AttentionNormBias      *reference.Value
+	AttentionNorm2         *reference.Value
+	AttentionNorm2Bias     *reference.Value
+	AttentionQ             reference.Value
+	AttentionK             reference.Value
+	AttentionV             reference.Value
+	AttentionOutput        reference.Value
+	AttentionQScale        *reference.Value
+	AttentionKScale        *reference.Value
+	AttentionVScale        *reference.Value
+	AttentionOutputScale   *reference.Value
+	AttentionSubNorm       *reference.Value
+	AttentionQBias         *reference.Value
+	AttentionKBias         *reference.Value
+	AttentionVBias         *reference.Value
+	AttentionOutputBias    *reference.Value
+	AttentionQNorm         *reference.Value
+	AttentionKNorm         *reference.Value
+	AttentionPostNorm      *reference.Value
+	AttentionRelativeBias  *reference.Value
+	RopeFactors            *reference.Value
+	FeedForwardNorm        reference.Value
+	FeedForwardNormBias    *reference.Value
+	FeedForwardGate        reference.Value
+	FeedForwardUp          reference.Value
+	FeedForwardDown        reference.Value
+	FeedForwardGateScale   *reference.Value
+	FeedForwardUpScale     *reference.Value
+	FeedForwardDownScale   *reference.Value
+	FeedForwardSubNorm     *reference.Value
+	FeedForwardGateBias    *reference.Value
+	FeedForwardUpBias      *reference.Value
+	FeedForwardDownBias    *reference.Value
+	FeedForwardPostNorm    *reference.Value
+	FeedForwardRouter      *reference.Value
+	FeedForwardGateExperts *reference.Value
+	FeedForwardUpExperts   *reference.Value
+	FeedForwardDownExperts *reference.Value
 
 	AttentionQKV     *reference.Value
 	AttentionQKVBias *reference.Value
@@ -273,9 +277,18 @@ func LoadHostLayer(
 	items := []struct {
 		destination *reference.Value
 		info        gguf.TensorInfo
-	}{
-		{&result.FeedForwardUp, info.FeedForwardUp},
-		{&result.FeedForwardDown, info.FeedForwardDown},
+	}{}
+	if info.FeedForwardRouter == nil {
+		items = append(items,
+			struct {
+				destination *reference.Value
+				info        gguf.TensorInfo
+			}{&result.FeedForwardUp, info.FeedForwardUp},
+			struct {
+				destination *reference.Value
+				info        gguf.TensorInfo
+			}{&result.FeedForwardDown, info.FeedForwardDown},
+		)
 	}
 	if info.FeedForwardGate.Name != "" {
 		items = append(items, struct {
@@ -385,6 +398,10 @@ func LoadHostLayer(
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
+		{info.FeedForwardRouter, &result.FeedForwardRouter},
+		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
+		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
+		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
 	} {
 		if item.info == nil {
 			continue
@@ -453,9 +470,10 @@ func (layer *HostLayer) GraphInputs(
 		}
 		return node
 	}
-	result := LayerGraphWeights{
-		FeedForwardUp:   input("ffn_up.weight", layer.FeedForwardUp),
-		FeedForwardDown: input("ffn_down.weight", layer.FeedForwardDown),
+	result := LayerGraphWeights{}
+	if layer.FeedForwardRouter == nil {
+		result.FeedForwardUp = input("ffn_up.weight", layer.FeedForwardUp)
+		result.FeedForwardDown = input("ffn_down.weight", layer.FeedForwardDown)
 	}
 	if layer.FeedForwardGate.Shape.Rank != 0 {
 		result.FeedForwardGate = input("ffn_gate.weight", layer.FeedForwardGate)
@@ -523,6 +541,10 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_up.scale", layer.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{"ffn_down.scale", layer.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{"ffn_sub_norm.weight", layer.FeedForwardSubNorm, &result.FeedForwardSubNorm},
+		{"ffn_gate_inp.weight", layer.FeedForwardRouter, &result.FeedForwardRouter},
+		{"ffn_gate_exps.weight", layer.FeedForwardGateExperts, &result.FeedForwardGateExperts},
+		{"ffn_up_exps.weight", layer.FeedForwardUpExperts, &result.FeedForwardUpExperts},
+		{"ffn_down_exps.weight", layer.FeedForwardDownExperts, &result.FeedForwardDownExperts},
 	} {
 		if item.value != nil {
 			*item.destination = input(item.name, *item.value)

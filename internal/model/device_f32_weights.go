@@ -164,8 +164,20 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	// behind a later builder error.
 	required := []gguf.TensorInfo{
 		info.AttentionOutput,
-		info.FeedForwardUp,
-		info.FeedForwardDown,
+	}
+	if info.FeedForwardRouter != nil {
+		if info.FeedForwardGateExperts == nil || info.FeedForwardUpExperts == nil ||
+			info.FeedForwardDownExperts == nil {
+			return LayerGraphWeights{}, nil, errors.New("F32 device expert layer catalog is incomplete")
+		}
+		required = append(required,
+			*info.FeedForwardRouter,
+			*info.FeedForwardGateExperts,
+			*info.FeedForwardUpExperts,
+			*info.FeedForwardDownExperts,
+		)
+	} else {
+		required = append(required, info.FeedForwardUp, info.FeedForwardDown)
 	}
 	if info.AttentionQKV != nil {
 		required = append(required, *info.AttentionQKV)
@@ -200,8 +212,10 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	}
 	result := LayerGraphWeights{
 		AttentionOutput: input(info.AttentionOutput),
-		FeedForwardUp:   input(info.FeedForwardUp),
-		FeedForwardDown: input(info.FeedForwardDown),
+	}
+	if info.FeedForwardRouter == nil {
+		result.FeedForwardUp = input(info.FeedForwardUp)
+		result.FeedForwardDown = input(info.FeedForwardDown)
 	}
 	if info.AttentionQKV != nil {
 		result.AttentionQKV = input(*info.AttentionQKV)
@@ -258,6 +272,10 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
+		{info.FeedForwardRouter, &result.FeedForwardRouter},
+		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
+		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
+		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
 	} {
 		if item.info == nil {
 			continue

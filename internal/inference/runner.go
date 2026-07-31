@@ -461,6 +461,10 @@ func (r *Runner) layerDeviceInputs(
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
+		{info.FeedForwardRouter, &result.FeedForwardRouter},
+		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
+		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
+		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
 	} {
 		if item.info != nil {
 			if *item.destination, err = input(*item.info); err != nil {
@@ -503,11 +507,13 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
-	if result.FeedForwardUp, err = input(info.FeedForwardUp); err != nil {
-		return result, nil, err
-	}
-	if result.FeedForwardDown, err = input(info.FeedForwardDown); err != nil {
-		return result, nil, err
+	if info.FeedForwardRouter == nil {
+		if result.FeedForwardUp, err = input(info.FeedForwardUp); err != nil {
+			return result, nil, err
+		}
+		if result.FeedForwardDown, err = input(info.FeedForwardDown); err != nil {
+			return result, nil, err
+		}
 	}
 	return result, feeds, builder.Err()
 }
@@ -1884,6 +1890,10 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardUpScale,
 			layer.FeedForwardDownScale,
 			layer.FeedForwardSubNorm,
+			layer.FeedForwardRouter,
+			layer.FeedForwardGateExperts,
+			layer.FeedForwardUpExperts,
+			layer.FeedForwardDownExperts,
 		} {
 			if pointer != nil {
 				names[pointer.Name] = struct{}{}

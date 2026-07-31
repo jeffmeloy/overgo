@@ -39,6 +39,7 @@ const (
 	OpLayerNorm
 	OpReLUSquared
 	OpXIELU
+	OpMoE
 )
 
 var opNames = [...]string{
@@ -69,6 +70,7 @@ var opNames = [...]string{
 	"layer_norm",
 	"relu_squared",
 	"xielu",
+	"moe",
 }
 
 func (o Op) String() string {
@@ -129,6 +131,13 @@ type AttentionAttributes struct {
 	QueryStart      uint32
 	Window          uint32
 	RelativeBuckets uint32
+}
+
+type MoEAttributes struct {
+	Experts           uint32
+	TopK              uint32
+	NormalizeTopKProb bool
+	Scale             float32
 }
 
 type ConcatAttributes struct {
@@ -357,6 +366,53 @@ func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
 		return nil
 	}
 	return b.add("", dtype.F32, shape, OpGatedDeltaNet, inputs, nil)
+}
+
+// MoE applies softmax top-k routing and SwiGLU experts. Expert tensors use
+// GGUF layouts gate/up=[hidden, intermediate, experts] and
+// down=[intermediate, hidden, experts].
+func (b *Builder) MoE(
+	input, router, gate, up, down *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || router == nil || gate == nil || up == nil || down == nil {
+		b.setError(errors.New("MoE input is nil"))
+		return nil
+	}
+	if input.Type != dtype.F32 || router.Type != dtype.F32 || gate.Type != dtype.F32 ||
+		up.Type != dtype.F32 || down.Type != dtype.F32 {
+		b.setError(errors.New("MoE currently requires F32 inputs"))
+		return nil
+	}
+	if input.Shape.Rank != 2 || router.Shape.Rank != 2 || gate.Shape.Rank != 3 ||
+		up.Shape.Rank != 3 || down.Shape.Rank != 3 {
+		b.setError(errors.New("MoE input ranks are invalid"))
+		return nil
+	}
+	hidden := input.Shape.Dims[0]
+	experts := router.Shape.Dims[1]
+	intermediate := gate.Shape.Dims[1]
+	if hidden == 0 || experts == 0 || experts > math.MaxUint32 || topK == 0 ||
+		uint64(topK) > experts || topK > 16 || scale == 0 ||
+		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) ||
+		router.Shape.Dims[0] != hidden || gate.Shape.Dims[0] != hidden ||
+		up.Shape.Dims[0] != hidden || up.Shape.Dims[1] != intermediate ||
+		gate.Shape.Dims[2] != experts || up.Shape.Dims[2] != experts ||
+		down.Shape.Dims[0] != intermediate || down.Shape.Dims[1] != hidden ||
+		down.Shape.Dims[2] != experts {
+		b.setError(errors.New("MoE dimensions or routing attributes are invalid"))
+		return nil
+	}
+	return b.add("", dtype.F32, input.Shape, OpMoE,
+		[]*Tensor{input, router, gate, up, down}, MoEAttributes{
+			Experts: uint32(experts), TopK: topK,
+			NormalizeTopKProb: normalizeTopKProb, Scale: scale,
+		})
 }
 
 // SwiGLU computes SiLU(gate) * up.

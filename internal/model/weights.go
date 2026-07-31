@@ -612,7 +612,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -644,7 +644,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if layer.AttentionQKV == nil {
-				if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" {
+				if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "smallthinker" {
 					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
 						return Weights{}, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 					}
@@ -909,7 +909,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "llada-moe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "llada-moe" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||

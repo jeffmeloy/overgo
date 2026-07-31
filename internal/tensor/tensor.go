@@ -153,6 +153,7 @@ type MoEAttributes struct {
 	NormalizeTopKProb bool
 	Scale             float32
 	Routing           MoERouting
+	Activation        MoEActivation
 	Gated             bool
 }
 
@@ -161,6 +162,13 @@ type MoERouting uint32
 const (
 	MoERoutingSoftmax MoERouting = 1
 	MoERoutingSigmoid MoERouting = 2
+)
+
+type MoEActivation uint32
+
+const (
+	MoEActivationSiLU MoEActivation = 1
+	MoEActivationReLU MoEActivation = 2
 )
 
 type RepeatHeadsAttributes struct {
@@ -404,16 +412,15 @@ func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
 	return b.add("", dtype.F32, shape, OpGatedDeltaNet, inputs, nil)
 }
 
-// MoE: applies softmax top-k routing and SwiGLU experts; Expert tensors use
-// GGUF layouts gate/up=[hidden, intermediate, experts] and
-// down=[intermediate, hidden, experts]
+// MoE: softmax top-k SwiGLU; GGUF expert layouts.
 func (b *Builder) MoE(
 	input, router, gate, up, down *Tensor,
 	topK uint32,
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, router, gate, up, down, nil, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
+	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationSiLU)
 }
 
 func (b *Builder) MoEUngated(
@@ -422,48 +429,61 @@ func (b *Builder) MoEUngated(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, router, nil, up, down, nil, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
+	return b.moe(input, input, router, nil, up, down, nil, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationSiLU)
 }
 
-// MoESoftmaxWithSelectionBias: applies softmax routing and uses selectionBias
-// only to choose top-k experts; unbiased probabilities weight
-// selected expert outputs
+// MoESoftmaxWithSelectionBias: biased selection; unbiased route weights.
 func (b *Builder) MoESoftmaxWithSelectionBias(
 	input, router, gate, up, down, selectionBias *Tensor,
 	topK uint32,
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
+	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationSiLU)
 }
 
-// MoESigmoid: applies sigmoid routing, selects experts using optional
-// correction bias, and weights selected experts with unbiased scores
+// MoESigmoid: sigmoid routes; optional selection bias.
 func (b *Builder) MoESigmoid(
 	input, router, gate, up, down, selectionBias *Tensor,
 	topK uint32,
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale, MoERoutingSigmoid)
+	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
+		MoERoutingSigmoid, MoEActivationSiLU)
 }
 
-func (b *Builder) moe(
-	input, router, gate, up, down, selectionBias *Tensor,
+// MoEReLUWithRouterInput: split router input; gated ReLU experts.
+func (b *Builder) MoEReLUWithRouterInput(
+	input, routerInput, router, gate, up, down *Tensor,
 	topK uint32,
 	normalizeTopKProb bool,
 	scale float32,
 	routing MoERouting,
 ) *Tensor {
+	return b.moe(input, routerInput, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+		routing, MoEActivationReLU)
+}
+
+func (b *Builder) moe(
+	input, routerInput, router, gate, up, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+	routing MoERouting,
+	activation MoEActivation,
+) *Tensor {
 	if b.err != nil {
 		return nil
 	}
-	if input == nil || router == nil || up == nil || down == nil {
+	if input == nil || routerInput == nil || router == nil || up == nil || down == nil {
 		b.setError(errors.New("MoE input is nil"))
 		return nil
 	}
-	if input.Type != dtype.F32 || router.Type != dtype.F32 {
-		b.setError(errors.New("MoE input and router must be F32"))
+	if input.Type != dtype.F32 || routerInput.Type != dtype.F32 || router.Type != dtype.F32 {
+		b.setError(errors.New("MoE inputs and router must be F32"))
 		return nil
 	}
 	expertType := up.Type
@@ -472,7 +492,7 @@ func (b *Builder) moe(
 		b.setError(errors.New("MoE experts must share F32 or native quantized storage"))
 		return nil
 	}
-	if input.Shape.Rank != 2 || router.Shape.Rank != 2 ||
+	if input.Shape.Rank != 2 || routerInput.Shape.Rank != 2 || router.Shape.Rank != 2 ||
 		gate != nil && gate.Shape.Rank != 3 || up.Shape.Rank != 3 || down.Shape.Rank != 3 {
 		b.setError(errors.New("MoE input ranks are invalid"))
 		return nil
@@ -484,6 +504,7 @@ func (b *Builder) moe(
 		uint64(topK) > experts || topK > 16 || scale == 0 ||
 		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) ||
 		router.Shape.Dims[0] != hidden || up.Shape.Dims[0] != hidden ||
+		routerInput.Shape.Dims[0] != hidden || routerInput.Shape.Dims[1] != input.Shape.Dims[1] ||
 		up.Shape.Dims[2] != experts ||
 		down.Shape.Dims[0] != intermediate || down.Shape.Dims[1] != hidden ||
 		down.Shape.Dims[2] != experts {
@@ -499,6 +520,10 @@ func (b *Builder) moe(
 		b.setError(errors.New("MoE routing function is invalid"))
 		return nil
 	}
+	if activation != MoEActivationSiLU && activation != MoEActivationReLU {
+		b.setError(errors.New("MoE activation is invalid"))
+		return nil
+	}
 	if nativeQuantizedType(expertType) {
 		traits, _ := expertType.Traits()
 		if hidden%traits.BlockSize != 0 || intermediate%traits.BlockSize != 0 {
@@ -506,7 +531,7 @@ func (b *Builder) moe(
 			return nil
 		}
 	}
-	inputs := []*Tensor{input, router}
+	inputs := []*Tensor{input, routerInput, router}
 	if gate != nil {
 		inputs = append(inputs, gate)
 	}
@@ -522,7 +547,8 @@ func (b *Builder) moe(
 	return b.add("", dtype.F32, input.Shape, OpMoE,
 		inputs, MoEAttributes{
 			Experts: uint32(experts), TopK: topK,
-			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing, Gated: gate != nil,
+			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing,
+			Activation: activation, Gated: gate != nil,
 		})
 }
 

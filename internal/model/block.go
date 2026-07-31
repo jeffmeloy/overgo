@@ -462,6 +462,7 @@ func BuildDenseBlockCachedForLayer(
 	isDeepSeek := spec.Architecture == "deepseek"
 	isDBRX := spec.Architecture == "dbrx"
 	isGraniteMoE := spec.Architecture == "granitemoe"
+	isSmallThinker := spec.Architecture == "smallthinker"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
@@ -478,7 +479,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isGraniteMoE && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isGraniteMoE && !isSmallThinker && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -828,7 +829,7 @@ func BuildDenseBlockCachedForLayer(
 		if isOLMo2 && spec.IsSlidingLayer(layerIndex) {
 			frequencyScale = 1
 		}
-		if (isAFMoE || isEXAOneMoE) && spec.IsSlidingLayer(layerIndex) {
+		if (isAFMoE || isEXAOneMoE || isSmallThinker) && spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
 		}
 		if weights.RopeFactors != nil {
@@ -1009,7 +1010,18 @@ func BuildDenseBlockCachedForLayer(
 	// and FFN run in parallel before both branches are added to residual
 	if usesExperts {
 		var feedForward *tensor.Tensor
-		if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE) && spec.ExpertGatingFunc == 2) {
+		if isSmallThinker {
+			routing := tensor.MoERoutingSoftmax
+			if spec.ExpertGatingFunc == 2 {
+				routing = tensor.MoERoutingSigmoid
+			}
+			feedForward = builder.MoEReLUWithRouterInput(
+				normalized, input, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
+				spec.ExpertWeightsScale, routing,
+			)
+		} else if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE) && spec.ExpertGatingFunc == 2) {
 			feedForward = builder.MoESigmoid(
 				normalized, weights.FeedForwardRouter,
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,

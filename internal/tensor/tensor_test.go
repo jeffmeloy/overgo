@@ -160,7 +160,8 @@ func TestBuilderSigmoidMoEWithSelectionBias(t *testing.T) {
 		t.Fatal(err)
 	}
 	attributes := output.Attrs.(MoEAttributes)
-	if attributes.Routing != MoERoutingSigmoid || len(output.Inputs) != 6 {
+	if attributes.Routing != MoERoutingSigmoid || attributes.Activation != MoEActivationSiLU ||
+		len(output.Inputs) != 7 {
 		t.Fatalf("unexpected sigmoid MoE graph: %+v", output)
 	}
 }
@@ -178,7 +179,8 @@ func TestBuilderSoftmaxMoEWithSelectionBias(t *testing.T) {
 		t.Fatal(err)
 	}
 	attributes := output.Attrs.(MoEAttributes)
-	if attributes.Routing != MoERoutingSoftmax || len(output.Inputs) != 6 {
+	if attributes.Routing != MoERoutingSoftmax || attributes.Activation != MoEActivationSiLU ||
+		len(output.Inputs) != 7 {
 		t.Fatalf("unexpected softmax MoE graph: %+v", output)
 	}
 }
@@ -194,7 +196,8 @@ func TestBuilderUngatedMoE(t *testing.T) {
 		t.Fatal(err)
 	}
 	attributes := output.Attrs.(MoEAttributes)
-	if attributes.Gated || attributes.Routing != MoERoutingSoftmax || len(output.Inputs) != 4 {
+	if attributes.Gated || attributes.Routing != MoERoutingSoftmax ||
+		attributes.Activation != MoEActivationSiLU || len(output.Inputs) != 5 {
 		t.Fatalf("unexpected ungated MoE graph: %+v", output)
 	}
 
@@ -206,6 +209,27 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	quantized.MoEUngated(quantizedInput, quantizedRouter, quantizedUp, quantizedDown, 2, true, 1)
 	if err := quantized.Err(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBuilderReLUMoEWithRouterInput(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1))
+	routerInput := builder.Input("router-input", dtype.F32, MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, MustShape(2, 3))
+	gate := builder.Input("gate", dtype.F32, MustShape(2, 4, 3))
+	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
+	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
+	output := builder.MoEReLUWithRouterInput(
+		input, routerInput, router, gate, up, down, 2, true, 1, MoERoutingSigmoid,
+	)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(MoEAttributes)
+	if attributes.Activation != MoEActivationReLU || attributes.Routing != MoERoutingSigmoid ||
+		output.Inputs[1] != routerInput || len(output.Inputs) != 6 {
+		t.Fatalf("unexpected ReLU MoE graph: %+v", output)
 	}
 }
 

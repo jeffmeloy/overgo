@@ -7,7 +7,7 @@ gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell,
 dense Cohere2/Command R, DBRX, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3,
 GLM4, GPT-2/GPT-NeoX, Granite/GraniteMoE, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT,
-dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
+dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, Phi-2/Phi-3/PhiMoE, PLaMo/PLM MLA, dense Refact,
 RND1 non-causal MoE, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5/UMT5
 encoders, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3

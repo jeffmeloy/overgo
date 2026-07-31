@@ -825,16 +825,16 @@ func repeatHeads(shape tensor.Shape, input Value) Value {
 }
 
 func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (Value, error) {
-	wantInputs := 4
+	wantInputs := 5
 	if attributes.Gated {
-		wantInputs = 5
+		wantInputs = 6
 	}
 	if len(inputs) != wantInputs && len(inputs) != wantInputs+1 {
 		return Value{}, errors.New("MoE input count is invalid")
 	}
-	input, router := inputs[0], inputs[1]
+	input, routerInput, router := inputs[0], inputs[1], inputs[2]
 	var gate Value
-	next := 2
+	next := 3
 	if attributes.Gated {
 		gate = inputs[next]
 		next++
@@ -861,11 +861,12 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	used := make([]bool, experts)
 	for token := 0; token < tokens; token++ {
 		x := input.Data[token*hidden : (token+1)*hidden]
+		routerX := routerInput.Data[token*hidden : (token+1)*hidden]
 		maximum := math.Inf(-1)
 		for expert := 0; expert < experts; expert++ {
 			var dot float64
 			for channel := 0; channel < hidden; channel++ {
-				dot += float64(x[channel]) * float64(router.Data[expert*hidden+channel])
+				dot += float64(routerX[channel]) * float64(router.Data[expert*hidden+channel])
 			}
 			logits[expert] = dot
 			maximum = math.Max(maximum, dot)
@@ -925,9 +926,20 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 						}
 						upDot += float64(x[channel]) * float64(up.Data[base+channel])
 					}
-					activation := upDot / (1 + math.Exp(-upDot))
-					if attributes.Gated {
-						activation = gateDot / (1 + math.Exp(-gateDot)) * upDot
+					var activation float64
+					switch attributes.Activation {
+					case tensor.MoEActivationSiLU:
+						activation = upDot / (1 + math.Exp(-upDot))
+						if attributes.Gated {
+							activation = gateDot / (1 + math.Exp(-gateDot)) * upDot
+						}
+					case tensor.MoEActivationReLU:
+						activation = math.Max(upDot, 0)
+						if attributes.Gated {
+							activation = math.Max(gateDot, 0) * upDot
+						}
+					default:
+						return Value{}, errors.New("invalid MoE activation")
 					}
 					downIndex := (expert*hidden+outputChannel)*intermediate + inner
 					expertOutput += activation * float64(down.Data[downIndex])

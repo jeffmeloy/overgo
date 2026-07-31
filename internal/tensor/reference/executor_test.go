@@ -428,6 +428,46 @@ func TestExecuteUngatedMoE(t *testing.T) {
 	}
 }
 
+func TestExecuteReLUMoEWithRouterInput(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	routerInput := builder.Input("router-input", dtype.F32, tensor.MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
+	output := builder.MoEReLUWithRouterInput(
+		input, routerInput, router, gate, up, down, 1, true, 1, tensor.MoERoutingSoftmax,
+	)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	values := func(shape tensor.Shape, data []float32) Value {
+		value, err := NewValue(shape, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:       values(input.Shape, []float32{-2, 1}),
+		routerInput: values(routerInput.Shape, []float32{1, 0}),
+		router:      values(router.Shape, []float32{1, 0, 0, 0}),
+		gate:        values(gate.Shape, []float32{0, 1, 0, 0}),
+		up:          values(up.Shape, []float32{0, 2, 0, 0}),
+		down:        values(down.Shape, []float32{3, 4, 0, 0}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{6, 8}
+	for index, got := range results[output].Data {
+		if math.Abs(float64(got-want[index])) > 1e-6 {
+			t.Fatalf("ReLU MoE output[%d] = %v, want %v", index, got, want[index])
+		}
+	}
+}
+
 func TestExecuteRoPEMulti(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))

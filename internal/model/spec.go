@@ -135,6 +135,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "exaone4" &&
 		architecture != "exaone-moe" &&
 		architecture != "smollm3" &&
+		architecture != "smallthinker" &&
 		architecture != "minicpm" &&
 		architecture != "granite" &&
 		architecture != "granitemoe" &&
@@ -744,6 +745,28 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "smollm3" {
 		spec.NoRopeLayerStep = 4
 	}
+	if architecture == "smallthinker" {
+		spec.RopeDimensionCount = spec.KeyLength
+		spec.NoRopeLayerStep = spec.BlockCount
+		if value, ok := optional[uint32](
+			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
+		); ok && value > 0 {
+			spec.SlidingWindow = 4096
+			spec.SlidingPattern = 4
+			if pattern, patternOK := optional[uint32](
+				values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32,
+			); patternOK {
+				spec.SlidingPattern = pattern
+			}
+			spec.NoRopeLayerStep = spec.SlidingPattern
+			spec.RopeFrequencySWA = spec.RopeFrequencyBase
+			if frequency, frequencyOK := optional[float32](
+				values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32,
+			); frequencyOK {
+				spec.RopeFrequencySWA = frequency
+			}
+		}
+	}
 	if architecture == "afmoe" {
 		spec.NoRopeLayerStep = 4
 	}
@@ -828,7 +851,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -868,6 +891,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.SharedExpertFF, _ = optional[uint32](
 			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
 		)
+	}
+	if architecture == "smallthinker" {
+		spec.ExpertFeedForward = spec.FeedForwardLength
+		spec.ExpertWeightsNorm = true
+		if spec.ExpertGatingFunc, err = required[uint32](
+			values, prefix+"expert_gating_func", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
 	}
 	if architecture == "bailingmoe" {
 		if spec.ExpertFeedForward, err = required[uint32](
@@ -1151,7 +1183,7 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 	if s.Architecture == "lfm2" || s.Architecture == "lfm2moe" {
 		return block < s.BlockCount && s.SlidingWindow > 0 && !s.IsRecurrentLayer(block)
 	}
-	if s.Architecture == "laguna" {
+	if s.Architecture == "laguna" || s.Architecture == "smallthinker" {
 		return block < s.BlockCount &&
 			s.SlidingWindow > 0 &&
 			s.SlidingPattern > 0 &&
@@ -1192,6 +1224,10 @@ func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
+	if s.Architecture == "smallthinker" {
+		return !s.RopeDisabled && block < s.BlockCount &&
+			(s.SlidingWindow == 0 || s.NoRopeLayerStep == 0 || block%s.NoRopeLayerStep != 0)
+	}
 	if s.Architecture == "exaone-moe" {
 		return s.IsSlidingLayer(block)
 	}
@@ -1372,6 +1408,23 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.AttentionClamp), 0) || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("DBRX expert or attention metadata is invalid")
+	}
+	if s.Architecture == "smallthinker" {
+		switch {
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+			return errors.New("SmallThinker expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("SmallThinker expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("SmallThinker expert weight scale is invalid")
+		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
+			s.RopeDimensionCount%2 != 0:
+			return errors.New("SmallThinker rotary/head dimensions are invalid")
+		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0):
+			return errors.New("SmallThinker sliding-attention metadata is invalid")
+		}
 	}
 	if (s.Architecture == "granite" || s.Architecture == "granitemoe") &&
 		s.RopeScalingType == "longrope" &&
@@ -1709,7 +1762,8 @@ func hasPostNorm(architecture string) bool {
 
 func usesSlidingAttention(architecture string) bool {
 	return architecture == "afmoe" || (architecture == "gemma2" || architecture == "gemma3") ||
-		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" || architecture == "cohere2"
+		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" ||
+		architecture == "cohere2" || architecture == "smallthinker"
 }
 
 func usesPostOnlyNorm(architecture string) bool {

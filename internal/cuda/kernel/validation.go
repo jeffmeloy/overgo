@@ -7,19 +7,16 @@ import (
 )
 
 const (
-	// BundleABIVersion: incremented for incompatible kernel launch contracts
-	BundleABIVersion = 8
-	// BundleTarget: PTX virtual architecture pinned by manifest
+	// BundleABIVersion: incompatible launch-contract revision.
+	BundleABIVersion = 9
+	// BundleTarget: pinned PTX virtual architecture.
 	BundleTarget = "compute_89"
 
 	VectorAddSHA256 = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	OpsF32SHA256    = "0bbe70c7f3f510a4ca80b10037907b5ec962270205ef66605a420d1107b6943d"
+	OpsF32SHA256    = "3aad4dac699baf83577a9978745cc0d38520106fc4c13e78f312d1e3e60cb9de"
 )
 
-// ValidateAssets: fails closed when embedded PTX differs from kernel bundle
-// whose launch ABI was compiled into Go host; CUDA's own JIT cache is
-// content-addressed; these pins ensure host never submits unrecognized
-// module to it
+// ValidateAssets: reject PTX outside pinned host ABI.
 func ValidateAssets() error {
 	if err := validateAsset("vector_add.ptx", VectorAddPTX, VectorAddSHA256); err != nil {
 		return err

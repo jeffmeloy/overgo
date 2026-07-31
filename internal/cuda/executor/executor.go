@@ -1246,12 +1246,13 @@ func launchNode(
 		return err
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
-		wantInputs := 4
+		wantInputs := 5
 		if attributes.Gated {
-			wantInputs = 5
+			wantInputs = 6
 		}
 		if !ok || (len(node.Inputs) != wantInputs && len(node.Inputs) != wantInputs+1) ||
-			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid) {
+			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid) ||
+			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU) {
 			return errors.New("invalid MoE attributes")
 		}
 		count, err := elementCount32(node.Shape)
@@ -1266,7 +1267,7 @@ func launchNode(
 		if err != nil {
 			return err
 		}
-		next := 2
+		next := 3
 		var gate driver.DevicePtr
 		if attributes.Gated {
 			gate = pointers[node.Inputs[next]]
@@ -1278,10 +1279,11 @@ func launchNode(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		router := pointers[node.Inputs[1]]
+		routerInput := pointers[node.Inputs[1]]
+		router := pointers[node.Inputs[2]]
 		up := pointers[upNode]
 		down := pointers[downNode]
-		if upNode.Type != downNode.Type || attributes.Gated && node.Inputs[2].Type != upNode.Type {
+		if upNode.Type != downNode.Type || attributes.Gated && node.Inputs[3].Type != upNode.Type {
 			return errors.New("MoE expert storage types differ")
 		}
 		var expertStorage uint32
@@ -1304,17 +1306,18 @@ func launchNode(
 		}
 		scale := attributes.Scale
 		routing := uint32(attributes.Routing)
+		activation := uint32(attributes.Activation)
 		var gated uint32
 		if attributes.Gated {
 			gated = 1
 		}
 		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&router), unsafe.Pointer(&gate),
+			unsafe.Pointer(&input), unsafe.Pointer(&routerInput), unsafe.Pointer(&router), unsafe.Pointer(&gate),
 			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&output),
 			unsafe.Pointer(&hidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
 			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
-			unsafe.Pointer(&gated),
+			unsafe.Pointer(&gated), unsafe.Pointer(&activation),
 			unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.moe, count, args)

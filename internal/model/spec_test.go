@@ -1336,6 +1336,65 @@ func TestReadGraniteMoESpec(t *testing.T) {
 	}
 }
 
+func TestReadSmallThinkerSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "smallthinker"),
+		metadata("smallthinker.block_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("smallthinker.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("smallthinker.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("smallthinker.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("smallthinker.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("smallthinker.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("smallthinker.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("smallthinker.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("smallthinker.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("smallthinker.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("smallthinker.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("smallthinker.attention.sliding_window", gguf.ValueTypeUint32, uint32(1024)),
+		metadata("smallthinker.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(4)),
+		metadata("smallthinker.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("smallthinker.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("smallthinker.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertFeedForward != 6 || !spec.ExpertWeightsNorm || spec.ExpertGatingFunc != 2 ||
+		spec.SlidingWindow != 4096 || spec.SlidingPattern != 4 || spec.NoRopeLayerStep != 4 ||
+		spec.RopeFrequencySWA != 20000 || spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
+		spec.IsSlidingLayer(4) || spec.UsesRoPE(0) || !spec.UsesRoPE(1) || spec.UsesRoPE(4) {
+		t.Fatalf("unexpected SmallThinker spec: %+v", spec)
+	}
+}
+
+func TestReadSmallThinkerWithoutSlidingUsesRoPEEverywhere(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "smallthinker"),
+		metadata("smallthinker.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("smallthinker.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("smallthinker.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("smallthinker.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("smallthinker.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("smallthinker.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("smallthinker.expert_gating_func", gguf.ValueTypeUint32, uint32(1)),
+		metadata("smallthinker.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("smallthinker.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("smallthinker.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("smallthinker.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("smallthinker.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("smallthinker.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.SlidingWindow != 0 || spec.NoRopeLayerStep != 2 ||
+		!spec.UsesRoPE(0) || !spec.UsesRoPE(1) {
+		t.Fatalf("unexpected non-sliding SmallThinker spec: %+v", spec)
+	}
+}
+
 func TestReadGraniteRejectsNonDenseVariants(t *testing.T) {
 	for _, extra := range []gguf.Metadata{
 		metadata("granite.expert_count", gguf.ValueTypeUint32, uint32(8)),

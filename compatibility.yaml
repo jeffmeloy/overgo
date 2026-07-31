@@ -1230,6 +1230,27 @@ models:
       - required-untied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  smallthinker:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - optional-qkv-biases
+      - dense-first-periodic-sliding-attention
+      - no-rope-full-attention-layers
+      - neox-rope-with-swa-frequency-base
+      - pre-attention-router-input
+      - softmax-or-sigmoid-top-k-routing
+      - selected-weight-normalization
+      - routed-weight-scaling
+      - packed-reglu-experts
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   command-r:
     status: experimental
     features:

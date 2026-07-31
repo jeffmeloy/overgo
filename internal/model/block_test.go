@@ -444,7 +444,7 @@ func TestBuildBailingMoE2BlockUsesFusedQKVNeoXAndSharedExpert(t *testing.T) {
 				t.Fatal("BailingMoE2 graph is missing MoE operation")
 			}
 			attrs := moe.Attrs.(tensor.MoEAttributes)
-			if attrs.Routing != test.routing || !attrs.NormalizeTopKProb || len(moe.Inputs) != 6 ||
+			if attrs.Routing != test.routing || !attrs.NormalizeTopKProb || len(moe.Inputs) != 7 ||
 				attrs.TopK != 2 || attrs.Scale != 1.25 || neox != 2 || silu < 1 {
 				t.Fatalf("unexpected BailingMoE2 graph: attrs=%+v inputs=%d neox=%d silu=%d", attrs, len(moe.Inputs), neox, silu)
 			}
@@ -738,7 +738,7 @@ func TestBuildLagunaMoEBlockUsesYaRNGateAndSharedExpert(t *testing.T) {
 		t.Fatalf("Laguna graph missing MoE/softplus/YaRN: %v/%v/%v", moe != nil, softplus, yarn)
 	}
 	attrs := moe.Attrs.(tensor.MoEAttributes)
-	if attrs.Routing != tensor.MoERoutingSigmoid || !attrs.NormalizeTopKProb || len(moe.Inputs) != 6 {
+	if attrs.Routing != tensor.MoERoutingSigmoid || !attrs.NormalizeTopKProb || len(moe.Inputs) != 7 {
 		t.Fatalf("unexpected Laguna MoE attributes: %+v inputs=%d", attrs, len(moe.Inputs))
 	}
 }
@@ -882,7 +882,7 @@ func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 	}
 	attrs := moe.Attrs.(tensor.MoEAttributes)
 	if attrs.Routing != tensor.MoERoutingSigmoid || !attrs.NormalizeTopKProb ||
-		attrs.TopK != 2 || attrs.Scale != 1.25 || len(moe.Inputs) != 6 {
+		attrs.TopK != 2 || attrs.Scale != 1.25 || len(moe.Inputs) != 7 {
 		t.Fatalf("unexpected LFM2-MoE attributes: %+v inputs=%d", attrs, len(moe.Inputs))
 	}
 }
@@ -2250,8 +2250,67 @@ func TestBuildDenseEXAOneMoEBlock(t *testing.T) {
 		}
 	}
 	if moe == nil || moe.Attrs.(tensor.MoEAttributes).Routing != tensor.MoERoutingSigmoid ||
-		len(moe.Inputs) != 6 || rope != 2 || window != 1 || silu < 1 {
+		len(moe.Inputs) != 7 || rope != 2 || window != 1 || silu < 1 {
 		t.Fatalf("unexpected EXAONE-MoE graph: moe=%v rope=%d window=%d silu=%d", moe != nil, rope, window, silu)
+	}
+}
+
+func TestBuildSmallThinkerUsesSplitRouterReGLUAndSlidingRoPE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "smallthinker", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 6, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2,
+		ExpertWeightsNorm: true, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+		SlidingWindow: 128, SlidingPattern: 4, NoRopeLayerStep: 4,
+		RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:           builder.Input("qkv", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var rope, sliding int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENeoX:
+			rope++
+		case tensor.OpAttention:
+			if node.Attrs.(tensor.AttentionAttributes).Window == 128 {
+				sliding++
+			}
+		}
+	}
+	if moe == nil {
+		t.Fatal("SmallThinker graph is missing MoE")
+	}
+	attributes := moe.Attrs.(tensor.MoEAttributes)
+	if attributes.Activation != tensor.MoEActivationReLU ||
+		attributes.Routing != tensor.MoERoutingSigmoid || !attributes.NormalizeTopKProb ||
+		len(moe.Inputs) != 6 || moe.Inputs[1] != input || moe.Inputs[0] == input ||
+		rope != 2 || sliding != 1 {
+		t.Fatalf("unexpected SmallThinker graph: attrs=%+v inputs=%d rope=%d sliding=%d", attributes, len(moe.Inputs), rope, sliding)
 	}
 }
 

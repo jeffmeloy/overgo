@@ -726,6 +726,7 @@ __device__ float moe_expert_value(
 
 extern "C" __global__ void moe_f32(
         const float * input,
+		const float * router_input,
         const float * router,
 		const void * gate,
 		const void * up,
@@ -742,19 +743,21 @@ extern "C" __global__ void moe_f32(
         float routed_scale,
 		unsigned int expert_storage,
 		unsigned int gated,
+		unsigned int activation,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
     const unsigned int output_channel = index % hidden;
     const unsigned int token = index / hidden;
     const float * x = input + (size_t) token * hidden;
+	const float * router_x = router_input + (size_t) token * hidden;
 
     float maximum = -3.402823466e+38F;
     for (unsigned int expert = 0; expert < experts; ++expert) {
         const float * weight = router + (size_t) expert * hidden;
         float logit = 0.0f;
         for (unsigned int channel = 0; channel < hidden; ++channel) {
-            logit += x[channel] * weight[channel];
+            logit += router_x[channel] * weight[channel];
         }
         maximum = fmaxf(maximum, logit);
     }
@@ -763,7 +766,7 @@ extern "C" __global__ void moe_f32(
         const float * weight = router + (size_t) expert * hidden;
         float logit = 0.0f;
         for (unsigned int channel = 0; channel < hidden; ++channel) {
-            logit += x[channel] * weight[channel];
+            logit += router_x[channel] * weight[channel];
         }
         denominator += expf(logit - maximum);
     }
@@ -784,7 +787,7 @@ extern "C" __global__ void moe_f32(
             const float * weight = router + (size_t) expert * hidden;
             float logit = 0.0f;
             for (unsigned int channel = 0; channel < hidden; ++channel) {
-                logit += x[channel] * weight[channel];
+                logit += router_x[channel] * weight[channel];
             }
 			const float probability = routing == 2
 				? 1.0f / (1.0f + expf(-logit))
@@ -817,11 +820,16 @@ extern "C" __global__ void moe_f32(
 				up_dot += x[channel] * moe_expert_value(
 					up, weight_offset + channel, expert_storage);
             }
-			const float activation = gated
-				? gate_dot / (1.0f + expf(-gate_dot)) * up_dot
-				: up_dot / (1.0f + expf(-up_dot));
+			float activated;
+			if (activation == 2) {
+				activated = gated ? fmaxf(gate_dot, 0.0f) * up_dot : fmaxf(up_dot, 0.0f);
+			} else {
+				activated = gated
+					? gate_dot / (1.0f + expf(-gate_dot)) * up_dot
+					: up_dot / (1.0f + expf(-up_dot));
+			}
             const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + inner;
-			expert_output += activation * moe_expert_value(
+			expert_output += activated * moe_expert_value(
 				down, down_offset, expert_storage);
         }
         result += route * expert_output;

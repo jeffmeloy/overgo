@@ -175,7 +175,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		return result, nil
 	}
-	if output, ok := tensors["output.weight"]; ok && spec.Architecture != "cohere2" {
+	if output, ok := tensors["output.weight"]; ok &&
+		spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
 		if output.Dimensions != 2 ||
 			output.Shape[0] != uint64(spec.EmbeddingLength) ||
 			output.Shape[1] != uint64(spec.VocabularySize) {
@@ -424,6 +425,26 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
+		if spec.Architecture == "command-r" && spec.BlockCount >= 64 {
+			qNorm, normErr := required(
+				prefix+"attn_q_norm.weight",
+				uint64(spec.KeyLength),
+				uint64(spec.HeadCount),
+			)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			kNorm, normErr := required(
+				prefix+"attn_k_norm.weight",
+				uint64(spec.KeyLength),
+				uint64(spec.HeadCountKV),
+			)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionQNorm = &qNorm
+			layer.AttentionKNorm = &kNorm
+		}
 		if !layer.Recurrent {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       uint64
@@ -471,6 +492,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
 		if spec.Architecture != "olmo2" && spec.Architecture != "cohere2" &&
+			spec.Architecture != "command-r" &&
 			!spec.UsesUnweightedLayerNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err

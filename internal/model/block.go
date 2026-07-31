@@ -213,6 +213,7 @@ func BuildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
+	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	required := map[string]*tensor.Tensor{
 		"attention Q":       weights.AttentionQ,
 		"attention K":       weights.AttentionK,
@@ -235,13 +236,17 @@ func BuildDenseBlockCachedForLayer(
 		required["feed-forward post norm"] = weights.FeedForwardPostNorm
 	} else if !spec.UsesUnweightedLayerNorm() {
 		required["attention norm"] = weights.AttentionNorm
-		if spec.Architecture != "cohere2" {
+		if spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
 			required["feed-forward norm"] = weights.FeedForwardNorm
 		}
 		if spec.UsesLayerNorm() {
 			required["attention norm bias"] = weights.AttentionNormBias
 			required["feed-forward norm bias"] = weights.FeedForwardNormBias
 		}
+	}
+	if isCommandRQKNorm {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
 	}
 	for name, item := range required {
 		if item == nil {
@@ -289,6 +294,10 @@ func BuildDenseBlockCachedForLayer(
 		}
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+	}
+	if isCommandRQKNorm {
+		query = ApplyNormalization(builder, query, weights.AttentionQNorm, nil, spec)
+		key = ApplyNormalization(builder, key, weights.AttentionKNorm, nil, spec)
 	}
 	rotaryDimensions := spec.KeyLength
 	if spec.RopeDimensionCount > 0 {
@@ -455,7 +464,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	residual := builder.Add(input, attention)
 
-	if spec.Architecture != "cohere2" {
+	if spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
 		normalized = residual
 		if !isOLMo2 {
 			normalized = ApplyNormalization(
@@ -463,8 +472,8 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	}
-	// Cohere2 leaves normalized pointing at the block input so attention and
-	// FFN run in parallel before both branches are added to the residual.
+	// Cohere decoders leave normalized pointing at the block input so attention
+	// and FFN run in parallel before both branches are added to the residual.
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	if weights.FeedForwardUpBias != nil {
 		up = builder.Add(up, weights.FeedForwardUpBias)

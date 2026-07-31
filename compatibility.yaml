@@ -899,6 +899,17 @@ models:
       - swiglu
       - tied-output
     real_model_validation: pending-fixture
+  command-r:
+    status: experimental
+    features:
+      - weight-only-layernorm
+      - parallel-attention-ffn-residual
+      - normal-rope
+      - optional-direct-logit-scale
+      - per-head-qk-layernorm-on-64-layer-variants
+      - swiglu
+      - tied-output
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

@@ -80,6 +80,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "baichuan" &&
 		architecture != "codeshell" &&
 		architecture != "cohere2" &&
+		architecture != "command-r" &&
 		architecture != "jais2" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
@@ -290,6 +291,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, errors.New("Cohere2 array sliding attention patterns are not supported")
 		}
 	}
+	if architecture == "command-r" {
+		spec.LogitScale, _ = optional[float32](
+			values,
+			prefix+"logit_scale",
+			gguf.ValueTypeFloat32,
+		)
+	}
 	if architecture == "baichuan" && spec.BlockCount != 32 {
 		return Spec{}, errors.New("only the 32-layer Baichuan RoPE variant is supported")
 	}
@@ -490,7 +498,7 @@ func (s Spec) InputEmbeddingScale() float32 {
 
 func (s Spec) OutputLogitMultiplier() float32 {
 	if s.LogitScale > 0 {
-		if s.Architecture == "cohere2" {
+		if s.Architecture == "cohere2" || s.Architecture == "command-r" {
 			return s.LogitScale
 		}
 		return 1 / s.LogitScale
@@ -510,7 +518,7 @@ func (s Spec) UsesUnweightedLayerNorm() bool {
 }
 
 func (s Spec) UsesWeightOnlyLayerNorm() bool {
-	return s.Architecture == "cohere2"
+	return s.Architecture == "cohere2" || s.Architecture == "command-r"
 }
 
 func (s Spec) validate() error {
@@ -670,6 +678,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "arcee" ||
 		architecture == "baichuan" ||
 		architecture == "cohere2" ||
+		architecture == "command-r" ||
 		architecture == "granite" ||
 		architecture == "minicpm" ||
 		architecture == "olmo" ||

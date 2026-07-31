@@ -770,6 +770,43 @@ func TestReadWeightsCohere2UsesOneNormPerBlock(t *testing.T) {
 	}
 }
 
+func TestReadWeightsCommandR64UsesPerHeadQKNorms(t *testing.T) {
+	spec := Spec{
+		Architecture: "command-r", BlockCount: 64, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32),
+	}
+	for block := range uint32(64) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 8),
+			tensorInfo(prefix+"attn_k.weight", 8, 4),
+			tensorInfo(prefix+"attn_v.weight", 8, 4),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", 4, 2),
+			tensorInfo(prefix+"attn_k_norm.weight", 4, 1),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 16),
+			tensorInfo(prefix+"ffn_up.weight", 8, 16),
+			tensorInfo(prefix+"ffn_down.weight", 16, 8),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Output != nil || weights.Layers[0].FeedForwardNorm.Name != "" ||
+		weights.Layers[0].AttentionQNorm == nil ||
+		weights.Layers[0].AttentionQNorm.Dimensions != 2 ||
+		weights.Layers[0].AttentionKNorm == nil {
+		t.Fatalf("unexpected Command R weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsGemma2(t *testing.T) {
 	spec := Spec{
 		Architecture:      "gemma2",

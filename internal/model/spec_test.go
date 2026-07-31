@@ -161,6 +161,30 @@ func TestReadCohere2Spec(t *testing.T) {
 	}
 }
 
+func TestReadCommandRSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "command-r"),
+		metadata("command-r.block_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("command-r.context_length", gguf.ValueTypeUint32, uint32(131072)),
+		metadata("command-r.embedding_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("command-r.feed_forward_length", gguf.ValueTypeUint32, uint32(22528)),
+		metadata("command-r.attention.head_count", gguf.ValueTypeUint32, uint32(64)),
+		metadata("command-r.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("command-r.rope.freq_base", gguf.ValueTypeFloat32, float32(8000000)),
+		metadata("command-r.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("command-r.logit_scale", gguf.ValueTypeFloat32, float32(0.0625)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "command-r" || spec.KeyLength != 128 ||
+		!spec.UsesWeightOnlyLayerNorm() || !spec.UsesRoPE(39) ||
+		spec.OutputLogitMultiplier() != 0.0625 {
+		t.Fatalf("unexpected Command R spec: %+v", spec)
+	}
+}
+
 func TestReadSmolLM3Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),

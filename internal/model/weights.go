@@ -264,6 +264,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "orion" ||
 		spec.Architecture == "gptneox" ||
 		spec.Architecture == "phi2" ||
+		spec.Architecture == "phimoe" ||
 		spec.Architecture == "plamo" ||
 		spec.Architecture == "stablelm" ||
 		spec.Architecture == "codeshell") &&
@@ -282,7 +283,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.OutputBias = &outputBias
 	}
-	if spec.Architecture == "phi2" && result.OutputBias == nil {
+	if (spec.Architecture == "phi2" || spec.Architecture == "phimoe") && result.OutputBias == nil {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
 
@@ -605,7 +606,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -637,7 +638,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if layer.AttentionQKV == nil {
-				if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" {
+				if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" {
 					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
 						return Weights{}, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 					}
@@ -899,7 +900,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "rnd1" ||
+		if spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
 			for name, shapeAndDestination := range map[string]struct {
@@ -976,6 +977,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					*shapeAndDestination.destination = &item
 				}
+			}
+			if spec.Architecture == "phimoe" && layer.AttentionOutputBias == nil {
+				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 			}
 			continue
 		}

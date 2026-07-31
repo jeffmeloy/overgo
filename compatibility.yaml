@@ -1130,6 +1130,25 @@ models:
       - longrope-short-long-factor-selection
       - tied-or-untied-output
     real_model_validation: pending-fixture
+  phimoe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - affine-rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - optional-qkv-bias
+      - required-attention-output-bias
+      - query-pre-scaling
+      - longrope-short-long-factor-selection
+      - normalized-softmax-top-k-routing
+      - packed-swiglu-experts
+      - required-untied-output-and-bias
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - native-quantized-expert-kernels-pending
+    real_model_validation: pending-fixture
   gptneox:
     status: experimental
     features:

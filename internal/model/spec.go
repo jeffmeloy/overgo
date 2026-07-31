@@ -137,6 +137,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "orion" &&
 		architecture != "phi2" &&
 		architecture != "phi3" &&
+		architecture != "phimoe" &&
 		architecture != "plamo" &&
 		architecture != "plm" &&
 		architecture != "seed_oss" &&
@@ -485,7 +486,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
-	if architecture == "phi3" {
+	if architecture == "phi3" || architecture == "phimoe" {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -729,7 +730,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
+	if architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -766,7 +767,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SharedExpertFF = value
 		}
 	}
-	if architecture == "olmoe" {
+	if architecture == "olmoe" || architecture == "phimoe" {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 	}
 	if architecture == "afmoe" {
@@ -1024,7 +1025,7 @@ func (s Spec) UsesLayerNorm() bool {
 }
 
 func (s Spec) RequiresLayerNormBias() bool {
-	return s.UsesLayerNorm() && s.Architecture != "mpt"
+	return s.Architecture == "phimoe" || (s.UsesLayerNorm() && s.Architecture != "mpt")
 }
 
 func (s Spec) UsesUnweightedLayerNorm() bool {
@@ -1115,6 +1116,12 @@ func (s Spec) validate() error {
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("OLMoE expert or attention metadata is invalid")
+	}
+	if s.Architecture == "phimoe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("PhiMoE expert metadata is invalid")
 	}
 	if s.Architecture == "laguna" {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
@@ -1255,7 +1262,7 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("Phi-2 rotary dimension count is invalid")
 	}
-	if s.Architecture == "phi3" &&
+	if (s.Architecture == "phi3" || s.Architecture == "phimoe") &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
@@ -1406,7 +1413,7 @@ func usesFusedGateUp(architecture string) bool {
 }
 
 func supportsLongRoPE(architecture string) bool {
-	return architecture == "apertus" || architecture == "phi3"
+	return architecture == "apertus" || architecture == "phi3" || architecture == "phimoe"
 }
 
 func usesGELU(architecture string) bool {

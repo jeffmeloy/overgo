@@ -123,6 +123,36 @@ func TestReadOLMoESpec(t *testing.T) {
 	}
 }
 
+func TestReadPhiMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "phimoe"),
+		metadata("phimoe.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("phimoe.context_length", gguf.ValueTypeUint32, uint32(131072)),
+		metadata("phimoe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("phimoe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("phimoe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("phimoe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("phimoe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("phimoe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("phimoe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("phimoe.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("phimoe.rope.scaling.type", gguf.ValueTypeString, "longrope"),
+		metadata("phimoe.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("phimoe.rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1.19)),
+		metadata("phimoe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "phimoe" || spec.ExpertFeedForward != 12 ||
+		spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 ||
+		spec.RopeDimensionCount != 4 || spec.OriginalContextLength != 4096 ||
+		!spec.RequiresLayerNormBias() {
+		t.Fatalf("unexpected PhiMoE spec: %+v", spec)
+	}
+}
+
 func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "dream"),

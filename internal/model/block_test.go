@@ -1623,6 +1623,66 @@ func TestBuildDensePhi3FusedProjectionsAndLongRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDensePhiMoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "phimoe", BlockCount: 1, ContextLength: 128,
+		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 12,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+		RopeScalingType: "longrope", RopeAttentionFactor: 1.25, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	attentionNormBias := builder.Input("attn_norm_bias", dtype.F32, tensor.MustShape(8))
+	feedForwardNormBias := builder.Input("ffn_norm_bias", dtype.F32, tensor.MustShape(8))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionNormBias:      attentionNormBias,
+		AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:             builder.Input("k", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionV:             builder.Input("v", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionOutputBias:    builder.Input("attn_out_bias", dtype.F32, tensor.MustShape(8)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardNormBias:    feedForwardNormBias,
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
+		RopeFactors:            builder.Input("rope_long", dtype.F32, tensor.MustShape(2)),
+	}
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var normBiasAdds, ropeWithFactors, queryPrescale int
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			moe = node
+		}
+		if node.Op == tensor.OpAdd && len(node.Inputs) == 2 &&
+			(node.Inputs[1] == attentionNormBias || node.Inputs[1] == feedForwardNormBias) {
+			normBiasAdds++
+		}
+		if node.Op == tensor.OpRoPENeoX && len(node.Inputs) == 2 && node.Inputs[1] == weights.RopeFactors {
+			ropeWithFactors++
+		}
+		if node.Op == tensor.OpScale && node.Attrs.(tensor.ScaleAttributes).Value == 0.5 {
+			queryPrescale++
+		}
+	}
+	if moe == nil || !moe.Attrs.(tensor.MoEAttributes).NormalizeTopKProb ||
+		normBiasAdds != 2 || ropeWithFactors != 2 || queryPrescale != 1 {
+		t.Fatalf("unexpected PhiMoE graph: moe=%v norm-bias=%d rope=%d qscale=%d", moe != nil, normBiasAdds, ropeWithFactors, queryPrescale)
+	}
+}
+
 func TestBuildDenseApertus(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

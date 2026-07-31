@@ -77,8 +77,8 @@ type LayerGraphWeights struct {
 }
 
 // ApplyNormalization applies the architecture's learned pre/post
-// normalization. Dense LayerNorm architectures require an affine bias while
-// RMSNorm architectures intentionally ignore it.
+// normalization. Affine LayerNorm architectures and PhiMoE's affine RMSNorm
+// require a learned bias.
 func ApplyNormalization(
 	builder *tensor.Builder,
 	input, weight, bias *tensor.Tensor,
@@ -96,7 +96,11 @@ func ApplyNormalization(
 		}
 		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
 	}
-	return builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
+	normalized := builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
+	if spec.Architecture == "phimoe" && bias != nil {
+		return builder.Add(normalized, bias)
+	}
+	return normalized
 }
 
 // BuildT5EncoderBlock constructs one full, bidirectional T5 encoder block.
@@ -419,6 +423,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"
+	isPhiMoE := spec.Architecture == "phimoe"
 	isPostOnlyNorm := usesPostOnlyNorm(spec.Architecture)
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	isChameleon := spec.Architecture == "chameleon"
@@ -437,7 +442,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE {
+		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -524,6 +529,9 @@ func BuildDenseBlockCachedForLayer(
 	if isOLMoE {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
+	}
+	if isPhiMoE {
+		required["attention output bias"] = weights.AttentionOutputBias
 	}
 	if isLaguna || isAFMoE {
 		required["attention Q norm"] = weights.AttentionQNorm
@@ -801,7 +809,7 @@ func BuildDenseBlockCachedForLayer(
 	if spec.AttentionScale > 0 {
 		attentionScale = spec.AttentionScale
 	}
-	if spec.Architecture == "phi2" || spec.Architecture == "phi3" {
+	if spec.Architecture == "phi2" || spec.Architecture == "phi3" || isPhiMoE {
 		// Phi decoders scale the rotated query before the dot product to
 		// preserve upstream precision behavior.
 		query = builder.Scale(query, attentionScale)

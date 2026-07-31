@@ -38,6 +38,7 @@ type HostLayer struct {
 	AttentionKNormBias     *reference.Value
 	AttentionPostNorm      *reference.Value
 	AttentionRelativeBias  *reference.Value
+	AttentionOutputGate    *reference.Value
 	RopeFactors            *reference.Value
 	FeedForwardNorm        reference.Value
 	FeedForwardNormBias    *reference.Value
@@ -56,6 +57,10 @@ type HostLayer struct {
 	FeedForwardGateExperts *reference.Value
 	FeedForwardUpExperts   *reference.Value
 	FeedForwardDownExperts *reference.Value
+	FeedForwardExpertBias  *reference.Value
+	FeedForwardSharedGate  *reference.Value
+	FeedForwardSharedUp    *reference.Value
+	FeedForwardSharedDown  *reference.Value
 	ShortConvKernel        *reference.Value
 	ShortConvInput         *reference.Value
 	ShortConvOutput        *reference.Value
@@ -440,6 +445,7 @@ func LoadHostLayer(
 		{info.AttentionVScale, &result.AttentionVScale},
 		{info.AttentionOutputScale, &result.AttentionOutputScale},
 		{info.AttentionSubNorm, &result.AttentionSubNorm},
+		{info.AttentionOutputGate, &result.AttentionOutputGate},
 		{info.AttentionNormBias, &result.AttentionNormBias},
 		{info.AttentionNorm2, &result.AttentionNorm2},
 		{info.AttentionNorm2Bias, &result.AttentionNorm2Bias},
@@ -462,6 +468,10 @@ func LoadHostLayer(
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{info.FeedForwardExpertBias, &result.FeedForwardExpertBias},
+		{info.FeedForwardSharedGate, &result.FeedForwardSharedGate},
+		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
+		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -599,6 +609,7 @@ func (layer *HostLayer) GraphInputs(
 		{"attn_v.scale", layer.AttentionVScale, &result.AttentionVScale},
 		{"attn_output.scale", layer.AttentionOutputScale, &result.AttentionOutputScale},
 		{"attn_sub_norm.weight", layer.AttentionSubNorm, &result.AttentionSubNorm},
+		{"attn_gate.weight", layer.AttentionOutputGate, &result.AttentionOutputGate},
 		{"attn_qkv.bias", layer.AttentionQKVBias, &result.AttentionQKVBias},
 		{"attn_q_norm.bias", layer.AttentionQNormBias, &result.AttentionQNormBias},
 		{"attn_k_norm.bias", layer.AttentionKNormBias, &result.AttentionKNormBias},
@@ -617,6 +628,10 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_gate_exps.weight", layer.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{"ffn_up_exps.weight", layer.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{"ffn_down_exps.weight", layer.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{"exp_probs_b.bias", layer.FeedForwardExpertBias, &result.FeedForwardExpertBias},
+		{"ffn_gate_shexp.weight", layer.FeedForwardSharedGate, &result.FeedForwardSharedGate},
+		{"ffn_up_shexp.weight", layer.FeedForwardSharedUp, &result.FeedForwardSharedUp},
+		{"ffn_down_shexp.weight", layer.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{"attn_kv_a_mqa.weight", layer.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{"attn_kv_a_norm.weight", layer.AttentionKVANorm, &result.AttentionKVANorm},
 		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},

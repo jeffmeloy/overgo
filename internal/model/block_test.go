@@ -183,6 +183,120 @@ func TestBuildRND1BlockUsesNonCausalMoE(t *testing.T) {
 	}
 }
 
+func TestBuildLagunaMoEBlockUsesYaRNGateAndSharedExpert(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "laguna", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 16, LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12,
+		SharedExpertFF: 10, ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+		LayerKVHeadCounts: []uint32{1, 1}, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 500000, RopeDimensionCount: 4, RopeScalingType: "yarn",
+		RopeScalingFactor: 4, OriginalContextLength: 2048, YaRNExtFactor: 1,
+		YaRNAttentionFactor: 1, YaRNBetaFast: 32, YaRNBetaSlow: 1,
+		RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionK:             builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:             builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:        builder.Input("o", dtype.F32, tensor.MustShape(16, 8)),
+		AttentionQNorm:         builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionKNorm:         builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionOutputGate:    builder.Input("attn_gate", dtype.F32, tensor.MustShape(8, 16)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("correction", dtype.F32, tensor.MustShape(4)),
+		FeedForwardSharedGate:  builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 10)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 10)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var softplus, yarn bool
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			moe = node
+		}
+		softplus = softplus || node.Op == tensor.OpSoftplus
+		if node.Op == tensor.OpRoPENeoX {
+			attrs := node.Attrs.(tensor.RoPEAttributes)
+			yarn = yarn || attrs.OriginalContext == 2048 && attrs.ExtFactor == 1
+		}
+	}
+	if moe == nil || !softplus || !yarn {
+		t.Fatalf("Laguna graph missing MoE/softplus/YaRN: %v/%v/%v", moe != nil, softplus, yarn)
+	}
+	attrs := moe.Attrs.(tensor.MoEAttributes)
+	if attrs.Routing != tensor.MoERoutingSigmoid || !attrs.NormalizeTopKProb || len(moe.Inputs) != 6 {
+		t.Fatalf("unexpected Laguna MoE attributes: %+v inputs=%d", attrs, len(moe.Inputs))
+	}
+}
+
+func TestBuildLagunaSlidingLayerUsesPlainRoPEAndPerHeadGate(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "laguna", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, LeadingDenseBlocks: 1,
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+		LayerKVHeadCounts: []uint32{1, 1}, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 500000, RopeDimensionCount: 4, RopeScalingType: "yarn",
+		RopeScalingFactor: 4, OriginalContextLength: 2048, YaRNExtFactor: 1,
+		YaRNAttentionFactor: 1, YaRNBetaFast: 32, YaRNBetaSlow: 1,
+		SlidingWindow: 64, SlidingPattern: 2, RopeFrequencySWA: 10000, RopeDimensionSWA: 4,
+		RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:       builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:          builder.Input("q", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionK:          builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:          builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:     builder.Input("o", dtype.F32, tensor.MustShape(16, 8)),
+		AttentionQNorm:      builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionKNorm:      builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionOutputGate: builder.Input("attn_gate", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:     builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, _ := tensor.Topological(result.Output)
+	var window, plainRoPE, broadcastGate bool
+	for _, node := range nodes {
+		if node.Op == tensor.OpAttention {
+			window = window || node.Attrs.(tensor.AttentionAttributes).Window == 64
+		}
+		if node.Op == tensor.OpRoPENeoX {
+			attrs := node.Attrs.(tensor.RoPEAttributes)
+			plainRoPE = plainRoPE || attrs.FrequencyBase == 10000 && attrs.OriginalContext == 0
+		}
+		if node.Op == tensor.OpMultiply && node.Shape.Rank == 3 && node.Shape.Dims[0] == 4 && node.Shape.Dims[1] == 4 {
+			broadcastGate = true
+		}
+	}
+	if !window || !plainRoPE || !broadcastGate {
+		t.Fatalf("Laguna SWA graph missing window/plain RoPE/per-head gate: %v/%v/%v", window, plainRoPE, broadcastGate)
+	}
+}
+
 func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

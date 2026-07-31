@@ -949,6 +949,41 @@ models:
       - iterative-mask-transfer-sampler-pending
       - diffusion-cli-pending
     real_model_validation: pending-fixture
+  rnd1:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - non-causal-full-sequence-attention
+      - no-kv-cache
+      - qk-rmsnorm
+      - neox-rope
+      - normalized-softmax-top-k-moe
+      - all-position-hidden-states-and-logits
+    limitations:
+      - iterative-diffusion-sampler-pending
+      - native-quantized-expert-kernels-pending
+    real_model_validation: pending-fixture
+  laguna:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - per-layer-query-and-kv-head-counts
+      - qk-rmsnorm
+      - full-attention-neox-yarn
+      - periodic-sliding-attention-with-plain-rope
+      - per-head-or-per-element-softplus-attention-gate
+      - leading-dense-swiglu-blocks
+      - sigmoid-top-k-routing-with-selection-correction-bias
+      - optional-selected-weight-normalization
+      - always-on-shared-expert
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - native-quantized-expert-kernels-pending
+    real_model_validation: pending-fixture
   lfm2:
     status: experimental
     execution:

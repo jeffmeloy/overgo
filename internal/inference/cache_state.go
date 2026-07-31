@@ -80,16 +80,6 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			expectedLayers,
 		)
 	}
-	keyShape := tensor.MustShape(
-		uint64(r.spec.KeyLength),
-		uint64(r.spec.HeadCountKV),
-		uint64(cache.Tokens),
-	)
-	valueShape := tensor.MustShape(
-		uint64(r.spec.ValueLength),
-		uint64(r.spec.HeadCountKV),
-		uint64(cache.Tokens),
-	)
 	for index, layer := range cache.Layers {
 		if r.spec.Architecture == "lfm2" &&
 			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent {
@@ -107,6 +97,16 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 			continue
 		}
+		keyShape := tensor.MustShape(
+			uint64(r.spec.KeyLength),
+			uint64(r.spec.LayerKVHeadCount(uint32(index))),
+			uint64(cache.Tokens),
+		)
+		valueShape := tensor.MustShape(
+			uint64(r.spec.ValueLength),
+			uint64(r.spec.LayerKVHeadCount(uint32(index))),
+			uint64(cache.Tokens),
+		)
 		if r.spec.Architecture == "qwen35" &&
 			index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent {

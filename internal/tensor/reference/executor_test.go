@@ -542,6 +542,28 @@ func TestExecuteRoPENormal(t *testing.T) {
 	}
 }
 
+func TestExecuteYaRNRoPEAppliesMagnitudeAndFrequencyBlend(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 1))
+	yarn := builder.RoPENeoXYaRN(input, []uint32{17}, 4, 8, 10_000, 0.25, 1, 1, 32, 1)
+	linear := builder.RoPENeoXScaled(input, []uint32{17}, 4, 10_000, 0.25)
+	feed, _ := NewValue(input.Shape, []float32{1, 2, 3, 4})
+	results, err := Execute([]*tensor.Tensor{yarn, linear}, map[*tensor.Tensor]Value{input: feed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var differs bool
+	for index, value := range results[yarn].Data {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			t.Fatalf("YaRN output[%d] is non-finite", index)
+		}
+		differs = differs || math.Abs(float64(value-results[linear].Data[index])) > 1e-5
+	}
+	if !differs {
+		t.Fatal("YaRN output equals pure linear interpolation")
+	}
+}
+
 func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 2))
@@ -588,6 +610,32 @@ func TestExecuteRepeatHeads(t *testing.T) {
 		if results[output].Data[index] != want[index] {
 			t.Fatalf("RepeatHeads[%d] = %v, want %v", index, results[output].Data[index], want[index])
 		}
+	}
+}
+
+func TestExecuteSigmoidMoEUsesBiasOnlyForSelection(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(1, 2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
+	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2))
+	output := builder.MoESigmoid(input, router, gate, up, down, bias, 1, true, 1)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:  {Shape: input.Shape, Data: []float32{1}},
+		router: {Shape: router.Shape, Data: []float32{2, 1}},
+		gate:   {Shape: gate.Shape, Data: []float32{1, 2}},
+		up:     {Shape: up.Shape, Data: []float32{1, 1}},
+		down:   {Shape: down.Shape, Data: []float32{1, 3}},
+		bias:   {Shape: bias.Shape, Data: []float32{-1, 1}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := float32(6 / (1 + math.Exp(-2)))
+	if difference := math.Abs(float64(results[output].Data[0] - want)); difference > 1e-6 {
+		t.Fatalf("sigmoid MoE output = %v, want %v", results[output].Data[0], want)
 	}
 }
 

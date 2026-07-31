@@ -114,6 +114,11 @@ type RoPEAttributes struct {
 	RotaryDimensions uint32
 	FrequencyBase    float32
 	FrequencyScale   float32
+	OriginalContext  uint32
+	ExtFactor        float32
+	AttentionFactor  float32
+	BetaFast         float32
+	BetaSlow         float32
 }
 
 type RoPENeoXAttributes = RoPEAttributes
@@ -140,7 +145,15 @@ type MoEAttributes struct {
 	TopK              uint32
 	NormalizeTopKProb bool
 	Scale             float32
+	Routing           MoERouting
 }
+
+type MoERouting uint32
+
+const (
+	MoERoutingSoftmax MoERouting = 1
+	MoERoutingSigmoid MoERouting = 2
+)
 
 type RepeatHeadsAttributes struct {
 	Heads uint32
@@ -383,6 +396,27 @@ func (b *Builder) MoE(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
+	return b.moe(input, router, gate, up, down, nil, topK, normalizeTopKProb, scale, MoERoutingSoftmax)
+}
+
+// MoESigmoid applies sigmoid routing, selects experts using the optional
+// correction bias, and weights the selected experts with the unbiased scores.
+func (b *Builder) MoESigmoid(
+	input, router, gate, up, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale, MoERoutingSigmoid)
+}
+
+func (b *Builder) moe(
+	input, router, gate, up, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+	routing MoERouting,
+) *Tensor {
 	if b.err != nil {
 		return nil
 	}
@@ -414,10 +448,23 @@ func (b *Builder) MoE(
 		b.setError(errors.New("MoE dimensions or routing attributes are invalid"))
 		return nil
 	}
+	if routing != MoERoutingSoftmax && routing != MoERoutingSigmoid {
+		b.setError(errors.New("MoE routing function is invalid"))
+		return nil
+	}
+	inputs := []*Tensor{input, router, gate, up, down}
+	if selectionBias != nil {
+		if selectionBias.Type != dtype.F32 || selectionBias.Shape.Rank != 1 ||
+			selectionBias.Shape.Dims[0] != experts {
+			b.setError(errors.New("MoE selection bias must be rank-1 F32 with one value per expert"))
+			return nil
+		}
+		inputs = append(inputs, selectionBias)
+	}
 	return b.add("", dtype.F32, input.Shape, OpMoE,
-		[]*Tensor{input, router, gate, up, down}, MoEAttributes{
+		inputs, MoEAttributes{
 			Experts: uint32(experts), TopK: topK,
-			NormalizeTopKProb: normalizeTopKProb, Scale: scale,
+			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing,
 		})
 }
 
@@ -556,6 +603,21 @@ func (b *Builder) RoPENeoXScaled(
 	)
 }
 
+// RoPENeoXYaRN applies YaRN interpolation/extrapolation and magnitude scaling
+// to the split-half rotary layout.
+func (b *Builder) RoPENeoXYaRN(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	originalContext uint32,
+	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
+) *Tensor {
+	return b.ropeYaRN(
+		OpRoPENeoX, "rope_neox", input, positions, rotaryDimensions, originalContext,
+		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow,
+	)
+}
+
 func (b *Builder) RoPENeoXScaledWithFactors(
 	input *Tensor,
 	positions []uint32,
@@ -601,6 +663,50 @@ func (b *Builder) RoPENormalScaled(
 		OpRoPENormal, "rope_normal", input, positions,
 		rotaryDimensions, frequencyBase, frequencyScale, nil,
 	)
+}
+
+// RoPENormalYaRN applies YaRN interpolation/extrapolation and magnitude
+// scaling to consecutive rotary pairs.
+func (b *Builder) RoPENormalYaRN(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	originalContext uint32,
+	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
+) *Tensor {
+	return b.ropeYaRN(
+		OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, originalContext,
+		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow,
+	)
+}
+
+func (b *Builder) ropeYaRN(
+	operation Op,
+	name string,
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	originalContext uint32,
+	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
+) *Tensor {
+	if originalContext == 0 || attentionFactor <= 0 || betaFast <= 0 || betaSlow <= 0 || extFactor < 0 {
+		b.setError(errors.New("YaRN RoPE parameters are invalid"))
+		return nil
+	}
+	result := b.rope(
+		operation, name, input, positions, rotaryDimensions, frequencyBase, frequencyScale, nil,
+	)
+	if result == nil {
+		return nil
+	}
+	attributes := result.Attrs.(RoPEAttributes)
+	attributes.OriginalContext = originalContext
+	attributes.ExtFactor = extFactor
+	attributes.AttentionFactor = attentionFactor
+	attributes.BetaFast = betaFast
+	attributes.BetaSlow = betaSlow
+	result.Attrs = attributes
+	return result
 }
 
 func (b *Builder) RoPENormalScaledWithFactors(
@@ -737,6 +843,7 @@ func (b *Builder) rope(
 		RotaryDimensions: rotaryDimensions,
 		FrequencyBase:    frequencyBase,
 		FrequencyScale:   frequencyScale,
+		AttentionFactor:  1,
 	}
 	inputs := []*Tensor{input}
 	if frequencyFactors != nil {

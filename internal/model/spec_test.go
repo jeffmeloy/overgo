@@ -120,6 +120,48 @@ func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	}
 }
 
+func TestReadLagunaSpecPreservesPerLayerHeadsAndHybridRoPE(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "laguna"),
+		metadata("laguna.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("laguna.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("laguna.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("laguna.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		{Key: "laguna.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{2, 4}}},
+		metadata("laguna.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("laguna.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("laguna.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("laguna.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("laguna.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("laguna.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("laguna.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("laguna.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("laguna.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(10)),
+		metadata("laguna.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("laguna.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("laguna.rope.freq_base", gguf.ValueTypeFloat32, float32(500000)),
+		metadata("laguna.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("laguna.rope.scaling.type", gguf.ValueTypeString, "yarn"),
+		metadata("laguna.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("laguna.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("laguna.attention.sliding_window", gguf.ValueTypeUint32, uint32(1024)),
+		metadata("laguna.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(2)),
+		metadata("laguna.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("laguna.rope.dimension_count_swa", gguf.ValueTypeUint32, uint32(4)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.LayerHeadCount(0) != 2 || spec.LayerHeadCount(1) != 4 ||
+		spec.LayerKVHeadCount(1) != 1 || spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
+		spec.RopeScalingType != "yarn" || spec.SharedExpertFF != 10 ||
+		!spec.ExpertWeightsNorm || spec.ExpertGatingFunc != 2 ||
+		math.Abs(float64(spec.YaRNAttentionFactor-1/(1+0.1*float32(math.Log(4))))) > 1e-6 {
+		t.Fatalf("unexpected Laguna spec: %+v", spec)
+	}
+}
+
 func TestReadChameleonSandwichSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "chameleon"),

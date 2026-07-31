@@ -40,6 +40,10 @@ type Spec struct {
 	ExpertUsedCount       uint32
 	ExpertFeedForward     uint32
 	ExpertWeightsScale    float32
+	LeadingDenseBlocks    uint32
+	SharedExpertFF        uint32
+	ExpertGatingFunc      uint32
+	ExpertWeightsNorm     bool
 	ShortConvCacheLength  uint32
 	KVLoRARank            uint32
 	QKNormEpsilon         float32
@@ -51,6 +55,13 @@ type Spec struct {
 	ParallelResidual      bool
 	NonCausalAttention    bool
 	SandwichNorm          bool
+	YaRNExtFactor         float32
+	YaRNAttentionFactor   float32
+	YaRNBetaFast          float32
+	YaRNBetaSlow          float32
+	RopeDimensionSWA      uint32
+	LayerHeadCounts       []uint32
+	LayerKVHeadCounts     []uint32
 	XIELUAlphaN           []float32
 	XIELUAlphaP           []float32
 	XIELUBeta             []float32
@@ -104,6 +115,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "cohere2" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
+		architecture != "laguna" &&
 		architecture != "lfm2" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
@@ -164,7 +176,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
+	if architecture == "laguna" {
+		if spec.LayerHeadCounts, err = requiredLayerUint32(
+			values, prefix+"attention.head_count", spec.BlockCount,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.HeadCount = spec.LayerHeadCounts[0]
+	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
 	if architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "mpt" ||
@@ -179,6 +198,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.HeadCountKV = value
 			}
 		}
+	} else if architecture == "laguna" {
+		if spec.LayerKVHeadCounts, err = requiredLayerUint32(
+			values, prefix+"attention.head_count_kv", spec.BlockCount,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.HeadCountKV = spec.LayerKVHeadCounts[0]
 	} else if architecture == "lfm2" {
 		counts, countErr := requiredArray[uint32](
 			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
@@ -247,20 +273,46 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" ||
 				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
-				return Spec{}, fmt.Errorf(
-					"model architecture %q uses unsupported RoPE scaling type %q",
-					architecture,
-					scalingType,
-				)
+				if architecture != "laguna" || scalingType != "yarn" {
+					return Spec{}, fmt.Errorf(
+						"model architecture %q uses unsupported RoPE scaling type %q",
+						architecture,
+						scalingType,
+					)
+				}
 			}
 			spec.RopeScalingType = scalingType
-			if scalingType == "linear" {
+			if scalingType == "linear" || scalingType == "yarn" {
 				if spec.RopeScalingFactor, err = required[float32](
 					values,
 					prefix+"rope.scaling.factor",
 					gguf.ValueTypeFloat32,
 				); err != nil {
 					return Spec{}, err
+				}
+			}
+			if scalingType == "yarn" {
+				if spec.OriginalContextLength, err = required[uint32](
+					values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
+				); err != nil {
+					return Spec{}, err
+				}
+				spec.YaRNExtFactor = 1
+				// ggml's YaRN primitive applies its logarithmic magnitude factor
+				// internally. llama.cpp cancels it in the context parameters for
+				// ordinary YaRN models, leaving rotation interpolation without an
+				// unintended residual-vector scale.
+				spec.YaRNAttentionFactor = 1 / (1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
+				spec.YaRNBetaFast = 32
+				spec.YaRNBetaSlow = 1
+				for key, destination := range map[string]*float32{
+					"rope.scaling.yarn_ext_factor": &spec.YaRNExtFactor,
+					"rope.scaling.yarn_beta_fast":  &spec.YaRNBetaFast,
+					"rope.scaling.yarn_beta_slow":  &spec.YaRNBetaSlow,
+				} {
+					if value, ok := optional[float32](values, prefix+key, gguf.ValueTypeFloat32); ok {
+						*destination = value
+					}
 				}
 			}
 		}
@@ -670,7 +722,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "qwen3moe" || architecture == "rnd1" {
+	if architecture == "qwen3moe" || architecture == "rnd1" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -695,6 +747,57 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
 		); ok {
 			spec.ExpertWeightsScale = value
+		}
+	}
+	if architecture == "laguna" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.LeadingDenseBlocks, err = required[uint32](
+			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.SharedExpertFF, err = required[uint32](
+			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc, _ = optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32)
+		if spec.ExpertGatingFunc == 0 {
+			spec.ExpertGatingFunc = 2
+		}
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		sharedCount := uint32(1)
+		if value, ok := optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); ok {
+			sharedCount = value
+		}
+		if sharedCount != 1 {
+			return Spec{}, errors.New("Laguna requires exactly one shared expert")
+		}
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
+			spec.SlidingWindow = value
+		}
+		if spec.SlidingWindow > 0 {
+			spec.SlidingPattern = 4
+			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
+				spec.SlidingPattern = value
+			}
+			spec.RopeFrequencySWA = spec.RopeFrequencyBase
+			if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
+				spec.RopeFrequencySWA = value
+			}
+			spec.RopeDimensionSWA = spec.KeyLength
+			if value, ok := optional[uint32](values, prefix+"rope.dimension_count_swa", gguf.ValueTypeUint32); ok {
+				spec.RopeDimensionSWA = value
+			}
 		}
 	}
 	if architecture == "lfm2" {
@@ -796,11 +899,34 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 	if s.Architecture == "lfm2" {
 		return block < s.BlockCount && s.SlidingWindow > 0 && !s.IsRecurrentLayer(block)
 	}
+	if s.Architecture == "laguna" {
+		return block < s.BlockCount &&
+			s.SlidingWindow > 0 &&
+			s.SlidingPattern > 0 &&
+			block%s.SlidingPattern != 0
+	}
 	return usesSlidingAttention(s.Architecture) &&
 		block < s.BlockCount &&
 		s.SlidingWindow > 0 &&
 		s.SlidingPattern > 0 &&
 		block%s.SlidingPattern < s.SlidingPattern-1
+}
+
+// LayerHeadCount returns the query-head count selected for a layer. Laguna
+// stores this metadata as either a scalar or one value per layer.
+func (s Spec) LayerHeadCount(block uint32) uint32 {
+	if block < uint32(len(s.LayerHeadCounts)) {
+		return s.LayerHeadCounts[block]
+	}
+	return s.HeadCount
+}
+
+// LayerKVHeadCount returns the key/value-head count selected for a layer.
+func (s Spec) LayerKVHeadCount(block uint32) uint32 {
+	if block < uint32(len(s.LayerKVHeadCounts)) {
+		return s.LayerKVHeadCounts[block]
+	}
+	return s.HeadCountKV
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
@@ -917,6 +1043,50 @@ func (s Spec) validate() error {
 			math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
+	}
+	if s.Architecture == "laguna" {
+		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerKVHeadCounts) != int(s.BlockCount) {
+			return errors.New("Laguna per-layer attention head metadata is invalid")
+		}
+		for block := uint32(0); block < s.BlockCount; block++ {
+			heads := s.LayerHeadCount(block)
+			kvHeads := s.LayerKVHeadCount(block)
+			if heads == 0 || kvHeads == 0 || heads%kvHeads != 0 {
+				return fmt.Errorf("Laguna layer %d attention head metadata is invalid", block)
+			}
+		}
+		switch {
+		case s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("Laguna leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
+			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+			s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
+			return errors.New("Laguna expert metadata is invalid")
+		case s.ExpertGatingFunc != 2:
+			return errors.New("Laguna requires sigmoid expert routing")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("Laguna expert weight scale is invalid")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0:
+			return errors.New("Laguna full-attention rotary dimension count is invalid")
+		case s.RopeScalingType != "yarn":
+			return errors.New("Laguna full-attention layers require YaRN RoPE")
+		case s.KeyLength != s.ValueLength:
+			return errors.New("Laguna requires matching attention key and value lengths")
+		case s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 ||
+			s.YaRNExtFactor < 0 || s.YaRNAttentionFactor <= 0 ||
+			s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
+			math.IsNaN(float64(s.YaRNExtFactor)) || math.IsInf(float64(s.YaRNExtFactor), 0) ||
+			math.IsNaN(float64(s.YaRNAttentionFactor)) || math.IsInf(float64(s.YaRNAttentionFactor), 0) ||
+			math.IsNaN(float64(s.YaRNBetaFast)) || math.IsInf(float64(s.YaRNBetaFast), 0) ||
+			math.IsNaN(float64(s.YaRNBetaSlow)) || math.IsInf(float64(s.YaRNBetaSlow), 0):
+			return errors.New("Laguna YaRN metadata is invalid")
+		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0 ||
+			s.RopeDimensionSWA == 0 || s.RopeDimensionSWA > s.KeyLength || s.RopeDimensionSWA%2 != 0):
+			return errors.New("Laguna sliding-attention metadata is invalid")
+		}
 	}
 	if s.Architecture == "lfm2" {
 		if s.ShortConvCacheLength < 2 || len(s.RecurrentLayers) != int(s.BlockCount) {
@@ -1235,6 +1405,39 @@ func requiredLayerFloat32(
 		return nil, fmt.Errorf("metadata %q has %d values, need %d", key, len(items), count)
 	}
 	return append([]float32(nil), items...), nil
+}
+
+func requiredLayerUint32(
+	values map[string]gguf.Value,
+	key string,
+	count uint32,
+) ([]uint32, error) {
+	value, ok := values[key]
+	if !ok {
+		return nil, fmt.Errorf("required metadata %q is missing", key)
+	}
+	if value.Type == gguf.ValueTypeUint32 {
+		scalar, ok := value.Data.(uint32)
+		if !ok {
+			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
+		}
+		result := make([]uint32, count)
+		for index := range result {
+			result[index] = scalar
+		}
+		return result, nil
+	}
+	if value.Type != gguf.ValueTypeArray || value.ArrayType != gguf.ValueTypeUint32 {
+		return nil, fmt.Errorf("metadata %q must be a uint32 or uint32 array", key)
+	}
+	items, ok := value.Data.([]uint32)
+	if !ok {
+		return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
+	}
+	if len(items) != int(count) {
+		return nil, fmt.Errorf("metadata %q has %d values, need %d", key, len(items), count)
+	}
+	return append([]uint32(nil), items...), nil
 }
 
 func optionalArray[T any](

@@ -647,12 +647,7 @@ func ropeNeoX(shape tensor.Shape, inputs []Value, attributes tensor.RoPENeoXAttr
 			for head := 0; head < heads; head++ {
 				offset := ((batch*tokens+tokenIndex)*heads + head) * width
 				for pairIndex := 0; pairIndex < half; pairIndex++ {
-					theta := float64(position) * float64(attributes.FrequencyScale) * math.Pow(
-						float64(attributes.FrequencyBase),
-						-2*float64(pairIndex)/float64(rotary),
-					) / float64(factors[pairIndex])
-					cosine := float32(math.Cos(theta))
-					sine := float32(math.Sin(theta))
+					cosine, sine := ropeCosSin(attributes, pairIndex, rotary, position, factors[pairIndex])
 					x0 := input.Data[offset+pairIndex]
 					x1 := input.Data[offset+pairIndex+half]
 					output[offset+pairIndex] = x0*cosine - x1*sine
@@ -687,12 +682,7 @@ func ropeNormal(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttrib
 			for head := 0; head < heads; head++ {
 				offset := ((batch*tokens+tokenIndex)*heads + head) * width
 				for pairIndex := 0; pairIndex < rotary/2; pairIndex++ {
-					theta := float64(position) * float64(attributes.FrequencyScale) * math.Pow(
-						float64(attributes.FrequencyBase),
-						-2*float64(pairIndex)/float64(rotary),
-					) / float64(factors[pairIndex])
-					cosine := float32(math.Cos(theta))
-					sine := float32(math.Sin(theta))
+					cosine, sine := ropeCosSin(attributes, pairIndex, rotary, position, factors[pairIndex])
 					first := offset + pairIndex*2
 					x0 := input.Data[first]
 					x1 := input.Data[first+1]
@@ -703,6 +693,38 @@ func ropeNormal(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttrib
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
+}
+
+func ropeCosSin(
+	attributes tensor.RoPEAttributes,
+	pairIndex, rotary int,
+	position uint32,
+	factor float32,
+) (float32, float32) {
+	thetaExtrapolated := float64(position) * math.Pow(
+		float64(attributes.FrequencyBase), -2*float64(pairIndex)/float64(rotary),
+	) / float64(factor)
+	theta := float64(attributes.FrequencyScale) * thetaExtrapolated
+	magnitude := float64(attributes.AttentionFactor)
+	if magnitude == 0 {
+		magnitude = 1
+	}
+	if attributes.ExtFactor != 0 && attributes.OriginalContext > 0 {
+		correction := func(rotations float32) float64 {
+			return float64(rotary) * math.Log(
+				float64(attributes.OriginalContext)/(float64(rotations)*2*math.Pi),
+			) / (2 * math.Log(float64(attributes.FrequencyBase)))
+		}
+		low := math.Floor(correction(attributes.BetaFast))
+		high := math.Ceil(correction(attributes.BetaSlow))
+		low = math.Max(0, math.Min(float64(rotary-1), low))
+		high = math.Max(0, math.Min(float64(rotary-1), high))
+		ramp := 1 - math.Min(1, math.Max(0, (float64(pairIndex)-low)/math.Max(0.001, high-low)))
+		mix := ramp * float64(attributes.ExtFactor)
+		theta = theta*(1-mix) + thetaExtrapolated*mix
+		magnitude *= 1 + 0.1*math.Log(1/float64(attributes.FrequencyScale))
+	}
+	return float32(math.Cos(theta) * magnitude), float32(math.Sin(theta) * magnitude)
 }
 
 func ropeFrequencyFactors(inputs []Value, rotary int) ([]float32, error) {
@@ -793,10 +815,14 @@ func repeatHeads(shape tensor.Shape, input Value) Value {
 }
 
 func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (Value, error) {
-	if len(inputs) != 5 {
-		return Value{}, errors.New("MoE requires five inputs")
+	if len(inputs) != 5 && len(inputs) != 6 {
+		return Value{}, errors.New("MoE requires five inputs and an optional selection bias")
 	}
 	input, router, gate, up, down := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+	var selectionBias []float32
+	if len(inputs) == 6 {
+		selectionBias = inputs[5].Data
+	}
 	hidden := int(input.Shape.Dims[0])
 	tokens := int(input.Shape.Dims[1])
 	experts := int(attributes.Experts)
@@ -807,6 +833,8 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	}
 	output := make([]float32, hidden*tokens)
 	logits := make([]float64, experts)
+	probabilities := make([]float64, experts)
+	selectionScores := make([]float64, experts)
 	selected := make([]int, topK)
 	weights := make([]float64, topK)
 	used := make([]bool, experts)
@@ -822,26 +850,42 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 			maximum = math.Max(maximum, dot)
 		}
 		var denominator float64
-		for _, logit := range logits {
-			denominator += math.Exp(logit - maximum)
+		if attributes.Routing == tensor.MoERoutingSoftmax {
+			for _, logit := range logits {
+				denominator += math.Exp(logit - maximum)
+			}
+		}
+		for expert, logit := range logits {
+			switch attributes.Routing {
+			case tensor.MoERoutingSoftmax:
+				probabilities[expert] = math.Exp(logit-maximum) / denominator
+			case tensor.MoERoutingSigmoid:
+				probabilities[expert] = 1 / (1 + math.Exp(-logit))
+			default:
+				return Value{}, errors.New("invalid MoE routing function")
+			}
+			selectionScores[expert] = probabilities[expert]
+			if selectionBias != nil {
+				selectionScores[expert] += float64(selectionBias[expert])
+			}
 		}
 		clear(used)
 		var selectedSum float64
 		for slot := 0; slot < topK; slot++ {
 			best := -1
-			bestLogit := math.Inf(-1)
-			for expert, logit := range logits {
-				if !used[expert] && (best < 0 || logit > bestLogit) {
-					best, bestLogit = expert, logit
+			bestScore := math.Inf(-1)
+			for expert, score := range selectionScores {
+				if !used[expert] && (best < 0 || score > bestScore) {
+					best, bestScore = expert, score
 				}
 			}
 			used[best] = true
 			selected[slot] = best
-			weights[slot] = math.Exp(bestLogit-maximum) / denominator
+			weights[slot] = probabilities[best]
 			selectedSum += weights[slot]
 		}
 		for slot := range topK {
-			if attributes.NormalizeTopKProb && topK > 1 {
+			if attributes.NormalizeTopKProb && selectedSum > 0 {
 				weights[slot] = weights[slot] / selectedSum * float64(attributes.Scale)
 			} else {
 				weights[slot] *= float64(attributes.Scale)

@@ -488,6 +488,49 @@ extern "C" __global__ void get_rows_f32(
     }
 }
 
+__device__ static float rope_yarn_corr_dim(
+		unsigned int rotary_dimensions,
+		unsigned int original_context,
+		float rotations,
+		float frequency_base) {
+	return (float) rotary_dimensions * logf(
+		(float) original_context / (rotations * 2.0f * 3.14159265358979323846f)
+	) / (2.0f * logf(frequency_base));
+}
+
+__device__ static void rope_yarn_angles(
+		float theta_extrapolated,
+		float frequency_scale,
+		unsigned int pair,
+		unsigned int rotary_dimensions,
+		unsigned int original_context,
+		float frequency_base,
+		float ext_factor,
+		float attention_factor,
+		float beta_fast,
+		float beta_slow,
+		float * cosine,
+		float * sine) {
+	float theta = frequency_scale * theta_extrapolated;
+	float magnitude = attention_factor;
+	if (ext_factor != 0.0f && original_context != 0) {
+		float low = floorf(rope_yarn_corr_dim(
+			rotary_dimensions, original_context, beta_fast, frequency_base));
+		float high = ceilf(rope_yarn_corr_dim(
+			rotary_dimensions, original_context, beta_slow, frequency_base));
+		low = fmaxf(0.0f, fminf((float) rotary_dimensions - 1.0f, low));
+		high = fmaxf(0.0f, fminf((float) rotary_dimensions - 1.0f, high));
+		const float y = ((float) pair - low) / fmaxf(0.001f, high - low);
+		const float ramp = 1.0f - fminf(1.0f, fmaxf(0.0f, y));
+		const float mix = ramp * ext_factor;
+		theta = theta * (1.0f - mix) + theta_extrapolated * mix;
+		magnitude *= 1.0f + 0.1f * logf(1.0f / frequency_scale);
+	}
+	sincosf(theta, sine, cosine);
+	*cosine *= magnitude;
+	*sine *= magnitude;
+}
+
 extern "C" __global__ void rope_neox_f32(
         const float * input,
         const unsigned int * positions,
@@ -499,6 +542,11 @@ extern "C" __global__ void rope_neox_f32(
         unsigned int rotary_dimensions,
         float frequency_base,
         float frequency_scale,
+		unsigned int original_context,
+		float ext_factor,
+		float attention_factor,
+		float beta_fast,
+		float beta_slow,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) {
@@ -514,13 +562,15 @@ extern "C" __global__ void rope_neox_f32(
     const unsigned int half = rotary_dimensions / 2;
     const unsigned int pair = column % half;
     const unsigned int pair_offset = row * width + pair;
-    const float theta =
-        (float) positions[token] * frequency_scale *
+	const float theta_extrapolated =
+		(float) positions[token] *
         powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
         (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
     float sine;
     float cosine;
-    sincosf(theta, &sine, &cosine);
+	rope_yarn_angles(theta_extrapolated, frequency_scale, pair, rotary_dimensions,
+		original_context, frequency_base, ext_factor, attention_factor,
+		beta_fast, beta_slow, &cosine, &sine);
     const float x0 = input[pair_offset];
     const float x1 = input[pair_offset + half];
     output[index] = column < half
@@ -539,6 +589,11 @@ extern "C" __global__ void rope_normal_f32(
         unsigned int rotary_dimensions,
         float frequency_base,
         float frequency_scale,
+		unsigned int original_context,
+		float ext_factor,
+		float attention_factor,
+		float beta_fast,
+		float beta_slow,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) {
@@ -553,13 +608,15 @@ extern "C" __global__ void rope_normal_f32(
     const unsigned int token = (row / heads) % tokens;
     const unsigned int pair = column / 2;
     const unsigned int pair_offset = row * width + pair * 2;
-    const float theta =
-        (float) positions[token] * frequency_scale *
+	const float theta_extrapolated =
+		(float) positions[token] *
         powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
         (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
     float sine;
     float cosine;
-    sincosf(theta, &sine, &cosine);
+	rope_yarn_angles(theta_extrapolated, frequency_scale, pair, rotary_dimensions,
+		original_context, frequency_base, ext_factor, attention_factor,
+		beta_fast, beta_slow, &cosine, &sine);
     const float x0 = input[pair_offset];
     const float x1 = input[pair_offset + 1];
     output[index] = (column & 1) == 0
@@ -625,6 +682,7 @@ extern "C" __global__ void moe_f32(
         const float * gate,
         const float * up,
         const float * down,
+		const float * selection_bias,
         float * output,
         unsigned int hidden,
         unsigned int tokens,
@@ -632,6 +690,7 @@ extern "C" __global__ void moe_f32(
         unsigned int top_k,
         unsigned int intermediate,
         unsigned int normalize_top_k,
+		unsigned int routing,
         float routed_scale,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -649,8 +708,8 @@ extern "C" __global__ void moe_f32(
         }
         maximum = fmaxf(maximum, logit);
     }
-    float denominator = 0.0f;
-    for (unsigned int expert = 0; expert < experts; ++expert) {
+	float denominator = 0.0f;
+	if (routing == 1) for (unsigned int expert = 0; expert < experts; ++expert) {
         const float * weight = router + (size_t) expert * hidden;
         float logit = 0.0f;
         for (unsigned int channel = 0; channel < hidden; ++channel) {
@@ -664,7 +723,8 @@ extern "C" __global__ void moe_f32(
     float selected_sum = 0.0f;
     for (unsigned int slot = 0; slot < top_k; ++slot) {
         int best = -1;
-        float best_logit = -3.402823466e+38F;
+		float best_score = -3.402823466e+38F;
+		float best_probability = 0.0f;
         for (unsigned int expert = 0; expert < experts; ++expert) {
             bool used = false;
             for (unsigned int prior = 0; prior < slot; ++prior) {
@@ -676,13 +736,18 @@ extern "C" __global__ void moe_f32(
             for (unsigned int channel = 0; channel < hidden; ++channel) {
                 logit += x[channel] * weight[channel];
             }
-            if (best < 0 || logit > best_logit) {
+			const float probability = routing == 2
+				? 1.0f / (1.0f + expf(-logit))
+				: expf(logit - maximum) / denominator;
+			const float score = probability + (selection_bias ? selection_bias[expert] : 0.0f);
+			if (best < 0 || score > best_score) {
                 best = (int) expert;
-                best_logit = logit;
+				best_score = score;
+				best_probability = probability;
             }
         }
         selected[slot] = (unsigned int) best;
-        route_weights[slot] = expf(best_logit - maximum) / denominator;
+		route_weights[slot] = best_probability;
         selected_sum += route_weights[slot];
     }
 
@@ -690,7 +755,7 @@ extern "C" __global__ void moe_f32(
     for (unsigned int slot = 0; slot < top_k; ++slot) {
         const unsigned int expert = selected[slot];
         float route = route_weights[slot] * routed_scale;
-        if (normalize_top_k && top_k > 1) route /= selected_sum;
+		if (normalize_top_k && selected_sum > 0.0f) route /= selected_sum;
         float expert_output = 0.0f;
         for (unsigned int inner = 0; inner < intermediate; ++inner) {
             const size_t weight_offset = ((size_t) expert * intermediate + inner) * hidden;

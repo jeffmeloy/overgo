@@ -160,6 +160,58 @@ func TestReadWeightsRND1(t *testing.T) {
 	}
 }
 
+func TestReadWeightsLagunaDenseThenMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "laguna", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 16, LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12,
+		SharedExpertFF: 10, ExpertWeightsScale: 1,
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+		LayerKVHeadCounts: []uint32{1, 1}, KeyLength: 4, ValueLength: 4,
+		VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+	}
+	for block, heads := range []uint64{2, 4} {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, heads*4),
+			tensorInfo(prefix+"attn_k.weight", 8, 4),
+			tensorInfo(prefix+"attn_v.weight", 8, 4),
+			tensorInfo(prefix+"attn_output.weight", heads*4, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", 4),
+			tensorInfo(prefix+"attn_k_norm.weight", 4),
+			tensorInfo(prefix+"attn_gate.weight", 8, heads),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.0.ffn_gate.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.1.ffn_gate_exps.weight", 8, 12, 4),
+		tensorInfo("blk.1.ffn_up_exps.weight", 8, 12, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 12, 8, 4),
+		tensorInfo("blk.1.exp_probs_b.bias", 4),
+		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 10),
+		tensorInfo("blk.1.ffn_up_shexp.weight", 8, 10),
+		tensorInfo("blk.1.ffn_down_shexp.weight", 10, 8),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[0].FeedForwardRouter != nil || weights.Layers[0].FeedForwardGate.Name == "" ||
+		weights.Layers[1].FeedForwardRouter == nil || weights.Layers[1].FeedForwardExpertBias == nil ||
+		weights.Layers[1].FeedForwardSharedDown == nil ||
+		weights.Layers[1].AttentionQ.Shape[1] != 16 {
+		t.Fatalf("unexpected Laguna catalog: %+v", weights.Layers)
+	}
+}
+
 func TestReadWeightsChameleon(t *testing.T) {
 	spec := Spec{
 		Architecture: "chameleon", BlockCount: 1, EmbeddingLength: 8,

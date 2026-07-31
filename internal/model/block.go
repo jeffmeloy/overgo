@@ -33,6 +33,7 @@ type LayerGraphWeights struct {
 	AttentionKNormBias     *tensor.Tensor
 	AttentionPostNorm      *tensor.Tensor
 	AttentionRelativeBias  *tensor.Tensor
+	AttentionOutputGate    *tensor.Tensor
 	RopeFactors            *tensor.Tensor
 	FeedForwardNorm        *tensor.Tensor
 	FeedForwardNormBias    *tensor.Tensor
@@ -51,6 +52,10 @@ type LayerGraphWeights struct {
 	FeedForwardGateExperts *tensor.Tensor
 	FeedForwardUpExperts   *tensor.Tensor
 	FeedForwardDownExperts *tensor.Tensor
+	FeedForwardExpertBias  *tensor.Tensor
+	FeedForwardSharedGate  *tensor.Tensor
+	FeedForwardSharedUp    *tensor.Tensor
+	FeedForwardSharedDown  *tensor.Tensor
 	ShortConvKernel        *tensor.Tensor
 	ShortConvInput         *tensor.Tensor
 	ShortConvOutput        *tensor.Tensor
@@ -415,6 +420,9 @@ func BuildDenseBlockCachedForLayer(
 	isPostOnlyNorm := usesPostOnlyNorm(spec.Architecture)
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	isChameleon := spec.Architecture == "chameleon"
+	isLaguna := spec.Architecture == "laguna"
+	headCount := spec.LayerHeadCount(layerIndex)
+	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
 	if spec.Architecture == "apertus" &&
 		(int(layerIndex) >= len(spec.XIELUAlphaN) || int(layerIndex) >= len(spec.XIELUAlphaP) ||
 			int(layerIndex) >= len(spec.XIELUBeta) || int(layerIndex) >= len(spec.XIELUEpsilon)) {
@@ -425,13 +433,19 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" {
+		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert gate"] = weights.FeedForwardGateExperts
 		required["feed-forward expert up"] = weights.FeedForwardUpExperts
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		if isLaguna {
+			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
+			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+			required["feed-forward shared up"] = weights.FeedForwardSharedUp
+			required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		}
 	} else {
 		required["feed-forward up"] = weights.FeedForwardUp
 		required["feed-forward down"] = weights.FeedForwardDown
@@ -495,6 +509,11 @@ func BuildDenseBlockCachedForLayer(
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
+	if isLaguna {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+		required["attention output gate"] = weights.AttentionOutputGate
+	}
 	if spec.Architecture == "stablelm" &&
 		(weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {
 		return DenseBlockResult{}, errors.New("StableLM Q/K norm weights must both be present or absent")
@@ -522,6 +541,10 @@ func BuildDenseBlockCachedForLayer(
 		)
 	}
 	feedForwardNormalized := normalized
+	var attentionGate *tensor.Tensor
+	if isLaguna {
+		attentionGate = builder.Softplus(builder.MulMat(weights.AttentionOutputGate, normalized))
+	}
 	if spec.Architecture == "falcon" && weights.AttentionNorm2 != nil {
 		if weights.AttentionNorm2Bias == nil {
 			normalized = builder.Multiply(
@@ -535,9 +558,9 @@ func BuildDenseBlockCachedForLayer(
 	}
 	var query, key, value *tensor.Tensor
 	if weights.AttentionQKV != nil {
-		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+		queryLength := uint64(headCount) * uint64(spec.KeyLength)
+		keyLength := uint64(kvHeadCount) * uint64(spec.KeyLength)
+		valueLength := uint64(kvHeadCount) * uint64(spec.ValueLength)
 		mixed := builder.MulMat(weights.AttentionQKV, normalized)
 		if weights.AttentionQKVBias != nil {
 			mixed = builder.Add(mixed, weights.AttentionQKVBias)
@@ -586,11 +609,11 @@ func BuildDenseBlockCachedForLayer(
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
 
-	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
-	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
-	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
+	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(headCount), tokens)
+	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
+	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -628,6 +651,27 @@ func BuildDenseBlockCachedForLayer(
 	if !spec.UsesRoPE(layerIndex) {
 		// Some dense architectures intentionally leave periodic layers
 		// position-independent.
+	} else if isLaguna {
+		if spec.IsSlidingLayer(layerIndex) {
+			query = builder.RoPENeoX(
+				query, positions, spec.RopeDimensionSWA, spec.RopeFrequencySWA,
+			)
+			key = builder.RoPENeoX(
+				key, positions, spec.RopeDimensionSWA, spec.RopeFrequencySWA,
+			)
+		} else {
+			frequencyScale := float32(1) / spec.RopeScalingFactor
+			query = builder.RoPENeoXYaRN(
+				query, positions, spec.RopeDimensionCount, spec.OriginalContextLength,
+				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+			)
+			key = builder.RoPENeoXYaRN(
+				key, positions, spec.RopeDimensionCount, spec.OriginalContextLength,
+				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+			)
+		}
 	} else if usesNormalRoPE(spec.Architecture) {
 		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := float32(1)
@@ -780,11 +824,14 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	}
-	attention = builder.Reshape(
-		attention,
-		uint64(spec.HeadCount)*uint64(spec.ValueLength),
-		tokens,
-	)
+	if isLaguna && weights.AttentionOutputGate.Shape.Dims[1] == uint64(headCount) {
+		attentionGate = builder.Reshape(attentionGate, 1, uint64(headCount), tokens)
+		attention = builder.Multiply(attention, attentionGate)
+	}
+	attention = builder.Reshape(attention, uint64(headCount)*uint64(spec.ValueLength), tokens)
+	if isLaguna && weights.AttentionOutputGate.Shape.Dims[1] != uint64(headCount) {
+		attention = builder.Multiply(attention, attentionGate)
+	}
 	if spec.Architecture == "bitnet" {
 		attention = builder.WeightedRMSNorm(
 			attention, weights.AttentionSubNorm, spec.RMSNormEpsilon,
@@ -842,16 +889,32 @@ func BuildDenseBlockCachedForLayer(
 	// Cohere decoders leave normalized pointing at the block input so attention
 	// and FFN run in parallel before both branches are added to the residual.
 	if usesExperts {
-		feedForward := builder.MoE(
-			normalized,
-			weights.FeedForwardRouter,
-			weights.FeedForwardGateExperts,
-			weights.FeedForwardUpExperts,
-			weights.FeedForwardDownExperts,
-			spec.ExpertUsedCount,
-			true,
-			spec.ExpertWeightsScale,
-		)
+		var feedForward *tensor.Tensor
+		if isLaguna {
+			feedForward = builder.MoESigmoid(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+				spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
+			)
+			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+			shared := builder.MulMat(
+				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+			)
+			feedForward = builder.Add(feedForward, shared)
+		} else {
+			feedForward = builder.MoE(
+				normalized,
+				weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts,
+				weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts,
+				spec.ExpertUsedCount,
+				true,
+				spec.ExpertWeightsScale,
+			)
+		}
 		output := builder.Add(residual, feedForward)
 		if err := builder.Err(); err != nil {
 			return DenseBlockResult{}, err

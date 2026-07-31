@@ -215,6 +215,16 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 			binary.LittleEndian.PutUint32(encoded[:], uint32(section))
 			_, _ = hasher.Write(encoded[:])
 		}
+		for _, heads := range r.spec.LayerHeadCounts {
+			var encoded [4]byte
+			binary.LittleEndian.PutUint32(encoded[:], heads)
+			_, _ = hasher.Write(encoded[:])
+		}
+		for _, heads := range r.spec.LayerKVHeadCounts {
+			var encoded [4]byte
+			binary.LittleEndian.PutUint32(encoded[:], heads)
+			_, _ = hasher.Write(encoded[:])
+		}
 		for _, recurrent := range r.spec.RecurrentLayers {
 			if recurrent {
 				_, _ = hasher.Write([]byte{1})

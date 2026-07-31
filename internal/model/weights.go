@@ -34,6 +34,7 @@ type LayerWeights struct {
 	AttentionKNormBias     *gguf.TensorInfo
 	AttentionPostNorm      *gguf.TensorInfo
 	AttentionRelativeBias  *gguf.TensorInfo
+	AttentionOutputGate    *gguf.TensorInfo
 	RopeFactors            *gguf.TensorInfo
 	FeedForwardNorm        gguf.TensorInfo
 	FeedForwardNormBias    *gguf.TensorInfo
@@ -52,6 +53,10 @@ type LayerWeights struct {
 	FeedForwardGateExperts *gguf.TensorInfo
 	FeedForwardUpExperts   *gguf.TensorInfo
 	FeedForwardDownExperts *gguf.TensorInfo
+	FeedForwardExpertBias  *gguf.TensorInfo
+	FeedForwardSharedGate  *gguf.TensorInfo
+	FeedForwardSharedUp    *gguf.TensorInfo
+	FeedForwardSharedDown  *gguf.TensorInfo
 	ShortConvKernel        *gguf.TensorInfo
 	ShortConvInput         *gguf.TensorInfo
 	ShortConvOutput        *gguf.TensorInfo
@@ -280,13 +285,13 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
 
-	queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-	keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-	valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-	attentionOutputLength := uint64(spec.HeadCount) * uint64(spec.ValueLength)
 	result.Layers = make([]LayerWeights, spec.BlockCount)
 	for block := uint32(0); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
+		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.KeyLength)
+		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.KeyLength)
+		valueLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.ValueLength)
+		attentionOutputLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.ValueLength)
 		biasNames := []string{
 			"attn_q.bias",
 			"attn_k.bias",
@@ -666,7 +671,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			(spec.Architecture == "lfm2" && !layer.Recurrent) {
@@ -680,6 +685,20 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
+		}
+		if spec.Architecture == "laguna" {
+			gate, ok := tensors[prefix+"attn_gate.weight"]
+			if !ok {
+				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_gate.weight")
+			}
+			if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) {
+				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
+			}
+			heads := uint64(spec.LayerHeadCount(block))
+			if gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
+				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d or %d", gate.Name, gate.Shape[1], heads, heads*uint64(spec.ValueLength))
+			}
+			layer.AttentionOutputGate = &gate
 		}
 		if spec.Architecture == "chameleon" {
 			qNorm, normErr := required(
@@ -864,7 +883,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" {
+		if spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" ||
+			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       []uint64
 				destination **gguf.TensorInfo
@@ -891,6 +911,31 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					return Weights{}, itemErr
 				}
 				*shapeAndDestination.destination = &item
+			}
+			if spec.Architecture == "laguna" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"exp_probs_b.bias": {
+						[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias,
+					},
+					"ffn_gate_shexp.weight": {
+						[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate,
+					},
+					"ffn_up_shexp.weight": {
+						[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp,
+					},
+					"ffn_down_shexp.weight": {
+						[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown,
+					},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
 			}
 			continue
 		}

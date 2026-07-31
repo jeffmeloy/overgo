@@ -146,6 +146,42 @@ func TestExecutorMoEMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 5e-5)
 }
 
+func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(3, 2))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(3, 4))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(3, 5, 4))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(3, 5, 4))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(5, 3, 4))
+	bias := builder.Input("bias", dtype.F32, tensor.MustShape(4))
+	output := builder.MoESigmoid(input, router, gate, up, down, bias, 2, true, 1.25)
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:  patternedValue(input.Shape, 3, 0.4, 0),
+		router: patternedValue(router.Shape, 5, 0.3, 0),
+		gate:   patternedValue(gate.Shape, 7, 0.2, 0),
+		up:     patternedValue(up.Shape, 11, 0.2, 0),
+		down:   patternedValue(down.Shape, 13, 0.2, 0),
+		bias:   patternedValue(bias.Shape, 17, 0.4, 0),
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 7e-5)
+}
+
 func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
@@ -677,6 +713,9 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 		0.25,
 		ropeFactors,
 	)
+	yarnRope := builder.RoPENeoXYaRN(
+		ropeInput, []uint32{0, 17}, 4, 8, 10_000, 0.25, 1, 1, 32, 1,
+	)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -699,7 +738,7 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 		ropeInput:   ropeValue,
 		ropeFactors: ropeFactorValue,
 	}
-	outputs := []*tensor.Tensor{embedding, swiglu, rope, normalRope, factoredRope}
+	outputs := []*tensor.Tensor{embedding, swiglu, rope, normalRope, factoredRope, yarnRope}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -718,6 +757,7 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 	compare(t, got[rope].Data, want[rope].Data, 3e-5)
 	compare(t, got[normalRope].Data, want[normalRope].Data, 3e-5)
 	compare(t, got[factoredRope].Data, want[factoredRope].Data, 3e-5)
+	compare(t, got[yarnRope].Data, want[yarnRope].Data, 3e-5)
 }
 
 func TestExecutorDenseQwen3BlockMatchesReference(t *testing.T) {
@@ -1643,6 +1683,78 @@ func TestExecutorRND1NonCausalMoEBlockMatchesReference(t *testing.T) {
 	}
 	compare(t, got[result.Output].Data, want[result.Output].Data, 7e-4)
 	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
+func TestExecutorLagunaYaRNMoEBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "laguna", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 16, LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12,
+		SharedExpertFF: 10, ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+		LayerKVHeadCounts: []uint32{1, 1}, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 500000, RopeDimensionCount: 4, RopeScalingType: "yarn",
+		RopeScalingFactor: 4, OriginalContextLength: 2048, YaRNExtFactor: 1,
+		YaRNAttentionFactor: 1, YaRNBetaFast: 32, YaRNBetaSlow: 1, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionK:             builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:             builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(16, 8)),
+		AttentionQNorm:         builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionKNorm:         builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionOutputGate:    builder.Input("attn_gate", dtype.F32, tensor.MustShape(8, 16)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("correction", dtype.F32, tensor.MustShape(4)),
+		FeedForwardSharedGate:  builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 10)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 10)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
+	allWeights := []*tensor.Tensor{
+		weights.AttentionQ, weights.AttentionK, weights.AttentionV, weights.AttentionOutput,
+		weights.AttentionOutputGate, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+		weights.FeedForwardUpExperts, weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+		weights.FeedForwardSharedGate, weights.FeedForwardSharedUp, weights.FeedForwardSharedDown,
+	}
+	for index, node := range allWeights {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.05, 0)
+	}
+	for index, node := range []*tensor.Tensor{weights.AttentionNorm, weights.AttentionQNorm, weights.AttentionKNorm, weights.FeedForwardNorm} {
+		feeds[node] = patternedValue(node.Shape, index+37, 0.03, 1)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 1e-3)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 7e-5)
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 

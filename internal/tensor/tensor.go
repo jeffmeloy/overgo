@@ -441,8 +441,8 @@ func (b *Builder) moe(
 		return nil
 	}
 	if gate.Type != up.Type || gate.Type != down.Type ||
-		(gate.Type != dtype.F32 && gate.Type != dtype.Q8_0) {
-		b.setError(errors.New("MoE experts must share F32 or Q8_0 storage"))
+		(gate.Type != dtype.F32 && !nativeQuantizedType(gate.Type)) {
+		b.setError(errors.New("MoE experts must share F32 or native quantized storage"))
 		return nil
 	}
 	if input.Shape.Rank != 2 || router.Shape.Rank != 2 || gate.Shape.Rank != 3 ||
@@ -468,10 +468,10 @@ func (b *Builder) moe(
 		b.setError(errors.New("MoE routing function is invalid"))
 		return nil
 	}
-	if gate.Type == dtype.Q8_0 {
-		traits, _ := dtype.Q8_0.Traits()
+	if nativeQuantizedType(gate.Type) {
+		traits, _ := gate.Type.Traits()
 		if hidden%traits.BlockSize != 0 || intermediate%traits.BlockSize != 0 {
-			b.setError(errors.New("Q8_0 MoE hidden and intermediate widths must be block aligned"))
+			b.setError(fmt.Errorf("%s MoE hidden and intermediate widths must be block aligned", gate.Type))
 			return nil
 		}
 	}

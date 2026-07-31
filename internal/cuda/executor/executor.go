@@ -1251,11 +1251,11 @@ func launchNode(
 			return errors.New("MoE expert storage types differ")
 		}
 		var expertStorage uint32
-		switch node.Inputs[2].Type {
-		case dtype.F32:
-		case dtype.Q8_0:
-			expertStorage = 1
-		default:
+		if node.Inputs[2].Type == dtype.F32 {
+			expertStorage = uint32(dtype.F32)
+		} else if nativeQuantizedType(node.Inputs[2].Type) {
+			expertStorage = uint32(node.Inputs[2].Type)
+		} else {
 			return fmt.Errorf("MoE expert storage type %s is unsupported", node.Inputs[2].Type)
 		}
 		var selectionBias driver.DevicePtr

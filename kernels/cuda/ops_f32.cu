@@ -1,6 +1,37 @@
 #include <cuda_fp16.h>
 #include "iq_tables_generated.cuh"
 
+enum GGMLStorageType : unsigned int {
+    GGML_F32 = 0,
+    GGML_Q4_0 = 2,
+    GGML_Q4_1 = 3,
+    GGML_Q5_0 = 6,
+    GGML_Q5_1 = 7,
+    GGML_Q8_0 = 8,
+    GGML_Q8_1 = 9,
+    GGML_Q2_K = 10,
+    GGML_Q3_K = 11,
+    GGML_Q4_K = 12,
+    GGML_Q5_K = 13,
+    GGML_Q6_K = 14,
+    GGML_Q8_K = 15,
+    GGML_IQ2_XXS = 16,
+    GGML_IQ2_XS = 17,
+    GGML_IQ3_XXS = 18,
+    GGML_IQ1_S = 19,
+    GGML_IQ4_NL = 20,
+    GGML_IQ3_S = 21,
+    GGML_IQ2_S = 22,
+    GGML_IQ4_XS = 23,
+    GGML_IQ1_M = 29,
+    GGML_TQ1_0 = 34,
+    GGML_TQ2_0 = 35,
+    GGML_MXFP4 = 39,
+    GGML_NVFP4 = 40,
+    GGML_Q1_0 = 41,
+    GGML_Q2_0 = 42,
+};
+
 extern "C" __global__ void add_f32(
         const float * input_a,
         const float * input_b,
@@ -679,17 +710,7 @@ extern "C" __global__ void rope_multi_f32(
 __device__ float moe_expert_value(
         const void * weights,
         size_t index,
-        unsigned int storage) {
-    if (storage == 0) {
-        return reinterpret_cast<const float *>(weights)[index];
-    }
-    const unsigned char * bytes = reinterpret_cast<const unsigned char *>(weights);
-    const unsigned char * block = bytes + (index / 32) * 34;
-    const float scale = __half2float(*reinterpret_cast<const __half *>(block));
-    const signed char value =
-        *(reinterpret_cast<const signed char *>(block + 2) + index % 32);
-    return scale * (float) value;
-}
+        unsigned int storage);
 
 extern "C" __global__ void moe_f32(
         const float * input,
@@ -2041,4 +2062,58 @@ extern "C" __global__ void mul_mat_q6_K_f32(
         }
     }
     output[index] = sum;
+}
+
+__device__ float moe_expert_value(
+        const void * weights,
+        size_t index,
+        unsigned int storage) {
+    if (storage == GGML_F32) {
+        return reinterpret_cast<const float *>(weights)[index];
+    }
+    const unsigned char * bytes = reinterpret_cast<const unsigned char *>(weights);
+#define MOE_DEQUANT_CASE(TYPE, WIDTH, BLOCK_BYTES, DEQUANT) \
+    case TYPE: { \
+        const unsigned char * block = \
+            bytes + (index / WIDTH) * BLOCK_BYTES; \
+        return DEQUANT(block, (unsigned int) (index % WIDTH)); \
+    }
+    switch (storage) {
+    MOE_DEQUANT_CASE(GGML_Q4_0, 32, 18, dequant_q4_0_value)
+    MOE_DEQUANT_CASE(GGML_Q4_1, 32, 20, dequant_q4_1_value)
+    MOE_DEQUANT_CASE(GGML_Q5_0, 32, 22, dequant_q5_0_value)
+    MOE_DEQUANT_CASE(GGML_Q5_1, 32, 24, dequant_q5_1_value)
+    case GGML_Q8_0: {
+        const unsigned char * block = bytes + (index / 32) * 34;
+        const float scale = __half2float(*reinterpret_cast<const __half *>(block));
+        const signed char value =
+            *(reinterpret_cast<const signed char *>(block + 2) + index % 32);
+        return scale * (float) value;
+    }
+    MOE_DEQUANT_CASE(GGML_Q8_1, 32, 36, dequant_q8_1_value)
+    MOE_DEQUANT_CASE(GGML_Q2_K, 256, 84, dequant_q2_K_value)
+    MOE_DEQUANT_CASE(GGML_Q3_K, 256, 110, dequant_q3_K_value)
+    MOE_DEQUANT_CASE(GGML_Q4_K, 256, 144, dequant_q4_K_value)
+    MOE_DEQUANT_CASE(GGML_Q5_K, 256, 176, dequant_q5_K_value)
+    MOE_DEQUANT_CASE(GGML_Q6_K, 256, 210, dequant_q6_K_value)
+    MOE_DEQUANT_CASE(GGML_Q8_K, 256, 292, dequant_q8_K_value)
+    MOE_DEQUANT_CASE(GGML_IQ2_XXS, 256, 66, dequant_iq2_xxs_value)
+    MOE_DEQUANT_CASE(GGML_IQ2_XS, 256, 74, dequant_iq2_xs_value)
+    MOE_DEQUANT_CASE(GGML_IQ3_XXS, 256, 98, dequant_iq3_xxs_value)
+    MOE_DEQUANT_CASE(GGML_IQ1_S, 256, 50, dequant_iq1_s_value)
+    MOE_DEQUANT_CASE(GGML_IQ4_NL, 32, 18, dequant_iq4_nl_value)
+    MOE_DEQUANT_CASE(GGML_IQ3_S, 256, 110, dequant_iq3_s_value)
+    MOE_DEQUANT_CASE(GGML_IQ2_S, 256, 82, dequant_iq2_s_value)
+    MOE_DEQUANT_CASE(GGML_IQ4_XS, 256, 136, dequant_iq4_xs_value)
+    MOE_DEQUANT_CASE(GGML_IQ1_M, 256, 56, dequant_iq1_m_value)
+    MOE_DEQUANT_CASE(GGML_TQ1_0, 256, 54, dequant_tq1_0_value)
+    MOE_DEQUANT_CASE(GGML_TQ2_0, 256, 66, dequant_tq2_0_value)
+    MOE_DEQUANT_CASE(GGML_MXFP4, 32, 17, dequant_mxfp4_value)
+    MOE_DEQUANT_CASE(GGML_NVFP4, 64, 36, dequant_nvfp4_value)
+    MOE_DEQUANT_CASE(GGML_Q1_0, 128, 18, dequant_q1_0_value)
+    MOE_DEQUANT_CASE(GGML_Q2_0, 64, 18, dequant_q2_0_value)
+    default:
+        return 0.0f;
+    }
+#undef MOE_DEQUANT_CASE
 }

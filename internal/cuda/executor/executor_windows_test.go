@@ -146,27 +146,49 @@ func TestExecutorMoEMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 5e-5)
 }
 
-func TestExecutorQ8_0MoEMatchesReference(t *testing.T) {
+func TestExecutorNativeQuantizedMoEMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
 	}
-	inputShape := tensor.MustShape(32, 2)
-	routerShape := tensor.MustShape(32, 4)
-	gateShape := tensor.MustShape(32, 32, 4)
-	downShape := tensor.MustShape(32, 32, 4)
-	inputValue := patternedValue(inputShape, 3, 0.08, 0)
-	routerValue := patternedValue(routerShape, 5, 0.06, 0)
-	gateValue := patternedValue(gateShape, 7, 0.04, 0)
-	upValue := patternedValue(gateShape, 11, 0.04, 0)
-	downValue := patternedValue(downShape, 13, 0.04, 0)
+	for _, dataType := range []dtype.Type{
+		dtype.Q8_0,
+		dtype.Q4_0,
+		dtype.Q4K,
+		dtype.IQ4XS,
+		dtype.TQ2_0,
+		dtype.MXFP4,
+		dtype.Q1_0,
+	} {
+		t.Run(dataType.String(), func(t *testing.T) {
+			testExecutorNativeQuantizedMoE(t, dataType)
+		})
+	}
+}
+
+func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
+	t.Helper()
+	traits, ok := dataType.Traits()
+	if !ok {
+		t.Fatalf("missing traits for %s", dataType)
+	}
+	width := traits.BlockSize
+	inputShape := tensor.MustShape(width, 1)
+	routerShape := tensor.MustShape(width, 2)
+	gateShape := tensor.MustShape(width, width, 2)
+	downShape := tensor.MustShape(width, width, 2)
+	inputValue := patternedValue(inputShape, 3, 0.02, 0)
+	routerValue := patternedValue(routerShape, 5, 0.01, 0)
+	gateValue := patternedValue(gateShape, 7, 0.01, 0)
+	upValue := patternedValue(gateShape, 11, 0.01, 0)
+	downValue := patternedValue(downShape, 13, 0.01, 0)
 
 	quantize := func(value reference.Value) ([]byte, reference.Value) {
 		t.Helper()
-		storage, err := quant.Quantize(dtype.Q8_0, value.Data)
+		storage, err := quant.Quantize(dataType, value.Data)
 		if err != nil {
 			t.Fatal(err)
 		}
-		dequantized, err := quant.Dequantize(dtype.Q8_0, storage, uint64(len(value.Data)))
+		dequantized, err := quant.Dequantize(dataType, storage, uint64(len(value.Data)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,9 +228,9 @@ func TestExecutorQ8_0MoEMatchesReference(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, inputShape)
 	router := builder.Input("router", dtype.F32, routerShape)
-	gate := builder.Input("gate", dtype.Q8_0, gateShape)
-	up := builder.Input("up", dtype.Q8_0, gateShape)
-	down := builder.Input("down", dtype.Q8_0, downShape)
+	gate := builder.Input("gate", dataType, gateShape)
+	up := builder.Input("up", dataType, gateShape)
+	down := builder.Input("down", dataType, downShape)
 	output := builder.MoE(input, router, gate, up, down, 2, true, 1.25)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
@@ -264,7 +286,7 @@ func TestExecutorQ8_0MoEMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[referenceOutput].Data, 2e-4)
+	compare(t, got[output].Data, want[referenceOutput].Data, 5e-4)
 }
 
 func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {

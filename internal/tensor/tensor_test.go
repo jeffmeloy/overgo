@@ -221,6 +221,36 @@ func TestBuilderQ8MoE(t *testing.T) {
 	}
 }
 
+func TestBuilderNativeQuantizedMoEFormats(t *testing.T) {
+	for _, dataType := range []dtype.Type{
+		dtype.Q4_0, dtype.Q4_1, dtype.Q5_0, dtype.Q5_1,
+		dtype.Q8_0, dtype.Q8_1, dtype.Q2K, dtype.Q3K, dtype.Q4K, dtype.Q5K, dtype.Q6K, dtype.Q8K,
+		dtype.IQ2XXS, dtype.IQ2XS, dtype.IQ2S, dtype.IQ3XXS, dtype.IQ3S, dtype.IQ1S, dtype.IQ1M,
+		dtype.IQ4NL, dtype.IQ4XS, dtype.MXFP4, dtype.NVFP4,
+		dtype.Q1_0, dtype.Q2_0, dtype.TQ1_0, dtype.TQ2_0,
+	} {
+		t.Run(dataType.String(), func(t *testing.T) {
+			traits, ok := dataType.Traits()
+			if !ok {
+				t.Fatalf("missing traits for %s", dataType)
+			}
+			builder := NewBuilder()
+			input := builder.Input("input", dtype.F32, MustShape(traits.BlockSize, 1))
+			router := builder.Input("router", dtype.F32, MustShape(traits.BlockSize, 2))
+			gate := builder.Input("gate", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
+			up := builder.Input("up", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
+			down := builder.Input("down", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
+			output := builder.MoE(input, router, gate, up, down, 1, false, 1)
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			if output.Type != dtype.F32 {
+				t.Fatalf("%s MoE output type = %s", dataType, output.Type)
+			}
+		})
+	}
+}
+
 func TestBuilderGatedDeltaNet(t *testing.T) {
 	builder := NewBuilder()
 	q := builder.Input("q", dtype.F32, MustShape(4, 2, 3, 2))

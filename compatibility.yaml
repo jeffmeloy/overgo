@@ -954,7 +954,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - non-causal-full-sequence-attention
       - no-kv-cache
@@ -964,14 +964,13 @@ models:
       - all-position-hidden-states-and-logits
     limitations:
       - iterative-diffusion-sampler-pending
-      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   laguna:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - per-layer-query-and-kv-head-counts
       - qk-rmsnorm
@@ -983,15 +982,13 @@ models:
       - optional-selected-weight-normalization
       - always-on-shared-expert
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   afmoe:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - mup-square-root-embedding-scale
       - dual-pre-and-post-rmsnorm
@@ -1004,8 +1001,6 @@ models:
       - optional-selected-weight-normalization
       - optional-shared-experts
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   lfm2:
     status: experimental
@@ -1138,7 +1133,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - affine-rmsnorm
       - contiguous-fused-or-separate-qkv
@@ -1150,8 +1145,6 @@ models:
       - packed-swiglu-experts
       - required-untied-output-and-bias
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   gptneox:
     status: experimental
@@ -1202,7 +1195,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - mixtral-normalized-softmax-top-k-routing
       - mixtral-packed-swiglu-experts
@@ -1212,8 +1205,6 @@ models:
       - ordinary-or-linear-rope
       - optional-per-pair-rope-factors
       - no-longrope-or-yarn-factor-selection
-    limitations:
-      - non-q8-native-expert-kernels-pending
     tokenizers:
       - llama-spm
       - llama3-bpe
@@ -1386,7 +1377,7 @@ models:
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - qwen3-qk-rmsnorm
       - neox-rope
@@ -1395,7 +1386,6 @@ models:
       - routed-weight-scaling
       - packed-swiglu-experts
     limitations:
-      - non-q8-native-expert-kernels-pending
       - shared-experts-pending
       - grouped-and-sigmoid-routing-pending
     real_model_validation: pending-fixture
@@ -1404,22 +1394,20 @@ models:
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - neox-rope
       - unnormalized-softmax-top-k-routing
       - packed-swiglu-experts
       - sigmoid-gated-shared-expert
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   olmoe:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - full-projection-qk-rmsnorm
       - neox-rope
@@ -1428,15 +1416,13 @@ models:
       - serializable-prefix-editable-kv-cache
     constraints:
       - matching-query-and-kv-head-counts
-    limitations:
-      - non-q8-native-expert-kernels-pending
     real_model_validation: pending-fixture
   exaone-moe:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
-      - native-q8-experts
+      - native-quantized-experts
     features:
       - pre-rmsnorm
       - per-head-qk-rmsnorm
@@ -1452,7 +1438,6 @@ models:
       - preserved-unexecuted-nextn-mtp-layers
       - serializable-prefix-editable-kv-cache
     limitations:
-      - non-q8-native-expert-kernels-pending
       - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   qwen35:

@@ -305,6 +305,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
+		{info.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
 		{info.AttentionQKV, &result.AttentionQKV},
 		{info.AttentionGate, &result.AttentionGate},
 		{info.SSMConv1D, &result.SSMConv1D},

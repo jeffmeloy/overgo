@@ -70,6 +70,33 @@ func TestReadQwen3MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadQwen2MoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen2moe"),
+		metadata("qwen2moe.block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen2moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("qwen2moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("qwen2moe.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("qwen2moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("qwen2moe.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(10)),
+		metadata("qwen2moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen2moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen2moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen2moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen2moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen2moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen2moe.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("qwen2moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 10 || spec.ExpertWeightsScale != 1 {
+		t.Fatalf("unexpected Qwen2-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "dream"),

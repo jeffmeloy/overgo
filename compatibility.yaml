@@ -1363,6 +1363,20 @@ models:
       - shared-experts-pending
       - grouped-and-sigmoid-routing-pending
     real_model_validation: pending-fixture
+  qwen2moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - neox-rope
+      - unnormalized-softmax-top-k-routing
+      - packed-swiglu-experts
+      - sigmoid-gated-shared-expert
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - native-quantized-expert-kernels-pending
+    real_model_validation: pending-fixture
   qwen35:
     status: experimental
     types:

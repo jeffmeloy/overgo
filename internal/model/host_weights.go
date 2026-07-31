@@ -15,58 +15,59 @@ import (
 
 // HostLayer is one dense layer dequantized to contiguous F32 values.
 type HostLayer struct {
-	AttentionNorm          reference.Value
-	AttentionNormBias      *reference.Value
-	AttentionNorm2         *reference.Value
-	AttentionNorm2Bias     *reference.Value
-	AttentionQ             reference.Value
-	AttentionK             reference.Value
-	AttentionV             reference.Value
-	AttentionOutput        reference.Value
-	AttentionQScale        *reference.Value
-	AttentionKScale        *reference.Value
-	AttentionVScale        *reference.Value
-	AttentionOutputScale   *reference.Value
-	AttentionSubNorm       *reference.Value
-	AttentionQBias         *reference.Value
-	AttentionKBias         *reference.Value
-	AttentionVBias         *reference.Value
-	AttentionOutputBias    *reference.Value
-	AttentionQNorm         *reference.Value
-	AttentionKNorm         *reference.Value
-	AttentionQNormBias     *reference.Value
-	AttentionKNormBias     *reference.Value
-	AttentionPostNorm      *reference.Value
-	AttentionRelativeBias  *reference.Value
-	AttentionOutputGate    *reference.Value
-	RopeFactors            *reference.Value
-	FeedForwardNorm        reference.Value
-	FeedForwardNormBias    *reference.Value
-	FeedForwardGate        reference.Value
-	FeedForwardUp          reference.Value
-	FeedForwardDown        reference.Value
-	FeedForwardGateScale   *reference.Value
-	FeedForwardUpScale     *reference.Value
-	FeedForwardDownScale   *reference.Value
-	FeedForwardSubNorm     *reference.Value
-	FeedForwardGateBias    *reference.Value
-	FeedForwardUpBias      *reference.Value
-	FeedForwardDownBias    *reference.Value
-	FeedForwardPostNorm    *reference.Value
-	FeedForwardRouter      *reference.Value
-	FeedForwardGateExperts *reference.Value
-	FeedForwardUpExperts   *reference.Value
-	FeedForwardDownExperts *reference.Value
-	FeedForwardExpertBias  *reference.Value
-	FeedForwardSharedGate  *reference.Value
-	FeedForwardSharedUp    *reference.Value
-	FeedForwardSharedDown  *reference.Value
-	ShortConvKernel        *reference.Value
-	ShortConvInput         *reference.Value
-	ShortConvOutput        *reference.Value
-	AttentionKVAMQA        *reference.Value
-	AttentionKVANorm       *reference.Value
-	AttentionKVB           *reference.Value
+	AttentionNorm           reference.Value
+	AttentionNormBias       *reference.Value
+	AttentionNorm2          *reference.Value
+	AttentionNorm2Bias      *reference.Value
+	AttentionQ              reference.Value
+	AttentionK              reference.Value
+	AttentionV              reference.Value
+	AttentionOutput         reference.Value
+	AttentionQScale         *reference.Value
+	AttentionKScale         *reference.Value
+	AttentionVScale         *reference.Value
+	AttentionOutputScale    *reference.Value
+	AttentionSubNorm        *reference.Value
+	AttentionQBias          *reference.Value
+	AttentionKBias          *reference.Value
+	AttentionVBias          *reference.Value
+	AttentionOutputBias     *reference.Value
+	AttentionQNorm          *reference.Value
+	AttentionKNorm          *reference.Value
+	AttentionQNormBias      *reference.Value
+	AttentionKNormBias      *reference.Value
+	AttentionPostNorm       *reference.Value
+	AttentionRelativeBias   *reference.Value
+	AttentionOutputGate     *reference.Value
+	RopeFactors             *reference.Value
+	FeedForwardNorm         reference.Value
+	FeedForwardNormBias     *reference.Value
+	FeedForwardGate         reference.Value
+	FeedForwardUp           reference.Value
+	FeedForwardDown         reference.Value
+	FeedForwardGateScale    *reference.Value
+	FeedForwardUpScale      *reference.Value
+	FeedForwardDownScale    *reference.Value
+	FeedForwardSubNorm      *reference.Value
+	FeedForwardGateBias     *reference.Value
+	FeedForwardUpBias       *reference.Value
+	FeedForwardDownBias     *reference.Value
+	FeedForwardPostNorm     *reference.Value
+	FeedForwardRouter       *reference.Value
+	FeedForwardGateExperts  *reference.Value
+	FeedForwardUpExperts    *reference.Value
+	FeedForwardDownExperts  *reference.Value
+	FeedForwardExpertBias   *reference.Value
+	FeedForwardSharedGate   *reference.Value
+	FeedForwardSharedUp     *reference.Value
+	FeedForwardSharedDown   *reference.Value
+	FeedForwardSharedRouter *reference.Value
+	ShortConvKernel         *reference.Value
+	ShortConvInput          *reference.Value
+	ShortConvOutput         *reference.Value
+	AttentionKVAMQA         *reference.Value
+	AttentionKVANorm        *reference.Value
+	AttentionKVB            *reference.Value
 
 	AttentionQKV     *reference.Value
 	AttentionQKVBias *reference.Value
@@ -472,6 +473,7 @@ func LoadHostLayer(
 		{info.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
+		{info.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -632,6 +634,7 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_gate_shexp.weight", layer.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{"ffn_up_shexp.weight", layer.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{"ffn_down_shexp.weight", layer.FeedForwardSharedDown, &result.FeedForwardSharedDown},
+		{"ffn_gate_inp_shexp.weight", layer.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
 		{"attn_kv_a_mqa.weight", layer.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{"attn_kv_a_norm.weight", layer.AttentionKVANorm, &result.AttentionKVANorm},
 		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},

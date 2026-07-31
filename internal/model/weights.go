@@ -10,59 +10,60 @@ import (
 
 // LayerWeights is the initial dense transformer weight set.
 type LayerWeights struct {
-	Recurrent              bool
-	AttentionNorm          gguf.TensorInfo
-	AttentionNormBias      *gguf.TensorInfo
-	AttentionNorm2         *gguf.TensorInfo
-	AttentionNorm2Bias     *gguf.TensorInfo
-	AttentionQ             gguf.TensorInfo
-	AttentionK             gguf.TensorInfo
-	AttentionV             gguf.TensorInfo
-	AttentionOutput        gguf.TensorInfo
-	AttentionQScale        *gguf.TensorInfo
-	AttentionKScale        *gguf.TensorInfo
-	AttentionVScale        *gguf.TensorInfo
-	AttentionOutputScale   *gguf.TensorInfo
-	AttentionSubNorm       *gguf.TensorInfo
-	AttentionQBias         *gguf.TensorInfo
-	AttentionKBias         *gguf.TensorInfo
-	AttentionVBias         *gguf.TensorInfo
-	AttentionOutputBias    *gguf.TensorInfo
-	AttentionQNorm         *gguf.TensorInfo
-	AttentionKNorm         *gguf.TensorInfo
-	AttentionQNormBias     *gguf.TensorInfo
-	AttentionKNormBias     *gguf.TensorInfo
-	AttentionPostNorm      *gguf.TensorInfo
-	AttentionRelativeBias  *gguf.TensorInfo
-	AttentionOutputGate    *gguf.TensorInfo
-	RopeFactors            *gguf.TensorInfo
-	FeedForwardNorm        gguf.TensorInfo
-	FeedForwardNormBias    *gguf.TensorInfo
-	FeedForwardGate        gguf.TensorInfo
-	FeedForwardUp          gguf.TensorInfo
-	FeedForwardDown        gguf.TensorInfo
-	FeedForwardGateScale   *gguf.TensorInfo
-	FeedForwardUpScale     *gguf.TensorInfo
-	FeedForwardDownScale   *gguf.TensorInfo
-	FeedForwardSubNorm     *gguf.TensorInfo
-	FeedForwardGateBias    *gguf.TensorInfo
-	FeedForwardUpBias      *gguf.TensorInfo
-	FeedForwardDownBias    *gguf.TensorInfo
-	FeedForwardPostNorm    *gguf.TensorInfo
-	FeedForwardRouter      *gguf.TensorInfo
-	FeedForwardGateExperts *gguf.TensorInfo
-	FeedForwardUpExperts   *gguf.TensorInfo
-	FeedForwardDownExperts *gguf.TensorInfo
-	FeedForwardExpertBias  *gguf.TensorInfo
-	FeedForwardSharedGate  *gguf.TensorInfo
-	FeedForwardSharedUp    *gguf.TensorInfo
-	FeedForwardSharedDown  *gguf.TensorInfo
-	ShortConvKernel        *gguf.TensorInfo
-	ShortConvInput         *gguf.TensorInfo
-	ShortConvOutput        *gguf.TensorInfo
-	AttentionKVAMQA        *gguf.TensorInfo
-	AttentionKVANorm       *gguf.TensorInfo
-	AttentionKVB           *gguf.TensorInfo
+	Recurrent               bool
+	AttentionNorm           gguf.TensorInfo
+	AttentionNormBias       *gguf.TensorInfo
+	AttentionNorm2          *gguf.TensorInfo
+	AttentionNorm2Bias      *gguf.TensorInfo
+	AttentionQ              gguf.TensorInfo
+	AttentionK              gguf.TensorInfo
+	AttentionV              gguf.TensorInfo
+	AttentionOutput         gguf.TensorInfo
+	AttentionQScale         *gguf.TensorInfo
+	AttentionKScale         *gguf.TensorInfo
+	AttentionVScale         *gguf.TensorInfo
+	AttentionOutputScale    *gguf.TensorInfo
+	AttentionSubNorm        *gguf.TensorInfo
+	AttentionQBias          *gguf.TensorInfo
+	AttentionKBias          *gguf.TensorInfo
+	AttentionVBias          *gguf.TensorInfo
+	AttentionOutputBias     *gguf.TensorInfo
+	AttentionQNorm          *gguf.TensorInfo
+	AttentionKNorm          *gguf.TensorInfo
+	AttentionQNormBias      *gguf.TensorInfo
+	AttentionKNormBias      *gguf.TensorInfo
+	AttentionPostNorm       *gguf.TensorInfo
+	AttentionRelativeBias   *gguf.TensorInfo
+	AttentionOutputGate     *gguf.TensorInfo
+	RopeFactors             *gguf.TensorInfo
+	FeedForwardNorm         gguf.TensorInfo
+	FeedForwardNormBias     *gguf.TensorInfo
+	FeedForwardGate         gguf.TensorInfo
+	FeedForwardUp           gguf.TensorInfo
+	FeedForwardDown         gguf.TensorInfo
+	FeedForwardGateScale    *gguf.TensorInfo
+	FeedForwardUpScale      *gguf.TensorInfo
+	FeedForwardDownScale    *gguf.TensorInfo
+	FeedForwardSubNorm      *gguf.TensorInfo
+	FeedForwardGateBias     *gguf.TensorInfo
+	FeedForwardUpBias       *gguf.TensorInfo
+	FeedForwardDownBias     *gguf.TensorInfo
+	FeedForwardPostNorm     *gguf.TensorInfo
+	FeedForwardRouter       *gguf.TensorInfo
+	FeedForwardGateExperts  *gguf.TensorInfo
+	FeedForwardUpExperts    *gguf.TensorInfo
+	FeedForwardDownExperts  *gguf.TensorInfo
+	FeedForwardExpertBias   *gguf.TensorInfo
+	FeedForwardSharedGate   *gguf.TensorInfo
+	FeedForwardSharedUp     *gguf.TensorInfo
+	FeedForwardSharedDown   *gguf.TensorInfo
+	FeedForwardSharedRouter *gguf.TensorInfo
+	ShortConvKernel         *gguf.TensorInfo
+	ShortConvInput          *gguf.TensorInfo
+	ShortConvOutput         *gguf.TensorInfo
+	AttentionKVAMQA         *gguf.TensorInfo
+	AttentionKVANorm        *gguf.TensorInfo
+	AttentionKVB            *gguf.TensorInfo
 
 	AttentionQKV     *gguf.TensorInfo
 	AttentionQKVBias *gguf.TensorInfo
@@ -886,7 +887,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" ||
+		if spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "rnd1" ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
 			for name, shapeAndDestination := range map[string]struct {
@@ -940,6 +941,23 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}{[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown}
 				}
 				for name, shapeAndDestination := range shared {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "qwen2moe" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_inp_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedRouter},
+					"ffn_gate_shexp.weight":     {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":       {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight":     {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
 					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
 					if itemErr != nil {
 						return Weights{}, itemErr

@@ -92,6 +92,44 @@ func TestBuildDenseQwen3MoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildQwen2MoEBlockUsesGatedSharedExpert(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "qwen2moe", EmbeddingLength: 8, FeedForwardLength: 16,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertCount: 1, SharedExpertFF: 10, ExpertWeightsScale: 1,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 1_000_000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
+	weights.FeedForwardSharedRouter = builder.Input("shared_router", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardSharedGate = builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 10))
+	weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 10))
+	weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, _ := tensor.Topological(output)
+	var moe *tensor.Tensor
+	var sigmoid bool
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			moe = node
+		}
+		sigmoid = sigmoid || node.Op == tensor.OpSigmoid
+	}
+	if moe == nil || moe.Attrs.(tensor.MoEAttributes).NormalizeTopKProb || !sigmoid {
+		t.Fatalf("Qwen2-MoE graph missing unnormalized MoE/shared gate")
+	}
+}
+
 func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

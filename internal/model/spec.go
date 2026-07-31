@@ -145,6 +145,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen3moe" &&
+		architecture != "qwen2moe" &&
 		architecture != "qwen35" && architecture != "gemma" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
@@ -727,7 +728,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "qwen3moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
+	if architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -752,6 +753,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
 		); ok {
 			spec.ExpertWeightsScale = value
+		}
+	}
+	if architecture == "qwen2moe" {
+		if spec.ExpertFeedForward == 0 {
+			spec.ExpertFeedForward = spec.FeedForwardLength
+		}
+		spec.SharedExpertCount = 1
+		spec.SharedExpertFF = spec.FeedForwardLength
+		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
+			spec.SharedExpertFF = value
 		}
 	}
 	if architecture == "afmoe" {
@@ -1086,6 +1097,13 @@ func (s Spec) validate() error {
 			math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
+	}
+	if s.Architecture == "qwen2moe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("Qwen2-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "laguna" {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||

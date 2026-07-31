@@ -10,58 +10,59 @@ import (
 
 // LayerGraphWeights are the graph inputs for one dense Llama/Qwen3 block.
 type LayerGraphWeights struct {
-	AttentionNorm          *tensor.Tensor
-	AttentionNormBias      *tensor.Tensor
-	AttentionNorm2         *tensor.Tensor
-	AttentionNorm2Bias     *tensor.Tensor
-	AttentionQ             *tensor.Tensor
-	AttentionK             *tensor.Tensor
-	AttentionV             *tensor.Tensor
-	AttentionOutput        *tensor.Tensor
-	AttentionQScale        *tensor.Tensor
-	AttentionKScale        *tensor.Tensor
-	AttentionVScale        *tensor.Tensor
-	AttentionOutputScale   *tensor.Tensor
-	AttentionSubNorm       *tensor.Tensor
-	AttentionQBias         *tensor.Tensor
-	AttentionKBias         *tensor.Tensor
-	AttentionVBias         *tensor.Tensor
-	AttentionOutputBias    *tensor.Tensor
-	AttentionQNorm         *tensor.Tensor
-	AttentionKNorm         *tensor.Tensor
-	AttentionQNormBias     *tensor.Tensor
-	AttentionKNormBias     *tensor.Tensor
-	AttentionPostNorm      *tensor.Tensor
-	AttentionRelativeBias  *tensor.Tensor
-	AttentionOutputGate    *tensor.Tensor
-	RopeFactors            *tensor.Tensor
-	FeedForwardNorm        *tensor.Tensor
-	FeedForwardNormBias    *tensor.Tensor
-	FeedForwardGate        *tensor.Tensor
-	FeedForwardUp          *tensor.Tensor
-	FeedForwardDown        *tensor.Tensor
-	FeedForwardGateScale   *tensor.Tensor
-	FeedForwardUpScale     *tensor.Tensor
-	FeedForwardDownScale   *tensor.Tensor
-	FeedForwardSubNorm     *tensor.Tensor
-	FeedForwardGateBias    *tensor.Tensor
-	FeedForwardUpBias      *tensor.Tensor
-	FeedForwardDownBias    *tensor.Tensor
-	FeedForwardPostNorm    *tensor.Tensor
-	FeedForwardRouter      *tensor.Tensor
-	FeedForwardGateExperts *tensor.Tensor
-	FeedForwardUpExperts   *tensor.Tensor
-	FeedForwardDownExperts *tensor.Tensor
-	FeedForwardExpertBias  *tensor.Tensor
-	FeedForwardSharedGate  *tensor.Tensor
-	FeedForwardSharedUp    *tensor.Tensor
-	FeedForwardSharedDown  *tensor.Tensor
-	ShortConvKernel        *tensor.Tensor
-	ShortConvInput         *tensor.Tensor
-	ShortConvOutput        *tensor.Tensor
-	AttentionKVAMQA        *tensor.Tensor
-	AttentionKVANorm       *tensor.Tensor
-	AttentionKVB           *tensor.Tensor
+	AttentionNorm           *tensor.Tensor
+	AttentionNormBias       *tensor.Tensor
+	AttentionNorm2          *tensor.Tensor
+	AttentionNorm2Bias      *tensor.Tensor
+	AttentionQ              *tensor.Tensor
+	AttentionK              *tensor.Tensor
+	AttentionV              *tensor.Tensor
+	AttentionOutput         *tensor.Tensor
+	AttentionQScale         *tensor.Tensor
+	AttentionKScale         *tensor.Tensor
+	AttentionVScale         *tensor.Tensor
+	AttentionOutputScale    *tensor.Tensor
+	AttentionSubNorm        *tensor.Tensor
+	AttentionQBias          *tensor.Tensor
+	AttentionKBias          *tensor.Tensor
+	AttentionVBias          *tensor.Tensor
+	AttentionOutputBias     *tensor.Tensor
+	AttentionQNorm          *tensor.Tensor
+	AttentionKNorm          *tensor.Tensor
+	AttentionQNormBias      *tensor.Tensor
+	AttentionKNormBias      *tensor.Tensor
+	AttentionPostNorm       *tensor.Tensor
+	AttentionRelativeBias   *tensor.Tensor
+	AttentionOutputGate     *tensor.Tensor
+	RopeFactors             *tensor.Tensor
+	FeedForwardNorm         *tensor.Tensor
+	FeedForwardNormBias     *tensor.Tensor
+	FeedForwardGate         *tensor.Tensor
+	FeedForwardUp           *tensor.Tensor
+	FeedForwardDown         *tensor.Tensor
+	FeedForwardGateScale    *tensor.Tensor
+	FeedForwardUpScale      *tensor.Tensor
+	FeedForwardDownScale    *tensor.Tensor
+	FeedForwardSubNorm      *tensor.Tensor
+	FeedForwardGateBias     *tensor.Tensor
+	FeedForwardUpBias       *tensor.Tensor
+	FeedForwardDownBias     *tensor.Tensor
+	FeedForwardPostNorm     *tensor.Tensor
+	FeedForwardRouter       *tensor.Tensor
+	FeedForwardGateExperts  *tensor.Tensor
+	FeedForwardUpExperts    *tensor.Tensor
+	FeedForwardDownExperts  *tensor.Tensor
+	FeedForwardExpertBias   *tensor.Tensor
+	FeedForwardSharedGate   *tensor.Tensor
+	FeedForwardSharedUp     *tensor.Tensor
+	FeedForwardSharedDown   *tensor.Tensor
+	FeedForwardSharedRouter *tensor.Tensor
+	ShortConvKernel         *tensor.Tensor
+	ShortConvInput          *tensor.Tensor
+	ShortConvOutput         *tensor.Tensor
+	AttentionKVAMQA         *tensor.Tensor
+	AttentionKVANorm        *tensor.Tensor
+	AttentionKVB            *tensor.Tensor
 
 	AttentionQKV     *tensor.Tensor
 	AttentionQKVBias *tensor.Tensor
@@ -422,6 +423,7 @@ func BuildDenseBlockCachedForLayer(
 	isChameleon := spec.Architecture == "chameleon"
 	isLaguna := spec.Architecture == "laguna"
 	isAFMoE := spec.Architecture == "afmoe"
+	isQwen2MoE := spec.Architecture == "qwen2moe"
 	headCount := spec.LayerHeadCount(layerIndex)
 	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
 	if spec.Architecture == "apertus" &&
@@ -434,7 +436,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE {
+		if spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isLaguna && !isAFMoE && !isQwen2MoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -448,6 +450,12 @@ func BuildDenseBlockCachedForLayer(
 				required["feed-forward shared up"] = weights.FeedForwardSharedUp
 				required["feed-forward shared down"] = weights.FeedForwardSharedDown
 			}
+		}
+		if isQwen2MoE {
+			required["feed-forward shared router"] = weights.FeedForwardSharedRouter
+			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+			required["feed-forward shared up"] = weights.FeedForwardSharedUp
+			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
 	} else {
 		required["feed-forward up"] = weights.FeedForwardUp
@@ -919,6 +927,23 @@ func BuildDenseBlockCachedForLayer(
 				)
 				feedForward = builder.Add(feedForward, shared)
 			}
+		} else if isQwen2MoE {
+			feedForward = builder.MoE(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, spec.ExpertUsedCount, false,
+				spec.ExpertWeightsScale,
+			)
+			sharedGateWeight := builder.Reshape(
+				weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
+			)
+			sharedScale := builder.Sigmoid(builder.MulMat(sharedGateWeight, normalized))
+			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+			shared := builder.MulMat(
+				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+			)
+			feedForward = builder.Add(feedForward, builder.Multiply(shared, sharedScale))
 		} else {
 			feedForward = builder.MoE(
 				normalized,

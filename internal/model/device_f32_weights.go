@@ -163,15 +163,19 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	// Validate all lookups first so a missing optional pointer cannot be hidden
 	// behind a later builder error.
 	required := []gguf.TensorInfo{
-		info.AttentionNorm,
 		info.AttentionQ,
 		info.AttentionK,
 		info.AttentionV,
 		info.AttentionOutput,
-		info.FeedForwardNorm,
 		info.FeedForwardGate,
 		info.FeedForwardUp,
 		info.FeedForwardDown,
+	}
+	if info.AttentionNorm.Name != "" {
+		required = append(required, info.AttentionNorm)
+	}
+	if info.FeedForwardNorm.Name != "" {
+		required = append(required, info.FeedForwardNorm)
 	}
 	for _, tensorInfo := range required {
 		if _, ok := w.Lookup(tensorInfo.Name); !ok {
@@ -179,15 +183,19 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		}
 	}
 	result := LayerGraphWeights{
-		AttentionNorm:   input(info.AttentionNorm),
 		AttentionQ:      input(info.AttentionQ),
 		AttentionK:      input(info.AttentionK),
 		AttentionV:      input(info.AttentionV),
 		AttentionOutput: input(info.AttentionOutput),
-		FeedForwardNorm: input(info.FeedForwardNorm),
 		FeedForwardGate: input(info.FeedForwardGate),
 		FeedForwardUp:   input(info.FeedForwardUp),
 		FeedForwardDown: input(info.FeedForwardDown),
+	}
+	if info.AttentionNorm.Name != "" {
+		result.AttentionNorm = input(info.AttentionNorm)
+	}
+	if info.FeedForwardNorm.Name != "" {
+		result.FeedForwardNorm = input(info.FeedForwardNorm)
 	}
 	if info.AttentionQNorm != nil {
 		if _, ok := w.Lookup(info.AttentionQNorm.Name); !ok {

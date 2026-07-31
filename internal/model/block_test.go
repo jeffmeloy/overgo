@@ -148,6 +148,100 @@ func TestBuildDenseInternLM2EXAONEAndXVERSEUseExpectedRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDenseOLMo2PostNormalizedSlidingBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "olmo2",
+		BlockCount:        4,
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		RopeFrequencySWA:  10000,
+		RopeScalingType:   "linear",
+		RopeScalingFactor: 4,
+		RMSNormEpsilon:    1e-6,
+		SlidingWindow:     1024,
+		SlidingPattern:    4,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionNorm = nil
+	weights.FeedForwardNorm = nil
+	weights.AttentionQNorm = builder.Input(
+		"attn_q_norm",
+		dtype.F32,
+		tensor.MustShape(8),
+	)
+	weights.AttentionKNorm = builder.Input(
+		"attn_k_norm",
+		dtype.F32,
+		tensor.MustShape(4),
+	)
+	weights.AttentionPostNorm = builder.Input(
+		"post_attention_norm",
+		dtype.F32,
+		tensor.MustShape(8),
+	)
+	weights.FeedForwardPostNorm = builder.Input(
+		"post_ffw_norm",
+		dtype.F32,
+		tensor.MustShape(8),
+	)
+	result, err := BuildDenseBlockCachedForLayer(
+		builder,
+		input,
+		spec,
+		weights,
+		[]uint32{0, 1},
+		nil,
+		nil,
+		0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	var attentionCount, ropeCount int
+	for _, node := range nodes {
+		found[node.Name] = true
+		switch node.Op {
+		case tensor.OpAttention:
+			attentionCount++
+			attributes := node.Attrs.(tensor.AttentionAttributes)
+			if attributes.Window != 1024 {
+				t.Fatalf("OLMo2 attention window = %d, want 1024", attributes.Window)
+			}
+		case tensor.OpRoPENeoX:
+			ropeCount++
+			attributes := node.Attrs.(tensor.RoPEAttributes)
+			if attributes.FrequencyScale != 1 {
+				t.Fatalf("OLMo2 sliding RoPE scale = %v, want 1", attributes.FrequencyScale)
+			}
+		}
+	}
+	for _, name := range []string{
+		"attn_q_norm",
+		"attn_k_norm",
+		"post_attention_norm",
+		"post_ffw_norm",
+	} {
+		if !found[name] {
+			t.Fatalf("OLMo2 norm %q is disconnected", name)
+		}
+	}
+	if attentionCount != 1 || ropeCount != 2 {
+		t.Fatalf("OLMo2 graph has attention=%d RoPE=%d, want 1/2", attentionCount, ropeCount)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -109,6 +109,44 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitPostNormalizedBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	qNorm := value(8)
+	kNorm := value(4)
+	attentionPostNorm := value(8)
+	feedForwardPostNorm := value(8)
+	layer := HostLayer{
+		AttentionQ:          value(8, 8),
+		AttentionK:          value(8, 4),
+		AttentionV:          value(8, 4),
+		AttentionOutput:     value(8, 8),
+		AttentionQNorm:      &qNorm,
+		AttentionKNorm:      &kNorm,
+		AttentionPostNorm:   &attentionPostNorm,
+		FeedForwardGate:     value(8, 12),
+		FeedForwardUp:       value(8, 12),
+		FeedForwardDown:     value(12, 8),
+		FeedForwardPostNorm: &feedForwardPostNorm,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if graph.AttentionNorm != nil ||
+		graph.FeedForwardNorm != nil ||
+		graph.AttentionQNorm == nil ||
+		graph.AttentionPostNorm == nil ||
+		graph.FeedForwardPostNorm == nil ||
+		len(feeds) != 11 {
+		t.Fatalf("unexpected post-normalized graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func hostTensorFixture(t *testing.T) []byte {
 	t.Helper()
 	var buffer bytes.Buffer

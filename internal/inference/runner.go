@@ -347,8 +347,10 @@ func (r *Runner) layerDeviceInputs(
 	}
 	var result model.LayerGraphWeights
 	var err error
-	if result.AttentionNorm, err = input(info.AttentionNorm); err != nil {
-		return result, nil, err
+	if info.AttentionNorm.Name != "" {
+		if result.AttentionNorm, err = input(info.AttentionNorm); err != nil {
+			return result, nil, err
+		}
 	}
 	if info.Recurrent {
 		recurrent := []struct {
@@ -435,8 +437,10 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
-	if result.FeedForwardNorm, err = input(info.FeedForwardNorm); err != nil {
-		return result, nil, err
+	if info.FeedForwardNorm.Name != "" {
+		if result.FeedForwardNorm, err = input(info.FeedForwardNorm); err != nil {
+			return result, nil, err
+		}
 	}
 	if result.FeedForwardGate, err = input(info.FeedForwardGate); err != nil {
 		return result, nil, err

@@ -95,6 +95,35 @@ func TestReadInternLM2EXAONEAndXVERSESpecs(t *testing.T) {
 	}
 }
 
+func TestReadOLMo2SlidingSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "olmo2"),
+		metadata("olmo2.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("olmo2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("olmo2.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("olmo2.feed_forward_length", gguf.ValueTypeUint32, uint32(11008)),
+		metadata("olmo2.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("olmo2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("olmo2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("olmo2.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("olmo2.attention.sliding_window", gguf.ValueTypeUint32, uint32(1024)),
+		metadata("olmo2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "olmo2" ||
+		spec.SlidingWindow != 1024 ||
+		spec.SlidingPattern != 4 ||
+		spec.RopeFrequencySWA != 20000 ||
+		!spec.IsSlidingLayer(0) ||
+		!spec.IsSlidingLayer(2) ||
+		spec.IsSlidingLayer(3) {
+		t.Fatalf("unexpected OLMo2 spec: %+v", spec)
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

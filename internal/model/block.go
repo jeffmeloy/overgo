@@ -190,16 +190,24 @@ func BuildDenseBlockCachedForLayer(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
+	isOLMo2 := spec.Architecture == "olmo2"
 	required := map[string]*tensor.Tensor{
-		"attention norm":    weights.AttentionNorm,
 		"attention Q":       weights.AttentionQ,
 		"attention K":       weights.AttentionK,
 		"attention V":       weights.AttentionV,
 		"attention output":  weights.AttentionOutput,
-		"feed-forward norm": weights.FeedForwardNorm,
 		"feed-forward gate": weights.FeedForwardGate,
 		"feed-forward up":   weights.FeedForwardUp,
 		"feed-forward down": weights.FeedForwardDown,
+	}
+	if isOLMo2 {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+		required["attention post norm"] = weights.AttentionPostNorm
+		required["feed-forward post norm"] = weights.FeedForwardPostNorm
+	} else {
+		required["attention norm"] = weights.AttentionNorm
+		required["feed-forward norm"] = weights.FeedForwardNorm
 	}
 	for name, item := range required {
 		if item == nil {
@@ -214,7 +222,10 @@ func BuildDenseBlockCachedForLayer(
 	}
 
 	tokens := uint64(len(positions))
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	normalized := input
+	if !isOLMo2 {
+		normalized = builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	}
 	query := builder.MulMat(weights.AttentionQ, normalized)
 	key := builder.MulMat(weights.AttentionK, normalized)
 	value := builder.MulMat(weights.AttentionV, normalized)
@@ -226,6 +237,10 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if weights.AttentionVBias != nil {
 		value = builder.Add(value, weights.AttentionVBias)
+	}
+	if isOLMo2 {
+		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	}
 
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
@@ -292,6 +307,9 @@ func BuildDenseBlockCachedForLayer(
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
+		}
+		if isOLMo2 && spec.IsSlidingLayer(layerIndex) {
+			frequencyScale = 1
 		}
 		if weights.RopeFactors != nil {
 			query = builder.RoPENeoXScaledWithFactors(
@@ -366,9 +384,9 @@ func BuildDenseBlockCachedForLayer(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
-	if hasGemmaPostNorm(spec.Architecture) {
+	if hasGemmaPostNorm(spec.Architecture) || isOLMo2 {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
-			return DenseBlockResult{}, errors.New("Gemma block requires post norm weights")
+			return DenseBlockResult{}, errors.New("dense post-normalized block requires post norm weights")
 		}
 		attention = builder.WeightedRMSNorm(
 			attention, weights.AttentionPostNorm, spec.RMSNormEpsilon,
@@ -376,7 +394,10 @@ func BuildDenseBlockCachedForLayer(
 	}
 	residual := builder.Add(input, attention)
 
-	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	normalized = residual
+	if !isOLMo2 {
+		normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	}
 	gate := builder.MulMat(weights.FeedForwardGate, normalized)
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	if weights.FeedForwardGateBias != nil {
@@ -393,7 +414,7 @@ func BuildDenseBlockCachedForLayer(
 	if weights.FeedForwardDownBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 	}
-	if hasGemmaPostNorm(spec.Architecture) {
+	if hasGemmaPostNorm(spec.Architecture) || isOLMo2 {
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)

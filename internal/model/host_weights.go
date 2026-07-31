@@ -260,11 +260,21 @@ func LoadHostLayer(
 		destination *reference.Value
 		info        gguf.TensorInfo
 	}{
-		{&result.AttentionNorm, info.AttentionNorm},
-		{&result.FeedForwardNorm, info.FeedForwardNorm},
 		{&result.FeedForwardGate, info.FeedForwardGate},
 		{&result.FeedForwardUp, info.FeedForwardUp},
 		{&result.FeedForwardDown, info.FeedForwardDown},
+	}
+	if info.AttentionNorm.Name != "" {
+		items = append(items, struct {
+			destination *reference.Value
+			info        gguf.TensorInfo
+		}{&result.AttentionNorm, info.AttentionNorm})
+	}
+	if info.FeedForwardNorm.Name != "" {
+		items = append(items, struct {
+			destination *reference.Value
+			info        gguf.TensorInfo
+		}{&result.FeedForwardNorm, info.FeedForwardNorm})
 	}
 	if info.Recurrent {
 		optionalItems := []struct {
@@ -403,11 +413,15 @@ func (layer *HostLayer) GraphInputs(
 		return node
 	}
 	result := LayerGraphWeights{
-		AttentionNorm:   input("attn_norm.weight", layer.AttentionNorm),
-		FeedForwardNorm: input("ffn_norm.weight", layer.FeedForwardNorm),
 		FeedForwardGate: input("ffn_gate.weight", layer.FeedForwardGate),
 		FeedForwardUp:   input("ffn_up.weight", layer.FeedForwardUp),
 		FeedForwardDown: input("ffn_down.weight", layer.FeedForwardDown),
+	}
+	if layer.AttentionNorm.Shape.Rank != 0 {
+		result.AttentionNorm = input("attn_norm.weight", layer.AttentionNorm)
+	}
+	if layer.FeedForwardNorm.Shape.Rank != 0 {
+		result.FeedForwardNorm = input("ffn_norm.weight", layer.FeedForwardNorm)
 	}
 	if layer.AttentionQKV != nil {
 		result.AttentionQKV = input("attn_qkv.weight", *layer.AttentionQKV)

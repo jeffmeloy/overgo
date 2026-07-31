@@ -853,6 +853,15 @@ models:
       - normal-rope
       - swiglu
     real_model_validation: pending-fixture
+  olmo2:
+    status: experimental
+    features:
+      - post-normalized-blocks
+      - full-projection-qk-rmsnorm
+      - optional-sliding-attention
+      - neox-rope
+      - swiglu
+    real_model_validation: pending-fixture
   qwen2:
     status: experimental
     execution:

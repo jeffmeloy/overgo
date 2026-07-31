@@ -165,7 +165,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.Output = &output
 	}
-	if (spec.Architecture == "internlm2" || spec.Architecture == "xverse") &&
+	if (spec.Architecture == "internlm2" ||
+		spec.Architecture == "xverse" ||
+		spec.Architecture == "olmo2") &&
 		result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
 	}
@@ -239,8 +241,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.RopeFactors = &ropeFactors
 		}
-		if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
-			return Weights{}, err
+		if spec.Architecture != "olmo2" {
+			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
+				return Weights{}, err
+			}
 		}
 		if spec.Architecture == "qwen35" {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
@@ -371,6 +375,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
+		if spec.Architecture == "olmo2" {
+			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			kNorm, normErr := required(prefix+"attn_k_norm.weight", keyLength)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionQNorm = &qNorm
+			layer.AttentionKNorm = &kNorm
+		}
 		if !layer.Recurrent {
 			for name, shapeAndDestination := range map[string]struct {
 				shape       uint64
@@ -395,7 +411,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
-		if hasGemmaPostNorm(spec.Architecture) {
+		if hasGemmaPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
 			attentionPostNorm, normErr := required(
 				prefix+"post_attention_norm.weight",
 				uint64(spec.EmbeddingLength),
@@ -417,8 +433,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "qwen35" {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
-		if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
-			return Weights{}, err
+		if spec.Architecture != "olmo2" {
+			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
+				return Weights{}, err
+			}
 		}
 		if layer.FeedForwardGate, err = required(
 			prefix+"ffn_gate.weight",

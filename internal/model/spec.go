@@ -70,7 +70,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if architecture != "llama" && architecture != "internlm2" &&
 		architecture != "xverse" &&
-		architecture != "exaone" && architecture != "qwen2" &&
+		architecture != "exaone" && architecture != "olmo2" &&
+		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
 		architecture != "gemma2" &&
@@ -234,7 +235,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "gemma2" || architecture == "gemma3" {
+	if architecture == "gemma2" || architecture == "gemma3" ||
+		architecture == "olmo2" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
 		if architecture == "gemma3" {
 			spec.RopeFrequencySWA = 10000
@@ -257,7 +259,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SlidingWindow = value
 		}
 		if spec.SlidingWindow > 0 {
-			spec.SlidingPattern = 2
+			spec.SlidingPattern = 4
+			if architecture == "gemma2" {
+				spec.SlidingPattern = 2
+			}
 			if architecture == "gemma3" {
 				spec.SlidingPattern = 6
 			}
@@ -298,7 +303,7 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
-	return hasGemmaPostNorm(s.Architecture) &&
+	return usesSlidingAttention(s.Architecture) &&
 		block < s.BlockCount &&
 		s.SlidingWindow > 0 &&
 		s.SlidingPattern > 0 &&
@@ -380,6 +385,14 @@ func (s Spec) validate() error {
 			return errors.New("Gemma 2 sliding attention pattern must be at least 2")
 		}
 	}
+	if s.Architecture == "olmo2" {
+		switch {
+		case s.SlidingWindow > 0 && s.RopeFrequencySWA <= 0:
+			return errors.New("OLMo2 sliding RoPE frequency base must be positive")
+		case s.SlidingWindow > 0 && s.SlidingPattern < 2:
+			return errors.New("OLMo2 sliding attention pattern must be at least 2")
+		}
+	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
@@ -402,6 +415,10 @@ func isGemmaArchitecture(architecture string) bool {
 
 func hasGemmaPostNorm(architecture string) bool {
 	return architecture == "gemma2" || architecture == "gemma3"
+}
+
+func usesSlidingAttention(architecture string) bool {
+	return hasGemmaPostNorm(architecture) || architecture == "olmo2"
 }
 
 func usesNormalRoPE(architecture string) bool {

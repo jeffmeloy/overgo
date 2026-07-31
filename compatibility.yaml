@@ -1249,6 +1249,24 @@ models:
       - required-untied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  grok:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - rmsnorm-with-attention-and-ffn-postnorms
+      - contiguous-fused-or-separate-qkv
+      - neox-or-yarn-rope
+      - metadata-attention-scale-and-softcap
+      - normalized-softmax-top-k-routing
+      - packed-gelu-or-geglu-experts
+      - optional-dense-geglu-blend
+      - metadata-embedding-and-direct-logit-scales
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   dots1:
     status: experimental
     execution:

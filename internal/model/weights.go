@@ -625,7 +625,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -876,15 +876,24 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if hasPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
+			attentionPostNormName := "post_attention_norm.weight"
+			feedForwardPostNormName := "post_ffw_norm.weight"
+			if spec.Architecture == "grok" {
+				attentionPostNormName = "attn_output_norm.weight"
+				feedForwardPostNormName = "layer_output_norm.weight"
+				if _, ok := tensors[prefix+feedForwardPostNormName]; !ok {
+					feedForwardPostNormName = "ffn_post_norm.weight"
+				}
+			}
 			attentionPostNorm, normErr := required(
-				prefix+"post_attention_norm.weight",
+				prefix+attentionPostNormName,
 				uint64(spec.EmbeddingLength),
 			)
 			if normErr != nil {
 				return Weights{}, normErr
 			}
 			feedForwardPostNorm, normErr := required(
-				prefix+"post_ffw_norm.weight",
+				prefix+feedForwardPostNormName,
 				uint64(spec.EmbeddingLength),
 			)
 			if normErr != nil {
@@ -936,7 +945,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "llada-moe" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
+		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grok" || spec.Architecture == "llada-moe" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "dots1" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||
@@ -962,7 +971,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					&layer.FeedForwardDownExperts,
 				},
 			}
-			if spec.Architecture != "granitemoe" {
+			if spec.Architecture != "granitemoe" && spec.Architecture != "grok" {
 				expertTensors["ffn_gate_exps.weight"] = struct {
 					shape       []uint64
 					destination **gguf.TensorInfo
@@ -978,7 +987,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
-			if spec.Architecture == "granitemoe" {
+			if spec.Architecture == "granitemoe" || spec.Architecture == "grok" {
 				if item, ok := tensors[prefix+"ffn_gate_exps.weight"]; ok {
 					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
 						item.Shape[1] != uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
@@ -986,7 +995,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.FeedForwardGateExperts = &item
 				}
-				if spec.SharedExpertFF > 0 {
+				if spec.Architecture == "granitemoe" && spec.SharedExpertFF > 0 {
 					for name, shapeAndDestination := range map[string]struct {
 						shape       []uint64
 						destination **gguf.TensorInfo
@@ -1127,6 +1136,30 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			if spec.Architecture == "phimoe" && layer.AttentionOutputBias == nil {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
+			}
+			if spec.Architecture == "grok" {
+				denseNames := []string{"ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"}
+				var present int
+				for _, name := range denseNames {
+					if _, ok := tensors[prefix+name]; ok {
+						present++
+					}
+				}
+				if present != 0 && present != len(denseNames) {
+					return Weights{}, errors.New("Grok dense FFN tensors must be all present or all absent")
+				}
+				if present == len(denseNames) {
+					if layer.FeedForwardGate, err = required(prefix+denseNames[0], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
+						return Weights{}, err
+					}
+					if layer.FeedForwardUp, err = required(prefix+denseNames[1], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
+						return Weights{}, err
+					}
+					if layer.FeedForwardDown, err = required(prefix+denseNames[2], uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)); err != nil {
+						return Weights{}, err
+					}
+				}
+				continue
 			}
 			if spec.Architecture == "arctic" {
 				expertNorm, normErr := required(prefix+"ffn_norm_exps.weight", uint64(spec.EmbeddingLength))

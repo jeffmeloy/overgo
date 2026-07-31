@@ -468,6 +468,42 @@ func TestExecuteReLUMoEWithRouterInput(t *testing.T) {
 	}
 }
 
+func TestExecuteGELUMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 1))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
+	output := builder.MoEGELU(input, router, gate, up, down, 1, true, 1)
+	value := func(shape tensor.Shape, data []float32) Value {
+		result, err := NewValue(shape, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:  value(input.Shape, []float32{1, 2}),
+		router: value(router.Shape, []float32{0, 0}),
+		gate:   value(gate.Shape, []float32{1, 0}),
+		up:     value(up.Shape, []float32{0, 1}),
+		down:   value(down.Shape, []float32{3, 4}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateDot := float16Round(1)
+	wantActivation := float16Round(float32(0.5*float64(gateDot)*
+		(1+math.Tanh(math.Sqrt(2/math.Pi)*float64(gateDot)*(1+0.044715*float64(gateDot*gateDot)))))) * 2
+	want := []float32{3 * wantActivation, 4 * wantActivation}
+	for index, got := range results[output].Data {
+		if math.Abs(float64(got-want[index])) > 1e-6 {
+			t.Fatalf("GELU MoE output[%d] = %v, want %v", index, got, want[index])
+		}
+	}
+}
+
 func TestExecuteRoPEMulti(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))

@@ -205,6 +205,85 @@ func TestBuildDBRXBlockUsesClampedFusedQKVAndNormalizedMoE(t *testing.T) {
 	}
 }
 
+func TestBuildGrokBlockUsesYaRNPostNormAndGELUMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "grok", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 12,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeScalingType: "yarn",
+		RopeScalingFactor: 4, OriginalContextLength: 2048, YaRNExtFactor: 1,
+		YaRNAttentionFactor: 1.25, YaRNBetaFast: 8, YaRNBetaSlow: 1,
+		AttentionScale: 0.25, AttentionSoftcap: 30, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:           builder.Input("qkv", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionPostNorm:      builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardGate:        builder.Input("dense_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:          builder.Input("dense_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:        builder.Input("dense_down", dtype.F32, tensor.MustShape(12, 8)),
+		FeedForwardPostNorm:    builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) ||
+		!result.Key.Shape.Equal(tensor.MustShape(4, 1, 2)) ||
+		!result.Value.Shape.Equal(tensor.MustShape(4, 1, 2)) {
+		t.Fatalf("unexpected Grok result: %+v", result)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var yarn, gelu, rmsNorm int
+	var attention tensor.AttentionAttributes
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENeoX:
+			attrs := node.Attrs.(tensor.RoPEAttributes)
+			if attrs.OriginalContext == 2048 && attrs.AttentionFactor == 1.25 &&
+				attrs.BetaFast == 8 && attrs.BetaSlow == 1 {
+				yarn++
+			}
+		case tensor.OpAttention:
+			attention = node.Attrs.(tensor.AttentionAttributes)
+		case tensor.OpGELU:
+			gelu++
+		case tensor.OpRMSNorm:
+			rmsNorm++
+		}
+	}
+	if moe == nil {
+		t.Fatal("Grok graph is missing MoE")
+	}
+	attrs := moe.Attrs.(tensor.MoEAttributes)
+	if attrs.Activation != tensor.MoEActivationGELU || !attrs.Gated ||
+		!attrs.NormalizeTopKProb || attrs.TopK != 2 || attrs.Scale != 1.25 ||
+		yarn != 2 || attention.Scale != 0.25 || attention.Softcap != 30 ||
+		gelu != 1 || rmsNorm != 4 {
+		t.Fatalf(
+			"unexpected Grok graph: moe=%+v yarn=%d attention=%+v GELU=%d RMSNorm=%d",
+			attrs, yarn, attention, gelu, rmsNorm,
+		)
+	}
+}
+
 func TestBuildArcticParallelDenseAndMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

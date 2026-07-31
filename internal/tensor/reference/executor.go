@@ -938,6 +938,11 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 						if attributes.Gated {
 							activation = math.Max(gateDot, 0) * upDot
 						}
+					case tensor.MoEActivationGELU:
+						activation = moeGELU(upDot)
+						if attributes.Gated {
+							activation = moeGELU(gateDot) * upDot
+						}
 					default:
 						return Value{}, errors.New("invalid MoE activation")
 					}
@@ -950,6 +955,18 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
+}
+
+func moeGELU(value float64) float64 {
+	if value <= -10 {
+		return 0
+	}
+	if value >= 10 {
+		return value
+	}
+	x := float64(float16Round(float32(value)))
+	result := float32(0.5 * x * (1 + math.Tanh(math.Sqrt(2/math.Pi)*x*(1+0.044715*x*x))))
+	return float64(float16Round(result))
 }
 
 func attention(

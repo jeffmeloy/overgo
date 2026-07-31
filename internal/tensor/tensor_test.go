@@ -233,6 +233,24 @@ func TestBuilderReLUMoEWithRouterInput(t *testing.T) {
 	}
 }
 
+func TestBuilderGELUMoE(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, MustShape(2, 3))
+	gate := builder.Input("gate", dtype.F32, MustShape(2, 4, 3))
+	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
+	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
+	output := builder.MoEGELU(input, router, gate, up, down, 2, true, 1)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(MoEAttributes)
+	if attributes.Activation != MoEActivationGELU || !attributes.Gated ||
+		attributes.Routing != MoERoutingSoftmax || len(output.Inputs) != 6 {
+		t.Fatalf("unexpected GELU MoE graph: %+v", output)
+	}
+}
+
 func TestBuilderClamp(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(3))

@@ -542,6 +542,79 @@ func TestReadDeciSpecPreservesSparseLayerSchedule(t *testing.T) {
 	}
 }
 
+func TestReadGrokSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "grok"),
+		metadata("grok.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grok.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("grok.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("grok.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("grok.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grok.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("grok.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grok.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grok.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("grok.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("grok.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grok.rope.scaling.type", gguf.ValueTypeString, "yarn"),
+		metadata("grok.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("grok.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("grok.rope.scaling.yarn_ext_factor", gguf.ValueTypeFloat32, float32(1)),
+		metadata("grok.rope.scaling.yarn_attn_factor", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("grok.rope.scaling.yarn_beta_fast", gguf.ValueTypeFloat32, float32(8)),
+		metadata("grok.rope.scaling.yarn_beta_slow", gguf.ValueTypeFloat32, float32(1)),
+		metadata("grok.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grok.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grok.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("grok.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.5)),
+		metadata("grok.embedding_scale", gguf.ValueTypeFloat32, float32(2)),
+		metadata("grok.logit_scale", gguf.ValueTypeFloat32, float32(0.5)),
+		metadata("grok.attention.output_scale", gguf.ValueTypeFloat32, float32(0.25)),
+		metadata("grok.attn_logit_softcapping", gguf.ValueTypeFloat32, float32(30)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "grok" || spec.ExpertFeedForward != 6 ||
+		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.5 ||
+		spec.InputEmbeddingScale() != 2 || spec.OutputLogitMultiplier() != 0.5 ||
+		spec.AttentionScale != 0.25 || spec.AttentionSoftcap != 30 ||
+		spec.RopeScalingType != "yarn" || spec.YaRNAttentionFactor != 1.25 ||
+		spec.YaRNBetaFast != 8 {
+		t.Fatalf("unexpected Grok spec: %+v", spec)
+	}
+}
+
+func TestReadGrokSpecUsesLegacyDefaults(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "grok"),
+		metadata("grok.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grok.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("grok.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("grok.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("grok.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grok.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("grok.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grok.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grok.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("grok.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("grok.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grok.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertFeedForward != 12 || !spec.ExpertWeightsNorm ||
+		spec.RopeDimensionCount != 4 || spec.AttentionSoftcap != 30 ||
+		spec.AttentionScale != float32(0.08838834764831845) ||
+		spec.InputEmbeddingScale() != float32(78.38367176906169) ||
+		spec.OutputLogitMultiplier() != float32(0.5773502691896257) {
+		t.Fatalf("unexpected Grok legacy defaults: %+v", spec)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

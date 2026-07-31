@@ -823,6 +823,21 @@ extern "C" __global__ void moe_f32(
 			float activated;
 			if (activation == 2) {
 				activated = gated ? fmaxf(gate_dot, 0.0f) * up_dot : fmaxf(up_dot, 0.0f);
+			} else if (activation == 3) {
+				const float value = gated ? gate_dot : up_dot;
+				float gelu;
+				if (value <= -10.0f) {
+					gelu = 0.0f;
+				} else if (value >= 10.0f) {
+					gelu = value;
+				} else {
+					const float rounded = __half2float(__float2half_rn(value));
+					const float inner = 0.7978845608028654f * rounded *
+							(1.0f + 0.044715f * rounded * rounded);
+					gelu = __half2float(__float2half_rn(
+							0.5f * rounded * (1.0f + tanhf(inner))));
+				}
+				activated = gated ? gelu * up_dot : gelu;
 			} else {
 				activated = gated
 					? gate_dot / (1.0f + expf(-gate_dot)) * up_dot

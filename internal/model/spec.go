@@ -145,6 +145,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "glm4" &&
 		architecture != "gpt2" &&
 		architecture != "gptneox" &&
+		architecture != "grok" &&
 		architecture != "maincoder" &&
 		architecture != "mistral3" &&
 		architecture != "mpt" &&
@@ -307,7 +308,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" ||
 				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
-				if architecture != "laguna" || scalingType != "yarn" {
+				if (architecture != "laguna" && architecture != "grok") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
 						"model architecture %q uses unsupported RoPE scaling type %q",
 						architecture,
@@ -338,11 +339,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				// unintended residual-vector scale
 				spec.YaRNAttentionFactor = 1 / (1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
 				spec.YaRNBetaFast = 32
+				if architecture == "grok" {
+					spec.YaRNBetaFast = 8
+				}
 				spec.YaRNBetaSlow = 1
 				for key, destination := range map[string]*float32{
-					"rope.scaling.yarn_ext_factor": &spec.YaRNExtFactor,
-					"rope.scaling.yarn_beta_fast":  &spec.YaRNBetaFast,
-					"rope.scaling.yarn_beta_slow":  &spec.YaRNBetaSlow,
+					"rope.scaling.yarn_ext_factor":  &spec.YaRNExtFactor,
+					"rope.scaling.yarn_attn_factor": &spec.YaRNAttentionFactor,
+					"rope.scaling.yarn_beta_fast":   &spec.YaRNBetaFast,
+					"rope.scaling.yarn_beta_slow":   &spec.YaRNBetaSlow,
 				} {
 					if value, ok := optional[float32](values, prefix+key, gguf.ValueTypeFloat32); ok {
 						*destination = value
@@ -414,6 +419,30 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if value, ok := optional[float32](values, prefix+"attention.scale", gguf.ValueTypeFloat32); ok {
 		spec.AttentionScale = value
+	}
+	if architecture == "grok" {
+		spec.AttentionSoftcap = 30
+		if value, ok := optional[float32](values, prefix+"attn_logit_softcapping", gguf.ValueTypeFloat32); ok {
+			spec.AttentionSoftcap = value
+		}
+		spec.AttentionScale = 0.08838834764831845
+		if value, ok := optional[float32](values, prefix+"attention.output_scale", gguf.ValueTypeFloat32); ok {
+			spec.AttentionScale = value
+		}
+		spec.EmbeddingScale = 78.38367176906169
+		if value, ok := optional[float32](values, prefix+"embedding_scale", gguf.ValueTypeFloat32); ok {
+			spec.EmbeddingScale = value
+		}
+		spec.LogitScale = 0.5773502691896257
+		if value, ok := optional[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32); ok {
+			spec.LogitScale = value
+		}
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); ok {
+			spec.RopeDimensionCount = value
+		}
 	}
 	if architecture == "minicpm" {
 		spec.EmbeddingScale = 12
@@ -874,7 +903,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "llada-moe" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "grok" || architecture == "llada-moe" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -903,6 +932,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok {
 			spec.ExpertWeightsScale = value
 		}
+	}
+	if architecture == "grok" {
+		if _, ok := optional[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); !ok {
+			spec.ExpertFeedForward = spec.FeedForwardLength
+		}
+		spec.ExpertWeightsNorm = true
 	}
 	if architecture == "dbrx" {
 		spec.ExpertFeedForward = spec.FeedForwardLength
@@ -1318,7 +1355,7 @@ func (s Spec) InputEmbeddingScale() float32 {
 
 func (s Spec) OutputLogitMultiplier() float32 {
 	if s.LogitScale > 0 {
-		if s.Architecture == "cohere2" || s.Architecture == "command-r" {
+		if s.Architecture == "cohere2" || s.Architecture == "command-r" || s.Architecture == "grok" {
 			return s.LogitScale
 		}
 		return 1 / s.LogitScale
@@ -1478,6 +1515,31 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.AttentionClamp), 0) || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("DBRX expert or attention metadata is invalid")
+	}
+	if s.Architecture == "grok" {
+		switch {
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+			return errors.New("Grok expert metadata is invalid")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("Grok expert weight scale is invalid")
+		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
+			s.RopeDimensionCount%2 != 0:
+			return errors.New("Grok rotary/head dimensions are invalid")
+		case s.AttentionScale <= 0 || s.AttentionSoftcap <= 0:
+			return errors.New("Grok attention scaling metadata is invalid")
+		case s.RopeScalingType == "yarn" &&
+			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 ||
+				s.YaRNExtFactor < 0 || s.YaRNAttentionFactor <= 0 ||
+				s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
+				math.IsNaN(float64(s.RopeScalingFactor)) || math.IsInf(float64(s.RopeScalingFactor), 0) ||
+				math.IsNaN(float64(s.YaRNExtFactor)) || math.IsInf(float64(s.YaRNExtFactor), 0) ||
+				math.IsNaN(float64(s.YaRNAttentionFactor)) || math.IsInf(float64(s.YaRNAttentionFactor), 0) ||
+				math.IsNaN(float64(s.YaRNBetaFast)) || math.IsInf(float64(s.YaRNBetaFast), 0) ||
+				math.IsNaN(float64(s.YaRNBetaSlow)) || math.IsInf(float64(s.YaRNBetaSlow), 0)):
+			return errors.New("Grok YaRN metadata is invalid")
+		}
 	}
 	if s.Architecture == "smallthinker" {
 		switch {
@@ -1891,7 +1953,7 @@ func isGemmaArchitecture(architecture string) bool {
 
 func hasPostNorm(architecture string) bool {
 	return architecture == "afmoe" || architecture == "exaone4" || architecture == "gemma2" ||
-		architecture == "gemma3" || architecture == "glm4"
+		architecture == "gemma3" || architecture == "glm4" || architecture == "grok"
 }
 
 func usesSlidingAttention(architecture string) bool {

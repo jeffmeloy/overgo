@@ -169,6 +169,7 @@ type MoEActivation uint32
 const (
 	MoEActivationSiLU MoEActivation = 1
 	MoEActivationReLU MoEActivation = 2
+	MoEActivationGELU MoEActivation = 3
 )
 
 type RepeatHeadsAttributes struct {
@@ -467,6 +468,17 @@ func (b *Builder) MoEReLUWithRouterInput(
 		routing, MoEActivationReLU)
 }
 
+// MoEGELU: softmax top-k GELU/GEGLU experts.
+func (b *Builder) MoEGELU(
+	input, router, gate, up, down *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationGELU)
+}
+
 func (b *Builder) moe(
 	input, routerInput, router, gate, up, down, selectionBias *Tensor,
 	topK uint32,
@@ -520,7 +532,7 @@ func (b *Builder) moe(
 		b.setError(errors.New("MoE routing function is invalid"))
 		return nil
 	}
-	if activation != MoEActivationSiLU && activation != MoEActivationReLU {
+	if activation != MoEActivationSiLU && activation != MoEActivationReLU && activation != MoEActivationGELU {
 		b.setError(errors.New("MoE activation is invalid"))
 		return nil
 	}

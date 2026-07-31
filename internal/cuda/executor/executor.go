@@ -1252,7 +1252,8 @@ func launchNode(
 		}
 		if !ok || (len(node.Inputs) != wantInputs && len(node.Inputs) != wantInputs+1) ||
 			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid) ||
-			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU) {
+			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU &&
+				attributes.Activation != tensor.MoEActivationGELU) {
 			return errors.New("invalid MoE attributes")
 		}
 		count, err := elementCount32(node.Shape)

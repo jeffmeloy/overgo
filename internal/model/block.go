@@ -464,6 +464,7 @@ func BuildDenseBlockCachedForLayer(
 	isDBRX := spec.Architecture == "dbrx"
 	isDOTS1 := spec.Architecture == "dots1"
 	isGraniteMoE := spec.Architecture == "granitemoe"
+	isGrok := spec.Architecture == "grok"
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
@@ -487,11 +488,11 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isGrok && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
-		if !isGraniteMoE || weights.FeedForwardGateExperts != nil {
+		if (!isGraniteMoE && !isGrok) || weights.FeedForwardGateExperts != nil {
 			required["feed-forward expert gate"] = weights.FeedForwardGateExperts
 		}
 		required["feed-forward expert up"] = weights.FeedForwardUpExperts
@@ -786,6 +787,18 @@ func BuildDenseBlockCachedForLayer(
 				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
 			)
 		}
+	} else if isGrok && spec.RopeScalingType == "yarn" {
+		frequencyScale := float32(1) / spec.RopeScalingFactor
+		query = builder.RoPENeoXYaRN(
+			query, positions, rotaryDimensions, spec.OriginalContextLength,
+			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+			spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+		)
+		key = builder.RoPENeoXYaRN(
+			key, positions, rotaryDimensions, spec.OriginalContextLength,
+			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+			spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+		)
 	} else if usesNormalRoPE(spec.Architecture) {
 		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := float32(1)
@@ -1029,7 +1042,33 @@ func BuildDenseBlockCachedForLayer(
 	// and FFN run in parallel before both branches are added to residual
 	if usesExperts {
 		var feedForward *tensor.Tensor
-		if isSmallThinker {
+		if isGrok {
+			feedForward = builder.MoEGELU(
+				normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+				weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+			)
+			if weights.FeedForwardUp != nil || weights.FeedForwardGate != nil || weights.FeedForwardDown != nil {
+				if weights.FeedForwardUp == nil || weights.FeedForwardGate == nil || weights.FeedForwardDown == nil {
+					return DenseBlockResult{}, errors.New("Grok dense FFN weights are incomplete")
+				}
+				gate := builder.MulMat(weights.FeedForwardGate, normalized)
+				up := builder.MulMat(weights.FeedForwardUp, normalized)
+				dense := builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up))
+				feedForward = builder.Scale(builder.Add(dense, feedForward), float32(math.Sqrt(0.5)))
+			}
+			if weights.FeedForwardPostNorm == nil {
+				return DenseBlockResult{}, errors.New("Grok feed-forward post norm is nil")
+			}
+			feedForward = builder.WeightedRMSNorm(
+				feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
+			)
+			output := builder.Add(residual, feedForward)
+			if err := builder.Err(); err != nil {
+				return DenseBlockResult{}, err
+			}
+			return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+		} else if isSmallThinker {
 			routing := tensor.MoERoutingSoftmax
 			if spec.ExpertGatingFunc == 2 {
 				routing = tensor.MoERoutingSigmoid

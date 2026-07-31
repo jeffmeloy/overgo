@@ -41,6 +41,10 @@ type Spec struct {
 	NoRopeLayerStep       uint32
 	RopeDisabled          bool
 	ParallelResidual      bool
+	XIELUAlphaN           []float32
+	XIELUAlphaP           []float32
+	XIELUBeta             []float32
+	XIELUEpsilon          []float32
 
 	// Qwen3.5 hybrid recurrent-attention metadata.
 	RopeDimensionCount    uint32
@@ -80,6 +84,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if architecture != "llama" && architecture != "internlm2" &&
 		architecture != "arcee" &&
+		architecture != "apertus" &&
 		architecture != "baichuan" &&
 		architecture != "bitnet" &&
 		architecture != "codeshell" &&
@@ -181,7 +186,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			gguf.ValueTypeString,
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" ||
-				(scalingType != "linear" && !(architecture == "phi3" && scalingType == "longrope")) {
+				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
 				return Spec{}, fmt.Errorf(
 					"model architecture %q uses unsupported RoPE scaling type %q",
 					architecture,
@@ -356,6 +361,37 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
 		); ok {
 			spec.RopeAttentionFactor = value
+		}
+	}
+	if architecture == "apertus" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); ok {
+			spec.RopeDimensionCount = value
+		}
+		spec.OriginalContextLength = spec.ContextLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
+		); ok {
+			spec.OriginalContextLength = value
+		}
+		spec.RopeAttentionFactor = 1
+		if value, ok := optional[float32](
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
+		); ok {
+			spec.RopeAttentionFactor = value
+		}
+		for key, destination := range map[string]*[]float32{
+			"xielu.alpha_n": &spec.XIELUAlphaN,
+			"xielu.alpha_p": &spec.XIELUAlphaP,
+			"xielu.beta":    &spec.XIELUBeta,
+			"xielu.eps":     &spec.XIELUEpsilon,
+		} {
+			*destination, err = requiredLayerFloat32(values, prefix+key, spec.BlockCount)
+			if err != nil {
+				return Spec{}, err
+			}
 		}
 	}
 	if architecture == "gptneox" {
@@ -729,6 +765,28 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return errors.New("Phi-3 RoPE metadata is invalid")
 	}
+	if s.Architecture == "apertus" {
+		if s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0 ||
+			s.OriginalContextLength == 0 || s.RopeAttentionFactor <= 0 ||
+			math.IsNaN(float64(s.RopeAttentionFactor)) || math.IsInf(float64(s.RopeAttentionFactor), 0) {
+			return errors.New("Apertus RoPE metadata is invalid")
+		}
+		for name, values := range map[string][]float32{
+			"alpha_n": s.XIELUAlphaN,
+			"alpha_p": s.XIELUAlphaP,
+			"beta":    s.XIELUBeta,
+			"epsilon": s.XIELUEpsilon,
+		} {
+			if len(values) != int(s.BlockCount) {
+				return fmt.Errorf("Apertus xIELU %s has %d values, need %d", name, len(values), s.BlockCount)
+			}
+			for _, value := range values {
+				if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+					return fmt.Errorf("Apertus xIELU %s values must be finite", name)
+				}
+			}
+		}
+	}
 	if s.Architecture == "gptneox" && s.RopeDimensionCount > 0 &&
 		(s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("GPT-NeoX rotary dimension count is invalid")
@@ -814,7 +872,12 @@ func usesSequentialGELU(architecture string) bool {
 }
 
 func usesGateFreeFFN(architecture string) bool {
-	return architecture == "phi3" || usesSquaredReLU(architecture) || usesGELU(architecture)
+	return architecture == "apertus" || architecture == "phi3" ||
+		usesSquaredReLU(architecture) || usesGELU(architecture)
+}
+
+func supportsLongRoPE(architecture string) bool {
+	return architecture == "apertus" || architecture == "phi3"
 }
 
 func usesGELU(architecture string) bool {
@@ -874,6 +937,39 @@ func requiredArray[T any](
 		return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
 	}
 	return typed, nil
+}
+
+func requiredLayerFloat32(
+	values map[string]gguf.Value,
+	key string,
+	count uint32,
+) ([]float32, error) {
+	value, ok := values[key]
+	if !ok {
+		return nil, fmt.Errorf("required metadata %q is missing", key)
+	}
+	if value.Type == gguf.ValueTypeFloat32 {
+		scalar, ok := value.Data.(float32)
+		if !ok {
+			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
+		}
+		result := make([]float32, count)
+		for index := range result {
+			result[index] = scalar
+		}
+		return result, nil
+	}
+	if value.Type != gguf.ValueTypeArray || value.ArrayType != gguf.ValueTypeFloat32 {
+		return nil, fmt.Errorf("metadata %q must be a float32 or float32 array", key)
+	}
+	items, ok := value.Data.([]float32)
+	if !ok {
+		return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
+	}
+	if len(items) != int(count) {
+		return nil, fmt.Errorf("metadata %q has %d values, need %d", key, len(items), count)
+	}
+	return append([]float32(nil), items...), nil
 }
 
 func optionalArray[T any](

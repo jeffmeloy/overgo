@@ -1162,6 +1162,69 @@ func TestBuildDensePhi3FusedProjectionsAndLongRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDenseApertus(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "apertus", BlockCount: 1, ContextLength: 128,
+		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+		RopeScalingType: "longrope", RopeAttentionFactor: 1.25,
+		AttentionScale: 0.3, RMSNormEpsilon: 1e-5,
+		XIELUAlphaN: []float32{0.8}, XIELUAlphaP: []float32{0.2},
+		XIELUBeta: []float32{0.5}, XIELUEpsilon: []float32{-0.1},
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16))
+	weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(16))
+	weights.AttentionOutputBias = builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardGate = nil
+	weights.RopeFactors = builder.Input("rope_long", dtype.F32, tensor.MustShape(2))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var slices, xielu, rmsNorms, ropeWithFactors, ropeScale int
+	var attentionScale float32
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpGroupSlice:
+			slices++
+		case tensor.OpXIELU:
+			xielu++
+			attributes := node.Attrs.(tensor.XIELUAttributes)
+			if attributes.AlphaN != 0.8 || attributes.AlphaP != 0.2 ||
+				attributes.Beta != 0.5 || attributes.Epsilon != -0.1 {
+				t.Fatalf("unexpected xIELU attributes: %+v", attributes)
+			}
+		case tensor.OpRMSNorm:
+			rmsNorms++
+		case tensor.OpRoPENeoX:
+			if len(node.Inputs) == 2 && node.Inputs[1] == weights.RopeFactors {
+				ropeWithFactors++
+			}
+		case tensor.OpScale:
+			if node.Attrs.(tensor.ScaleAttributes).Value == 1.25 {
+				ropeScale++
+			}
+		case tensor.OpAttention:
+			attentionScale = node.Attrs.(tensor.AttentionAttributes).Scale
+		}
+	}
+	if slices != 3 || xielu != 1 || rmsNorms != 4 || ropeWithFactors != 2 ||
+		ropeScale != 2 || attentionScale != 0.3 {
+		t.Fatalf("unexpected Apertus graph: slices=%d xIELU=%d RMSNorm=%d rope=%d scale=%d attention=%v", slices, xielu, rmsNorms, ropeWithFactors, ropeScale, attentionScale)
+	}
+}
+
 func TestBuildDenseGPTNeoXResidualModes(t *testing.T) {
 	for _, parallel := range []bool{false, true} {
 		name := "sequential"

@@ -814,6 +814,20 @@ cuda:
     - MXFP4
     - NVFP4
 models:
+  apertus:
+    status: experimental
+    features:
+      - rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - optional-projection-biases
+      - per-head-qk-rmsnorm
+      - full-neox-rope
+      - ordinary-or-longrope-factors
+      - metadata-attention-scale
+      - scalar-or-per-layer-xielu
+      - ungated-xielu-ffn
+      - untied-output-projection
+    real_model_validation: pending-fixture
   bitnet:
     status: experimental
     features:

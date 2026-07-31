@@ -281,6 +281,43 @@ func TestReadPhi3LongRoPESpec(t *testing.T) {
 	}
 }
 
+func TestReadApertusSpecWithLayerXIELU(t *testing.T) {
+	floatArray := func(key string, values ...float32) gguf.Metadata {
+		return gguf.Metadata{Key: key, Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: values,
+		}}
+	}
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "apertus"),
+		metadata("apertus.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("apertus.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("apertus.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("apertus.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("apertus.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("apertus.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("apertus.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("apertus.rope.scaling.type", gguf.ValueTypeString, "longrope"),
+		metadata("apertus.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("apertus.rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1.2)),
+		metadata("apertus.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("apertus.xielu.alpha_n", gguf.ValueTypeFloat32, float32(0.8)),
+		floatArray("apertus.xielu.alpha_p", 0.1, 0.2),
+		floatArray("apertus.xielu.beta", 0.5, 0.6),
+		metadata("apertus.xielu.eps", gguf.ValueTypeFloat32, float32(-1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "apertus" || spec.RopeDimensionCount != 4 ||
+		spec.OriginalContextLength != 8192 || spec.RopeAttentionFactor != 1.2 ||
+		len(spec.XIELUAlphaN) != 2 || spec.XIELUAlphaN[1] != 0.8 ||
+		spec.XIELUAlphaP[1] != 0.2 || spec.XIELUBeta[0] != 0.5 ||
+		spec.XIELUEpsilon[1] != -1e-6 {
+		t.Fatalf("unexpected Apertus spec: %+v", spec)
+	}
+}
+
 func TestReadGPTNeoXSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "gptneox"),

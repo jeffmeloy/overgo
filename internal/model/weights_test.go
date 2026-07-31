@@ -942,6 +942,38 @@ func TestReadWeightsPhi3LongRoPEAndFusedFFN(t *testing.T) {
 	}
 }
 
+func TestReadWeightsApertus(t *testing.T) {
+	spec := Spec{
+		Architecture: "apertus", BlockCount: 1, ContextLength: 128,
+		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeScalingType: "longrope",
+		RopeAttentionFactor: 1.1, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 16), tensorInfo("blk.0.attn_qkv.bias", 16),
+		tensorInfo("blk.0.attn_q_norm.weight", 4), tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+		tensorInfo("blk.0.rope_factors_long.weight", 2),
+		tensorInfo("blk.0.rope_factors_short.weight", 2),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output == nil || layer.AttentionQKV == nil || layer.AttentionQKVBias == nil ||
+		layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
+		layer.AttentionOutputBias == nil || layer.FeedForwardGate.Name != "" ||
+		layer.RopeFactors == nil || layer.RopeFactors.Name != "blk.0.rope_factors_long.weight" {
+		t.Fatalf("unexpected Apertus weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsGPTNeoX(t *testing.T) {
 	spec := Spec{
 		Architecture: "gptneox", BlockCount: 1, EmbeddingLength: 8,

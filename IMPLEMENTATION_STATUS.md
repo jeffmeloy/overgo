@@ -15,9 +15,9 @@
 | CUDA driver loading | Complete | Direct `nvcuda.dll` calls, device inventory validated |
 | CUDA execution | In progress | Persistent resources, cuBLAS F32, native quantized embedding/matmul, and fused Qwen3.5 recurrent kernels validated on RTX 4090 |
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
-| Tensor graph | In progress | Typed IR, layout transforms, broadcasting, RMSNorm/affine LayerNorm, embeddings, scaled normal/NeoX RoPE, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, GELU/SwiGLU/squared-ReLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
+| Tensor graph | In progress | Typed IR, layout transforms, broadcasting, RMSNorm/affine LayerNorm, embeddings, scaled normal/NeoX RoPE, sliding/softcapped/gated GQA, bidirectional T5 relative-position attention, GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, text-only hybrid Qwen3.5, Arcee, Baichuan 7B, BitNet, CodeShell, dense Cohere2/Command R, Falcon, Gemma 1/2/3, GPT-NeoX, Granite, InternLM2, EXAONE, XVERSE, Jais2, Maincoder, MiniCPM, dense Mistral 3, Nemotron, OLMo/OLMo2, Orion, Phi-2/Phi-3, PLaMo, Seed-OSS, StableLM, StarCoder2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, text-only hybrid Qwen3.5, Apertus, Arcee, Baichuan 7B, BitNet, CodeShell, dense Cohere2/Command R, Falcon, Gemma 1/2/3, GPT-NeoX, Granite, InternLM2, EXAONE, XVERSE, Jais2, Maincoder, MiniCPM, dense Mistral 3, Nemotron, OLMo/OLMo2, Orion, Phi-2/Phi-3, PLaMo, Seed-OSS, StableLM, StarCoder2, SmolLM3, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Six tokenizer corpora match 280 upstream cases; BERT WordPiece and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -576,6 +576,10 @@
 - BitNet decoders support RMSNorm, attention/FFN sub-layer RMSNorms, optional
   scalar projection scales, SwiGLU, tied output, and existing ternary tensor
   decoding across streamed host and device execution paths.
+- Apertus decoders support RMSNorm, fused or separate QKV with optional biases,
+  per-head Q/K RMSNorm, full NeoX RoPE with ordinary or LongRoPE factors,
+  metadata attention scaling, ungated xIELU FFNs with scalar-or-per-layer
+  parameters, optional attention-output bias, and required untied output.
 - The real UMT5 XXL encoder passes strict 24-layer T5 metadata and tensor
   catalog validation. Its SentencePiece UGM tokenizer produces
   `[23231, 3914, 332]` for `Hello world!`, exactly matching the pinned
@@ -803,9 +807,12 @@ and ALiBi attention. GPT-2/StarCoder-style families also require learned
 absolute-position embedding support. These architectures remain rejected
 rather than being partially enabled.
 
-Apertus is deferred until xIELU exists in the tensor IR, reference executor,
-and CUDA kernels. Refact and MPT remain behind ALiBi/learned-position support;
-Dream requires a non-causal no-cache diffusion execution mode.
+Refact and MPT remain behind ALiBi/learned-position support; Dream requires a
+non-causal no-cache diffusion execution mode. Laguna additionally requires MoE,
+softplus attention gating, per-layer head counts, and YaRN/SWA. PLM requires
+MLA tensor decomposition; LFM2 requires hybrid short convolution; RND1 requires
+MoE plus non-causal diffusion; Chameleon requires sandwich normalization and
+image-logit suppression.
 
 ## Working rules
 

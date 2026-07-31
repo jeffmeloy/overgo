@@ -226,6 +226,11 @@ func BuildDenseBlockCachedForLayer(
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
+	if spec.Architecture == "apertus" &&
+		(int(layerIndex) >= len(spec.XIELUAlphaN) || int(layerIndex) >= len(spec.XIELUAlphaP) ||
+			int(layerIndex) >= len(spec.XIELUBeta) || int(layerIndex) >= len(spec.XIELUEpsilon)) {
+		return DenseBlockResult{}, errors.New("Apertus xIELU parameters are missing for layer")
+	}
 	required := map[string]*tensor.Tensor{
 		"attention output":  weights.AttentionOutput,
 		"feed-forward up":   weights.FeedForwardUp,
@@ -373,7 +378,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 
-	if spec.Architecture == "qwen3" || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || spec.Architecture == "qwen3" || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -479,7 +484,7 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	}
-	if spec.Architecture == "phi3" && spec.RopeAttentionFactor != 1 {
+	if supportsLongRoPE(spec.Architecture) && spec.RopeAttentionFactor != 1 {
 		query = builder.Scale(query, spec.RopeAttentionFactor)
 		key = builder.Scale(key, spec.RopeAttentionFactor)
 	}
@@ -623,6 +628,14 @@ func BuildDenseBlockCachedForLayer(
 			builder.GroupSlice(up, width, width, 1, stride), width, tokens,
 		)
 		activation = builder.SwiGLU(gate, up)
+	} else if spec.Architecture == "apertus" {
+		activation = builder.XIELU(
+			up,
+			spec.XIELUAlphaN[layerIndex],
+			spec.XIELUAlphaP[layerIndex],
+			spec.XIELUBeta[layerIndex],
+			spec.XIELUEpsilon[layerIndex],
+		)
 	} else if usesGELU(spec.Architecture) {
 		activation = builder.GELU(up)
 	} else if usesSquaredReLU(spec.Architecture) {

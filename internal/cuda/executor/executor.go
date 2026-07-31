@@ -671,6 +671,7 @@ type functionSet struct {
 	copy              driver.Function
 	silu              driver.Function
 	gelu              driver.Function
+	reluSquared       driver.Function
 	sigmoid           driver.Function
 	softplus          driver.Function
 	l2Norm            driver.Function
@@ -838,6 +839,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"copy_f32", &result.copy},
 		{"silu_f32", &result.silu},
 		{"gelu_f32", &result.gelu},
+		{"relu_squared_f32", &result.reluSquared},
 		{"sigmoid_f32", &result.sigmoid},
 		{"softplus_f32", &result.softplus},
 		{"l2_norm_f32", &result.l2Norm},
@@ -1021,7 +1023,7 @@ func launchNode(
 		runtime.KeepAlive(scale)
 		runtime.KeepAlive(count)
 		return err
-	case tensor.OpSiLU, tensor.OpGELU, tensor.OpSigmoid, tensor.OpSoftplus:
+	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
@@ -1035,6 +1037,8 @@ func launchNode(
 		function := functions.silu
 		if node.Op == tensor.OpGELU {
 			function = functions.gelu
+		} else if node.Op == tensor.OpReLUSquared {
+			function = functions.reluSquared
 		} else if node.Op == tensor.OpSigmoid {
 			function = functions.sigmoid
 		} else if node.Op == tensor.OpSoftplus {

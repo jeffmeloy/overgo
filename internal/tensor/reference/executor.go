@@ -124,6 +124,14 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = float16Round(gelu)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpReLUSquared:
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			if value > 0 {
+				output[i] = value * value
+			}
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpSigmoid:
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {

@@ -37,6 +37,7 @@ const (
 	OpRoPEMulti
 	OpGELU
 	OpLayerNorm
+	OpReLUSquared
 )
 
 var opNames = [...]string{
@@ -65,6 +66,7 @@ var opNames = [...]string{
 	"rope_multi",
 	"gelu",
 	"layer_norm",
+	"relu_squared",
 }
 
 func (o Op) String() string {
@@ -224,6 +226,10 @@ func (b *Builder) SiLU(input *Tensor) *Tensor {
 
 func (b *Builder) GELU(input *Tensor) *Tensor {
 	return b.unary(OpGELU, input, nil)
+}
+
+func (b *Builder) ReLUSquared(input *Tensor) *Tensor {
+	return b.unary(OpReLUSquared, input, nil)
 }
 
 func (b *Builder) Sigmoid(input *Tensor) *Tensor {

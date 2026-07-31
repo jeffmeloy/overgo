@@ -38,6 +38,31 @@ func TestExecuteElementwiseNormSoftmax(t *testing.T) {
 	}
 }
 
+func TestExecuteReLUSquared(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(5))
+	output := builder.ReLUSquared(input)
+	value, _ := NewValue(input.Shape, []float32{-2, -0.5, 0, 1.5, 3})
+	results, err := Execute(
+		[]*tensor.Tensor{output},
+		map[*tensor.Tensor]Value{input: value},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{0, 0, 0, 2.25, 9}
+	for index := range want {
+		if results[output].Data[index] != want[index] {
+			t.Fatalf(
+				"ReLU squared[%d] = %v, want %v",
+				index,
+				results[output].Data[index],
+				want[index],
+			)
+		}
+	}
+}
+
 func TestExecuteAffineLayerNorm(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))

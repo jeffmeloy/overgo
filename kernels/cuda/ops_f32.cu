@@ -153,6 +153,17 @@ extern "C" __global__ void gelu_f32(
     }
 }
 
+extern "C" __global__ void relu_squared_f32(
+        const float * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const float value = input[index];
+        output[index] = value > 0.0f ? value * value : 0.0f;
+    }
+}
+
 extern "C" __global__ void sigmoid_f32(
         const float * input,
         float * output,

@@ -286,7 +286,7 @@ hardening:
     kernel_sha256: true
     kernel_manifest:
       schema: 2
-      abi_version: 4
+      abi_version: 5
       verifies:
         - source-and-asset-sha256
         - complete-entry-set

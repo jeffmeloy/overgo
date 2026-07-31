@@ -63,6 +63,7 @@ type Spec struct {
 	RopeDimensionSWA      uint32
 	LayerHeadCounts       []uint32
 	LayerKVHeadCounts     []uint32
+	LayerFeedForward      []uint32
 	SlidingLayers         []bool
 	XIELUAlphaN           []float32
 	XIELUAlphaP           []float32
@@ -140,6 +141,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "nemotron" &&
 		architecture != "olmo" &&
 		architecture != "olmoe" &&
+		architecture != "openelm" &&
 		architecture != "orion" &&
 		architecture != "phi2" &&
 		architecture != "phi3" &&
@@ -190,10 +192,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
+	if architecture == "openelm" {
+		if spec.LayerFeedForward, err = requiredLayerUint32(values, prefix+"feed_forward_length", spec.BlockCount); err != nil {
+			return Spec{}, err
+		}
+		spec.FeedForwardLength = spec.LayerFeedForward[0]
+	} else if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "laguna" {
+	if architecture == "laguna" || architecture == "openelm" {
 		if spec.LayerHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count", spec.BlockCount,
 		); err != nil {
@@ -215,7 +222,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.HeadCountKV = value
 			}
 		}
-	} else if architecture == "laguna" {
+	} else if architecture == "laguna" || architecture == "openelm" {
 		if spec.LayerKVHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count_kv", spec.BlockCount,
 		); err != nil {
@@ -1116,6 +1123,13 @@ func (s Spec) LayerKVHeadCount(block uint32) uint32 {
 	return s.HeadCountKV
 }
 
+func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
+	if block < uint32(len(s.LayerFeedForward)) {
+		return s.LayerFeedForward[block]
+	}
+	return s.FeedForwardLength
+}
+
 func (s Spec) UsesRoPE(block uint32) bool {
 	if s.Architecture == "exaone-moe" {
 		return s.IsSlidingLayer(block)
@@ -1420,6 +1434,20 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {
 		return errors.New("Jais2 requires matching attention and KV head counts")
+	}
+	if s.Architecture == "openelm" {
+		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerFeedForward) != int(s.BlockCount) {
+			return errors.New("OpenELM per-layer metadata is invalid")
+		}
+		for block := uint32(0); block < s.BlockCount; block++ {
+			heads := s.LayerHeadCount(block)
+			kvHeads := s.LayerKVHeadCount(block)
+			if heads == 0 || kvHeads == 0 || heads%kvHeads != 0 || s.LayerFeedForwardLength(block) == 0 {
+				return fmt.Errorf("OpenELM layer %d dimensions are invalid", block)
+			}
+		}
 	}
 	if s.Architecture == "gemma3" {
 		switch {

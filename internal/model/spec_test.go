@@ -380,6 +380,36 @@ func TestReadLagunaSpecPreservesPerLayerHeadsAndHybridRoPE(t *testing.T) {
 	}
 }
 
+func TestReadOpenELMSpecPreservesPerLayerWidths(t *testing.T) {
+	array := func(key string, values []uint32) gguf.Metadata {
+		return gguf.Metadata{Key: key, Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: values,
+		}}
+	}
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "openelm"),
+		metadata("openelm.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("openelm.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("openelm.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		array("openelm.feed_forward_length", []uint32{12, 16}),
+		array("openelm.attention.head_count", []uint32{2, 4}),
+		array("openelm.attention.head_count_kv", []uint32{1, 2}),
+		metadata("openelm.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("openelm.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("openelm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("openelm.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "openelm" || spec.LayerHeadCount(1) != 4 ||
+		spec.LayerKVHeadCount(1) != 2 || spec.LayerFeedForwardLength(0) != 12 ||
+		spec.LayerFeedForwardLength(1) != 16 {
+		t.Fatalf("unexpected OpenELM spec: %+v", spec)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

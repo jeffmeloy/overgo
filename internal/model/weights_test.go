@@ -127,6 +127,43 @@ func TestReadWeightsArcticParallelDenseAndMoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsOpenELMPerLayerWidths(t *testing.T) {
+	spec := Spec{
+		Architecture: "openelm", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, LayerFeedForward: []uint32{12, 16},
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+		LayerKVHeadCounts: []uint32{1, 2}, KeyLength: 4, ValueLength: 4,
+		VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+	}
+	for block, widths := range []struct{ qkv, output, ffn uint64 }{{16, 8, 12}, {32, 16, 16}} {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_qkv.weight", 8, widths.qkv),
+			tensorInfo(prefix+"attn_q_norm.weight", 4),
+			tensorInfo(prefix+"attn_k_norm.weight", 4),
+			tensorInfo(prefix+"attn_output.weight", widths.output, 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, widths.ffn),
+			tensorInfo(prefix+"ffn_up.weight", 8, widths.ffn),
+			tensorInfo(prefix+"ffn_down.weight", widths.ffn, 8),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Output != nil || weights.Layers[0].AttentionQKV == nil ||
+		weights.Layers[1].AttentionQKV == nil || weights.Layers[1].AttentionQNorm == nil ||
+		weights.Layers[1].AttentionKNorm == nil || weights.Layers[1].FeedForwardUp.Shape[1] != 16 ||
+		weights.Layers[1].AttentionOutput.Shape[0] != 16 {
+		t.Fatalf("unexpected OpenELM catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsBailingMoE(t *testing.T) {
 	spec := Spec{
 		Architecture: "bailingmoe", BlockCount: 1, EmbeddingLength: 8,

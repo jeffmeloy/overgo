@@ -1143,6 +1143,18 @@ models:
     limitations:
       - nonzero-qkv-clamp-rejected
     real_model_validation: pending-fixture
+  openelm:
+    status: experimental
+    features:
+      - per-layer-query-kv-and-feed-forward-widths
+      - rmsnorm
+      - fused-qkv
+      - per-head-qk-rmsnorm
+      - neox-rope
+      - swiglu
+      - tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   seed_oss:
     status: experimental
     features:

@@ -610,7 +610,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "refact" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -677,7 +677,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "openelm" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
@@ -1046,7 +1046,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				continue
 			}
 		}
-		feedForwardLength := spec.FeedForwardLength
+		feedForwardLength := spec.LayerFeedForwardLength(block)
 		if spec.Architecture == "arctic" {
 			feedForwardLength = spec.EmbeddingLength
 		}
@@ -1081,8 +1081,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			shape       uint64
 			destination **gguf.TensorInfo
 		}{
-			"ffn_gate.bias": {uint64(spec.FeedForwardLength), &layer.FeedForwardGateBias},
-			"ffn_up.bias":   {uint64(spec.FeedForwardLength), &layer.FeedForwardUpBias},
+			"ffn_gate.bias": {uint64(feedForwardLength), &layer.FeedForwardGateBias},
+			"ffn_up.bias":   {uint64(feedForwardLength), &layer.FeedForwardUpBias},
 			"ffn_down.bias": {uint64(spec.EmbeddingLength), &layer.FeedForwardDownBias},
 		} {
 			if item, ok := tensors[prefix+name]; ok {

@@ -934,6 +934,37 @@ func TestReadWeightsGPTNeoX(t *testing.T) {
 	}
 }
 
+func TestReadWeightsFalcon40B(t *testing.T) {
+	spec := Spec{
+		Architecture: "falcon", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8), tensorInfo("output_norm.bias", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+		tensorInfo("blk.0.attn_norm_2.weight", 8), tensorInfo("blk.0.attn_norm_2.bias", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 16),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionQKVBias != nil ||
+		layer.AttentionNorm2 == nil || layer.AttentionNorm2Bias == nil ||
+		layer.FeedForwardNorm.Name != "" || layer.FeedForwardGate.Name != "" ||
+		layer.AttentionOutputBias != nil || layer.FeedForwardUpBias != nil ||
+		layer.FeedForwardDownBias != nil {
+		t.Fatalf("unexpected Falcon weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsGemma2(t *testing.T) {
 	spec := Spec{
 		Architecture:      "gemma2",

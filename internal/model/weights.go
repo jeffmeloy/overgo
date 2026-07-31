@@ -13,6 +13,8 @@ type LayerWeights struct {
 	Recurrent             bool
 	AttentionNorm         gguf.TensorInfo
 	AttentionNormBias     *gguf.TensorInfo
+	AttentionNorm2        *gguf.TensorInfo
+	AttentionNorm2Bias    *gguf.TensorInfo
 	AttentionQ            gguf.TensorInfo
 	AttentionK            gguf.TensorInfo
 	AttentionV            gguf.TensorInfo
@@ -291,6 +293,22 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.AttentionNormBias = &attentionNormBias
 			}
 		}
+		if spec.Architecture == "falcon" {
+			if item, ok := tensors[prefix+"attn_norm_2.weight"]; ok {
+				if item.Dimensions != 1 || item.Shape[0] != uint64(spec.EmbeddingLength) {
+					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+				}
+				layer.AttentionNorm2 = &item
+				if bias, hasBias := tensors[prefix+"attn_norm_2.bias"]; hasBias {
+					if bias.Dimensions != 1 || bias.Shape[0] != uint64(spec.EmbeddingLength) {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", bias.Name, bias.Shape)
+					}
+					layer.AttentionNorm2Bias = &bias
+				}
+			} else if _, ok := tensors[prefix+"attn_norm_2.bias"]; ok {
+				return Weights{}, errors.New("Falcon secondary attention norm bias has no weight")
+			}
+		}
 		if spec.Architecture == "qwen35" {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
@@ -378,9 +396,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		} else {
-			if spec.Architecture == "phi2" || spec.Architecture == "gptneox" {
+			if spec.Architecture == "phi2" || spec.Architecture == "gptneox" ||
+				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
-				if hasQKV || spec.Architecture == "gptneox" {
+				if hasQKV || spec.Architecture == "gptneox" || spec.Architecture == "falcon" {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight",
 						uint64(spec.EmbeddingLength),

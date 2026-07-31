@@ -181,6 +181,12 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	if info.AttentionNormBias != nil {
 		required = append(required, *info.AttentionNormBias)
 	}
+	if info.AttentionNorm2 != nil {
+		required = append(required, *info.AttentionNorm2)
+	}
+	if info.AttentionNorm2Bias != nil {
+		required = append(required, *info.AttentionNorm2Bias)
+	}
 	if info.FeedForwardNorm.Name != "" {
 		required = append(required, info.FeedForwardNorm)
 	}
@@ -212,6 +218,12 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	}
 	if info.AttentionNormBias != nil {
 		result.AttentionNormBias = input(*info.AttentionNormBias)
+	}
+	if info.AttentionNorm2 != nil {
+		result.AttentionNorm2 = input(*info.AttentionNorm2)
+	}
+	if info.AttentionNorm2Bias != nil {
+		result.AttentionNorm2Bias = input(*info.AttentionNorm2Bias)
 	}
 	if info.FeedForwardNorm.Name != "" {
 		result.FeedForwardNorm = input(info.FeedForwardNorm)

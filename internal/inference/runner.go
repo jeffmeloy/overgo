@@ -381,6 +381,16 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
+	if info.AttentionNorm2 != nil {
+		if result.AttentionNorm2, err = input(*info.AttentionNorm2); err != nil {
+			return result, nil, err
+		}
+	}
+	if info.AttentionNorm2Bias != nil {
+		if result.AttentionNorm2Bias, err = input(*info.AttentionNorm2Bias); err != nil {
+			return result, nil, err
+		}
+	}
 	if info.Recurrent {
 		recurrent := []struct {
 			info        *gguf.TensorInfo
@@ -1727,6 +1737,8 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		}
 		for _, pointer := range []*gguf.TensorInfo{
 			layer.AttentionNormBias,
+			layer.AttentionNorm2,
+			layer.AttentionNorm2Bias,
 			layer.AttentionQKVBias,
 			layer.AttentionQBias,
 			layer.AttentionKBias,

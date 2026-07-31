@@ -104,6 +104,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen35" && architecture != "gemma" &&
 		architecture != "gemma2" &&
 		architecture != "gemma3" &&
+		architecture != "falcon" &&
 		architecture != "t5encoder" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
@@ -127,9 +128,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "t5encoder" || architecture == "gptneox" {
+	if architecture == "t5encoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
-		if architecture == "gptneox" {
+		if architecture == "gptneox" || architecture == "falcon" {
 			if value, ok := optional[uint32](
 				values,
 				prefix+"attention.head_count_kv",
@@ -158,7 +159,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if architecture != "t5encoder" {
-		if architecture == "gptneox" {
+		if architecture == "gptneox" || architecture == "falcon" {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](
 				values,
@@ -345,6 +346,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); err != nil {
 			return Spec{}, err
 		}
+	}
+	if architecture == "falcon" {
+		spec.RopeDimensionCount, _ = optional[uint32](
+			values,
+			prefix+"rope.dimension_count",
+			gguf.ValueTypeUint32,
+		)
 	}
 	if architecture == "command-r" {
 		spec.LogitScale, _ = optional[float32](
@@ -562,7 +570,8 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Architecture == "nemotron" ||
+	return s.Architecture == "falcon" ||
+		s.Architecture == "nemotron" ||
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
 		s.Architecture == "stablelm" ||
@@ -692,6 +701,10 @@ func (s Spec) validate() error {
 		(s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("GPT-NeoX rotary dimension count is invalid")
 	}
+	if s.Architecture == "falcon" && s.RopeDimensionCount > 0 &&
+		s.RopeDimensionCount != s.KeyLength {
+		return errors.New("Falcon rotary dimension count must equal the key length")
+	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
@@ -759,7 +772,7 @@ func usesNormalRoPE(architecture string) bool {
 }
 
 func usesParallelResidual(architecture string) bool {
-	return architecture == "cohere2" || architecture == "command-r" ||
+	return architecture == "cohere2" || architecture == "command-r" || architecture == "falcon" ||
 		architecture == "phi2" || architecture == "plamo"
 }
 
@@ -769,7 +782,11 @@ func usesSequentialGELU(architecture string) bool {
 }
 
 func usesGateFreeFFN(architecture string) bool {
-	return usesSquaredReLU(architecture) || usesSequentialGELU(architecture)
+	return usesSquaredReLU(architecture) || usesGELU(architecture)
+}
+
+func usesGELU(architecture string) bool {
+	return architecture == "falcon" || usesSequentialGELU(architecture)
 }
 
 func usesSquaredReLU(architecture string) bool {

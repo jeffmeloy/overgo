@@ -278,6 +278,29 @@ func TestReadGPTNeoXSpec(t *testing.T) {
 	}
 }
 
+func TestReadFalconSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "falcon"),
+		metadata("falcon.block_count", gguf.ValueTypeUint32, uint32(60)),
+		metadata("falcon.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("falcon.embedding_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("falcon.feed_forward_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("falcon.attention.head_count", gguf.ValueTypeUint32, uint32(128)),
+		metadata("falcon.rope.dimension_count", gguf.ValueTypeUint32, uint32(64)),
+		metadata("falcon.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "falcon" || spec.HeadCountKV != 128 ||
+		spec.KeyLength != 64 || spec.RopeDimensionCount != 64 ||
+		spec.RopeFrequencyBase != 10000 || !spec.UsesLayerNorm() ||
+		!usesParallelResidual(spec.Architecture) {
+		t.Fatalf("unexpected Falcon spec: %+v", spec)
+	}
+}
+
 func TestReadSmolLM3Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),

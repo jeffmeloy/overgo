@@ -17,6 +17,8 @@ import (
 type HostLayer struct {
 	AttentionNorm         reference.Value
 	AttentionNormBias     *reference.Value
+	AttentionNorm2        *reference.Value
+	AttentionNorm2Bias    *reference.Value
 	AttentionQ            reference.Value
 	AttentionK            reference.Value
 	AttentionV            reference.Value
@@ -354,6 +356,8 @@ func LoadHostLayer(
 		destination **reference.Value
 	}{
 		{info.AttentionNormBias, &result.AttentionNormBias},
+		{info.AttentionNorm2, &result.AttentionNorm2},
+		{info.AttentionNorm2Bias, &result.AttentionNorm2Bias},
 		{info.AttentionQKVBias, &result.AttentionQKVBias},
 		{info.AttentionQBias, &result.AttentionQBias},
 		{info.AttentionKBias, &result.AttentionKBias},
@@ -443,6 +447,12 @@ func (layer *HostLayer) GraphInputs(
 	}
 	if layer.AttentionNormBias != nil {
 		result.AttentionNormBias = input("attn_norm.bias", *layer.AttentionNormBias)
+	}
+	if layer.AttentionNorm2 != nil {
+		result.AttentionNorm2 = input("attn_norm_2.weight", *layer.AttentionNorm2)
+	}
+	if layer.AttentionNorm2Bias != nil {
+		result.AttentionNorm2Bias = input("attn_norm_2.bias", *layer.AttentionNorm2Bias)
 	}
 	if layer.FeedForwardNorm.Shape.Rank != 0 {
 		result.FeedForwardNorm = input("ffn_norm.weight", layer.FeedForwardNorm)

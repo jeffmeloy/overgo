@@ -12,6 +12,8 @@ import (
 type LayerGraphWeights struct {
 	AttentionNorm         *tensor.Tensor
 	AttentionNormBias     *tensor.Tensor
+	AttentionNorm2        *tensor.Tensor
+	AttentionNorm2Bias    *tensor.Tensor
 	AttentionQ            *tensor.Tensor
 	AttentionK            *tensor.Tensor
 	AttentionV            *tensor.Tensor
@@ -233,6 +235,9 @@ func BuildDenseBlockCachedForLayer(
 			return DenseBlockResult{}, errors.New("dense fused QKV bias has no fused projection")
 		}
 	}
+	if spec.Architecture == "falcon" && weights.AttentionNorm2 == nil && weights.AttentionNorm2Bias != nil {
+		return DenseBlockResult{}, errors.New("Falcon secondary attention norm bias has no weight")
+	}
 	if !usesGateFreeFFN(spec.Architecture) {
 		required["feed-forward gate"] = weights.FeedForwardGate
 	} else if usesSequentialGELU(spec.Architecture) {
@@ -285,6 +290,18 @@ func BuildDenseBlockCachedForLayer(
 		normalized = ApplyNormalization(
 			builder, input, weights.AttentionNorm, weights.AttentionNormBias, spec,
 		)
+	}
+	feedForwardNormalized := normalized
+	if spec.Architecture == "falcon" && weights.AttentionNorm2 != nil {
+		if weights.AttentionNorm2Bias == nil {
+			normalized = builder.Multiply(
+				builder.LayerNorm(input, spec.LayerNormEpsilon), weights.AttentionNorm2,
+			)
+		} else {
+			normalized = ApplyNormalization(
+				builder, input, weights.AttentionNorm2, weights.AttentionNorm2Bias, spec,
+			)
+		}
 	}
 	var query, key, value *tensor.Tensor
 	if weights.AttentionQKV != nil {
@@ -529,7 +546,9 @@ func BuildDenseBlockCachedForLayer(
 	parallelResidual := usesParallelResidual(spec.Architecture) ||
 		(spec.Architecture == "gptneox" && spec.ParallelResidual) ||
 		(spec.Architecture == "stablelm" && weights.FeedForwardNorm == nil)
-	if spec.Architecture == "gptneox" && spec.ParallelResidual {
+	if spec.Architecture == "falcon" {
+		normalized = feedForwardNormalized
+	} else if spec.Architecture == "gptneox" && spec.ParallelResidual {
 		// GPT-NeoX parallel blocks use a distinct FFN LayerNorm over the
 		// original residual input rather than sharing the attention norm.
 		normalized = ApplyNormalization(
@@ -557,7 +576,7 @@ func BuildDenseBlockCachedForLayer(
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
 	var activation *tensor.Tensor
-	if usesSequentialGELU(spec.Architecture) {
+	if usesGELU(spec.Architecture) {
 		activation = builder.GELU(up)
 	} else if usesSquaredReLU(spec.Architecture) {
 		activation = builder.ReLUSquared(up)

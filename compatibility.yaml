@@ -953,6 +953,16 @@ models:
       - gelu-ffn
       - untied-output-projection
     real_model_validation: pending-fixture
+  falcon:
+    status: experimental
+    features:
+      - affine-layernorm
+      - required-contiguous-fused-qkv
+      - full-neox-rope
+      - parallel-gelu-ffn
+      - optional-second-attention-layernorm
+      - tied-or-untied-output
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

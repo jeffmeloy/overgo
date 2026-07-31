@@ -182,6 +182,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		result.Output = &output
 	}
 	if (spec.Architecture == "internlm2" ||
+		spec.Architecture == "baichuan" ||
 		spec.Architecture == "xverse" ||
 		spec.Architecture == "olmo2" ||
 		spec.Architecture == "orion" ||

@@ -76,6 +76,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	if architecture != "llama" && architecture != "internlm2" &&
+		architecture != "baichuan" &&
 		architecture != "codeshell" &&
 		architecture != "xverse" &&
 		architecture != "exaone" && architecture != "olmo2" &&
@@ -262,6 +263,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		} else if ok && len(mapping) > 0 {
 			return Spec{}, errors.New("Granite vision deepstack is not supported")
 		}
+	}
+	if architecture == "baichuan" && spec.BlockCount != 32 {
+		return Spec{}, errors.New("only the 32-layer Baichuan RoPE variant is supported")
 	}
 	if architecture == "mistral3" {
 		if temperatureScale, ok := optional[float32](
@@ -594,6 +598,7 @@ func usesSlidingAttention(architecture string) bool {
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
 		architecture == "internlm2" ||
+		architecture == "baichuan" ||
 		architecture == "granite" ||
 		architecture == "minicpm" ||
 		architecture == "maincoder" ||

@@ -570,6 +570,48 @@ func TestBuildDenseCodeShellUsesSequentialGELU(t *testing.T) {
 	}
 }
 
+func TestBuildDenseBaichuan7BUsesNormalRoPE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "baichuan",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       2,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		RMSNormEpsilon:    1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	output, err := BuildDenseBlock(
+		builder,
+		input,
+		spec,
+		denseBlockInputs(builder, spec),
+		[]uint32{0, 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var normalRoPE, neoXRoPE int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRoPENormal:
+			normalRoPE++
+		case tensor.OpRoPENeoX:
+			neoXRoPE++
+		}
+	}
+	if normalRoPE != 2 || neoXRoPE != 0 {
+		t.Fatalf("Baichuan RoPE count normal/NeoX = %d/%d, want 2/0", normalRoPE, neoXRoPE)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

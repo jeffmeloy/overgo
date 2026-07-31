@@ -203,6 +203,47 @@ func TestReadMiniCPMSpecUsesBackwardCompatibleScaleDefaults(t *testing.T) {
 	}
 }
 
+func TestReadGraniteDenseSpec(t *testing.T) {
+	file := &gguf.File{Metadata: append(graniteMetadata(),
+		metadata("granite.embedding_scale", gguf.ValueTypeFloat32, float32(2)),
+		metadata("granite.residual_scale", gguf.ValueTypeFloat32, float32(0.5)),
+		metadata("granite.attention.scale", gguf.ValueTypeFloat32, float32(0.25)),
+		metadata("granite.rope.scaling.finetuned", gguf.ValueTypeBool, false),
+	)}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "granite" ||
+		spec.EmbeddingScale != 2 ||
+		spec.ResidualScale != 0.5 ||
+		spec.AttentionScale != 0.25 ||
+		spec.LogitScale != 8 ||
+		spec.UsesRoPE(0) ||
+		spec.OutputLogitMultiplier() != 0.125 {
+		t.Fatalf("unexpected Granite spec: %+v", spec)
+	}
+}
+
+func TestReadGraniteRejectsNonDenseVariants(t *testing.T) {
+	for _, extra := range []gguf.Metadata{
+		metadata("granite.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		{
+			Key: "granite.deepstack_mapping",
+			Value: gguf.Value{
+				Type:      gguf.ValueTypeArray,
+				ArrayType: gguf.ValueTypeInt32,
+				Data:      []int32{0, -1},
+			},
+		},
+	} {
+		file := &gguf.File{Metadata: append(graniteMetadata(), extra)}
+		if _, err := ReadSpec(file); err == nil {
+			t.Fatalf("Granite variant metadata %q was accepted", extra.Key)
+		}
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),
@@ -450,4 +491,19 @@ func TestReadSpecRejectsUnsupportedRoPEScaling(t *testing.T) {
 
 func metadata(key string, valueType gguf.ValueType, data any) gguf.Metadata {
 	return gguf.Metadata{Key: key, Value: gguf.Value{Type: valueType, Data: data}}
+}
+
+func graniteMetadata() []gguf.Metadata {
+	return []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "granite"),
+		metadata("granite.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("granite.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("granite.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("granite.feed_forward_length", gguf.ValueTypeUint32, uint32(11008)),
+		metadata("granite.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("granite.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("granite.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("granite.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("granite.logit_scale", gguf.ValueTypeFloat32, float32(8)),
+	}
 }

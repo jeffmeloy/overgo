@@ -36,6 +36,7 @@ type Spec struct {
 	SlidingPattern    uint32
 	RelativeBuckets   uint32
 	NoRopeLayerStep   uint32
+	RopeDisabled      bool
 
 	// Qwen3.5 hybrid recurrent-attention metadata.
 	RopeDimensionCount    uint32
@@ -78,6 +79,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "exaone" && architecture != "olmo2" &&
 		architecture != "smollm3" &&
 		architecture != "minicpm" &&
+		architecture != "granite" &&
 		architecture != "qwen2" &&
 		architecture != "qwen3" &&
 		architecture != "qwen35" && architecture != "gemma" &&
@@ -199,6 +201,50 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			gguf.ValueTypeFloat32,
 		); ok {
 			spec.LogitScale = value
+		}
+	}
+	if architecture == "granite" {
+		if spec.LogitScale, err = required[float32](
+			values,
+			prefix+"logit_scale",
+			gguf.ValueTypeFloat32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.EmbeddingScale, _ = optional[float32](
+			values,
+			prefix+"embedding_scale",
+			gguf.ValueTypeFloat32,
+		)
+		spec.ResidualScale, _ = optional[float32](
+			values,
+			prefix+"residual_scale",
+			gguf.ValueTypeFloat32,
+		)
+		ropeEnabled := true
+		if value, ok := optional[bool](
+			values,
+			prefix+"rope.scaling.finetuned",
+			gguf.ValueTypeBool,
+		); ok {
+			ropeEnabled = value
+		}
+		spec.RopeDisabled = !ropeEnabled
+		if expertCount, ok := optional[uint32](
+			values,
+			prefix+"expert_count",
+			gguf.ValueTypeUint32,
+		); ok && expertCount > 0 {
+			return Spec{}, errors.New("Granite expert layers are not supported")
+		}
+		if mapping, ok, mappingErr := optionalArray[int32](
+			values,
+			prefix+"deepstack_mapping",
+			gguf.ValueTypeInt32,
+		); mappingErr != nil {
+			return Spec{}, mappingErr
+		} else if ok && len(mapping) > 0 {
+			return Spec{}, errors.New("Granite vision deepstack is not supported")
 		}
 	}
 	if architecture == "smollm3" {
@@ -352,7 +398,8 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
-	return (s.BlockCount == 0 || block < s.BlockCount) &&
+	return !s.RopeDisabled &&
+		(s.BlockCount == 0 || block < s.BlockCount) &&
 		(s.NoRopeLayerStep == 0 || (block+1)%s.NoRopeLayerStep != 0)
 }
 
@@ -487,7 +534,8 @@ func (s Spec) validate() error {
 	if s.LogitScale < 0 ||
 		math.IsNaN(float64(s.LogitScale)) ||
 		math.IsInf(float64(s.LogitScale), 0) ||
-		(s.Architecture == "minicpm" && s.LogitScale == 0) {
+		((s.Architecture == "minicpm" || s.Architecture == "granite") &&
+			s.LogitScale == 0) {
 		return errors.New("logit scale must be finite and positive when required")
 	}
 	return nil
@@ -508,6 +556,7 @@ func usesSlidingAttention(architecture string) bool {
 func usesNormalRoPE(architecture string) bool {
 	return architecture == "llama" ||
 		architecture == "internlm2" ||
+		architecture == "granite" ||
 		architecture == "minicpm" ||
 		architecture == "smollm3" ||
 		architecture == "xverse"

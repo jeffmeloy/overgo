@@ -342,6 +342,53 @@ func TestBuildDenseMiniCPMScalesResidualBranches(t *testing.T) {
 	}
 }
 
+func TestBuildDenseGraniteHonorsRoPESwitchAndScales(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture:      "granite",
+		EmbeddingLength:   8,
+		FeedForwardLength: 12,
+		HeadCount:         2,
+		HeadCountKV:       1,
+		KeyLength:         4,
+		ValueLength:       4,
+		RopeFrequencyBase: 10000,
+		AttentionScale:    0.25,
+		ResidualScale:     0.5,
+		RMSNormEpsilon:    1e-6,
+		RopeDisabled:      true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ropeCount, residualScales int
+	for _, node := range nodes {
+		if node.Op == tensor.OpRoPENormal {
+			ropeCount++
+		}
+		if node.Op == tensor.OpScale &&
+			node.Attrs.(tensor.ScaleAttributes).Value == 0.5 {
+			residualScales++
+		}
+		if node.Op == tensor.OpAttention &&
+			node.Attrs.(tensor.AttentionAttributes).Scale != 0.25 {
+			t.Fatalf("Granite attention scale was not honored")
+		}
+	}
+	if ropeCount != 0 || residualScales != 2 {
+		t.Fatalf("Granite graph has RoPE=%d residual scales=%d, want 0/2", ropeCount, residualScales)
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

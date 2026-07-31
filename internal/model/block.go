@@ -236,7 +236,7 @@ func BuildDenseBlockCachedForLayer(
 		required["feed-forward post norm"] = weights.FeedForwardPostNorm
 	} else if !spec.UsesUnweightedLayerNorm() {
 		required["attention norm"] = weights.AttentionNorm
-		if spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
+		if !usesParallelResidual(spec.Architecture) {
 			required["feed-forward norm"] = weights.FeedForwardNorm
 		}
 		if spec.UsesLayerNorm() {
@@ -464,7 +464,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	residual := builder.Add(input, attention)
 
-	if spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
+	if !usesParallelResidual(spec.Architecture) {
 		normalized = residual
 		if !isOLMo2 {
 			normalized = ApplyNormalization(

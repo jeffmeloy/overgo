@@ -190,6 +190,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "olmo2" ||
 		spec.Architecture == "nemotron" ||
 		spec.Architecture == "orion" ||
+		spec.Architecture == "plamo" ||
 		spec.Architecture == "codeshell") &&
 		result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
@@ -491,8 +492,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "qwen35" || spec.Architecture == "seed_oss" {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
-		if spec.Architecture != "olmo2" && spec.Architecture != "cohere2" &&
-			spec.Architecture != "command-r" &&
+		if spec.Architecture != "olmo2" && !usesParallelResidual(spec.Architecture) &&
 			!spec.UsesUnweightedLayerNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err

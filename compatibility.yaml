@@ -910,6 +910,16 @@ models:
       - swiglu
       - tied-output
     real_model_validation: pending-fixture
+  plamo:
+    status: experimental
+    features:
+      - rmsnorm
+      - parallel-attention-ffn-residual
+      - neox-rope
+      - grouped-query-attention
+      - swiglu
+      - untied-output-projection
+    real_model_validation: pending-fixture
   llama:
     status: experimental
     types:

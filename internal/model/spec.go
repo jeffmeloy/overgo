@@ -92,6 +92,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "nemotron" &&
 		architecture != "olmo" &&
 		architecture != "orion" &&
+		architecture != "plamo" &&
 		architecture != "seed_oss" &&
 		architecture != "starcoder2" &&
 		architecture != "qwen2" &&
@@ -686,6 +687,10 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "mistral3" ||
 		architecture == "smollm3" ||
 		architecture == "xverse"
+}
+
+func usesParallelResidual(architecture string) bool {
+	return architecture == "cohere2" || architecture == "command-r" || architecture == "plamo"
 }
 
 func usesSequentialGELU(architecture string) bool {

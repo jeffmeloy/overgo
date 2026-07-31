@@ -185,6 +185,28 @@ func TestReadCommandRSpec(t *testing.T) {
 	}
 }
 
+func TestReadPLaMoSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "plamo"),
+		metadata("plamo.block_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("plamo.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("plamo.embedding_length", gguf.ValueTypeUint32, uint32(5120)),
+		metadata("plamo.feed_forward_length", gguf.ValueTypeUint32, uint32(13824)),
+		metadata("plamo.attention.head_count", gguf.ValueTypeUint32, uint32(40)),
+		metadata("plamo.attention.head_count_kv", gguf.ValueTypeUint32, uint32(5)),
+		metadata("plamo.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("plamo.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "plamo" || spec.KeyLength != 128 ||
+		!usesParallelResidual(spec.Architecture) {
+		t.Fatalf("unexpected PLaMo spec: %+v", spec)
+	}
+}
+
 func TestReadSmolLM3Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smollm3"),

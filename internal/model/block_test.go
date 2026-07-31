@@ -932,6 +932,50 @@ func TestBuildDenseCommandR64UsesParallelResidualAndQKNorms(t *testing.T) {
 	}
 }
 
+func TestBuildDensePLaMoUsesParallelResidualAndNeoX(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "plamo", BlockCount: 40, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.FeedForwardNorm = nil
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rmsNormCount, ropeCount int
+	var attentionInput, feedForwardInput *tensor.Tensor
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRMSNorm:
+			rmsNormCount++
+		case tensor.OpRoPENeoX:
+			ropeCount++
+		case tensor.OpMulMat:
+			if node.Inputs[0].Name == "attn_q" {
+				attentionInput = node.Inputs[1]
+			}
+			if node.Inputs[0].Name == "ffn_up" {
+				feedForwardInput = node.Inputs[1]
+			}
+		}
+	}
+	if rmsNormCount != 1 || ropeCount != 2 {
+		t.Fatalf("PLaMo graph has RMSNorm=%d RoPE=%d, want 1/2", rmsNormCount, ropeCount)
+	}
+	if attentionInput == nil || attentionInput != feedForwardInput {
+		t.Fatal("PLaMo attention and FFN do not share the normalized block input")
+	}
+}
+
 func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

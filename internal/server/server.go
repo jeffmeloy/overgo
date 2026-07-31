@@ -4482,7 +4482,18 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 	defer h.releaseSlot(slotID)
 	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
-		h.streamChatCompletion(response, request, slotID, prompt, sampler, maxTokens, id, stops, body.N)
+		h.streamChatCompletion(
+			response,
+			request,
+			slotID,
+			prompt,
+			sampler,
+			maxTokens,
+			id,
+			stops,
+			body.N,
+			toolSelection.active,
+		)
 		return
 	}
 	h.completeChat(
@@ -4596,11 +4607,6 @@ func selectChatTools(
 			selection.active = []inference.ChatTool{*selected}
 			selection.required = true
 		}
-	}
-	if body.Stream && len(selection.active) != 0 {
-		return chatToolSelection{}, errors.New(
-			"streaming tool-call generation is not supported",
-		)
 	}
 	if body.ParallelTools != nil &&
 		*body.ParallelTools &&
@@ -4738,9 +4744,23 @@ func (h *Handler) completeChat(
 }
 
 type chatStreamChoice struct {
-	Index        int                   `json:"index"`
-	Delta        inference.ChatMessage `json:"delta"`
-	FinishReason *string               `json:"finish_reason"`
+	Index        int             `json:"index"`
+	Delta        chatStreamDelta `json:"delta"`
+	FinishReason *string         `json:"finish_reason"`
+}
+
+type chatStreamDelta struct {
+	Role             string               `json:"role,omitempty"`
+	Content          string               `json:"content,omitempty"`
+	ReasoningContent string               `json:"reasoning_content,omitempty"`
+	ToolCalls        []chatStreamToolCall `json:"tool_calls,omitempty"`
+}
+
+type chatStreamToolCall struct {
+	Index    int                        `json:"index"`
+	ID       string                     `json:"id"`
+	Type     string                     `json:"type"`
+	Function inference.ChatToolFunction `json:"function"`
 }
 
 type chatStreamResponse struct {
@@ -4761,6 +4781,7 @@ func (h *Handler) streamChatCompletion(
 	id string,
 	stops []string,
 	n int,
+	tools []inference.ChatTool,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -4772,7 +4793,7 @@ func (h *Handler) streamChatCompletion(
 	response.Header().Set("X-Accel-Buffering", "no")
 	response.WriteHeader(http.StatusOK)
 	created := time.Now().Unix()
-	writeChunk := func(index int, delta inference.ChatMessage, reason *string) error {
+	writeChunk := func(index int, delta chatStreamDelta, reason *string) error {
 		return writeSSE(response, chatStreamResponse{
 			ID:      id,
 			Object:  "chat.completion.chunk",
@@ -4791,12 +4812,13 @@ func (h *Handler) streamChatCompletion(
 			_ = writeSSE(response, errorEnvelope("generation_error", err.Error()))
 			break
 		}
-		if err := writeChunk(choiceIndex, inference.ChatMessage{Role: "assistant"}, nil); err != nil {
+		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
 			return
 		}
 		flusher.Flush()
 		completionTokens := 0
 		filter := newStopFilter(stops)
+		var buffered strings.Builder
 		_, _, err = h.generate(
 			request.Context(),
 			slotID,
@@ -4813,10 +4835,14 @@ func (h *Handler) streamChatCompletion(
 					}
 					piece := filter.Accept(event.Piece)
 					if piece != "" {
-						if writeErr := writeChunk(choiceIndex, inference.ChatMessage{Content: piece}, nil); writeErr != nil {
-							return writeErr
+						if len(tools) != 0 {
+							buffered.WriteString(piece)
+						} else {
+							if writeErr := writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil); writeErr != nil {
+								return writeErr
+							}
+							flusher.Flush()
 						}
-						flusher.Flush()
 					}
 					return request.Context().Err()
 				},
@@ -4827,14 +4853,70 @@ func (h *Handler) streamChatCompletion(
 			break
 		}
 		if piece := filter.Flush(); piece != "" {
-			_ = writeChunk(choiceIndex, inference.ChatMessage{Content: piece}, nil)
-			flusher.Flush()
+			if len(tools) != 0 {
+				buffered.WriteString(piece)
+			} else {
+				_ = writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil)
+				flusher.Flush()
+			}
 		}
 		reason := "stop"
 		if !filter.Stopped() && completionTokens == maxTokens {
 			reason = "length"
 		}
-		_ = writeChunk(choiceIndex, inference.ChatMessage{}, &reason)
+		if len(tools) != 0 {
+			parser := h.generator.(ChatOutputParser)
+			message, parseErr := parser.ParseChatOutput(buffered.String(), tools)
+			if parseErr != nil {
+				_ = writeSSE(
+					response,
+					errorEnvelope("generation_error", parseErr.Error()),
+				)
+				break
+			}
+			if message.ReasoningContent != "" {
+				if err := writeChunk(choiceIndex, chatStreamDelta{
+					ReasoningContent: message.ReasoningContent,
+				}, nil); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+			if message.Content != "" {
+				if err := writeChunk(choiceIndex, chatStreamDelta{
+					Content: message.Content,
+				}, nil); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+			for callIndex, call := range message.ToolCalls {
+				callID := call.ID
+				if callID == "" {
+					callID = fmt.Sprintf(
+						"call_%s_%d_%d",
+						strings.TrimPrefix(id, "chatcmpl-"),
+						choiceIndex,
+						callIndex,
+					)
+				}
+				if err := writeChunk(choiceIndex, chatStreamDelta{
+					ToolCalls: []chatStreamToolCall{{
+						Index:    callIndex,
+						ID:       callID,
+						Type:     call.Type,
+						Function: call.Function,
+					}},
+				}, nil); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+			if len(message.ToolCalls) != 0 {
+				reason = "tool_calls"
+			}
+		}
+		_ = writeChunk(choiceIndex, chatStreamDelta{}, &reason)
 		flusher.Flush()
 	}
 	_, _ = io.WriteString(response, "data: [DONE]\n\n")

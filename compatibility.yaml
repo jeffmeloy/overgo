@@ -399,8 +399,12 @@ server:
       finish_reason: tool_calls
       empty_content: "null"
     buffered: true
+    streaming:
+      complete_call_deltas_after_validation: true
+      template_syntax_hidden: true
+      final_finish_reason: tool_calls
     limitations:
-      - incremental-streaming-tool-call-deltas
+      - token-incremental-streaming-tool-call-argument-deltas
       - arbitrary-unknown-template-output-syntax
   structured_output:
     converter: ordered-json-schema-to-gbnf

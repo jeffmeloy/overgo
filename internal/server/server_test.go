@@ -2949,7 +2949,6 @@ func TestChatToolSchemasAreCountedAndBufferedCallsAreStructured(t *testing.T) {
 		t.Fatalf("completion response = %+v", result)
 	}
 	for _, suffix := range []string{
-		`,"stream":true`,
 		`,"tool_choice":"invalid"`,
 		`,"tool_choice":{"type":"function","function":{"name":"unknown"}}`,
 		`,"response_format":{"type":"json_object"}`,
@@ -2997,6 +2996,50 @@ func TestChatToolSchemasAreCountedAndBufferedCallsAreStructured(t *testing.T) {
 				accepted.Body.String(),
 			)
 		}
+	}
+}
+
+func TestStreamingChatToolCallsAreStructured(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{
+		pieces: []string{
+			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+		},
+	})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/chat/completions",
+			strings.NewReader(
+				`{"messages":[{"role":"user","content":"weather?"}],`+
+					`"tools":[{"type":"function","function":{"name":"weather",`+
+					`"parameters":{"type":"object"}}}],`+
+					`"tool_choice":"required","max_tokens":1,"stream":true}`,
+			),
+		),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"stream status = %d body=%s",
+			response.Code,
+			response.Body.String(),
+		)
+	}
+	body := response.Body.String()
+	for _, fragment := range []string{
+		`"role":"assistant"`,
+		`"tool_calls":[{"index":0,"id":"call_`,
+		`"type":"function","function":{"name":"weather","arguments":"{\"city\":\"Paris\"}"}`,
+		`"finish_reason":"tool_calls"`,
+		"data: [DONE]",
+	} {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("tool-call stream lacks %q:\n%s", fragment, body)
+		}
+	}
+	if strings.Contains(body, "<tool_call>") {
+		t.Fatalf("tool-call stream leaked template syntax:\n%s", body)
 	}
 }
 

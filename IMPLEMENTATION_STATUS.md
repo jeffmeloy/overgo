@@ -183,10 +183,16 @@
   calls, tool results, named `tool_use` metadata templates, and Python-style
   ordered `tojson`. Qwen3 JSON-in-XML plus Qwen3.5/Bonsai Hermes prompt and
   history vectors are byte-exact against pinned `/apply-template`. Buffered
-  OpenAI chat supports auto, required, none, and named choices; auto uses lazy
-  delimiter-triggered GBNF, required/named use forced schema-derived GBNF, and
-  parsed calls receive validated arguments, IDs, and `tool_calls` finish
-  reasons.
+  and streaming OpenAI chat support auto, required, none, and named choices;
+  auto uses lazy delimiter-triggered GBNF, required/named use forced
+  schema-derived GBNF, and parsed calls receive validated arguments, IDs, and
+  `tool_calls` finish reasons. Tool-enabled SSE buffers the template output
+  through validation and emits complete structured call deltas without
+  leaking XML/JSON wrapper syntax.
+- A real Bonsai-27B-Q1_0 named-tool request on the RTX 4090 D generated the
+  Hermes call for `weather`, parsed `{"city":"Boston"}`, assigned a call ID,
+  returned null content, and finished with `tool_calls`. Disabling optional
+  thinking kept the forced call to 26 output tokens.
 - Ordered logit biases run before filtering and grammar acceptance, support
   additive finite adjustments and negative-infinity bans, and participate in
   the sampler signature. CLI `-ignore-eos` and HTTP `ignore_eos` ban every EOG
@@ -482,13 +488,15 @@
   backreferences remain pending. General and infill sampler stages have
   arbitrary configurable ordering.
 - Text and function-tool GGUF Jinja templates are supported. Custom
-  llama.cpp-only Jinja extensions not implemented by gonja, incremental
-  streaming tool-call deltas, and continuous-batching server scheduling
-  remain pending.
+  llama.cpp-only Jinja extensions not implemented by gonja, token-incremental
+  streaming tool-call argument deltas, and continuous-batching server
+  scheduling remain pending. Tool-enabled streams currently wait for complete
+  validated output before emitting structured call deltas.
 - Chat generation/counting accepts string message bodies, text content-part
   arrays, tool schemas, assistant calls/results, and the implemented
-  system/user/assistant/tool role families. Buffered OpenAI function calls and
-  tool-aware token counting are supported; images/audio/files remain pending.
+  system/user/assistant/tool role families. Buffered and complete-call SSE
+  OpenAI function calls plus tool-aware token counting are supported;
+  images/audio/files remain pending.
 - Text-only OpenAI Responses generation, streaming, and token counting are
   supported. Continuation IDs, tools, reasoning items, and multimodal/file
   inputs remain pending.

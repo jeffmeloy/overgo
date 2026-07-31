@@ -136,12 +136,13 @@ Default and named `tool_use` metadata templates are selected as appropriate.
 Local Qwen3, Qwen3.5, Gemma 3, and Bonsai text and tool-history prompts match
 pinned `/apply-template` output byte-for-byte; token-boundary native formatters
 remain the fallback when GGUF metadata has no template.
-Buffered OpenAI chat supports `auto`, `required`, `none`, and named function
-choices. Auto calls use delimiter-triggered lazy GBNF; required/named calls use
-schema-derived forced GBNF. Qwen JSON-in-XML and Qwen3.5/Bonsai Hermes XML
-outputs are parsed into validated `tool_calls` with generated IDs and
-`finish_reason:"tool_calls"`. Incremental streaming tool-call deltas remain
-pending.
+Buffered and streaming OpenAI chat support `auto`, `required`, `none`, and
+named function choices. Auto calls use delimiter-triggered lazy GBNF;
+required/named calls use schema-derived forced GBNF. Qwen JSON-in-XML and
+Qwen3.5/Bonsai Hermes XML outputs are parsed into validated `tool_calls` with
+generated IDs and `finish_reason:"tool_calls"`. Tool-enabled streams buffer
+template syntax until the complete output is validated, then emit one
+structured delta per call; token-incremental argument deltas remain pending.
 Exact literal completion alternatives can be enforced with repeated
 `-grammar-choice` flags; the equivalent experimental HTTP request field is
 `"grammar_choices":[" first"," second"]`. Grammar state is included in

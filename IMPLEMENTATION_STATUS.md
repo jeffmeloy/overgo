@@ -769,7 +769,11 @@
   Server `-mmproj` exposes the pinned native `prompt_string` plus base64
   `multimodal_data` object through buffered and streaming completion paths;
   projection runs inside slot admission.
-  Video projection, projector CUDA offload, multi-image turns, and multi-sequence recurrent
+  Repeatable CLI `-video-frame` input adds temporal-pair preprocessing,
+  timestamped video chunks, per-chunk compressed MRoPE, and odd-frame padding.
+  The local 16-frame oracle matches preprocessing, full ViT/merger output,
+  all 478 prompt IDs, and the first generated token. Projector CUDA offload,
+  encoded-video file decoding, multi-image turns, and multi-sequence recurrent
   batching remain pending.
 - T5 single-sequence encoder-decoder sessions are supported. `GenerateT5`
   supplies high-level sampling, stop callbacks/sequences, LoRA selection, and

@@ -116,6 +116,9 @@ func run() error {
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
 	projectorPath := flag.String("mmproj", "", "Qwen3-VL multimodal projector GGUF")
 	imagePath := flag.String("image", "", "image input for Qwen3-VL generation")
+	videoFrames := stringListFlag{}
+	flag.Var(&videoFrames, "video-frame", "ordered Qwen3-VL video frame; repeatable")
+	videoFPS := flag.Float64("video-fps", 24, "source FPS for Qwen3-VL video timestamps")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	flag.Parse()
 	if flag.NArg() != 2 {
@@ -280,8 +283,18 @@ func run() error {
 		KeepTokens:    *keepTokens,
 		DiscardTokens: *discardTokens,
 	}
-	if (*projectorPath == "") != (*imagePath == "") {
-		return errors.New("generate: -mmproj and -image must be used together")
+	mediaInputs := 0
+	if *imagePath != "" {
+		mediaInputs++
+	}
+	if len(videoFrames) > 0 {
+		mediaInputs++
+	}
+	if mediaInputs > 1 {
+		return errors.New("generate: -image and -video-frame are mutually exclusive")
+	}
+	if (*projectorPath == "") != (mediaInputs == 0) {
+		return errors.New("generate: -mmproj requires -image or at least one -video-frame")
 	}
 	if *projectedInputsFile != "" && *projectorPath != "" {
 		return errors.New("generate: -projected-inputs and -mmproj are mutually exclusive")
@@ -293,13 +306,22 @@ func run() error {
 		}
 		options.ProjectedInputs = &projected
 	}
-	if *projectorPath != "" {
+	if mediaInputs > 0 {
 		if runner.Spec().Architecture == "t5" {
 			return errors.New("generate: image projection is unavailable for T5")
 		}
-		promptIDs, projected, projectedErr := qwen3VLProjectedPrompt(
-			context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
-		)
+		var promptIDs []tokenizer.TokenID
+		var projected inference.ProjectedInputs
+		var projectedErr error
+		if *imagePath != "" {
+			promptIDs, projected, projectedErr = qwen3VLProjectedPrompt(
+				context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
+			)
+		} else {
+			promptIDs, projected, projectedErr = qwen3VLProjectedVideoPrompt(
+				context.Background(), runner, *projectorPath, videoFrames, flag.Arg(1), *videoFPS, *imageThinking,
+			)
+		}
 		if projectedErr != nil {
 			return projectedErr
 		}

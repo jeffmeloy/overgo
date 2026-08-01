@@ -2514,6 +2514,10 @@ models:
       - merged-patch-image-preprocessing
       - qwen35-image-chat-template
       - compressed-image-grid-mrope
+      - temporal-pair-video-projector
+      - timestamped-video-chunks
+      - per-chunk-compressed-video-mrope
+      - odd-frame-repeat-padding
       - gated-full-attention
       - fused-gated-delta-net
       - recurrent-convolution-state
@@ -2532,6 +2536,7 @@ models:
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
     multimodal_validated_fixture: Qwen3.5-4B-F16.gguf
+    video_validated_fixture: qwen35_video_golden.json
   qwen3next:
     status: experimental
     execution:

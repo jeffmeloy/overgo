@@ -189,6 +189,121 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 	}
 }
 
+func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
+	spec := Qwen3VLSpec{
+		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8,
+		MergerIntermediate: 16, OutputHidden: 6, Layers: 1, Heads: 1,
+		MergeSize: 2, LayerNormEpsilon: 1e-6,
+		ImageStd: [3]float32{1, 1, 1},
+	}
+	frames := make([]image.Image, 3)
+	for index, red := range []uint8{10, 20, 30} {
+		frame := image.NewRGBA(image.Rect(0, 0, 4, 4))
+		for y := 0; y < 4; y++ {
+			for x := 0; x < 4; x++ {
+				frame.SetRGBA(x, y, color.RGBA{R: red, A: 255})
+			}
+		}
+		frames[index] = frame
+	}
+	processed, err := PreprocessQwen3VLFrames(frames, spec, Qwen3VLPreprocessOptions{
+		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if processed.GridT != 2 || processed.GridH != 2 || processed.GridW != 2 {
+		t.Fatalf("grid = %d,%d,%d", processed.GridT, processed.GridH, processed.GridW)
+	}
+	const patchWidth = 24
+	if processed.PixelValues[0] != float32(10)/255 || processed.PixelValues[4] != float32(20)/255 ||
+		processed.PixelValues[4*patchWidth] != float32(30)/255 || processed.PixelValues[4*patchWidth+4] != float32(30)/255 {
+		t.Fatalf("temporal values = %g %g %g %g", processed.PixelValues[0], processed.PixelValues[4],
+			processed.PixelValues[4*patchWidth], processed.PixelValues[4*patchWidth+4])
+	}
+}
+
+func TestQwen3VLRealVideoFixture(t *testing.T) {
+	projectorPath := os.Getenv("LLAMACPP2GO_QWEN35_MMPROJ")
+	goldenPath := os.Getenv("LLAMACPP2GO_QWEN35_VIDEO_GOLDEN")
+	if projectorPath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_QWEN35_MMPROJ and LLAMACPP2GO_QWEN35_VIDEO_GOLDEN")
+	}
+	type probeRecord struct {
+		Shape      []int     `json:"shape"`
+		ProbeIndex []int     `json:"probe_index"`
+		ProbeValue []float32 `json:"probe_value"`
+		L2         float64   `json:"l2"`
+	}
+	var golden struct {
+		VideoGridTHW   []int       `json:"video_grid_thw"`
+		NumVideoTokens int         `json:"num_video_tokens"`
+		PromptText     string      `json:"prompt_text"`
+		Question       string      `json:"question"`
+		PixelValues    probeRecord `json:"pixel_values_videos"`
+		Intermediates  struct {
+			Merger probeRecord `json:"merger"`
+		} `json:"vit_intermediates"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	frames := make([]image.Image, 16)
+	for temporal := range frames {
+		frame := image.NewRGBA(image.Rect(0, 0, 224, 224))
+		for y := 0; y < 224; y++ {
+			for x := 0; x < 224; x++ {
+				frame.SetRGBA(x, y, color.RGBA{
+					R: uint8((x*4 + temporal*8) % 256),
+					G: uint8((y*5 + temporal*4) % 256),
+					B: uint8(((x+y)*3 + temporal*16) % 256), A: 255,
+				})
+			}
+		}
+		frames[temporal] = frame
+	}
+	runner, err := OpenQwen3VL(projectorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	processed, err := PreprocessQwen3VLFrames(frames, runner.Spec(), DefaultQwen3VLVideoPreprocessOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(golden.VideoGridTHW) != 3 || processed.GridT != golden.VideoGridTHW[0] ||
+		processed.GridH != golden.VideoGridTHW[1] || processed.GridW != golden.VideoGridTHW[2] {
+		t.Fatalf("grid = %d,%d,%d, want %v", processed.GridT, processed.GridH, processed.GridW, golden.VideoGridTHW)
+	}
+	if prompt := Qwen35VideoPromptText("", golden.Question, processed.GridT,
+		(processed.GridH/runner.Spec().MergeSize)*(processed.GridW/runner.Spec().MergeSize), 24, true); prompt != golden.PromptText {
+		t.Fatal("video prompt differs from golden")
+	}
+	compareProbes(t, "video pixel values", processed.PixelValues, golden.PixelValues, 0.15)
+	if os.Getenv("LLAMACPP2GO_QWEN35_VIDEO_FULL") == "" {
+		return
+	}
+	output, err := runner.EncodeFrames(context.Background(), frames, DefaultQwen3VLVideoPreprocessOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.Embeddings.Shape.Equal(mustShape(uint64(runner.Spec().OutputHidden), uint64(golden.NumVideoTokens))) {
+		t.Fatalf("merger shape = %v", output.Embeddings.Shape)
+	}
+	compareProbes(t, "video merger", output.Embeddings.Data, golden.Intermediates.Merger, 0.35)
+	var sumSquares float64
+	for _, value := range output.Embeddings.Data {
+		sumSquares += float64(value) * float64(value)
+	}
+	if relative := math.Abs(math.Sqrt(sumSquares)-golden.Intermediates.Merger.L2) / golden.Intermediates.Merger.L2; relative > 0.03 {
+		t.Fatalf("video merger L2 relative = %g", relative)
+	}
+}
+
 func tinyQwen3VLMetadata() []gguf.Metadata {
 	return []gguf.Metadata{
 		{Key: "general.architecture", Value: gguf.Value{Type: gguf.ValueTypeString, Data: "clip"}},

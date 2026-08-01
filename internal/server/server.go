@@ -2630,12 +2630,15 @@ func (h *Handler) projectNativeImagePrompt(
 			projected.EmbeddingWidth, properties.ModelProperties().EmbeddingLength,
 		)
 	}
-	imageTokens := len(projected.Embeddings) / projected.EmbeddingWidth
+	imageTokens := len(projected.EmbeddingTokenIndices)
+	if len(projected.Embeddings) != imageTokens*projected.EmbeddingWidth {
+		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: projector returned invalid embedding indices")
+	}
 	overrides := make([]inference.EmbeddingOverride, imageTokens)
 	for index := range overrides {
 		start := index * projected.EmbeddingWidth
 		overrides[index] = inference.EmbeddingOverride{
-			TokenIndex: uint32(projected.ImageStart + index),
+			TokenIndex: projected.EmbeddingTokenIndices[index],
 			Embedding:  projected.Embeddings[start : start+projected.EmbeddingWidth],
 		}
 	}

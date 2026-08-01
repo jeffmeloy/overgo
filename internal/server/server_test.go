@@ -80,7 +80,7 @@ func (f *fakeQwen3VLProjector) BuildQwen35ImagePrompt(
 	return projector.Qwen3VLPrompt{
 		TokenIDs:   []tokenizer.TokenID{1, 2, 2, 3},
 		Embeddings: make([]float32, 2*2560), EmbeddingWidth: 2560,
-		ImageStart: 1, MultiAxisPositions: positions,
+		ImageStart: 1, EmbeddingTokenIndices: []uint32{1, 2}, MultiAxisPositions: positions,
 	}, nil
 }
 

@@ -70,6 +70,7 @@ go run ./cmd/generate -n 1 <model.gguf> "Hello"
 go run ./cmd/generate -native-quant -n 16 <supported-model.gguf> "Hello"
 go run ./cmd/generate -native-quant -context-shift -n 8192 <supported-model.gguf> "Hello"
 go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -image <image.png> -n 16 <qwen35.gguf> "Describe this image."
+go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <qwen35.gguf> "Describe this video."
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -eps 0.001 <dream.gguf> "Hello"
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -block-length 32 <llada.gguf> "Hello"
 go run ./cmd/perplexity -native-quant <supported-model.gguf> "evaluation text"
@@ -149,6 +150,9 @@ For Qwen3.5 image input, `-mmproj <qwen3vl-mmproj.gguf>` and `-image <path>`
 run the native Qwen3-VL patch encoder/merger, render the vision chat turn, and
 construct its compressed four-axis MRoPE positions. `-image-thinking=false`
 selects the non-thinking template branch.
+Repeatable `-video-frame` inputs run temporal-pair preprocessing and the same
+projector, emit timestamped video chunks, and construct compressed MRoPE grids
+per chunk. Odd frame counts repeat the final frame.
 
 The native `/completion` route accepts the same object as `projected_inputs`
 for a single prompt and completion. Token-only prompt caching and

@@ -66,6 +66,14 @@ func DefaultQwen3VLPreprocessOptions() Qwen3VLPreprocessOptions {
 	}
 }
 
+func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
+	return Qwen3VLPreprocessOptions{
+		MinPixels:      56 * 56,
+		MaxPixels:      3584 * 3584,
+		MaxAspectRatio: 200,
+	}
+}
+
 func OpenQwen3VL(path string) (*Qwen3VLRunner, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -257,13 +265,31 @@ func PreprocessQwen3VLImage(source image.Image, spec Qwen3VLSpec, options Qwen3V
 	if source == nil {
 		return Qwen3VLImage{}, errors.New("projector: image is nil")
 	}
+	return preprocessQwen3VLFrames([]image.Image{source, source}, spec, options)
+}
+
+func PreprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
+	if len(frames) == 0 {
+		return Qwen3VLImage{}, errors.New("projector: video has no frames")
+	}
+	if options == (Qwen3VLPreprocessOptions{}) {
+		options = DefaultQwen3VLVideoPreprocessOptions()
+	}
+	padded := append([]image.Image(nil), frames...)
+	if len(padded)%2 != 0 {
+		padded = append(padded, padded[len(padded)-1])
+	}
+	return preprocessQwen3VLFrames(padded, spec, options)
+}
+
+func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
 	if err := spec.validate(); err != nil {
 		return Qwen3VLImage{}, err
 	}
-	if options == (Qwen3VLPreprocessOptions{}) {
-		options = DefaultQwen3VLPreprocessOptions()
+	if len(frames) == 0 || len(frames)%2 != 0 || frames[0] == nil {
+		return Qwen3VLImage{}, errors.New("projector: temporal frames must form non-empty pairs")
 	}
-	bounds := source.Bounds()
+	bounds := frames[0].Bounds()
 	height, width := bounds.Dy(), bounds.Dx()
 	resizedH, resizedW, err := smartResizeAligned(
 		height, width, spec.PatchSize*spec.MergeSize,
@@ -272,51 +298,60 @@ func PreprocessQwen3VLImage(source image.Image, spec Qwen3VLSpec, options Qwen3V
 	if err != nil {
 		return Qwen3VLImage{}, err
 	}
-	resized := resizeImageBicubic(source, resizedW, resizedH)
-	planes := make([][]float32, 3)
-	for channel := range planes {
-		planes[channel] = make([]float32, resizedH*resizedW)
-	}
-	for y := 0; y < resizedH; y++ {
-		for x := 0; x < resizedW; x++ {
-			r, g, b, _ := resized.At(x, y).RGBA()
-			values := [3]uint32{r, g, b}
-			for channel := range values {
-				value := float32(values[channel]>>8) / 255
-				planes[channel][y*resizedW+x] = (value - spec.ImageMean[channel]) / spec.ImageStd[channel]
-			}
+	planes := make([][][]float32, len(frames))
+	for frameIndex, frame := range frames {
+		if frame == nil || frame.Bounds().Dx() != width || frame.Bounds().Dy() != height {
+			return Qwen3VLImage{}, fmt.Errorf("projector: video frame %d geometry differs", frameIndex)
 		}
-	}
-	gridH, gridW := resizedH/spec.PatchSize, resizedW/spec.PatchSize
-	patchArea := spec.PatchSize * spec.PatchSize
-	patchDim := 2 * 3 * patchArea
-	pixels := make([]float32, gridH*gridW*patchDim)
-	patch := 0
-	for blockH := 0; blockH < gridH/spec.MergeSize; blockH++ {
-		for blockW := 0; blockW < gridW/spec.MergeSize; blockW++ {
-			for mergeH := 0; mergeH < spec.MergeSize; mergeH++ {
-				for mergeW := 0; mergeW < spec.MergeSize; mergeW++ {
-					position := 0
-					for channel := 0; channel < 3; channel++ {
-						baseY := (blockH*spec.MergeSize + mergeH) * spec.PatchSize
-						baseX := (blockW*spec.MergeSize + mergeW) * spec.PatchSize
-						for temporal := 0; temporal < 2; temporal++ {
-							_ = temporal
-							for py := 0; py < spec.PatchSize; py++ {
-								row := (baseY+py)*resizedW + baseX
-								for px := 0; px < spec.PatchSize; px++ {
-									pixels[patch*patchDim+position] = planes[channel][row+px]
-									position++
-								}
-							}
-						}
-					}
-					patch++
+		resized := resizeImageBicubic(frame, resizedW, resizedH)
+		planes[frameIndex] = make([][]float32, 3)
+		for channel := range planes[frameIndex] {
+			planes[frameIndex][channel] = make([]float32, resizedH*resizedW)
+		}
+		for y := 0; y < resizedH; y++ {
+			for x := 0; x < resizedW; x++ {
+				r, g, b, _ := resized.At(x, y).RGBA()
+				values := [3]uint32{r, g, b}
+				for channel := range values {
+					value := float32(values[channel]>>8) / 255
+					planes[frameIndex][channel][y*resizedW+x] = (value - spec.ImageMean[channel]) / spec.ImageStd[channel]
 				}
 			}
 		}
 	}
-	return Qwen3VLImage{PixelValues: pixels, GridT: 1, GridH: gridH, GridW: gridW}, nil
+	gridH, gridW := resizedH/spec.PatchSize, resizedW/spec.PatchSize
+	gridT := len(frames) / 2
+	patchArea := spec.PatchSize * spec.PatchSize
+	patchDim := 2 * 3 * patchArea
+	pixels := make([]float32, gridT*gridH*gridW*patchDim)
+	patch := 0
+	for temporalGroup := 0; temporalGroup < gridT; temporalGroup++ {
+		for blockH := 0; blockH < gridH/spec.MergeSize; blockH++ {
+			for blockW := 0; blockW < gridW/spec.MergeSize; blockW++ {
+				for mergeH := 0; mergeH < spec.MergeSize; mergeH++ {
+					for mergeW := 0; mergeW < spec.MergeSize; mergeW++ {
+						position := 0
+						for channel := 0; channel < 3; channel++ {
+							baseY := (blockH*spec.MergeSize + mergeH) * spec.PatchSize
+							baseX := (blockW*spec.MergeSize + mergeW) * spec.PatchSize
+							for temporal := 0; temporal < 2; temporal++ {
+								plane := planes[temporalGroup*2+temporal][channel]
+								for py := 0; py < spec.PatchSize; py++ {
+									row := (baseY+py)*resizedW + baseX
+									for px := 0; px < spec.PatchSize; px++ {
+										pixels[patch*patchDim+position] = plane[row+px]
+										position++
+									}
+								}
+							}
+						}
+						patch++
+					}
+				}
+			}
+		}
+	}
+	return Qwen3VLImage{PixelValues: pixels, GridT: gridT, GridH: gridH, GridW: gridW}, nil
 }
 
 func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
@@ -327,6 +362,21 @@ func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, opt
 	if err != nil {
 		return Qwen3VLOutput{}, err
 	}
+	return r.encode(ctx, input)
+}
+
+func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
+	if r == nil || r.file == nil {
+		return Qwen3VLOutput{}, errors.New("projector: runner is closed")
+	}
+	input, err := PreprocessQwen3VLFrames(frames, r.spec, options)
+	if err != nil {
+		return Qwen3VLOutput{}, err
+	}
+	return r.encode(ctx, input)
+}
+
+func (r *Qwen3VLRunner) encode(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
 	hidden, err := r.patchEmbedding(ctx, input)
 	if err != nil {
 		return Qwen3VLOutput{}, err

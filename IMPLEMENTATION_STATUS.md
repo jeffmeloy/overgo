@@ -1246,6 +1246,11 @@ second model context. The current single-model runner has no target/draft
 speculative coordinator or cross-model hidden-state API; its standalone tensor
 graph would therefore be incomplete and misleading.
 
+Falcon-H1 remains deferred at the cache ABI boundary. Every layer executes
+attention and Mamba2 in parallel, requiring simultaneous attention K/V plus
+convolution/SSM state. The current two-tensor `LayerCache` can hold either pair,
+not all four; implementing only one branch would not match the pinned graph.
+
 DeepSeek2 now executes dense-only and routed variants with direct or LoRA query projection, compressed KV RMSNorm,
 legacy decompressed MLA, and modern absorbed MLA with a one-head compressed KV
 cache. Per-head grouped matmul handles K absorption and post-attention V

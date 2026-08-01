@@ -171,6 +171,13 @@ also accepted: `{"prompt_string":"<__media__>Describe it.",
 supported per request; raw base64 and `data:image/...;base64,...` are accepted.
 Gemma audio uses the same object with a mono 16 kHz WAV
 `data:audio/wav;base64,...` payload.
+OpenAI `/v1/chat/completions` and `/chat/completions` accept one media part in
+one user message when the server has `-mmproj`. Images use an
+`image_url` part with a base64 `data:image/...` URL. Audio uses an
+`input_audio` part with raw base64 mono 16 kHz WAV data and `"format":"wav"`.
+Text parts before and after the media retain their input order. Multimodal chat
+currently requires `n=1`, the default generation prompt, no tools or chat
+history, and generation rather than the input-token counting route.
 
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,
@@ -355,7 +362,8 @@ Authenticated `/chat/completions` aliases `/v1/chat/completions`.
 `/chat/completions/input_tokens` and `/v1/chat/completions/input_tokens`
 format and tokenize the request exactly like generation, returning the pinned
 `response.input_tokens` envelope without running the model.
-Text-only OpenAI content-part arrays are flattened through the same formatter.
+Text-only OpenAI content-part arrays are flattened through the same formatter;
+single-image and single-audio user arrays use native projected generation.
 Authenticated `/responses` and `/v1/responses` convert text inputs and message
 arrays into chat prompts and return the pinned Responses object/output/usage
 envelope. Streaming emits the named Responses lifecycle events through

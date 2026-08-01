@@ -29,13 +29,21 @@ const (
 )
 
 type ChatMessage struct {
-	Role             string         `json:"role"`
-	Content          string         `json:"content"`
-	ReasoningContent string         `json:"reasoning_content,omitempty"`
-	Name             string         `json:"name,omitempty"`
-	ToolCallID       string         `json:"tool_call_id,omitempty"`
-	ToolResultError  bool           `json:"is_error,omitempty"`
-	ToolCalls        []ChatToolCall `json:"tool_calls,omitempty"`
+	Role             string          `json:"role"`
+	Content          string          `json:"content"`
+	Media            []ChatMediaPart `json:"-"`
+	ReasoningContent string          `json:"reasoning_content,omitempty"`
+	Name             string          `json:"name,omitempty"`
+	ToolCallID       string          `json:"tool_call_id,omitempty"`
+	ToolResultError  bool            `json:"is_error,omitempty"`
+	ToolCalls        []ChatToolCall  `json:"tool_calls,omitempty"`
+}
+
+type ChatMediaPart struct {
+	Type       string
+	Data       string
+	Format     string
+	TextOffset int
 }
 
 type ChatToolCall struct {
@@ -90,9 +98,7 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON: accepts OpenAI text-only content-part form in addition to
-// legacy string form; Non-text parts remain explicit errors because
-// text-only Runner has no multimodal prompt encoder
+// UnmarshalJSON: string, null, supported OpenAI parts.
 func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 	var wire struct {
 		Role             string          `json:"role"`
@@ -115,36 +121,73 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 		return errors.New("inference: chat message content or tool_calls is required")
 	}
 	var content string
+	var media []ChatMediaPart
 	if len(wire.Content) != 0 && string(wire.Content) != "null" {
 		if err := json.Unmarshal(wire.Content, &content); err != nil {
 			var rawParts []json.RawMessage
 			if err := json.Unmarshal(wire.Content, &rawParts); err != nil {
-				return errors.New("inference: chat message content must be a string, null, or text-part array")
+				return errors.New("inference: chat message content must be a string, null, or content-part array")
 			}
 			var joined strings.Builder
 			for index, raw := range rawParts {
-				var part struct {
+				var kind struct {
 					Type string `json:"type"`
-					Text string `json:"text"`
 				}
-				partDecoder := json.NewDecoder(bytes.NewReader(raw))
-				partDecoder.DisallowUnknownFields()
-				if err := partDecoder.Decode(&part); err != nil {
+				if err := json.Unmarshal(raw, &kind); err != nil {
 					return fmt.Errorf("inference: chat content part %d: %w", index, err)
 				}
-				if err := requireChatJSONEOF(partDecoder); err != nil {
-					return fmt.Errorf("inference: chat content part %d: %w", index, err)
-				}
-				switch part.Type {
+				switch kind.Type {
 				case "text", "input_text", "output_text":
+					var part struct {
+						Type string `json:"type"`
+						Text string `json:"text"`
+					}
+					if err := decodeChatContentPart(raw, &part); err != nil {
+						return fmt.Errorf("inference: chat content part %d: %w", index, err)
+					}
+					joined.WriteString(part.Text)
+				case "image_url":
+					var part struct {
+						Type     string `json:"type"`
+						ImageURL struct {
+							URL    string `json:"url"`
+							Detail string `json:"detail,omitempty"`
+						} `json:"image_url"`
+					}
+					if err := decodeChatContentPart(raw, &part); err != nil {
+						return fmt.Errorf("inference: chat content part %d: %w", index, err)
+					}
+					if part.ImageURL.URL == "" {
+						return fmt.Errorf("inference: chat content part %d image_url.url is required", index)
+					}
+					media = append(media, ChatMediaPart{
+						Type: "image", Data: part.ImageURL.URL, TextOffset: joined.Len(),
+					})
+				case "input_audio":
+					var part struct {
+						Type       string `json:"type"`
+						InputAudio struct {
+							Data   string `json:"data"`
+							Format string `json:"format"`
+						} `json:"input_audio"`
+					}
+					if err := decodeChatContentPart(raw, &part); err != nil {
+						return fmt.Errorf("inference: chat content part %d: %w", index, err)
+					}
+					if part.InputAudio.Data == "" || part.InputAudio.Format == "" {
+						return fmt.Errorf("inference: chat content part %d input_audio data and format are required", index)
+					}
+					media = append(media, ChatMediaPart{
+						Type: "audio", Data: part.InputAudio.Data,
+						Format: part.InputAudio.Format, TextOffset: joined.Len(),
+					})
 				default:
 					return fmt.Errorf(
 						"inference: chat content part %d has unsupported type %q",
 						index,
-						part.Type,
+						kind.Type,
 					)
 				}
-				joined.WriteString(part.Text)
 			}
 			content = joined.String()
 		}
@@ -165,12 +208,22 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 	}
 	m.Role = wire.Role
 	m.Content = content
+	m.Media = media
 	m.ReasoningContent = wire.ReasoningContent
 	m.Name = wire.Name
 	m.ToolCallID = wire.ToolCallID
 	m.ToolResultError = wire.ToolResultError
 	m.ToolCalls = toolCalls
 	return nil
+}
+
+func decodeChatContentPart(raw json.RawMessage, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	return requireChatJSONEOF(decoder)
 }
 
 func (f *ChatToolFunction) UnmarshalJSON(data []byte) error {
@@ -244,6 +297,11 @@ func (r *Runner) FormatChatWithOptions(
 ) (string, error) {
 	if r == nil || r.vocab == nil {
 		return "", errors.New("inference: runner is nil")
+	}
+	for index := range messages {
+		if len(messages[index].Media) != 0 {
+			return "", fmt.Errorf("inference: chat message %d requires multimodal projection", index)
+		}
 	}
 	source := metadataString(r.file, "tokenizer.chat_template")
 	if len(options.Tools) != 0 {

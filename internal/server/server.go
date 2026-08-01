@@ -2696,19 +2696,32 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	if err != nil {
 		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: project media: %w", err)
 	}
+	inputs, err := h.convertProjectedPrompt(projected)
+	if err != nil {
+		return nativePrompt{}, inference.ProjectedInputs{}, err
+	}
+	prompt.TokenIDs = projected.TokenIDs
+	prompt.Image = nil
+	prompt.Audio = nil
+	return prompt, inputs, nil
+}
+
+func (h *Handler) convertProjectedPrompt(
+	projected projector.MultimodalPrompt,
+) (inference.ProjectedInputs, error) {
 	if projected.EmbeddingWidth <= 0 || len(projected.Embeddings)%projected.EmbeddingWidth != 0 {
-		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: projector returned invalid embeddings")
+		return inference.ProjectedInputs{}, errors.New("server: projector returned invalid embeddings")
 	}
 	if properties, ok := h.generator.(ModelPropertiesAPI); ok &&
 		projected.EmbeddingWidth != int(properties.ModelProperties().EmbeddingLength) {
-		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf(
+		return inference.ProjectedInputs{}, fmt.Errorf(
 			"server: projector width %d differs from model width %d",
 			projected.EmbeddingWidth, properties.ModelProperties().EmbeddingLength,
 		)
 	}
 	imageTokens := len(projected.EmbeddingTokenIndices)
 	if len(projected.Embeddings) != imageTokens*projected.EmbeddingWidth {
-		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: projector returned invalid embedding indices")
+		return inference.ProjectedInputs{}, errors.New("server: projector returned invalid embedding indices")
 	}
 	overrides := make([]inference.EmbeddingOverride, imageTokens)
 	for index := range overrides {
@@ -2718,9 +2731,6 @@ func (h *Handler) projectNativeMultimodalPrompt(
 			Embedding:  projected.Embeddings[start : start+projected.EmbeddingWidth],
 		}
 	}
-	prompt.TokenIDs = projected.TokenIDs
-	prompt.Image = nil
-	prompt.Audio = nil
 	inputs := inference.ProjectedInputs{EmbeddingOverrides: overrides}
 	hasMultiAxis := false
 	for _, axis := range projected.MultiAxisPositions {
@@ -2730,7 +2740,7 @@ func (h *Handler) projectNativeMultimodalPrompt(
 		positions := inference.MultiAxisPositions(projected.MultiAxisPositions)
 		inputs.MultiAxisPositions = &positions
 	}
-	return prompt, inputs, nil
+	return inputs, nil
 }
 
 func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {
@@ -3777,6 +3787,81 @@ func formatChatRequest(
 		AddGenerationPrompt: addPrompt,
 		EnableThinking:      enableThinking,
 	})
+}
+
+func chatMediaCount(messages []inference.ChatMessage) int {
+	count := 0
+	for index := range messages {
+		count += len(messages[index].Media)
+	}
+	return count
+}
+
+func (h *Handler) parseChatMultimodalPrompt(
+	body chatCompletionRequest,
+) (nativePrompt, error) {
+	if body.N != 1 {
+		return nativePrompt{}, errors.New("multimodal chat requires n=1")
+	}
+	if len(body.Messages) != 1 ||
+		body.Messages[0].Role != "user" ||
+		len(body.Messages[0].Media) != 1 {
+		return nativePrompt{}, errors.New("multimodal chat requires one user message with one media item")
+	}
+	if len(body.Tools) != 0 || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
+		return nativePrompt{}, errors.New("multimodal chat cannot use tools")
+	}
+	if body.AddPrompt != nil && !*body.AddPrompt {
+		return nativePrompt{}, errors.New("multimodal chat requires add_generation_prompt")
+	}
+	if len(body.TemplateKwargs) != 0 {
+		return nativePrompt{}, errors.New("multimodal chat cannot use chat_template_kwargs")
+	}
+	message := body.Messages[0]
+	if message.Name != "" || message.ReasoningContent != "" ||
+		message.ToolCallID != "" || message.ToolResultError ||
+		len(message.ToolCalls) != 0 {
+		return nativePrompt{}, errors.New("multimodal chat user message contains unsupported fields")
+	}
+	media := message.Media[0]
+	if media.TextOffset < 0 || media.TextOffset > len(message.Content) {
+		return nativePrompt{}, errors.New("multimodal chat media offset is invalid")
+	}
+	prompt := nativePrompt{
+		Text:        message.Content,
+		Response:    message.Content,
+		BeforeMedia: message.Content[:media.TextOffset],
+		AfterMedia:  message.Content[media.TextOffset:],
+	}
+	switch media.Type {
+	case "image":
+		if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
+			return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
+		}
+		if !strings.HasPrefix(media.Data, "data:image/") {
+			return nativePrompt{}, errors.New("image_url.url must use a base64 image data URI")
+		}
+		decoded, err := decodeNativeImageData(media.Data)
+		if err != nil {
+			return nativePrompt{}, err
+		}
+		prompt.Image = decoded
+	case "audio":
+		if h.config.AudioProjector == nil {
+			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
+		}
+		if !strings.EqualFold(media.Format, "wav") {
+			return nativePrompt{}, errors.New("input_audio.format must be wav")
+		}
+		decoded, err := decodeNativeAudioData("data:audio/wav;base64," + media.Data)
+		if err != nil {
+			return nativePrompt{}, err
+		}
+		prompt.Audio = decoded
+	default:
+		return nativePrompt{}, fmt.Errorf("unsupported multimodal chat media type %q", media.Type)
+	}
+	return prompt, nil
 }
 
 func chatThinkingEnabled(kwargs map[string]any) (bool, error) {
@@ -5050,6 +5135,10 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
 		return
 	}
+	if chatMediaCount(body.Messages) != 0 {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal chat token counting is unavailable")
+		return
+	}
 	prompt, err := formatChatRequest(
 		formatter,
 		body.Messages,
@@ -5116,6 +5205,15 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		)
 		return
 	}
+	multimodal := chatMediaCount(body.Messages) != 0
+	var mediaPrompt nativePrompt
+	if multimodal {
+		mediaPrompt, err = h.parseChatMultimodalPrompt(body)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
+	}
 	if len(toolSelection.active) != 0 {
 		if _, ok := h.generator.(ChatOutputParser); !ok {
 			writeError(
@@ -5127,16 +5225,19 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 			return
 		}
 	}
-	prompt, err := formatChatRequest(
-		formatter,
-		body.Messages,
-		toolSelection.prompt,
-		body.AddPrompt,
-		body.TemplateKwargs,
-	)
-	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return
+	var prompt string
+	if !multimodal {
+		prompt, err = formatChatRequest(
+			formatter,
+			body.Messages,
+			toolSelection.prompt,
+			body.AddPrompt,
+			body.TemplateKwargs,
+		)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
 	}
 	maxTokens := 16
 	if body.MaxTokens != nil {
@@ -5218,6 +5319,19 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		return
 	}
 	defer h.releaseSlot(slotID)
+	var promptIDs []tokenizer.TokenID
+	var projectedInputs *inference.ProjectedInputs
+	if multimodal {
+		projectedPrompt, projected, projectErr := h.projectNativeMultimodalPrompt(
+			request.Context(), mediaPrompt,
+		)
+		if projectErr != nil {
+			writeGenerationError(response, projectErr)
+			return
+		}
+		promptIDs = projectedPrompt.TokenIDs
+		projectedInputs = &projected
+	}
 	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
 		h.streamChatCompletion(
@@ -5231,6 +5345,8 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 			stops,
 			body.N,
 			toolSelection.active,
+			promptIDs,
+			projectedInputs,
 		)
 		return
 	}
@@ -5245,6 +5361,8 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		stops,
 		body.N,
 		toolSelection.active,
+		promptIDs,
+		projectedInputs,
 	)
 }
 
@@ -5392,6 +5510,8 @@ func (h *Handler) completeChat(
 	stops []string,
 	n int,
 	tools []inference.ChatTool,
+	promptIDs []tokenizer.TokenID,
+	projectedInputs *inference.ProjectedInputs,
 ) {
 	choices := make([]chatChoice, 0, n)
 	promptTokens := 0
@@ -5411,11 +5531,13 @@ func (h *Handler) completeChat(
 			slotID,
 			prompt,
 			inference.GenerateOptions{
-				MaxNewTokens:  maxTokens,
-				Sampler:       choiceSampler,
-				ParseSpecial:  true,
-				StopSequences: stops,
-				ContextShift:  h.config.ContextShift,
+				MaxNewTokens:    maxTokens,
+				Sampler:         choiceSampler,
+				ParseSpecial:    true,
+				StopSequences:   stops,
+				ContextShift:    h.config.ContextShift,
+				PromptTokenIDs:  promptIDs,
+				ProjectedInputs: projectedInputs,
 				OnToken: func(event inference.TokenEvent) error {
 					generatedTokens++
 					if !filter.Stopped() {
@@ -5523,6 +5645,8 @@ func (h *Handler) streamChatCompletion(
 	stops []string,
 	n int,
 	tools []inference.ChatTool,
+	promptIDs []tokenizer.TokenID,
+	projectedInputs *inference.ProjectedInputs,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -5565,11 +5689,13 @@ func (h *Handler) streamChatCompletion(
 			slotID,
 			prompt,
 			inference.GenerateOptions{
-				MaxNewTokens:  maxTokens,
-				Sampler:       choiceSampler,
-				ParseSpecial:  true,
-				StopSequences: stops,
-				ContextShift:  h.config.ContextShift,
+				MaxNewTokens:    maxTokens,
+				Sampler:         choiceSampler,
+				ParseSpecial:    true,
+				StopSequences:   stops,
+				ContextShift:    h.config.ContextShift,
+				PromptTokenIDs:  promptIDs,
+				ProjectedInputs: projectedInputs,
 				OnToken: func(event inference.TokenEvent) error {
 					if !filter.Stopped() {
 						completionTokens++

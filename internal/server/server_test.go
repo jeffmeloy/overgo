@@ -3478,6 +3478,155 @@ func TestChatTextContentParts(t *testing.T) {
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("image content status = %d body=%s", response.Code, response.Body.String())
 	}
+	if !strings.Contains(response.Body.String(), "no image projector") {
+		t.Fatalf("image content response = %s", response.Body.String())
+	}
+}
+
+func TestChatImageContentPartProjectsPrompt(t *testing.T) {
+	generator := &fakeGenerator{}
+	vision := &fakeQwen3VLProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	input.SetRGBA(0, 0, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())
+	body, err := json.Marshal(map[string]any{
+		"messages": []any{map[string]any{
+			"role": "user",
+			"content": []any{
+				map[string]any{"type": "text", "text": "Look "},
+				map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
+				map[string]any{"type": "text", "text": " now"},
+			},
+		}},
+		"max_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if vision.before != "Look " || vision.after != " now" {
+		t.Fatalf("projector text = %q, %q", vision.before, vision.after)
+	}
+	if !slices.Equal(generator.promptIDs, []tokenizer.TokenID{1, 2, 2, 3}) ||
+		generator.projectedInputs == nil ||
+		len(generator.projectedInputs.EmbeddingOverrides) != 2 ||
+		generator.projectedInputs.MultiAxisPositions == nil {
+		t.Fatalf("prompt IDs = %v, projected = %+v", generator.promptIDs, generator.projectedInputs)
+	}
+}
+
+func TestStreamingChatAudioContentPartProjectsPrompt(t *testing.T) {
+	generator := &fakeGenerator{}
+	audio := &fakeAudioProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		AudioProjector: audio,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wav := make([]byte, 48)
+	copy(wav[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:8], 40)
+	copy(wav[8:12], "WAVE")
+	copy(wav[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(wav[16:20], 16)
+	binary.LittleEndian.PutUint16(wav[20:22], 1)
+	binary.LittleEndian.PutUint16(wav[22:24], 1)
+	binary.LittleEndian.PutUint32(wav[24:28], 16000)
+	binary.LittleEndian.PutUint32(wav[28:32], 32000)
+	binary.LittleEndian.PutUint16(wav[32:34], 2)
+	binary.LittleEndian.PutUint16(wav[34:36], 16)
+	copy(wav[36:40], "data")
+	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	binary.LittleEndian.PutUint16(wav[44:46], uint16(16384))
+	binary.LittleEndian.PutUint16(wav[46:48], uint16(49152))
+	body, err := json.Marshal(map[string]any{
+		"messages": []any{map[string]any{
+			"role": "user",
+			"content": []any{
+				map[string]any{"type": "text", "text": "Hear "},
+				map[string]any{"type": "input_audio", "input_audio": map[string]any{
+					"data": base64.StdEncoding.EncodeToString(wav), "format": "wav",
+				}},
+				map[string]any{"type": "text", "text": " now"},
+			},
+		}},
+		"max_tokens": 1,
+		"stream":     true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)),
+	)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "data: [DONE]") {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if audio.before != "Hear " || audio.after != " now" ||
+		!slices.Equal(audio.samples, []float32{0.5, -0.5}) {
+		t.Fatalf("projector input = %q, %q, %v", audio.before, audio.after, audio.samples)
+	}
+	if !slices.Equal(generator.promptIDs, []tokenizer.TokenID{1, 4, 4, 3}) ||
+		generator.projectedInputs == nil ||
+		len(generator.projectedInputs.EmbeddingOverrides) != 2 {
+		t.Fatalf("prompt IDs = %v, projected = %+v", generator.promptIDs, generator.projectedInputs)
+	}
+}
+
+func TestChatMultimodalValidation(t *testing.T) {
+	vision := &fakeQwen3VLProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	imagePart := `{"type":"image_url","image_url":{"url":"data:image/png;base64,AA=="}}`
+	for _, test := range []struct {
+		path string
+		body string
+		want string
+	}{
+		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[` + imagePart + `]}],"n":2}`, "requires n=1"},
+		{"/v1/chat/completions", `{"messages":[{"role":"system","content":"x"},{"role":"user","content":[` + imagePart + `]}]}`, "requires one user message"},
+		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/x.png"}}]}]}`, "base64 image data URI"},
+		{"/v1/chat/completions/input_tokens", `{"messages":[{"role":"user","content":[` + imagePart + `]}]}`, "token counting is unavailable"},
+	} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(
+			response,
+			httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body)),
+		)
+		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), test.want) {
+			t.Fatalf("%s body %s: status = %d response=%s", test.path, test.body, response.Code, response.Body.String())
+		}
+	}
 }
 
 func TestResponsesInputTokensAliasesAndValidation(t *testing.T) {

@@ -22,14 +22,45 @@ func TestChatMessageDecodesTextContentParts(t *testing.T) {
 	if message.Role != "user" || message.Content != "Hello world" {
 		t.Fatalf("message = %+v", message)
 	}
+	var multimodal ChatMessage
+	err = json.Unmarshal(
+		[]byte(`{"role":"user","content":[{"type":"text","text":"before"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AA==","detail":"auto"}},{"type":"input_text","text":"after"},{"type":"input_audio","input_audio":{"data":"AA==","format":"wav"}}]}`),
+		&multimodal,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if multimodal.Content != "beforeafter" || len(multimodal.Media) != 2 {
+		t.Fatalf("multimodal message = %+v", multimodal)
+	}
+	if multimodal.Media[0].Type != "image" ||
+		multimodal.Media[0].TextOffset != len("before") ||
+		multimodal.Media[1].Type != "audio" ||
+		multimodal.Media[1].Format != "wav" ||
+		multimodal.Media[1].TextOffset != len("beforeafter") {
+		t.Fatalf("multimodal media = %+v", multimodal.Media)
+	}
 	for _, data := range []string{
-		`{"role":"user","content":[{"type":"image_url","image_url":{"url":"x"}}]}`,
+		`{"role":"user","content":[{"type":"image_url","image_url":{"url":""}}]}`,
+		`{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"AA=="}}]}`,
 		`{"role":"user","content":[{"type":"text","text":"x","extra":true}]}`,
+		`{"role":"user","content":[{"type":"input_file","file_id":"x"}]}`,
 		`{"role":"user"}`,
 	} {
 		if err := json.Unmarshal([]byte(data), &message); err == nil {
 			t.Fatalf("message %s was accepted", data)
 		}
+	}
+}
+
+func TestFormatChatRejectsUnprojectedMedia(t *testing.T) {
+	runner := &Runner{vocab: chatTestVocab(t)}
+	_, err := runner.FormatChat([]ChatMessage{{
+		Role:  "user",
+		Media: []ChatMediaPart{{Type: "image", Data: "x"}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "requires multimodal projection") {
+		t.Fatalf("format error = %v", err)
 	}
 }
 

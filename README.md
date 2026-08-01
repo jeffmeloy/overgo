@@ -120,7 +120,9 @@ Generation modes are:
   Q2_K through Q6_K, TQ1_0/TQ2_0, IQ1_S/IQ1_M, IQ2_XXS/IQ2_XS/IQ2_S,
   IQ3_XXS/IQ3_S, IQ4_NL/IQ4_XS, or MXFP4/NVFP4 matrices and embeddings in CUDA memory and
   execute them with native quantized kernels. This is the preferred mode for
-  those models. `-native-q8` remains an alias.
+  those models. Operations whose pinned CUDA kernels require F32 coefficients,
+  including LFM2 short convolution, promote only those source tensors during
+  preload. `-native-q8` remains an alias.
 
 The Go runner's `ForwardCachedWithMultimodalInputs` accepts projected visual
 token embeddings plus distinct temporal, height, width, and extra MRoPE

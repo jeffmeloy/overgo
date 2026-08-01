@@ -1535,10 +1535,10 @@ models:
       - optional-sliding-attention
       - gated-channel-wise-short-convolution
       - centered-non-causal-short-convolution
+      - quantized-short-convolution-kernel-f32-promotion
       - serializable-hybrid-cache
       - swiglu
     limitations:
-      - f32-short-convolution-coefficients
       - even-kernel-centered-convolution-rejected
     real_model_validation: pending-fixture
   lfm2moe:
@@ -1554,6 +1554,7 @@ models:
       - optional-sliding-attention
       - gated-channel-wise-short-convolution
       - centered-non-causal-short-convolution
+      - quantized-short-convolution-kernel-f32-promotion
       - optional-leading-dense-swiglu-blocks
       - softmax-or-sigmoid-top-k-routing
       - required-selection-correction-bias
@@ -1562,7 +1563,6 @@ models:
       - packed-swiglu-experts
       - serializable-hybrid-cache
     limitations:
-      - f32-short-convolution-coefficients
       - even-kernel-centered-convolution-rejected
     real_model_validation: pending-fixture
   jais:

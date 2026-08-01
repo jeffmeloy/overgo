@@ -95,6 +95,22 @@ func TestSelectedModelTensorsIncludesCogVLMVisualBank(t *testing.T) {
 	}
 }
 
+func TestF32RequiredModelTensorsIncludesConvolutionKernels(t *testing.T) {
+	infos := []gguf.TensorInfo{
+		{Name: "ssm"}, {Name: "q"}, {Name: "k"}, {Name: "v"}, {Name: "short"},
+	}
+	pointer := func(index int) *gguf.TensorInfo { return &infos[index] }
+	names := f32RequiredModelTensors(model.Weights{Layers: []model.LayerWeights{{
+		SSMConv1D: pointer(0), SSMQueryConv: pointer(1), SSMKeyConv: pointer(2),
+		SSMValueConv: pointer(3), ShortConvKernel: pointer(4),
+	}}})
+	for _, info := range infos {
+		if _, ok := names[info.Name]; !ok {
+			t.Fatalf("F32-required tensors omit %q", info.Name)
+		}
+	}
+}
+
 func TestApplyEmbeddingOverrides(t *testing.T) {
 	activation := reference.Value{
 		Shape: tensor.MustShape(3, 3),

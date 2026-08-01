@@ -263,11 +263,13 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 					adaptedTensors[name] = struct{}{}
 				}
 			}
+			f32Required := f32RequiredModelTensors(weights)
 			f32Tensors = make([]gguf.TensorInfo, 0, len(selected))
 			var quantized []gguf.TensorInfo
 			for _, info := range selected {
 				_, adapted := adaptedTensors[info.Name]
-				if !adapted && (info.Type == dtype.Q4_0 ||
+				_, requiresF32 := f32Required[info.Name]
+				if !adapted && !requiresF32 && (info.Type == dtype.Q4_0 ||
 					info.Type == dtype.Q4_1 ||
 					info.Type == dtype.Q5_0 ||
 					info.Type == dtype.Q5_1 ||
@@ -4124,6 +4126,24 @@ func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Val
 
 func isDSAArchitecture(architecture string) bool {
 	return architecture == "deepseek32" || architecture == "glm-dsa"
+}
+
+func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, layer := range weights.Layers {
+		for _, info := range []*gguf.TensorInfo{
+			layer.SSMConv1D,
+			layer.SSMQueryConv,
+			layer.SSMKeyConv,
+			layer.SSMValueConv,
+			layer.ShortConvKernel,
+		} {
+			if info != nil {
+				result[info.Name] = struct{}{}
+			}
+		}
+	}
+	return result
 }
 
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {

@@ -966,6 +966,29 @@ models:
       - untied-output-projection
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  deepseek2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - direct-or-lora-query
+      - compressed-kv-rmsnorm
+      - legacy-decompressed-mla
+      - absorbed-mla
+      - grouped-per-head-k-and-v-projections
+      - normal-yarn-rope
+      - yarn-derived-attention-scale
+      - optional-position-temperature
+      - dense-leading-swiglu
+      - dense-only-variant
+      - softmax-or-sigmoid-routed-experts
+      - optional-selection-correction-bias
+      - fused-or-separate-expert-gate-up
+      - shared-swiglu-expert
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   starcoder:
     status: experimental
     features:

@@ -1410,6 +1410,81 @@ func TestReadMiniCPM3Spec(t *testing.T) {
 	}
 }
 
+func TestReadDeepSeek2Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "deepseek2"),
+		metadata("deepseek2.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deepseek2.context_length", gguf.ValueTypeUint32, uint32(16384)),
+		metadata("deepseek2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("deepseek2.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("deepseek2.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("deepseek2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("deepseek2.attention.key_length_mla", gguf.ValueTypeUint32, uint32(6)),
+		metadata("deepseek2.attention.value_length_mla", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deepseek2.attention.q_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata("deepseek2.attention.kv_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata("deepseek2.rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("deepseek2.rope.scaling.type", gguf.ValueTypeString, "yarn"),
+		metadata("deepseek2.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("deepseek2.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("deepseek2.rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32, float32(0.1)),
+		metadata("deepseek2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("deepseek2.attention.temperature_scale", gguf.ValueTypeFloat32, float32(0.1)),
+		metadata("deepseek2.attention.temperature_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("deepseek2.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("deepseek2.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deepseek2.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("deepseek2.expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.QLoRARank != 3 || spec.KVLoRARank != 3 || spec.KeyLength != 6 || spec.ValueLength != 4 ||
+		spec.RopeDimensionCount != 2 || spec.RopeScalingType != "yarn" ||
+		spec.RopeYaRNLogMultiplier != 1 || spec.LeadingDenseBlocks != 1 ||
+		spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != 1 || spec.AttentionTempFloor != 8192 {
+		t.Fatalf("unexpected DeepSeek2 spec: %+v", spec)
+	}
+	wantAttentionFactor := float32(1 / (1 + 0.1*math.Log(4)))
+	if math.Abs(float64(spec.YaRNAttentionFactor-wantAttentionFactor)) > 1e-6 {
+		t.Fatalf("DeepSeek2 YaRN attention factor = %v, want %v", spec.YaRNAttentionFactor, wantAttentionFactor)
+	}
+}
+
+func TestReadDenseDeepSeek2LiteSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "deepseek2"),
+		metadata("deepseek2.block_count", gguf.ValueTypeUint32, uint32(27)),
+		metadata("deepseek2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("deepseek2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("deepseek2.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("deepseek2.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("deepseek2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("deepseek2.attention.key_length_mla", gguf.ValueTypeUint32, uint32(6)),
+		metadata("deepseek2.attention.value_length_mla", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deepseek2.attention.kv_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata("deepseek2.rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("deepseek2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("deepseek2.leading_dense_block_count", gguf.ValueTypeUint32, uint32(27)),
+		metadata("deepseek2.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("deepseek2.expert_shared_count", gguf.ValueTypeUint32, uint32(0)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.QLoRARank != 0 || spec.ExpertCount != 0 || spec.ExpertUsedCount != 0 ||
+		spec.LeadingDenseBlocks != spec.BlockCount || spec.HeadCountKV != 1 {
+		t.Fatalf("unexpected dense DeepSeek2 spec: %+v", spec)
+	}
+}
+
 func TestReadQwen2Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen2"),

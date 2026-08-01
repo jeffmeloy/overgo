@@ -761,7 +761,7 @@ func graphRequiresBlas(outputs []*tensor.Tensor) (bool, error) {
 		return false, err
 	}
 	for _, node := range nodes {
-		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.F32 {
+		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) && node.Inputs[0].Type == dtype.F32 {
 			return true, nil
 		}
 	}
@@ -1711,6 +1711,124 @@ func launchNode(
 		runtime.KeepAlive(right)
 		runtime.KeepAlive(output)
 		return err
+	case tensor.OpGroupedMulMat:
+		leftNode := node.Inputs[0]
+		rightNode := node.Inputs[1]
+		inner, err := uint32Checked(leftNode.Shape.Dims[0], "grouped_mul_mat inner dimension")
+		if err != nil {
+			return err
+		}
+		leftRows, err := uint32Checked(leftNode.Shape.Dims[1], "grouped_mul_mat left rows")
+		if err != nil {
+			return err
+		}
+		groups, err := uint32Checked(leftNode.Shape.Dims[2], "grouped_mul_mat groups")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(rightNode.Shape.Dims[2], "grouped_mul_mat tokens")
+		if err != nil {
+			return err
+		}
+		traits, ok := leftNode.Type.Traits()
+		if !ok || uint64(inner)%traits.BlockSize != 0 {
+			return fmt.Errorf("%s grouped_mul_mat inner dimension is not block aligned", leftNode.Type)
+		}
+		leftMatrixBytes := uint64(inner) * uint64(leftRows) / traits.BlockSize * traits.TypeSize
+		rightVectorBytes := uint64(inner) * 4
+		outputVectorBytes := uint64(leftRows) * 4
+		leftBase := pointers[leftNode]
+		rightBase := pointers[rightNode]
+		for token := uint32(0); token < tokens; token++ {
+			for group := uint32(0); group < groups; group++ {
+				left := leftBase + driver.DevicePtr(uint64(group)*leftMatrixBytes)
+				right := rightBase + driver.DevicePtr((uint64(token)*uint64(groups)+uint64(group))*rightVectorBytes)
+				groupOutput := output + driver.DevicePtr((uint64(token)*uint64(groups)+uint64(group))*outputVectorBytes)
+				if leftNode.Type == dtype.F32 {
+					if blas == nil {
+						return errors.New("cuBLAS is unavailable for F32 grouped_mul_mat")
+					}
+					if err = blas.library.SGEMM(
+						blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+						int32(leftRows), 1, int32(inner), 1, left, int32(inner),
+						right, int32(inner), 0, groupOutput, int32(leftRows),
+					); err != nil {
+						return err
+					}
+					continue
+				}
+				if !nativeQuantizedType(leftNode.Type) || rightNode.Type != dtype.F32 {
+					return fmt.Errorf("%s grouped_mul_mat inputs are unsupported", leftNode.Type)
+				}
+				function := functions.mulMatQ8
+				switch leftNode.Type {
+				case dtype.Q8_1:
+					function = functions.mulMatQ81
+				case dtype.Q8K:
+					function = functions.mulMatQ8K
+				case dtype.Q4_0:
+					function = functions.mulMatQ40
+				case dtype.Q4_1:
+					function = functions.mulMatQ41
+				case dtype.Q5_0:
+					function = functions.mulMatQ50
+				case dtype.Q5_1:
+					function = functions.mulMatQ51
+				case dtype.Q1_0:
+					function = functions.mulMatQ10
+				case dtype.Q2_0:
+					function = functions.mulMatQ20
+				case dtype.TQ2_0:
+					function = functions.mulMatTQ20
+				case dtype.TQ1_0:
+					function = functions.mulMatTQ10
+				case dtype.Q2K:
+					function = functions.mulMatQ2K
+				case dtype.Q3K:
+					function = functions.mulMatQ3K
+				case dtype.Q4K:
+					function = functions.mulMatQ4K
+				case dtype.Q5K:
+					function = functions.mulMatQ5K
+				case dtype.IQ4XS:
+					function = functions.mulMatIQ4XS
+				case dtype.IQ4NL:
+					function = functions.mulMatIQ4NL
+				case dtype.IQ2XXS:
+					function = functions.mulMatIQ2XXS
+				case dtype.IQ2XS:
+					function = functions.mulMatIQ2XS
+				case dtype.IQ2S:
+					function = functions.mulMatIQ2S
+				case dtype.IQ3XXS:
+					function = functions.mulMatIQ3XXS
+				case dtype.IQ3S:
+					function = functions.mulMatIQ3S
+				case dtype.IQ1S:
+					function = functions.mulMatIQ1S
+				case dtype.IQ1M:
+					function = functions.mulMatIQ1M
+				case dtype.MXFP4:
+					function = functions.mulMatMXFP4
+				case dtype.NVFP4:
+					function = functions.mulMatNVFP4
+				case dtype.Q6K:
+					function = functions.mulMatQ6K
+				}
+				rightRows := uint32(1)
+				args := []unsafe.Pointer{
+					unsafe.Pointer(&left), unsafe.Pointer(&right), unsafe.Pointer(&groupOutput),
+					unsafe.Pointer(&inner), unsafe.Pointer(&leftRows), unsafe.Pointer(&rightRows),
+				}
+				if err = launch1D(state, function, leftRows, args); err != nil {
+					return err
+				}
+			}
+		}
+		runtime.KeepAlive(leftBase)
+		runtime.KeepAlive(rightBase)
+		runtime.KeepAlive(output)
+		return nil
 	case tensor.OpGetRows:
 		attributes, ok := node.Attrs.(tensor.GetRowsAttributes)
 		if !ok {

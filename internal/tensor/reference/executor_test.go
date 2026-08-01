@@ -1180,3 +1180,21 @@ func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 		t.Fatalf("relative-bias attention = %v, want approximately [2.9999092 2]", got)
 	}
 }
+
+func TestExecuteGroupedMulMat(t *testing.T) {
+	builder := tensor.NewBuilder()
+	left := builder.Input("left", dtype.F32, tensor.MustShape(2, 2, 2))
+	right := builder.Input("right", dtype.F32, tensor.MustShape(2, 2, 2))
+	output := builder.GroupedMulMat(left, right)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		left:  {Shape: left.Shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
+		right: {Shape: right.Shape, Data: []float32{1, 1, 2, 1, 1, 2, 2, 2}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{3, 7, 16, 22, 5, 11, 22, 30}
+	if !reflect.DeepEqual(results[output].Data, want) {
+		t.Fatalf("grouped matmul = %v, want %v", results[output].Data, want)
+	}
+}

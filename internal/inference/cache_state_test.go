@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -23,6 +24,36 @@ func TestKVCacheStateRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded, cache) {
 		t.Fatalf("loaded cache = %+v, want %+v", loaded, cache)
+	}
+}
+
+func TestDeepSeek2AbsorbedCacheValidation(t *testing.T) {
+	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
+	runner := &Runner{
+		spec: model.Spec{Architecture: "deepseek2", BlockCount: 1, KeyLength: 6, ValueLength: 4,
+			HeadCount: 2, HeadCountKV: 2, KVLoRARank: 3, RopeDimensionCount: 2},
+		weights: model.Weights{Layers: []model.LayerWeights{{AttentionKB: &attentionKB}}},
+	}
+	key, _ := reference.NewValue(tensor.MustShape(5, 1, 2), make([]float32, 10))
+	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
+	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value}}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeepSeek2LegacyCacheValidation(t *testing.T) {
+	attentionKVB := gguf.TensorInfo{Name: "blk.0.attn_kv_b.weight"}
+	runner := &Runner{
+		spec: model.Spec{Architecture: "deepseek2", BlockCount: 1, KeyLength: 6, ValueLength: 4,
+			HeadCount: 2, HeadCountKV: 1, KVLoRARank: 3, RopeDimensionCount: 2},
+		weights: model.Weights{Layers: []model.LayerWeights{{AttentionKVB: &attentionKVB}}},
+	}
+	key, _ := reference.NewValue(tensor.MustShape(6, 2, 2), make([]float32, 24))
+	value, _ := reference.NewValue(tensor.MustShape(4, 2, 2), make([]float32, 16))
+	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value}}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
 	}
 }
 

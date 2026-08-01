@@ -85,6 +85,8 @@ type LayerGraphWeights struct {
 	AttentionKVAMQA             *tensor.Tensor
 	AttentionKVANorm            *tensor.Tensor
 	AttentionKVB                *tensor.Tensor
+	AttentionKB                 *tensor.Tensor
+	AttentionVB                 *tensor.Tensor
 
 	AttentionQKV     *tensor.Tensor
 	AttentionQKVBias *tensor.Tensor
@@ -750,7 +752,7 @@ func BuildPLMBlockCached(
 	return BuildMLABlockCached(builder, input, spec, weights, positions, pastKey, pastValue)
 }
 
-// BuildMLABlockCached: PLM/MiniCPM3 MLA block
+// BuildMLABlockCached: MLA block; layer-zero policy
 func BuildMLABlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -759,20 +761,57 @@ func BuildMLABlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "plm" && spec.Architecture != "minicpm3" {
-		return DenseBlockResult{}, errors.New("MLA block requires plm or minicpm3 architecture")
+	return BuildMLABlockCachedForLayer(builder, input, spec, weights, positions, pastKey, pastValue, 0)
+}
+
+// BuildMLABlockCachedForLayer: MLA block with layer-dependent FFN
+func BuildMLABlockCachedForLayer(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "plm" && spec.Architecture != "minicpm3" && spec.Architecture != "deepseek2" {
+		return DenseBlockResult{}, errors.New("MLA block architecture is unsupported")
 	}
 	isMiniCPM3 := spec.Architecture == "minicpm3"
+	isDeepSeek2 := spec.Architecture == "deepseek2"
 	required := map[string]*tensor.Tensor{
 		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
 		"attention KV-A": weights.AttentionKVAMQA, "attention KV-A norm": weights.AttentionKVANorm,
-		"attention KV-B": weights.AttentionKVB, "attention output": weights.AttentionOutput,
-		"feed-forward norm": weights.FeedForwardNorm, "feed-forward up": weights.FeedForwardUp,
-		"feed-forward down": weights.FeedForwardDown,
+		"attention output": weights.AttentionOutput, "feed-forward norm": weights.FeedForwardNorm,
 	}
-	if isMiniCPM3 {
+	if weights.AttentionKVB != nil {
+		required["attention KV-B"] = weights.AttentionKVB
+	} else {
+		required["attention K-B"] = weights.AttentionKB
+		required["attention V-B"] = weights.AttentionVB
+	}
+	if isMiniCPM3 || (isDeepSeek2 && spec.QLoRARank > 0) {
 		required["attention Q-B"] = weights.AttentionQB
 		required["attention Q-A norm"] = weights.AttentionQNorm
+	}
+	if isDeepSeek2 && layerIndex >= spec.LeadingDenseBlocks {
+		required["feed-forward router"] = weights.FeedForwardRouter
+		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		if weights.FeedForwardGateUpExperts == nil {
+			required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+			required["feed-forward expert up"] = weights.FeedForwardUpExperts
+		}
+		required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+		required["feed-forward shared up"] = weights.FeedForwardSharedUp
+		required["feed-forward shared down"] = weights.FeedForwardSharedDown
+	} else {
+		required["feed-forward up"] = weights.FeedForwardUp
+		required["feed-forward down"] = weights.FeedForwardDown
+		if isMiniCPM3 || isDeepSeek2 {
+			required["feed-forward gate"] = weights.FeedForwardGate
+		}
+	}
+	if isMiniCPM3 {
 		required["feed-forward gate"] = weights.FeedForwardGate
 	}
 	for name, item := range required {
@@ -795,7 +834,7 @@ func BuildMLABlockCached(
 	valueWidth := uint64(spec.ValueLength)
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
-	if isMiniCPM3 {
+	if isMiniCPM3 || (isDeepSeek2 && spec.QLoRARank > 0) {
 		queryMixed = builder.WeightedRMSNorm(queryMixed, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		queryMixed = builder.MulMat(weights.AttentionQB, queryMixed)
 	}
@@ -811,15 +850,18 @@ func BuildMLABlockCached(
 		ropeWidth, 1, tokens,
 	)
 	kvCompressed = builder.WeightedRMSNorm(kvCompressed, weights.AttentionKVANorm, spec.RMSNormEpsilon)
-	kv := builder.MulMat(weights.AttentionKVB, kvCompressed)
-	stride := nopeWidth + valueWidth
-	kNoPE := builder.GroupSlice(kv, 0, nopeWidth, heads, stride)
-	value := builder.GroupSlice(kv, nopeWidth, valueWidth, heads, stride)
 	frequencyScale := float32(1)
-	if spec.RopeScalingType == "linear" && spec.RopeScalingFactor > 0 {
+	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if isMiniCPM3 {
+	if isDeepSeek2 && spec.RopeScalingType == "yarn" {
+		qPE = builder.RoPENormalYaRN(qPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
+			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
+			spec.YaRNBetaFast, spec.YaRNBetaSlow)
+		kPE = builder.RoPENormalYaRN(kPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
+			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
+			spec.YaRNBetaFast, spec.YaRNBetaSlow)
+	} else if isMiniCPM3 {
 		if weights.RopeFactors != nil {
 			qPE = builder.RoPENeoXScaledWithFactors(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
 			kPE = builder.RoPENeoXScaledWithFactors(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
@@ -838,9 +880,25 @@ func BuildMLABlockCached(
 		qPE = builder.Scale(qPE, spec.RopeAttentionFactor)
 		kPE = builder.Scale(kPE, spec.RopeAttentionFactor)
 	}
-	kPEHeads := builder.RepeatHeads(kPE, spec.HeadCount)
-	query := builder.Concat(qNoPE, qPE, 0)
-	key := builder.Concat(kNoPE, kPEHeads, 0)
+	var query, key, value *tensor.Tensor
+	if weights.AttentionKB != nil {
+		qNoPE = builder.GroupedMulMat(weights.AttentionKB, qNoPE)
+		query = builder.Concat(qNoPE, qPE, 0)
+		kvCompressed = builder.Reshape(kvCompressed, uint64(spec.KVLoRARank), 1, tokens)
+		key = builder.Concat(kvCompressed, kPE, 0)
+		value = kvCompressed
+	} else {
+		kv := builder.MulMat(weights.AttentionKVB, kvCompressed)
+		stride := nopeWidth + valueWidth
+		kNoPE := builder.GroupSlice(kv, 0, nopeWidth, heads, stride)
+		value = builder.GroupSlice(kv, nopeWidth, valueWidth, heads, stride)
+		kPEHeads := builder.RepeatHeads(kPE, spec.HeadCount)
+		query = builder.Concat(qNoPE, qPE, 0)
+		key = builder.Concat(kNoPE, kPEHeads, 0)
+	}
+	if isDeepSeek2 && weights.AttentionTemperatureScale != nil {
+		query = builder.Multiply(query, weights.AttentionTemperatureScale)
+	}
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastKey != nil {
@@ -848,9 +906,17 @@ func BuildMLABlockCached(
 		cacheKey = builder.Concat(pastKey, key, 2)
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
-	attention := builder.AttentionWithOffset(
-		query, cacheKey, cacheValue, float32(1/math.Sqrt(float64(spec.KeyLength))), true, queryStart,
-	)
+	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	if isDeepSeek2 && spec.RopeScalingType == "yarn" {
+		logScale := float32(math.Log(float64(1 / frequencyScale)))
+		originalFactor := spec.YaRNAttentionFactor * (1 + 0.1*logScale)
+		magnitude := originalFactor * (1 + 0.1*spec.RopeYaRNLogMultiplier*logScale)
+		attentionScale *= magnitude * magnitude
+	}
+	attention := builder.AttentionWithOffset(query, cacheKey, cacheValue, attentionScale, true, queryStart)
+	if weights.AttentionVB != nil {
+		attention = builder.GroupedMulMat(weights.AttentionVB, attention)
+	}
 	attention = builder.Reshape(attention, heads*valueWidth, tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	if isMiniCPM3 {
@@ -858,9 +924,43 @@ func BuildMLABlockCached(
 	}
 	residual := builder.Add(input, attention)
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	if isDeepSeek2 && layerIndex >= spec.LeadingDenseBlocks {
+		var feedForward *tensor.Tensor
+		if weights.FeedForwardGateUpExperts != nil {
+			if spec.ExpertGatingFunc == 2 {
+				feedForward = builder.MoESigmoidFusedGateUp(normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateUpExperts, weights.FeedForwardDownExperts,
+					weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
+			} else {
+				feedForward = builder.MoESoftmaxFusedGateUp(normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateUpExperts, weights.FeedForwardDownExperts,
+					weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
+			}
+		} else if spec.ExpertGatingFunc == 2 {
+			feedForward = builder.MoESigmoid(normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+				weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
+		} else if weights.FeedForwardExpertBias != nil {
+			feedForward = builder.MoESoftmaxWithSelectionBias(normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+				weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
+		} else {
+			feedForward = builder.MoE(normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+				spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
+		}
+		sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+		sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+		shared := builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp))
+		output := builder.Add(residual, builder.Add(feedForward, shared))
+		if err := builder.Err(); err != nil {
+			return DenseBlockResult{}, err
+		}
+		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	}
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	activated := builder.ReLUSquared(up)
-	if isMiniCPM3 {
+	if isMiniCPM3 || isDeepSeek2 {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)
 		activated = builder.SwiGLU(gate, up)
 	}

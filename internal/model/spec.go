@@ -27,6 +27,7 @@ type Spec struct {
 	RopeScalingType        string
 	RopeScalingFactor      float32
 	RopeAttentionFactor    float32
+	RopeYaRNLogMultiplier  float32
 	OriginalContextLength  uint32
 	AttentionScale         float32
 	AttentionTempScale     float32
@@ -145,6 +146,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "cogvlm" &&
 		architecture != "dream" &&
 		architecture != "deepseek" &&
+		architecture != "deepseek2" &&
 		architecture != "deepseek2-ocr" &&
 		architecture != "deci" &&
 		architecture != "dbrx" &&
@@ -246,6 +248,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.Name = value
 	}
 	prefix := architecture + "."
+	if architecture == "deepseek2" {
+		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
+		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
+			if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
+				return Spec{}, errors.New(`metadata "tokenizer.ggml.tokens" must be a string array`)
+			}
+			if tokens.Count() > int(^uint32(0)) {
+				return Spec{}, errors.New("tokenizer vocabulary exceeds uint32")
+			}
+			spec.VocabularySize = uint32(tokens.Count())
+		}
+	}
 	isLlamaMoE := false
 	if architecture == "llama" || architecture == "llama-embed" {
 		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
@@ -352,6 +366,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	spec.KeyLength, _ = optional[uint32](values, prefix+"attention.key_length", gguf.ValueTypeUint32)
 	spec.ValueLength, _ = optional[uint32](values, prefix+"attention.value_length", gguf.ValueTypeUint32)
+	if architecture == "deepseek2" {
+		if value, ok := optional[uint32](values, prefix+"attention.key_length_mla", gguf.ValueTypeUint32); ok {
+			spec.KeyLength = value
+		}
+		if value, ok := optional[uint32](values, prefix+"attention.value_length_mla", gguf.ValueTypeUint32); ok {
+			spec.ValueLength = value
+		}
+	}
 	if spec.KeyLength == 0 || spec.ValueLength == 0 {
 		if spec.HeadCount == 0 || spec.EmbeddingLength%spec.HeadCount != 0 {
 			return Spec{}, errors.New("embedding length is not divisible by attention head count")
@@ -401,7 +423,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" || architecture == "qwen35moe" ||
 				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
-				if (architecture != "laguna" && architecture != "grok" && architecture != "mellum") || scalingType != "yarn" {
+				if (architecture != "deepseek2" && architecture != "laguna" && architecture != "grok" && architecture != "mellum") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
 						"model architecture %q uses unsupported RoPE scaling type %q",
 						architecture,
@@ -1372,6 +1394,28 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
+	if architecture == "deepseek2" {
+		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
+		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if spec.ExpertCount > 0 {
+			if spec.ExpertUsedCount, err = required[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32); err != nil {
+				return Spec{}, err
+			}
+		}
+		spec.ExpertWeightsScale = 1
+		if value, ok := optional[float32](values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32); ok {
+			spec.ExpertWeightsScale = value
+		}
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		spec.ExpertGatingFunc = 1
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
+			spec.ExpertGatingFunc = value
+		} else if (spec.BlockCount == 47 || spec.BlockCount == 48) && spec.VocabularySize == 154880 {
+			spec.ExpertGatingFunc = 2
+		}
+	}
 	if architecture == "mimo2" {
 		spec.ExpertGatingFunc = 2
 		spec.ExpertWeightsNorm = true
@@ -1849,12 +1893,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SlidingWindow = value
 		}
 	}
-	if architecture == "plm" || architecture == "minicpm3" {
+	if architecture == "plm" || architecture == "minicpm3" || architecture == "deepseek2" {
 		if architecture == "minicpm3" {
 			if spec.QLoRARank, err = required[uint32](
 				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
 			); err != nil {
 				return Spec{}, err
+			}
+		}
+		if architecture == "deepseek2" {
+			lite := spec.BlockCount == 26 || spec.BlockCount == 27 || (spec.BlockCount == 48 && spec.VocabularySize == 128256)
+			if !lite {
+				if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
+					return Spec{}, err
+				}
 			}
 		}
 		if spec.KVLoRARank, err = required[uint32](
@@ -1866,6 +1918,29 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
 		); err != nil {
 			return Spec{}, err
+		}
+		if architecture == "deepseek2" {
+			spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+			if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
+				return Spec{}, err
+			}
+			if spec.ExpertFeedForward > 0 && spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+				return Spec{}, errors.New("DeepSeek2 shared expert width overflows")
+			}
+			spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+			if value, ok := optional[float32](values, prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32); ok {
+				spec.RopeYaRNLogMultiplier = value / 0.1
+			}
+			if spec.RopeScalingType == "yarn" && spec.RopeScalingFactor > 0 {
+				rawAttentionFactor := float32(1)
+				if value, ok := optional[float32](values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32); ok {
+					rawAttentionFactor = value
+				}
+				spec.YaRNAttentionFactor = rawAttentionFactor /
+					(1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
+			}
+			spec.AttentionTempScale, _ = optional[float32](values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32)
+			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
 		}
 	}
 	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4" ||
@@ -2754,10 +2829,50 @@ func (s Spec) validate() error {
 			}
 		}
 	}
-	if (s.Architecture == "plm" || s.Architecture == "minicpm3") &&
+	if (s.Architecture == "plm" || s.Architecture == "minicpm3" || s.Architecture == "deepseek2") &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
-			s.RopeDimensionCount >= s.KeyLength || s.HeadCountKV != s.HeadCount) {
+			s.RopeDimensionCount >= s.KeyLength ||
+			(s.Architecture != "deepseek2" && s.HeadCountKV != s.HeadCount) ||
+			(s.Architecture == "deepseek2" && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
+	}
+	if s.Architecture == "deepseek2" {
+		lite := s.BlockCount == 26 || s.BlockCount == 27 || (s.BlockCount == 48 && s.VocabularySize == 128256)
+		switch {
+		case s.ExpertCount == 0 && s.LeadingDenseBlocks != s.BlockCount:
+			return errors.New("dense DeepSeek2 requires every block to be dense")
+		case s.ExpertCount > 0 && s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("DeepSeek2 leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.SharedExpertCount != 0 || s.SharedExpertFF != 0):
+			return errors.New("dense DeepSeek2 expert metadata is inconsistent")
+		case s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0):
+			return errors.New("DeepSeek2 expert metadata is invalid")
+		case s.ExpertCount > 0 && s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
+			return errors.New("DeepSeek2 shared expert width overflows")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("DeepSeek2 expert weight scale is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("DeepSeek2 expert routing function is unsupported")
+		case !lite && s.QLoRARank == 0:
+			return errors.New("DeepSeek2 query LoRA rank is missing")
+		case s.RopeDimensionCount%2 != 0:
+			return errors.New("DeepSeek2 rotary dimension is invalid")
+		case s.RopeScalingType == "yarn" &&
+			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 || s.YaRNExtFactor < 0 ||
+				s.YaRNAttentionFactor <= 0 || s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
+				math.IsNaN(float64(s.RopeScalingFactor)) || math.IsInf(float64(s.RopeScalingFactor), 0) ||
+				math.IsNaN(float64(s.YaRNExtFactor)) || math.IsInf(float64(s.YaRNExtFactor), 0) ||
+				math.IsNaN(float64(s.YaRNAttentionFactor)) || math.IsInf(float64(s.YaRNAttentionFactor), 0) ||
+				math.IsNaN(float64(s.YaRNBetaFast)) || math.IsInf(float64(s.YaRNBetaFast), 0) ||
+				math.IsNaN(float64(s.YaRNBetaSlow)) || math.IsInf(float64(s.YaRNBetaSlow), 0)):
+			return errors.New("DeepSeek2 YaRN metadata is invalid")
+		case math.IsNaN(float64(s.RopeYaRNLogMultiplier)) || math.IsInf(float64(s.RopeYaRNLogMultiplier), 0):
+			return errors.New("DeepSeek2 YaRN log multiplier is invalid")
+		case s.AttentionTempScale != 0 && (s.AttentionTempScale <= 0 || s.AttentionTempFloor == 0 ||
+			math.IsNaN(float64(s.AttentionTempScale)) || math.IsInf(float64(s.AttentionTempScale), 0)):
+			return errors.New("DeepSeek2 attention temperature metadata is invalid")
+		}
 	}
 	if s.Architecture == "minicpm3" &&
 		(s.QLoRARank == 0 || s.ResidualScale <= 0 || s.OriginalContextLength == 0 ||

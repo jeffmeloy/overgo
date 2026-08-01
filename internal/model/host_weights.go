@@ -87,6 +87,8 @@ type HostLayer struct {
 	AttentionKVAMQA             *reference.Value
 	AttentionKVANorm            *reference.Value
 	AttentionKVB                *reference.Value
+	AttentionKB                 *reference.Value
+	AttentionVB                 *reference.Value
 
 	AttentionQKV     *reference.Value
 	AttentionQKVBias *reference.Value
@@ -534,6 +536,8 @@ func LoadHostLayer(
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
+		{info.AttentionKB, &result.AttentionKB},
+		{info.AttentionVB, &result.AttentionVB},
 	} {
 		if item.info == nil {
 			continue
@@ -731,6 +735,8 @@ func (layer *HostLayer) GraphInputs(
 		{"attn_kv_a_mqa.weight", layer.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{"attn_kv_a_norm.weight", layer.AttentionKVANorm, &result.AttentionKVANorm},
 		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},
+		{"attn_k_b.weight", layer.AttentionKB, &result.AttentionKB},
+		{"attn_v_b.weight", layer.AttentionVB, &result.AttentionVB},
 	} {
 		if item.value != nil {
 			*item.destination = input(item.name, *item.value)

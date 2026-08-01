@@ -86,6 +86,94 @@ func TestExecutorMatchesReference(t *testing.T) {
 	compare(t, got[xielu].Data, want[xielu].Data, 2e-5)
 }
 
+func TestExecutorGroupedMulMatMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	left := builder.Input("left", dtype.F32, tensor.MustShape(4, 3, 2))
+	right := builder.Input("right", dtype.F32, tensor.MustShape(4, 2, 3))
+	output := builder.GroupedMulMat(left, right)
+	feeds := map[*tensor.Tensor]reference.Value{
+		left:  patternedValue(left.Shape, 11, 0.13, -0.2),
+		right: patternedValue(right.Shape, 7, 0.09, 0.05),
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 1e-5)
+}
+
+func TestExecutorQuantizedGroupedMulMatMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	leftShape := tensor.MustShape(32, 3, 2)
+	rightShape := tensor.MustShape(32, 2, 2)
+	leftValue := patternedValue(leftShape, 11, 0.03, -0.1)
+	rightValue := patternedValue(rightShape, 7, 0.05, 0.02)
+	storage, err := quant.Quantize(dtype.Q8_0, leftValue.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dequantized, err := quant.Dequantize(dtype.Q8_0, storage, uint64(len(leftValue.Data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	referenceBuilder := tensor.NewBuilder()
+	referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
+	referenceRight := referenceBuilder.Input("right", dtype.F32, rightShape)
+	referenceOutput := referenceBuilder.GroupedMulMat(referenceLeft, referenceRight)
+	want, err := reference.Execute([]*tensor.Tensor{referenceOutput}, map[*tensor.Tensor]reference.Value{
+		referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := tensor.NewBuilder()
+	left := builder.Input("left", dtype.Q8_0, leftShape)
+	right := builder.Input("right", dtype.F32, rightShape)
+	output := builder.GroupedMulMat(left, right)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	var pointer driver.DevicePtr
+	if err = worker.Do(context.Background(), func(state *device.State) error {
+		var allocateErr error
+		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
+		if allocateErr != nil {
+			return allocateErr
+		}
+		return state.Driver.MemcpyHtoD(pointer, storage)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Do(context.Background(), func(state *device.State) error { return state.Driver.MemFree(pointer) })
+	cuda, err := NewWithWorker(worker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
+		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[referenceOutput].Data, 1e-4)
+}
+
 func TestExecutorMoEMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
@@ -4825,6 +4913,61 @@ func TestExecutorChameleonSandwichBlockMatchesReference(t *testing.T) {
 	feeds[weights.AttentionQNorm] = patternedValue(weights.AttentionQNorm.Shape, 37, 0.03, 1)
 	feeds[weights.AttentionKNorm] = patternedValue(weights.AttentionKNorm.Shape, 41, 0.03, 1)
 	feeds[weights.FeedForwardNorm] = patternedValue(weights.FeedForwardNorm.Shape, 43, 0.03, 1)
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 5e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
+func TestExecutorDeepSeek2AbsorbedMLABlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{Architecture: "deepseek2", BlockCount: 27, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
+		KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6, LeadingDenseBlocks: 1}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:             builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:                builder.Input("q", dtype.F32, tensor.MustShape(8, 12)),
+		AttentionKVAMQA:           builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm:          builder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKB:               builder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
+		AttentionVB:               builder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
+		AttentionOutput:           builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionTemperatureScale: builder.Input("temperature", dtype.F32, tensor.MustShape(1, 1, 2)),
+		FeedForwardNorm:           builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:           builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:             builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:           builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	result, err := model.BuildMLABlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.05, -0.1)}
+	for index, node := range []*tensor.Tensor{weights.AttentionNorm, weights.AttentionQ,
+		weights.AttentionKVAMQA, weights.AttentionKVANorm, weights.AttentionKB, weights.AttentionVB,
+		weights.AttentionOutput, weights.FeedForwardNorm, weights.FeedForwardGate,
+		weights.FeedForwardUp, weights.FeedForwardDown} {
+		feeds[node] = patternedValue(node.Shape, index+5, 0.025, 0.1)
+	}
+	feeds[weights.AttentionTemperatureScale] = reference.Value{Shape: weights.AttentionTemperatureScale.Shape, Data: []float32{1, 1.1}}
 	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {

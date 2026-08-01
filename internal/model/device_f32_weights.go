@@ -207,7 +207,12 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		if info.AttentionQKV != nil {
 			required = append(required, *info.AttentionQKV)
 		} else if info.AttentionKVAMQA != nil {
-			required = append(required, info.AttentionQ, *info.AttentionKVAMQA, *info.AttentionKVANorm, *info.AttentionKVB)
+			required = append(required, info.AttentionQ, *info.AttentionKVAMQA, *info.AttentionKVANorm)
+			if info.AttentionKVB != nil {
+				required = append(required, *info.AttentionKVB)
+			} else {
+				required = append(required, *info.AttentionKB, *info.AttentionVB)
+			}
 		} else if info.AttentionQ.Name != "" {
 			required = append(required, info.AttentionQ)
 			if info.AttentionK.Name != "" {
@@ -361,6 +366,8 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
+		{info.AttentionKB, &result.AttentionKB},
+		{info.AttentionVB, &result.AttentionVB},
 		{info.LayerOutputScale, &result.LayerOutputScale},
 		{info.PerLayerInputGate, &result.PerLayerInputGate},
 		{info.PerLayerProjection, &result.PerLayerProjection},

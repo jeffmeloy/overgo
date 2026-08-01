@@ -677,3 +677,16 @@ func TestTopologicalRejectsCycle(t *testing.T) {
 		t.Fatal("cyclic graph was accepted")
 	}
 }
+
+func TestBuilderGroupedMulMatShape(t *testing.T) {
+	builder := NewBuilder()
+	left := builder.Input("left", dtype.F32, MustShape(3, 4, 2))
+	right := builder.Input("right", dtype.F32, MustShape(3, 2, 5))
+	output := builder.GroupedMulMat(left, right)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !output.Shape.Equal(MustShape(4, 2, 5)) || output.Op != OpGroupedMulMat {
+		t.Fatalf("unexpected grouped matmul output: %+v", output)
+	}
+}

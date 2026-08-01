@@ -572,6 +572,8 @@ func (r *Runner) layerDeviceInputs(
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
+		{info.AttentionKB, &result.AttentionKB},
+		{info.AttentionVB, &result.AttentionVB},
 	} {
 		if item.info != nil {
 			if *item.destination, err = input(*item.info); err != nil {
@@ -1028,7 +1030,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	}
 	if r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
-		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" {
+		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
+		r.spec.Architecture != "deepseek2" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
@@ -1397,9 +1400,9 @@ func (r *Runner) runLayerCached(
 		result model.DenseBlockResult
 		err    error
 	)
-	if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" {
-		result, err = model.BuildMLABlockCached(
-			builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
+	if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" || r.spec.Architecture == "deepseek2" {
+		result, err = model.BuildMLABlockCachedForLayer(
+			builder, input, r.spec, graphWeights, positions, pastKey, pastValue, uint32(layerIndex),
 		)
 	} else {
 		result, err = model.BuildDenseBlockCachedForLayer(
@@ -1572,11 +1575,13 @@ func addAttentionTemperatureInput(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	weights *model.LayerGraphWeights,
 ) error {
-	if spec.Architecture != "llama4" || spec.UsesRoPE(layer) {
+	llama4Temperature := spec.Architecture == "llama4" && !spec.UsesRoPE(layer)
+	deepSeek2Temperature := spec.Architecture == "deepseek2" && spec.AttentionTempScale != 0
+	if !llama4Temperature && !deepSeek2Temperature {
 		return nil
 	}
 	if builder == nil || weights == nil || spec.AttentionTempFloor == 0 {
-		return errors.New("Llama 4 attention temperature input is invalid")
+		return fmt.Errorf("%s attention temperature input is invalid", spec.Architecture)
 	}
 	shape := tensor.MustShape(1, 1, uint64(len(positions)))
 	data := make([]float32, len(positions))
@@ -1916,7 +1921,7 @@ func (r *Runner) Generate(
 	var selectedPromptCache *cachedPrompt
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" &&
-		r.spec.Architecture != "minicpm3"
+		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -2765,6 +2770,8 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.AttentionKVAMQA,
 			layer.AttentionKVANorm,
 			layer.AttentionKVB,
+			layer.AttentionKB,
+			layer.AttentionVB,
 		} {
 			if pointer != nil {
 				names[pointer.Name] = struct{}{}

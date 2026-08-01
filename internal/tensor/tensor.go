@@ -42,6 +42,7 @@ const (
 	OpMoE
 	OpRepeatHeads
 	OpClamp
+	OpGroupedMulMat
 )
 
 var opNames = [...]string{
@@ -75,6 +76,7 @@ var opNames = [...]string{
 	"moe",
 	"repeat_heads",
 	"clamp",
+	"grouped_mul_mat",
 }
 
 func (o Op) String() string {
@@ -817,6 +819,34 @@ func (b *Builder) MulMat(left, right *Tensor) *Tensor {
 		return nil
 	}
 	return b.add("", outputType, shape, OpMulMat, []*Tensor{left, right}, nil)
+}
+
+// GroupedMulMat: per-group ggml matmul; [K,M,G] x [K,G,N] -> [M,G,N]
+func (b *Builder) GroupedMulMat(left, right *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if left == nil || right == nil || left.Shape.Rank != 3 || right.Shape.Rank != 3 {
+		b.setError(errors.New("grouped_mul_mat requires rank-3 inputs"))
+		return nil
+	}
+	if left.Shape.Dims[0] != right.Shape.Dims[0] || left.Shape.Dims[2] != right.Shape.Dims[1] {
+		b.setError(errors.New("grouped_mul_mat inner or group dimensions differ"))
+		return nil
+	}
+	outputType := left.Type
+	if nativeQuantizedType(left.Type) && right.Type == dtype.F32 {
+		outputType = dtype.F32
+	} else if left.Type != right.Type {
+		b.setError(fmt.Errorf("grouped_mul_mat types are unsupported: %s and %s", left.Type, right.Type))
+		return nil
+	}
+	shape, err := NewShape(left.Shape.Dims[1], left.Shape.Dims[2], right.Shape.Dims[2])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", outputType, shape, OpGroupedMulMat, []*Tensor{left, right}, nil)
 }
 
 // GetRows gathers vocabulary rows from rank-2 table in ggml layout;

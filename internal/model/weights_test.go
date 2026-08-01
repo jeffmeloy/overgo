@@ -1882,6 +1882,45 @@ func TestReadWeightsMiniCPM3(t *testing.T) {
 	}
 }
 
+func TestReadWeightsDeepSeek2AbsorbedMLA(t *testing.T) {
+	spec := Spec{Architecture: "deepseek2", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
+		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, VocabularySize: 32,
+		LeadingDenseBlocks: 1, ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertCount: 1, SharedExpertFF: 6}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+	}
+	for block := range uint32(2) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8), tensorInfo(prefix+"attn_q_a.weight", 8, 3),
+			tensorInfo(prefix+"attn_q_a_norm.weight", 3), tensorInfo(prefix+"attn_q_b.weight", 3, 12),
+			tensorInfo(prefix+"attn_kv_a_mqa.weight", 8, 5), tensorInfo(prefix+"attn_kv_a_norm.weight", 3),
+			tensorInfo(prefix+"attn_k_b.weight", 4, 3, 2), tensorInfo(prefix+"attn_v_b.weight", 3, 4, 2),
+			tensorInfo(prefix+"attn_output.weight", 8, 8), tensorInfo(prefix+"ffn_norm.weight", 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8), tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.1.ffn_gate_exps.weight", 8, 6, 4), tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4), tensorInfo("blk.1.exp_probs_b.bias", 4),
+		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 6), tensorInfo("blk.1.ffn_up_shexp.weight", 8, 6),
+		tensorInfo("blk.1.ffn_down_shexp.weight", 6, 8),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[0].AttentionKB == nil || weights.Layers[0].AttentionVB == nil ||
+		weights.Layers[0].AttentionKVB != nil || weights.Layers[0].FeedForwardRouter != nil ||
+		weights.Layers[1].FeedForwardRouter == nil || weights.Layers[1].FeedForwardExpertBias == nil ||
+		weights.Layers[1].FeedForwardSharedDown == nil {
+		t.Fatalf("unexpected DeepSeek2 catalog: %+v", weights.Layers)
+	}
+}
+
 func TestReadWeightsQwen2WithOutputBias(t *testing.T) {
 	spec := Spec{
 		Architecture:      "qwen2",

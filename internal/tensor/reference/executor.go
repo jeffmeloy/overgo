@@ -209,6 +209,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return flatSlice(node.Shape, inputs[0], attributes)
 	case tensor.OpMulMat:
 		return mulMat(node.Shape, inputs[0], inputs[1])
+	case tensor.OpGroupedMulMat:
+		return groupedMulMat(node.Shape, inputs[0], inputs[1])
 	case tensor.OpGetRows:
 		attributes, ok := node.Attrs.(tensor.GetRowsAttributes)
 		if !ok {
@@ -624,6 +626,31 @@ func mulMat(shape tensor.Shape, left, right Value) (Value, error) {
 				sum += float64(left.Data[column*k+inner]) * float64(right.Data[row*k+inner])
 			}
 			output[row*m+column] = float32(sum)
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func groupedMulMat(shape tensor.Shape, left, right Value) (Value, error) {
+	k := int(left.Shape.Dims[0])
+	m := int(left.Shape.Dims[1])
+	groups := int(left.Shape.Dims[2])
+	n := int(right.Shape.Dims[2])
+	if int(right.Shape.Dims[0]) != k || int(right.Shape.Dims[1]) != groups {
+		return Value{}, errors.New("grouped_mul_mat dimensions differ")
+	}
+	output := make([]float32, m*groups*n)
+	for token := range n {
+		for group := range groups {
+			for row := range m {
+				var sum float64
+				for inner := range k {
+					leftIndex := (group*m+row)*k + inner
+					rightIndex := (token*groups+group)*k + inner
+					sum += float64(left.Data[leftIndex]) * float64(right.Data[rightIndex])
+				}
+				output[(token*groups+group)*m+row] = float32(sum)
+			}
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil

@@ -110,16 +110,19 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 			continue
 		}
-		keyShape := tensor.MustShape(
-			uint64(r.spec.LayerKeyLength(uint32(index))),
-			uint64(r.spec.LayerKVHeadCount(uint32(index))),
-			uint64(cache.Tokens),
-		)
-		valueShape := tensor.MustShape(
-			uint64(r.spec.LayerValueLength(uint32(index))),
-			uint64(r.spec.LayerKVHeadCount(uint32(index))),
-			uint64(cache.Tokens),
-		)
+		keyWidth := uint64(r.spec.LayerKeyLength(uint32(index)))
+		valueWidth := uint64(r.spec.LayerValueLength(uint32(index)))
+		kvHeads := uint64(r.spec.LayerKVHeadCount(uint32(index)))
+		if r.spec.Architecture == "deepseek2" {
+			kvHeads = uint64(r.spec.HeadCount)
+			if index < len(r.weights.Layers) && r.weights.Layers[index].AttentionKB != nil {
+				keyWidth = uint64(r.spec.KVLoRARank + r.spec.RopeDimensionCount)
+				valueWidth = uint64(r.spec.KVLoRARank)
+				kvHeads = 1
+			}
+		}
+		keyShape := tensor.MustShape(keyWidth, kvHeads, uint64(cache.Tokens))
+		valueShape := tensor.MustShape(valueWidth, kvHeads, uint64(cache.Tokens))
 		if isQwenGDNArchitecture(r.spec.Architecture) &&
 			index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent {

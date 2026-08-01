@@ -83,6 +83,8 @@ type LayerWeights struct {
 	AttentionKVAMQA             *gguf.TensorInfo
 	AttentionKVANorm            *gguf.TensorInfo
 	AttentionKVB                *gguf.TensorInfo
+	AttentionKB                 *gguf.TensorInfo
+	AttentionVB                 *gguf.TensorInfo
 	VisualAttentionQKV          *gguf.TensorInfo
 	VisualAttentionOutput       *gguf.TensorInfo
 	VisualFeedForwardGate       *gguf.TensorInfo
@@ -799,9 +801,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			); err != nil {
 				return Weights{}, err
 			}
-		} else if spec.Architecture == "plm" || spec.Architecture == "minicpm3" {
+		} else if spec.Architecture == "plm" || spec.Architecture == "minicpm3" || spec.Architecture == "deepseek2" {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-			if spec.Architecture == "minicpm3" {
+			if spec.Architecture == "minicpm3" || (spec.Architecture == "deepseek2" && spec.QLoRARank > 0) {
 				if layer.AttentionQ, err = required(
 					prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank),
 				); err != nil {
@@ -822,7 +824,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			); err != nil {
 				return Weights{}, err
 			}
-			for name, shapeAndDestination := range map[string]struct {
+			mlaTensors := map[string]struct {
 				shape       []uint64
 				destination **gguf.TensorInfo
 			}{
@@ -833,11 +835,23 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				"attn_kv_a_norm.weight": {
 					[]uint64{uint64(spec.KVLoRARank)}, &layer.AttentionKVANorm,
 				},
-				"attn_kv_b.weight": {
-					[]uint64{uint64(spec.KVLoRARank), uint64(spec.HeadCount) * (nope + uint64(spec.ValueLength))},
-					&layer.AttentionKVB,
-				},
-			} {
+			}
+			if _, modern := tensors[prefix+"attn_k_b.weight"]; modern {
+				mlaTensors["attn_k_b.weight"] = struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{[]uint64{nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount)}, &layer.AttentionKB}
+				mlaTensors["attn_v_b.weight"] = struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{[]uint64{uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount)}, &layer.AttentionVB}
+			} else {
+				mlaTensors["attn_kv_b.weight"] = struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{[]uint64{uint64(spec.KVLoRARank), uint64(spec.HeadCount) * (nope + uint64(spec.ValueLength))}, &layer.AttentionKVB}
+			}
+			for name, shapeAndDestination := range mlaTensors {
 				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
 				if itemErr != nil {
 					return Weights{}, itemErr
@@ -1353,7 +1367,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			(spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(block)) ||
 			spec.Architecture == "gpt-oss" ||
 			(spec.Architecture == "hy_v3" && tensorSelectedMoE) ||
-			(spec.Architecture == "deepseek2-ocr" && block >= spec.LeadingDenseBlocks) ||
+			((spec.Architecture == "deepseek2" || spec.Architecture == "deepseek2-ocr") && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "cohere2moe" && block >= spec.LeadingDenseBlocks) ||
 			spec.IsInterleavedMoELayer(block) ||
 			(spec.Architecture == "dots1" && block >= spec.LeadingDenseBlocks) ||
@@ -1381,7 +1395,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				},
 			}
 			fusedGateUp := false
-			if spec.Architecture == "cohere2moe" || spec.Architecture == "deepseek2-ocr" || spec.Architecture == "gemma4" || spec.Architecture == "hy_v3" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
+			if spec.Architecture == "cohere2moe" || spec.Architecture == "deepseek2" || spec.Architecture == "deepseek2-ocr" || spec.Architecture == "gemma4" || spec.Architecture == "hy_v3" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
 				if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
 					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
 						item.Shape[1] != 2*uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
@@ -1651,7 +1665,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					*shapeAndDestination.destination = &item
 				}
 			}
-			if spec.Architecture == "deepseek2-ocr" {
+			if spec.Architecture == "deepseek2" || spec.Architecture == "deepseek2-ocr" {
 				if bias, ok := tensors[prefix+"exp_probs_b.bias"]; ok {
 					if bias.Type != dtype.F32 || bias.Dimensions != 1 || bias.Shape[0] != uint64(spec.ExpertCount) {
 						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", bias.Name, bias.Shape)

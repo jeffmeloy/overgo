@@ -1839,6 +1839,73 @@ func TestBuildPLMMLABlock(t *testing.T) {
 	}
 }
 
+func TestBuildDeepSeek2AbsorbedMLABlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{Architecture: "deepseek2", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
+		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6, LeadingDenseBlocks: 1, ExpertCount: 2, ExpertUsedCount: 1,
+		ExpertFeedForward: 6, SharedExpertFF: 6, ExpertWeightsScale: 1, ExpertGatingFunc: 1,
+		RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 4096,
+		YaRNExtFactor: 1, YaRNAttentionFactor: 1 / (1 + 0.1*float32(math.Log(4))),
+		YaRNBetaFast: 32, YaRNBetaSlow: 1, RopeYaRNLogMultiplier: 1}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:             builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:                builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionQNorm:            builder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionQB:               builder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
+		AttentionKVAMQA:           builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm:          builder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKB:               builder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
+		AttentionVB:               builder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
+		AttentionOutput:           builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionTemperatureScale: builder.Input("temperature", dtype.F32, tensor.MustShape(1, 1, 2)),
+		FeedForwardNorm:           builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:         builder.Input("router", dtype.F32, tensor.MustShape(8, 2)),
+		FeedForwardGateExperts:    builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 2)),
+		FeedForwardUpExperts:      builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 2)),
+		FeedForwardDownExperts:    builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 2)),
+		FeedForwardSharedGate:     builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedUp:       builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedDown:     builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8)),
+	}
+	result, err := BuildMLABlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Key.Shape.Equal(tensor.MustShape(5, 1, 2)) || !result.Value.Shape.Equal(tensor.MustShape(3, 1, 2)) {
+		t.Fatalf("unexpected absorbed cache shapes: key=%v value=%v", result.Key.Shape, result.Value.Shape)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grouped, moe, temperature := 0, false, false
+	attentionScale := float32(0)
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpGroupedMulMat:
+			grouped++
+		case tensor.OpMoE:
+			moe = true
+		case tensor.OpAttention:
+			attentionScale = node.Attrs.(tensor.AttentionAttributes).Scale
+		case tensor.OpMultiply:
+			if len(node.Inputs) == 2 && (node.Inputs[0] == weights.AttentionTemperatureScale || node.Inputs[1] == weights.AttentionTemperatureScale) {
+				temperature = true
+			}
+		}
+	}
+	if grouped != 2 || !moe || !temperature {
+		t.Fatalf("absorbed graph grouped=%d moe=%v temperature=%v", grouped, moe, temperature)
+	}
+	wantScale := float32(math.Pow(1+0.1*math.Log(4), 2) / math.Sqrt(6))
+	if math.Abs(float64(attentionScale-wantScale)) > 1e-6 {
+		t.Fatalf("attention scale = %v, want %v", attentionScale, wantScale)
+	}
+}
+
 func TestBuildMiniCPM3MLABlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{Architecture: "minicpm3", EmbeddingLength: 8, FeedForwardLength: 12,

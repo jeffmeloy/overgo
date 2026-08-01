@@ -155,6 +155,7 @@ type MoEAttributes struct {
 	Routing           MoERouting
 	Activation        MoEActivation
 	Gated             bool
+	FusedGateUp       bool
 }
 
 type MoERouting uint32
@@ -421,7 +422,7 @@ func (b *Builder) MoE(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU)
+		MoERoutingSoftmax, MoEActivationSiLU, false)
 }
 
 func (b *Builder) MoEUngated(
@@ -431,7 +432,7 @@ func (b *Builder) MoEUngated(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, nil, up, down, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU)
+		MoERoutingSoftmax, MoEActivationSiLU, false)
 }
 
 // MoESoftmaxWithSelectionBias: biased selection; unbiased route weights.
@@ -442,7 +443,7 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU)
+		MoERoutingSoftmax, MoEActivationSiLU, false)
 }
 
 // MoESigmoid: sigmoid routes; optional selection bias.
@@ -453,7 +454,18 @@ func (b *Builder) MoESigmoid(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
-		MoERoutingSigmoid, MoEActivationSiLU)
+		MoERoutingSigmoid, MoEActivationSiLU, false)
+}
+
+// MoESigmoidFusedGateUp: sigmoid top-k; fused expert gate/up storage.
+func (b *Builder) MoESigmoidFusedGateUp(
+	input, router, gateUp, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, input, router, nil, gateUp, down, selectionBias, topK, normalizeTopKProb, scale,
+		MoERoutingSigmoid, MoEActivationSiLU, true)
 }
 
 // MoEReLUWithRouterInput: split router input; gated ReLU experts.
@@ -465,7 +477,7 @@ func (b *Builder) MoEReLUWithRouterInput(
 	routing MoERouting,
 ) *Tensor {
 	return b.moe(input, routerInput, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
-		routing, MoEActivationReLU)
+		routing, MoEActivationReLU, false)
 }
 
 // MoEGELU: softmax top-k GELU/GEGLU experts.
@@ -476,7 +488,7 @@ func (b *Builder) MoEGELU(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationGELU)
+		MoERoutingSoftmax, MoEActivationGELU, false)
 }
 
 func (b *Builder) moe(
@@ -486,6 +498,7 @@ func (b *Builder) moe(
 	scale float32,
 	routing MoERouting,
 	activation MoEActivation,
+	fusedGateUp bool,
 ) *Tensor {
 	if b.err != nil {
 		return nil
@@ -512,6 +525,13 @@ func (b *Builder) moe(
 	hidden := input.Shape.Dims[0]
 	experts := router.Shape.Dims[1]
 	intermediate := up.Shape.Dims[1]
+	if fusedGateUp {
+		if gate != nil || intermediate%2 != 0 {
+			b.setError(errors.New("MoE fused gate/up dimensions are invalid"))
+			return nil
+		}
+		intermediate /= 2
+	}
 	if hidden == 0 || experts == 0 || experts > math.MaxUint32 || topK == 0 ||
 		uint64(topK) > experts || topK > 16 || scale == 0 ||
 		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) ||
@@ -560,7 +580,7 @@ func (b *Builder) moe(
 		inputs, MoEAttributes{
 			Experts: uint32(experts), TopK: topK,
 			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing,
-			Activation: activation, Gated: gate != nil,
+			Activation: activation, Gated: gate != nil || fusedGateUp, FusedGateUp: fusedGateUp,
 		})
 }
 

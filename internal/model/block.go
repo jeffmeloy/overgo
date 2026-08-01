@@ -10,61 +10,62 @@ import (
 
 // LayerGraphWeights: graph inputs for one dense Llama/Qwen3 block
 type LayerGraphWeights struct {
-	AttentionNorm           *tensor.Tensor
-	AttentionNormBias       *tensor.Tensor
-	AttentionNorm2          *tensor.Tensor
-	AttentionNorm2Bias      *tensor.Tensor
-	AttentionQ              *tensor.Tensor
-	AttentionQB             *tensor.Tensor
-	AttentionK              *tensor.Tensor
-	AttentionV              *tensor.Tensor
-	AttentionOutput         *tensor.Tensor
-	AttentionQScale         *tensor.Tensor
-	AttentionKScale         *tensor.Tensor
-	AttentionVScale         *tensor.Tensor
-	AttentionOutputScale    *tensor.Tensor
-	AttentionSubNorm        *tensor.Tensor
-	AttentionQBias          *tensor.Tensor
-	AttentionKBias          *tensor.Tensor
-	AttentionVBias          *tensor.Tensor
-	AttentionOutputBias     *tensor.Tensor
-	AttentionQNorm          *tensor.Tensor
-	AttentionKNorm          *tensor.Tensor
-	AttentionQNormBias      *tensor.Tensor
-	AttentionKNormBias      *tensor.Tensor
-	AttentionPostNorm       *tensor.Tensor
-	AttentionRelativeBias   *tensor.Tensor
-	AttentionOutputGate     *tensor.Tensor
-	RopeFactors             *tensor.Tensor
-	FeedForwardNorm         *tensor.Tensor
-	FeedForwardNormBias     *tensor.Tensor
-	FeedForwardExpertNorm   *tensor.Tensor
-	FeedForwardGate         *tensor.Tensor
-	FeedForwardUp           *tensor.Tensor
-	FeedForwardDown         *tensor.Tensor
-	FeedForwardGateScale    *tensor.Tensor
-	FeedForwardUpScale      *tensor.Tensor
-	FeedForwardDownScale    *tensor.Tensor
-	FeedForwardSubNorm      *tensor.Tensor
-	FeedForwardGateBias     *tensor.Tensor
-	FeedForwardUpBias       *tensor.Tensor
-	FeedForwardDownBias     *tensor.Tensor
-	FeedForwardPostNorm     *tensor.Tensor
-	FeedForwardRouter       *tensor.Tensor
-	FeedForwardGateExperts  *tensor.Tensor
-	FeedForwardUpExperts    *tensor.Tensor
-	FeedForwardDownExperts  *tensor.Tensor
-	FeedForwardExpertBias   *tensor.Tensor
-	FeedForwardSharedGate   *tensor.Tensor
-	FeedForwardSharedUp     *tensor.Tensor
-	FeedForwardSharedDown   *tensor.Tensor
-	FeedForwardSharedRouter *tensor.Tensor
-	ShortConvKernel         *tensor.Tensor
-	ShortConvInput          *tensor.Tensor
-	ShortConvOutput         *tensor.Tensor
-	AttentionKVAMQA         *tensor.Tensor
-	AttentionKVANorm        *tensor.Tensor
-	AttentionKVB            *tensor.Tensor
+	AttentionNorm            *tensor.Tensor
+	AttentionNormBias        *tensor.Tensor
+	AttentionNorm2           *tensor.Tensor
+	AttentionNorm2Bias       *tensor.Tensor
+	AttentionQ               *tensor.Tensor
+	AttentionQB              *tensor.Tensor
+	AttentionK               *tensor.Tensor
+	AttentionV               *tensor.Tensor
+	AttentionOutput          *tensor.Tensor
+	AttentionQScale          *tensor.Tensor
+	AttentionKScale          *tensor.Tensor
+	AttentionVScale          *tensor.Tensor
+	AttentionOutputScale     *tensor.Tensor
+	AttentionSubNorm         *tensor.Tensor
+	AttentionQBias           *tensor.Tensor
+	AttentionKBias           *tensor.Tensor
+	AttentionVBias           *tensor.Tensor
+	AttentionOutputBias      *tensor.Tensor
+	AttentionQNorm           *tensor.Tensor
+	AttentionKNorm           *tensor.Tensor
+	AttentionQNormBias       *tensor.Tensor
+	AttentionKNormBias       *tensor.Tensor
+	AttentionPostNorm        *tensor.Tensor
+	AttentionRelativeBias    *tensor.Tensor
+	AttentionOutputGate      *tensor.Tensor
+	RopeFactors              *tensor.Tensor
+	FeedForwardNorm          *tensor.Tensor
+	FeedForwardNormBias      *tensor.Tensor
+	FeedForwardExpertNorm    *tensor.Tensor
+	FeedForwardGate          *tensor.Tensor
+	FeedForwardUp            *tensor.Tensor
+	FeedForwardDown          *tensor.Tensor
+	FeedForwardGateScale     *tensor.Tensor
+	FeedForwardUpScale       *tensor.Tensor
+	FeedForwardDownScale     *tensor.Tensor
+	FeedForwardSubNorm       *tensor.Tensor
+	FeedForwardGateBias      *tensor.Tensor
+	FeedForwardUpBias        *tensor.Tensor
+	FeedForwardDownBias      *tensor.Tensor
+	FeedForwardPostNorm      *tensor.Tensor
+	FeedForwardRouter        *tensor.Tensor
+	FeedForwardGateUpExperts *tensor.Tensor
+	FeedForwardGateExperts   *tensor.Tensor
+	FeedForwardUpExperts     *tensor.Tensor
+	FeedForwardDownExperts   *tensor.Tensor
+	FeedForwardExpertBias    *tensor.Tensor
+	FeedForwardSharedGate    *tensor.Tensor
+	FeedForwardSharedUp      *tensor.Tensor
+	FeedForwardSharedDown    *tensor.Tensor
+	FeedForwardSharedRouter  *tensor.Tensor
+	ShortConvKernel          *tensor.Tensor
+	ShortConvInput           *tensor.Tensor
+	ShortConvOutput          *tensor.Tensor
+	AttentionKVAMQA          *tensor.Tensor
+	AttentionKVANorm         *tensor.Tensor
+	AttentionKVB             *tensor.Tensor
 
 	AttentionQKV     *tensor.Tensor
 	AttentionQKVBias *tensor.Tensor
@@ -514,6 +515,7 @@ func BuildDenseBlockCachedForLayer(
 	isAFMoE := spec.Architecture == "afmoe"
 	isBailingMoE := spec.Architecture == "bailingmoe"
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
+	isCohere2MoE := spec.Architecture == "cohere2moe"
 	isDeepSeek := spec.Architecture == "deepseek"
 	isDeci := spec.Architecture == "deci"
 	isDBRX := spec.Architecture == "dbrx"
@@ -546,15 +548,24 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDBRX && !isDOTS1 && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
-		if (!isGraniteMoE && !isGrok) || weights.FeedForwardGateExperts != nil {
-			required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+		if isCohere2MoE && weights.FeedForwardGateUpExperts != nil {
+			required["feed-forward fused expert gate/up"] = weights.FeedForwardGateUpExperts
+		} else {
+			if (!isGraniteMoE && !isGrok) || weights.FeedForwardGateExperts != nil {
+				required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+			}
+			required["feed-forward expert up"] = weights.FeedForwardUpExperts
 		}
-		required["feed-forward expert up"] = weights.FeedForwardUpExperts
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		if isCohere2MoE && spec.SharedExpertFF > 0 {
+			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+			required["feed-forward shared up"] = weights.FeedForwardSharedUp
+			required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		}
 		if isLaguna || isAFMoE {
 			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
 			if spec.SharedExpertFF > 0 {
@@ -868,7 +879,7 @@ func BuildDenseBlockCachedForLayer(
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
 		}
-		if spec.Architecture == "cohere2" && spec.IsSlidingLayer(layerIndex) {
+		if (spec.Architecture == "cohere2" || isCohere2MoE) && spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
 		}
 		if weights.RopeFactors != nil {
@@ -1109,11 +1120,33 @@ func BuildDenseBlockCachedForLayer(
 			}
 		}
 	}
-	// Cohere decoders leave normalized pointing at block input so attention
-	// and FFN run in parallel before both branches are added to residual
+	// Cohere: shared normalized input; parallel attention/FFN.
 	if usesExperts {
 		var feedForward *tensor.Tensor
-		if isGrok {
+		if isCohere2MoE {
+			if weights.FeedForwardGateUpExperts != nil {
+				feedForward = builder.MoESigmoidFusedGateUp(
+					normalized, weights.FeedForwardRouter, weights.FeedForwardGateUpExperts,
+					weights.FeedForwardDownExperts, nil, spec.ExpertUsedCount,
+					spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
+				)
+			} else {
+				feedForward = builder.MoESigmoid(
+					normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, nil, spec.ExpertUsedCount,
+					spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
+				)
+			}
+			if spec.SharedExpertFF > 0 {
+				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+				shared := builder.MulMat(
+					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+				)
+				feedForward = builder.Scale(builder.Add(feedForward, shared), 0.5)
+			}
+		} else if isGrok {
 			feedForward = builder.MoEGELU(
 				normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
 				weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,

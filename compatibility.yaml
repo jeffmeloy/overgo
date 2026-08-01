@@ -1257,6 +1257,30 @@ models:
       - swiglu
       - tied-output
     real_model_validation: pending-fixture
+  cohere2moe:
+    status: experimental
+    constraints:
+      - ordinary-decoder-trunk
+      - nextn-mtp-prediction-pending
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - rmsnorm-or-weight-only-layernorm
+      - parallel-attention-ffn-residual
+      - leading-dense-swiglu-blocks
+      - scalar-or-per-layer-sliding-window-pattern
+      - dense-prefix-and-sliding-layer-normal-rope
+      - periodic-full-attention-without-rope
+      - normalized-or-unnormalized-sigmoid-top-k-routing
+      - separate-or-fused-gate-up-swiglu-experts
+      - optional-shared-experts-with-half-averaging
+      - direct-logit-scale
+      - optional-tied-output
+      - preserved-unexecuted-nextn-mtp-layers
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   dbrx:
     status: experimental
     tokenizers:

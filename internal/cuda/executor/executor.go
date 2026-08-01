@@ -1247,7 +1247,7 @@ func launchNode(
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
 		wantInputs := 5
-		if attributes.Gated {
+		if attributes.Gated && !attributes.FusedGateUp {
 			wantInputs = 6
 		}
 		if !ok || (len(node.Inputs) != wantInputs && len(node.Inputs) != wantInputs+1) ||
@@ -1270,7 +1270,7 @@ func launchNode(
 		}
 		next := 3
 		var gate driver.DevicePtr
-		if attributes.Gated {
+		if attributes.Gated && !attributes.FusedGateUp {
 			gate = pointers[node.Inputs[next]]
 			next++
 		}
@@ -1284,7 +1284,11 @@ func launchNode(
 		router := pointers[node.Inputs[2]]
 		up := pointers[upNode]
 		down := pointers[downNode]
-		if upNode.Type != downNode.Type || attributes.Gated && node.Inputs[3].Type != upNode.Type {
+		if attributes.FusedGateUp {
+			gate = up
+			intermediate /= 2
+		}
+		if upNode.Type != downNode.Type || attributes.Gated && !attributes.FusedGateUp && node.Inputs[3].Type != upNode.Type {
 			return errors.New("MoE expert storage types differ")
 		}
 		var expertStorage uint32
@@ -1312,13 +1316,17 @@ func launchNode(
 		if attributes.Gated {
 			gated = 1
 		}
+		var fusedGateUp uint32
+		if attributes.FusedGateUp {
+			fusedGateUp = 1
+		}
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&input), unsafe.Pointer(&routerInput), unsafe.Pointer(&router), unsafe.Pointer(&gate),
 			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&output),
 			unsafe.Pointer(&hidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
 			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
-			unsafe.Pointer(&gated), unsafe.Pointer(&activation),
+			unsafe.Pointer(&gated), unsafe.Pointer(&fusedGateUp), unsafe.Pointer(&activation),
 			unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.moe, count, args)

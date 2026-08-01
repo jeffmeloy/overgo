@@ -10,62 +10,63 @@ import (
 
 // LayerWeights: initial dense transformer weight set
 type LayerWeights struct {
-	Recurrent               bool
-	AttentionNorm           gguf.TensorInfo
-	AttentionNormBias       *gguf.TensorInfo
-	AttentionNorm2          *gguf.TensorInfo
-	AttentionNorm2Bias      *gguf.TensorInfo
-	AttentionQ              gguf.TensorInfo
-	AttentionQB             *gguf.TensorInfo
-	AttentionK              gguf.TensorInfo
-	AttentionV              gguf.TensorInfo
-	AttentionOutput         gguf.TensorInfo
-	AttentionQScale         *gguf.TensorInfo
-	AttentionKScale         *gguf.TensorInfo
-	AttentionVScale         *gguf.TensorInfo
-	AttentionOutputScale    *gguf.TensorInfo
-	AttentionSubNorm        *gguf.TensorInfo
-	AttentionQBias          *gguf.TensorInfo
-	AttentionKBias          *gguf.TensorInfo
-	AttentionVBias          *gguf.TensorInfo
-	AttentionOutputBias     *gguf.TensorInfo
-	AttentionQNorm          *gguf.TensorInfo
-	AttentionKNorm          *gguf.TensorInfo
-	AttentionQNormBias      *gguf.TensorInfo
-	AttentionKNormBias      *gguf.TensorInfo
-	AttentionPostNorm       *gguf.TensorInfo
-	AttentionRelativeBias   *gguf.TensorInfo
-	AttentionOutputGate     *gguf.TensorInfo
-	RopeFactors             *gguf.TensorInfo
-	FeedForwardNorm         gguf.TensorInfo
-	FeedForwardNormBias     *gguf.TensorInfo
-	FeedForwardExpertNorm   *gguf.TensorInfo
-	FeedForwardGate         gguf.TensorInfo
-	FeedForwardUp           gguf.TensorInfo
-	FeedForwardDown         gguf.TensorInfo
-	FeedForwardGateScale    *gguf.TensorInfo
-	FeedForwardUpScale      *gguf.TensorInfo
-	FeedForwardDownScale    *gguf.TensorInfo
-	FeedForwardSubNorm      *gguf.TensorInfo
-	FeedForwardGateBias     *gguf.TensorInfo
-	FeedForwardUpBias       *gguf.TensorInfo
-	FeedForwardDownBias     *gguf.TensorInfo
-	FeedForwardPostNorm     *gguf.TensorInfo
-	FeedForwardRouter       *gguf.TensorInfo
-	FeedForwardGateExperts  *gguf.TensorInfo
-	FeedForwardUpExperts    *gguf.TensorInfo
-	FeedForwardDownExperts  *gguf.TensorInfo
-	FeedForwardExpertBias   *gguf.TensorInfo
-	FeedForwardSharedGate   *gguf.TensorInfo
-	FeedForwardSharedUp     *gguf.TensorInfo
-	FeedForwardSharedDown   *gguf.TensorInfo
-	FeedForwardSharedRouter *gguf.TensorInfo
-	ShortConvKernel         *gguf.TensorInfo
-	ShortConvInput          *gguf.TensorInfo
-	ShortConvOutput         *gguf.TensorInfo
-	AttentionKVAMQA         *gguf.TensorInfo
-	AttentionKVANorm        *gguf.TensorInfo
-	AttentionKVB            *gguf.TensorInfo
+	Recurrent                bool
+	AttentionNorm            gguf.TensorInfo
+	AttentionNormBias        *gguf.TensorInfo
+	AttentionNorm2           *gguf.TensorInfo
+	AttentionNorm2Bias       *gguf.TensorInfo
+	AttentionQ               gguf.TensorInfo
+	AttentionQB              *gguf.TensorInfo
+	AttentionK               gguf.TensorInfo
+	AttentionV               gguf.TensorInfo
+	AttentionOutput          gguf.TensorInfo
+	AttentionQScale          *gguf.TensorInfo
+	AttentionKScale          *gguf.TensorInfo
+	AttentionVScale          *gguf.TensorInfo
+	AttentionOutputScale     *gguf.TensorInfo
+	AttentionSubNorm         *gguf.TensorInfo
+	AttentionQBias           *gguf.TensorInfo
+	AttentionKBias           *gguf.TensorInfo
+	AttentionVBias           *gguf.TensorInfo
+	AttentionOutputBias      *gguf.TensorInfo
+	AttentionQNorm           *gguf.TensorInfo
+	AttentionKNorm           *gguf.TensorInfo
+	AttentionQNormBias       *gguf.TensorInfo
+	AttentionKNormBias       *gguf.TensorInfo
+	AttentionPostNorm        *gguf.TensorInfo
+	AttentionRelativeBias    *gguf.TensorInfo
+	AttentionOutputGate      *gguf.TensorInfo
+	RopeFactors              *gguf.TensorInfo
+	FeedForwardNorm          gguf.TensorInfo
+	FeedForwardNormBias      *gguf.TensorInfo
+	FeedForwardExpertNorm    *gguf.TensorInfo
+	FeedForwardGate          gguf.TensorInfo
+	FeedForwardUp            gguf.TensorInfo
+	FeedForwardDown          gguf.TensorInfo
+	FeedForwardGateScale     *gguf.TensorInfo
+	FeedForwardUpScale       *gguf.TensorInfo
+	FeedForwardDownScale     *gguf.TensorInfo
+	FeedForwardSubNorm       *gguf.TensorInfo
+	FeedForwardGateBias      *gguf.TensorInfo
+	FeedForwardUpBias        *gguf.TensorInfo
+	FeedForwardDownBias      *gguf.TensorInfo
+	FeedForwardPostNorm      *gguf.TensorInfo
+	FeedForwardRouter        *gguf.TensorInfo
+	FeedForwardGateUpExperts *gguf.TensorInfo
+	FeedForwardGateExperts   *gguf.TensorInfo
+	FeedForwardUpExperts     *gguf.TensorInfo
+	FeedForwardDownExperts   *gguf.TensorInfo
+	FeedForwardExpertBias    *gguf.TensorInfo
+	FeedForwardSharedGate    *gguf.TensorInfo
+	FeedForwardSharedUp      *gguf.TensorInfo
+	FeedForwardSharedDown    *gguf.TensorInfo
+	FeedForwardSharedRouter  *gguf.TensorInfo
+	ShortConvKernel          *gguf.TensorInfo
+	ShortConvInput           *gguf.TensorInfo
+	ShortConvOutput          *gguf.TensorInfo
+	AttentionKVAMQA          *gguf.TensorInfo
+	AttentionKVANorm         *gguf.TensorInfo
+	AttentionKVB             *gguf.TensorInfo
 
 	AttentionQKV     *gguf.TensorInfo
 	AttentionQKVBias *gguf.TensorInfo
@@ -644,7 +645,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -966,6 +967,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			spec.Architecture == "granitemoe" ||
+			(spec.Architecture == "cohere2moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "dots1" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||
@@ -990,7 +992,19 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					&layer.FeedForwardDownExperts,
 				},
 			}
-			if spec.Architecture != "granitemoe" && spec.Architecture != "grok" {
+			fusedGateUp := false
+			if spec.Architecture == "cohere2moe" {
+				if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
+					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
+						item.Shape[1] != 2*uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+					}
+					layer.FeedForwardGateUpExperts = &item
+					delete(expertTensors, "ffn_up_exps.weight")
+					fusedGateUp = true
+				}
+			}
+			if spec.Architecture != "granitemoe" && spec.Architecture != "grok" && !fusedGateUp {
 				expertTensors["ffn_gate_exps.weight"] = struct {
 					shape       []uint64
 					destination **gguf.TensorInfo
@@ -1063,6 +1077,22 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if spec.Architecture == "hunyuan-moe" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "cohere2moe" && spec.SharedExpertFF > 0 {
 				for name, shapeAndDestination := range map[string]struct {
 					shape       []uint64
 					destination **gguf.TensorInfo

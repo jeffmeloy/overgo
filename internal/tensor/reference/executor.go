@@ -826,7 +826,7 @@ func repeatHeads(shape tensor.Shape, input Value) Value {
 
 func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (Value, error) {
 	wantInputs := 5
-	if attributes.Gated {
+	if attributes.Gated && !attributes.FusedGateUp {
 		wantInputs = 6
 	}
 	if len(inputs) != wantInputs && len(inputs) != wantInputs+1 {
@@ -835,11 +835,14 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	input, routerInput, router := inputs[0], inputs[1], inputs[2]
 	var gate Value
 	next := 3
-	if attributes.Gated {
+	if attributes.Gated && !attributes.FusedGateUp {
 		gate = inputs[next]
 		next++
 	}
 	up, down := inputs[next], inputs[next+1]
+	if attributes.FusedGateUp {
+		gate = up
+	}
 	var selectionBias []float32
 	if len(inputs) == wantInputs+1 {
 		selectionBias = inputs[wantInputs].Data
@@ -849,6 +852,9 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	experts := int(attributes.Experts)
 	topK := int(attributes.TopK)
 	intermediate := int(up.Shape.Dims[1])
+	if attributes.FusedGateUp {
+		intermediate /= 2
+	}
 	if hidden <= 0 || tokens <= 0 || experts <= 0 || topK <= 0 || topK > experts {
 		return Value{}, errors.New("invalid MoE dimensions")
 	}
@@ -918,13 +924,18 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 			for slot, expert := range selected {
 				var expertOutput float64
 				for inner := 0; inner < intermediate; inner++ {
-					base := (expert*intermediate + inner) * hidden
+					gateBase := (expert*intermediate + inner) * hidden
+					upBase := gateBase
+					if attributes.FusedGateUp {
+						gateBase = (expert*2*intermediate + inner) * hidden
+						upBase = gateBase + intermediate*hidden
+					}
 					var gateDot, upDot float64
 					for channel := 0; channel < hidden; channel++ {
 						if attributes.Gated {
-							gateDot += float64(x[channel]) * float64(gate.Data[base+channel])
+							gateDot += float64(x[channel]) * float64(gate.Data[gateBase+channel])
 						}
-						upDot += float64(x[channel]) * float64(up.Data[base+channel])
+						upDot += float64(x[channel]) * float64(up.Data[upBase+channel])
 					}
 					var activation float64
 					switch attributes.Activation {

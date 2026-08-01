@@ -166,6 +166,23 @@ func TestBuilderSigmoidMoEWithSelectionBias(t *testing.T) {
 	}
 }
 
+func TestBuilderSigmoidMoEWithFusedGateUp(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, MustShape(2, 3))
+	gateUp := builder.Input("gate_up", dtype.F32, MustShape(2, 8, 3))
+	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
+	output := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1.5)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(MoEAttributes)
+	if !attributes.Gated || !attributes.FusedGateUp || attributes.Routing != MoERoutingSigmoid ||
+		len(output.Inputs) != 5 {
+		t.Fatalf("unexpected fused sigmoid MoE graph: %+v", output)
+	}
+}
+
 func TestBuilderSoftmaxMoEWithSelectionBias(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(2, 1))

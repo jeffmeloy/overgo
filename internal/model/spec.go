@@ -126,6 +126,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "dbrx" &&
 		architecture != "dots1" &&
 		architecture != "cohere2" &&
+		architecture != "cohere2moe" &&
 		architecture != "command-r" &&
 		architecture != "jais2" &&
 		architecture != "afmoe" &&
@@ -399,7 +400,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, errors.New("Refact expert layers are not supported")
 		}
 	}
-	if spec.UsesLayerNorm() || spec.UsesWeightOnlyLayerNorm() || spec.UsesUnweightedLayerNorm() {
+	if architecture == "cohere2moe" {
+		if value, ok := optional[float32](values, prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32); ok {
+			spec.RMSNormEpsilon = value
+		} else if value, ok := optional[float32](values, prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32); ok {
+			spec.LayerNormEpsilon = value
+		} else {
+			return Spec{}, errors.New("Cohere2-MoE norm epsilon is missing")
+		}
+	} else if spec.UsesLayerNorm() || spec.UsesWeightOnlyLayerNorm() || spec.UsesUnweightedLayerNorm() {
 		if spec.LayerNormEpsilon, err = required[float32](
 			values,
 			prefix+"attention.layer_norm_epsilon",
@@ -559,7 +568,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, errors.New("Granite vision deepstack is not supported")
 		}
 	}
-	if architecture == "cohere2" {
+	if architecture == "cohere2" || architecture == "cohere2moe" {
 		if spec.LogitScale, err = required[float32](
 			values,
 			prefix+"logit_scale",
@@ -574,8 +583,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); err != nil {
 			return Spec{}, err
 		}
-		if pattern, ok := values[prefix+"attention.sliding_window_pattern"]; ok &&
-			pattern.Type != gguf.ValueTypeUint32 {
+		if pattern, ok := values[prefix+"attention.sliding_window_pattern"]; ok && pattern.Type != gguf.ValueTypeUint32 &&
+			(architecture != "cohere2moe" || pattern.Type != gguf.ValueTypeArray || pattern.ArrayType != gguf.ValueTypeBool) {
 			return Spec{}, errors.New("Cohere2 array sliding attention patterns are not supported")
 		}
 	}
@@ -992,7 +1001,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1020,6 +1029,36 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
 		); ok {
 			spec.ExpertWeightsScale = value
+		}
+	}
+	if architecture == "cohere2moe" {
+		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("Cohere2-MoE NextN/MTP layer count is invalid")
+			}
+			spec.BlockCount -= nextN
+		}
+		if spec.LeadingDenseBlocks, err = required[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.ExpertGatingFunc = 2
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
+			spec.ExpertGatingFunc = value
+		}
+		if value, ok := optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool); ok {
+			spec.ExpertWeightsNorm = value
+		}
+		if value, ok := optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); ok {
+			spec.SharedExpertCount = value
+		}
+		if spec.SharedExpertCount > 0 {
+			spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+			if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
+				spec.SharedExpertFF = value
+			}
 		}
 	}
 	if architecture == "mellum" {
@@ -1329,7 +1368,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if architecture == "gemma2" || architecture == "gemma3" ||
-		architecture == "olmo2" || architecture == "cohere2" {
+		architecture == "olmo2" || architecture == "cohere2" || architecture == "cohere2moe" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
 		if architecture == "gemma3" {
 			spec.RopeFrequencySWA = 10000
@@ -1365,6 +1404,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				gguf.ValueTypeUint32,
 			); ok {
 				spec.SlidingPattern = value
+			}
+			if architecture == "cohere2moe" {
+				if layers, ok, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
+					return Spec{}, layersErr
+				} else if ok {
+					if len(layers) != int(spec.BlockCount) {
+						return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
+					}
+					spec.SlidingLayers = append([]bool(nil), layers...)
+				}
 			}
 			if architecture == "cohere2" {
 				spec.NoRopeLayerStep = spec.SlidingPattern
@@ -1444,6 +1493,10 @@ func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
+	if s.Architecture == "cohere2moe" {
+		return !s.RopeDisabled && block < s.BlockCount &&
+			(block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
+	}
 	if s.Architecture == "smallthinker" {
 		return !s.RopeDisabled && block < s.BlockCount &&
 			(s.SlidingWindow == 0 || s.NoRopeLayerStep == 0 || block%s.NoRopeLayerStep != 0)
@@ -1468,7 +1521,7 @@ func (s Spec) InputEmbeddingScale() float32 {
 
 func (s Spec) OutputLogitMultiplier() float32 {
 	if s.LogitScale > 0 {
-		if s.Architecture == "cohere2" || s.Architecture == "command-r" || s.Architecture == "grok" {
+		if s.Architecture == "cohere2" || s.Architecture == "cohere2moe" || s.Architecture == "command-r" || s.Architecture == "grok" {
 			return s.LogitScale
 		}
 		return 1 / s.LogitScale
@@ -1498,7 +1551,8 @@ func (s Spec) UsesUnweightedLayerNorm() bool {
 }
 
 func (s Spec) UsesWeightOnlyLayerNorm() bool {
-	return s.Architecture == "cohere2" || s.Architecture == "command-r"
+	return s.Architecture == "cohere2" || s.Architecture == "command-r" ||
+		(s.Architecture == "cohere2moe" && s.LayerNormEpsilon > 0)
 }
 
 func (s Spec) validate() error {
@@ -1973,7 +2027,7 @@ func (s Spec) validate() error {
 			return errors.New("OLMo2 sliding attention pattern must be at least 2")
 		}
 	}
-	if s.Architecture == "cohere2" {
+	if s.Architecture == "cohere2" || s.Architecture == "cohere2moe" {
 		switch {
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0:
@@ -1985,6 +2039,12 @@ func (s Spec) validate() error {
 		case s.SlidingPattern < 2:
 			return errors.New("Cohere2 sliding attention pattern must be at least 2")
 		}
+	}
+	if s.Architecture == "cohere2moe" &&
+		(s.LeadingDenseBlocks >= s.BlockCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
+			s.ExpertUsedCount > s.ExpertCount || s.ExpertFeedForward == 0 ||
+			(s.ExpertGatingFunc != 2) || (s.SharedExpertCount > 0 && s.SharedExpertFF == 0)) {
+		return errors.New("Cohere2-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "stablelm" &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
@@ -2118,7 +2178,7 @@ func hasPostNorm(architecture string) bool {
 func usesSlidingAttention(architecture string) bool {
 	return architecture == "afmoe" || (architecture == "gemma2" || architecture == "gemma3") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" ||
-		architecture == "cohere2" || architecture == "mellum" || architecture == "smallthinker"
+		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "smallthinker"
 }
 
 func usesPostOnlyNorm(architecture string) bool {
@@ -2136,6 +2196,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "bailingmoe" ||
 		architecture == "deepseek" ||
 		architecture == "cohere2" ||
+		architecture == "cohere2moe" ||
 		architecture == "command-r" ||
 		architecture == "chameleon" ||
 		architecture == "chatglm" ||
@@ -2152,7 +2213,7 @@ func usesNormalRoPE(architecture string) bool {
 }
 
 func usesParallelResidual(architecture string) bool {
-	return architecture == "cohere2" || architecture == "command-r" || architecture == "falcon" ||
+	return architecture == "cohere2" || architecture == "cohere2moe" || architecture == "command-r" || architecture == "falcon" ||
 		architecture == "phi2" || architecture == "plamo"
 }
 

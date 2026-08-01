@@ -181,6 +181,18 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	gateValue := patternedValue(gateShape, 7, 0.01, 0)
 	upValue := patternedValue(gateShape, 11, 0.01, 0)
 	downValue := patternedValue(downShape, 13, 0.01, 0)
+	gateUpShape := tensor.MustShape(width, 2*width, 2)
+	gateUpData := make([]float32, 4*width*width)
+	expertSize := int(width * width)
+	for expert := range 2 {
+		destination := expert * 2 * expertSize
+		copy(gateUpData[destination:destination+expertSize], gateValue.Data[expert*expertSize:(expert+1)*expertSize])
+		copy(gateUpData[destination+expertSize:destination+2*expertSize], upValue.Data[expert*expertSize:(expert+1)*expertSize])
+	}
+	gateUpValue, err := reference.NewValue(gateUpShape, gateUpData)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	quantize := func(value reference.Value) ([]byte, reference.Value) {
 		t.Helper()
@@ -201,6 +213,7 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	gateStorage, gateReference := quantize(gateValue)
 	upStorage, upReference := quantize(upValue)
 	downStorage, downReference := quantize(downValue)
+	gateUpStorage, gateUpReference := quantize(gateUpValue)
 
 	referenceBuilder := tensor.NewBuilder()
 	referenceInput := referenceBuilder.Input("input", dtype.F32, inputShape)
@@ -208,17 +221,22 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	referenceGate := referenceBuilder.Input("gate", dtype.F32, gateShape)
 	referenceUp := referenceBuilder.Input("up", dtype.F32, gateShape)
 	referenceDown := referenceBuilder.Input("down", dtype.F32, downShape)
+	referenceGateUp := referenceBuilder.Input("gate_up", dtype.F32, gateUpShape)
 	referenceOutput := referenceBuilder.MoE(
 		referenceInput, referenceRouter, referenceGate, referenceUp, referenceDown, 2, true, 1.25,
 	)
+	referenceFusedOutput := referenceBuilder.MoESigmoidFusedGateUp(
+		referenceInput, referenceRouter, referenceGateUp, referenceDown, nil, 2, true, 1.25,
+	)
 	want, err := reference.Execute(
-		[]*tensor.Tensor{referenceOutput},
+		[]*tensor.Tensor{referenceOutput, referenceFusedOutput},
 		map[*tensor.Tensor]reference.Value{
 			referenceInput:  inputValue,
 			referenceRouter: routerValue,
 			referenceGate:   gateReference,
 			referenceUp:     upReference,
 			referenceDown:   downReference,
+			referenceGateUp: gateUpReference,
 		},
 	)
 	if err != nil {
@@ -231,7 +249,9 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	gate := builder.Input("gate", dataType, gateShape)
 	up := builder.Input("up", dataType, gateShape)
 	down := builder.Input("down", dataType, downShape)
+	gateUp := builder.Input("gate_up", dataType, gateUpShape)
 	output := builder.MoE(input, router, gate, up, down, 2, true, 1.25)
+	fusedOutput := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1.25)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -241,11 +261,11 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr, 3)
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr, 4)
 	storages := []struct {
 		node *tensor.Tensor
 		data []byte
-	}{{gate, gateStorage}, {up, upStorage}, {down, downStorage}}
+	}{{gate, gateStorage}, {up, upStorage}, {down, downStorage}, {gateUp, gateUpStorage}}
 	var allocations []driver.DevicePtr
 	err = worker.Do(context.Background(), func(state *device.State) error {
 		for _, item := range storages {
@@ -279,7 +299,7 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	defer cuda.Close()
 	got, err := cuda.ExecuteWithDeviceFeeds(
 		context.Background(),
-		[]*tensor.Tensor{output},
+		[]*tensor.Tensor{output, fusedOutput},
 		map[*tensor.Tensor]reference.Value{input: inputValue, router: routerValue},
 		deviceFeeds,
 	)
@@ -287,6 +307,7 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 		t.Fatal(err)
 	}
 	compare(t, got[output].Data, want[referenceOutput].Data, 5e-4)
+	compare(t, got[fusedOutput].Data, want[referenceFusedOutput].Data, 5e-4)
 }
 
 func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
@@ -3557,6 +3578,70 @@ func TestExecutorMiniCPM3MLABlockMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	compare(t, got[result.Output].Data, want[result.Output].Data, 5e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
+func TestExecutorCohere2MoEBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "cohere2moe", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+		RMSNormEpsilon: 1e-5, SlidingWindow: 128,
+		SlidingLayers: []bool{false, true}, LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertGatingFunc: 2, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
+		SharedExpertCount: 1, SharedExpertFF: 6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:            builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:             builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionOutput:          builder.Input("attn_output", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardRouter:        builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateUpExperts: builder.Input("gate_up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardDownExperts:   builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardSharedGate:    builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedUp:      builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedDown:    builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                 patternedValue(input.Shape, 3, 0.2, 0),
+		weights.AttentionNorm: patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 1),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQKV, weights.AttentionOutput, weights.FeedForwardRouter,
+		weights.FeedForwardGateUpExperts, weights.FeedForwardDownExperts,
+		weights.FeedForwardSharedGate, weights.FeedForwardSharedUp, weights.FeedForwardSharedDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.07, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 7e-4)
 	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }

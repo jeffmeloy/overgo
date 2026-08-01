@@ -773,6 +773,32 @@ func TestExecuteSigmoidMoEUsesBiasOnlyForSelection(t *testing.T) {
 	}
 }
 
+func TestExecuteFusedGateUpMoEMatchesSeparate(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(1, 2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 2))
+	gateUp := builder.Input("gate_up", dtype.F32, tensor.MustShape(1, 2, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
+	separate := builder.MoESigmoid(input, router, gate, up, down, nil, 2, true, 1)
+	fused := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1)
+	results, err := Execute([]*tensor.Tensor{separate, fused}, map[*tensor.Tensor]Value{
+		input:  {Shape: input.Shape, Data: []float32{1}},
+		router: {Shape: router.Shape, Data: []float32{2, 1}},
+		gate:   {Shape: gate.Shape, Data: []float32{1, 2}},
+		up:     {Shape: up.Shape, Data: []float32{3, 4}},
+		gateUp: {Shape: gateUp.Shape, Data: []float32{1, 3, 2, 4}},
+		down:   {Shape: down.Shape, Data: []float32{1, 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if difference := math.Abs(float64(results[separate].Data[0] - results[fused].Data[0])); difference > 1e-6 {
+		t.Fatalf("fused MoE output = %v, separate = %v", results[fused].Data[0], results[separate].Data[0])
+	}
+}
+
 func TestExecuteSoftcappedAttention(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))

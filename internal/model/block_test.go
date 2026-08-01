@@ -2251,6 +2251,78 @@ func TestBuildDenseCohere2UsesParallelResidualAndPartialSlidingRoPE(t *testing.T
 	}
 }
 
+func TestBuildCohere2MoEBlockFusedExpertsAndSharedBranch(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "cohere2moe", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+		RMSNormEpsilon: 1e-5, SlidingWindow: 128,
+		SlidingLayers: []bool{false, true}, LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertGatingFunc: 2, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
+		SharedExpertCount: 1, SharedExpertFF: 6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:            builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:             builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionOutput:          builder.Input("attn_output", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardRouter:        builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateUpExperts: builder.Input("gate_up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardDownExperts:   builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardSharedGate:    builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedUp:      builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedDown:    builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var normalized, attentionInput *tensor.Tensor
+	var rope, silu, halfScale int
+	var window uint32
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+			normalized = node.Inputs[0]
+		case tensor.OpRoPENormal:
+			rope++
+			if node.Attrs.(tensor.RoPEAttributes).FrequencyBase != 20000 {
+				t.Fatalf("unexpected Cohere2-MoE RoPE: %+v", node.Attrs)
+			}
+		case tensor.OpAttention:
+			window = node.Attrs.(tensor.AttentionAttributes).Window
+		case tensor.OpSiLU:
+			silu++
+		case tensor.OpScale:
+			if node.Attrs.(tensor.ScaleAttributes).Value == 0.5 {
+				halfScale++
+			}
+		case tensor.OpMulMat:
+			if node.Inputs[0].Name == "attn_qkv" {
+				attentionInput = node.Inputs[1]
+			}
+		}
+	}
+	if moe == nil || !moe.Attrs.(tensor.MoEAttributes).FusedGateUp ||
+		moe.Attrs.(tensor.MoEAttributes).Routing != tensor.MoERoutingSigmoid ||
+		!moe.Attrs.(tensor.MoEAttributes).NormalizeTopKProb ||
+		moe.Attrs.(tensor.MoEAttributes).Scale != 1.25 || rope != 2 || window != 128 ||
+		silu != 1 || halfScale != 1 || normalized == nil || normalized != attentionInput {
+		t.Fatalf("unexpected Cohere2-MoE graph: MoE=%+v RoPE=%d window=%d SiLU=%d half=%d", moe, rope, window, silu, halfScale)
+	}
+}
+
 func TestBuildDenseCommandR64UsesParallelResidualAndQKNorms(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -1110,6 +1110,51 @@ func TestReadCohere2Spec(t *testing.T) {
 	}
 }
 
+func TestReadCohere2MoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "cohere2moe"),
+		metadata("cohere2moe.block_count", gguf.ValueTypeUint32, uint32(5)),
+		metadata("cohere2moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("cohere2moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("cohere2moe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("cohere2moe.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("cohere2moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("cohere2moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("cohere2moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("cohere2moe.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("cohere2moe.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("cohere2moe.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		metadata("cohere2moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("cohere2moe.logit_scale", gguf.ValueTypeFloat32, float32(0.5)),
+		metadata("cohere2moe.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("cohere2moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("cohere2moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("cohere2moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("cohere2moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("cohere2moe.expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("cohere2moe.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("cohere2moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		{
+			Key: "cohere2moe.attention.sliding_window_pattern",
+			Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool,
+				Data: []bool{false, true, false, true}},
+		},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "cohere2moe" || spec.BlockCount != 4 || spec.RMSNormEpsilon != 1e-5 ||
+		spec.UsesWeightOnlyLayerNorm() || spec.LeadingDenseBlocks != 1 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 ||
+		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
+		spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
+		!spec.UsesRoPE(0) || !spec.UsesRoPE(1) || spec.UsesRoPE(2) ||
+		spec.OutputLogitMultiplier() != 0.5 {
+		t.Fatalf("unexpected Cohere2-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadCommandRSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "command-r"),

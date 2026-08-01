@@ -3483,6 +3483,50 @@ func TestReadWeightsHYV3DetectsDenseAndFusedMoELayers(t *testing.T) {
 	}
 }
 
+func TestReadWeightsHYV3MTPHeads(t *testing.T) {
+	spec := Spec{
+		Architecture: "hy_v3", BlockCount: 1, NextNPredictLayers: 1,
+		EmbeddingLength: 8, FeedForwardLength: 12, VocabularySize: 32,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 8),
+			tensorInfo(prefix+"attn_k.weight", 8, 4),
+			tensorInfo(prefix+"attn_v.weight", 8, 4),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", 4),
+			tensorInfo(prefix+"attn_k_norm.weight", 4),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 12),
+			tensorInfo(prefix+"ffn_up.weight", 8, 12),
+			tensorInfo(prefix+"ffn_down.weight", 12, 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.1.nextn.eh_proj.weight", 16, 8),
+		tensorInfo("blk.1.nextn.enorm.weight", 8),
+		tensorInfo("blk.1.nextn.hnorm.weight", 8),
+		tensorInfo("blk.1.nextn.shared_head_norm.weight", 8),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(weights.Layers) != 1 || len(weights.HYV3MTP) != 1 ||
+		weights.HYV3MTP[0].Layer.AttentionQNorm == nil ||
+		weights.HYV3MTP[0].OutputNorm == nil || weights.HYV3MTP[0].Output != nil {
+		t.Fatalf("unexpected HY-V3 MTP catalog: %+v", weights.HYV3MTP)
+	}
+}
+
 func TestReadWeightsDeepSeek2OCRDensePrefixAndFusedExperts(t *testing.T) {
 	spec := Spec{
 		Architecture: "deepseek2-ocr", BlockCount: 2, EmbeddingLength: 8,

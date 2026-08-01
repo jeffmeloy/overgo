@@ -1969,6 +1969,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("HY-V3 NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
@@ -2810,7 +2811,7 @@ func (s Spec) UsesRoPE(block uint32) bool {
 		return s.IsSlidingLayer(block)
 	}
 	blockCount := s.BlockCount
-	if s.Architecture == "step35" {
+	if s.Architecture == "step35" || s.Architecture == "hy_v3" {
 		blockCount += s.NextNPredictLayers
 	}
 	return !s.RopeDisabled &&

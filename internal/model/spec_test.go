@@ -2019,7 +2019,7 @@ func TestReadCohere2MoESpec(t *testing.T) {
 	}
 }
 
-func TestReadHYV3SpecTrimsNextNLayers(t *testing.T) {
+func TestReadHYV3SpecPreservesNextNCount(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "hy_v3"),
 		metadata("hy_v3.block_count", gguf.ValueTypeUint32, uint32(5)),
@@ -2042,7 +2042,7 @@ func TestReadHYV3SpecTrimsNextNLayers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "hy_v3" || spec.BlockCount != 4 || spec.RMSNormEpsilon != 1e-5 ||
+	if spec.Architecture != "hy_v3" || spec.BlockCount != 4 || spec.NextNPredictLayers != 1 || spec.RMSNormEpsilon != 1e-5 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != 2 ||
 		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
 		spec.RopeDimensionCount != 4 || usesNormalRoPE(spec.Architecture) {

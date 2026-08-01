@@ -7239,6 +7239,87 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 	}
 }
 
+func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	seed := 7
+	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
+		item := builder.Input(name, dtype.F32, shape)
+		feeds[item] = patternedValue(shape, seed, scale, offset)
+		seed += 2
+		return item
+	}
+	spec := model.Spec{
+		Architecture: "gemma4-assistant", BlockCount: 2, EmbeddingLength: 4,
+		TargetHiddenSize: 6, FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, KeyLengthSWA: 2, ValueLengthSWA: 2,
+		RopeDimensionCount: 4, RopeDimensionSWA: 2,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 1000,
+		RMSNormEpsilon: 1e-5, SlidingWindow: 2, SlidingLayers: []bool{true, false},
+		VocabularySize: 8,
+	}
+	targetToken := input("target_token", tensor.MustShape(6, 1), 0.06, -0.1)
+	targetHidden := input("target_hidden", tensor.MustShape(6, 1), 0.05, 0.2)
+	pre := input("pre", tensor.MustShape(12, 4), 0.03, -0.1)
+	current, err := model.BuildGemma4AssistantInput(builder, targetToken, targetHidden, pre, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for layer := uint32(0); layer < spec.BlockCount; layer++ {
+		keyWidth := uint64(spec.LayerKeyLength(layer))
+		weights := model.LayerGraphWeights{
+			AttentionNorm:       input(fmt.Sprintf("attn_norm_%d", layer), tensor.MustShape(4), 0.03, 0.9),
+			AttentionQ:          input(fmt.Sprintf("q_%d", layer), tensor.MustShape(4, 2*keyWidth), 0.03, -0.1),
+			AttentionQNorm:      input(fmt.Sprintf("q_norm_%d", layer), tensor.MustShape(keyWidth), 0.03, 0.9),
+			AttentionOutput:     input(fmt.Sprintf("o_%d", layer), tensor.MustShape(2*keyWidth, 4), 0.03, -0.1),
+			AttentionPostNorm:   input(fmt.Sprintf("attn_post_%d", layer), tensor.MustShape(4), 0.03, 0.9),
+			FeedForwardNorm:     input(fmt.Sprintf("ffn_norm_%d", layer), tensor.MustShape(4), 0.03, 0.9),
+			FeedForwardGate:     input(fmt.Sprintf("gate_%d", layer), tensor.MustShape(4, 6), 0.03, -0.1),
+			FeedForwardUp:       input(fmt.Sprintf("up_%d", layer), tensor.MustShape(4, 6), 0.03, -0.1),
+			FeedForwardDown:     input(fmt.Sprintf("down_%d", layer), tensor.MustShape(6, 4), 0.03, -0.1),
+			FeedForwardPostNorm: input(fmt.Sprintf("ffn_post_%d", layer), tensor.MustShape(4), 0.03, 0.9),
+			LayerOutputScale:    input(fmt.Sprintf("scale_%d", layer), tensor.MustShape(1), 0.01, 0.95),
+		}
+		sharedKey := input(fmt.Sprintf("shared_key_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
+		sharedValue := input(fmt.Sprintf("shared_value_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
+		current, err = model.BuildGemma4AssistantBlock(
+			builder, current, spec, weights, []uint32{3}, sharedKey, sharedValue, layer,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	outputNorm := input("output_norm", tensor.MustShape(4), 0.03, 0.9)
+	output := input("output", tensor.MustShape(4, 8), 0.03, -0.1)
+	post := input("post", tensor.MustShape(4, 6), 0.03, -0.1)
+	logits, nextHidden, err := model.BuildGemma4AssistantOutputs(
+		builder, current, outputNorm, output, post, spec,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := []*tensor.Tensor{logits, nextHidden}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range outputs {
+		compare(t, got[result].Data, want[result].Data, 2e-3)
+	}
+}
+
 func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

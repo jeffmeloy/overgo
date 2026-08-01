@@ -337,6 +337,42 @@ func TestReadGemma4Spec(t *testing.T) {
 	}
 }
 
+func TestReadGemma4AssistantSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gemma4-assistant"),
+		metadata("gemma4-assistant.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4-assistant.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("gemma4-assistant.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gemma4-assistant.embedding_length_out", gguf.ValueTypeUint32, uint32(12)),
+		metadata("gemma4-assistant.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("gemma4-assistant.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4-assistant.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("gemma4-assistant.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma4-assistant.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma4-assistant.attention.key_length_swa", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4-assistant.attention.value_length_swa", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4-assistant.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("gemma4-assistant.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(10_000)),
+		metadata("gemma4-assistant.attention.sliding_window", gguf.ValueTypeUint32, uint32(512)),
+		{Key: "gemma4-assistant.attention.sliding_window_pattern", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool, Data: []bool{true, false},
+		}},
+		metadata("gemma4-assistant.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("gemma4-assistant.nextn_predict_layers", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4-assistant.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gemma4-assistant" || spec.TargetHiddenSize != 12 ||
+		spec.LayerKeyLength(0) != 2 || spec.LayerKeyLength(1) != 4 ||
+		spec.LayerRopeDimensionCount(0) != 2 || spec.LayerRopeDimensionCount(1) != 4 ||
+		!spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) || spec.AttentionScale != 1 {
+		t.Fatalf("unexpected Gemma 4 assistant spec: %+v", spec)
+	}
+}
+
 func TestReadArcticSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "arctic"),
@@ -3633,7 +3669,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
-		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant",
+		"unsupported-test", "gptj", "gemma3n",
 		"deepseek32", "deepseek4",
 	} {
 		t.Run(architecture, func(t *testing.T) {

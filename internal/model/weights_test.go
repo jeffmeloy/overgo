@@ -4559,6 +4559,50 @@ func TestReadWeightsGemma4SharedKVMoEAndPerLayerInputs(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGemma4Assistant(t *testing.T) {
+	spec := Spec{
+		Architecture: "gemma4-assistant", BlockCount: 2, EmbeddingLength: 8,
+		TargetHiddenSize: 12, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, KeyLengthSWA: 2, ValueLengthSWA: 2,
+		RopeDimensionCount: 4, RopeDimensionSWA: 2, VocabularySize: 32,
+		SlidingLayers: []bool{true, false},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.nextn.pre_projection.weight", 24, 8),
+		tensorInfo("nextn.post_projection.weight", 8, 12),
+		tensorInfo("rope_freqs.weight", 2),
+	}
+	for block := range uint32(2) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		key := uint64(spec.LayerKeyLength(block))
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 2*key),
+			tensorInfo(prefix+"attn_output.weight", 2*key, 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 16),
+			tensorInfo(prefix+"ffn_up.weight", 8, 16),
+			tensorInfo(prefix+"ffn_down.weight", 16, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", key),
+			tensorInfo(prefix+"post_attention_norm.weight", 8),
+			tensorInfo(prefix+"post_ffw_norm.weight", 8),
+			tensorInfo(prefix+"layer_output_scale.weight", 1),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.FeatureProjection == nil || weights.FeatureProjectionPost == nil ||
+		weights.Output != nil || weights.Layers[0].AttentionK.Name != "" ||
+		weights.Layers[0].RopeFactors != nil || weights.Layers[1].RopeFactors == nil ||
+		weights.Layers[1].LayerOutputScale == nil {
+		t.Fatalf("unexpected Gemma 4 assistant catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsQwen2VL(t *testing.T) {
 	testReadWeightsMRoPETextDecoder(t, "qwen2vl")
 }

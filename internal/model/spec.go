@@ -286,7 +286,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "rwkv7" &&
 		architecture != "arwkv7" &&
 		architecture != "gemma2" &&
-		architecture != "gemma3" && architecture != "gemma4" &&
+		architecture != "gemma3" && architecture != "gemma4" && architecture != "gemma4-assistant" &&
 		architecture != "falcon" &&
 		architecture != "falcon-h1" &&
 		architecture != "talkie" &&
@@ -343,6 +343,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
+	}
+	if architecture == "gemma4-assistant" {
+		if spec.TargetHiddenSize, err = required[uint32](values, prefix+"embedding_length_out", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		nextN, nextErr := required[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32)
+		if nextErr != nil {
+			return Spec{}, nextErr
+		}
+		if nextN != spec.BlockCount {
+			return Spec{}, errors.New("Gemma 4 assistant NextN layer count must match block count")
+		}
 	}
 	if architecture == "wavtokenizer-dec" {
 		spec.OutputEmbeddingLength = spec.EmbeddingLength
@@ -515,7 +527,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ValueLength = headLength
 		}
 	}
-	if architecture == "gemma4" {
+	if architecture == "gemma4" || architecture == "gemma4-assistant" {
 		if spec.KeyLengthSWA, err = required[uint32](values, prefix+"attention.key_length_swa", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -2311,10 +2323,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4" ||
+	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4" || architecture == "gemma4-assistant" ||
 		architecture == "olmo2" || architecture == "cohere2" || architecture == "cohere2moe" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if architecture == "gemma3" || architecture == "gemma4" {
+		if architecture == "gemma3" || architecture == "gemma4" || architecture == "gemma4-assistant" {
 			spec.RopeFrequencySWA = 10000
 		}
 		if value, ok := optional[float32](
@@ -2342,7 +2354,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if architecture == "gemma3" {
 				spec.SlidingPattern = 6
 			}
-			if architecture == "gemma4" {
+			if architecture == "gemma4" || architecture == "gemma4-assistant" {
 				if spec.SlidingLayers, err = requiredLayerBoolCompatible(
 					values, prefix+"attention.sliding_window_pattern", spec.BlockCount,
 				); err != nil {
@@ -2428,6 +2440,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.SharedKVLayers, _ = optional[uint32](
 			values, prefix+"attention.shared_kv_layers", gguf.ValueTypeUint32,
 		)
+		spec.AttentionScale = 1
+	}
+	if architecture == "gemma4-assistant" {
+		spec.RopeDimensionCount = spec.KeyLength
+		spec.RopeDimensionSWA = spec.KeyLengthSWA
 		spec.AttentionScale = 1
 	}
 	spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
@@ -2516,14 +2533,14 @@ func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
 }
 
 func (s Spec) LayerKeyLength(block uint32) uint32 {
-	if s.Architecture == "gemma4" && s.IsSlidingLayer(block) {
+	if (s.Architecture == "gemma4" || s.Architecture == "gemma4-assistant") && s.IsSlidingLayer(block) {
 		return s.KeyLengthSWA
 	}
 	return s.KeyLength
 }
 
 func (s Spec) LayerValueLength(block uint32) uint32 {
-	if s.Architecture == "gemma4" && s.IsSlidingLayer(block) {
+	if (s.Architecture == "gemma4" || s.Architecture == "gemma4-assistant") && s.IsSlidingLayer(block) {
 		return s.ValueLengthSWA
 	}
 	return s.ValueLength
@@ -2542,7 +2559,7 @@ func (s Spec) LayerSharedKVSource(block uint32) uint32 {
 }
 
 func (s Spec) LayerRopeDimensionCount(block uint32) uint32 {
-	if s.Architecture == "gemma4" && s.IsSlidingLayer(block) {
+	if (s.Architecture == "gemma4" || s.Architecture == "gemma4-assistant") && s.IsSlidingLayer(block) {
 		return s.RopeDimensionSWA
 	}
 	if s.Architecture == "step35" && !s.IsSlidingLayer(block) {
@@ -3593,6 +3610,22 @@ func (s Spec) validate() error {
 			}
 		}
 	}
+	if s.Architecture == "gemma4-assistant" {
+		switch {
+		case s.TargetHiddenSize == 0 || s.TargetHiddenSize == s.EmbeddingLength:
+			return errors.New("Gemma 4 assistant target hidden size is invalid")
+		case s.KeyLength == 0 || s.ValueLength == 0 || s.KeyLength != s.ValueLength ||
+			s.KeyLengthSWA == 0 || s.ValueLengthSWA == 0 || s.KeyLengthSWA != s.ValueLengthSWA:
+			return errors.New("Gemma 4 assistant attention head dimensions are invalid")
+		case s.HeadCount == 0 || s.HeadCountKV == 0 || s.HeadCount%s.HeadCountKV != 0:
+			return errors.New("Gemma 4 assistant attention head counts are invalid")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0 ||
+			s.RopeDimensionSWA == 0 || s.RopeDimensionSWA > s.KeyLengthSWA || s.RopeDimensionSWA%2 != 0:
+			return errors.New("Gemma 4 assistant rotary dimensions are invalid")
+		case s.RopeFrequencySWA <= 0 || s.SlidingWindow == 0 || len(s.SlidingLayers) != int(s.BlockCount):
+			return errors.New("Gemma 4 assistant sliding-attention metadata is invalid")
+		}
+	}
 	if s.Architecture == "gemma2" {
 		switch {
 		case s.RopeFrequencySWA <= 0:
@@ -3837,7 +3870,7 @@ func hasPostNorm(architecture string) bool {
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4") ||
+	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4" || architecture == "gemma4-assistant") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "gpt-oss" || architecture == "llama4" || architecture == "olmo2" ||
 		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "mimo2" ||
 		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35" || architecture == "dflash"

@@ -421,6 +421,11 @@ target-layer inputs while constructing the shifted draft cache. Each
 `AdvanceEagle3` call pairs the next token with the pending feature, returns
 target-vocabulary logits plus the next pre-norm feature, and supports optional
 draft-owned embeddings/output weights and `d2t` vocabulary remapping.
+Gemma4 Assistant uses `NewGemma4AssistantSession` to run the target Gemma4
+prefix and retain its final two shared KV layers plus the last normalized target
+hidden row. `AdvanceGemma4Assistant` reads those fixed target caches, reuses the
+target-cache position for every draft token, and carries only the projected
+target-width hidden row between steps.
 WavTokenizer decoder execution maps semantic token IDs to audio-feature frames
 through the strict upstream tensor catalog, six-stage PosNet, full non-causal
 single-head attention, dense/depthwise same-padding convolutions, GroupNorm,

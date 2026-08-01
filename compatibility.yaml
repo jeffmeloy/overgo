@@ -2525,6 +2525,31 @@ models:
     validation:
       - perplexity-relative-delta-below-0.5-percent
       - greedy-token-id-exact
+  gemma4-assistant:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+    features:
+      - paired-gemma4-target-context
+      - target-token-and-hidden-pre-projection
+      - final-two-target-layer-kv-sharing
+      - per-layer-swa-or-global-cache-selection
+      - fixed-position-autoregressive-drafting
+      - query-only-rmsnorm-attention
+      - parallel-geglu-feed-forward
+      - post-attention-and-ffn-norms
+      - recurrent-target-width-hidden-projection
+      - tied-assistant-output-embedding
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-full-pipeline
+      - full-cuda-pipeline-differential
+    limitations:
+      - external-scheduler-owns-verification-and-acceptance
+      - text-only-target-input
+      - real-model-pair-pending
   eagle3:
     status: experimental
     execution:

@@ -1050,6 +1050,9 @@ func (r *Runner) forwardLocked(
 	if r.spec.Architecture == "eagle3" {
 		return reference.Value{}, errors.New("inference: Eagle3 requires NewEagle3Session and AdvanceEagle3")
 	}
+	if r.spec.Architecture == "gemma4-assistant" {
+		return reference.Value{}, errors.New("inference: Gemma 4 assistant requires NewGemma4AssistantSession and AdvanceGemma4Assistant")
+	}
 	if r.spec.Architecture == "wavtokenizer-dec" {
 		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
 	}
@@ -1515,6 +1518,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	cache *KVCache,
 	overrides []EmbeddingOverride,
 ) (reference.Value, *KVCache, error) {
+	if r.spec.Architecture == "gemma4-assistant" {
+		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
+	}
 	if r.spec.Architecture == "t5encoder" {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
 	}
@@ -3557,6 +3563,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		weights.PerLayerModelProjection,
 		weights.PerLayerProjectionNorm,
 		weights.FeatureProjection,
+		weights.FeatureProjectionPost,
 		weights.DraftToTarget,
 	} {
 		if pointer != nil {

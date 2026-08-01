@@ -216,6 +216,7 @@ type Weights struct {
 	PerLayerModelProjection *gguf.TensorInfo
 	PerLayerProjectionNorm  *gguf.TensorInfo
 	FeatureProjection       *gguf.TensorInfo
+	FeatureProjectionPost   *gguf.TensorInfo
 	DraftToTarget           *gguf.TensorInfo
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
@@ -389,6 +390,85 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, itemErr
 			}
 			layer.RopeFactors = &validated
+		}
+		return result, nil
+	}
+	if spec.Architecture == "gemma4-assistant" {
+		width := uint64(spec.EmbeddingLength)
+		targetWidth := uint64(spec.TargetHiddenSize)
+		if result.TokenEmbedding, err = required("token_embd.weight", width, uint64(spec.VocabularySize)); err != nil {
+			return Weights{}, err
+		}
+		if result.OutputNorm, err = required("output_norm.weight", width); err != nil {
+			return Weights{}, err
+		}
+		pre, loadErr := required("blk.0.nextn.pre_projection.weight", 2*targetWidth, width)
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		post, loadErr := required("nextn.post_projection.weight", width, targetWidth)
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		result.FeatureProjection = &pre
+		result.FeatureProjectionPost = &post
+		result.Layers = make([]LayerWeights, spec.BlockCount)
+		var sharedRope *gguf.TensorInfo
+		for block := uint32(0); block < spec.BlockCount; block++ {
+			prefix := fmt.Sprintf("blk.%d.", block)
+			layer := &result.Layers[block]
+			queryLength := uint64(spec.HeadCount) * uint64(spec.LayerKeyLength(block))
+			attentionOutputLength := uint64(spec.HeadCount) * uint64(spec.LayerValueLength(block))
+			for name, item := range map[string]struct {
+				destination *gguf.TensorInfo
+				shape       []uint64
+			}{
+				"attn_norm.weight":   {&layer.AttentionNorm, []uint64{width}},
+				"attn_q.weight":      {&layer.AttentionQ, []uint64{width, queryLength}},
+				"attn_output.weight": {&layer.AttentionOutput, []uint64{attentionOutputLength, width}},
+				"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{width}},
+				"ffn_gate.weight":    {&layer.FeedForwardGate, []uint64{width, uint64(spec.FeedForwardLength)}},
+				"ffn_up.weight":      {&layer.FeedForwardUp, []uint64{width, uint64(spec.FeedForwardLength)}},
+				"ffn_down.weight":    {&layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), width}},
+			} {
+				loaded, itemErr := required(prefix+name, item.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*item.destination = loaded
+			}
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"attn_q_norm.weight":         {[]uint64{uint64(spec.LayerKeyLength(block))}, &layer.AttentionQNorm},
+				"post_attention_norm.weight": {[]uint64{width}, &layer.AttentionPostNorm},
+				"post_ffw_norm.weight":       {[]uint64{width}, &layer.FeedForwardPostNorm},
+				"layer_output_scale.weight":  {[]uint64{1}, &layer.LayerOutputScale},
+			} {
+				loaded, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &loaded
+			}
+			if !spec.IsSlidingLayer(block) {
+				rope, ok := tensors[prefix+"rope_freqs.weight"]
+				if !ok {
+					rope, ok = tensors["rope_freqs.weight"]
+				}
+				if !ok && sharedRope != nil {
+					rope, ok = *sharedRope, true
+				}
+				if !ok {
+					return Weights{}, fmt.Errorf("required Gemma 4 assistant RoPE factors for layer %d are missing", block)
+				}
+				if rope.Type != dtype.F32 || rope.Dimensions != 1 || rope.Shape[0] != uint64(spec.RopeDimensionCount/2) {
+					return Weights{}, fmt.Errorf("tensor %q has incompatible Gemma 4 assistant RoPE factors", rope.Name)
+				}
+				layer.RopeFactors = &rope
+				sharedRope = layer.RopeFactors
+			}
 		}
 		return result, nil
 	}

@@ -1719,9 +1719,25 @@ func (b *Builder) RoPENormalYaRN(
 	originalContext uint32,
 	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
 ) *Tensor {
-	return b.ropeYaRN(
+	return b.ropeYaRNWithFactors(
+		OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, originalContext,
+		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow, nil,
+	)
+}
+
+// RoPENormalYaRNWithFactors: YaRN plus pair divisors.
+func (b *Builder) RoPENormalYaRNWithFactors(
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	originalContext uint32,
+	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
+	frequencyFactors *Tensor,
+) *Tensor {
+	return b.ropeYaRNWithFactors(
 		OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, originalContext,
 		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow,
+		frequencyFactors,
 	)
 }
 
@@ -1734,12 +1750,28 @@ func (b *Builder) ropeYaRN(
 	originalContext uint32,
 	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
 ) *Tensor {
+	return b.ropeYaRNWithFactors(
+		operation, name, input, positions, rotaryDimensions, originalContext,
+		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow, nil,
+	)
+}
+
+func (b *Builder) ropeYaRNWithFactors(
+	operation Op,
+	name string,
+	input *Tensor,
+	positions []uint32,
+	rotaryDimensions uint32,
+	originalContext uint32,
+	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
+	frequencyFactors *Tensor,
+) *Tensor {
 	if originalContext == 0 || attentionFactor <= 0 || betaFast <= 0 || betaSlow <= 0 || extFactor < 0 {
 		b.setError(errors.New("YaRN RoPE parameters are invalid"))
 		return nil
 	}
 	result := b.rope(
-		operation, name, input, positions, rotaryDimensions, frequencyBase, frequencyScale, nil,
+		operation, name, input, positions, rotaryDimensions, frequencyBase, frequencyScale, frequencyFactors,
 	)
 	if result == nil {
 		return nil

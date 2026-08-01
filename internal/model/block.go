@@ -3518,6 +3518,33 @@ func buildDenseBlockCachedForLayer(
 			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
 			spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
 		)
+	} else if spec.Architecture == "mistral3" && spec.RopeScalingType == "yarn" {
+		frequencyScale := float32(1) / spec.RopeScalingFactor
+		if weights.RopeFactors != nil {
+			query = builder.RoPENormalYaRNWithFactors(
+				query, positions, rotaryDimensions, spec.OriginalContextLength,
+				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+				weights.RopeFactors,
+			)
+			key = builder.RoPENormalYaRNWithFactors(
+				key, positions, rotaryDimensions, spec.OriginalContextLength,
+				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+				weights.RopeFactors,
+			)
+		} else {
+			query = builder.RoPENormalYaRN(
+				query, positions, rotaryDimensions, spec.OriginalContextLength,
+				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+			)
+			key = builder.RoPENormalYaRN(
+				key, positions, rotaryDimensions, spec.OriginalContextLength,
+				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
+				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
+			)
+		}
 	} else if usesNormalRoPE(spec.Architecture) {
 		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := float32(1)
@@ -3607,7 +3634,7 @@ func buildDenseBlockCachedForLayer(
 			)
 		}
 	}
-	if supportsLongRoPE(spec.Architecture) && spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
+	if supportsLongRoPE(spec.Architecture) && spec.RopeScalingType != "yarn" && spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
 		query = builder.Scale(query, spec.RopeAttentionFactor)
 		key = builder.Scale(key, spec.RopeAttentionFactor)
 	}

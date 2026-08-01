@@ -561,7 +561,9 @@
   original-context step schedule. MoE variants load normalized softmax top-k
   packed SwiGLU experts through bounded-host, F32-preload, and native-quantized
   execution. Metadata, catalog, topology, and reference/CUDA differentials
-  pass. LongRoPE variants use context-selected factors; YaRN remains pending. Real-model validation awaits
+  pass. LongRoPE variants use context-selected factors. YaRN combines normal
+  rotary layout, optional per-pair factors, beta interpolation, attention
+  scaling, and the pinned log-multiplier correction. Real-model validation awaits
   a local fixture.
 - Orion dense decoders support affine LayerNorm (including attention, FFN, and
   final-output biases), split-half NeoX RoPE, parallel SwiGLU, and the

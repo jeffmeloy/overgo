@@ -3086,6 +3086,30 @@ func TestReadMistral3RejectsInvalidVariants(t *testing.T) {
 	}
 }
 
+func TestReadMistral3YaRNSpec(t *testing.T) {
+	file := &gguf.File{Metadata: append(mistral3Metadata(),
+		metadata("mistral3.rope.scaling.type", gguf.ValueTypeString, "yarn"),
+		metadata("mistral3.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("mistral3.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("mistral3.rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1.2)),
+		metadata("mistral3.rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32, float32(2)),
+		metadata("mistral3.rope.scaling.yarn_beta_fast", gguf.ValueTypeFloat32, float32(16)),
+		metadata("mistral3.rope.scaling.yarn_beta_slow", gguf.ValueTypeFloat32, float32(2)),
+	)}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAttention := float32(1.2 / (1 + 0.2*math.Log(4)))
+	if spec.RopeScalingType != "yarn" || spec.RopeScalingFactor != 4 ||
+		spec.OriginalContextLength != 8192 || spec.YaRNExtFactor != 1 ||
+		math.Abs(float64(spec.YaRNAttentionFactor-wantAttention)) > 1e-6 ||
+		spec.YaRNBetaFast != 16 || spec.YaRNBetaSlow != 2 ||
+		spec.RopeYaRNLogMultiplier != 2 {
+		t.Fatalf("unexpected Mistral 3 YaRN spec: %+v", spec)
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

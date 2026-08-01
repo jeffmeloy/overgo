@@ -2884,6 +2884,10 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 		0.25,
 		ropeFactors,
 	)
+	factoredYaRNRope := builder.RoPENormalYaRNWithFactors(
+		ropeInput, []uint32{0, 17}, 4, 8, 10_000, 0.25, 1, 0.9, 16, 2,
+		ropeFactors,
+	)
 	yarnRope := builder.RoPENeoXYaRN(
 		ropeInput, []uint32{0, 17}, 4, 8, 10_000, 0.25, 1, 1, 32, 1,
 	)
@@ -2909,7 +2913,7 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 		ropeInput:   ropeValue,
 		ropeFactors: ropeFactorValue,
 	}
-	outputs := []*tensor.Tensor{embedding, swiglu, rope, normalRope, factoredRope, yarnRope}
+	outputs := []*tensor.Tensor{embedding, swiglu, rope, normalRope, factoredRope, factoredYaRNRope, yarnRope}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -2928,6 +2932,7 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 	compare(t, got[rope].Data, want[rope].Data, 3e-5)
 	compare(t, got[normalRope].Data, want[normalRope].Data, 3e-5)
 	compare(t, got[factoredRope].Data, want[factoredRope].Data, 3e-5)
+	compare(t, got[factoredYaRNRope].Data, want[factoredYaRNRope].Data, 3e-5)
 	compare(t, got[yarnRope].Data, want[yarnRope].Data, 3e-5)
 }
 

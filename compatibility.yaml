@@ -2834,6 +2834,7 @@ models:
       - active-range-self-cache-editing
       - high-level-sampled-generation
       - generate-cli-dispatch
+      - completion-server-dispatch
       - relu-and-gated-gelu-ffn
       - resumable-model-bound-session
     validation:

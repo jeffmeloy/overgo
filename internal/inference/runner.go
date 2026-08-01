@@ -3177,7 +3177,17 @@ func (r *Runner) Generate(
 		return nil, "", errors.New("inference: T5 encoder models do not generate tokens")
 	}
 	if r.spec.Architecture == "t5" {
-		return nil, "", errors.New("inference: T5 models require GenerateT5")
+		generated, _, _, err := r.GenerateT5(ctx, prompt, options)
+		if err != nil {
+			return nil, "", err
+		}
+		sourceIDs, err := r.promptTokenIDs(prompt, options)
+		if err != nil {
+			return nil, "", err
+		}
+		ids := append(append([]tokenizer.TokenID(nil), sourceIDs...), generated...)
+		text, err := r.vocab.Decode(ids, false)
+		return ids, text, err
 	}
 	if r.spec.NonCausalAttention {
 		return nil, "", errors.New("inference: non-causal models require diffusion generation")

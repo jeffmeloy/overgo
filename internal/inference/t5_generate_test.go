@@ -27,8 +27,8 @@ func TestGenerateT5Admission(t *testing.T) {
 		!strings.Contains(err.Error(), "source prompt caching") {
 		t.Fatalf("prompt-cache error = %v", err)
 	}
-	if _, _, err := runner.Generate(context.Background(), "", GenerateOptions{}); err == nil ||
-		!strings.Contains(err.Error(), "GenerateT5") {
-		t.Fatalf("generic generation error = %v", err)
+	if _, _, err := runner.Generate(context.Background(), "", GenerateOptions{MaxNewTokens: -1}); err == nil ||
+		!strings.Contains(err.Error(), "max new tokens") {
+		t.Fatalf("generic T5 dispatch error = %v", err)
 	}
 }

@@ -13,7 +13,8 @@ RND1 non-causal MoE diffusion generation, Seed-OSS, StableLM, StarCoder/StarCode
 encoders, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3
 per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output
 projection biases and Gemma attention/final-logit softcapping are honored in
-every inference mode.
+every inference mode. MPT includes fused-QKV clamping, optional full-projection
+affine Q/K LayerNorm, and optional AWQ post-GELU activation scaling.
 
 The target is a Go-owned model and tensor runtime that calls NVIDIA's installed
 Windows DLLs directly. CUDA kernels are reproducible binary assets and are the

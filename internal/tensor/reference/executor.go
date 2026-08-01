@@ -90,6 +90,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return elementwiseBroadcast(node.Shape, inputs[0], inputs[1], func(a, b float32) float32 { return a + b })
 	case tensor.OpMultiply:
 		return elementwiseBroadcast(node.Shape, inputs[0], inputs[1], func(a, b float32) float32 { return a * b })
+	case tensor.OpDivide:
+		return elementwiseBroadcast(node.Shape, inputs[0], inputs[1], func(a, b float32) float32 { return a / b })
 	case tensor.OpScale:
 		attributes, ok := node.Attrs.(tensor.ScaleAttributes)
 		if !ok {

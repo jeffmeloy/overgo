@@ -53,6 +53,7 @@ type LayerWeights struct {
 	FeedForwardGateScale        *gguf.TensorInfo
 	FeedForwardUpScale          *gguf.TensorInfo
 	FeedForwardDownScale        *gguf.TensorInfo
+	FeedForwardActivationScale  *gguf.TensorInfo
 	FeedForwardSubNorm          *gguf.TensorInfo
 	FeedForwardGateBias         *gguf.TensorInfo
 	FeedForwardUpBias           *gguf.TensorInfo
@@ -1248,15 +1249,61 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		layer := &result.Layers[block]
 		if spec.Architecture == "mpt" {
-			for _, unsupported := range []string{
-				"attn_q_norm.weight", "attn_q_norm.bias",
-				"attn_k_norm.weight", "attn_k_norm.bias", "ffn_act.scales",
-			} {
-				if _, ok := tensors[prefix+unsupported]; ok {
+			_, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
+			_, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
+			if hasQNorm != hasKNorm {
+				return Weights{}, errors.New("MPT Q/K norm tensors must both be present or absent")
+			}
+			if hasQNorm {
+				if queryLength != uint64(spec.EmbeddingLength) || keyLength != uint64(spec.EmbeddingLength) {
+					return Weights{}, errors.New("MPT Q/K norm requires full-width Q/K projections")
+				}
+				qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.EmbeddingLength))
+				if normErr != nil {
+					return Weights{}, normErr
+				}
+				kNorm, normErr := required(prefix+"attn_k_norm.weight", uint64(spec.EmbeddingLength))
+				if normErr != nil {
+					return Weights{}, normErr
+				}
+				if qNorm.Type != dtype.F32 || kNorm.Type != dtype.F32 {
+					return Weights{}, errors.New("MPT Q/K norm tensors must use F32 storage")
+				}
+				layer.AttentionQNorm = &qNorm
+				layer.AttentionKNorm = &kNorm
+				for name, destination := range map[string]**gguf.TensorInfo{
+					"attn_q_norm.bias": &layer.AttentionQNormBias,
+					"attn_k_norm.bias": &layer.AttentionKNormBias,
+				} {
+					if _, ok := tensors[prefix+name]; ok {
+						bias, biasErr := required(prefix+name, uint64(spec.EmbeddingLength))
+						if biasErr != nil {
+							return Weights{}, biasErr
+						}
+						if bias.Type != dtype.F32 {
+							return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
+						}
+						*destination = &bias
+					}
+				}
+			} else if _, hasQBias := tensors[prefix+"attn_q_norm.bias"]; hasQBias {
+				return Weights{}, errors.New("MPT Q norm bias has no weight")
+			} else if _, hasKBias := tensors[prefix+"attn_k_norm.bias"]; hasKBias {
+				return Weights{}, errors.New("MPT K norm bias has no weight")
+			}
+			if _, ok := tensors[prefix+"ffn_act.scales"]; ok {
+				activationScale, scaleErr := required(
+					prefix+"ffn_act.scales", uint64(spec.FeedForwardLength),
+				)
+				if scaleErr != nil {
+					return Weights{}, scaleErr
+				}
+				if activationScale.Type != dtype.F32 {
 					return Weights{}, fmt.Errorf(
-						"tensor %q requires an unsupported MPT variant", prefix+unsupported,
+						"tensor %q must use F32 activation-scale storage", activationScale.Name,
 					)
 				}
+				layer.FeedForwardActivationScale = &activationScale
 			}
 		}
 		ropeFactors, hasRopeFactors := tensors[prefix+"rope_freqs.weight"]

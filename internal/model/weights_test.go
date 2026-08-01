@@ -2461,6 +2461,65 @@ func TestReadWeightsMPTBiasFreeVariant(t *testing.T) {
 	}
 }
 
+func TestReadWeightsMPTQKLayerNormVariant(t *testing.T) {
+	spec := Spec{
+		Architecture: "mpt", BlockCount: 1, ContextLength: 16,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2,
+		HeadCountKV: 2, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24),
+		tensorInfo("blk.0.attn_q_norm.weight", 8), tensorInfo("blk.0.attn_q_norm.bias", 8),
+		tensorInfo("blk.0.attn_k_norm.weight", 8), tensorInfo("blk.0.attn_k_norm.bias", 8),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_act.scales", 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.AttentionQNorm == nil || layer.AttentionQNormBias == nil ||
+		layer.AttentionKNorm == nil || layer.AttentionKNormBias == nil ||
+		layer.FeedForwardActivationScale == nil {
+		t.Fatalf("MPT variant tensors were not admitted: %+v", layer)
+	}
+}
+
+func TestReadWeightsRejectsIncompleteMPTVariants(t *testing.T) {
+	spec := Spec{
+		Architecture: "mpt", BlockCount: 1, ContextLength: 16,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2,
+		HeadCountKV: 2, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true,
+	}
+	base := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_qkv.weight", 8, 24),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	}
+	for _, test := range []struct {
+		name  string
+		extra gguf.TensorInfo
+	}{
+		{name: "Q norm without K norm", extra: tensorInfo("blk.0.attn_q_norm.weight", 8)},
+		{name: "activation scale width", extra: tensorInfo("blk.0.ffn_act.scales", 8)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			items := append(append([]gguf.TensorInfo(nil), base...), test.extra)
+			if _, err := ReadWeights(&gguf.File{Tensors: items}, spec); err == nil {
+				t.Fatal("invalid MPT variant was accepted")
+			}
+		})
+	}
+}
+
 func TestReadWeightsDenseRefact(t *testing.T) {
 	spec := Spec{
 		Architecture: "refact", BlockCount: 1, ContextLength: 16,

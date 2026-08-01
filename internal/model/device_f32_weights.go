@@ -373,6 +373,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
+		{info.FeedForwardActivationScale, &result.FeedForwardActivationScale},
 		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 		{info.FeedForwardRouter, &result.FeedForwardRouter},
 		{info.FeedForwardRouterBias, &result.FeedForwardRouterBias},

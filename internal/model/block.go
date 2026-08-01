@@ -53,6 +53,7 @@ type LayerGraphWeights struct {
 	FeedForwardGateScale        *tensor.Tensor
 	FeedForwardUpScale          *tensor.Tensor
 	FeedForwardDownScale        *tensor.Tensor
+	FeedForwardActivationScale  *tensor.Tensor
 	FeedForwardSubNorm          *tensor.Tensor
 	FeedForwardGateBias         *tensor.Tensor
 	FeedForwardUpBias           *tensor.Tensor
@@ -3277,6 +3278,10 @@ func buildDenseBlockCachedForLayer(
 		(weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {
 		return DenseBlockResult{}, errors.New("StableLM Q/K norm weights must both be present or absent")
 	}
+	if spec.Architecture == "mpt" &&
+		(weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {
+		return DenseBlockResult{}, errors.New("MPT Q/K norm weights must both be present or absent")
+	}
 	for name, item := range required {
 		if item == nil {
 			return DenseBlockResult{}, fmt.Errorf("dense block %s weight is nil", name)
@@ -3382,6 +3387,14 @@ func buildDenseBlockCachedForLayer(
 	if isOLMo2 || isOLMoE || isMiniMaxM2 {
 		query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+	}
+	if spec.Architecture == "mpt" && weights.AttentionQNorm != nil {
+		query = ApplyNormalization(
+			builder, query, weights.AttentionQNorm, weights.AttentionQNormBias, spec,
+		)
+		key = ApplyNormalization(
+			builder, key, weights.AttentionKNorm, weights.AttentionKNormBias, spec,
+		)
 	}
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(headCount), tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
@@ -4223,6 +4236,12 @@ func buildDenseBlockCachedForLayer(
 		if isGemmaArchitecture(spec.Architecture) {
 			activation = builder.GEGLU(gate, up)
 		}
+	}
+	if weights.FeedForwardActivationScale != nil {
+		if spec.Architecture != "mpt" {
+			return DenseBlockResult{}, errors.New("feed-forward activation scale requires MPT")
+		}
+		activation = builder.Divide(activation, weights.FeedForwardActivationScale)
 	}
 	if spec.Architecture == "bitnet" {
 		activation = builder.WeightedRMSNorm(

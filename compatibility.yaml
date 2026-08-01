@@ -1305,13 +1305,12 @@ models:
       - optional-bias-affine-layernorm
       - required-contiguous-fused-qkv
       - fused-qkv-clamping
+      - optional-full-projection-affine-qk-layernorm
       - optional-projection-biases
       - optional-llama-cpp-compatible-alibi
       - sequential-gelu
+      - optional-awq-post-gelu-activation-scaling
       - tied-or-untied-output
-    limitations:
-      - qk-layernorm-variants-rejected
-      - activation-scale-variants-rejected
     real_model_validation: pending-fixture
   refact:
     status: experimental

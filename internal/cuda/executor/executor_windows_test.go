@@ -526,6 +526,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	right := builder.Input("right", dtype.F32, shape)
 	add := builder.Add(left, right)
 	multiply := builder.Multiply(add, right)
+	divide := builder.Divide(multiply, right)
 	scale := builder.Scale(multiply, 0.25)
 	layerNorm := builder.LayerNorm(scale, 1e-5)
 	reluSquared := builder.ReLUSquared(scale)
@@ -548,7 +549,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	leftValue, _ := reference.NewValue(shape, leftData)
 	rightValue, _ := reference.NewValue(shape, rightData)
 	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	want, err := reference.Execute([]*tensor.Tensor{output, layerNorm, reluSquared, xielu}, feeds)
+	want, err := reference.Execute([]*tensor.Tensor{output, layerNorm, reluSquared, xielu, divide}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -560,7 +561,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 	defer cuda.Close()
 	got, err := cuda.Execute(
 		context.Background(),
-		[]*tensor.Tensor{output, layerNorm, reluSquared, xielu},
+		[]*tensor.Tensor{output, layerNorm, reluSquared, xielu, divide},
 		feeds,
 	)
 	if err != nil {
@@ -570,6 +571,64 @@ func TestExecutorMatchesReference(t *testing.T) {
 	compare(t, got[layerNorm].Data, want[layerNorm].Data, 2e-5)
 	compare(t, got[reluSquared].Data, want[reluSquared].Data, 2e-5)
 	compare(t, got[xielu].Data, want[xielu].Data, 2e-5)
+	compare(t, got[divide].Data, want[divide].Data, 2e-5)
+}
+
+func TestExecutorMPTVariantsMatchReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	seed := 5
+	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
+		item := builder.Input(name, dtype.F32, shape)
+		feeds[item] = patternedValue(shape, seed, scale, offset)
+		seed += 2
+		return item
+	}
+	spec := model.Spec{
+		Architecture: "mpt", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 2, ValueLength: 2,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+		AttentionClamp: 2,
+	}
+	weights := model.LayerGraphWeights{
+		AttentionNorm:              input("attn_norm", tensor.MustShape(4), 0.03, 0.9),
+		AttentionQKV:               input("qkv", tensor.MustShape(4, 12), 0.03, -0.1),
+		AttentionQKVBias:           input("qkv_bias", tensor.MustShape(12), 0.02, -0.03),
+		AttentionQNorm:             input("q_norm", tensor.MustShape(4), 0.03, 0.9),
+		AttentionKNorm:             input("k_norm", tensor.MustShape(4), 0.03, 0.9),
+		AttentionQNormBias:         input("q_norm_bias", tensor.MustShape(4), 0.02, -0.02),
+		AttentionKNormBias:         input("k_norm_bias", tensor.MustShape(4), 0.02, -0.02),
+		AttentionOutput:            input("attn_out", tensor.MustShape(4, 4), 0.03, -0.1),
+		AttentionOutputBias:        input("attn_out_bias", tensor.MustShape(4), 0.02, -0.03),
+		FeedForwardNorm:            input("ffn_norm", tensor.MustShape(4), 0.03, 0.9),
+		FeedForwardUp:              input("ffn_up", tensor.MustShape(4, 6), 0.03, -0.1),
+		FeedForwardUpBias:          input("ffn_up_bias", tensor.MustShape(6), 0.02, -0.03),
+		FeedForwardActivationScale: input("ffn_act_scales", tensor.MustShape(6), 0.02, 0.8),
+		FeedForwardDown:            input("ffn_down", tensor.MustShape(6, 4), 0.03, -0.1),
+		FeedForwardDownBias:        input("ffn_down_bias", tensor.MustShape(4), 0.02, -0.03),
+	}
+	current := input("current", tensor.MustShape(4, 3), 0.08, -0.1)
+	output, err := model.BuildDenseBlock(builder, current, spec, weights, []uint32{0, 1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 2e-3)
 }
 
 func TestExecutorGroupedMulMatMatchesReference(t *testing.T) {

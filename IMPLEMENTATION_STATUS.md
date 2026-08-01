@@ -992,8 +992,10 @@ execution is pending a local Gemma Embedding GGUF fixture.
 
 Bloom now applies its input embedding LayerNorm and llama.cpp-compatible ALiBi.
 GPT-2 and StarCoder gather learned absolute-position rows before the first
-block. MPT supports optional learned positions, ALiBi, and fused-QKV clamping;
-Q/K-LayerNorm and activation-scale variants remain rejected.
+block. MPT supports optional learned positions, ALiBi, fused-QKV clamping,
+full-projection affine Q/K LayerNorm, and AWQ post-GELU activation scaling.
+The activation scale uses a broadcast divide primitive covered by reference
+and CUDA differential tests.
 Dense Refact uses ALiBi. Qwen3-MoE loads its router and packed expert gate/up/down
 tensors and executes normalized softmax top-k routing with routed weight scaling
 through the bounded-host, F32-preload, and native-quantized expert paths. This

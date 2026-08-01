@@ -64,6 +64,7 @@ const (
 	OpDeepSeek4HCHead
 	OpDeepSeek4Attention
 	OpLoRAMerge
+	OpDivide
 )
 
 var opNames = [...]string{
@@ -119,6 +120,7 @@ var opNames = [...]string{
 	"deepseek4_hc_head",
 	"deepseek4_attention",
 	"lora_merge",
+	"divide",
 }
 
 func (o Op) String() string {
@@ -471,6 +473,10 @@ func (b *Builder) Add(left, right *Tensor) *Tensor {
 
 func (b *Builder) Multiply(left, right *Tensor) *Tensor {
 	return b.binary(OpMultiply, left, right)
+}
+
+func (b *Builder) Divide(left, right *Tensor) *Tensor {
+	return b.binary(OpDivide, left, right)
 }
 
 func (b *Builder) Scale(input *Tensor, value float32) *Tensor {

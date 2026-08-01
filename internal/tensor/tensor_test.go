@@ -38,6 +38,19 @@ func TestBuilderRejectsShapeMismatch(t *testing.T) {
 	}
 }
 
+func TestBuilderDivideBroadcasts(t *testing.T) {
+	builder := NewBuilder()
+	left := builder.Input("left", dtype.F32, MustShape(4, 3))
+	right := builder.Input("right", dtype.F32, MustShape(4))
+	output := builder.Divide(left, right)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Op != OpDivide || !output.Shape.Equal(MustShape(4, 3)) {
+		t.Fatalf("unexpected divide tensor: %+v", output)
+	}
+}
+
 func TestBuilderAttentionSinks(t *testing.T) {
 	builder := NewBuilder()
 	query := builder.Input("query", dtype.F32, MustShape(2, 2, 1))

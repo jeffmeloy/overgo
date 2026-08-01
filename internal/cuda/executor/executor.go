@@ -671,8 +671,10 @@ func allZeroFloat32(values []float32) bool {
 type functionSet struct {
 	add               driver.Function
 	multiply          driver.Function
+	divide            driver.Function
 	broadcastAdd      driver.Function
 	broadcastMultiply driver.Function
+	broadcastDivide   driver.Function
 	scale             driver.Function
 	clamp             driver.Function
 	copy              driver.Function
@@ -859,8 +861,10 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 	}{
 		{"add_f32", &result.add},
 		{"multiply_f32", &result.multiply},
+		{"divide_f32", &result.divide},
 		{"broadcast_add_f32", &result.broadcastAdd},
 		{"broadcast_multiply_f32", &result.broadcastMultiply},
+		{"broadcast_divide_f32", &result.broadcastDivide},
 		{"scale_f32", &result.scale},
 		{"clamp_f32", &result.clamp},
 		{"copy_f32", &result.copy},
@@ -1020,7 +1024,7 @@ func launchNode(
 		err = launch1D(state, functions.loraMerge, count, args)
 		runtime.KeepAlive(args)
 		return err
-	case tensor.OpAdd, tensor.OpMultiply:
+	case tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
@@ -1031,6 +1035,8 @@ func launchNode(
 			function := functions.add
 			if node.Op == tensor.OpMultiply {
 				function = functions.multiply
+			} else if node.Op == tensor.OpDivide {
+				function = functions.divide
 			}
 			args := []unsafe.Pointer{
 				unsafe.Pointer(&left),
@@ -1060,6 +1066,8 @@ func launchNode(
 		function := functions.broadcastAdd
 		if node.Op == tensor.OpMultiply {
 			function = functions.broadcastMultiply
+		} else if node.Op == tensor.OpDivide {
+			function = functions.broadcastDivide
 		}
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&left),

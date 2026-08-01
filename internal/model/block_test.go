@@ -5961,6 +5961,53 @@ func TestBuildMPTBiasFreeBlockUsesALiBi(t *testing.T) {
 	}
 }
 
+func TestBuildMPTQKLayerNormUsesFullProjections(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "mpt", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionNormBias = nil
+	weights.FeedForwardNormBias = nil
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.FeedForwardGate = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
+	weights.AttentionQNorm = builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(8))
+	weights.AttentionKNorm = builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(8))
+	weights.AttentionQNormBias = builder.Input("attn_q_norm_bias", dtype.F32, tensor.MustShape(8))
+	weights.AttentionKNormBias = builder.Input("attn_k_norm_bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardActivationScale = builder.Input("ffn_act_scales", dtype.F32, tensor.MustShape(16))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fullProjectionNorms, activationDivides int
+	for _, node := range nodes {
+		if node.Op == tensor.OpLayerNorm && node.Shape.Equal(tensor.MustShape(8, 2)) {
+			fullProjectionNorms++
+		}
+		if node.Op == tensor.OpDivide && len(node.Inputs) == 2 &&
+			node.Inputs[0].Op == tensor.OpGELU && node.Inputs[1] == weights.FeedForwardActivationScale {
+			activationDivides++
+		}
+	}
+	if fullProjectionNorms != 4 || activationDivides != 1 {
+		t.Fatalf(
+			"MPT full-width LayerNorm/divide count = %d/%d, want 4/1",
+			fullProjectionNorms, activationDivides,
+		)
+	}
+}
+
 func TestBuildOLMoClampsSeparateQKV(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

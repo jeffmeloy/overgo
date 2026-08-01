@@ -54,6 +54,17 @@ extern "C" __global__ void multiply_f32(
     }
 }
 
+extern "C" __global__ void divide_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = input_a[index] / input_b[index];
+    }
+}
+
 extern "C" __global__ void clamp_f32(
         const float * input,
         float * output,
@@ -139,6 +150,32 @@ extern "C" __global__ void broadcast_multiply_f32(
         const unsigned int index_b = broadcast_index(
             index, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
         output[index] = input_a[index_a] * input_b[index_b];
+    }
+}
+
+extern "C" __global__ void broadcast_divide_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count,
+        unsigned int a_0,
+        unsigned int a_1,
+        unsigned int a_2,
+        unsigned int a_3,
+        unsigned int b_0,
+        unsigned int b_1,
+        unsigned int b_2,
+        unsigned int b_3,
+        unsigned int output_0,
+        unsigned int output_1,
+        unsigned int output_2) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const unsigned int index_a = broadcast_index(
+            index, a_0, a_1, a_2, a_3, output_0, output_1, output_2);
+        const unsigned int index_b = broadcast_index(
+            index, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
+        output[index] = input_a[index_a] / input_b[index_b];
     }
 }
 

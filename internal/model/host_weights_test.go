@@ -75,37 +75,40 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	feedForwardGateBias := value(12)
 	feedForwardUpBias := value(12)
 	feedForwardDownBias := value(8)
+	feedForwardActivationScale := value(12)
 	layer := HostLayer{
-		AttentionNorm:       value(8),
-		AttentionQ:          value(8, 8),
-		AttentionQB:         &qB,
-		AttentionK:          value(8, 4),
-		AttentionV:          value(8, 4),
-		AttentionOutput:     value(8, 8),
-		AttentionQNorm:      &qNorm,
-		AttentionKNorm:      &kNorm,
-		RopeFactors:         &ropeFactors,
-		AttentionQBias:      &attentionQBias,
-		AttentionKBias:      &attentionKBias,
-		AttentionVBias:      &attentionVBias,
-		AttentionOutputBias: &attentionOutputBias,
-		FeedForwardNorm:     value(8),
-		FeedForwardGate:     value(8, 12),
-		FeedForwardUp:       value(8, 12),
-		FeedForwardDown:     value(12, 8),
-		FeedForwardGateBias: &feedForwardGateBias,
-		FeedForwardUpBias:   &feedForwardUpBias,
-		FeedForwardDownBias: &feedForwardDownBias,
+		AttentionNorm:              value(8),
+		AttentionQ:                 value(8, 8),
+		AttentionQB:                &qB,
+		AttentionK:                 value(8, 4),
+		AttentionV:                 value(8, 4),
+		AttentionOutput:            value(8, 8),
+		AttentionQNorm:             &qNorm,
+		AttentionKNorm:             &kNorm,
+		RopeFactors:                &ropeFactors,
+		AttentionQBias:             &attentionQBias,
+		AttentionKBias:             &attentionKBias,
+		AttentionVBias:             &attentionVBias,
+		AttentionOutputBias:        &attentionOutputBias,
+		FeedForwardNorm:            value(8),
+		FeedForwardGate:            value(8, 12),
+		FeedForwardUp:              value(8, 12),
+		FeedForwardDown:            value(12, 8),
+		FeedForwardGateBias:        &feedForwardGateBias,
+		FeedForwardUpBias:          &feedForwardUpBias,
+		FeedForwardDownBias:        &feedForwardDownBias,
+		FeedForwardActivationScale: &feedForwardActivationScale,
 	}
 	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(feeds) != 20 ||
+	if len(feeds) != 21 ||
 		graph.AttentionQB == nil ||
 		graph.AttentionQNorm == nil ||
 		graph.RopeFactors == nil ||
 		graph.AttentionOutputBias == nil ||
+		graph.FeedForwardActivationScale == nil ||
 		graph.FeedForwardDownBias == nil ||
 		graph.FeedForwardDown == nil {
 		t.Fatalf("unexpected graph inputs or feed count: %d", len(feeds))

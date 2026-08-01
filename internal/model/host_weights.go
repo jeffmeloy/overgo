@@ -57,6 +57,7 @@ type HostLayer struct {
 	FeedForwardGateScale        *reference.Value
 	FeedForwardUpScale          *reference.Value
 	FeedForwardDownScale        *reference.Value
+	FeedForwardActivationScale  *reference.Value
 	FeedForwardSubNorm          *reference.Value
 	FeedForwardGateBias         *reference.Value
 	FeedForwardUpBias           *reference.Value
@@ -815,6 +816,7 @@ func LoadHostLayer(
 		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
+		{info.FeedForwardActivationScale, &result.FeedForwardActivationScale},
 		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 		{info.FeedForwardRouter, &result.FeedForwardRouter},
 		{info.FeedForwardRouterScale, &result.FeedForwardRouterScale},
@@ -1174,6 +1176,7 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_gate.scale", layer.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{"ffn_up.scale", layer.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{"ffn_down.scale", layer.FeedForwardDownScale, &result.FeedForwardDownScale},
+		{"ffn_act.scales", layer.FeedForwardActivationScale, &result.FeedForwardActivationScale},
 		{"ffn_sub_norm.weight", layer.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 		{"ffn_gate_inp.weight", layer.FeedForwardRouter, &result.FeedForwardRouter},
 		{"ffn_gate_inp.bias", layer.FeedForwardRouterBias, &result.FeedForwardRouterBias},

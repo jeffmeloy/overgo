@@ -2525,6 +2525,30 @@ models:
     validation:
       - perplexity-relative-delta-below-0.5-percent
       - greedy-token-id-exact
+  eagle3:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+    features:
+      - exactly-three-target-layer-inputs
+      - target-hidden-to-draft-feature-fusion
+      - shifted-token-feature-cache-construction
+      - dual-rmsnorm-concatenated-attention-input
+      - optional-normal-rope-factors
+      - configurable-normalized-feature-residual
+      - draft-or-target-token-embedding
+      - draft-or-target-output-projection
+      - draft-to-target-vocabulary-remapping
+      - autoregressive-pre-norm-feature-carry
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-feature-and-decoder-pipeline
+      - full-cuda-pipeline-differential
+    limitations:
+      - external-scheduler-owns-verification-and-acceptance
+      - real-model-pair-pending
   dflash:
     status: experimental
     execution:

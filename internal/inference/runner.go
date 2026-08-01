@@ -1047,6 +1047,9 @@ func (r *Runner) forwardLocked(
 	if r.spec.Architecture == "dflash" {
 		return reference.Value{}, errors.New("inference: DFlash requires feature fusion, cache injection, and paired target decode")
 	}
+	if r.spec.Architecture == "eagle3" {
+		return reference.Value{}, errors.New("inference: Eagle3 requires NewEagle3Session and AdvanceEagle3")
+	}
 	if r.spec.Architecture == "wavtokenizer-dec" {
 		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
 	}
@@ -3554,6 +3557,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		weights.PerLayerModelProjection,
 		weights.PerLayerProjectionNorm,
 		weights.FeatureProjection,
+		weights.DraftToTarget,
 	} {
 		if pointer != nil {
 			names[pointer.Name] = struct{}{}

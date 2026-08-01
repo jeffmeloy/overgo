@@ -77,6 +77,8 @@ type Spec struct {
 	GroupNormEpsilon        float32
 	DFlashBlockSize         uint32
 	TargetLayers            []int32
+	TargetHiddenSize        uint32
+	NormBeforeResidual      bool
 	NoRopeLayerStep         uint32
 	HiddenActivation        string
 	Dense2FeatureIn         uint32
@@ -291,7 +293,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "t5" &&
 		architecture != "t5encoder" &&
 		architecture != "wavtokenizer-dec" &&
-		architecture != "dflash" {
+		architecture != "dflash" &&
+		architecture != "eagle3" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
@@ -365,6 +368,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if value, ok := optional[uint32](values, prefix+"block_size", gguf.ValueTypeUint32); ok {
 			spec.DFlashBlockSize = value
 		}
+	}
+	if architecture == "eagle3" {
+		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
+			return Spec{}, err
+		}
+		if spec.TargetHiddenSize, err = required[uint32](values, prefix+"target_hidden_size", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.NormBeforeResidual, _ = optional[bool](values, prefix+"norm_before_residual", gguf.ValueTypeBool)
 	}
 	if architecture == "gemma4" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		if spec.LayerFeedForward, err = requiredLayerUint32Compatible(
@@ -710,6 +722,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				}
 				spec.SlidingLayers = append([]bool(nil), layers...)
 			}
+		}
+	}
+	if architecture == "eagle3" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
 		}
 	}
 	if architecture == "cogvlm" {
@@ -2683,6 +2701,16 @@ func (s Spec) validate() error {
 			}
 		}
 	}
+	if s.Architecture == "eagle3" {
+		if s.BlockCount != 1 || len(s.TargetLayers) != 3 || s.TargetHiddenSize == 0 {
+			return errors.New("Eagle3 target-layer metadata is invalid")
+		}
+		for _, layer := range s.TargetLayers {
+			if layer < 0 {
+				return errors.New("Eagle3 target layer is negative")
+			}
+		}
+	}
 	if s.Architecture == "mamba" {
 		switch {
 		case s.FeedForwardLength != 0 || s.HeadCount != 0 || s.HeadCountKV != 0 || s.KeyLength != 0 || s.ValueLength != 0:
@@ -3820,7 +3848,7 @@ func usesPostOnlyNorm(architecture string) bool {
 }
 
 func usesNormalRoPE(architecture string) bool {
-	return architecture == "llama" || architecture == "llama4" || architecture == "gpt-oss" || architecture == "llama-embed" ||
+	return architecture == "llama" || architecture == "llama4" || architecture == "gpt-oss" || architecture == "llama-embed" || architecture == "eagle3" ||
 		architecture == "arctic" ||
 		architecture == "deci" ||
 		architecture == "llada" ||

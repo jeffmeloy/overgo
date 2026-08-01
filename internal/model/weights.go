@@ -216,6 +216,7 @@ type Weights struct {
 	PerLayerModelProjection *gguf.TensorInfo
 	PerLayerProjectionNorm  *gguf.TensorInfo
 	FeatureProjection       *gguf.TensorInfo
+	DraftToTarget           *gguf.TensorInfo
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
 	WavTokenizer            *WavTokenizerWeights
@@ -313,6 +314,81 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, itemErr
 			}
 			layer.AttentionQNorm, layer.AttentionKNorm = &qNorm, &kNorm
+		}
+		return result, nil
+	}
+	if spec.Architecture == "eagle3" {
+		draftVocabulary := uint64(spec.VocabularySize)
+		if item, ok := tensors["d2t"]; ok {
+			if item.Type != dtype.I64 || item.Dimensions != 1 || item.Shape[0] == 0 {
+				return Weights{}, fmt.Errorf("tensor %q has incompatible shape/type", item.Name)
+			}
+			draftVocabulary = item.Shape[0]
+			result.DraftToTarget = &item
+		}
+		projection, loadErr := required(
+			"fc.weight", 3*uint64(spec.TargetHiddenSize), uint64(spec.EmbeddingLength),
+		)
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		if result.OutputNorm, loadErr = required("output_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
+			return Weights{}, loadErr
+		}
+		result.FeatureProjection = &projection
+		if item, ok := tensors["token_embd.weight"]; ok {
+			validated, itemErr := required(item.Name, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize))
+			if itemErr != nil {
+				return Weights{}, itemErr
+			}
+			result.TokenEmbedding = validated
+		}
+		if item, ok := tensors["output.weight"]; ok {
+			validated, itemErr := required(item.Name, uint64(spec.EmbeddingLength), draftVocabulary)
+			if itemErr != nil {
+				return Weights{}, itemErr
+			}
+			result.Output = &validated
+		}
+		if result.DraftToTarget != nil && result.Output == nil {
+			return Weights{}, errors.New(`required tensor "output.weight" is missing for Eagle3 vocabulary mapping`)
+		}
+		result.Layers = make([]LayerWeights, 1)
+		layer := &result.Layers[0]
+		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
+		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
+		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+		for name, item := range map[string]struct {
+			destination *gguf.TensorInfo
+			shape       []uint64
+		}{
+			"attn_norm.weight":   {&layer.AttentionNorm, []uint64{uint64(spec.EmbeddingLength)}},
+			"attn_q.weight":      {&layer.AttentionQ, []uint64{2 * uint64(spec.EmbeddingLength), queryLength}},
+			"attn_k.weight":      {&layer.AttentionK, []uint64{2 * uint64(spec.EmbeddingLength), keyLength}},
+			"attn_v.weight":      {&layer.AttentionV, []uint64{2 * uint64(spec.EmbeddingLength), valueLength}},
+			"attn_output.weight": {&layer.AttentionOutput, []uint64{queryLength, uint64(spec.EmbeddingLength)}},
+			"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{uint64(spec.EmbeddingLength)}},
+			"ffn_gate.weight":    {&layer.FeedForwardGate, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
+			"ffn_up.weight":      {&layer.FeedForwardUp, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
+			"ffn_down.weight":    {&layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}},
+		} {
+			loaded, itemErr := required("blk.0."+name, item.shape...)
+			if itemErr != nil {
+				return Weights{}, itemErr
+			}
+			*item.destination = loaded
+		}
+		hiddenNorm, itemErr := required("blk.0.attn_norm_2.weight", uint64(spec.EmbeddingLength))
+		if itemErr != nil {
+			return Weights{}, itemErr
+		}
+		layer.AttentionNorm2 = &hiddenNorm
+		if item, ok := tensors["blk.0.rope_freqs.weight"]; ok {
+			validated, itemErr := required(item.Name, uint64(spec.RopeDimensionCount/2))
+			if itemErr != nil {
+				return Weights{}, itemErr
+			}
+			layer.RopeFactors = &validated
 		}
 		return result, nil
 	}

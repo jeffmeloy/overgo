@@ -416,6 +416,11 @@ extracts configured target-layer inputs, fuses them, and injects committed K/V;
 non-causal cache-aware attention and the target model's embedding/output
 tables. Lower-level fusion, injection, extraction, and explicit noise-block
 methods remain public for schedulers that own verification and acceptance.
+Eagle3 uses `NewEagle3Session` to extract and fuse exactly three configured
+target-layer inputs while constructing the shifted draft cache. Each
+`AdvanceEagle3` call pairs the next token with the pending feature, returns
+target-vocabulary logits plus the next pre-norm feature, and supports optional
+draft-owned embeddings/output weights and `d2t` vocabulary remapping.
 WavTokenizer decoder execution maps semantic token IDs to audio-feature frames
 through the strict upstream tensor catalog, six-stage PosNet, full non-causal
 single-head attention, dense/depthwise same-padding convolutions, GroupNorm,

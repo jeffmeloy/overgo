@@ -3442,6 +3442,33 @@ func TestReadDFlashSpec(t *testing.T) {
 	}
 }
 
+func TestReadEagle3Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "eagle3"),
+		metadata("eagle3.block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("eagle3.context_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("eagle3.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("eagle3.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("eagle3.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("eagle3.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("eagle3.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("eagle3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("eagle3.target_hidden_size", gguf.ValueTypeUint32, uint32(12)),
+		metadata("eagle3.norm_before_residual", gguf.ValueTypeBool, true),
+		{Key: "eagle3.target_layers", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{2, 7, 11},
+		}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "eagle3" || spec.TargetHiddenSize != 12 ||
+		len(spec.TargetLayers) != 3 || !spec.NormBeforeResidual || spec.RopeDimensionCount != 4 {
+		t.Fatalf("unexpected Eagle3 spec: %+v", spec)
+	}
+}
+
 func TestReadErnie45MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "ernie4_5-moe"),
@@ -3607,7 +3634,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
 		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant",
-		"deepseek32", "deepseek4", "eagle3",
+		"deepseek32", "deepseek4",
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			file := &gguf.File{Metadata: []gguf.Metadata{

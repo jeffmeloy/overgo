@@ -2832,6 +2832,7 @@ models:
       - causal-decoder-relative-position-buckets
       - fixed-cross-attention-cache
       - active-range-self-cache-editing
+      - high-level-sampled-generation
       - relu-and-gated-gelu-ffn
       - resumable-model-bound-session
     validation:
@@ -2840,7 +2841,6 @@ models:
       - cuda-block-differential
     limitations:
       - no-padded-multisequence-mask
-      - no-high-level-generation-wrapper
       - real-decoder-fixture-pending
   t5encoder:
     status: experimental

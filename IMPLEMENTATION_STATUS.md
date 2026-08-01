@@ -761,9 +761,10 @@
   and MTP APIs currently supply the same sequential position to every MRoPE
   axis. Image/video encoder plumbing, probabilistic residual-distribution
   speculative sampling, and multi-sequence recurrent batching remain pending.
-- T5 single-sequence encoder-decoder sessions are supported. Padding masks for
-  padded multi-sequence batches and a high-level text-generation convenience
-  wrapper remain pending; callers can generate incrementally with `DecodeT5`.
+- T5 single-sequence encoder-decoder sessions are supported. `GenerateT5`
+  supplies high-level sampling, stop callbacks/sequences, LoRA selection, and
+  context shifting; callers can also generate incrementally with `DecodeT5`.
+  Padding masks for padded multi-sequence batches remain pending.
   Decoder relative buckets support active-range cache deletion; fixed encoder
   cross-attention K/V remains unchanged while self-attention rows compact.
 

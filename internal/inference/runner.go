@@ -3176,6 +3176,9 @@ func (r *Runner) Generate(
 	if r.spec.Architecture == "t5encoder" {
 		return nil, "", errors.New("inference: T5 encoder models do not generate tokens")
 	}
+	if r.spec.Architecture == "t5" {
+		return nil, "", errors.New("inference: T5 models require GenerateT5")
+	}
 	if r.spec.NonCausalAttention {
 		return nil, "", errors.New("inference: non-causal models require diffusion generation")
 	}

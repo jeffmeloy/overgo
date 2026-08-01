@@ -456,8 +456,10 @@ token/fixed cache state are synthetic-fixture and CUDA-differential validated.
 T5 encoder-decoder execution includes bidirectional encoder attention, causal
 decoder relative buckets, fixed cross-attention K/V, classic ReLU or gated
 GELU FFNs, and model-bound resumable session serialization. The public path is
-`NewT5Session` followed by chunked `DecodeT5`; `SaveT5Session` and
-`LoadT5Session` preserve both encoder output and decoder cache.
+`GenerateT5` for complete source-to-text sampling, or `NewT5Session` followed
+by chunked `DecodeT5`; `SaveT5Session` and `LoadT5Session` preserve both
+encoder output and decoder cache. Active-range edits compact decoder self K/V
+without changing fixed cross-attention state.
 DFlash uses the paired-runner path: `PrimeDFlash` or `SyncDFlashPrefix`
 extracts configured target-layer inputs, fuses them, and injects committed K/V;
 `DraftDFlashBlock` evaluates the last-token plus MASK noise block with

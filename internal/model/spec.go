@@ -389,6 +389,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("DeepSeek 3.2 NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
+			spec.BlockCount -= nextN
+		}
+	}
+	if architecture == "glm-dsa" {
+		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("GLM-DSA NextN/MTP layer count is invalid")
+			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
 	}
@@ -1134,12 +1144,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if nextN, ok := optional[uint32](
 			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
 		); ok && nextN > 0 {
-			if architecture == "glm4" {
-				return Spec{}, errors.New("GLM4 NextN/MTP layers are not supported")
-			}
 			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("GLM4-MoE NextN/MTP layer count is invalid")
+				return Spec{}, errors.New("GLM4 NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
 		if sections, ok, sectionsErr := optionalArray[int32](
@@ -1162,6 +1170,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("MiMo2 NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 			spec.LayerKVHeadCounts = spec.LayerKVHeadCounts[:spec.BlockCount]
 		}
@@ -1260,7 +1269,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if nextN, ok := optional[uint32](
 			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
 		); ok && nextN > 0 {
-			return Spec{}, errors.New("EXAONE 4 NextN/MTP layers are not supported")
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("EXAONE 4 NextN/MTP layer count is invalid")
+			}
+			spec.NextNPredictLayers = nextN
+			spec.BlockCount -= nextN
 		}
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
 		if value, ok := optional[float32](
@@ -1295,6 +1308,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("EXAONE-MoE NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
@@ -1325,6 +1339,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("BailingMoE2 NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
 	}

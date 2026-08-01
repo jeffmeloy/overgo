@@ -193,7 +193,7 @@ func TestReadGLM4MoESpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "glm4moe" || spec.BlockCount != 2 ||
+	if spec.Architecture != "glm4moe" || spec.BlockCount != 2 || spec.NextNPredictLayers != 1 ||
 		spec.LeadingDenseBlocks != 1 || spec.SharedExpertFF != 12 ||
 		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.RopeSections[1] != 1 {
 		t.Fatalf("unexpected GLM4-MoE spec: %+v", spec)
@@ -231,7 +231,7 @@ func TestReadMiMo2SpecTrimsMTPArrays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "mimo2" || spec.BlockCount != 3 ||
+	if spec.Architecture != "mimo2" || spec.BlockCount != 3 || spec.NextNPredictLayers != 1 ||
 		len(spec.LayerKVHeadCounts) != 3 || spec.LayerKVHeadCount(1) != 2 ||
 		len(spec.SlidingLayers) != 3 || !spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
 		!spec.IsSlidingLayer(2) || spec.AttentionValueScale != 0.5 ||
@@ -562,7 +562,7 @@ func TestReadBailingMoE2SpecTrimsNextNLayers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "bailingmoe2" || spec.BlockCount != 2 ||
+	if spec.Architecture != "bailingmoe2" || spec.BlockCount != 2 || spec.NextNPredictLayers != 1 ||
 		spec.LeadingDenseBlocks != 1 || spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertCount != 2 || spec.SharedExpertFF != 10 ||
 		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
@@ -683,7 +683,8 @@ func TestReadEXAOneMoESpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.BlockCount != 4 || spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 ||
+	if spec.BlockCount != 4 || spec.NextNPredictLayers != 1 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 ||
 		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm ||
 		!spec.IsSlidingLayer(0) || spec.IsSlidingLayer(2) || spec.UsesRoPE(2) {
 		t.Fatalf("unexpected EXAONE-MoE spec: %+v", spec)
@@ -1535,7 +1536,8 @@ func TestReadGLMDSASpec(t *testing.T) {
 	prefix := "glm-dsa."
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "glm-dsa"),
-		metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(6)),
+		metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(7)),
+		metadata(prefix+"nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
 		metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(1048576)),
 		metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(8)),
 		metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
@@ -1568,7 +1570,8 @@ func TestReadGLMDSASpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "glm-dsa" || spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 ||
+	if spec.Architecture != "glm-dsa" || spec.BlockCount != 6 || spec.NextNPredictLayers != 1 ||
+		spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 ||
 		spec.IndexerTopK != 4 || spec.ExpertGatingFunc != 2 || spec.RopeScalingType != "yarn" ||
 		spec.RopeYaRNLogMultiplier != 1 || !spec.LayerHasFullIndexer(2) ||
 		spec.LayerHasFullIndexer(3) || spec.RopeSections != [4]int32{1, 0, 0, 0} {
@@ -1622,7 +1625,7 @@ func TestReadDeepSeek32Spec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "deepseek32" || spec.BlockCount != 62 ||
+	if spec.Architecture != "deepseek32" || spec.BlockCount != 62 || spec.NextNPredictLayers != 1 ||
 		spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 || spec.IndexerTopK != 4 ||
 		spec.ExpertGatingFunc != 2 || spec.LayerNormEpsilon != 1e-6 ||
 		!spec.LayerHasFullIndexer(0) || !spec.LayerHasFullIndexer(61) {
@@ -2349,8 +2352,12 @@ func TestReadTextGLM4Spec(t *testing.T) {
 	}
 
 	file.Metadata = append(file.Metadata, metadata("glm4.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)))
-	if _, err := ReadSpec(file); err == nil || !strings.Contains(err.Error(), "NextN/MTP") {
-		t.Fatalf("GLM4 NextN error = %v", err)
+	nextNSpec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextNSpec.BlockCount != 39 || nextNSpec.NextNPredictLayers != 1 {
+		t.Fatalf("GLM4 NextN tail was not preserved: %+v", nextNSpec)
 	}
 	file.Metadata[len(file.Metadata)-1] = gguf.Metadata{
 		Key: "glm4.rope.dimension_sections",
@@ -2391,9 +2398,15 @@ func TestReadEXAONE4Spec(t *testing.T) {
 		!usesPostOnlyNorm(spec.Architecture) {
 		t.Fatalf("unexpected EXAONE 4 spec: %+v", spec)
 	}
+	file.Metadata[1] = metadata("exaone4.block_count", gguf.ValueTypeUint32, uint32(65))
 	file.Metadata = append(file.Metadata, metadata("exaone4.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)))
-	if _, err := ReadSpec(file); err == nil || !strings.Contains(err.Error(), "NextN/MTP") {
-		t.Fatalf("EXAONE 4 NextN error = %v", err)
+	nextNSpec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextNSpec.BlockCount != 64 || nextNSpec.NextNPredictLayers != 1 ||
+		nextNSpec.SlidingWindow != 4096 {
+		t.Fatalf("EXAONE 4 NextN tail was not preserved: %+v", nextNSpec)
 	}
 }
 

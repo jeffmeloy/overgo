@@ -1095,6 +1095,8 @@ models:
       - tied-or-untied-output
       - nextn-mtp-tensors-preserved-unexecuted
       - serializable-prefix-editable-kv-cache
+    limitations:
+      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   deepseek4:
     status: experimental
@@ -1141,7 +1143,10 @@ models:
       - optional-selection-correction-bias
       - fused-or-separate-expert-gate-up
       - shared-swiglu-expert
+      - preserved-unexecuted-nextn-mtp-layers
       - serializable-prefix-editable-kv-cache
+    limitations:
+      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   mistral4:
     status: experimental
@@ -2115,8 +2120,9 @@ models:
       - projected-embedding-overrides
       - fused-gate-up-swiglu
       - tied-or-untied-output
+      - preserved-unexecuted-nextn-mtp-layers
     limitations:
-      - nextn-mtp-rejected
+      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   llama:
     status: experimental
@@ -2173,8 +2179,9 @@ models:
       - periodic-full-attention-without-rope
       - swiglu
       - tied-or-untied-output
+      - preserved-unexecuted-nextn-mtp-layers
     limitations:
-      - nextn-mtp-rejected
+      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   xverse:
     status: experimental

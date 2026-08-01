@@ -269,13 +269,20 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	ids, text, err := runner.Generate(context.Background(), flag.Arg(1), inference.GenerateOptions{
+	options := inference.GenerateOptions{
 		MaxNewTokens:  *maxNewTokens,
 		Sampler:       sampler,
 		ContextShift:  *contextShift,
 		KeepTokens:    *keepTokens,
 		DiscardTokens: *discardTokens,
-	})
+	}
+	var ids []tokenizer.TokenID
+	var text string
+	if runner.Spec().Architecture == "t5" {
+		ids, text, _, err = runner.GenerateT5(context.Background(), flag.Arg(1), options)
+	} else {
+		ids, text, err = runner.Generate(context.Background(), flag.Arg(1), options)
+	}
 	if err != nil {
 		return err
 	}

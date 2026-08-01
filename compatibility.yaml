@@ -2833,6 +2833,7 @@ models:
       - fixed-cross-attention-cache
       - active-range-self-cache-editing
       - high-level-sampled-generation
+      - generate-cli-dispatch
       - relu-and-gated-gelu-ffn
       - resumable-model-bound-session
     validation:

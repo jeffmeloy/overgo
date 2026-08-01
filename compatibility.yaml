@@ -2045,6 +2045,29 @@ models:
       - chunk-expert-scaling
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  glm4-moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - leading-dense-swiglu-blocks
+      - fused-or-separate-qkv-with-optional-bias
+      - optional-per-head-qk-rmsnorm
+      - normal-or-text-coordinate-mrope
+      - post-residual-rmsnorm
+      - sigmoid-or-softmax-top-k-routing
+      - selection-correction-bias
+      - optional-selected-weight-normalization
+      - packed-swiglu-experts
+      - shared-expert
+      - preserved-unexecuted-nextn-mtp-layers
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - nextn-mtp-prediction-pending
+      - multimodal-coordinate-input-pending
+    real_model_validation: pending-fixture
   qwen35moe:
     status: experimental
     execution:

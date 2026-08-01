@@ -132,6 +132,56 @@ func TestReadWeightsGroveMoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGLM4MoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "glm4-moe", BlockCount: 2, LeadingDenseBlocks: 1,
+		EmbeddingLength: 8, FeedForwardLength: 12, ExpertCount: 4,
+		ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertCount: 2,
+		SharedExpertFF: 12, ExpertWeightsScale: 1, HeadCount: 2,
+		HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 8),
+			tensorInfo(prefix+"attn_k.weight", 8, 4),
+			tensorInfo(prefix+"attn_v.weight", 8, 4),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", 4),
+			tensorInfo(prefix+"attn_k_norm.weight", 4),
+			tensorInfo(prefix+"attn_post_norm.weight", 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8),
+		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.1.exp_probs_b.bias", 4),
+		tensorInfo("blk.1.ffn_gate_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 12),
+		tensorInfo("blk.1.ffn_up_shexp.weight", 8, 12),
+		tensorInfo("blk.1.ffn_down_shexp.weight", 12, 8),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dense, moe := weights.Layers[0], weights.Layers[1]
+	if dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
+		moe.FeedForwardSharedGate == nil || moe.FeedForwardNorm.Name != "blk.1.attn_post_norm.weight" ||
+		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil {
+		t.Fatalf("unexpected GLM4-MoE catalog: dense=%+v moe=%+v", dense, moe)
+	}
+}
+
 func TestReadWeightsDBRX(t *testing.T) {
 	spec := Spec{
 		Architecture: "dbrx", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,

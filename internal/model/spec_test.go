@@ -101,6 +101,43 @@ func TestReadGroveMoESpec(t *testing.T) {
 	}
 }
 
+func TestReadGLM4MoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "glm4-moe"),
+		metadata("glm4-moe.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("glm4-moe.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("glm4-moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("glm4-moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("glm4-moe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("glm4-moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("glm4-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("glm4-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("glm4-moe.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("glm4-moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("glm4-moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.5)),
+		metadata("glm4-moe.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("glm4-moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("glm4-moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("glm4-moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("glm4-moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("glm4-moe.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		{Key: "glm4-moe.rope.dimension_sections", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
+		}},
+		metadata("glm4-moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("glm4-moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "glm4-moe" || spec.BlockCount != 2 ||
+		spec.LeadingDenseBlocks != 1 || spec.SharedExpertFF != 12 ||
+		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.RopeSections[1] != 1 {
+		t.Fatalf("unexpected GLM4-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadArcticSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "arctic"),

@@ -778,6 +778,98 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	}
 }
 
+func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_COHERE2_MTP_MODEL")
+	if modelPath == "" {
+		t.Skip("LLAMACPP2GO_COHERE2_MTP_MODEL is not set")
+	}
+	runner, err := OpenWithOptions(modelPath, OpenOptions{
+		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	ctx := context.Background()
+	session, err := runner.NewCohere2MTPSession(ctx, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logits, next, err := runner.AdvanceCohere2MTP(ctx, 0, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logits.Shape.Dims[0] != uint64(runner.spec.VocabularySize) ||
+		next.Position != session.Position+1 || next.Layer.Key.Shape.Dims[2] != 1 ||
+		session.Layer.Key.Shape.Rank != 0 {
+		t.Fatalf("unexpected Cohere2-MoE MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
+	}
+	state, err := runner.SaveCohere2MTPSession(next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := runner.LoadCohere2MTPSession(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Position != next.Position || restored.Layer.Key.Shape.Dims[2] != 1 {
+		t.Fatalf("unexpected restored Cohere2-MoE MTP state: %+v", restored)
+	}
+	draft, err := runner.DraftCohere2MTPGreedy(ctx, 0, session, 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification, err := runner.VerifyCohere2MTPGreedy(ctx, runner, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
+		verification.Session.Position != session.Position+uint32(verification.Accepted)+1 ||
+		verification.Session.TrunkCache.Position != verification.Session.Position {
+		t.Fatalf("unexpected Cohere2-MoE MTP verification: draft=%+v result=%+v", draft, verification)
+	}
+	draftSampler, err := sampling.New(sampling.Config{
+		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetSampler, err := sampling.New(sampling.Config{
+		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSamplerBefore, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampledDraft, err := runner.DraftCohere2MTPSampled(
+		ctx, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSamplerAfter, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
+		t.Fatal("Cohere2-MoE sampled drafting changed caller sampler state")
+	}
+	sampledVerification, err := runner.VerifyCohere2MTPSampled(
+		ctx, runner, sampledDraft, draftSampler, targetSampler,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sampledVerification.Accepted < 0 || sampledVerification.Accepted > len(sampledDraft.Tokens) ||
+		sampledVerification.Session.Position != session.Position+uint32(sampledVerification.Accepted)+1 ||
+		sampledVerification.Session.TrunkCache.Position != sampledVerification.Session.Position {
+		t.Fatalf("unexpected sampled Cohere2-MoE MTP verification: draft=%+v result=%+v", sampledDraft, sampledVerification)
+	}
+}
+
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_BONSAI_MODEL")
 	if modelPath == "" {

@@ -1841,6 +1841,11 @@ func TestReadMPTAndRefactALiBiSpecs(t *testing.T) {
 				metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
 			}
 			if test.layerNorm {
+				if test.architecture == "mpt" {
+					metadataItems = append(metadataItems, metadata(
+						prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32, float32(4),
+					))
+				}
 				metadataItems = append(metadataItems, metadata(
 					prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5),
 				))
@@ -1856,6 +1861,9 @@ func TestReadMPTAndRefactALiBiSpecs(t *testing.T) {
 			if !spec.RopeDisabled || spec.MaxALiBiBias != 8 ||
 				spec.HeadCountKV != 2 || spec.UsesLayerNorm() != test.layerNorm {
 				t.Fatalf("unexpected %s spec: %+v", test.architecture, spec)
+			}
+			if test.architecture == "mpt" && spec.AttentionClamp != 4 {
+				t.Fatalf("MPT clamp = %g, want 4", spec.AttentionClamp)
 			}
 		})
 	}
@@ -2944,9 +2952,33 @@ func TestReadOLMoSpec(t *testing.T) {
 	metadataValues = append(metadataValues,
 		metadata("olmo.attention.clamp_kqv", gguf.ValueTypeFloat32, float32(8)),
 	)
-	if _, err := ReadSpec(&gguf.File{Metadata: metadataValues}); err == nil ||
-		!strings.Contains(err.Error(), "clamping") {
-		t.Fatalf("OLMo clamp error = %v, want explicit rejection", err)
+	clamped, err := ReadSpec(&gguf.File{Metadata: metadataValues})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if clamped.AttentionClamp != 8 {
+		t.Fatalf("OLMo clamp = %g, want 8", clamped.AttentionClamp)
+	}
+}
+
+func TestReadMPTAndOLMoRejectInvalidClamp(t *testing.T) {
+	for _, architecture := range []string{"mpt", "olmo"} {
+		prefix := architecture + "."
+		metadataItems := []gguf.Metadata{
+			metadata("general.architecture", gguf.ValueTypeString, architecture),
+			metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(2)),
+			metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(128)),
+			metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(16)),
+			metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(64)),
+			metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+			metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+			metadata(prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+			metadata(prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32, float32(-1)),
+			metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		}
+		if _, err := ReadSpec(&gguf.File{Metadata: metadataItems}); err == nil {
+			t.Fatalf("negative %s clamp was accepted", architecture)
+		}
 	}
 }
 

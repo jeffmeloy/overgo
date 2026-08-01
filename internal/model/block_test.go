@@ -5920,7 +5920,7 @@ func TestBuildMPTBiasFreeBlockUsesALiBi(t *testing.T) {
 	spec := Spec{
 		Architecture: "mpt", EmbeddingLength: 8, FeedForwardLength: 16,
 		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
-		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8,
+		LayerNormEpsilon: 1e-5, RopeDisabled: true, MaxALiBiBias: 8, AttentionClamp: 2,
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -5941,7 +5941,7 @@ func TestBuildMPTBiasFreeBlockUsesALiBi(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var gelu, alibi int
+	var gelu, alibi, clamp int
 	for _, node := range nodes {
 		if node.Op == tensor.OpGELU {
 			gelu++
@@ -5950,9 +5950,50 @@ func TestBuildMPTBiasFreeBlockUsesALiBi(t *testing.T) {
 			node.Attrs.(tensor.AttentionAttributes).MaxALiBiBias == 8 {
 			alibi++
 		}
+		if node.Op == tensor.OpClamp &&
+			node.Attrs.(tensor.ClampAttributes) ==
+				(tensor.ClampAttributes{Minimum: -2, Maximum: 2}) {
+			clamp++
+		}
 	}
-	if gelu != 1 || alibi != 1 {
-		t.Fatalf("MPT graph has GELU=%d ALiBi=%d, want 1/1", gelu, alibi)
+	if gelu != 1 || alibi != 1 || clamp != 1 {
+		t.Fatalf("MPT graph has GELU=%d ALiBi=%d clamp=%d, want 1/1/1", gelu, alibi, clamp)
+	}
+}
+
+func TestBuildOLMoClampsSeparateQKV(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "olmo", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, RopeFrequencyBase: 10000, AttentionClamp: 3,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionNorm = nil
+	weights.AttentionNormBias = nil
+	weights.FeedForwardNorm = nil
+	weights.FeedForwardNormBias = nil
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clamp int
+	for _, node := range nodes {
+		if node.Op == tensor.OpClamp &&
+			node.Attrs.(tensor.ClampAttributes) ==
+				(tensor.ClampAttributes{Minimum: -3, Maximum: 3}) {
+			clamp++
+		}
+	}
+	if clamp != 3 {
+		t.Fatalf("OLMo graph has %d QKV clamps, want 3", clamp)
 	}
 }
 

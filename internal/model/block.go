@@ -3332,7 +3332,7 @@ func buildDenseBlockCachedForLayer(
 		if weights.AttentionQKVBias != nil {
 			mixed = builder.Add(mixed, weights.AttentionQKVBias)
 		}
-		if isDBRX && spec.AttentionClamp > 0 {
+		if spec.AttentionClamp > 0 {
 			mixed = builder.Clamp(mixed, -spec.AttentionClamp, spec.AttentionClamp)
 		}
 		stride := queryLength + keyLength + valueLength
@@ -3372,6 +3372,11 @@ func buildDenseBlockCachedForLayer(
 		}
 		if weights.AttentionVBias != nil {
 			value = builder.Add(value, weights.AttentionVBias)
+		}
+		if spec.AttentionClamp > 0 {
+			query = builder.Clamp(query, -spec.AttentionClamp, spec.AttentionClamp)
+			key = builder.Clamp(key, -spec.AttentionClamp, spec.AttentionClamp)
+			value = builder.Clamp(value, -spec.AttentionClamp, spec.AttentionClamp)
 		}
 	}
 	if isOLMo2 || isOLMoE || isMiniMaxM2 {

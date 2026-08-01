@@ -680,8 +680,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "mpt" {
 		if clamp, ok := optional[float32](
 			values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32,
-		); ok && clamp != 0 {
-			return Spec{}, errors.New("MPT attention QKV clamping is not supported")
+		); ok {
+			spec.AttentionClamp = clamp
 		}
 	}
 	if architecture == "dbrx" {
@@ -1493,8 +1493,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values,
 			prefix+"attention.clamp_kqv",
 			gguf.ValueTypeFloat32,
-		); ok && clamp != 0 {
-			return Spec{}, errors.New("OLMo attention QKV clamping is not supported")
+		); ok {
+			spec.AttentionClamp = clamp
 		}
 	}
 	if architecture == "t5" || architecture == "t5encoder" {
@@ -2818,6 +2818,11 @@ func (s Spec) UsesWeightOnlyLayerNorm() bool {
 }
 
 func (s Spec) validate() error {
+	if (s.Architecture == "mpt" || s.Architecture == "olmo") &&
+		(s.AttentionClamp < 0 || math.IsNaN(float64(s.AttentionClamp)) ||
+			math.IsInf(float64(s.AttentionClamp), 0)) {
+		return fmt.Errorf("%s attention QKV clamp is invalid", s.Architecture)
+	}
 	attentionFree := s.Architecture == "mamba" || s.Architecture == "mamba2"
 	switch {
 	case s.BlockCount == 0:

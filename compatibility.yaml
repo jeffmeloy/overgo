@@ -1304,6 +1304,7 @@ models:
       - optional-learned-absolute-position-embeddings
       - optional-bias-affine-layernorm
       - required-contiguous-fused-qkv
+      - fused-qkv-clamping
       - optional-projection-biases
       - optional-llama-cpp-compatible-alibi
       - sequential-gelu
@@ -1311,7 +1312,6 @@ models:
     limitations:
       - qk-layernorm-variants-rejected
       - activation-scale-variants-rejected
-      - nonzero-qkv-clamp-rejected
     real_model_validation: pending-fixture
   refact:
     status: experimental
@@ -1614,10 +1614,9 @@ models:
     features:
       - unweighted-layernorm
       - normal-rope
+      - separate-qkv-clamping
       - swiglu
       - optional-tied-output
-    limitations:
-      - nonzero-qkv-clamp-rejected
     real_model_validation: pending-fixture
   openelm:
     status: experimental

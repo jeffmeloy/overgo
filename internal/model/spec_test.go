@@ -70,6 +70,37 @@ func TestReadQwen3MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadGroveMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "grovemoe"),
+		metadata("grovemoe.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grovemoe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("grovemoe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("grovemoe.feed_forward_length", gguf.ValueTypeUint32, uint32(24)),
+		metadata("grovemoe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("grovemoe.expert_chunk_feed_forward_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grovemoe.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("grovemoe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grovemoe.expert_group_scale", gguf.ValueTypeFloat32, float32(0.5)),
+		metadata("grovemoe.experts_per_group", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grovemoe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("grovemoe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("grovemoe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grovemoe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("grovemoe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("grovemoe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "grovemoe" || spec.ExpertCount != 8 ||
+		spec.ExpertChunkFeedForward != 4 || spec.ExpertsPerGroup != 4 ||
+		spec.ExpertGroupScale != 0.5 {
+		t.Fatalf("unexpected GroveMoE spec: %+v", spec)
+	}
+}
+
 func TestReadArcticSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "arctic"),

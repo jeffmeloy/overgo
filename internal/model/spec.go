@@ -10,74 +10,77 @@ import (
 
 // Spec: contains common transformer metadata needed to construct model
 type Spec struct {
-	Architecture          string
-	Name                  string
-	BlockCount            uint32
-	ContextLength         uint32
-	EmbeddingLength       uint32
-	FeedForwardLength     uint32
-	HeadCount             uint32
-	HeadCountKV           uint32
-	KeyLength             uint32
-	ValueLength           uint32
-	RopeFrequencyBase     float32
-	RopeFrequencySWA      float32
-	RopeScalingType       string
-	RopeScalingFactor     float32
-	RopeAttentionFactor   float32
-	OriginalContextLength uint32
-	AttentionScale        float32
-	AttentionClamp        float32
-	MaxALiBiBias          float32
-	EmbeddingScale        float32
-	ResidualScale         float32
-	LogitScale            float32
-	AttentionSoftcap      float32
-	FinalLogitSoftcap     float32
-	RMSNormEpsilon        float32
-	LayerNormEpsilon      float32
-	VocabularySize        uint32
-	TokenTypeCount        uint32
-	ExpertCount           uint32
-	ExpertUsedCount       uint32
-	ExpertFeedForward     uint32
-	ExpertWeightsScale    float32
-	LeadingDenseBlocks    uint32
-	MoELayerStep          uint32
-	SharedExpertFF        uint32
-	SharedExpertCount     uint32
-	ExpertGatingFunc      uint32
-	ExpertWeightsNorm     bool
-	ShortConvCacheLength  uint32
-	QLoRARank             uint32
-	KVLoRARank            uint32
-	QKNormEpsilon         float32
-	SlidingWindow         uint32
-	SlidingPattern        uint32
-	RelativeBuckets       uint32
-	NoRopeLayerStep       uint32
-	HiddenActivation      string
-	Dense2FeatureIn       uint32
-	Dense2FeatureOut      uint32
-	Dense3FeatureIn       uint32
-	Dense3FeatureOut      uint32
-	RopeDisabled          bool
-	ParallelResidual      bool
-	NonCausalAttention    bool
-	SandwichNorm          bool
-	YaRNExtFactor         float32
-	YaRNAttentionFactor   float32
-	YaRNBetaFast          float32
-	YaRNBetaSlow          float32
-	RopeDimensionSWA      uint32
-	LayerHeadCounts       []uint32
-	LayerKVHeadCounts     []uint32
-	LayerFeedForward      []uint32
-	SlidingLayers         []bool
-	XIELUAlphaN           []float32
-	XIELUAlphaP           []float32
-	XIELUBeta             []float32
-	XIELUEpsilon          []float32
+	Architecture           string
+	Name                   string
+	BlockCount             uint32
+	ContextLength          uint32
+	EmbeddingLength        uint32
+	FeedForwardLength      uint32
+	HeadCount              uint32
+	HeadCountKV            uint32
+	KeyLength              uint32
+	ValueLength            uint32
+	RopeFrequencyBase      float32
+	RopeFrequencySWA       float32
+	RopeScalingType        string
+	RopeScalingFactor      float32
+	RopeAttentionFactor    float32
+	OriginalContextLength  uint32
+	AttentionScale         float32
+	AttentionClamp         float32
+	MaxALiBiBias           float32
+	EmbeddingScale         float32
+	ResidualScale          float32
+	LogitScale             float32
+	AttentionSoftcap       float32
+	FinalLogitSoftcap      float32
+	RMSNormEpsilon         float32
+	LayerNormEpsilon       float32
+	VocabularySize         uint32
+	TokenTypeCount         uint32
+	ExpertCount            uint32
+	ExpertUsedCount        uint32
+	ExpertFeedForward      uint32
+	ExpertChunkFeedForward uint32
+	ExpertWeightsScale     float32
+	ExpertGroupScale       float32
+	ExpertsPerGroup        uint32
+	LeadingDenseBlocks     uint32
+	MoELayerStep           uint32
+	SharedExpertFF         uint32
+	SharedExpertCount      uint32
+	ExpertGatingFunc       uint32
+	ExpertWeightsNorm      bool
+	ShortConvCacheLength   uint32
+	QLoRARank              uint32
+	KVLoRARank             uint32
+	QKNormEpsilon          float32
+	SlidingWindow          uint32
+	SlidingPattern         uint32
+	RelativeBuckets        uint32
+	NoRopeLayerStep        uint32
+	HiddenActivation       string
+	Dense2FeatureIn        uint32
+	Dense2FeatureOut       uint32
+	Dense3FeatureIn        uint32
+	Dense3FeatureOut       uint32
+	RopeDisabled           bool
+	ParallelResidual       bool
+	NonCausalAttention     bool
+	SandwichNorm           bool
+	YaRNExtFactor          float32
+	YaRNAttentionFactor    float32
+	YaRNBetaFast           float32
+	YaRNBetaSlow           float32
+	RopeDimensionSWA       uint32
+	LayerHeadCounts        []uint32
+	LayerKVHeadCounts      []uint32
+	LayerFeedForward       []uint32
+	SlidingLayers          []bool
+	XIELUAlphaN            []float32
+	XIELUAlphaP            []float32
+	XIELUBeta              []float32
+	XIELUEpsilon           []float32
 
 	// Qwen3.5 hybrid recurrent-attention metadata
 	RopeDimensionCount    uint32
@@ -163,6 +166,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "glm4" &&
 		architecture != "gpt2" &&
 		architecture != "gptneox" &&
+		architecture != "grovemoe" &&
 		architecture != "grok" &&
 		architecture != "hunyuan-dense" &&
 		architecture != "hunyuan-vl" &&
@@ -1153,7 +1157,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1192,6 +1196,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			); ok {
 				spec.SharedExpertFF = value
 			}
+		}
+	}
+	if architecture == "grovemoe" {
+		spec.ExpertChunkFeedForward = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"expert_chunk_feed_forward_length", gguf.ValueTypeUint32); ok {
+			spec.ExpertChunkFeedForward = value
+		}
+		if spec.ExpertGroupScale, err = required[float32](values, prefix+"expert_group_scale", gguf.ValueTypeFloat32); err != nil {
+			return Spec{}, err
+		}
+		if spec.ExpertsPerGroup, err = required[uint32](values, prefix+"experts_per_group", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
 		}
 	}
 	if architecture == "cohere2moe" {
@@ -1944,6 +1960,15 @@ func (s Spec) validate() error {
 			math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
+	}
+	if s.Architecture == "grovemoe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertChunkFeedForward == 0 ||
+			s.ExpertsPerGroup == 0 || s.ExpertCount%s.ExpertsPerGroup != 0 ||
+			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0) || math.IsNaN(float64(s.ExpertGroupScale)) ||
+			math.IsInf(float64(s.ExpertGroupScale), 0)) {
+		return errors.New("GroveMoE expert metadata is invalid")
 	}
 	if s.Architecture == "llada-moe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||

@@ -287,6 +287,39 @@ func TestBuilderReLUMoEWithRouterInput(t *testing.T) {
 	}
 }
 
+func TestBuilderGroupedMoEWithRouterInput(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1))
+	routerInput := builder.Input("router-input", dtype.F32, MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, MustShape(2, 4))
+	gate := builder.Input("gate", dtype.F32, MustShape(2, 3, 2))
+	up := builder.Input("up", dtype.F32, MustShape(2, 3, 2))
+	down := builder.Input("down", dtype.F32, MustShape(3, 2, 2))
+	output := builder.MoEGroupedWithRouterInput(
+		input, routerInput, router, gate, up, down, 2, true, 1.25, 2,
+	)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(MoEAttributes)
+	if attributes.Experts != 4 || attributes.ExpertIndexDivisor != 2 ||
+		output.Inputs[1] != routerInput || len(output.Inputs) != 6 {
+		t.Fatalf("unexpected grouped MoE graph: %+v", output)
+	}
+	invalid := NewBuilder()
+	invalidInput := invalid.Input("input", dtype.F32, MustShape(2, 1))
+	invalidRouter := invalid.Input("router", dtype.F32, MustShape(2, 4))
+	invalidExperts := invalid.Input("experts", dtype.F32, MustShape(2, 3, 2))
+	invalidDown := invalid.Input("down", dtype.F32, MustShape(3, 2, 2))
+	invalid.MoEGroupedWithRouterInput(
+		invalidInput, invalidInput, invalidRouter, invalidExperts, invalidExperts,
+		invalidDown, 2, true, 1, 0,
+	)
+	if invalid.Err() == nil {
+		t.Fatal("grouped MoE accepted zero expert index divisor")
+	}
+}
+
 func TestBuilderGELUMoE(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(2, 1))

@@ -3572,6 +3572,65 @@ func TestBuildSmallThinkerUsesSplitRouterReGLUAndSlidingRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildGroveMoEGroupedChunkExperts(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "grovemoe", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 24, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertChunkFeedForward: 3, ExpertWeightsScale: 1.25,
+		ExpertGroupScale: 0.5, ExpertsPerGroup: 2,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:               builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:                  builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:                  builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:                  builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:             builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionQNorm:              builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionKNorm:              builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardNorm:             builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:           builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts:      builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:        builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts:      builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardGateChunkExperts: builder.Input("gate_chexps", dtype.F32, tensor.MustShape(8, 3, 2)),
+		FeedForwardUpChunkExperts:   builder.Input("up_chexps", dtype.F32, tensor.MustShape(8, 3, 2)),
+		FeedForwardDownChunkExperts: builder.Input("down_chexps", dtype.F32, tensor.MustShape(3, 8, 2)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moes []*tensor.Tensor
+	var rope int
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			moes = append(moes, node)
+		}
+		if node.Op == tensor.OpRoPENeoX {
+			rope++
+		}
+	}
+	if len(moes) != 2 || rope != 2 {
+		t.Fatalf("unexpected GroveMoE graph: moes=%d rope=%d", len(moes), rope)
+	}
+	grouped := moes[1].Attrs.(tensor.MoEAttributes)
+	if grouped.ExpertIndexDivisor != 2 || grouped.TopK != 2 ||
+		moes[1].Inputs[0] != moes[0] || moes[1].Inputs[1] == moes[1].Inputs[0] ||
+		moes[1].Inputs[2] != weights.FeedForwardRouter {
+		t.Fatalf("unexpected grouped GroveMoE pass: attrs=%+v inputs=%v", grouped, moes[1].Inputs)
+	}
+}
+
 func TestBuildDOTS1MoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -2028,6 +2028,23 @@ models:
       - sigmoid-gated-shared-expert
       - serializable-hybrid-cache
     real_model_validation: pending-fixture
+  grovemoe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - separate-qkv
+      - per-head-qk-rmsnorm
+      - neox-rope
+      - normalized-softmax-top-k-routing
+      - packed-swiglu-experts
+      - shared-router-logits
+      - grouped-chunk-expert-bank
+      - chunk-expert-scaling
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   qwen35moe:
     status: experimental
     execution:

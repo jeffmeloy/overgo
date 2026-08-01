@@ -150,14 +150,15 @@ type AttentionAttributes struct {
 }
 
 type MoEAttributes struct {
-	Experts           uint32
-	TopK              uint32
-	NormalizeTopKProb bool
-	Scale             float32
-	Routing           MoERouting
-	Activation        MoEActivation
-	Gated             bool
-	FusedGateUp       bool
+	Experts            uint32
+	ExpertIndexDivisor uint32
+	TopK               uint32
+	NormalizeTopKProb  bool
+	Scale              float32
+	Routing            MoERouting
+	Activation         MoEActivation
+	Gated              bool
+	FusedGateUp        bool
 }
 
 type GatedDeltaNetAttributes struct {
@@ -442,7 +443,19 @@ func (b *Builder) MoE(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false)
+		MoERoutingSoftmax, MoEActivationSiLU, false, 1)
+}
+
+// MoEGroupedWithRouterInput: split router input; grouped expert-bank indices.
+func (b *Builder) MoEGroupedWithRouterInput(
+	input, routerInput, router, gate, up, down *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+	expertIndexDivisor uint32,
+) *Tensor {
+	return b.moe(input, routerInput, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationSiLU, false, expertIndexDivisor)
 }
 
 func (b *Builder) MoEUngated(
@@ -452,7 +465,7 @@ func (b *Builder) MoEUngated(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, nil, up, down, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false)
+		MoERoutingSoftmax, MoEActivationSiLU, false, 1)
 }
 
 // MoEUngatedWithSelectionBias: softmax selection bias; ungated experts.
@@ -463,7 +476,7 @@ func (b *Builder) MoEUngatedWithSelectionBias(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, nil, up, down, selectionBias, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false)
+		MoERoutingSoftmax, MoEActivationSiLU, false, 1)
 }
 
 // MoESoftmaxWithSelectionBias: biased selection; unbiased route weights.
@@ -474,7 +487,7 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false)
+		MoERoutingSoftmax, MoEActivationSiLU, false, 1)
 }
 
 // MoESoftmaxFusedGateUp: softmax top-k; fused expert gate/up storage.
@@ -485,7 +498,7 @@ func (b *Builder) MoESoftmaxFusedGateUp(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, nil, gateUp, down, selectionBias, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, true)
+		MoERoutingSoftmax, MoEActivationSiLU, true, 1)
 }
 
 // MoESigmoid: sigmoid routes; optional selection bias.
@@ -496,7 +509,7 @@ func (b *Builder) MoESigmoid(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
-		MoERoutingSigmoid, MoEActivationSiLU, false)
+		MoERoutingSigmoid, MoEActivationSiLU, false, 1)
 }
 
 // MoESigmoidFusedGateUp: sigmoid top-k; fused expert gate/up storage.
@@ -507,7 +520,7 @@ func (b *Builder) MoESigmoidFusedGateUp(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, nil, gateUp, down, selectionBias, topK, normalizeTopKProb, scale,
-		MoERoutingSigmoid, MoEActivationSiLU, true)
+		MoERoutingSigmoid, MoEActivationSiLU, true, 1)
 }
 
 // MoEReLUWithRouterInput: split router input; gated ReLU experts.
@@ -519,7 +532,7 @@ func (b *Builder) MoEReLUWithRouterInput(
 	routing MoERouting,
 ) *Tensor {
 	return b.moe(input, routerInput, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
-		routing, MoEActivationReLU, false)
+		routing, MoEActivationReLU, false, 1)
 }
 
 // MoEGELU: softmax top-k GELU/GEGLU experts.
@@ -530,7 +543,7 @@ func (b *Builder) MoEGELU(
 	scale float32,
 ) *Tensor {
 	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationGELU, false)
+		MoERoutingSoftmax, MoEActivationGELU, false, 1)
 }
 
 func (b *Builder) moe(
@@ -541,6 +554,7 @@ func (b *Builder) moe(
 	routing MoERouting,
 	activation MoEActivation,
 	fusedGateUp bool,
+	expertIndexDivisor uint32,
 ) *Tensor {
 	if b.err != nil {
 		return nil
@@ -566,6 +580,11 @@ func (b *Builder) moe(
 	}
 	hidden := input.Shape.Dims[0]
 	experts := router.Shape.Dims[1]
+	if expertIndexDivisor == 0 || experts%uint64(expertIndexDivisor) != 0 {
+		b.setError(errors.New("MoE expert index divisor is invalid"))
+		return nil
+	}
+	bankExperts := experts / uint64(expertIndexDivisor)
 	intermediate := up.Shape.Dims[1]
 	if fusedGateUp {
 		if gate != nil || intermediate%2 != 0 {
@@ -575,18 +594,18 @@ func (b *Builder) moe(
 		intermediate /= 2
 	}
 	if hidden == 0 || experts == 0 || experts > math.MaxUint32 || topK == 0 ||
-		uint64(topK) > experts || topK > 16 || scale == 0 ||
+		uint64(topK) > experts || uint64(topK) > bankExperts || topK > 16 || scale == 0 ||
 		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) ||
 		router.Shape.Dims[0] != hidden || up.Shape.Dims[0] != hidden ||
 		routerInput.Shape.Dims[0] != hidden || routerInput.Shape.Dims[1] != input.Shape.Dims[1] ||
-		up.Shape.Dims[2] != experts ||
+		up.Shape.Dims[2] != bankExperts ||
 		down.Shape.Dims[0] != intermediate || down.Shape.Dims[1] != hidden ||
-		down.Shape.Dims[2] != experts {
+		down.Shape.Dims[2] != bankExperts {
 		b.setError(errors.New("MoE dimensions or routing attributes are invalid"))
 		return nil
 	}
 	if gate != nil && (gate.Shape.Dims[0] != hidden || gate.Shape.Dims[1] != intermediate ||
-		gate.Shape.Dims[2] != experts) {
+		gate.Shape.Dims[2] != bankExperts) {
 		b.setError(errors.New("MoE gate dimensions are invalid"))
 		return nil
 	}
@@ -620,7 +639,7 @@ func (b *Builder) moe(
 	}
 	return b.add("", dtype.F32, input.Shape, OpMoE,
 		inputs, MoEAttributes{
-			Experts: uint32(experts), TopK: topK,
+			Experts: uint32(experts), ExpertIndexDivisor: expertIndexDivisor, TopK: topK,
 			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing,
 			Activation: activation, Gated: gate != nil || fusedGateUp, FusedGateUp: fusedGateUp,
 		})

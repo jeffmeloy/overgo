@@ -93,6 +93,45 @@ func TestReadWeightsQwen3MoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGroveMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "grovemoe", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 24, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertChunkFeedForward: 3, ExpertsPerGroup: 2,
+		ExpertWeightsScale: 1, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4),
+		tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_q_norm.weight", 4),
+		tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_gate_exps.weight", 8, 6, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 8, 6, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.0.ffn_gate_chexps.weight", 8, 3, 2),
+		tensorInfo("blk.0.ffn_up_chexps.weight", 8, 3, 2),
+		tensorInfo("blk.0.ffn_down_chexps.weight", 3, 8, 2),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.FeedForwardGateChunkExperts == nil || layer.FeedForwardUpChunkExperts == nil ||
+		layer.FeedForwardDownChunkExperts == nil || layer.AttentionQNorm == nil ||
+		layer.AttentionKNorm == nil {
+		t.Fatalf("unexpected GroveMoE catalog: %+v", layer)
+	}
+}
+
 func TestReadWeightsDBRX(t *testing.T) {
 	spec := Spec{
 		Architecture: "dbrx", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,

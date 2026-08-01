@@ -10,66 +10,69 @@ import (
 
 // LayerGraphWeights: graph inputs for one dense Llama/Qwen3 block
 type LayerGraphWeights struct {
-	AttentionNorm            *tensor.Tensor
-	AttentionNormBias        *tensor.Tensor
-	AttentionNorm2           *tensor.Tensor
-	AttentionNorm2Bias       *tensor.Tensor
-	AttentionQ               *tensor.Tensor
-	AttentionQB              *tensor.Tensor
-	AttentionK               *tensor.Tensor
-	AttentionV               *tensor.Tensor
-	AttentionOutput          *tensor.Tensor
-	AttentionQScale          *tensor.Tensor
-	AttentionKScale          *tensor.Tensor
-	AttentionVScale          *tensor.Tensor
-	AttentionOutputScale     *tensor.Tensor
-	AttentionSubNorm         *tensor.Tensor
-	AttentionQBias           *tensor.Tensor
-	AttentionKBias           *tensor.Tensor
-	AttentionVBias           *tensor.Tensor
-	AttentionOutputBias      *tensor.Tensor
-	AttentionQNorm           *tensor.Tensor
-	AttentionKNorm           *tensor.Tensor
-	AttentionQNormBias       *tensor.Tensor
-	AttentionKNormBias       *tensor.Tensor
-	AttentionPostNorm        *tensor.Tensor
-	AttentionPostNormBias    *tensor.Tensor
-	AttentionRelativeBias    *tensor.Tensor
-	AttentionOutputGate      *tensor.Tensor
-	RopeFactors              *tensor.Tensor
-	FeedForwardNorm          *tensor.Tensor
-	FeedForwardNormBias      *tensor.Tensor
-	FeedForwardExpertNorm    *tensor.Tensor
-	FeedForwardGate          *tensor.Tensor
-	FeedForwardUp            *tensor.Tensor
-	FeedForwardDown          *tensor.Tensor
-	FeedForwardGateScale     *tensor.Tensor
-	FeedForwardUpScale       *tensor.Tensor
-	FeedForwardDownScale     *tensor.Tensor
-	FeedForwardSubNorm       *tensor.Tensor
-	FeedForwardGateBias      *tensor.Tensor
-	FeedForwardUpBias        *tensor.Tensor
-	FeedForwardDownBias      *tensor.Tensor
-	FeedForwardPostNorm      *tensor.Tensor
-	FeedForwardPostNormBias  *tensor.Tensor
-	FeedForwardRouter        *tensor.Tensor
-	FeedForwardGateUpExperts *tensor.Tensor
-	FeedForwardGateExperts   *tensor.Tensor
-	FeedForwardUpExperts     *tensor.Tensor
-	FeedForwardDownExperts   *tensor.Tensor
-	FeedForwardExpertBias    *tensor.Tensor
-	FeedForwardSharedGate    *tensor.Tensor
-	FeedForwardSharedUp      *tensor.Tensor
-	FeedForwardSharedDown    *tensor.Tensor
-	FeedForwardSharedRouter  *tensor.Tensor
-	LayerOutputScale         *tensor.Tensor
-	EmbeddingSkip            *tensor.Tensor
-	ShortConvKernel          *tensor.Tensor
-	ShortConvInput           *tensor.Tensor
-	ShortConvOutput          *tensor.Tensor
-	AttentionKVAMQA          *tensor.Tensor
-	AttentionKVANorm         *tensor.Tensor
-	AttentionKVB             *tensor.Tensor
+	AttentionNorm               *tensor.Tensor
+	AttentionNormBias           *tensor.Tensor
+	AttentionNorm2              *tensor.Tensor
+	AttentionNorm2Bias          *tensor.Tensor
+	AttentionQ                  *tensor.Tensor
+	AttentionQB                 *tensor.Tensor
+	AttentionK                  *tensor.Tensor
+	AttentionV                  *tensor.Tensor
+	AttentionOutput             *tensor.Tensor
+	AttentionQScale             *tensor.Tensor
+	AttentionKScale             *tensor.Tensor
+	AttentionVScale             *tensor.Tensor
+	AttentionOutputScale        *tensor.Tensor
+	AttentionSubNorm            *tensor.Tensor
+	AttentionQBias              *tensor.Tensor
+	AttentionKBias              *tensor.Tensor
+	AttentionVBias              *tensor.Tensor
+	AttentionOutputBias         *tensor.Tensor
+	AttentionQNorm              *tensor.Tensor
+	AttentionKNorm              *tensor.Tensor
+	AttentionQNormBias          *tensor.Tensor
+	AttentionKNormBias          *tensor.Tensor
+	AttentionPostNorm           *tensor.Tensor
+	AttentionPostNormBias       *tensor.Tensor
+	AttentionRelativeBias       *tensor.Tensor
+	AttentionOutputGate         *tensor.Tensor
+	RopeFactors                 *tensor.Tensor
+	FeedForwardNorm             *tensor.Tensor
+	FeedForwardNormBias         *tensor.Tensor
+	FeedForwardExpertNorm       *tensor.Tensor
+	FeedForwardGate             *tensor.Tensor
+	FeedForwardUp               *tensor.Tensor
+	FeedForwardDown             *tensor.Tensor
+	FeedForwardGateScale        *tensor.Tensor
+	FeedForwardUpScale          *tensor.Tensor
+	FeedForwardDownScale        *tensor.Tensor
+	FeedForwardSubNorm          *tensor.Tensor
+	FeedForwardGateBias         *tensor.Tensor
+	FeedForwardUpBias           *tensor.Tensor
+	FeedForwardDownBias         *tensor.Tensor
+	FeedForwardPostNorm         *tensor.Tensor
+	FeedForwardPostNormBias     *tensor.Tensor
+	FeedForwardRouter           *tensor.Tensor
+	FeedForwardGateUpExperts    *tensor.Tensor
+	FeedForwardGateExperts      *tensor.Tensor
+	FeedForwardUpExperts        *tensor.Tensor
+	FeedForwardDownExperts      *tensor.Tensor
+	FeedForwardGateChunkExperts *tensor.Tensor
+	FeedForwardUpChunkExperts   *tensor.Tensor
+	FeedForwardDownChunkExperts *tensor.Tensor
+	FeedForwardExpertBias       *tensor.Tensor
+	FeedForwardSharedGate       *tensor.Tensor
+	FeedForwardSharedUp         *tensor.Tensor
+	FeedForwardSharedDown       *tensor.Tensor
+	FeedForwardSharedRouter     *tensor.Tensor
+	LayerOutputScale            *tensor.Tensor
+	EmbeddingSkip               *tensor.Tensor
+	ShortConvKernel             *tensor.Tensor
+	ShortConvInput              *tensor.Tensor
+	ShortConvOutput             *tensor.Tensor
+	AttentionKVAMQA             *tensor.Tensor
+	AttentionKVANorm            *tensor.Tensor
+	AttentionKVB                *tensor.Tensor
 
 	AttentionQKV     *tensor.Tensor
 	AttentionQKVBias *tensor.Tensor
@@ -1045,6 +1048,7 @@ func BuildDenseBlockCachedForLayer(
 	isDOTS1 := spec.Architecture == "dots1"
 	isErnieMoE := spec.Architecture == "ernie4_5-moe"
 	isGraniteMoE := spec.Architecture == "granitemoe"
+	isGroveMoE := spec.Architecture == "grovemoe"
 	isGrok := spec.Architecture == "grok"
 	isHunyuanMoE := spec.Architecture == "hunyuan-moe"
 	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl"
@@ -1056,6 +1060,10 @@ func BuildDenseBlockCachedForLayer(
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
 	isQwen2MoE := spec.Architecture == "qwen2moe"
+	if isGroveMoE && (spec.ExpertsPerGroup == 0 || spec.ExpertCount == 0 ||
+		spec.ExpertCount%spec.ExpertsPerGroup != 0) {
+		return DenseBlockResult{}, errors.New("GroveMoE expert grouping is invalid")
+	}
 	headCount := spec.LayerHeadCount(layerIndex)
 	kvHeadCount := spec.LayerKVHeadCount(layerIndex)
 	if isDeci && (spec.LayerFeedForwardLength(layerIndex) == 0 || headCount == 0 || kvHeadCount == 0) {
@@ -1073,7 +1081,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -1086,6 +1094,11 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward expert up"] = weights.FeedForwardUpExperts
 		}
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		if isGroveMoE {
+			required["feed-forward chunk expert gate"] = weights.FeedForwardGateChunkExperts
+			required["feed-forward chunk expert up"] = weights.FeedForwardUpChunkExperts
+			required["feed-forward chunk expert down"] = weights.FeedForwardDownChunkExperts
+		}
 		if isCohere2MoE && spec.SharedExpertFF > 0 {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
@@ -1352,7 +1365,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isHYV3 || isLLaDAMoE || isMellum || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isGroveMoE || isHYV3 || isLLaDAMoE || isMellum || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -1794,6 +1807,25 @@ func BuildDenseBlockCachedForLayer(
 				)
 				feedForward = builder.Scale(builder.Add(feedForward, shared), 0.5)
 			}
+		} else if isGroveMoE {
+			feedForward = builder.MoE(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
+				spec.ExpertWeightsScale,
+			)
+			chunkTopK := spec.ExpertUsedCount
+			chunkExperts := spec.ExpertCount / spec.ExpertsPerGroup
+			if chunkTopK > chunkExperts {
+				chunkTopK = chunkExperts
+			}
+			chunk := builder.MoEGroupedWithRouterInput(
+				feedForward, normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateChunkExperts, weights.FeedForwardUpChunkExperts,
+				weights.FeedForwardDownChunkExperts, chunkTopK, true,
+				spec.ExpertWeightsScale, spec.ExpertsPerGroup,
+			)
+			feedForward = builder.Add(feedForward, builder.Scale(chunk, spec.ExpertGroupScale))
 		} else if isGrok {
 			feedForward = builder.MoEGELU(
 				normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,

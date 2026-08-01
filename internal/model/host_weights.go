@@ -15,65 +15,68 @@ import (
 
 // HostLayer: one dense layer dequantized to contiguous F32 values
 type HostLayer struct {
-	AttentionNorm            reference.Value
-	AttentionNormBias        *reference.Value
-	AttentionNorm2           *reference.Value
-	AttentionNorm2Bias       *reference.Value
-	AttentionQ               reference.Value
-	AttentionQB              *reference.Value
-	AttentionK               reference.Value
-	AttentionV               reference.Value
-	AttentionOutput          reference.Value
-	AttentionQScale          *reference.Value
-	AttentionKScale          *reference.Value
-	AttentionVScale          *reference.Value
-	AttentionOutputScale     *reference.Value
-	AttentionSubNorm         *reference.Value
-	AttentionQBias           *reference.Value
-	AttentionKBias           *reference.Value
-	AttentionVBias           *reference.Value
-	AttentionOutputBias      *reference.Value
-	AttentionQNorm           *reference.Value
-	AttentionKNorm           *reference.Value
-	AttentionQNormBias       *reference.Value
-	AttentionKNormBias       *reference.Value
-	AttentionPostNorm        *reference.Value
-	AttentionPostNormBias    *reference.Value
-	AttentionRelativeBias    *reference.Value
-	AttentionOutputGate      *reference.Value
-	RopeFactors              *reference.Value
-	FeedForwardNorm          reference.Value
-	FeedForwardNormBias      *reference.Value
-	FeedForwardExpertNorm    *reference.Value
-	FeedForwardGate          reference.Value
-	FeedForwardUp            reference.Value
-	FeedForwardDown          reference.Value
-	FeedForwardGateScale     *reference.Value
-	FeedForwardUpScale       *reference.Value
-	FeedForwardDownScale     *reference.Value
-	FeedForwardSubNorm       *reference.Value
-	FeedForwardGateBias      *reference.Value
-	FeedForwardUpBias        *reference.Value
-	FeedForwardDownBias      *reference.Value
-	FeedForwardPostNorm      *reference.Value
-	FeedForwardPostNormBias  *reference.Value
-	FeedForwardRouter        *reference.Value
-	FeedForwardGateUpExperts *reference.Value
-	FeedForwardGateExperts   *reference.Value
-	FeedForwardUpExperts     *reference.Value
-	FeedForwardDownExperts   *reference.Value
-	FeedForwardExpertBias    *reference.Value
-	FeedForwardSharedGate    *reference.Value
-	FeedForwardSharedUp      *reference.Value
-	FeedForwardSharedDown    *reference.Value
-	FeedForwardSharedRouter  *reference.Value
-	LayerOutputScale         *reference.Value
-	ShortConvKernel          *reference.Value
-	ShortConvInput           *reference.Value
-	ShortConvOutput          *reference.Value
-	AttentionKVAMQA          *reference.Value
-	AttentionKVANorm         *reference.Value
-	AttentionKVB             *reference.Value
+	AttentionNorm               reference.Value
+	AttentionNormBias           *reference.Value
+	AttentionNorm2              *reference.Value
+	AttentionNorm2Bias          *reference.Value
+	AttentionQ                  reference.Value
+	AttentionQB                 *reference.Value
+	AttentionK                  reference.Value
+	AttentionV                  reference.Value
+	AttentionOutput             reference.Value
+	AttentionQScale             *reference.Value
+	AttentionKScale             *reference.Value
+	AttentionVScale             *reference.Value
+	AttentionOutputScale        *reference.Value
+	AttentionSubNorm            *reference.Value
+	AttentionQBias              *reference.Value
+	AttentionKBias              *reference.Value
+	AttentionVBias              *reference.Value
+	AttentionOutputBias         *reference.Value
+	AttentionQNorm              *reference.Value
+	AttentionKNorm              *reference.Value
+	AttentionQNormBias          *reference.Value
+	AttentionKNormBias          *reference.Value
+	AttentionPostNorm           *reference.Value
+	AttentionPostNormBias       *reference.Value
+	AttentionRelativeBias       *reference.Value
+	AttentionOutputGate         *reference.Value
+	RopeFactors                 *reference.Value
+	FeedForwardNorm             reference.Value
+	FeedForwardNormBias         *reference.Value
+	FeedForwardExpertNorm       *reference.Value
+	FeedForwardGate             reference.Value
+	FeedForwardUp               reference.Value
+	FeedForwardDown             reference.Value
+	FeedForwardGateScale        *reference.Value
+	FeedForwardUpScale          *reference.Value
+	FeedForwardDownScale        *reference.Value
+	FeedForwardSubNorm          *reference.Value
+	FeedForwardGateBias         *reference.Value
+	FeedForwardUpBias           *reference.Value
+	FeedForwardDownBias         *reference.Value
+	FeedForwardPostNorm         *reference.Value
+	FeedForwardPostNormBias     *reference.Value
+	FeedForwardRouter           *reference.Value
+	FeedForwardGateUpExperts    *reference.Value
+	FeedForwardGateExperts      *reference.Value
+	FeedForwardUpExperts        *reference.Value
+	FeedForwardDownExperts      *reference.Value
+	FeedForwardGateChunkExperts *reference.Value
+	FeedForwardUpChunkExperts   *reference.Value
+	FeedForwardDownChunkExperts *reference.Value
+	FeedForwardExpertBias       *reference.Value
+	FeedForwardSharedGate       *reference.Value
+	FeedForwardSharedUp         *reference.Value
+	FeedForwardSharedDown       *reference.Value
+	FeedForwardSharedRouter     *reference.Value
+	LayerOutputScale            *reference.Value
+	ShortConvKernel             *reference.Value
+	ShortConvInput              *reference.Value
+	ShortConvOutput             *reference.Value
+	AttentionKVAMQA             *reference.Value
+	AttentionKVANorm            *reference.Value
+	AttentionKVB                *reference.Value
 
 	AttentionQKV     *reference.Value
 	AttentionQKVBias *reference.Value
@@ -498,6 +501,9 @@ func LoadHostLayer(
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{info.FeedForwardGateChunkExperts, &result.FeedForwardGateChunkExperts},
+		{info.FeedForwardUpChunkExperts, &result.FeedForwardUpChunkExperts},
+		{info.FeedForwardDownChunkExperts, &result.FeedForwardDownChunkExperts},
 		{info.FeedForwardExpertBias, &result.FeedForwardExpertBias},
 		{info.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
@@ -678,6 +684,9 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_gate_exps.weight", layer.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{"ffn_up_exps.weight", layer.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{"ffn_down_exps.weight", layer.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{"ffn_gate_chexps.weight", layer.FeedForwardGateChunkExperts, &result.FeedForwardGateChunkExperts},
+		{"ffn_up_chexps.weight", layer.FeedForwardUpChunkExperts, &result.FeedForwardUpChunkExperts},
+		{"ffn_down_chexps.weight", layer.FeedForwardDownChunkExperts, &result.FeedForwardDownChunkExperts},
 		{"exp_probs_b.bias", layer.FeedForwardExpertBias, &result.FeedForwardExpertBias},
 		{"ffn_gate_shexp.weight", layer.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{"ffn_up_shexp.weight", layer.FeedForwardSharedUp, &result.FeedForwardSharedUp},

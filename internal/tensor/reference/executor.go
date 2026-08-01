@@ -860,12 +860,19 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	hidden := int(input.Shape.Dims[0])
 	tokens := int(input.Shape.Dims[1])
 	experts := int(attributes.Experts)
+	expertIndexDivisor := int(attributes.ExpertIndexDivisor)
+	if expertIndexDivisor == 0 {
+		expertIndexDivisor = 1
+	}
 	topK := int(attributes.TopK)
 	intermediate := int(up.Shape.Dims[1])
 	if attributes.FusedGateUp {
 		intermediate /= 2
 	}
-	if hidden <= 0 || tokens <= 0 || experts <= 0 || topK <= 0 || topK > experts {
+	bankExperts := int(up.Shape.Dims[2])
+	if hidden <= 0 || tokens <= 0 || experts <= 0 || topK <= 0 || topK > experts ||
+		experts%expertIndexDivisor != 0 || experts/expertIndexDivisor != bankExperts ||
+		topK > bankExperts || int(down.Shape.Dims[2]) != bankExperts {
 		return Value{}, errors.New("invalid MoE dimensions")
 	}
 	output := make([]float32, hidden*tokens)
@@ -931,7 +938,8 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		}
 		for outputChannel := 0; outputChannel < hidden; outputChannel++ {
 			var routed float64
-			for slot, expert := range selected {
+			for slot, routedExpert := range selected {
+				expert := routedExpert / expertIndexDivisor
 				var expertOutput float64
 				for inner := 0; inner < intermediate; inner++ {
 					gateBase := (expert*intermediate + inner) * hidden

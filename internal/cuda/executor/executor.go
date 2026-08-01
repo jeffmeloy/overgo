@@ -1311,7 +1311,15 @@ func launchNode(
 			selectionBias = pointers[node.Inputs[wantInputs]]
 		}
 		experts := attributes.Experts
+		expertIndexDivisor := attributes.ExpertIndexDivisor
+		if expertIndexDivisor == 0 {
+			expertIndexDivisor = 1
+		}
 		topK := attributes.TopK
+		if experts%expertIndexDivisor != 0 || upNode.Shape.Dims[2] != uint64(experts/expertIndexDivisor) ||
+			downNode.Shape.Dims[2] != upNode.Shape.Dims[2] || uint64(topK) > upNode.Shape.Dims[2] {
+			return errors.New("invalid grouped MoE dimensions")
+		}
 		var normalize uint32
 		if attributes.NormalizeTopKProb {
 			normalize = 1
@@ -1334,6 +1342,7 @@ func launchNode(
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
 			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
 			unsafe.Pointer(&gated), unsafe.Pointer(&fusedGateUp), unsafe.Pointer(&activation),
+			unsafe.Pointer(&expertIndexDivisor),
 			unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.moe, count, args)

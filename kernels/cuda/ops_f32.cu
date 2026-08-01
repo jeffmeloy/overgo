@@ -751,6 +751,7 @@ extern "C" __global__ void moe_f32(
 		unsigned int gated,
 		unsigned int fused_gate_up,
 		unsigned int activation,
+		unsigned int expert_index_divisor,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
@@ -813,7 +814,8 @@ extern "C" __global__ void moe_f32(
 
     float result = 0.0f;
     for (unsigned int slot = 0; slot < top_k; ++slot) {
-        const unsigned int expert = selected[slot];
+		const unsigned int routed_expert = selected[slot];
+		const unsigned int expert = routed_expert / expert_index_divisor;
         float route = route_weights[slot] * routed_scale;
 		if (normalize_top_k && selected_sum > 0.0f) route /= selected_sum;
 		float expert_output = 0.0f;

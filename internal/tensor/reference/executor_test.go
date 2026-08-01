@@ -543,6 +543,44 @@ func TestExecuteReLUMoEWithRouterInput(t *testing.T) {
 	}
 }
 
+func TestExecuteGroupedMoEWithRouterInput(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	routerInput := builder.Input("router-input", dtype.F32, tensor.MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 4))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
+	output := builder.MoEGroupedWithRouterInput(
+		input, routerInput, router, gate, up, down, 1, true, 1, 2,
+	)
+	value := func(shape tensor.Shape, data []float32) Value {
+		result, err := NewValue(shape, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:       value(input.Shape, []float32{1, 2}),
+		routerInput: value(routerInput.Shape, []float32{1, 0}),
+		router:      value(router.Shape, []float32{0, 0, 1, 0, 3, 0, 2, 0}),
+		gate:        value(gate.Shape, []float32{1, 0, 2, 0}),
+		up:          value(up.Shape, []float32{0, 1, 0, 2}),
+		down:        value(down.Shape, []float32{3, 4, 5, 6}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activation := float32(2 / (1 + math.Exp(-2)))
+	want := []float32{20 * activation, 24 * activation}
+	for index, got := range results[output].Data {
+		if math.Abs(float64(got-want[index])) > 1e-5 {
+			t.Fatalf("grouped MoE output[%d] = %v, want %v", index, got, want[index])
+		}
+	}
+}
+
 func TestExecuteGELUMoE(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))

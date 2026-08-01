@@ -3023,7 +3023,8 @@ func buildDenseBlockCachedForLayer(
 	isDBRX := spec.Architecture == "dbrx"
 	isDOTS1 := spec.Architecture == "dots1"
 	isErnieMoE := spec.Architecture == "ernie4_5-moe"
-	isGraniteMoE := spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid"
+	isGraniteMoE := spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid" ||
+		spec.Architecture == "granite" && spec.ExpertCount > 0
 	isGroveMoE := spec.Architecture == "grovemoe"
 	isGLM4MoE := spec.Architecture == "glm4moe"
 	isGrok := spec.Architecture == "grok"

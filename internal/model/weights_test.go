@@ -843,36 +843,40 @@ func TestReadWeightsDeepSeekDenseThenMoEWithTiedOutput(t *testing.T) {
 }
 
 func TestReadWeightsGraniteMoEUngatedWithSharedExpert(t *testing.T) {
-	spec := Spec{
-		Architecture: "granitemoe", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 6, ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, SharedExpertFF: 5, ExpertWeightsScale: 1,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
-	}
-	file := &gguf.File{Tensors: []gguf.TensorInfo{
-		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
-		tensorInfo("blk.0.attn_norm.weight", 8),
-		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 4),
-		tensorInfo("blk.0.attn_v.weight", 8, 4), tensorInfo("blk.0.attn_output.weight", 8, 8),
-		tensorInfo("blk.0.attn_output.bias", 8), tensorInfo("blk.0.ffn_norm.weight", 8),
-		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
-		tensorInfo("blk.0.ffn_up_exps.weight", 8, 6, 4),
-		tensorInfo("blk.0.ffn_down_exps.weight", 6, 8, 4),
-		tensorInfo("blk.0.ffn_gate_shexp.weight", 8, 5),
-		tensorInfo("blk.0.ffn_up_shexp.weight", 8, 5),
-		tensorInfo("blk.0.ffn_down_shexp.weight", 5, 8),
-	}}
-	weights, err := ReadWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	layer := weights.Layers[0]
-	if weights.Output != nil || layer.AttentionOutputBias == nil ||
-		layer.FeedForwardRouter == nil || layer.FeedForwardGateExperts != nil ||
-		layer.FeedForwardUpExperts == nil || layer.FeedForwardDownExperts == nil ||
-		layer.FeedForwardSharedGate == nil || layer.FeedForwardSharedUp == nil ||
-		layer.FeedForwardSharedDown == nil {
-		t.Fatalf("unexpected GraniteMoE catalog: %+v", weights)
+	for _, architecture := range []string{"granitemoe", "granite"} {
+		t.Run(architecture, func(t *testing.T) {
+			spec := Spec{
+				Architecture: architecture, BlockCount: 1, EmbeddingLength: 8,
+				FeedForwardLength: 6, ExpertCount: 4, ExpertUsedCount: 2,
+				ExpertFeedForward: 6, SharedExpertFF: 5, ExpertWeightsScale: 1,
+				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+			}
+			file := &gguf.File{Tensors: []gguf.TensorInfo{
+				tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+				tensorInfo("blk.0.attn_norm.weight", 8),
+				tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 4),
+				tensorInfo("blk.0.attn_v.weight", 8, 4), tensorInfo("blk.0.attn_output.weight", 8, 8),
+				tensorInfo("blk.0.attn_output.bias", 8), tensorInfo("blk.0.ffn_norm.weight", 8),
+				tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+				tensorInfo("blk.0.ffn_up_exps.weight", 8, 6, 4),
+				tensorInfo("blk.0.ffn_down_exps.weight", 6, 8, 4),
+				tensorInfo("blk.0.ffn_gate_shexp.weight", 8, 5),
+				tensorInfo("blk.0.ffn_up_shexp.weight", 8, 5),
+				tensorInfo("blk.0.ffn_down_shexp.weight", 5, 8),
+			}}
+			weights, err := ReadWeights(file, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			layer := weights.Layers[0]
+			if weights.Output != nil || layer.AttentionOutputBias == nil ||
+				layer.FeedForwardRouter == nil || layer.FeedForwardGateExperts != nil ||
+				layer.FeedForwardUpExperts == nil || layer.FeedForwardDownExperts == nil ||
+				layer.FeedForwardSharedGate == nil || layer.FeedForwardSharedUp == nil ||
+				layer.FeedForwardSharedDown == nil {
+				t.Fatalf("unexpected GraniteMoE catalog: %+v", weights)
+			}
+		})
 	}
 }
 

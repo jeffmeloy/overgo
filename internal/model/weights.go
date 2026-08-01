@@ -2983,6 +2983,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if ((spec.Architecture == "llama" || spec.Architecture == "llama-embed" || spec.Architecture == "mistral3") && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grovemoe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			(spec.Architecture == "jamba" && tensorSelectedMoE) ||
 			(spec.Architecture == "granitehybrid" && spec.ExpertCount > 0) ||
+			(spec.Architecture == "granite" && spec.ExpertCount > 0) ||
 			((spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "gemma4") && tensorSelectedMoE) ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "glm4moe" && block >= spec.LeadingDenseBlocks) ||
@@ -3028,7 +3029,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					fusedGateUp = true
 				}
 			}
-			if spec.Architecture != "granitemoe" && spec.Architecture != "granitehybrid" && spec.Architecture != "grok" && spec.Architecture != "ernie4_5-moe" && spec.Architecture != "nomic-bert-moe" && !fusedGateUp {
+			if spec.Architecture != "granitemoe" && spec.Architecture != "granitehybrid" && !(spec.Architecture == "granite" && spec.ExpertCount > 0) && spec.Architecture != "grok" && spec.Architecture != "ernie4_5-moe" && spec.Architecture != "nomic-bert-moe" && !fusedGateUp {
 				expertTensors["ffn_gate_exps.weight"] = struct {
 					shape       []uint64
 					destination **gguf.TensorInfo
@@ -3125,7 +3126,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					*shapeAndDestination.destination = &item
 				}
 			}
-			if spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid" || spec.Architecture == "grok" || spec.Architecture == "ernie4_5-moe" {
+			if spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid" || (spec.Architecture == "granite" && spec.ExpertCount > 0) || spec.Architecture == "grok" || spec.Architecture == "ernie4_5-moe" {
 				if item, ok := tensors[prefix+"ffn_gate_exps.weight"]; ok {
 					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
 						item.Shape[1] != uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
@@ -3133,7 +3134,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.FeedForwardGateExperts = &item
 				}
-				if (spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid") && spec.SharedExpertFF > 0 {
+				if (spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid" || spec.Architecture == "granite") && spec.SharedExpertFF > 0 {
 					for name, shapeAndDestination := range map[string]struct {
 						shape       []uint64
 						destination **gguf.TensorInfo

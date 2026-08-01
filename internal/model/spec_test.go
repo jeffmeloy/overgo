@@ -2529,6 +2529,23 @@ func TestReadGraniteDenseSpec(t *testing.T) {
 	}
 }
 
+func TestReadGraniteSameArchitectureMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: append(graniteMetadata(),
+		metadata("granite.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("granite.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granite.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(4096)),
+	)}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "granite" || spec.ExpertCount != 8 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != spec.FeedForwardLength ||
+		spec.SharedExpertFF != 4096 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1 {
+		t.Fatalf("unexpected Granite MoE spec: %+v", spec)
+	}
+}
+
 func TestReadGraniteLongRoPESpec(t *testing.T) {
 	file := &gguf.File{Metadata: append(graniteMetadata(),
 		metadata("granite.rope.scaling.type", gguf.ValueTypeString, "longrope"),

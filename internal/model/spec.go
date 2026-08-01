@@ -894,8 +894,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				values,
 				prefix+"expert_count",
 				gguf.ValueTypeUint32,
-			); ok && expertCount > 0 {
-				return Spec{}, errors.New("Granite expert layers are not supported")
+			); ok {
+				spec.ExpertCount = expertCount
 			}
 		}
 		if mapping, ok, mappingErr := optionalArray[int32](
@@ -1713,7 +1713,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.MoELatentSize, _ = optional[uint32](values, prefix+"moe_latent_size", gguf.ValueTypeUint32)
 		spec.ExpertGatingFunc = 2
 	}
-	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || (architecture == "granite" && spec.ExpertCount > 0) || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -2046,7 +2046,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 	}
-	if architecture == "granitemoe" {
+	if architecture == "granitemoe" || (architecture == "granite" && spec.ExpertCount > 0) {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 		spec.SharedExpertFF, _ = optional[uint32](
@@ -3210,7 +3210,7 @@ func (s Spec) validate() error {
 			return errors.New("DeepSeek expert weight scale is invalid")
 		}
 	}
-	if s.Architecture == "granitemoe" &&
+	if (s.Architecture == "granitemoe" || s.Architecture == "granite" && s.ExpertCount > 0) &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {

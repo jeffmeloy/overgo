@@ -544,8 +544,9 @@
   a local fixture.
 - Text-only Granite and GraniteMoE decoders support metadata-driven embedding,
   residual-branch, attention, and inverse-logit scales, optional no-RoPE mode,
-  and LongRoPE short/long factor selection. GraniteMoE adds normalized softmax
-  top-k gated or ungated SiLU experts plus an optional shared SwiGLU expert.
+  and LongRoPE short/long factor selection. Either the Granite or GraniteMoE
+  architecture may select normalized softmax top-k gated or ungated SiLU
+  experts plus an optional shared SwiGLU expert.
   Vision deepstack remains rejected explicitly. Real-model validation is
   pending a local fixture.
 - Maincoder dense decoders support normal consecutive-pair RoPE followed by
@@ -587,8 +588,8 @@
   output embeddings. Non-MHA metadata is rejected because upstream Jais2 bias
   tensors use the full embedding width. Real-model validation is pending.
 - Original OLMo dense decoders support tensor-less LayerNorm before attention,
-  FFN, and output, plus normal RoPE, SwiGLU, and optional tied output. Nonzero
-  QKV-clamp metadata is rejected until a clamp primitive is available.
+  FFN, and output, plus normal RoPE, SwiGLU, optional tied output, and
+  metadata-driven separate-Q/K/V clamping.
 - Seed-OSS dense decoders support RMSNorm, metadata attention scaling, NeoX
   RoPE, SwiGLU, and optional tied output. Its `post_attention_norm.weight` is
   mapped to the pre-FFN normalization slot matching upstream execution.
@@ -1033,13 +1034,13 @@ catalog, graph semantics, and reference/CUDA block differential pass. The local
 fixture inventory contains only tokenizer data, so real-model logit validation
 remains pending-fixture.
 
-GraniteMoE now loads normalized softmax top-k packed experts with either gated
-SwiGLU or ungated SiLU activation, plus its optional shared SwiGLU expert. It
-inherits Granite's embedding, residual, attention, inverse-logit, no-RoPE, and
-LongRoPE behavior. Metadata, strict catalog, graph semantics, primitive
-reference coverage, and complete reference/CUDA block differential tests pass.
-Real-model validation remains pending because no GraniteMoE GGUF is available
-locally.
+Granite and GraniteMoE now load normalized softmax top-k packed experts with
+either gated SwiGLU or ungated SiLU activation, plus the optional shared
+SwiGLU expert. Both retain Granite's embedding, residual, attention,
+inverse-logit, no-RoPE, and LongRoPE behavior. Metadata, strict catalog, graph
+semantics, primitive reference coverage, and complete reference/CUDA block
+differential tests pass. Real-model validation remains pending because no
+Granite MoE GGUF is available locally.
 
 DBRX now maps its `dbrx` BPE pre-tokenizer to the pinned Llama 3 segmentation,
 loads required fused QKV and untied output tensors, applies its symmetric QKV

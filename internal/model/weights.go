@@ -983,7 +983,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "glm4-moe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "cogvlm" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "modern-bert" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -1050,7 +1050,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "gemma-embedding" || spec.Architecture == "grovemoe" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl" || spec.Architecture == "hy_v3" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" || spec.Architecture == "hunyuan-moe" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "gemma-embedding" || spec.Architecture == "grovemoe" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl" || spec.Architecture == "hy_v3" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" || spec.Architecture == "hunyuan-moe" ||
 			spec.Architecture == "maincoder" ||
 			((spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe") && !layer.Recurrent) ||
 			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
@@ -1079,7 +1079,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.AttentionKNorm = &kNorm
 			}
 		}
-		if spec.Architecture == "glm4-moe" {
+		if spec.Architecture == "glm4moe" {
 			qNorm, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
 			kNorm, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
 			if hasQNorm != hasKNorm {
@@ -1439,7 +1439,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "dbrx" {
 			feedForwardNormName = "attn_output_norm.weight"
 		}
-		if spec.Architecture == "glm4-moe" {
+		if spec.Architecture == "glm4moe" {
 			feedForwardNormName = "attn_post_norm.weight"
 		}
 		if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" || spec.Architecture == "seed_oss" {
@@ -1487,7 +1487,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			(spec.Architecture == "granitehybrid" && spec.ExpertCount > 0) ||
 			((spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "gemma4") && tensorSelectedMoE) ||
 			spec.Architecture == "granitemoe" ||
-			(spec.Architecture == "glm4-moe" && block >= spec.LeadingDenseBlocks) ||
+			(spec.Architecture == "glm4moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(block)) ||
 			spec.Architecture == "gpt-oss" ||
 			(spec.Architecture == "hy_v3" && tensorSelectedMoE) ||
@@ -1723,7 +1723,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					*shapeAndDestination.destination = &item
 				}
 			}
-			if spec.Architecture == "glm4-moe" {
+			if spec.Architecture == "glm4moe" {
 				bias, biasErr := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
 				if biasErr != nil {
 					return Weights{}, biasErr

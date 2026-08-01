@@ -589,7 +589,7 @@ func TestBuildHunyuanDenseBlock(t *testing.T) {
 
 func TestBuildHunyuanVLBlockUsesPostMRoPEQKNorm(t *testing.T) {
 	b := tensor.NewBuilder()
-	s := Spec{Architecture: "hunyuan-vl", EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0}, RopeFrequencyBase: 40000, RMSNormEpsilon: 1e-6}
+	s := Spec{Architecture: "hunyuan_vl", EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0}, RopeFrequencyBase: 40000, RMSNormEpsilon: 1e-6}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
@@ -3999,7 +3999,7 @@ func TestBuildGroveMoEGroupedChunkExperts(t *testing.T) {
 func TestBuildGLM4MoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{
-		Architecture: "glm4-moe", BlockCount: 2, LeadingDenseBlocks: 1,
+		Architecture: "glm4moe", BlockCount: 2, LeadingDenseBlocks: 1,
 		EmbeddingLength: 8, FeedForwardLength: 12, ExpertCount: 4,
 		ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 12,
 		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2,

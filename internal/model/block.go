@@ -1509,10 +1509,10 @@ func BuildDenseBlockCachedForLayer(
 	isErnieMoE := spec.Architecture == "ernie4_5-moe"
 	isGraniteMoE := spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid"
 	isGroveMoE := spec.Architecture == "grovemoe"
-	isGLM4MoE := spec.Architecture == "glm4-moe"
+	isGLM4MoE := spec.Architecture == "glm4moe"
 	isGrok := spec.Architecture == "grok"
 	isHunyuanMoE := spec.Architecture == "hunyuan-moe"
-	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl"
+	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl"
 	isJamba := spec.Architecture == "jamba"
 	isHYV3 := spec.Architecture == "hy_v3"
 	isMellum := spec.Architecture == "mellum"
@@ -1919,7 +1919,7 @@ func BuildDenseBlockCachedForLayer(
 	if !spec.UsesRoPE(layerIndex) {
 		// Some dense architectures leave periodic layers
 		// position-independent
-	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || (isGLM4MoE && hasMRoPESections(spec.RopeSections)) || (spec.Architecture == "hunyuan-vl" && hasMRoPESections(spec.RopeSections)) {
+	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || (isGLM4MoE && hasMRoPESections(spec.RopeSections)) || (spec.Architecture == "hunyuan_vl" && hasMRoPESections(spec.RopeSections)) {
 		var multiPositions [4][]uint32
 		for axis := range multiPositions {
 			multiPositions[axis] = positions

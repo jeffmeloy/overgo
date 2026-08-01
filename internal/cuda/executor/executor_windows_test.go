@@ -530,7 +530,7 @@ func TestExecutorGLM4MoEBlockMatchesReference(t *testing.T) {
 	}
 	builder := tensor.NewBuilder()
 	spec := model.Spec{
-		Architecture: "glm4-moe", BlockCount: 2, LeadingDenseBlocks: 1,
+		Architecture: "glm4moe", BlockCount: 2, LeadingDenseBlocks: 1,
 		EmbeddingLength: 8, FeedForwardLength: 12, ExpertCount: 4,
 		ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 12,
 		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2,
@@ -4678,7 +4678,7 @@ func TestExecutorHunyuanDenseBlockMatchesReference(t *testing.T) {
 }
 
 func TestExecutorHunyuanVLBlockMatchesReference(t *testing.T) {
-	testExecutorHunyuanBlockMatchesReference(t, "hunyuan-vl", [4]int32{1, 1, 0, 0})
+	testExecutorHunyuanBlockMatchesReference(t, "hunyuan_vl", [4]int32{1, 1, 0, 0})
 }
 
 func testExecutorHunyuanBlockMatchesReference(t *testing.T, architecture string, sections [4]int32) {

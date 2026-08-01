@@ -164,35 +164,35 @@ func TestReadGroveMoESpec(t *testing.T) {
 
 func TestReadGLM4MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "glm4-moe"),
-		metadata("glm4-moe.block_count", gguf.ValueTypeUint32, uint32(3)),
-		metadata("glm4-moe.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
-		metadata("glm4-moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
-		metadata("glm4-moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
-		metadata("glm4-moe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
-		metadata("glm4-moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
-		metadata("glm4-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
-		metadata("glm4-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("glm4-moe.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("glm4-moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
-		metadata("glm4-moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.5)),
-		metadata("glm4-moe.expert_weights_norm", gguf.ValueTypeBool, true),
-		metadata("glm4-moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("glm4-moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
-		metadata("glm4-moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
-		metadata("glm4-moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
-		metadata("glm4-moe.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
-		{Key: "glm4-moe.rope.dimension_sections", Value: gguf.Value{
+		metadata("general.architecture", gguf.ValueTypeString, "glm4moe"),
+		metadata("glm4moe.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("glm4moe.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("glm4moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("glm4moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("glm4moe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("glm4moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("glm4moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("glm4moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("glm4moe.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("glm4moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("glm4moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.5)),
+		metadata("glm4moe.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("glm4moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("glm4moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("glm4moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("glm4moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("glm4moe.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		{Key: "glm4moe.rope.dimension_sections", Value: gguf.Value{
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
 		}},
-		metadata("glm4-moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
-		metadata("glm4-moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("glm4moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("glm4moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 	}}
 	spec, err := ReadSpec(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "glm4-moe" || spec.BlockCount != 2 ||
+	if spec.Architecture != "glm4moe" || spec.BlockCount != 2 ||
 		spec.LeadingDenseBlocks != 1 || spec.SharedExpertFF != 12 ||
 		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.RopeSections[1] != 1 {
 		t.Fatalf("unexpected GLM4-MoE spec: %+v", spec)
@@ -1206,20 +1206,20 @@ func TestReadHunyuanDenseSpec(t *testing.T) {
 
 func TestReadHunyuanVLSpecUsesOptionalMRoPEAndXDRoPE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "hunyuan-vl"),
-		metadata("hunyuan-vl.block_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("hunyuan-vl.context_length", gguf.ValueTypeUint32, uint32(4096)),
-		metadata("hunyuan-vl.embedding_length", gguf.ValueTypeUint32, uint32(8)),
-		metadata("hunyuan-vl.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
-		metadata("hunyuan-vl.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("hunyuan-vl.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
-		metadata("hunyuan-vl.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
-		metadata("hunyuan-vl.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
-		metadata("hunyuan-vl.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
-		metadata("hunyuan-vl.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
-		metadata("hunyuan-vl.rope.scaling.alpha", gguf.ValueTypeFloat32, float32(2)),
-		metadata("hunyuan-vl.vocab_size", gguf.ValueTypeUint32, uint32(32)),
-		{Key: "hunyuan-vl.rope.dimension_sections", Value: gguf.Value{
+		metadata("general.architecture", gguf.ValueTypeString, "hunyuan_vl"),
+		metadata("hunyuan_vl.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan_vl.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("hunyuan_vl.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("hunyuan_vl.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("hunyuan_vl.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan_vl.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("hunyuan_vl.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("hunyuan_vl.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("hunyuan_vl.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("hunyuan_vl.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("hunyuan_vl.rope.scaling.alpha", gguf.ValueTypeFloat32, float32(2)),
+		metadata("hunyuan_vl.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		{Key: "hunyuan_vl.rope.dimension_sections", Value: gguf.Value{
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
 		}},
 	}}
@@ -1227,7 +1227,7 @@ func TestReadHunyuanVLSpecUsesOptionalMRoPEAndXDRoPE(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "hunyuan-vl" || spec.RopeDimensionCount != 4 ||
+	if spec.Architecture != "hunyuan_vl" || spec.RopeDimensionCount != 4 ||
 		spec.RopeFrequencyBase != 40000 || spec.RopeSections != [4]int32{1, 1, 0, 0} ||
 		!usesNormalRoPE(spec.Architecture) {
 		t.Fatalf("unexpected Hunyuan-VL spec: %+v", spec)

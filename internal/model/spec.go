@@ -184,14 +184,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "granitehybrid" &&
 		architecture != "granitemoe" &&
 		architecture != "glm4" &&
-		architecture != "glm4-moe" &&
+		architecture != "glm4moe" &&
 		architecture != "gpt2" &&
 		architecture != "gpt-oss" &&
 		architecture != "gptneox" &&
 		architecture != "grovemoe" &&
 		architecture != "grok" &&
 		architecture != "hunyuan-dense" &&
-		architecture != "hunyuan-vl" &&
+		architecture != "hunyuan_vl" &&
 		architecture != "hunyuan-moe" &&
 		architecture != "hy_v3" &&
 		architecture != "jamba" &&
@@ -881,7 +881,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
-	if architecture == "glm4" || architecture == "glm4-moe" {
+	if architecture == "glm4" || architecture == "glm4moe" {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
@@ -1145,7 +1145,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RopeDimensionCount = value
 		}
 	}
-	if architecture == "hunyuan-dense" || architecture == "hunyuan-vl" {
+	if architecture == "hunyuan-dense" || architecture == "hunyuan_vl" {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -1384,7 +1384,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		}
 	}
-	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1512,7 +1512,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
-	if architecture == "glm4-moe" {
+	if architecture == "glm4moe" {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -3235,13 +3235,13 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount != s.KeyLength) {
 		return errors.New("CogVLM attention metadata is invalid")
 	}
-	if (s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan-vl") &&
+	if (s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan_vl") &&
 		(s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			s.RopeDimensionCount%2 != 0 || s.RopeFrequencyBase <= 0 ||
 			math.IsNaN(float64(s.RopeFrequencyBase)) || math.IsInf(float64(s.RopeFrequencyBase), 0)) {
 		return fmt.Errorf("%s attention metadata is invalid", s.Architecture)
 	}
-	if s.Architecture == "hunyuan-vl" {
+	if s.Architecture == "hunyuan_vl" {
 		var sectionPairs int32
 		for _, section := range s.RopeSections {
 			if section < 0 {
@@ -3253,12 +3253,12 @@ func (s Spec) validate() error {
 			return errors.New("Hunyuan-VL MRoPE sections exceed rotary pair count")
 		}
 	}
-	if (s.Architecture == "glm4" || s.Architecture == "glm4-moe") &&
+	if (s.Architecture == "glm4" || s.Architecture == "glm4moe") &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("GLM4 rotary dimension count is invalid")
 	}
-	if s.Architecture == "glm4-moe" {
+	if s.Architecture == "glm4moe" {
 		var sectionPairs int64
 		for _, section := range s.RopeSections {
 			if section < 0 {
@@ -3270,7 +3270,7 @@ func (s Spec) validate() error {
 			return errors.New("GLM4-MoE MRoPE sections exceed rotary pair count")
 		}
 	}
-	if s.Architecture == "glm4-moe" &&
+	if s.Architecture == "glm4moe" &&
 		(s.LeadingDenseBlocks >= s.BlockCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
 			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
 			s.SharedExpertCount == 0 || s.SharedExpertFF == 0 ||
@@ -3377,9 +3377,9 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "granitehybrid" ||
 		architecture == "granitemoe" ||
 		architecture == "hunyuan-dense" ||
-		architecture == "hunyuan-vl" ||
+		architecture == "hunyuan_vl" ||
 		architecture == "glm4" ||
-		architecture == "glm4-moe" ||
+		architecture == "glm4moe" ||
 		architecture == "minicpm" ||
 		architecture == "olmo" ||
 		architecture == "maincoder" ||

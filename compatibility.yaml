@@ -1572,7 +1572,7 @@ models:
     constraints:
       - text-only-zero-multidimensional-rope-sections
     real_model_validation: pending-fixture
-  hunyuan-vl:
+  hunyuan_vl:
     status: experimental
     execution:
       - bounded-host
@@ -2183,7 +2183,7 @@ models:
       - chunk-expert-scaling
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
-  glm4-moe:
+  glm4moe:
     status: experimental
     execution:
       - bounded-host

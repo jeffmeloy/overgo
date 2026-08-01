@@ -132,6 +132,22 @@ CogVLM projected-visual calls use `ForwardCachedWithEmbeddingOverrides` and
 must replace every token in the chunk; the runtime then selects its visual
 attention and FFN bank for the complete batch.
 
+The `generate` CLI accepts the same prompt-only boundary through
+`-projected-inputs <file.json>`. The file may contain embedding replacements,
+four MRoPE coordinate arrays, and GGML-order deepstack tensors:
+
+```json
+{
+  "embedding_overrides": [{"token_index": 3, "embedding": [0.1, 0.2]}],
+  "multi_axis_positions": [[0, 1], [0, 0], [0, 1], [0, 1]],
+  "deepstack_embeddings": [{"shape": [2, 2], "data": [0.1, 0.2, 0.3, 0.4]}]
+}
+```
+
+Token-only prompt caching and invocation-activated LoRA are rejected with
+projected payloads; ordinary LoRA scaling and generated-token continuation
+remain supported.
+
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,
 presence/frequency penalties, token-history DRY, and adaptive Mirostat v1/v2.

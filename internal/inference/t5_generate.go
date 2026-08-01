@@ -39,6 +39,9 @@ func (r *Runner) GenerateT5(
 	if options.PostSamplingProbabilities < 0 {
 		return nil, "", nil, errors.New("inference: post-sampling probability count is negative")
 	}
+	if options.ProjectedInputs != nil {
+		return nil, "", nil, errors.New("inference: T5 generation does not accept projected decoder inputs")
+	}
 	if err := validateStopSequences(options.StopSequences); err != nil {
 		return nil, "", nil, err
 	}

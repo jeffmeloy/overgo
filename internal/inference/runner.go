@@ -75,6 +75,8 @@ type GenerateOptions struct {
 	OnPromptEvaluated func(PromptEvaluation)
 	LoRA              []LoRAScale
 	LoRAConfigured    bool
+	// ProjectedInputs: prompt-only soft-token/MRoPE/deepstack payload.
+	ProjectedInputs *ProjectedInputs
 }
 
 type LayerCache struct {
@@ -3242,6 +3244,9 @@ func (r *Runner) Generate(
 			"inference: post-sampling probability count is negative",
 		)
 	}
+	if options.ProjectedInputs != nil && options.CachePrompt {
+		return nil, "", errors.New("inference: projected inputs cannot use token-only prompt caching")
+	}
 	if err := validateStopSequences(options.StopSequences); err != nil {
 		return nil, "", err
 	}
@@ -3281,6 +3286,9 @@ func (r *Runner) Generate(
 	if err != nil {
 		return nil, "", err
 	}
+	if options.ProjectedInputs != nil && aloraID >= 0 {
+		return nil, "", errors.New("inference: projected inputs cannot use invocation-activated LoRA")
+	}
 	var aloraScale float32
 	if aloraID >= 0 {
 		aloraScale = r.loraAdapters[aloraID].scale
@@ -3303,7 +3311,7 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
-	useDeviceCache := aloraID < 0 && r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
+	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 && r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "gemma3n" &&
 		r.spec.Architecture != "plm" &&
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
@@ -3416,6 +3424,12 @@ func (r *Runner) Generate(
 			if err == nil {
 				hidden, cache, err = r.forwardCachedLocked(ctx, ids[aloraStart:], cache)
 			}
+		} else if options.ProjectedInputs != nil {
+			inputs := *options.ProjectedInputs
+			hidden, cache, err = r.forwardCachedWithEmbeddingOverridesLocked(
+				ctx, ids, nil, inputs.EmbeddingOverrides,
+				inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
+			)
 		} else if options.CachePrompt {
 			selectedPromptCache, cached = r.selectPromptCache(
 				ids,

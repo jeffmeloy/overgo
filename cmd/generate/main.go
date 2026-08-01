@@ -113,6 +113,7 @@ func run() error {
 	mirostatTau := flag.Float64("mirostat-tau", 5, "Mirostat target surprise")
 	mirostatEta := flag.Float64("mirostat-eta", 0.1, "Mirostat learning rate")
 	seed := flag.Int64("seed", 0, "sampling RNG seed")
+	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
 	flag.Parse()
 	if flag.NArg() != 2 {
 		return errors.New("usage: generate [options] <model.gguf> <prompt>")
@@ -275,6 +276,13 @@ func run() error {
 		ContextShift:  *contextShift,
 		KeepTokens:    *keepTokens,
 		DiscardTokens: *discardTokens,
+	}
+	if *projectedInputsFile != "" {
+		projected, projectedErr := readProjectedInputs(*projectedInputsFile)
+		if projectedErr != nil {
+			return projectedErr
+		}
+		options.ProjectedInputs = &projected
 	}
 	var ids []tokenizer.TokenID
 	var text string

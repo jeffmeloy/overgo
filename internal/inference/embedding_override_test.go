@@ -6,21 +6,92 @@ import (
 	"strings"
 	"testing"
 
+	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
 
-func TestCogVLMRejectsVisualEmbeddingMode(t *testing.T) {
-	runner := &Runner{spec: model.Spec{Architecture: "cogvlm"}}
-	_, _, err := runner.forwardCachedWithEmbeddingOverridesLocked(
-		context.Background(), nil, nil,
-		[]EmbeddingOverride{{TokenIndex: 0, Embedding: []float32{1}}},
-		nil, nil,
-	)
-	if err == nil || !strings.Contains(err.Error(), "visual embedding mode") {
-		t.Fatalf("error = %v", err)
+func TestCogVLMVisualEmbeddingAdmission(t *testing.T) {
+	complete := []EmbeddingOverride{
+		{TokenIndex: 1, Embedding: []float32{1}},
+		{TokenIndex: 0, Embedding: []float32{2}},
+	}
+	if err := validateCogVLMVisualOverrides(2, complete); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name      string
+		overrides []EmbeddingOverride
+		contains  string
+	}{
+		{"partial", complete[:1], "one projected embedding per token"},
+		{"duplicate", []EmbeddingOverride{complete[0], complete[0]}, "duplicate"},
+		{"range", []EmbeddingOverride{complete[0], {TokenIndex: 2}}, "out of range"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateCogVLMVisualOverrides(2, test.overrides)
+			if err == nil || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("error = %v, want containing %q", err, test.contains)
+			}
+		})
+	}
+}
+
+func TestCogVLMVisualGraphWeightSelection(t *testing.T) {
+	builder := tensor.NewBuilder()
+	normal := builder.Input("text_qkv", dtype.F32, tensor.MustShape(2, 6))
+	weights := model.LayerGraphWeights{
+		AttentionQKV: normal, AttentionQ: normal, AttentionK: normal, AttentionV: normal,
+		AttentionOutput: normal, FeedForwardGate: normal,
+		FeedForwardUp: normal, FeedForwardDown: normal,
+	}
+	visual := []*tensor.Tensor{
+		builder.Input("visual_qkv", dtype.F32, tensor.MustShape(2, 6)),
+		builder.Input("visual_output", dtype.F32, tensor.MustShape(2, 2)),
+		builder.Input("visual_gate", dtype.F32, tensor.MustShape(2, 3)),
+		builder.Input("visual_up", dtype.F32, tensor.MustShape(2, 3)),
+		builder.Input("visual_down", dtype.F32, tensor.MustShape(3, 2)),
+	}
+	if err := selectCogVLMVisualGraphWeights(&weights, visual); err != nil {
+		t.Fatal(err)
+	}
+	if weights.AttentionQ != nil || weights.AttentionK != nil || weights.AttentionV != nil ||
+		weights.AttentionQKV != visual[0] || weights.AttentionOutput != visual[1] ||
+		weights.FeedForwardGate != visual[2] || weights.FeedForwardUp != visual[3] ||
+		weights.FeedForwardDown != visual[4] {
+		t.Fatalf("visual graph weights were not selected: %+v", weights)
+	}
+}
+
+func TestSelectedModelTensorsIncludesCogVLMVisualBank(t *testing.T) {
+	names := []string{
+		"token_embd.weight", "blk.0.vis_attn_qkv.weight", "blk.0.vis_attn_output.weight",
+		"blk.0.vis_gate.weight", "blk.0.vis_up.weight", "blk.0.vis_down.weight",
+	}
+	infos := make([]gguf.TensorInfo, len(names))
+	for index, name := range names {
+		infos[index] = gguf.TensorInfo{Name: name}
+	}
+	visual := func(index int) *gguf.TensorInfo { return &infos[index] }
+	selected := selectedModelTensors(&gguf.File{Tensors: infos}, model.Weights{
+		TokenEmbedding: infos[0],
+		Layers: []model.LayerWeights{{
+			VisualAttentionQKV: visual(1), VisualAttentionOutput: visual(2),
+			VisualFeedForwardGate: visual(3), VisualFeedForwardUp: visual(4),
+			VisualFeedForwardDown: visual(5),
+		}},
+	})
+	got := make(map[string]bool, len(selected))
+	for _, info := range selected {
+		got[info.Name] = true
+	}
+	for _, name := range names {
+		if !got[name] {
+			t.Fatalf("selected tensors omit %q", name)
+		}
 	}
 }
 

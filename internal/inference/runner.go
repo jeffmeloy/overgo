@@ -1651,11 +1651,14 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	if r.spec.Architecture == "t5encoder" {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
 	}
-	if r.spec.Architecture == "cogvlm" && len(overrides) > 0 {
-		return reference.Value{}, nil, errors.New("inference: CogVLM visual embedding mode is not supported")
-	}
 	if len(tokenIDs) == 0 {
 		return reference.Value{}, nil, errors.New("inference: token sequence is empty")
+	}
+	visualMode := r.spec.Architecture == "cogvlm" && len(overrides) > 0
+	if visualMode {
+		if err := validateCogVLMVisualOverrides(len(tokenIDs), overrides); err != nil {
+			return reference.Value{}, nil, err
+		}
 	}
 	var pastTokens, nextPosition uint32
 	if cache != nil {
@@ -1792,7 +1795,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
-			deepstackBase, deepstackInputs, cache, nextCache,
+			deepstackBase, deepstackInputs, cache, nextCache, visualMode,
 		)
 	}
 	var firstLayerValue, previousTopK *reference.Value
@@ -1832,6 +1835,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			embeddingSkip,
 			perLayerInput,
 			multiPositions,
+			visualMode,
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
@@ -1905,6 +1909,105 @@ func applyEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingO
 	return nil
 }
 
+func validateCogVLMVisualOverrides(tokenCount int, overrides []EmbeddingOverride) error {
+	if len(overrides) != tokenCount {
+		return fmt.Errorf(
+			"inference: CogVLM visual mode requires one projected embedding per token; got %d for %d tokens",
+			len(overrides), tokenCount,
+		)
+	}
+	seen := make([]bool, tokenCount)
+	for _, override := range overrides {
+		if int(override.TokenIndex) >= tokenCount {
+			return fmt.Errorf(
+				"inference: CogVLM visual embedding token index %d is out of range for %d tokens",
+				override.TokenIndex, tokenCount,
+			)
+		}
+		if seen[override.TokenIndex] {
+			return fmt.Errorf(
+				"inference: duplicate CogVLM visual embedding for token index %d",
+				override.TokenIndex,
+			)
+		}
+		seen[override.TokenIndex] = true
+	}
+	return nil
+}
+
+func (r *Runner) applyCogVLMVisualWeights(
+	ctx context.Context,
+	builder *tensor.Builder,
+	info model.LayerWeights,
+	weights *model.LayerGraphWeights,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	if r.spec.Architecture != "cogvlm" {
+		return errors.New("inference: visual expert weights require CogVLM architecture")
+	}
+	if weights == nil {
+		return errors.New("inference: CogVLM graph weights are nil")
+	}
+	infos := []*gguf.TensorInfo{
+		info.VisualAttentionQKV,
+		info.VisualAttentionOutput,
+		info.VisualFeedForwardGate,
+		info.VisualFeedForwardUp,
+		info.VisualFeedForwardDown,
+	}
+	nodes := make([]*tensor.Tensor, len(infos))
+	for index, tensorInfo := range infos {
+		if tensorInfo == nil {
+			return errors.New("inference: CogVLM visual expert catalog is incomplete")
+		}
+		if r.hasPreloadedWeights() {
+			node, pointer, err := r.deviceInput(builder, *tensorInfo)
+			if err != nil {
+				return err
+			}
+			nodes[index] = node
+			deviceFeeds[node] = pointer
+			continue
+		}
+		value, err := model.LoadHostTensor(ctx, r.file, *tensorInfo)
+		if err != nil {
+			return err
+		}
+		node := builder.Input(tensorInfo.Name, dtype.F32, value.Shape)
+		nodes[index] = node
+		hostFeeds[node] = value
+	}
+	if err := selectCogVLMVisualGraphWeights(weights, nodes); err != nil {
+		return err
+	}
+	return builder.Err()
+}
+
+func selectCogVLMVisualGraphWeights(
+	weights *model.LayerGraphWeights,
+	nodes []*tensor.Tensor,
+) error {
+	if weights == nil {
+		return errors.New("inference: CogVLM graph weights are nil")
+	}
+	if len(nodes) != 5 {
+		return errors.New("inference: CogVLM visual graph weight set is incomplete")
+	}
+	for _, node := range nodes {
+		if node == nil {
+			return errors.New("inference: CogVLM visual graph weight is nil")
+		}
+	}
+	weights.AttentionQ, weights.AttentionK, weights.AttentionV = nil, nil, nil
+	weights.AttentionQKV = nodes[0]
+	weights.AttentionOutput = nodes[1]
+	weights.FeedForwardGate = nodes[2]
+	weights.FeedForwardUp = nodes[3]
+	weights.FeedForwardDown = nodes[4]
+	return nil
+}
+
 func (r *Runner) forwardDenseLayersPreloaded(
 	ctx context.Context,
 	activation reference.Value,
@@ -1916,6 +2019,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	deepstackInputs []reference.Value,
 	cache *KVCache,
 	nextCache *KVCache,
+	visualMode bool,
 ) (reference.Value, *KVCache, error) {
 	builder := r.newGraphBuilder()
 	input := builder.Input("model.input", dtype.F32, activation.Shape)
@@ -1935,6 +2039,13 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
 		if err != nil {
 			return reference.Value{}, nil, err
+		}
+		if visualMode {
+			if err := r.applyCogVLMVisualWeights(
+				ctx, builder, info, &graphWeights, nil, layerFeeds,
+			); err != nil {
+				return reference.Value{}, nil, err
+			}
 		}
 		if r.spec.Architecture == "talkie" {
 			graphWeights.EmbeddingSkip = input
@@ -2272,6 +2383,7 @@ func (r *Runner) runLayerCached(
 	embeddingSkip reference.Value,
 	perLayerInput *reference.Value,
 	multiPositions *MultiAxisPositions,
+	visualMode bool,
 ) (reference.Value, LayerCache, error) {
 	if isQwenGDNArchitecture(r.spec.Architecture) {
 		return r.runQwen35LayerCached(
@@ -2310,6 +2422,13 @@ func (r *Runner) runLayerCached(
 		}
 		for node, value := range layerFeeds {
 			hostFeeds[node] = value
+		}
+	}
+	if visualMode {
+		if err := r.applyCogVLMVisualWeights(
+			ctx, builder, info, &graphWeights, hostFeeds, deviceFeeds,
+		); err != nil {
+			return reference.Value{}, LayerCache{}, err
 		}
 	}
 	if r.spec.Architecture == "talkie" {
@@ -4284,6 +4403,11 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.HyperHeadBase,
 			layer.HyperHeadScale,
 			layer.FeedForwardHashExperts,
+			layer.VisualAttentionQKV,
+			layer.VisualAttentionOutput,
+			layer.VisualFeedForwardGate,
+			layer.VisualFeedForwardUp,
+			layer.VisualFeedForwardDown,
 			layer.SSMInput,
 			layer.SSMConv1D,
 			layer.SSMConv1DBias,

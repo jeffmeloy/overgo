@@ -1416,6 +1416,25 @@ models:
     constraints:
       - text-only-zero-multidimensional-rope-sections
     real_model_validation: pending-fixture
+  hunyuan-vl:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - text-coordinate-decoder
+      - contiguous-fused-or-separate-qkv
+      - xdrope-adjusted-normal-or-four-axis-mrope
+      - post-rope-qk-rmsnorm
+      - swiglu
+      - optional-tied-output
+      - projected-embedding-overrides
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - image-encoder-external
+      - image-projection-external
+      - image-grid-coordinate-construction-external
+    real_model_validation: pending-fixture
   dots1:
     status: experimental
     execution:

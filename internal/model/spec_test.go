@@ -912,6 +912,36 @@ func TestReadHunyuanDenseSpec(t *testing.T) {
 	}
 }
 
+func TestReadHunyuanVLSpecUsesOptionalMRoPEAndXDRoPE(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "hunyuan-vl"),
+		metadata("hunyuan-vl.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan-vl.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("hunyuan-vl.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("hunyuan-vl.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("hunyuan-vl.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan-vl.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("hunyuan-vl.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("hunyuan-vl.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("hunyuan-vl.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("hunyuan-vl.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("hunyuan-vl.rope.scaling.alpha", gguf.ValueTypeFloat32, float32(2)),
+		metadata("hunyuan-vl.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		{Key: "hunyuan-vl.rope.dimension_sections", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
+		}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "hunyuan-vl" || spec.RopeDimensionCount != 4 ||
+		spec.RopeFrequencyBase != 40000 || spec.RopeSections != [4]int32{1, 1, 0, 0} ||
+		!usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected Hunyuan-VL spec: %+v", spec)
+	}
+}
+
 func TestReadAFMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "afmoe"),

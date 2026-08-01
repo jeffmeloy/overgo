@@ -3690,11 +3690,19 @@ func TestExecutorChatGLMBlockMatchesReference(t *testing.T) {
 }
 
 func TestExecutorHunyuanDenseBlockMatchesReference(t *testing.T) {
+	testExecutorHunyuanBlockMatchesReference(t, "hunyuan-dense", [4]int32{})
+}
+
+func TestExecutorHunyuanVLBlockMatchesReference(t *testing.T) {
+	testExecutorHunyuanBlockMatchesReference(t, "hunyuan-vl", [4]int32{1, 1, 0, 0})
+}
+
+func testExecutorHunyuanBlockMatchesReference(t *testing.T, architecture string, sections [4]int32) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
 	}
 	b := tensor.NewBuilder()
-	s := model.Spec{Architecture: "hunyuan-dense", EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 40000, RMSNormEpsilon: 1e-6}
+	s := model.Spec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: sections, RopeFrequencyBase: 40000, RMSNormEpsilon: 1e-6}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)

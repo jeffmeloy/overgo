@@ -1046,7 +1046,7 @@ func BuildDenseBlockCachedForLayer(
 	isGraniteMoE := spec.Architecture == "granitemoe"
 	isGrok := spec.Architecture == "grok"
 	isHunyuanMoE := spec.Architecture == "hunyuan-moe"
-	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense"
+	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl"
 	isHYV3 := spec.Architecture == "hy_v3"
 	isMellum := spec.Architecture == "mellum"
 	isSmallThinker := spec.Architecture == "smallthinker"
@@ -1229,6 +1229,10 @@ func BuildDenseBlockCachedForLayer(
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
+	if isHunyuan {
+		required["attention Q norm"] = weights.AttentionQNorm
+		required["attention K norm"] = weights.AttentionKNorm
+	}
 	if isPhiMoE {
 		required["attention output bias"] = weights.AttentionOutputBias
 	}
@@ -1385,7 +1389,7 @@ func BuildDenseBlockCachedForLayer(
 	if !spec.UsesRoPE(layerIndex) {
 		// Some dense architectures leave periodic layers
 		// position-independent
-	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" {
+	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || (spec.Architecture == "hunyuan-vl" && hasMRoPESections(spec.RopeSections)) {
 		var multiPositions [4][]uint32
 		for axis := range multiPositions {
 			multiPositions[axis] = positions
@@ -2057,6 +2061,15 @@ func BuildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
+func hasMRoPESections(sections [4]int32) bool {
+	for _, section := range sections {
+		if section != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func buildDeciSparseBlockCached(

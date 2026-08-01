@@ -900,6 +900,36 @@ func TestExecuteCachedAttentionAndConcat(t *testing.T) {
 	}
 }
 
+func TestExecuteSymmetricWindowAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(1, 1, 5)
+	query := builder.Input("query", dtype.F32, shape)
+	key := builder.Input("key", dtype.F32, shape)
+	value := builder.Input("value", dtype.F32, shape)
+	output := builder.AttentionSymmetricWindow(query, key, value, 1, 4)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: shape, Data: []float32{0, 0, 0, 0, 0}},
+		key:   {Shape: shape, Data: []float32{0, 0, 0, 0, 0}},
+		value: {Shape: shape, Data: []float32{1, 2, 4, 8, 16}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{7.0 / 3, 15.0 / 4, 31.0 / 5, 30.0 / 4, 28.0 / 3}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("symmetric attention[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+	attributes := output.Attrs.(tensor.AttentionAttributes)
+	if !attributes.SymmetricWindow || attributes.Causal || attributes.Window != 4 {
+		t.Fatalf("unexpected symmetric attention attributes: %+v", attributes)
+	}
+}
+
 func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))

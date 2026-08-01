@@ -2035,6 +2035,10 @@ func launchNode(
 		}
 		queryStart := attributes.QueryStart
 		window := attributes.Window
+		var symmetricWindow uint32
+		if attributes.SymmetricWindow {
+			symmetricWindow = 1
+		}
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&query),
 			unsafe.Pointer(&key),
@@ -2053,6 +2057,7 @@ func launchNode(
 			unsafe.Pointer(&causal),
 			unsafe.Pointer(&queryStart),
 			unsafe.Pointer(&window),
+			unsafe.Pointer(&symmetricWindow),
 			unsafe.Pointer(&relativeBuckets),
 			unsafe.Pointer(&count),
 		}
@@ -2074,6 +2079,7 @@ func launchNode(
 		runtime.KeepAlive(causal)
 		runtime.KeepAlive(queryStart)
 		runtime.KeepAlive(window)
+		runtime.KeepAlive(symmetricWindow)
 		runtime.KeepAlive(relativeBuckets)
 		runtime.KeepAlive(count)
 		return err

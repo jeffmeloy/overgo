@@ -886,6 +886,7 @@ extern "C" __global__ void attention_f32(
         unsigned int causal,
         unsigned int query_start,
         unsigned int window,
+        unsigned int symmetric_window,
         unsigned int relative_buckets,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -898,11 +899,18 @@ extern "C" __global__ void attention_f32(
     const unsigned int query_token = row / query_heads;
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
-    const unsigned int key_limit = causal
+    unsigned int key_limit = causal
         ? query_start + query_token + 1
         : key_value_tokens;
-    const unsigned int key_first =
+    unsigned int key_first =
         window > 0 && key_limit > window ? key_limit - window : 0;
+    if (symmetric_window) {
+        const unsigned int half_window = window / 2;
+        const unsigned int query_position = query_start + query_token;
+        key_first = query_position > half_window ? query_position - half_window : 0;
+        const unsigned int symmetric_limit = query_position + half_window + 1;
+        key_limit = symmetric_limit < key_value_tokens ? symmetric_limit : key_value_tokens;
+    }
     const unsigned int query_offset =
         (query_token * query_heads + query_head) * key_width;
 

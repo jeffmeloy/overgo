@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 11,
+  "abiVersion": 12,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "9b2f53bc5df9a112bc88e2d152932c54785f4b8b953a84dc23f1043bc1ce1d95",
+      "sourceSha256": "326a325ba3a8fd18098b57448a4de13d1a3dfade2eb8631c501a7294b986a1e2",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "b70bea96c0cbbb0454eb9fb0a597e83de0b9e71a2df0ff73586969adf7294b80",
+      "assetSha256": "39ee33146977dc163c5e8694edb27fe86e366178075b01cceb2a5464ed99d180",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -488,6 +488,7 @@
             ".f32",
             ".f32",
             ".f32",
+            ".u32",
             ".u32",
             ".u32",
             ".u32",

@@ -1209,6 +1209,40 @@ func TestReadHYV3SpecTrimsNextNLayers(t *testing.T) {
 	}
 }
 
+func TestReadDeepSeek2OCRSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "deepseek2-ocr"),
+		metadata("deepseek2-ocr.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2-ocr.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("deepseek2-ocr.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("deepseek2-ocr.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("deepseek2-ocr.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("deepseek2-ocr.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2-ocr.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2-ocr.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("deepseek2-ocr.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("deepseek2-ocr.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("deepseek2-ocr.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("deepseek2-ocr.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("deepseek2-ocr.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "deepseek2-ocr" || spec.LeadingDenseBlocks != 1 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 ||
+		spec.ExpertGatingFunc != 1 || spec.RopeDimensionCount != 4 ||
+		spec.RopeFrequencyBase != 10000 || usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected DeepSeek2-OCR spec: %+v", spec)
+	}
+	spec.RopeScalingType = "linear"
+	spec.RopeScalingFactor = 2
+	if err := spec.validate(); err == nil {
+		t.Fatal("expected DeepSeek2-OCR RoPE scaling rejection")
+	}
+}
+
 func TestReadCommandRSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "command-r"),

@@ -123,6 +123,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "chatglm" &&
 		architecture != "dream" &&
 		architecture != "deepseek" &&
+		architecture != "deepseek2-ocr" &&
 		architecture != "deci" &&
 		architecture != "dbrx" &&
 		architecture != "dots1" &&
@@ -304,7 +305,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		// architectures use ALiBi or learned absolute rows instead of RoPE
 		spec.RopeDisabled = true
 	} else if architecture != "t5encoder" {
-		if architecture == "gptneox" || architecture == "falcon" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](
 				values,
@@ -1047,7 +1048,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1122,6 +1123,27 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SharedExpertFF = value
 		}
 		spec.ExpertGatingFunc = 2
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
+			spec.ExpertGatingFunc = value
+		}
+		if value, ok := optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool); ok {
+			spec.ExpertWeightsNorm = value
+		}
+		spec.RopeDimensionCount = spec.KeyLength
+	}
+	if architecture == "deepseek2-ocr" {
+		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+			return Spec{}, errors.New("DeepSeek2-OCR shared expert width overflows")
+		}
+		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+		spec.ExpertGatingFunc = 1
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
 			spec.ExpertGatingFunc = value
 		}
@@ -1830,6 +1852,27 @@ func (s Spec) validate() error {
 		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			s.RopeDimensionCount%2 != 0:
 			return errors.New("HY-V3 rotary/head dimensions are invalid")
+		}
+	}
+	if s.Architecture == "deepseek2-ocr" {
+		switch {
+		case s.LeadingDenseBlocks >= s.BlockCount:
+			return errors.New("DeepSeek2-OCR leading dense block count leaves no MoE layers")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			s.SharedExpertFF == 0:
+			return errors.New("DeepSeek2-OCR expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("DeepSeek2-OCR expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("DeepSeek2-OCR expert weight scale is invalid")
+		case math.Abs(float64(s.RopeFrequencyBase-10000)) >= 1e-4 || s.RopeScalingType != "" ||
+			s.AttentionScale != 0:
+			return errors.New("DeepSeek2-OCR attention scaling is unsupported")
+		case s.HeadCountKV != s.HeadCount || s.RopeDimensionCount != s.KeyLength ||
+			s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
+			return errors.New("DeepSeek2-OCR attention metadata is invalid")
 		}
 	}
 	if s.Architecture == "smallthinker" {

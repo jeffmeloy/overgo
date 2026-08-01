@@ -1044,6 +1044,14 @@ catalog preserves the pinned graph's ignored attention-output-bias behavior;
 metadata, mixed-layer catalogs, graph semantics, and reference/CUDA block
 differentials pass. Real-model validation remains pending a local fixture.
 
+DeepSeek2-OCR now executes its text decoder with full split Q/K/V projections,
+NeoX RoPE, leading dense SwiGLU blocks, and later fused or separate routed
+experts. Softmax or sigmoid routing supports optional F32 selection bias,
+normalization, scaling, and the required shared SwiGLU expert. Metadata, strict
+mixed-layer catalog, graph semantics, and a reference/CUDA block differential
+pass. Image encoding, projection, and soft-embedding construction remain the
+external multimodal boundary; real-model validation is pending a local fixture.
+
 PaddleOCR now reuses the ERNIE 4.5 dense catalog with its pinned split-half
 four-axis MRoPE graph and optional attention-output bias. Text decoding repeats
 the token coordinate across all axes and passes reference/CUDA block

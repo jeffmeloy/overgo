@@ -517,6 +517,7 @@ func BuildDenseBlockCachedForLayer(
 	isBailingMoE2 := spec.Architecture == "bailingmoe2"
 	isCohere2MoE := spec.Architecture == "cohere2moe"
 	isDeepSeek := spec.Architecture == "deepseek"
+	isDeepSeek2OCR := spec.Architecture == "deepseek2-ocr"
 	isDeci := spec.Architecture == "deci"
 	isDBRX := spec.Architecture == "dbrx"
 	isDOTS1 := spec.Architecture == "dots1"
@@ -550,11 +551,11 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDBRX && !isDOTS1 && !isErnieMoE && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
-		if (isCohere2MoE || isHYV3) && weights.FeedForwardGateUpExperts != nil {
+		if (isCohere2MoE || isDeepSeek2OCR || isHYV3) && weights.FeedForwardGateUpExperts != nil {
 			required["feed-forward fused expert gate/up"] = weights.FeedForwardGateUpExperts
 		} else {
 			if (!isGraniteMoE && !isGrok && !isErnieMoE) || weights.FeedForwardGateExperts != nil {
@@ -586,7 +587,7 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
-		if isHYV3 {
+		if isHYV3 || isDeepSeek2OCR {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
@@ -1194,7 +1195,7 @@ func BuildDenseBlockCachedForLayer(
 				)
 				feedForward = builder.Add(feedForward, shared)
 			}
-		} else if isHYV3 {
+		} else if isHYV3 || isDeepSeek2OCR {
 			if weights.FeedForwardGateUpExperts != nil {
 				if spec.ExpertGatingFunc == 2 {
 					feedForward = builder.MoESigmoidFusedGateUp(

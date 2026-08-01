@@ -113,7 +113,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		keyWidth := uint64(r.spec.LayerKeyLength(uint32(index)))
 		valueWidth := uint64(r.spec.LayerValueLength(uint32(index)))
 		kvHeads := uint64(r.spec.LayerKVHeadCount(uint32(index)))
-		if r.spec.Architecture == "deepseek2" {
+		if r.spec.Architecture == "deepseek2" || r.spec.Architecture == "mistral4" {
 			kvHeads = uint64(r.spec.HeadCount)
 			if index < len(r.weights.Layers) && r.weights.Layers[index].AttentionKB != nil {
 				keyWidth = uint64(r.spec.KVLoRARank + r.spec.RopeDimensionCount)

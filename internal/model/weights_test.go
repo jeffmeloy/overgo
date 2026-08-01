@@ -1883,7 +1883,15 @@ func TestReadWeightsMiniCPM3(t *testing.T) {
 }
 
 func TestReadWeightsDeepSeek2AbsorbedMLA(t *testing.T) {
-	spec := Spec{Architecture: "deepseek2", BlockCount: 2, EmbeddingLength: 8,
+	testReadWeightsDeepSeek2FamilyAbsorbedMLA(t, "deepseek2")
+}
+
+func TestReadWeightsMistral4AbsorbedMLA(t *testing.T) {
+	testReadWeightsDeepSeek2FamilyAbsorbedMLA(t, "mistral4")
+}
+
+func testReadWeightsDeepSeek2FamilyAbsorbedMLA(t *testing.T, architecture string) {
+	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,
 		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
 		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, VocabularySize: 32,
 		LeadingDenseBlocks: 1, ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
@@ -1917,7 +1925,7 @@ func TestReadWeightsDeepSeek2AbsorbedMLA(t *testing.T) {
 		weights.Layers[0].AttentionKVB != nil || weights.Layers[0].FeedForwardRouter != nil ||
 		weights.Layers[1].FeedForwardRouter == nil || weights.Layers[1].FeedForwardExpertBias == nil ||
 		weights.Layers[1].FeedForwardSharedDown == nil {
-		t.Fatalf("unexpected DeepSeek2 catalog: %+v", weights.Layers)
+		t.Fatalf("unexpected %s catalog: %+v", architecture, weights.Layers)
 	}
 }
 

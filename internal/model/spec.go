@@ -112,6 +112,10 @@ type UnsupportedArchitectureError struct {
 	Architecture string
 }
 
+func isDeepSeek2Family(architecture string) bool {
+	return architecture == "deepseek2" || architecture == "mistral4"
+}
+
 func (e *UnsupportedArchitectureError) Error() string {
 	return fmt.Sprintf("model architecture %q is not supported", e.Architecture)
 }
@@ -193,6 +197,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "maincoder" &&
 		architecture != "mellum" &&
 		architecture != "mistral3" &&
+		architecture != "mistral4" &&
 		architecture != "modern-bert" &&
 		architecture != "mpt" &&
 		architecture != "nemotron" &&
@@ -248,7 +253,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.Name = value
 	}
 	prefix := architecture + "."
-	if architecture == "deepseek2" {
+	if isDeepSeek2Family(architecture) {
 		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
 			if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
@@ -366,7 +371,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	spec.KeyLength, _ = optional[uint32](values, prefix+"attention.key_length", gguf.ValueTypeUint32)
 	spec.ValueLength, _ = optional[uint32](values, prefix+"attention.value_length", gguf.ValueTypeUint32)
-	if architecture == "deepseek2" {
+	if isDeepSeek2Family(architecture) {
 		if value, ok := optional[uint32](values, prefix+"attention.key_length_mla", gguf.ValueTypeUint32); ok {
 			spec.KeyLength = value
 		}
@@ -423,7 +428,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" || architecture == "qwen35moe" ||
 				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
-				if (architecture != "deepseek2" && architecture != "laguna" && architecture != "grok" && architecture != "mellum") || scalingType != "yarn" {
+				if (!isDeepSeek2Family(architecture) && architecture != "laguna" && architecture != "grok" && architecture != "mellum") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
 						"model architecture %q uses unsupported RoPE scaling type %q",
 						architecture,
@@ -1394,7 +1399,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "deepseek2" {
+	if isDeepSeek2Family(architecture) {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -1893,7 +1898,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SlidingWindow = value
 		}
 	}
-	if architecture == "plm" || architecture == "minicpm3" || architecture == "deepseek2" {
+	if architecture == "plm" || architecture == "minicpm3" || isDeepSeek2Family(architecture) {
 		if architecture == "minicpm3" {
 			if spec.QLoRARank, err = required[uint32](
 				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
@@ -1901,7 +1906,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				return Spec{}, err
 			}
 		}
-		if architecture == "deepseek2" {
+		if isDeepSeek2Family(architecture) {
 			lite := spec.BlockCount == 26 || spec.BlockCount == 27 || (spec.BlockCount == 48 && spec.VocabularySize == 128256)
 			if !lite {
 				if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
@@ -1919,7 +1924,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); err != nil {
 			return Spec{}, err
 		}
-		if architecture == "deepseek2" {
+		if isDeepSeek2Family(architecture) {
 			spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 			if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
@@ -2829,14 +2834,14 @@ func (s Spec) validate() error {
 			}
 		}
 	}
-	if (s.Architecture == "plm" || s.Architecture == "minicpm3" || s.Architecture == "deepseek2") &&
+	if (s.Architecture == "plm" || s.Architecture == "minicpm3" || isDeepSeek2Family(s.Architecture)) &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength ||
-			(s.Architecture != "deepseek2" && s.HeadCountKV != s.HeadCount) ||
-			(s.Architecture == "deepseek2" && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
+			(!isDeepSeek2Family(s.Architecture) && s.HeadCountKV != s.HeadCount) ||
+			(isDeepSeek2Family(s.Architecture) && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
 	}
-	if s.Architecture == "deepseek2" {
+	if isDeepSeek2Family(s.Architecture) {
 		lite := s.BlockCount == 26 || s.BlockCount == 27 || (s.BlockCount == 48 && s.VocabularySize == 128256)
 		switch {
 		case s.ExpertCount == 0 && s.LeadingDenseBlocks != s.BlockCount:

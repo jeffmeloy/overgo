@@ -1840,8 +1840,16 @@ func TestBuildPLMMLABlock(t *testing.T) {
 }
 
 func TestBuildDeepSeek2AbsorbedMLABlock(t *testing.T) {
+	testBuildDeepSeek2FamilyAbsorbedMLABlock(t, "deepseek2")
+}
+
+func TestBuildMistral4AbsorbedMLABlock(t *testing.T) {
+	testBuildDeepSeek2FamilyAbsorbedMLABlock(t, "mistral4")
+}
+
+func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string) {
 	builder := tensor.NewBuilder()
-	spec := Spec{Architecture: "deepseek2", BlockCount: 2, EmbeddingLength: 8,
+	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,
 		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
 		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
 		RMSNormEpsilon: 1e-6, LeadingDenseBlocks: 1, ExpertCount: 2, ExpertUsedCount: 1,

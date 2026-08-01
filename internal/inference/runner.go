@@ -1031,7 +1031,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	if r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
-		r.spec.Architecture != "deepseek2" {
+		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
@@ -1400,7 +1400,8 @@ func (r *Runner) runLayerCached(
 		result model.DenseBlockResult
 		err    error
 	)
-	if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" || r.spec.Architecture == "deepseek2" {
+	if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" ||
+		r.spec.Architecture == "deepseek2" || r.spec.Architecture == "mistral4" {
 		result, err = model.BuildMLABlockCachedForLayer(
 			builder, input, r.spec, graphWeights, positions, pastKey, pastValue, uint32(layerIndex),
 		)
@@ -1576,7 +1577,7 @@ func addAttentionTemperatureInput(
 	weights *model.LayerGraphWeights,
 ) error {
 	llama4Temperature := spec.Architecture == "llama4" && !spec.UsesRoPE(layer)
-	deepSeek2Temperature := spec.Architecture == "deepseek2" && spec.AttentionTempScale != 0
+	deepSeek2Temperature := (spec.Architecture == "deepseek2" || spec.Architecture == "mistral4") && spec.AttentionTempScale != 0
 	if !llama4Temperature && !deepSeek2Temperature {
 		return nil
 	}
@@ -1921,7 +1922,8 @@ func (r *Runner) Generate(
 	var selectedPromptCache *cachedPrompt
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" &&
-		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2"
+		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
+		r.spec.Architecture != "mistral4"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {

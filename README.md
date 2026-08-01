@@ -1,7 +1,7 @@
 # llamacpp2go
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
-Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1, DeepSeek2, and DeepSeek2-OCR text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
+Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1, DeepSeek2, DeepSeek2-OCR, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3/4 and Gemma Embedding,
@@ -393,9 +393,9 @@ GPT-4o pre-tokenization are synthetic-fixture and CUDA-differential validated.
 GPT-OSS alternating sliding attention with sinks, residual post-attention norm,
 selected-logit softmax routing, biased OpenAI SwiGLU experts, and MXFP4-native
 expert storage are synthetic-fixture and CUDA-differential validated.
-DeepSeek2 query LoRA, legacy and absorbed MLA, YaRN scaling, temperature tuning,
-dense-prefix/MoE switching, correction bias, and shared experts are synthetic-
-fixture and CUDA-differential validated.
+DeepSeek2 and Mistral 4 query LoRA, legacy and absorbed MLA, YaRN scaling,
+temperature tuning, dense-prefix/MoE switching, correction bias, and shared
+experts are synthetic-fixture and CUDA-differential validated.
 Set `LLAMACPP2GO_BONSAI_MODEL` to the local Bonsai 27B Q1_0 Qwen3.5 fixture
 to validate real-model native one-bit weights against the pinned CPU oracle.
 Set `LLAMACPP2GO_GEMMA3_MODEL` and `LLAMACPP2GO_UMT5_MODEL` to run the

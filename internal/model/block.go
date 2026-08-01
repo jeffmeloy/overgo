@@ -774,11 +774,11 @@ func BuildMLABlockCachedForLayer(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "plm" && spec.Architecture != "minicpm3" && spec.Architecture != "deepseek2" {
+	if spec.Architecture != "plm" && spec.Architecture != "minicpm3" && !isDeepSeek2Family(spec.Architecture) {
 		return DenseBlockResult{}, errors.New("MLA block architecture is unsupported")
 	}
 	isMiniCPM3 := spec.Architecture == "minicpm3"
-	isDeepSeek2 := spec.Architecture == "deepseek2"
+	isDeepSeek2 := isDeepSeek2Family(spec.Architecture)
 	required := map[string]*tensor.Tensor{
 		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
 		"attention KV-A": weights.AttentionKVAMQA, "attention KV-A norm": weights.AttentionKVANorm,

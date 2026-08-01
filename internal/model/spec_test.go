@@ -1455,6 +1455,44 @@ func TestReadDeepSeek2Spec(t *testing.T) {
 	}
 }
 
+func TestReadMistral4Spec(t *testing.T) {
+	prefix := "mistral4."
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "mistral4"),
+		metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(16384)),
+		metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"attention.key_length_mla", gguf.ValueTypeUint32, uint32(6)),
+		metadata(prefix+"attention.value_length_mla", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"attention.q_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata(prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata(prefix+"rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata(prefix+"leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata(prefix+"expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"attention.temperature_scale", gguf.ValueTypeFloat32, float32(0.1)),
+		metadata(prefix+"attention.temperature_length", gguf.ValueTypeUint32, uint32(8192)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "mistral4" || spec.QLoRARank != 3 || spec.KVLoRARank != 3 ||
+		spec.KeyLength != 6 || spec.ValueLength != 4 || spec.LeadingDenseBlocks != 1 ||
+		spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 || spec.SharedExpertFF != 6 ||
+		spec.AttentionTempFloor != 8192 {
+		t.Fatalf("unexpected Mistral 4 spec: %+v", spec)
+	}
+}
+
 func TestReadDenseDeepSeek2LiteSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "deepseek2"),

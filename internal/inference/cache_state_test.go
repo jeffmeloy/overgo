@@ -28,9 +28,17 @@ func TestKVCacheStateRoundTrip(t *testing.T) {
 }
 
 func TestDeepSeek2AbsorbedCacheValidation(t *testing.T) {
+	testDeepSeek2FamilyAbsorbedCacheValidation(t, "deepseek2")
+}
+
+func TestMistral4AbsorbedCacheValidation(t *testing.T) {
+	testDeepSeek2FamilyAbsorbedCacheValidation(t, "mistral4")
+}
+
+func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{
-		spec: model.Spec{Architecture: "deepseek2", BlockCount: 1, KeyLength: 6, ValueLength: 4,
+		spec: model.Spec{Architecture: architecture, BlockCount: 1, KeyLength: 6, ValueLength: 4,
 			HeadCount: 2, HeadCountKV: 2, KVLoRARank: 3, RopeDimensionCount: 2},
 		weights: model.Weights{Layers: []model.LayerWeights{{AttentionKB: &attentionKB}}},
 	}

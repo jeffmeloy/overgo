@@ -17,7 +17,7 @@
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
 | Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, grouped/batched matmul, clamp, RMSNorm/affine LayerNorm, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, scaled multi-axis RoPE, ALiBi, causal and symmetric sliding/softcapped/gated GQA with per-head sink logits, bidirectional T5 relative-position attention, legacy and absorbed MLA decomposition, softmax/sigmoid top-k routed gated or ungated SiLU/ReLU/GELU MoE with separate or fused gate/up expert storage, split router inputs, grouped expert-bank indices, correction bias, and per-expert output scales, GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek2-OCR, ERNIE 4.5-MoE, Gemma4, GLM4-MoE, GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3, Mellum, MiMo2, MiniMax-M2, SmallThinker, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM token-input decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek2-OCR, ERNIE 4.5-MoE, Gemma4, GLM4-MoE, GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3, Mellum, MiMo2, MiniMax-M2, Mistral 4, SmallThinker, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM token-input decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Seven tokenizer corpora match 326 upstream cases; Gemma4 raw UTF-8 BPE, BERT WordPiece, and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -721,6 +721,26 @@
 
 ## Blockers
 
+### Deferred: DeepSeek 3.2 sparse DSA attention
+
+Pinned DeepSeek 3.2 adds a learned indexer above MLA: affine key
+normalization, projected indexer keys, NeoX RoPE, Hadamard mixing, a separate
+persistent indexer-key cache, ReLU history scores, learned head reduction, and
+top-k sparse attention over selected cache rows. The current attention ABI has
+one K/V cache and dense causal score evaluation; it lacks the second cache,
+Hadamard op, top-k index production, sparse row gather, and sparse attention
+mask semantics. Reusing ordinary absorbed MLA would produce the wrong graph.
+
+### Deferred: DeepSeek 4 compressed sparse/hyper-connection graph
+
+Pinned DeepSeek 4 layers combine lightning-indexer sparse attention, sliding
+windows, grouped output LoRA, per-layer attention compression, compressor
+gates/APE/norms and caches, Sinkhorn hyper-connections, attention sinks,
+hash-derived expert selection, and sqrt-softplus routing with per-layer SwiGLU
+clamps. These require multiple new persistent cache classes and custom
+selection, mixing, and routing operations. DeepSeek 4 remains deferred as one
+coherent execution tranche; its metadata is not accepted as partial support.
+
 ### Deferred: importance-matrix-only IQ encoders
 
 The pinned IQ1_S, IQ1_M, IQ2_XXS, and IQ2_XS row quantizers do not expose
@@ -1235,6 +1255,14 @@ softmax or sigmoid routed experts, optional correction bias, fused or separate
 expert gate/up storage, and the shared SwiGLU expert match the pinned graph.
 Strict metadata/catalog, topology, reference, F32 CUDA, and quantized grouped-
 matmul tests pass; real-model validation remains pending a local GGUF fixture.
+
+Mistral 4 now uses its native `mistral4.*` GGUF metadata with the same loader,
+tensor catalog, and graph inherited from DeepSeek2 in the pinned upstream.
+Direct/LoRA query projection, legacy and absorbed MLA, YaRN, attention
+temperature, dense-leading or routed/shared-expert FFN, native-quantized
+weights, and both cache layouts follow the already verified DeepSeek2 paths.
+Architecture-specific spec, catalog, topology, and cache tests pass;
+real-model validation remains pending a local Mistral 4 GGUF fixture.
 
 ## Working rules
 

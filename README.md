@@ -372,9 +372,12 @@ auto/none/required/named choice, replayable call/output history, constrained
 generation, single/parallel call constraints, buffered function-call items,
 and call-complete argument SSE events are supported. `/responses/input_tokens` and
 `/v1/responses/input_tokens` expose the corresponding tool-aware
-no-generation count. Continuation IDs, hosted/custom tools, reasoning items,
-multimodal/file inputs, and token-incremental function-argument deltas remain
-explicit exclusions.
+no-generation count. A single user `input_image` part with a base64 data URL
+uses native projected generation in buffered and streaming Responses requests;
+instructions, history, tools, multiple media, remote URLs, file IDs, and token
+counting remain excluded for that path. Continuation IDs, hosted/custom tools,
+reasoning items, Responses audio/file inputs, and token-incremental
+function-argument deltas remain explicit exclusions.
 Text-only Anthropic-compatible `/v1/messages` supports buffered and named-SSE
 streaming replies with Anthropic text/tool-use content blocks, stop fields,
 and usage. Tool definitions, auto/any/named choice, assistant `tool_use`,

@@ -168,7 +168,7 @@ func parseResponsesMessages(
 					index,
 				)
 			}
-			content, err := parseResponsesTextContent(
+			content, media, err := parseResponsesMessageContent(
 				item.Content,
 				fmt.Sprintf("input item %d content", index),
 			)
@@ -176,8 +176,7 @@ func parseResponsesMessages(
 				return nil, err
 			}
 			messages = append(messages, inference.ChatMessage{
-				Role:    item.Role,
-				Content: content,
+				Role: item.Role, Content: content, Media: media,
 			})
 		case "function_call":
 			var item struct {
@@ -254,6 +253,65 @@ func parseResponsesMessages(
 		}
 	}
 	return messages, nil
+}
+
+func parseResponsesMessageContent(
+	raw json.RawMessage,
+	label string,
+) (string, []inference.ChatMediaPart, error) {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text, nil, nil
+	}
+	var rawParts []json.RawMessage
+	if err := json.Unmarshal(raw, &rawParts); err != nil {
+		return "", nil, fmt.Errorf("%s must be a string or content-part array", label)
+	}
+	var result strings.Builder
+	var media []inference.ChatMediaPart
+	for index, rawPart := range rawParts {
+		var header struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(rawPart, &header); err != nil {
+			return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
+		}
+		switch header.Type {
+		case "text", "input_text", "output_text":
+			var part struct {
+				Type        string          `json:"type"`
+				Text        string          `json:"text"`
+				Annotations json.RawMessage `json:"annotations"`
+				Logprobs    json.RawMessage `json:"logprobs"`
+			}
+			if err := decodeResponsesItem(rawPart, &part); err != nil {
+				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
+			}
+			result.WriteString(part.Text)
+		case "input_image":
+			var part struct {
+				Type     string `json:"type"`
+				ImageURL string `json:"image_url"`
+				FileID   string `json:"file_id"`
+				Detail   string `json:"detail"`
+			}
+			if err := decodeResponsesItem(rawPart, &part); err != nil {
+				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
+			}
+			if part.ImageURL == "" || part.FileID != "" {
+				return "", nil, fmt.Errorf("%s part %d requires image_url and no file_id", label, index)
+			}
+			media = append(media, inference.ChatMediaPart{
+				Type: "image", Data: part.ImageURL, TextOffset: result.Len(),
+			})
+		default:
+			return "", nil, fmt.Errorf(
+				"%s part %d has unsupported type %q",
+				label, index, header.Type,
+			)
+		}
+	}
+	return result.String(), media, nil
 }
 
 func decodeResponsesItem(raw json.RawMessage, destination any) error {

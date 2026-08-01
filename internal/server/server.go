@@ -4621,8 +4621,26 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	multimodal := chatMediaCount(messages) != 0
+	var mediaPrompt nativePrompt
+	if multimodal {
+		if rawJSONConfigured(body.Tools) || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal Responses input cannot use tools")
+			return
+		}
+		mediaPrompt, err = h.parseChatMultimodalPrompt(chatCompletionRequest{
+			Messages: messages,
+			N:        1,
+		})
+		if err != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
+	}
 	var prompt string
-	if len(toolSelection.prompt) == 0 {
+	if multimodal {
+		prompt = ""
+	} else if len(toolSelection.prompt) == 0 {
 		prompt, err = formatter.FormatChat(messages)
 	} else {
 		prompt, err = formatChatRequest(
@@ -4700,6 +4718,19 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	defer h.releaseSlot(slotID)
+	var promptIDs []tokenizer.TokenID
+	var projectedInputs *inference.ProjectedInputs
+	if multimodal {
+		projectedPrompt, projected, projectErr := h.projectNativeMultimodalPrompt(
+			request.Context(), mediaPrompt,
+		)
+		if projectErr != nil {
+			writeGenerationError(response, projectErr)
+			return
+		}
+		promptIDs = projectedPrompt.TokenIDs
+		projectedInputs = &projected
+	}
 	idNumber := h.nextID.Add(1)
 	responseID := "resp_" + strconv.FormatUint(idNumber, 10)
 	messageID := "msg_" + strconv.FormatUint(idNumber, 10)
@@ -4715,6 +4746,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			responseID,
 			messageID,
 			toolSelection.active,
+			promptIDs,
+			projectedInputs,
 		)
 		return
 	}
@@ -4727,11 +4760,13 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		slotID,
 		prompt,
 		inference.GenerateOptions{
-			MaxNewTokens:  maxTokens,
-			Sampler:       sampler,
-			ParseSpecial:  true,
-			StopSequences: stops,
-			ContextShift:  h.config.ContextShift,
+			MaxNewTokens:    maxTokens,
+			Sampler:         sampler,
+			ParseSpecial:    true,
+			StopSequences:   stops,
+			ContextShift:    h.config.ContextShift,
+			PromptTokenIDs:  promptIDs,
+			ProjectedInputs: projectedInputs,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++
 				output.WriteString(filter.Accept(event.Piece))
@@ -4789,6 +4824,8 @@ func (h *Handler) streamResponses(
 	stops []string,
 	responseID, messageID string,
 	tools []inference.ChatTool,
+	promptIDs []tokenizer.TokenID,
+	projectedInputs *inference.ProjectedInputs,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -4870,11 +4907,13 @@ func (h *Handler) streamResponses(
 		slotID,
 		prompt,
 		inference.GenerateOptions{
-			MaxNewTokens:  maxTokens,
-			Sampler:       sampler,
-			ParseSpecial:  true,
-			StopSequences: stops,
-			ContextShift:  h.config.ContextShift,
+			MaxNewTokens:    maxTokens,
+			Sampler:         sampler,
+			ParseSpecial:    true,
+			StopSequences:   stops,
+			ContextShift:    h.config.ContextShift,
+			PromptTokenIDs:  promptIDs,
+			ProjectedInputs: projectedInputs,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++
 				piece := filter.Accept(event.Piece)
@@ -5082,6 +5121,10 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	messages, err := parseResponsesMessages(body.Input, body.Instructions)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if chatMediaCount(messages) != 0 {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal Responses token counting is unavailable")
 		return
 	}
 	var prompt string

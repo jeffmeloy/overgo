@@ -116,8 +116,8 @@ func buildBERTEncoderBlock(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "bert" && spec.Architecture != "nomic-bert" {
-		return DenseBlockResult{}, errors.New("BERT-family block requires bert or nomic-bert architecture")
+	if spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "nomic-bert" {
+		return DenseBlockResult{}, errors.New("BERT-family block requires a supported encoder architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("BERT-family block input shape is incompatible")
@@ -176,6 +176,14 @@ func buildBERTEncoderBlock(
 			value = builder.Add(value, weights.AttentionVBias)
 		}
 	}
+	if spec.Architecture == "jina-bert-v2" {
+		if weights.AttentionQNorm != nil {
+			query = ApplyNormalization(builder, query, weights.AttentionQNorm, weights.AttentionQNormBias, spec)
+		}
+		if weights.AttentionKNorm != nil {
+			key = ApplyNormalization(builder, key, weights.AttentionKNorm, weights.AttentionKNormBias, spec)
+		}
+	}
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
@@ -191,7 +199,15 @@ func buildBERTEncoderBlock(
 			key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
 		)
 	}
-	attention := builder.Attention(query, key, value, float32(1/math.Sqrt(float64(spec.KeyLength))), false)
+	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	var attention *tensor.Tensor
+	if spec.Architecture == "jina-bert-v2" {
+		attention = builder.AttentionALiBiWithOffset(
+			query, key, value, attentionScale, spec.MaxALiBiBias, false, 0,
+		)
+	} else {
+		attention = builder.Attention(query, key, value, attentionScale, false)
+	}
 	attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	if weights.AttentionOutputBias != nil {
@@ -201,11 +217,29 @@ func buildBERTEncoderBlock(
 		builder.Add(input, attention), weights.AttentionPostNorm,
 		weights.AttentionPostNormBias, spec.LayerNormEpsilon,
 	)
+	if spec.Architecture == "jina-bert-v2" && weights.AttentionNorm2 != nil {
+		attention = ApplyNormalization(
+			builder, builder.Add(attention, input),
+			weights.AttentionNorm2, weights.AttentionNorm2Bias, spec,
+		)
+	}
 	feedForward := builder.MulMat(weights.FeedForwardUp, attention)
 	if weights.FeedForwardUpBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardUpBias)
 	}
-	if spec.Architecture == "nomic-bert" {
+	if spec.Architecture == "jina-bert-v2" {
+		width := uint64(spec.FeedForwardLength)
+		if weights.FeedForwardGate != nil {
+			gate := builder.MulMat(weights.FeedForwardGate, attention)
+			feedForward = builder.GEGLU(gate, feedForward)
+		} else if weights.FeedForwardUp.Shape.Dims[1] == 2*width {
+			gate := builder.Reshape(builder.GroupSlice(feedForward, 0, width, 1, 2*width), width, tokens)
+			up := builder.Reshape(builder.GroupSlice(feedForward, width, width, 1, 2*width), width, tokens)
+			feedForward = builder.GEGLU(gate, up)
+		} else {
+			feedForward = builder.GELU(feedForward)
+		}
+	} else if spec.Architecture == "nomic-bert" {
 		gate := builder.MulMat(weights.FeedForwardGate, attention)
 		feedForward = builder.SwiGLU(gate, feedForward)
 	} else {
@@ -623,7 +657,7 @@ func BuildDenseBlockCachedForLayer(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.Architecture == "bert" || spec.Architecture == "nomic-bert" {
+	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" {
 		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"

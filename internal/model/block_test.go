@@ -1051,6 +1051,122 @@ func TestBuildNomicBERTBlockUsesNeoXRoPEAndSwiGLU(t *testing.T) {
 	}
 }
 
+func TestBuildJinaBERTV2BlockUsesALiBiNormsAndFusedGEGLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "jina-bert-v2", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := LayerGraphWeights{
+		AttentionQKV:            builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionQNorm:          builder.Input("q_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQNormBias:      builder.Input("q_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionKNorm:          builder.Input("k_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionKNormBias:      builder.Input("k_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionOutput:         builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionPostNorm:       builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionPostNormBias:   builder.Input("attn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2:          builder.Input("attn_norm_2", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2Bias:      builder.Input("attn_norm_2_bias", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:           builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 32)),
+		FeedForwardDown:         builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+		FeedForwardPostNorm:     builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardPostNormBias: builder.Input("ffn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention *tensor.Tensor
+	var layerNorm, gelu, multiply, rope int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attention = node
+		case tensor.OpLayerNorm:
+			layerNorm++
+		case tensor.OpGELU:
+			gelu++
+		case tensor.OpMultiply:
+			multiply++
+		case tensor.OpRoPENormal, tensor.OpRoPENeoX:
+			rope++
+		}
+	}
+	if attention == nil {
+		t.Fatal("JinaBERT v2 attention node is missing")
+	}
+	attrs := attention.Attrs.(tensor.AttentionAttributes)
+	if attrs.Causal || attrs.MaxALiBiBias != 8 ||
+		layerNorm != 5 || gelu != 1 || multiply < 6 || rope != 0 {
+		t.Fatalf(
+			"unexpected JinaBERT v2 graph: attention=%+v LayerNorm=%d GELU=%d Multiply=%d RoPE=%d",
+			attention, layerNorm, gelu, multiply, rope,
+		)
+	}
+}
+
+func TestBuildJinaBERTV2BlockSelectsPlainOrSeparateGateFFN(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		withGate  bool
+		wantGEGLU bool
+	}{
+		{name: "plain GELU"},
+		{name: "separate GEGLU", withGate: true, wantGEGLU: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: "jina-bert-v2", EmbeddingLength: 8, FeedForwardLength: 16,
+				HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+				LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDisabled: true, MaxALiBiBias: 8,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := LayerGraphWeights{
+				AttentionQKV:            builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+				AttentionOutput:         builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+				AttentionPostNorm:       builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+				AttentionPostNormBias:   builder.Input("attn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+				FeedForwardUp:           builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
+				FeedForwardDown:         builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+				FeedForwardPostNorm:     builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+				FeedForwardPostNormBias: builder.Input("ffn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+			}
+			if test.withGate {
+				weights.FeedForwardGate = builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 16))
+			}
+			result, err := BuildDenseBlockCachedForLayer(
+				builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var geglu bool
+			for _, node := range nodes {
+				if node.Op == tensor.OpMultiply && len(node.Inputs) == 2 && node.Inputs[0].Op == tensor.OpGELU {
+					geglu = true
+				}
+			}
+			if geglu != test.wantGEGLU {
+				t.Fatalf("GEGLU=%v, want %v", geglu, test.wantGEGLU)
+			}
+		})
+	}
+}
+
 func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

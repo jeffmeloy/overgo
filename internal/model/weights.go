@@ -161,7 +161,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.PositionEmbedding = &positionEmbedding
 	}
-	if spec.Architecture == "bert" || spec.Architecture == "nomic-bert" {
+	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" {
 		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
 			if typeEmbedding.Dimensions != 2 ||
 				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||
@@ -169,6 +169,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", typeEmbedding.Name, typeEmbedding.Shape)
 			}
 			result.TokenTypeEmbedding = &typeEmbedding
+		}
+		if spec.Architecture == "jina-bert-v2" && result.TokenTypeEmbedding == nil {
+			return Weights{}, errors.New(`required tensor "token_types.weight" is missing`)
 		}
 		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
 		if normErr != nil {
@@ -214,12 +217,12 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	} else if spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe" {
 		outputNormName = "token_embd_norm.weight"
 	}
-	if !spec.UsesUnweightedLayerNorm() && spec.Architecture != "bert" && spec.Architecture != "nomic-bert" {
+	if !spec.UsesUnweightedLayerNorm() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "nomic-bert" {
 		if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
 			return Weights{}, err
 		}
 	}
-	if spec.RequiresLayerNormBias() && spec.Architecture != "bert" && spec.Architecture != "nomic-bert" {
+	if spec.RequiresLayerNormBias() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "nomic-bert" {
 		outputNormBias, biasErr := required("output_norm.bias", uint64(spec.EmbeddingLength))
 		if biasErr != nil {
 			return Weights{}, biasErr
@@ -670,7 +673,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "minimax-m2" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -882,6 +885,53 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.AttentionKNorm = &kNorm
 			}
 		}
+		if spec.Architecture == "jina-bert-v2" {
+			for name, destination := range map[string]**gguf.TensorInfo{
+				"attn_q_norm.weight": &layer.AttentionQNorm,
+				"attn_k_norm.weight": &layer.AttentionKNorm,
+			} {
+				if _, ok := tensors[prefix+name]; ok {
+					norm, normErr := required(prefix+name, uint64(spec.EmbeddingLength))
+					if normErr != nil {
+						return Weights{}, normErr
+					}
+					*destination = &norm
+					biasName := prefix + name[:len(name)-len("weight")] + "bias"
+					if _, hasBias := tensors[biasName]; hasBias {
+						bias, biasErr := required(biasName, uint64(spec.EmbeddingLength))
+						if biasErr != nil {
+							return Weights{}, biasErr
+						}
+						if name == "attn_q_norm.weight" {
+							layer.AttentionQNormBias = &bias
+						} else {
+							layer.AttentionKNormBias = &bias
+						}
+					}
+				} else if _, hasBias := tensors[prefix+name[:len(name)-len("weight")]+"bias"]; hasBias {
+					return Weights{}, fmt.Errorf("JinaBERT v2 %s bias has no weight", name[:len(name)-len("weight")])
+				}
+			}
+			if layer.AttentionKNorm != nil && keyLength != uint64(spec.EmbeddingLength) {
+				return Weights{}, errors.New("JinaBERT v2 K norm requires full-width KV projection")
+			}
+			if item, ok := tensors[prefix+"attn_norm_2.weight"]; ok {
+				norm, normErr := required(item.Name, uint64(spec.EmbeddingLength))
+				if normErr != nil {
+					return Weights{}, normErr
+				}
+				layer.AttentionNorm2 = &norm
+				if _, hasBias := tensors[prefix+"attn_norm_2.bias"]; hasBias {
+					bias, biasErr := required(prefix+"attn_norm_2.bias", uint64(spec.EmbeddingLength))
+					if biasErr != nil {
+						return Weights{}, biasErr
+					}
+					layer.AttentionNorm2Bias = &bias
+				}
+			} else if _, hasBias := tensors[prefix+"attn_norm_2.bias"]; hasBias {
+				return Weights{}, errors.New("JinaBERT v2 secondary norm bias has no weight")
+			}
+		}
 		if !layer.Recurrent && spec.Architecture != "ernie4_5" && spec.Architecture != "ernie4_5-moe" {
 			if item, ok := tensors[prefix+"attn_output.bias"]; ok {
 				if item.Type != dtype.F32 ||
@@ -923,7 +973,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if hasPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
 			attentionPostNormName := "post_attention_norm.weight"
 			feedForwardPostNormName := "post_ffw_norm.weight"
-			if spec.Architecture == "bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "grok" {
+			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" || spec.Architecture == "grok" {
 				attentionPostNormName = "attn_output_norm.weight"
 				feedForwardPostNormName = "layer_output_norm.weight"
 				if spec.Architecture == "grok" {
@@ -948,7 +998,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionPostNorm = &attentionPostNorm
 			layer.FeedForwardPostNorm = &feedForwardPostNorm
-			if spec.Architecture == "bert" || spec.Architecture == "nomic-bert" {
+			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" {
 				attentionBias, biasErr := required(prefix+"attn_output_norm.bias", uint64(spec.EmbeddingLength))
 				if biasErr != nil {
 					return Weights{}, biasErr
@@ -1357,6 +1407,52 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if spec.Architecture == "arctic" {
 			feedForwardLength = spec.EmbeddingLength
+		}
+		if spec.Architecture == "jina-bert-v2" {
+			if gate, ok := tensors[prefix+"ffn_gate.weight"]; ok {
+				if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) || gate.Shape[1] != uint64(feedForwardLength) {
+					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
+				}
+				layer.FeedForwardGate = gate
+			}
+			up, ok := tensors[prefix+"ffn_up.weight"]
+			if !ok {
+				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"ffn_up.weight")
+			}
+			upWidth := uint64(feedForwardLength)
+			if up.Dimensions != 2 || up.Shape[0] != uint64(spec.EmbeddingLength) ||
+				(up.Shape[1] != upWidth && up.Shape[1] != 2*upWidth) {
+				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", up.Name, up.Shape)
+			}
+			if layer.FeedForwardGate.Name != "" && up.Shape[1] != upWidth {
+				return Weights{}, errors.New("JinaBERT v2 separate and fused FFN gates cannot be combined")
+			}
+			layer.FeedForwardUp = up
+			if _, ok := tensors[prefix+"ffn_up.bias"]; ok {
+				bias, biasErr := required(prefix+"ffn_up.bias", up.Shape[1])
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				if bias.Type != dtype.F32 {
+					return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
+				}
+				layer.FeedForwardUpBias = &bias
+			}
+			if layer.FeedForwardDown, err = required(prefix+"ffn_down.weight", upWidth, uint64(spec.EmbeddingLength)); err != nil {
+				return Weights{}, err
+			}
+			downBias, biasErr := required(prefix+"ffn_down.bias", uint64(spec.EmbeddingLength))
+			if biasErr != nil {
+				return Weights{}, biasErr
+			}
+			if downBias.Type != dtype.F32 {
+				return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", downBias.Name)
+			}
+			layer.FeedForwardDownBias = &downBias
+			if layer.AttentionOutputBias == nil {
+				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
+			}
+			continue
 		}
 		if !usesGateFreeFFN(spec.Architecture) {
 			if layer.FeedForwardGate, err = required(

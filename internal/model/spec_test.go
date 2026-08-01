@@ -486,6 +486,30 @@ func TestReadNomicBERTSpecRejectsMoECadence(t *testing.T) {
 	}
 }
 
+func TestReadJinaBERTV2SpecUsesBidirectionalALiBi(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "jina-bert-v2"),
+		metadata("jina-bert-v2.block_count", gguf.ValueTypeUint32, uint32(12)),
+		metadata("jina-bert-v2.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("jina-bert-v2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("jina-bert-v2.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("jina-bert-v2.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("jina-bert-v2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jina-bert-v2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("tokenizer.ggml.token_type_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "jina-bert-v2" || !spec.NonCausalAttention || !spec.IsEncoderOnly() ||
+		!spec.RopeDisabled || spec.MaxALiBiBias != 8 || spec.HeadCountKV != 2 ||
+		spec.KeyLength != 4 || spec.ValueLength != 4 || spec.TokenTypeCount != 2 ||
+		!spec.UsesLayerNorm() || !usesPostOnlyNorm(spec.Architecture) {
+		t.Fatalf("unexpected JinaBERT v2 spec: %+v", spec)
+	}
+}
+
 func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),

@@ -803,6 +803,73 @@ func TestReadWeightsNomicBERTPostNormSwiGLU(t *testing.T) {
 	}
 }
 
+func TestReadWeightsJinaBERTV2OptionalNormsAndFusedGEGLU(t *testing.T) {
+	spec := Spec{
+		Architecture: "jina-bert-v2", BlockCount: 1, ContextLength: 8192,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, TokenTypeCount: 2,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_types.weight", 8, 2),
+		tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24), tensorInfo("blk.0.attn_qkv.bias", 24),
+		tensorInfo("blk.0.attn_q_norm.weight", 8), tensorInfo("blk.0.attn_q_norm.bias", 8),
+		tensorInfo("blk.0.attn_k_norm.weight", 8), tensorInfo("blk.0.attn_k_norm.bias", 8),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.0.attn_output_norm.weight", 8), tensorInfo("blk.0.attn_output_norm.bias", 8),
+		tensorInfo("blk.0.attn_norm_2.weight", 8), tensorInfo("blk.0.attn_norm_2.bias", 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 32), tensorInfo("blk.0.ffn_up.bias", 32),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8), tensorInfo("blk.0.ffn_down.bias", 8),
+		tensorInfo("blk.0.layer_output_norm.weight", 8), tensorInfo("blk.0.layer_output_norm.bias", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.OutputNorm.Name != "" || weights.Output != nil || weights.PositionEmbedding != nil ||
+		weights.TokenTypeEmbedding == nil || weights.TokenEmbeddingNorm == nil ||
+		weights.TokenEmbeddingNormBias == nil || layer.AttentionQKV == nil ||
+		layer.AttentionQKVBias == nil || layer.AttentionQNorm == nil ||
+		layer.AttentionKNorm == nil || layer.AttentionQNormBias == nil ||
+		layer.AttentionKNormBias == nil || layer.AttentionNorm2 == nil ||
+		layer.AttentionNorm2Bias == nil || layer.AttentionOutputBias == nil ||
+		layer.AttentionPostNorm == nil || layer.AttentionPostNormBias == nil ||
+		layer.FeedForwardGate.Name != "" || layer.FeedForwardUp.Shape[1] != 32 ||
+		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil ||
+		layer.FeedForwardPostNorm == nil || layer.FeedForwardPostNormBias == nil {
+		t.Fatalf("unexpected JinaBERT v2 catalog: %+v", weights)
+	}
+}
+
+func TestReadWeightsJinaBERTV2SeparateGate(t *testing.T) {
+	spec := Spec{
+		Architecture: "jina-bert-v2", BlockCount: 1, ContextLength: 8192,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, TokenTypeCount: 2,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_types.weight", 8, 2),
+		tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 8),
+		tensorInfo("blk.0.attn_v.weight", 8, 8), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_output.bias", 8), tensorInfo("blk.0.attn_output_norm.weight", 8),
+		tensorInfo("blk.0.attn_output_norm.bias", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
+		tensorInfo("blk.0.ffn_down.bias", 8), tensorInfo("blk.0.layer_output_norm.weight", 8),
+		tensorInfo("blk.0.layer_output_norm.bias", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[0].FeedForwardGate.Name == "" || weights.Layers[0].FeedForwardUp.Shape[1] != 16 {
+		t.Fatalf("unexpected JinaBERT v2 separate gate catalog: %+v", weights.Layers[0])
+	}
+}
+
 func TestReadWeightsRND1(t *testing.T) {
 	spec := Spec{
 		Architecture: "rnd1", BlockCount: 1, EmbeddingLength: 8,

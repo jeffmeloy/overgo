@@ -2022,6 +2022,74 @@ func TestExecutorNomicBERTBlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorJinaBERTV2BlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "jina-bert-v2", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := model.LayerGraphWeights{
+		AttentionQKV:            builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionQNorm:          builder.Input("q_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQNormBias:      builder.Input("q_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionKNorm:          builder.Input("k_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionKNormBias:      builder.Input("k_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionOutput:         builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionPostNorm:       builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionPostNormBias:   builder.Input("attn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2:          builder.Input("attn_norm_2", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2Bias:      builder.Input("attn_norm_2_bias", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:           builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 32)),
+		FeedForwardDown:         builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+		FeedForwardPostNorm:     builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardPostNormBias: builder.Input("ffn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQKV, weights.AttentionQNorm, weights.AttentionQNormBias,
+		weights.AttentionKNorm, weights.AttentionKNormBias, weights.AttentionOutput,
+		weights.AttentionPostNorm, weights.AttentionPostNormBias, weights.AttentionNorm2,
+		weights.AttentionNorm2Bias, weights.FeedForwardUp, weights.FeedForwardDown,
+		weights.FeedForwardPostNorm, weights.FeedForwardPostNormBias,
+	} {
+		offset := float32(0)
+		if node == weights.AttentionQNorm || node == weights.AttentionKNorm ||
+			node == weights.AttentionPostNorm || node == weights.AttentionNorm2 ||
+			node == weights.FeedForwardPostNorm {
+			offset = 1
+		}
+		feeds[node] = patternedValue(node.Shape, index+11, 0.04, offset)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 8e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorRND1NonCausalMoEBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

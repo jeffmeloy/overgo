@@ -2057,18 +2057,22 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 					feeds[convState] = patternedValue(convState.Shape, 7, 0.03, -0.02)
 					feeds[ssmState] = patternedValue(ssmState.Shape, 11, 0.02, 0.01)
 				}
-				result, err := model.BuildQwen35BlockCached(
-					builder,
-					input,
-					spec,
-					weights,
-					[]uint32{0, 1},
-					recurrent,
-					nil,
-					nil,
-					convState,
-					ssmState,
+				var (
+					result model.Qwen35BlockResult
+					err    error
 				)
+				if !recurrent && architecture != "qwen3next" {
+					positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
+					result, err = model.BuildQwen35BlockCachedWithMultiPositions(
+						builder, input, spec, weights, positions,
+						false, nil, nil, nil, nil,
+					)
+				} else {
+					result, err = model.BuildQwen35BlockCached(
+						builder, input, spec, weights, []uint32{0, 1}, recurrent,
+						nil, nil, convState, ssmState,
+					)
+				}
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -6804,8 +6808,9 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 		weights.FeedForwardUpExperts = builder.Input("ffn_up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 		weights.FeedForwardDownExperts = builder.Input("ffn_down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
-		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
+	result, err := model.BuildDenseBlockCachedForLayerWithMultiPositions(
+		builder, input, spec, weights, positions, nil, nil, 0,
 	)
 	if err != nil {
 		t.Fatal(err)

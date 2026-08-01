@@ -120,6 +120,11 @@ Generation modes are:
   execute them with native quantized kernels. This is the preferred mode for
   those models. `-native-q8` remains an alias.
 
+The Go runner's `ForwardCachedWithMultimodalInputs` accepts projected visual
+token embeddings plus distinct temporal, height, width, and extra MRoPE
+coordinates. It returns the ordinary continuable cache; image encoding,
+projection, and grid construction remain caller-owned boundaries.
+
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,
 presence/frequency penalties, token-history DRY, and adaptive Mirostat v1/v2.

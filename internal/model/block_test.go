@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -3861,6 +3862,47 @@ func TestBuildQwen3VLBlockUsesQKNormAndMRoPE(t *testing.T) {
 	testBuildMRoPETextDecoderBlock(t, "qwen3vl")
 }
 
+func TestBuildQwen3VLBlockUsesDistinctMRoPEPositions(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "qwen3vl", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ, weights.AttentionK, weights.AttentionV = nil, nil, nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16))
+	positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
+	result, err := BuildDenseBlockCachedForLayerWithMultiPositions(
+		builder, input, spec, weights, positions, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, node := range nodes {
+		if node.Op != tensor.OpRoPEMulti {
+			continue
+		}
+		count++
+		attrs := node.Attrs.(tensor.RoPEMultiAttributes)
+		for axis := range positions {
+			if !slices.Equal(attrs.Positions[axis], positions[axis]) {
+				t.Fatalf("MRoPE axis %d = %v, want %v", axis, attrs.Positions[axis], positions[axis])
+			}
+		}
+	}
+	if count != 2 {
+		t.Fatalf("MRoPE nodes = %d, want 2", count)
+	}
+}
+
 func TestBuildQwen3VLMoEBlockUsesQKNormMRoPEAndNormalizedExperts(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{
@@ -5960,6 +6002,40 @@ func TestBuildQwen35AttentionBlock(t *testing.T) {
 			multiRoPE,
 			sigmoid,
 		)
+	}
+}
+
+func TestBuildQwen35AttentionBlockUsesDistinctMRoPEPositions(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := qwen35TestSpec()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
+	result, err := BuildQwen35BlockCachedWithMultiPositions(
+		builder, input, spec, qwen35AttentionInputs(builder, spec), positions,
+		false, nil, nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, node := range nodes {
+		if node.Op != tensor.OpRoPEMulti {
+			continue
+		}
+		count++
+		attrs := node.Attrs.(tensor.RoPEMultiAttributes)
+		for axis := range positions {
+			if !slices.Equal(attrs.Positions[axis], positions[axis]) {
+				t.Fatalf("Qwen3.5 MRoPE axis %d = %v, want %v", axis, attrs.Positions[axis], positions[axis])
+			}
+		}
+	}
+	if count != 2 {
+		t.Fatalf("Qwen3.5 MRoPE nodes = %d, want 2", count)
 	}
 }
 

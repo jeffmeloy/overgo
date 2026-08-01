@@ -125,6 +125,9 @@ type EmbeddingOverride struct {
 	Embedding  []float32
 }
 
+// MultiAxisPositions: temporal, height, width, extra MRoPE coordinates.
+type MultiAxisPositions [4][]uint32
+
 // Runner: correctness-first Llama/Qwen inference runtime with editable
 // host attention/recurrent cache and optional persistent F32 or
 // native-quantized weights
@@ -1089,7 +1092,7 @@ func (r *Runner) ForwardWithEmbeddingOverrides(
 	if r.spec.Architecture == "t5encoder" || r.spec.NonCausalAttention {
 		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
 	}
-	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides)
+	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides, nil)
 	return hidden, err
 }
 
@@ -1565,7 +1568,31 @@ func (r *Runner) ForwardCachedWithEmbeddingOverrides(
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides)
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides, nil)
+}
+
+// ForwardCachedWithMultimodalInputs: projected embeddings plus MRoPE axes.
+func (r *Runner) ForwardCachedWithMultimodalInputs(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	cache *KVCache,
+	positions MultiAxisPositions,
+	overrides []EmbeddingOverride,
+) (reference.Value, *KVCache, error) {
+	if r == nil {
+		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, nil, errors.New("inference: runner is closed")
+	}
+	if !supportsMultiAxisPositions(r.spec) {
+		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
+	}
+	return r.forwardCachedWithEmbeddingOverridesLocked(
+		ctx, tokenIDs, cache, overrides, &positions,
+	)
 }
 
 func (r *Runner) forwardCachedLocked(
@@ -1573,7 +1600,7 @@ func (r *Runner) forwardCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil)
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil, nil)
 }
 
 func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
@@ -1581,6 +1608,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 	overrides []EmbeddingOverride,
+	multiPositions *MultiAxisPositions,
 ) (reference.Value, *KVCache, error) {
 	if r.spec.Architecture == "gemma4-assistant" {
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
@@ -1614,6 +1642,16 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			"inference: absolute token position exceeds uint32",
 		)
 	}
+	if multiPositions != nil {
+		for axis := range multiPositions {
+			if len((*multiPositions)[axis]) != len(tokenIDs) {
+				return reference.Value{}, nil, fmt.Errorf(
+					"inference: multi-axis position %d has %d values for %d tokens",
+					axis, len((*multiPositions)[axis]), len(tokenIDs),
+				)
+			}
+		}
+	}
 	rows := make([]uint32, len(tokenIDs))
 	positions := make([]uint32, len(tokenIDs))
 	for index, id := range tokenIDs {
@@ -1622,6 +1660,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		}
 		rows[index] = uint32(id)
 		positions[index] = nextPosition + uint32(index)
+	}
+	if multiPositions != nil {
+		positions = append(positions[:0], (*multiPositions)[0]...)
 	}
 	activation, err := r.loadEmbeddings(ctx, rows)
 	if err != nil {
@@ -1660,12 +1701,28 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			ctx, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
 	}
+	cachePosition := nextPosition + uint32(len(tokenIDs))
+	if multiPositions != nil {
+		var maximum uint32
+		for axis := range multiPositions {
+			for _, position := range (*multiPositions)[axis] {
+				maximum = max(maximum, position)
+			}
+		}
+		if maximum == math.MaxUint32 {
+			return reference.Value{}, nil, errors.New("inference: multi-axis position exceeds resumable range")
+		}
+		cachePosition = maximum + 1
+		if cache != nil && cachePosition < nextPosition {
+			return reference.Value{}, nil, errors.New("inference: multi-axis positions regress cached position")
+		}
+	}
 	nextCache := &KVCache{
 		Layers:   make([]LayerCache, len(r.weights.Layers)),
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
-		Position: nextPosition + uint32(len(tokenIDs)),
+		Position: cachePosition,
 	}
-	if r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
+	if multiPositions == nil && r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
@@ -1711,6 +1768,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			past,
 			embeddingSkip,
 			perLayerInput,
+			multiPositions,
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
@@ -2125,6 +2183,7 @@ func (r *Runner) runLayerCached(
 	past *LayerCache,
 	embeddingSkip reference.Value,
 	perLayerInput *reference.Value,
+	multiPositions *MultiAxisPositions,
 ) (reference.Value, LayerCache, error) {
 	if isQwenGDNArchitecture(r.spec.Architecture) {
 		return r.runQwen35LayerCached(
@@ -2134,6 +2193,7 @@ func (r *Runner) runLayerCached(
 			layerIndex,
 			positions,
 			past,
+			multiPositions,
 		)
 	}
 	if r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe" {
@@ -2345,16 +2405,17 @@ func (r *Runner) runLayerCached(
 			pastDeepSeek4States, uint32(layerIndex),
 		)
 	} else {
-		result, err = model.BuildDenseBlockCachedForLayer(
-			builder,
-			input,
-			r.spec,
-			graphWeights,
-			positions,
-			pastKey,
-			pastValue,
-			uint32(layerIndex),
-		)
+		if multiPositions != nil {
+			result, err = model.BuildDenseBlockCachedForLayerWithMultiPositions(
+				builder, input, r.spec, graphWeights, [4][]uint32(*multiPositions),
+				pastKey, pastValue, uint32(layerIndex),
+			)
+		} else {
+			result, err = model.BuildDenseBlockCachedForLayer(
+				builder, input, r.spec, graphWeights, positions,
+				pastKey, pastValue, uint32(layerIndex),
+			)
+		}
 	}
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
@@ -2637,6 +2698,7 @@ func (r *Runner) runQwen35LayerCached(
 	layerIndex int,
 	positions []uint32,
 	past *LayerCache,
+	multiPositions *MultiAxisPositions,
 ) (reference.Value, LayerCache, error) {
 	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
@@ -2711,18 +2773,22 @@ func (r *Runner) runQwen35LayerCached(
 		hostFeeds[pastKey] = past.Key
 		hostFeeds[pastValue] = past.Value
 	}
-	result, err := model.BuildQwen35BlockCached(
-		builder,
-		input,
-		r.spec,
-		graphWeights,
-		positions,
-		info.Recurrent,
-		pastKey,
-		pastValue,
-		convState,
-		ssmState,
+	var (
+		result model.Qwen35BlockResult
+		err    error
 	)
+	if multiPositions != nil {
+		result, err = model.BuildQwen35BlockCachedWithMultiPositions(
+			builder, input, r.spec, graphWeights, [4][]uint32(*multiPositions),
+			info.Recurrent,
+			pastKey, pastValue, convState, ssmState,
+		)
+	} else {
+		result, err = model.BuildQwen35BlockCached(
+			builder, input, r.spec, graphWeights, positions, info.Recurrent,
+			pastKey, pastValue, convState, ssmState,
+		)
+	}
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -3734,6 +3800,22 @@ func isQwenGDNArchitecture(architecture string) bool {
 
 func isLFM2Architecture(architecture string) bool {
 	return architecture == "lfm2" || architecture == "lfm2moe"
+}
+
+func supportsMultiAxisPositions(spec model.Spec) bool {
+	sections := false
+	for _, count := range spec.RopeSections {
+		sections = sections || count > 0
+	}
+	if !sections {
+		return false
+	}
+	switch spec.Architecture {
+	case "glm4moe", "hunyuan_vl", "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe", "qwen35", "qwen35moe":
+		return true
+	default:
+		return false
+	}
 }
 
 func isDSAArchitecture(architecture string) bool {

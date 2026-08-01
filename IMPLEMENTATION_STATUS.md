@@ -1196,10 +1196,12 @@ RoPE sections are accepted; nonzero multimodal sections remain explicit errors.
 Hunyuan-VL now executes the corresponding text decoder with optional fused or
 separate Q/K/V, XDRoPE-adjusted normal or four-axis MRoPE, post-RoPE per-head
 Q/K RMSNorm, dense SwiGLU, projected embedding overrides, and serializable KV
-caching. Text tokens repeat their coordinate across all axes. Vision encoding,
-projection, and image-grid coordinate construction remain external. Metadata,
-strict catalog, graph ordering, and a reference/CUDA block differential pass;
-real-model validation is pending a local fixture.
+caching. The multimodal runner accepts distinct temporal, height, width, and
+extra coordinates alongside projected embedding overrides; ordinary text calls
+repeat their coordinate across all axes. Vision encoding, projection, and
+image-grid coordinate construction remain external. Metadata, strict catalog,
+graph ordering, and a reference/CUDA block differential pass; real-model
+validation is pending a local fixture.
 
 CogVLM now executes its token-input decoder with mandatory contiguous fused
 QKV, normal RoPE with optional per-pair factors, RMSNorm, SwiGLU, optional tied
@@ -1226,25 +1228,27 @@ pass. Image encoding, projection, and soft-embedding construction remain the
 external multimodal boundary; real-model validation is pending a local fixture.
 
 PaddleOCR now reuses the ERNIE 4.5 dense catalog with its pinned split-half
-four-axis MRoPE graph and optional attention-output bias. Text decoding repeats
-the token coordinate across all axes and passes reference/CUDA block
-differentials. The vision projector and image-grid coordinate construction
-remain explicit multimodal blockers; real-model validation is pending fixtures.
+four-axis MRoPE graph and optional attention-output bias. Its decoder accepts
+caller-projected embeddings and distinct grid coordinates; text decoding still
+repeats the token coordinate across all axes. Reference/CUDA block
+differentials pass. The vision projector and grid construction remain external;
+real-model validation is pending fixtures.
 
 Qwen2-VL now executes its dense text decoder with fused or separate Q/K/V,
 optional projection/output biases, scaled four-axis split-half MRoPE, SwiGLU,
 and serializable KV caching. Projected visual token embeddings can enter through
-the embedding-override API; text tokens use repeated coordinates across all
-axes. Image encoding and image-grid coordinate construction remain external
-multimodal boundaries. Metadata, strict catalog, graph semantics, and a complete
-reference/CUDA block differential pass; real-model validation is pending a
-local text-model fixture.
+the multimodal input API with caller-supplied four-axis grid coordinates; text
+tokens use repeated coordinates across all axes. Image encoding and grid
+construction remain external multimodal boundaries. Metadata, strict catalog,
+graph semantics, and a complete reference/CUDA block differential pass;
+real-model validation is pending a local text-model fixture.
 
 Qwen3-VL now adds mandatory per-head Q/K RMSNorm before scaled four-axis MRoPE,
 plus its optional deepstack-layer metadata, over the same dense text-decoder and
 KV-cache paths. Ordinary token input exactly matches upstream's zero-filled
-deepstack stream. Projected visual deepstack injection, image-grid coordinate
-construction, vision encoding, and the optional classification/rerank head
+deepstack stream. Base projected visual embeddings and grid coordinates enter
+through the multimodal input API. Projected visual deepstack injection, vision
+encoding, grid construction, and the optional classification/rerank head
 remain external boundaries. Metadata, strict catalog, graph topology, and a
 complete reference/CUDA block differential pass; real-model validation is
 pending a local fixture.
@@ -1254,7 +1258,9 @@ SwiGLU experts. It supports fused or separate Q/K/V, per-head Q/K RMSNorm,
 scaled four-axis MRoPE, normalized softmax top-k routing, routed-weight scaling,
 native-quantized experts, zero-filled token deepstack, and serializable KV
 caching. Projected visual deepstack injection, vision encoding, image-grid
-coordinates, and the optional classification/rerank head remain external.
+construction, and the optional classification/rerank head remain external;
+base projected embeddings and four-axis coordinates enter through the
+multimodal input API.
 Metadata, strict catalog, graph topology, and reference/CUDA block differential
 tests pass; real-model validation is pending a local fixture.
 

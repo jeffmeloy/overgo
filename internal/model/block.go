@@ -2931,6 +2931,43 @@ func BuildDenseBlockCachedForLayer(
 	pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
+	return buildDenseBlockCachedForLayer(
+		builder, input, spec, weights, positions, nil, pastKey, pastValue, layerIndex,
+	)
+}
+
+// BuildDenseBlockCachedForLayerWithMultiPositions: distinct MRoPE axes.
+func BuildDenseBlockCachedForLayerWithMultiPositions(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	multiPositions [4][]uint32,
+	pastKey *tensor.Tensor,
+	pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	switch spec.Architecture {
+	case "glm4moe", "hunyuan_vl", "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe":
+	default:
+		return DenseBlockResult{}, errors.New("dense block architecture does not support multi-axis positions")
+	}
+	return buildDenseBlockCachedForLayer(
+		builder, input, spec, weights, multiPositions[0], &multiPositions, pastKey, pastValue, layerIndex,
+	)
+}
+
+func buildDenseBlockCachedForLayer(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	multiPositions *[4][]uint32,
+	pastKey *tensor.Tensor,
+	pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
 	if builder == nil {
 		return DenseBlockResult{}, errors.New("dense block builder is nil")
 	}
@@ -3398,20 +3435,24 @@ func BuildDenseBlockCachedForLayer(
 		// Some dense architectures leave periodic layers
 		// position-independent
 	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || (isGLM4MoE && hasMRoPESections(spec.RopeSections)) || (spec.Architecture == "hunyuan_vl" && hasMRoPESections(spec.RopeSections)) {
-		var multiPositions [4][]uint32
-		for axis := range multiPositions {
-			multiPositions[axis] = positions
+		resolved := [4][]uint32{}
+		if multiPositions == nil {
+			for axis := range resolved {
+				resolved[axis] = positions
+			}
+		} else {
+			resolved = *multiPositions
 		}
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
 		}
 		query = builder.RoPEMultiScaled(
-			query, multiPositions, spec.RopeSections,
+			query, resolved, spec.RopeSections,
 			rotaryDimensions, spec.RopeFrequencyBase, frequencyScale,
 		)
 		key = builder.RoPEMultiScaled(
-			key, multiPositions, spec.RopeSections,
+			key, resolved, spec.RopeSections,
 			rotaryDimensions, spec.RopeFrequencyBase, frequencyScale,
 		)
 	} else if isLaguna {
@@ -4694,6 +4735,41 @@ func BuildQwen35BlockCached(
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
+	return buildQwen35BlockCached(
+		builder, input, spec, weights, positions, nil, recurrent,
+		pastKey, pastValue, convState, ssmState,
+	)
+}
+
+// BuildQwen35BlockCachedWithMultiPositions: distinct MRoPE axes.
+func BuildQwen35BlockCachedWithMultiPositions(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	multiPositions [4][]uint32,
+	recurrent bool,
+	pastKey, pastValue, convState, ssmState *tensor.Tensor,
+) (Qwen35BlockResult, error) {
+	if spec.Architecture != "qwen35" && spec.Architecture != "qwen35moe" {
+		return Qwen35BlockResult{}, errors.New("Qwen hybrid architecture does not support multi-axis positions")
+	}
+	return buildQwen35BlockCached(
+		builder, input, spec, weights, multiPositions[0], &multiPositions, recurrent,
+		pastKey, pastValue, convState, ssmState,
+	)
+}
+
+func buildQwen35BlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	multiPositions *[4][]uint32,
+	recurrent bool,
+	pastKey, pastValue, convState, ssmState *tensor.Tensor,
+) (Qwen35BlockResult, error) {
 	if spec.Architecture != "qwen3next" && spec.Architecture != "qwen35" && spec.Architecture != "qwen35moe" {
 		return Qwen35BlockResult{}, errors.New("Qwen hybrid block architecture is invalid")
 	}
@@ -4714,6 +4790,7 @@ func BuildQwen35BlockCached(
 		spec,
 		weights,
 		positions,
+		multiPositions,
 		pastKey,
 		pastValue,
 	)
@@ -4733,6 +4810,7 @@ func buildQwen35AttentionBlock(
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
+	multiPositions *[4][]uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil {
@@ -4794,16 +4872,20 @@ func buildQwen35AttentionBlock(
 			key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
 		)
 	} else {
-		var multiPositions [4][]uint32
-		for axis := range multiPositions {
-			multiPositions[axis] = positions
+		resolved := [4][]uint32{}
+		if multiPositions == nil {
+			for axis := range resolved {
+				resolved[axis] = positions
+			}
+		} else {
+			resolved = *multiPositions
 		}
 		query = builder.RoPEMultiScaled(
-			query, multiPositions, spec.RopeSections, spec.RopeDimensionCount,
+			query, resolved, spec.RopeSections, spec.RopeDimensionCount,
 			spec.RopeFrequencyBase, frequencyScale,
 		)
 		key = builder.RoPEMultiScaled(
-			key, multiPositions, spec.RopeSections, spec.RopeDimensionCount,
+			key, resolved, spec.RopeSections, spec.RopeDimensionCount,
 			spec.RopeFrequencyBase, frequencyScale,
 		)
 	}

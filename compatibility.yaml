@@ -1740,13 +1740,14 @@ models:
       - ernie-4-5-rmsnorm-swiglu-decoder
       - contiguous-fused-or-separate-qkv
       - split-half-four-axis-mrope
+      - caller-supplied-four-axis-positions
+      - projected-embedding-overrides
       - optional-attention-output-bias
       - optional-tied-output
       - serializable-prefix-editable-kv-cache
     constraints:
-      - repeated-text-coordinate-on-all-mrope-axes
-      - external-vision-projector-pending
-      - image-grid-position-construction-pending
+      - vision-projector-external
+      - image-grid-position-construction-external
     real_model_validation: pending-fixture
   dbrx:
     status: experimental
@@ -1841,6 +1842,7 @@ models:
       - text-coordinate-decoder
       - contiguous-fused-or-separate-qkv
       - xdrope-adjusted-normal-or-four-axis-mrope
+      - caller-supplied-four-axis-positions
       - post-rope-qk-rmsnorm
       - swiglu
       - optional-tied-output
@@ -2265,6 +2267,7 @@ models:
       - text-coordinate-decoder
       - fused-or-separate-qkv-with-optional-bias
       - scaled-four-axis-split-half-mrope
+      - caller-supplied-four-axis-positions
       - optional-output-bias
       - swiglu
       - projected-embedding-overrides
@@ -2284,7 +2287,9 @@ models:
       - fused-or-separate-qkv-with-optional-bias
       - pre-rope-per-head-qk-rmsnorm
       - scaled-four-axis-split-half-mrope
+      - caller-supplied-four-axis-positions
       - swiglu
+      - projected-embedding-overrides
       - zero-filled-token-deepstack
       - serializable-prefix-editable-kv-cache
     limitations:
@@ -2304,11 +2309,13 @@ models:
       - fused-or-separate-qkv-with-optional-bias
       - pre-rope-per-head-qk-rmsnorm
       - scaled-four-axis-split-half-mrope
+      - caller-supplied-four-axis-positions
       - softmax-top-k-routing
       - selected-probability-normalization
       - routed-weight-scaling
       - packed-swiglu-experts
       - zero-filled-token-deepstack
+      - projected-embedding-overrides
       - serializable-prefix-editable-kv-cache
     limitations:
       - projected-visual-deepstack-injection-external
@@ -2415,6 +2422,8 @@ models:
     features:
       - multi-axis-rope-kernel
       - text-generation-position-input
+      - caller-supplied-four-axis-positions
+      - projected-embedding-overrides
       - gated-full-attention
       - fused-gated-delta-net
       - recurrent-convolution-state
@@ -2470,7 +2479,9 @@ models:
       - leading-dense-swiglu-blocks
       - fused-or-separate-qkv-with-optional-bias
       - optional-per-head-qk-rmsnorm
-      - normal-or-text-coordinate-mrope
+      - normal-or-four-axis-mrope
+      - caller-supplied-four-axis-positions
+      - projected-embedding-overrides
       - post-residual-rmsnorm
       - sigmoid-or-softmax-top-k-routing
       - selection-correction-bias
@@ -2481,7 +2492,6 @@ models:
       - serializable-prefix-editable-kv-cache
     limitations:
       - nextn-mtp-prediction-pending
-      - multimodal-coordinate-input-pending
     real_model_validation: pending-fixture
   mimo2:
     status: experimental
@@ -2592,6 +2602,8 @@ models:
     features:
       - multi-axis-rope-kernel
       - text-generation-position-input
+      - caller-supplied-four-axis-positions
+      - projected-embedding-overrides
       - gated-full-attention
       - fused-gated-delta-net
       - recurrent-convolution-state
@@ -2603,7 +2615,6 @@ models:
       - serializable-hybrid-cache
     limitations:
       - nextn-mtp-prediction-pending
-      - multimodal-position-input-pending
     real_model_validation: pending-fixture
   gemma:
     status: experimental

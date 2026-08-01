@@ -9,6 +9,7 @@ import (
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
+	"llamacpp2go/internal/tokenizer"
 )
 
 func TestCogVLMRejectsVisualEmbeddingMode(t *testing.T) {
@@ -16,6 +17,7 @@ func TestCogVLMRejectsVisualEmbeddingMode(t *testing.T) {
 	_, _, err := runner.forwardCachedWithEmbeddingOverridesLocked(
 		context.Background(), nil, nil,
 		[]EmbeddingOverride{{TokenIndex: 0, Embedding: []float32{1}}},
+		nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "visual embedding mode") {
 		t.Fatalf("error = %v", err)
@@ -63,5 +65,39 @@ func TestApplyEmbeddingOverridesRejectsInvalidInput(t *testing.T) {
 				t.Fatalf("error = %v, want containing %q", err, test.contains)
 			}
 		})
+	}
+}
+
+func TestMultimodalInputAdmission(t *testing.T) {
+	supported := &Runner{spec: model.Spec{
+		Architecture: "qwen3vl", RopeSections: [4]int32{1, 1, 0, 0},
+	}}
+	_, _, err := supported.ForwardCachedWithMultimodalInputs(
+		context.Background(), nil, nil, MultiAxisPositions{}, nil,
+	)
+	if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
+		t.Fatalf("supported multimodal error = %v", err)
+	}
+
+	unsupported := &Runner{spec: model.Spec{Architecture: "llama"}}
+	_, _, err = unsupported.ForwardCachedWithMultimodalInputs(
+		context.Background(), nil, nil, MultiAxisPositions{}, nil,
+	)
+	if err == nil || !strings.Contains(err.Error(), "does not support") {
+		t.Fatalf("unsupported multimodal error = %v", err)
+	}
+}
+
+func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
+	runner := &Runner{spec: model.Spec{
+		Architecture: "qwen3vl", ContextLength: 4,
+		RopeSections: [4]int32{1, 1, 0, 0},
+	}}
+	positions := MultiAxisPositions{{0}, {0}, nil, {0}}
+	_, _, err := runner.ForwardCachedWithMultimodalInputs(
+		context.Background(), []tokenizer.TokenID{0}, nil, positions, nil,
+	)
+	if err == nil || !strings.Contains(err.Error(), "position 2") {
+		t.Fatalf("incomplete multi-axis error = %v", err)
 	}
 }

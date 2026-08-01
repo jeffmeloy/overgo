@@ -1353,6 +1353,145 @@ func TestExecuteOpenAIMoEUsesSelectedSoftmaxAndBiases(t *testing.T) {
 	}
 }
 
+func TestExecuteDeepSeek4RawAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 1))
+	cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, 1))
+	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
+	output := builder.DeepSeek4Attention(query, cache, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
+		tensor.DeepSeek4AttentionAttributes{
+			Positions: []uint32{0}, Window: 4, Heads: 1, RotaryDimensions: 2,
+			FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
+		})
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: query.Shape, Data: []float32{1, 0}},
+		cache: {Shape: cache.Shape, Data: []float32{3, 4}},
+		sinks: {Shape: sinks.Shape, Data: []float32{-100}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, want := range []float32{3, 4} {
+		if difference := math.Abs(float64(results[output].Data[index] - want)); difference > 1e-6 {
+			t.Fatalf("DeepSeek 4 raw attention[%d] = %v, want %v", index, results[output].Data[index], want)
+		}
+	}
+}
+
+func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		ratio uint32
+	}{{"ratio_4", 4}, {"ratio_128", 128}} {
+		t.Run(test.name, func(t *testing.T) {
+			ratio := test.ratio
+			builder := tensor.NewBuilder()
+			position := ratio - 1
+			query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 1))
+			cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, uint64(ratio)))
+			sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
+			coefficient := uint64(1)
+			if ratio == 4 {
+				coefficient = 2
+			}
+			compressorKV := builder.Input("compressor_kv", dtype.F32, tensor.MustShape(2*coefficient, 1, uint64(ratio)))
+			compressorScore := builder.Input("compressor_score", dtype.F32, compressorKV.Shape)
+			compressorNorm := builder.Input("compressor_norm", dtype.F32, tensor.MustShape(2))
+			var indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm *tensor.Tensor
+			if ratio == 4 {
+				indexerQuery = builder.Input("indexer_query", dtype.F32, tensor.MustShape(2, 1, 1))
+				indexerWeights = builder.Input("indexer_weights", dtype.F32, tensor.MustShape(1, 1))
+				indexerKV = builder.Input("indexer_kv", dtype.F32, tensor.MustShape(4, 1, 4))
+				indexerScore = builder.Input("indexer_score", dtype.F32, indexerKV.Shape)
+				indexerNorm = builder.Input("indexer_norm", dtype.F32, tensor.MustShape(2))
+			}
+			output := builder.DeepSeek4Attention(
+				query, cache, sinks, compressorKV, compressorScore, compressorNorm,
+				indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm,
+				tensor.DeepSeek4AttentionAttributes{
+					Positions: []uint32{position}, Ratio: ratio, Window: 1, Heads: 1,
+					IndexerHeads: 1, IndexerTopK: 1, RotaryDimensions: 2,
+					FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
+				},
+			)
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			cacheData := make([]float32, 2*ratio)
+			for token := uint32(0); token < ratio; token++ {
+				cacheData[2*token] = 1
+			}
+			compressorData := make([]float32, 2*uint32(coefficient)*ratio)
+			for token := uint32(0); token < ratio; token++ {
+				compressorData[token*2*uint32(coefficient)+2*(uint32(coefficient)-1)] = 2
+			}
+			feeds := map[*tensor.Tensor]Value{
+				query: {Shape: query.Shape, Data: []float32{0, 0}}, cache: {Shape: cache.Shape, Data: cacheData},
+				sinks:           {Shape: sinks.Shape, Data: []float32{-100}},
+				compressorKV:    {Shape: compressorKV.Shape, Data: compressorData},
+				compressorScore: {Shape: compressorScore.Shape, Data: make([]float32, len(compressorData))},
+				compressorNorm:  {Shape: compressorNorm.Shape, Data: []float32{1, 1}},
+			}
+			if ratio == 4 {
+				feeds[indexerQuery] = Value{Shape: indexerQuery.Shape, Data: []float32{0, 0}}
+				feeds[indexerWeights] = Value{Shape: indexerWeights.Shape, Data: []float32{1}}
+				feeds[indexerKV] = Value{Shape: indexerKV.Shape, Data: append([]float32(nil), compressorData...)}
+				feeds[indexerScore] = Value{Shape: indexerScore.Shape, Data: make([]float32, len(compressorData))}
+				feeds[indexerNorm] = Value{Shape: indexerNorm.Shape, Data: []float32{1, 1}}
+			}
+			results, err := Execute([]*tensor.Tensor{output}, feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			compressed := 2 / math.Sqrt(2+1e-5)
+			want := []float64{
+				(1 + compressed*math.Cos(float64(position))) / 2,
+				-compressed * math.Sin(float64(position)) / 2,
+			}
+			for index, value := range results[output].Data {
+				if math.Abs(float64(value)-want[index]) > 1e-5 {
+					t.Fatalf("DeepSeek 4 ratio %d attention[%d] = %v, want %v", ratio, index, value, want[index])
+				}
+			}
+		})
+	}
+}
+
+func TestExecuteDeepSeek4HCAndFixedRouting(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	hcInput := builder.DeepSeek4HCInit(input, 2)
+	fn := builder.Input("hc_fn", dtype.F32, tensor.MustShape(4, 2))
+	scale := builder.Input("hc_scale", dtype.F32, tensor.MustShape(1))
+	base := builder.Input("hc_base", dtype.F32, tensor.MustShape(2))
+	head := builder.DeepSeek4HCHead(hcInput, fn, scale, base, 2, 1e-5, 1e-6)
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
+	selected := builder.Input("selected", dtype.F32, tensor.MustShape(1, 1))
+	moe := builder.MoESqrtSoftplusLimited(input, router, gate, up, down, nil, selected, 1, true, 1, 1)
+	results, err := Execute([]*tensor.Tensor{head, moe}, map[*tensor.Tensor]Value{
+		input: {Shape: input.Shape, Data: []float32{2, 4}},
+		fn:    {Shape: fn.Shape, Data: make([]float32, 8)}, scale: {Shape: scale.Shape, Data: []float32{0}},
+		base: {Shape: base.Shape, Data: []float32{0, 0}}, router: {Shape: router.Shape, Data: make([]float32, 4)},
+		gate: {Shape: gate.Shape, Data: []float32{0, 0, 2, 0}}, up: {Shape: up.Shape, Data: []float32{0, 0, 1, 0}},
+		down: {Shape: down.Shape, Data: []float32{0, 0, 3, 0}}, selected: {Shape: selected.Shape, Data: []float32{1}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, want := range []float32{2.000004, 4.000008} {
+		if difference := math.Abs(float64(results[head].Data[index] - want)); difference > 1e-5 {
+			t.Fatalf("DeepSeek 4 HC head[%d] = %v, want %v", index, results[head].Data[index], want)
+		}
+	}
+	wantMoE := float32(3 / (1 + math.Exp(-1)))
+	if difference := math.Abs(float64(results[moe].Data[0] - wantMoE)); difference > 1e-6 {
+		t.Fatalf("DeepSeek 4 fixed MoE = %v, want %v", results[moe].Data[0], wantMoE)
+	}
+}
+
 func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))

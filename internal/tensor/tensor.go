@@ -58,6 +58,11 @@ const (
 	OpReLU
 	OpConv1DSame
 	OpGroupNorm
+	OpDeepSeek4HCInit
+	OpDeepSeek4HCPre
+	OpDeepSeek4HCPost
+	OpDeepSeek4HCHead
+	OpDeepSeek4Attention
 )
 
 var opNames = [...]string{
@@ -107,6 +112,11 @@ var opNames = [...]string{
 	"relu",
 	"conv_1d_same",
 	"group_norm",
+	"deepseek4_hc_init",
+	"deepseek4_hc_pre",
+	"deepseek4_hc_post",
+	"deepseek4_hc_head",
+	"deepseek4_attention",
 }
 
 func (o Op) String() string {
@@ -207,7 +217,33 @@ type MoEAttributes struct {
 	HasExpertScale     bool
 	HasRouterBias      bool
 	HasExpertBiases    bool
+	HasSelectedExperts bool
 	SwiGLUClamp        float32
+}
+
+type DeepSeek4HCAttributes struct {
+	HyperConnections   uint32
+	SinkhornIterations uint32
+	NormEpsilon        float32
+	Epsilon            float32
+}
+
+type DeepSeek4AttentionAttributes struct {
+	Positions        []uint32
+	Ratio            uint32
+	Window           uint32
+	Heads            uint32
+	IndexerHeads     uint32
+	IndexerTopK      uint32
+	RotaryDimensions uint32
+	FrequencyBase    float32
+	FrequencyScale   float32
+	OriginalContext  uint32
+	ExtFactor        float32
+	AttentionFactor  float32
+	BetaFast         float32
+	BetaSlow         float32
+	NormEpsilon      float32
 }
 
 type GatedDeltaNetAttributes struct {
@@ -224,6 +260,7 @@ const (
 	MoERoutingSoftmax         MoERouting = 1
 	MoERoutingSigmoid         MoERouting = 2
 	MoERoutingSelectedSoftmax MoERouting = 3
+	MoERoutingSqrtSoftplus    MoERouting = 4
 )
 
 type MoEActivation uint32
@@ -443,6 +480,100 @@ func (b *Builder) GroupNorm(input, weight, bias *Tensor, groups uint32, epsilon 
 		return nil
 	}
 	return b.add("", input.Type, input.Shape, OpGroupNorm, []*Tensor{input, weight, bias}, GroupNormAttributes{Groups: groups, Epsilon: epsilon})
+}
+
+// DeepSeek4HCInit: replicate embedding across hyper streams.
+func (b *Builder) DeepSeek4HCInit(input *Tensor, hyperConnections uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Rank != 2 || hyperConnections == 0 {
+		b.setError(errors.New("DeepSeek 4 HC init input is invalid"))
+		return nil
+	}
+	shape, err := NewShape(input.Shape.Dims[0], uint64(hyperConnections), input.Shape.Dims[1])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpDeepSeek4HCInit, []*Tensor{input}, DeepSeek4HCAttributes{HyperConnections: hyperConnections})
+}
+
+// DeepSeek4HCPre: hyper-stream branch input.
+func (b *Builder) DeepSeek4HCPre(
+	input, fn, scale, base *Tensor,
+	hyperConnections, sinkhornIterations uint32,
+	normEpsilon, epsilon float32,
+) *Tensor {
+	if !b.validateDeepSeek4HC(input, fn, scale, base, hyperConnections, sinkhornIterations, normEpsilon, epsilon, false) {
+		return nil
+	}
+	shape, _ := NewShape(input.Shape.Dims[0], input.Shape.Dims[2])
+	return b.add("", dtype.F32, shape, OpDeepSeek4HCPre, []*Tensor{input, fn, scale, base}, DeepSeek4HCAttributes{
+		HyperConnections: hyperConnections, SinkhornIterations: sinkhornIterations, NormEpsilon: normEpsilon, Epsilon: epsilon,
+	})
+}
+
+// DeepSeek4HCPost: branch merge into hyper streams.
+func (b *Builder) DeepSeek4HCPost(
+	branch, residual, fn, scale, base *Tensor,
+	hyperConnections, sinkhornIterations uint32,
+	normEpsilon, epsilon float32,
+) *Tensor {
+	if !b.validateDeepSeek4HC(residual, fn, scale, base, hyperConnections, sinkhornIterations, normEpsilon, epsilon, false) {
+		return nil
+	}
+	if branch == nil || branch.Type != dtype.F32 || branch.Shape.Rank != 2 ||
+		branch.Shape.Dims[0] != residual.Shape.Dims[0] || branch.Shape.Dims[1] != residual.Shape.Dims[2] {
+		b.setError(errors.New("DeepSeek 4 HC post branch shape is invalid"))
+		return nil
+	}
+	return b.add("", dtype.F32, residual.Shape, OpDeepSeek4HCPost, []*Tensor{branch, residual, fn, scale, base}, DeepSeek4HCAttributes{
+		HyperConnections: hyperConnections, SinkhornIterations: sinkhornIterations, NormEpsilon: normEpsilon, Epsilon: epsilon,
+	})
+}
+
+// DeepSeek4HCHead: collapse final hyper streams.
+func (b *Builder) DeepSeek4HCHead(input, fn, scale, base *Tensor, hyperConnections uint32, normEpsilon, epsilon float32) *Tensor {
+	if !b.validateDeepSeek4HC(input, fn, scale, base, hyperConnections, 1, normEpsilon, epsilon, true) {
+		return nil
+	}
+	shape, _ := NewShape(input.Shape.Dims[0], input.Shape.Dims[2])
+	return b.add("", dtype.F32, shape, OpDeepSeek4HCHead, []*Tensor{input, fn, scale, base}, DeepSeek4HCAttributes{
+		HyperConnections: hyperConnections, SinkhornIterations: 1, NormEpsilon: normEpsilon, Epsilon: epsilon,
+	})
+}
+
+func (b *Builder) validateDeepSeek4HC(
+	input, fn, scale, base *Tensor,
+	hyperConnections, sinkhornIterations uint32,
+	normEpsilon, epsilon float32,
+	head bool,
+) bool {
+	if b.err != nil {
+		return false
+	}
+	if input == nil || fn == nil || scale == nil || base == nil ||
+		input.Type != dtype.F32 || fn.Type != dtype.F32 || scale.Type != dtype.F32 || base.Type != dtype.F32 ||
+		input.Shape.Rank != 3 || fn.Shape.Rank != 2 || scale.Shape.Rank != 1 || base.Shape.Rank != 1 ||
+		hyperConnections == 0 || sinkhornIterations == 0 || normEpsilon <= 0 || epsilon <= 0 ||
+		math.IsNaN(float64(normEpsilon)) || math.IsInf(float64(normEpsilon), 0) ||
+		math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) ||
+		input.Shape.Dims[1] != uint64(hyperConnections) || fn.Shape.Dims[0] != input.Shape.Dims[0]*uint64(hyperConnections) {
+		b.setError(errors.New("DeepSeek 4 HC metadata or input shape is invalid"))
+		return false
+	}
+	mix := uint64(hyperConnections)
+	scaleWidth := uint64(1)
+	if !head {
+		mix *= uint64(2 + hyperConnections)
+		scaleWidth = 3
+	}
+	if fn.Shape.Dims[1] != mix || scale.Shape.Dims[0] != scaleWidth || base.Shape.Dims[0] != mix {
+		b.setError(errors.New("DeepSeek 4 HC weight shape is invalid"))
+		return false
+	}
+	return true
 }
 
 func (b *Builder) XIELU(input *Tensor, alphaN, alphaP, beta, epsilon float32) *Tensor {
@@ -1000,6 +1131,20 @@ func (b *Builder) MoEOpenAI(
 		&moeBiases{router: routerBias, gate: gateBias, up: upBias, down: downBias})
 }
 
+// MoESqrtSoftplusLimited: DeepSeek 4 routing; optional fixed expert IDs.
+func (b *Builder) MoESqrtSoftplusLimited(
+	input, router, gate, up, down, selectionBias, selectedExperts *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale, swigluClamp float32,
+) *Tensor {
+	return b.moeWithSelected(
+		input, input, router, gate, up, down, selectionBias, nil,
+		topK, normalizeTopKProb, scale, MoERoutingSqrtSoftplus,
+		MoEActivationSiLU, false, 1, swigluClamp, nil, selectedExperts,
+	)
+}
+
 func (b *Builder) moe(
 	input, routerInput, router, gate, up, down, selectionBias, expertScale *Tensor,
 	topK uint32,
@@ -1011,6 +1156,26 @@ func (b *Builder) moe(
 	expertIndexDivisor uint32,
 	swigluClamp float32,
 	biases *moeBiases,
+) *Tensor {
+	return b.moeWithSelected(
+		input, routerInput, router, gate, up, down, selectionBias, expertScale,
+		topK, normalizeTopKProb, scale, routing, activation, fusedGateUp,
+		expertIndexDivisor, swigluClamp, biases, nil,
+	)
+}
+
+func (b *Builder) moeWithSelected(
+	input, routerInput, router, gate, up, down, selectionBias, expertScale *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+	routing MoERouting,
+	activation MoEActivation,
+	fusedGateUp bool,
+	expertIndexDivisor uint32,
+	swigluClamp float32,
+	biases *moeBiases,
+	selectedExperts *Tensor,
 ) *Tensor {
 	if b.err != nil {
 		return nil
@@ -1066,7 +1231,8 @@ func (b *Builder) moe(
 		b.setError(errors.New("MoE gate dimensions are invalid"))
 		return nil
 	}
-	if routing != MoERoutingSoftmax && routing != MoERoutingSigmoid && routing != MoERoutingSelectedSoftmax {
+	if routing != MoERoutingSoftmax && routing != MoERoutingSigmoid &&
+		routing != MoERoutingSelectedSoftmax && routing != MoERoutingSqrtSoftplus {
 		b.setError(errors.New("MoE routing function is invalid"))
 		return nil
 	}
@@ -1127,6 +1293,13 @@ func (b *Builder) moe(
 		}
 		inputs = append(inputs, biases.router, biases.gate, biases.up, biases.down)
 	}
+	if selectedExperts != nil {
+		if selectedExperts.Type != dtype.F32 || selectedExperts.Shape != MustShape(uint64(topK), input.Shape.Dims[1]) {
+			b.setError(errors.New("MoE selected experts must be F32 [top-k,tokens]"))
+			return nil
+		}
+		inputs = append(inputs, selectedExperts)
+	}
 	return b.add("", dtype.F32, input.Shape, OpMoE,
 		inputs, MoEAttributes{
 			Experts: uint32(experts), ExpertIndexDivisor: expertIndexDivisor, TopK: topK,
@@ -1134,7 +1307,8 @@ func (b *Builder) moe(
 			Activation: activation, Gated: gate != nil || fusedGateUp, FusedGateUp: fusedGateUp,
 			HasSelectionBias: selectionBias != nil, HasExpertScale: expertScale != nil,
 			HasRouterBias: biases != nil, HasExpertBiases: biases != nil,
-			SwiGLUClamp: swigluClamp,
+			HasSelectedExperts: selectedExperts != nil,
+			SwiGLUClamp:        swigluClamp,
 		})
 }
 
@@ -1689,6 +1863,65 @@ func (b *Builder) FlatSlice(input *Tensor, offset uint64, dimensions ...uint64) 
 // [value width, KV heads, tokens]
 func (b *Builder) Attention(query, key, value *Tensor, scale float32, causal bool) *Tensor {
 	return b.AttentionWithOffset(query, key, value, scale, causal, 0)
+}
+
+// DeepSeek4Attention: raw plus reconstructed compressed attention.
+func (b *Builder) DeepSeek4Attention(
+	query, cacheKV, sinks, compressorKV, compressorScore, compressorNorm,
+	indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm *Tensor,
+	attributes DeepSeek4AttentionAttributes,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if query == nil || cacheKV == nil || sinks == nil ||
+		query.Type != dtype.F32 || cacheKV.Type != dtype.F32 || sinks.Type != dtype.F32 ||
+		query.Shape.Rank != 3 || cacheKV.Shape.Rank != 3 || sinks.Shape.Rank != 1 ||
+		cacheKV.Shape.Dims[0] != query.Shape.Dims[0] || cacheKV.Shape.Dims[1] != 1 ||
+		sinks.Shape.Dims[0] != query.Shape.Dims[1] ||
+		len(attributes.Positions) != int(query.Shape.Dims[2]) ||
+		attributes.Heads != uint32(query.Shape.Dims[1]) || attributes.Window == 0 ||
+		attributes.RotaryDimensions == 0 || attributes.RotaryDimensions%2 != 0 ||
+		uint64(attributes.RotaryDimensions) > query.Shape.Dims[0] ||
+		attributes.FrequencyBase <= 0 || attributes.FrequencyScale <= 0 || attributes.NormEpsilon <= 0 ||
+		(attributes.Ratio != 0 && attributes.Ratio != 4 && attributes.Ratio != 128) {
+		b.setError(errors.New("DeepSeek 4 attention metadata or base inputs are invalid"))
+		return nil
+	}
+	inputs := []*Tensor{query, cacheKV, sinks}
+	tokens := cacheKV.Shape.Dims[2]
+	if attributes.Ratio != 0 {
+		coefficient := uint64(1)
+		if attributes.Ratio == 4 {
+			coefficient = 2
+		}
+		if compressorKV == nil || compressorScore == nil || compressorNorm == nil ||
+			compressorKV.Type != dtype.F32 || compressorScore.Type != dtype.F32 || compressorNorm.Type != dtype.F32 ||
+			compressorKV.Shape != MustShape(coefficient*query.Shape.Dims[0], 1, tokens) ||
+			!compressorScore.Shape.Equal(compressorKV.Shape) ||
+			compressorNorm.Shape != MustShape(query.Shape.Dims[0]) {
+			b.setError(errors.New("DeepSeek 4 compressor inputs are invalid"))
+			return nil
+		}
+		inputs = append(inputs, compressorKV, compressorScore, compressorNorm)
+	}
+	if attributes.Ratio == 4 {
+		if attributes.IndexerHeads == 0 || attributes.IndexerTopK == 0 ||
+			indexerQuery == nil || indexerWeights == nil || indexerKV == nil || indexerScore == nil || indexerNorm == nil ||
+			indexerQuery.Type != dtype.F32 || indexerWeights.Type != dtype.F32 || indexerKV.Type != dtype.F32 ||
+			indexerScore.Type != dtype.F32 || indexerNorm.Type != dtype.F32 ||
+			indexerQuery.Shape.Rank != 3 || indexerQuery.Shape.Dims[1] != uint64(attributes.IndexerHeads) ||
+			indexerQuery.Shape.Dims[2] != query.Shape.Dims[2] ||
+			indexerWeights.Shape != MustShape(uint64(attributes.IndexerHeads), query.Shape.Dims[2]) ||
+			indexerKV.Shape != MustShape(2*indexerQuery.Shape.Dims[0], 1, tokens) ||
+			!indexerScore.Shape.Equal(indexerKV.Shape) || indexerNorm.Shape != MustShape(indexerQuery.Shape.Dims[0]) {
+			b.setError(errors.New("DeepSeek 4 indexer inputs are invalid"))
+			return nil
+		}
+		inputs = append(inputs, indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm)
+	}
+	attributes.Positions = append([]uint32(nil), attributes.Positions...)
+	return b.add("", dtype.F32, query.Shape, OpDeepSeek4Attention, inputs, attributes)
 }
 
 // SparseAttention: top-k indexed grouped-query attention.

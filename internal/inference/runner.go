@@ -928,6 +928,25 @@ func (r *Runner) layerDeviceInputs(
 		{info.IndexerProjection, &result.IndexerProjection},
 		{info.IndexerAttentionK, &result.IndexerAttentionK},
 		{info.IndexerAttentionQB, &result.IndexerAttentionQB},
+		{info.AttentionOutputA, &result.AttentionOutputA},
+		{info.AttentionCompressorKV, &result.AttentionCompressorKV},
+		{info.AttentionCompressorGate, &result.AttentionCompressorGate},
+		{info.AttentionCompressorAPE, &result.AttentionCompressorAPE},
+		{info.AttentionCompressorNorm, &result.AttentionCompressorNorm},
+		{info.IndexerCompressorKV, &result.IndexerCompressorKV},
+		{info.IndexerCompressorGate, &result.IndexerCompressorGate},
+		{info.IndexerCompressorAPE, &result.IndexerCompressorAPE},
+		{info.IndexerCompressorNorm, &result.IndexerCompressorNorm},
+		{info.HyperAttentionFN, &result.HyperAttentionFN},
+		{info.HyperAttentionBase, &result.HyperAttentionBase},
+		{info.HyperAttentionScale, &result.HyperAttentionScale},
+		{info.HyperFeedForwardFN, &result.HyperFeedForwardFN},
+		{info.HyperFeedForwardBase, &result.HyperFeedForwardBase},
+		{info.HyperFeedForwardScale, &result.HyperFeedForwardScale},
+		{info.HyperHeadFN, &result.HyperHeadFN},
+		{info.HyperHeadBase, &result.HyperHeadBase},
+		{info.HyperHeadScale, &result.HyperHeadScale},
+		{info.FeedForwardHashExperts, &result.FeedForwardHashExperts},
 	} {
 		if item.info != nil {
 			if *item.destination, err = input(*item.info); err != nil {
@@ -1613,6 +1632,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
+		r.spec.Architecture != "deepseek4" &&
 		!isDSAArchitecture(r.spec.Architecture) && r.spec.Architecture != "falcon-h1" &&
 		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
@@ -1650,6 +1670,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			layerInfo,
 			layerIndex,
 			positions,
+			rows,
 			past,
 			embeddingSkip,
 			perLayerInput,
@@ -2063,6 +2084,7 @@ func (r *Runner) runLayerCached(
 	info model.LayerWeights,
 	layerIndex int,
 	positions []uint32,
+	tokenRows []uint32,
 	past *LayerCache,
 	embeddingSkip reference.Value,
 	perLayerInput *reference.Value,
@@ -2119,6 +2141,7 @@ func (r *Runner) runLayerCached(
 		return reference.Value{}, LayerCache{}, err
 	}
 	var pastKey, pastValue, pastIndexerKey, pastConvState, pastSSMState *tensor.Tensor
+	pastDeepSeek4States := make(map[string]*tensor.Tensor)
 	jambaRecurrent := r.spec.Architecture == "jamba" && layerIndex < len(r.weights.Layers) &&
 		r.weights.Layers[layerIndex].Recurrent
 	graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && layerIndex < len(r.weights.Layers) &&
@@ -2229,6 +2252,17 @@ func (r *Runner) runLayerCached(
 			pastIndexerKey = builder.Input(fmt.Sprintf("blk.%d.indexer_key", layerIndex), dtype.F32, state.Value.Shape)
 			hostFeeds[pastIndexerKey] = state.Value
 		}
+		if r.spec.Architecture == "deepseek4" {
+			for _, name := range []string{
+				"compressor_kv", "compressor_score", "indexer_compressor_kv", "indexer_compressor_score",
+			} {
+				if state, ok := past.States[name]; ok {
+					value := builder.Input(fmt.Sprintf("blk.%d.%s", layerIndex, name), dtype.F32, state.Value.Shape)
+					hostFeeds[value] = state.Value
+					pastDeepSeek4States[name] = value
+				}
+			}
+		}
 	}
 	var (
 		result model.DenseBlockResult
@@ -2267,6 +2301,11 @@ func (r *Runner) runLayerCached(
 		result, err = model.BuildDSABlockCached(
 			builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
 			pastIndexerKey, graphWeights.PerLayerInput, uint32(layerIndex),
+		)
+	} else if r.spec.Architecture == "deepseek4" {
+		result, err = model.BuildDeepSeek4BlockCached(
+			builder, input, r.spec, graphWeights, positions, tokenRows, pastKey,
+			pastDeepSeek4States, uint32(layerIndex),
 		)
 	} else {
 		result, err = model.BuildDenseBlockCachedForLayer(
@@ -3795,6 +3834,25 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.IndexerProjection,
 			layer.IndexerAttentionK,
 			layer.IndexerAttentionQB,
+			layer.AttentionOutputA,
+			layer.AttentionCompressorKV,
+			layer.AttentionCompressorGate,
+			layer.AttentionCompressorAPE,
+			layer.AttentionCompressorNorm,
+			layer.IndexerCompressorKV,
+			layer.IndexerCompressorGate,
+			layer.IndexerCompressorAPE,
+			layer.IndexerCompressorNorm,
+			layer.HyperAttentionFN,
+			layer.HyperAttentionBase,
+			layer.HyperAttentionScale,
+			layer.HyperFeedForwardFN,
+			layer.HyperFeedForwardBase,
+			layer.HyperFeedForwardScale,
+			layer.HyperHeadFN,
+			layer.HyperHeadBase,
+			layer.HyperHeadScale,
+			layer.FeedForwardHashExperts,
 			layer.SSMInput,
 			layer.SSMConv1D,
 			layer.SSMConv1DBias,

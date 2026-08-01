@@ -107,6 +107,25 @@ type LayerGraphWeights struct {
 	IndexerProjection           *tensor.Tensor
 	IndexerAttentionK           *tensor.Tensor
 	IndexerAttentionQB          *tensor.Tensor
+	AttentionOutputA            *tensor.Tensor
+	AttentionCompressorKV       *tensor.Tensor
+	AttentionCompressorGate     *tensor.Tensor
+	AttentionCompressorAPE      *tensor.Tensor
+	AttentionCompressorNorm     *tensor.Tensor
+	IndexerCompressorKV         *tensor.Tensor
+	IndexerCompressorGate       *tensor.Tensor
+	IndexerCompressorAPE        *tensor.Tensor
+	IndexerCompressorNorm       *tensor.Tensor
+	HyperAttentionFN            *tensor.Tensor
+	HyperAttentionBase          *tensor.Tensor
+	HyperAttentionScale         *tensor.Tensor
+	HyperFeedForwardFN          *tensor.Tensor
+	HyperFeedForwardBase        *tensor.Tensor
+	HyperFeedForwardScale       *tensor.Tensor
+	HyperHeadFN                 *tensor.Tensor
+	HyperHeadBase               *tensor.Tensor
+	HyperHeadScale              *tensor.Tensor
+	FeedForwardHashExperts      *tensor.Tensor
 
 	AttentionQKV         *tensor.Tensor
 	AttentionQKVBias     *tensor.Tensor
@@ -2020,6 +2039,198 @@ func buildMLABlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue, Auxiliary: auxiliary, States: states}, nil
+}
+
+// BuildDeepSeek4BlockCached: HC compressed-attention block.
+func BuildDeepSeek4BlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions, tokenRows []uint32,
+	pastKV *tensor.Tensor,
+	pastStates map[string]*tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "deepseek4" || builder == nil || input == nil ||
+		(input.Shape.Rank != 2 && input.Shape.Rank != 3) || layerIndex >= spec.BlockCount || len(positions) == 0 ||
+		uint64(len(positions)) != input.Shape.Dims[input.Shape.Rank-1] {
+		return DenseBlockResult{}, errors.New("DeepSeek 4 block input is invalid")
+	}
+	if layerIndex == 0 {
+		if input.Shape.Rank != 2 {
+			return DenseBlockResult{}, errors.New("DeepSeek 4 initial input must be rank 2")
+		}
+		input = builder.DeepSeek4HCInit(input, spec.HyperConnectionCount)
+	} else if input.Shape.Rank != 3 || input.Shape.Dims[1] != uint64(spec.HyperConnectionCount) {
+		return DenseBlockResult{}, errors.New("DeepSeek 4 HC input is invalid")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm": weights.AttentionNorm, "attention Q-A": weights.AttentionQ,
+		"attention Q-A norm": weights.AttentionQNorm, "attention Q-B": weights.AttentionQB,
+		"attention KV": weights.AttentionK, "attention KV norm": weights.AttentionKNorm,
+		"attention sinks": weights.AttentionSinks, "attention output A": weights.AttentionOutputA,
+		"attention output B": weights.AttentionOutput, "attention HC function": weights.HyperAttentionFN,
+		"attention HC base": weights.HyperAttentionBase, "attention HC scale": weights.HyperAttentionScale,
+		"feed-forward norm": weights.FeedForwardNorm, "feed-forward router": weights.FeedForwardRouter,
+		"expert gate": weights.FeedForwardGateExperts, "expert up": weights.FeedForwardUpExperts,
+		"expert down": weights.FeedForwardDownExperts, "shared gate": weights.FeedForwardSharedGate,
+		"shared up": weights.FeedForwardSharedUp, "shared down": weights.FeedForwardSharedDown,
+		"feed-forward HC function": weights.HyperFeedForwardFN, "feed-forward HC base": weights.HyperFeedForwardBase,
+		"feed-forward HC scale": weights.HyperFeedForwardScale,
+	}
+	if layerIndex < spec.HashLayerCount {
+		required["hash routing table"] = weights.FeedForwardHashExperts
+		if len(tokenRows) != len(positions) {
+			return DenseBlockResult{}, errors.New("DeepSeek 4 hash routing rows are missing")
+		}
+	} else {
+		required["router bias"] = weights.FeedForwardRouterBias
+	}
+	ratio := spec.CompressRatios[layerIndex]
+	if ratio != 0 {
+		required["compressor KV"] = weights.AttentionCompressorKV
+		required["compressor gate"] = weights.AttentionCompressorGate
+		required["compressor APE"] = weights.AttentionCompressorAPE
+		required["compressor norm"] = weights.AttentionCompressorNorm
+	}
+	if ratio == 4 {
+		required["indexer projection"] = weights.IndexerProjection
+		required["indexer Q-B"] = weights.IndexerAttentionQB
+		required["indexer compressor KV"] = weights.IndexerCompressorKV
+		required["indexer compressor gate"] = weights.IndexerCompressorGate
+		required["indexer compressor APE"] = weights.IndexerCompressorAPE
+		required["indexer compressor norm"] = weights.IndexerCompressorNorm
+	}
+	if layerIndex+1 == spec.BlockCount {
+		required["output HC function"] = weights.HyperHeadFN
+		required["output HC base"] = weights.HyperHeadBase
+		required["output HC scale"] = weights.HyperHeadScale
+	}
+	for name, value := range required {
+		if value == nil {
+			return DenseBlockResult{}, fmt.Errorf("DeepSeek 4 %s weight is nil", name)
+		}
+	}
+	tokens := uint64(len(positions))
+	heads := uint64(spec.HeadCount)
+	headWidth := uint64(spec.KeyLength)
+	hc := spec.HyperConnectionCount
+	residual := input
+	current := builder.DeepSeek4HCPre(input, weights.HyperAttentionFN, weights.HyperAttentionScale,
+		weights.HyperAttentionBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
+	current = builder.WeightedRMSNorm(current, weights.AttentionNorm, spec.RMSNormEpsilon)
+	queryRank := builder.WeightedRMSNorm(builder.MulMat(weights.AttentionQ, current), weights.AttentionQNorm, spec.RMSNormEpsilon)
+	query := builder.RMSNorm(builder.Reshape(builder.MulMat(weights.AttentionQB, queryRank), headWidth, heads, tokens), spec.RMSNormEpsilon)
+	kv := builder.WeightedRMSNorm(builder.MulMat(weights.AttentionK, current), weights.AttentionKNorm, spec.RMSNormEpsilon)
+	kv = builder.Reshape(kv, headWidth, 1, tokens)
+	frequencyBase := spec.RopeFrequencyBase
+	frequencyScale := float32(1)
+	extFactor := float32(0)
+	attentionFactor := float32(1)
+	originalContext := uint32(0)
+	betaFast, betaSlow := float32(0), float32(0)
+	if ratio != 0 {
+		frequencyBase = spec.CompressRopeBase
+		if spec.RopeScalingFactor > 0 {
+			frequencyScale = 1 / spec.RopeScalingFactor
+		}
+		extFactor = spec.YaRNExtFactor
+		attentionFactor = spec.YaRNAttentionFactor
+		if attentionFactor <= 0 {
+			attentionFactor = 1
+		}
+		originalContext = spec.OriginalContextLength
+		betaFast, betaSlow = spec.YaRNBetaFast, spec.YaRNBetaSlow
+	}
+	cacheKV := kv
+	if pastKV != nil {
+		if pastKV.Shape.Rank != 3 || pastKV.Shape.Dims[0] != headWidth || pastKV.Shape.Dims[1] != 1 {
+			return DenseBlockResult{}, errors.New("DeepSeek 4 raw cache shape is invalid")
+		}
+		cacheKV = builder.Concat(pastKV, kv, 2)
+	}
+	states := make(map[string]*tensor.Tensor)
+	appendState := func(name string, current *tensor.Tensor) *tensor.Tensor {
+		if current == nil {
+			return nil
+		}
+		current = builder.Reshape(current, current.Shape.Dims[0], 1, current.Shape.Dims[1])
+		if previous := pastStates[name]; previous != nil {
+			current = builder.Concat(previous, current, 2)
+		}
+		states[name] = current
+		return current
+	}
+	var compressorKV, compressorScore, indexerQuery, indexerWeights, indexerKV, indexerScore *tensor.Tensor
+	if ratio != 0 {
+		rows := make([]uint32, len(positions))
+		for index, position := range positions {
+			rows[index] = position % ratio
+		}
+		compressorKV = appendState("compressor_kv", builder.MulMat(weights.AttentionCompressorKV, current))
+		compressorScore = appendState("compressor_score", builder.Add(
+			builder.MulMat(weights.AttentionCompressorGate, current), builder.GetRows(weights.AttentionCompressorAPE, rows),
+		))
+	}
+	if ratio == 4 {
+		indexerWidth := uint64(spec.IndexerKeyLength)
+		indexerHeads := uint64(spec.IndexerHeadCount)
+		indexerQuery = builder.Reshape(builder.MulMat(weights.IndexerAttentionQB, queryRank), indexerWidth, indexerHeads, tokens)
+		indexerWeights = builder.Scale(builder.MulMat(weights.IndexerProjection, current),
+			float32(1/math.Sqrt(float64(spec.IndexerKeyLength*spec.IndexerHeadCount))))
+		rows := make([]uint32, len(positions))
+		for index, position := range positions {
+			rows[index] = position % 4
+		}
+		indexerKV = appendState("indexer_compressor_kv", builder.MulMat(weights.IndexerCompressorKV, current))
+		indexerScore = appendState("indexer_compressor_score", builder.Add(
+			builder.MulMat(weights.IndexerCompressorGate, current), builder.GetRows(weights.IndexerCompressorAPE, rows),
+		))
+	}
+	attributes := tensor.DeepSeek4AttentionAttributes{
+		Positions: positions, Ratio: ratio, Window: spec.SlidingWindow, Heads: spec.HeadCount,
+		IndexerHeads: spec.IndexerHeadCount, IndexerTopK: spec.IndexerTopK,
+		RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: frequencyBase, FrequencyScale: frequencyScale,
+		OriginalContext: originalContext, ExtFactor: extFactor, AttentionFactor: attentionFactor,
+		BetaFast: betaFast, BetaSlow: betaSlow, NormEpsilon: spec.RMSNormEpsilon,
+	}
+	attention := builder.DeepSeek4Attention(query, cacheKV, weights.AttentionSinks,
+		compressorKV, compressorScore, weights.AttentionCompressorNorm,
+		indexerQuery, indexerWeights, indexerKV, indexerScore, weights.IndexerCompressorNorm, attributes)
+	groupDimension := uint64(spec.HeadCount/spec.AttentionOutputGroups) * headWidth
+	attention = builder.Reshape(attention, groupDimension, uint64(spec.AttentionOutputGroups), tokens)
+	outputA := builder.Reshape(weights.AttentionOutputA, groupDimension, uint64(spec.AttentionOutputRank), uint64(spec.AttentionOutputGroups))
+	attention = builder.Reshape(builder.GroupedMulMat(outputA, attention), uint64(spec.AttentionOutputRank*spec.AttentionOutputGroups), tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	input = builder.DeepSeek4HCPost(attention, residual, weights.HyperAttentionFN, weights.HyperAttentionScale,
+		weights.HyperAttentionBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
+	residual = input
+	current = builder.DeepSeek4HCPre(input, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
+		weights.HyperFeedForwardBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
+	current = builder.WeightedRMSNorm(current, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	var selected *tensor.Tensor
+	if layerIndex < spec.HashLayerCount {
+		selected = builder.GetRows(weights.FeedForwardHashExperts, tokenRows)
+	}
+	moe := builder.MoESqrtSoftplusLimited(current, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+		weights.FeedForwardUpExperts, weights.FeedForwardDownExperts, weights.FeedForwardRouterBias, selected,
+		spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale, spec.LayerExpertSwiGLUClamp(layerIndex))
+	sharedGate := builder.MulMat(weights.FeedForwardSharedGate, current)
+	sharedUp := builder.MulMat(weights.FeedForwardSharedUp, current)
+	shared := builder.MulMat(weights.FeedForwardSharedDown,
+		deepSeek4LimitedSwiGLU(builder, sharedGate, sharedUp, spec.LayerSharedSwiGLUClampLimit(layerIndex)))
+	current = builder.Add(moe, shared)
+	output := builder.DeepSeek4HCPost(current, residual, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
+		weights.HyperFeedForwardBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
+	if layerIndex+1 == spec.BlockCount {
+		output = builder.DeepSeek4HCHead(output, weights.HyperHeadFN, weights.HyperHeadScale,
+			weights.HyperHeadBase, hc, spec.RMSNormEpsilon, spec.HyperConnectionEps)
+	}
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: cacheKV, Value: cacheKV, States: states}, nil
 }
 
 // BuildRWKV6Qwen2BlockCached: RMS/SwiGLU QRWKV recurrent block.
@@ -4368,6 +4579,15 @@ func limitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float
 	up = builder.Clamp(up, -limit, limit)
 	gate = builder.Clamp(builder.SiLU(gate), -math.MaxFloat32, limit)
 	return builder.Multiply(gate, up)
+}
+
+func deepSeek4LimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
+	if limit <= 0 {
+		return builder.SwiGLU(gate, up)
+	}
+	gate = builder.Clamp(gate, -math.MaxFloat32, limit)
+	up = builder.Clamp(up, -limit, limit)
+	return builder.SwiGLU(gate, up)
 }
 
 func hasMRoPESections(sections [4]int32) bool {

@@ -2028,6 +2028,75 @@ func TestReadWeightsDeepSeek32IndexerEveryLayer(t *testing.T) {
 	}
 }
 
+func TestReadWeightsDeepSeek4(t *testing.T) {
+	spec := Spec{
+		Architecture: "deepseek4", BlockCount: 3, EmbeddingLength: 8, VocabularySize: 32,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, QLoRARank: 3,
+		AttentionOutputGroups: 1, AttentionOutputRank: 3, HyperConnectionCount: 4,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 8, SharedExpertFF: 8,
+		IndexerHeadCount: 2, IndexerKeyLength: 8, CompressRatios: []uint32{0, 4, 128},
+		HashLayerCount: 1,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("output_hc_fn.weight", 32, 4),
+		tensorInfo("output_hc_base.weight", 4), tensorInfo("output_hc_scale.weight", 1),
+	}
+	for block, ratio := range spec.CompressRatios {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8), tensorInfo(prefix+"attn_sinks.weight", 2),
+			tensorInfo(prefix+"attn_q_a.weight", 8, 3), tensorInfo(prefix+"attn_q_a_norm.weight", 3),
+			tensorInfo(prefix+"attn_q_b.weight", 3, 8), tensorInfo(prefix+"attn_kv.weight", 8, 4),
+			tensorInfo(prefix+"attn_kv_a_norm.weight", 4), tensorInfo(prefix+"attn_output_a.weight", 8, 3),
+			tensorInfo(prefix+"attn_output.weight", 3, 8),
+			tensorInfo(prefix+"hc_attn_fn.weight", 32, 24), tensorInfo(prefix+"hc_attn_base.weight", 24),
+			tensorInfo(prefix+"hc_attn_scale.weight", 3), tensorInfo(prefix+"hc_ffn_fn.weight", 32, 24),
+			tensorInfo(prefix+"hc_ffn_base.weight", 24), tensorInfo(prefix+"hc_ffn_scale.weight", 3),
+			tensorInfo(prefix+"ffn_norm.weight", 8), tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4),
+			tensorInfo(prefix+"ffn_gate_exps.weight", 8, 8, 4), tensorInfo(prefix+"ffn_up_exps.weight", 8, 8, 4),
+			tensorInfo(prefix+"ffn_down_exps.weight", 8, 8, 4), tensorInfo(prefix+"ffn_gate_shexp.weight", 8, 8),
+			tensorInfo(prefix+"ffn_up_shexp.weight", 8, 8), tensorInfo(prefix+"ffn_down_shexp.weight", 8, 8),
+		)
+		if block == 0 {
+			hash := tensorInfo(prefix+"ffn_gate_tid2eid.weight", 2, 32)
+			hash.Type = dtype.I32
+			tensors = append(tensors, hash)
+		} else {
+			tensors = append(tensors, tensorInfo(prefix+"exp_probs_b.bias", 4))
+		}
+		if ratio != 0 {
+			coefficient := uint64(1)
+			if ratio == 4 {
+				coefficient = 2
+			}
+			tensors = append(tensors,
+				tensorInfo(prefix+"attn_compressor_kv.weight", 8, coefficient*4),
+				tensorInfo(prefix+"attn_compressor_gate.weight", 8, coefficient*4),
+				tensorInfo(prefix+"attn_compressor_ape.weight", coefficient*4, uint64(ratio)),
+				tensorInfo(prefix+"attn_compressor_norm.weight", 4),
+			)
+		}
+		if ratio == 4 {
+			tensors = append(tensors,
+				tensorInfo(prefix+"indexer.proj.weight", 8, 2), tensorInfo(prefix+"indexer.attn_q_b.weight", 3, 16),
+				tensorInfo(prefix+"indexer_compressor_kv.weight", 8, 16), tensorInfo(prefix+"indexer_compressor_gate.weight", 8, 16),
+				tensorInfo(prefix+"indexer_compressor_ape.weight", 16, 4), tensorInfo(prefix+"indexer_compressor_norm.weight", 8),
+			)
+		}
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Output == nil || weights.Layers[0].FeedForwardHashExperts == nil ||
+		weights.Layers[0].FeedForwardRouterBias != nil || weights.Layers[1].IndexerCompressorNorm == nil ||
+		weights.Layers[2].AttentionCompressorNorm == nil || weights.Layers[2].IndexerCompressorNorm != nil ||
+		weights.Layers[2].HyperHeadFN == nil {
+		t.Fatalf("unexpected DeepSeek 4 catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsMamba(t *testing.T) {
 	spec := Spec{Architecture: "mamba", BlockCount: 1, EmbeddingLength: 4,
 		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 2,

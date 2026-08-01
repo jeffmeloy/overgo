@@ -81,6 +81,70 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	}
 }
 
+func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	hcFN := builder.Input("hc_fn", dtype.F32, tensor.MustShape(4, 8))
+	hcScale := builder.Input("hc_scale", dtype.F32, tensor.MustShape(3))
+	hcBase := builder.Input("hc_base", dtype.F32, tensor.MustShape(8))
+	hc := builder.DeepSeek4HCInit(input, 2)
+	branch := builder.DeepSeek4HCPre(hc, hcFN, hcScale, hcBase, 2, 2, 1e-5, 1e-6)
+	hc = builder.DeepSeek4HCPost(branch, hc, hcFN, hcScale, hcBase, 2, 2, 1e-5, 1e-6)
+	headFN := builder.Input("head_fn", dtype.F32, tensor.MustShape(4, 2))
+	headScale := builder.Input("head_scale", dtype.F32, tensor.MustShape(1))
+	headBase := builder.Input("head_base", dtype.F32, tensor.MustShape(2))
+	head := builder.DeepSeek4HCHead(hc, headFN, headScale, headBase, 2, 1e-5, 1e-6)
+	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 2))
+	cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, 3))
+	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
+	attention := builder.DeepSeek4Attention(query, cache, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
+		tensor.DeepSeek4AttentionAttributes{
+			Positions: []uint32{1, 2}, Window: 3, Heads: 1, RotaryDimensions: 2,
+			FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
+		})
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 2, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 2, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(2, 2, 2))
+	selected := builder.Input("selected", dtype.F32, tensor.MustShape(1, 1))
+	moe := builder.MoESqrtSoftplusLimited(input, router, gate, up, down, nil, selected, 1, true, 1, 0.15)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input: {Shape: input.Shape, Data: []float32{2, 4}},
+		hcFN:  patternedValue(hcFN.Shape, 3, 0.1, 0), hcScale: patternedValue(hcScale.Shape, 5, 0.1, 0),
+		hcBase: patternedValue(hcBase.Shape, 7, 0.1, 0), headFN: patternedValue(headFN.Shape, 11, 0.1, 0),
+		headScale: patternedValue(headScale.Shape, 13, 0.1, 0), headBase: patternedValue(headBase.Shape, 17, 0.1, 0),
+		query:  {Shape: query.Shape, Data: []float32{1, 0, 0, 1}},
+		cache:  {Shape: cache.Shape, Data: []float32{1, 0, 0, 1, 1, 1}},
+		sinks:  {Shape: sinks.Shape, Data: []float32{-2}},
+		router: patternedValue(router.Shape, 19, 0.2, 0), gate: patternedValue(gate.Shape, 23, 0.2, 0),
+		up: patternedValue(up.Shape, 29, 0.2, 0), down: patternedValue(down.Shape, 31, 0.2, 0),
+		selected: {Shape: selected.Shape, Data: []float32{1}},
+	}
+	outputs := []*tensor.Tensor{head, attention, moe}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 2e-4)
+	}
+}
+
 func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

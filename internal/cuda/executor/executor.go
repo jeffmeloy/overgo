@@ -971,6 +971,9 @@ func launchNode(
 ) error {
 	output := pointers[node]
 	switch node.Op {
+	case tensor.OpDeepSeek4HCInit, tensor.OpDeepSeek4HCPre, tensor.OpDeepSeek4HCPost,
+		tensor.OpDeepSeek4HCHead, tensor.OpDeepSeek4Attention:
+		return launchReferenceNode(state, node, pointers)
 	case tensor.OpAdd, tensor.OpMultiply:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
@@ -1737,12 +1740,15 @@ func launchNode(
 		if attributes.HasExpertBiases {
 			expectedInputs += 3
 		}
+		if attributes.HasSelectedExperts {
+			expectedInputs++
+		}
 		if !ok || len(node.Inputs) != expectedInputs ||
 			attributes.HasRouterBias != attributes.HasExpertBiases ||
 			(attributes.Activation == tensor.MoEActivationSwiGLUOAI) != attributes.HasExpertBiases ||
 			(attributes.Routing == tensor.MoERoutingSelectedSoftmax) != (attributes.Activation == tensor.MoEActivationSwiGLUOAI) ||
 			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid &&
-				attributes.Routing != tensor.MoERoutingSelectedSoftmax) ||
+				attributes.Routing != tensor.MoERoutingSelectedSoftmax && attributes.Routing != tensor.MoERoutingSqrtSoftplus) ||
 			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU &&
 				attributes.Activation != tensor.MoEActivationGELU && attributes.Activation != tensor.MoEActivationSwiGLUOAI &&
 				attributes.Activation != tensor.MoEActivationReLUSquared) ||
@@ -1818,6 +1824,11 @@ func launchNode(
 			gateBias = pointers[node.Inputs[optionalIndex]]
 			upBias = pointers[node.Inputs[optionalIndex+1]]
 			downBias = pointers[node.Inputs[optionalIndex+2]]
+			optionalIndex += 3
+		}
+		var selectedExperts driver.DevicePtr
+		if attributes.HasSelectedExperts {
+			selectedExperts = pointers[node.Inputs[optionalIndex]]
 		}
 		experts := attributes.Experts
 		expertIndexDivisor := attributes.ExpertIndexDivisor
@@ -1849,6 +1860,7 @@ func launchNode(
 			unsafe.Pointer(&input), unsafe.Pointer(&routerInput), unsafe.Pointer(&router), unsafe.Pointer(&gate),
 			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&expertScale),
 			unsafe.Pointer(&routerBias), unsafe.Pointer(&gateBias), unsafe.Pointer(&upBias), unsafe.Pointer(&downBias),
+			unsafe.Pointer(&selectedExperts),
 			unsafe.Pointer(&output),
 			unsafe.Pointer(&hidden), unsafe.Pointer(&routerHidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
@@ -2793,6 +2805,37 @@ func launchNode(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+// launchReferenceNode: synchronized bounded-host correctness bridge.
+func launchReferenceNode(
+	state *device.State,
+	node *tensor.Tensor,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+		return err
+	}
+	inputs := make([]reference.Value, len(node.Inputs))
+	for index, input := range node.Inputs {
+		if input.Type != dtype.F32 {
+			return fmt.Errorf("reference bridge input %d has type %s", index, input.Type)
+		}
+		elements, err := input.Shape.Elements()
+		if err != nil || elements > uint64(maxInt()) {
+			return errors.New("reference bridge input is too large")
+		}
+		data := make([]float32, int(elements))
+		if err := state.Driver.MemcpyDtoH(float32Bytes(data), pointers[input]); err != nil {
+			return err
+		}
+		inputs[index] = reference.Value{Shape: input.Shape, Data: data}
+	}
+	value, err := reference.ExecuteOperation(node, inputs)
+	if err != nil {
+		return err
+	}
+	return state.Driver.MemcpyHtoD(pointers[node], float32Bytes(value.Data))
 }
 
 func nativeQuantizedType(value dtype.Type) bool {

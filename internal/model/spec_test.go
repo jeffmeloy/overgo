@@ -1622,6 +1622,63 @@ func TestReadDeepSeek32Spec(t *testing.T) {
 	}
 }
 
+func TestReadDeepSeek4Spec(t *testing.T) {
+	prefix := "deepseek4."
+	ratios := make([]uint32, 44)
+	ratios[0], ratios[1], ratios[2] = 0, 4, 128
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "deepseek4"),
+		metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(43)),
+		metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(16384)),
+		metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"attention.q_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata(prefix+"attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		metadata(prefix+"attention.indexer.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"attention.indexer.key_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata(prefix+"attention.indexer.top_k", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"attention.output_group_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"attention.output_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata(prefix+"attention.compress_rope_freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata(prefix+"hyper_connection.count", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"hyper_connection.sinkhorn_iterations", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"hyper_connection.epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata(prefix+"hash_layer_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"expert_feed_forward_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata(prefix+"expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"expert_gating_func", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata(prefix+"expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata(prefix+"swiglu_clamp_exp", gguf.ValueTypeFloat32, float32(7)),
+		metadata(prefix+"swiglu_clamp_shexp", gguf.ValueTypeFloat32, float32(6)),
+		metadata(prefix+"rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata(prefix+"rope.scaling.type", gguf.ValueTypeString, "yarn"),
+		metadata(prefix+"rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata(prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		{Key: prefix + "attention.compress_ratios", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: ratios}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "deepseek4" || spec.BlockCount != 43 || spec.QLoRARank != 3 ||
+		len(spec.CompressRatios) != 43 || spec.CompressRatios[1] != 4 || spec.CompressRatios[2] != 128 || spec.HyperConnectionCount != 4 ||
+		spec.AttentionOutputGroups != 1 || spec.AttentionOutputRank != 3 || spec.HashLayerCount != 1 ||
+		spec.ExpertGatingFunc != 4 || spec.SharedExpertFF != 8 || spec.LayerExpertSwiGLUClamp(0) != 7 ||
+		spec.LayerSharedSwiGLUClampLimit(0) != 6 || !usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected DeepSeek 4 spec: %+v", spec)
+	}
+}
+
 func TestReadMistral4Spec(t *testing.T) {
 	prefix := "mistral4."
 	file := &gguf.File{Metadata: []gguf.Metadata{
@@ -3747,7 +3804,6 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
 		"unsupported-test", "gptj",
-		"deepseek4",
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			file := &gguf.File{Metadata: []gguf.Metadata{

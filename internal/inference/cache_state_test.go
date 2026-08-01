@@ -176,6 +176,54 @@ func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
+	runner := &Runner{spec: model.Spec{
+		Architecture: "deepseek4", BlockCount: 1, ContextLength: 16,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		IndexerKeyLength: 8, CompressRatios: []uint32{4},
+	}}
+	key, _ := reference.NewValue(tensor.MustShape(4, 1, 2), make([]float32, 8))
+	state := func(width uint64) LayerState {
+		value, _ := reference.NewValue(tensor.MustShape(width, 1, 2), make([]float32, int(2*width)))
+		return LayerState{Mode: CacheStateToken, Value: value}
+	}
+	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: key, States: map[string]LayerState{
+		"compressor_kv": state(8), "compressor_score": state(8),
+		"indexer_compressor_kv": state(16), "indexer_compressor_score": state(16),
+	}}}, Tokens: 2, Position: 2}
+	payload, err := runner.SaveCache(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := runner.LoadCache(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(restored, cache) {
+		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
+	}
+	prefixShifted, err := runner.ShiftCache(cache, 1)
+	if err != nil || prefixShifted.Tokens != 1 || prefixShifted.Position != 2 {
+		t.Fatalf("DeepSeek 4 prefix shift = %+v, %v", prefixShifted, err)
+	}
+	cache.Tokens = 4
+	cache.Position = 4
+	key, _ = reference.NewValue(tensor.MustShape(4, 1, 4), make([]float32, 16))
+	cache.Layers[0].Key, cache.Layers[0].Value = key, key
+	for name, state := range cache.Layers[0].States {
+		width := state.Value.Shape.Dims[0]
+		state.Value, _ = reference.NewValue(tensor.MustShape(width, 1, 4), make([]float32, int(4*width)))
+		cache.Layers[0].States[name] = state
+	}
+	if _, err := runner.RemoveCacheRange(cache, 1, 1); err == nil {
+		t.Fatal("DeepSeek 4 middle-range cache edit was accepted")
+	}
+	delete(cache.Layers[0].States, "indexer_compressor_score")
+	if err := runner.validateCache(cache); err == nil {
+		t.Fatal("DeepSeek 4 cache without indexer compressor score was accepted")
+	}
+}
+
 func TestMambaCacheValidation(t *testing.T) {
 	runner := &Runner{spec: model.Spec{Architecture: "mamba", BlockCount: 1,
 		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2}}

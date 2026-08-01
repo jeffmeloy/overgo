@@ -1,0 +1,429 @@
+package reference
+
+import (
+	"errors"
+	"math"
+	"sort"
+
+	"llamacpp2go/internal/tensor"
+)
+
+func deepSeek4HCInit(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+	if len(inputs) != 1 || attributes.HyperConnections == 0 {
+		return Value{}, errors.New("invalid DeepSeek 4 HC init")
+	}
+	hidden := int(inputs[0].Shape.Dims[0])
+	tokens := int(inputs[0].Shape.Dims[1])
+	hc := int(attributes.HyperConnections)
+	output := make([]float32, hidden*hc*tokens)
+	for token := range tokens {
+		row := inputs[0].Data[token*hidden : (token+1)*hidden]
+		for stream := range hc {
+			copy(output[(token*hc+stream)*hidden:], row)
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func deepSeek4HCMixes(input, fn Value, hc int, epsilon float32) ([]float64, error) {
+	hidden := int(input.Shape.Dims[0])
+	tokens := int(input.Shape.Dims[2])
+	hcDim := hidden * hc
+	mixDim := int(fn.Shape.Dims[1])
+	if hc <= 0 || int(input.Shape.Dims[1]) != hc || int(fn.Shape.Dims[0]) != hcDim {
+		return nil, errors.New("invalid DeepSeek 4 HC mix dimensions")
+	}
+	mixes := make([]float64, mixDim*tokens)
+	for token := range tokens {
+		flat := input.Data[token*hcDim : (token+1)*hcDim]
+		var meanSquare float64
+		for _, value := range flat {
+			meanSquare += float64(value) * float64(value)
+		}
+		inverseRMS := 1 / math.Sqrt(meanSquare/float64(hcDim)+float64(epsilon))
+		for mix := range mixDim {
+			var sum float64
+			base := mix * hcDim
+			for channel, value := range flat {
+				sum += float64(value) * inverseRMS * float64(fn.Data[base+channel])
+			}
+			mixes[token*mixDim+mix] = sum
+		}
+	}
+	return mixes, nil
+}
+
+func deepSeek4HCPre(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+	if len(inputs) != 4 {
+		return Value{}, errors.New("invalid DeepSeek 4 HC pre inputs")
+	}
+	input, fn, scale, base := inputs[0], inputs[1], inputs[2], inputs[3]
+	hidden := int(input.Shape.Dims[0])
+	hc := int(attributes.HyperConnections)
+	tokens := int(input.Shape.Dims[2])
+	mixes, err := deepSeek4HCMixes(input, fn, hc, attributes.NormEpsilon)
+	if err != nil {
+		return Value{}, err
+	}
+	mixDim := int(fn.Shape.Dims[1])
+	output := make([]float32, hidden*tokens)
+	for token := range tokens {
+		for stream := range hc {
+			weight := 1/(1+math.Exp(-(mixes[token*mixDim+stream]*float64(scale.Data[0])+float64(base.Data[stream])))) + float64(attributes.Epsilon)
+			inputBase := (token*hc + stream) * hidden
+			for channel := range hidden {
+				output[token*hidden+channel] += float32(float64(input.Data[inputBase+channel]) * weight)
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func deepSeek4HCPost(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+	if len(inputs) != 5 {
+		return Value{}, errors.New("invalid DeepSeek 4 HC post inputs")
+	}
+	branch, residual, fn, scale, base := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+	hidden := int(residual.Shape.Dims[0])
+	hc := int(attributes.HyperConnections)
+	tokens := int(residual.Shape.Dims[2])
+	mixes, err := deepSeek4HCMixes(residual, fn, hc, attributes.NormEpsilon)
+	if err != nil {
+		return Value{}, err
+	}
+	mixDim := int(fn.Shape.Dims[1])
+	output := make([]float32, hidden*hc*tokens)
+	comb := make([]float64, hc*hc)
+	for token := range tokens {
+		mixBase := token * mixDim
+		for src := range hc {
+			maximum := math.Inf(-1)
+			for dst := range hc {
+				index := dst + hc*src
+				value := mixes[mixBase+2*hc+index]*float64(scale.Data[2]) + float64(base.Data[2*hc+index])
+				comb[index] = value
+				maximum = math.Max(maximum, value)
+			}
+			var sum float64
+			for dst := range hc {
+				index := dst + hc*src
+				comb[index] = math.Exp(comb[index] - maximum)
+				sum += comb[index]
+			}
+			for dst := range hc {
+				index := dst + hc*src
+				comb[index] = comb[index]/sum + float64(attributes.Epsilon)
+			}
+		}
+		normalizeDeepSeek4HCColumns(comb, hc, attributes.Epsilon)
+		for iteration := uint32(1); iteration < attributes.SinkhornIterations; iteration++ {
+			for src := range hc {
+				var sum float64
+				for dst := range hc {
+					sum += comb[dst+hc*src]
+				}
+				sum += float64(attributes.Epsilon)
+				for dst := range hc {
+					comb[dst+hc*src] /= sum
+				}
+			}
+			normalizeDeepSeek4HCColumns(comb, hc, attributes.Epsilon)
+		}
+		for dst := range hc {
+			post := 2 / (1 + math.Exp(-(mixes[mixBase+hc+dst]*float64(scale.Data[1]) + float64(base.Data[hc+dst]))))
+			for channel := range hidden {
+				value := float64(branch.Data[token*hidden+channel]) * post
+				for src := range hc {
+					value += float64(residual.Data[(token*hc+src)*hidden+channel]) * comb[dst+hc*src]
+				}
+				output[(token*hc+dst)*hidden+channel] = float32(value)
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func normalizeDeepSeek4HCColumns(comb []float64, hc int, epsilon float32) {
+	for dst := range hc {
+		var sum float64
+		for src := range hc {
+			sum += comb[dst+hc*src]
+		}
+		sum += float64(epsilon)
+		for src := range hc {
+			comb[dst+hc*src] /= sum
+		}
+	}
+}
+
+func deepSeek4HCHead(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+	if len(inputs) != 4 {
+		return Value{}, errors.New("invalid DeepSeek 4 HC head inputs")
+	}
+	input, fn, scale, base := inputs[0], inputs[1], inputs[2], inputs[3]
+	hidden := int(input.Shape.Dims[0])
+	hc := int(attributes.HyperConnections)
+	tokens := int(input.Shape.Dims[2])
+	mixes, err := deepSeek4HCMixes(input, fn, hc, attributes.NormEpsilon)
+	if err != nil {
+		return Value{}, err
+	}
+	output := make([]float32, hidden*tokens)
+	for token := range tokens {
+		for stream := range hc {
+			weight := 1/(1+math.Exp(-(mixes[token*hc+stream]*float64(scale.Data[0])+float64(base.Data[stream])))) + float64(attributes.Epsilon)
+			for channel := range hidden {
+				output[token*hidden+channel] += float32(float64(input.Data[(token*hc+stream)*hidden+channel]) * weight)
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+type deepSeek4CompressedBlock struct {
+	position uint32
+	value    []float32
+}
+
+func deepSeek4CompressedBlocks(
+	kv, score, norm Value,
+	ratio, width uint32,
+	historyStart uint32,
+	attributes tensor.DeepSeek4AttentionAttributes,
+) ([]deepSeek4CompressedBlock, error) {
+	tokens := uint32(kv.Shape.Dims[2])
+	overlap := ratio == 4
+	coefficient := uint32(1)
+	if overlap {
+		coefficient = 2
+	}
+	if uint32(kv.Shape.Dims[0]) != coefficient*width || !score.Shape.Equal(kv.Shape) || uint32(norm.Shape.Dims[0]) != width {
+		return nil, errors.New("invalid DeepSeek 4 compressor state")
+	}
+	firstBlock := (historyStart + ratio - 1) / ratio
+	lastPosition := historyStart + tokens
+	blocks := make([]deepSeek4CompressedBlock, 0, tokens/ratio)
+	for block := firstBlock; (block+1)*ratio <= lastPosition; block++ {
+		start := block * ratio
+		if start < historyStart {
+			continue
+		}
+		result := make([]float32, width)
+		for channel := uint32(0); channel < width; channel++ {
+			maximum := math.Inf(-1)
+			type candidate struct{ value, score float64 }
+			candidates := make([]candidate, 0, coefficient*ratio)
+			if overlap {
+				previous := int64(start) - int64(ratio)
+				for offset := uint32(0); offset < ratio; offset++ {
+					position := previous + int64(offset)
+					item := candidate{value: 0, score: math.Inf(-1)}
+					if position >= int64(historyStart) && position < int64(lastPosition) {
+						row := uint32(position) - historyStart
+						item.value = float64(kv.Data[int(row*2*width+channel)])
+						item.score = float64(score.Data[int(row*2*width+channel)])
+					}
+					maximum = math.Max(maximum, item.score)
+					candidates = append(candidates, item)
+				}
+			}
+			for offset := uint32(0); offset < ratio; offset++ {
+				row := start + offset - historyStart
+				column := channel
+				if overlap {
+					column += width
+				}
+				item := candidate{
+					value: float64(kv.Data[int(row*coefficient*width+column)]),
+					score: float64(score.Data[int(row*coefficient*width+column)]),
+				}
+				maximum = math.Max(maximum, item.score)
+				candidates = append(candidates, item)
+			}
+			var numerator, denominator float64
+			for _, item := range candidates {
+				weight := math.Exp(item.score - maximum)
+				numerator += item.value * weight
+				denominator += weight
+			}
+			result[channel] = float32(numerator / denominator)
+		}
+		var meanSquare float64
+		for _, value := range result {
+			meanSquare += float64(value) * float64(value)
+		}
+		inverseRMS := 1 / math.Sqrt(meanSquare/float64(width)+float64(attributes.NormEpsilon))
+		for channel := range result {
+			result[channel] = float32(float64(result[channel]) * inverseRMS * float64(norm.Data[channel]))
+		}
+		deepSeek4RotateTail(result, start, false, attributes)
+		blocks = append(blocks, deepSeek4CompressedBlock{position: start, value: result})
+	}
+	return blocks, nil
+}
+
+func deepSeek4RotateTail(vector []float32, position uint32, inverse bool, attributes tensor.DeepSeek4AttentionAttributes) {
+	rotary := int(attributes.RotaryDimensions)
+	start := len(vector) - rotary
+	rope := tensor.RoPEAttributes{
+		RotaryDimensions: attributes.RotaryDimensions, FrequencyBase: attributes.FrequencyBase,
+		FrequencyScale: attributes.FrequencyScale, OriginalContext: attributes.OriginalContext,
+		ExtFactor: attributes.ExtFactor, AttentionFactor: attributes.AttentionFactor,
+		BetaFast: attributes.BetaFast, BetaSlow: attributes.BetaSlow,
+	}
+	for pair := 0; pair < rotary/2; pair++ {
+		cosine, sine := ropeCosSin(rope, pair, rotary, position, 1)
+		if inverse {
+			sine = -sine
+		}
+		index := start + 2*pair
+		first, second := vector[index], vector[index+1]
+		vector[index] = first*cosine - second*sine
+		vector[index+1] = first*sine + second*cosine
+	}
+}
+
+func deepSeek4FWHT(vector []float32) {
+	for stride := 1; stride < len(vector); stride *= 2 {
+		for base := 0; base < len(vector); base += 2 * stride {
+			for offset := 0; offset < stride; offset++ {
+				first, second := base+offset, base+offset+stride
+				a, b := vector[first], vector[second]
+				vector[first], vector[second] = a+b, a-b
+			}
+		}
+	}
+	scale := float32(1 / math.Sqrt(float64(len(vector))))
+	for index := range vector {
+		vector[index] *= scale
+	}
+}
+
+func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4AttentionAttributes) (Value, error) {
+	if len(inputs) < 3 || len(attributes.Positions) == 0 {
+		return Value{}, errors.New("invalid DeepSeek 4 attention inputs")
+	}
+	query, cache, sinks := inputs[0], inputs[1], inputs[2]
+	width := uint32(query.Shape.Dims[0])
+	heads := uint32(query.Shape.Dims[1])
+	newTokens := uint32(query.Shape.Dims[2])
+	totalTokens := uint32(cache.Shape.Dims[2])
+	if totalTokens < newTokens {
+		return Value{}, errors.New("DeepSeek 4 attention cache is shorter than query")
+	}
+	pastTokens := totalTokens - newTokens
+	if attributes.Positions[0] < pastTokens {
+		return Value{}, errors.New("DeepSeek 4 attention history position underflows")
+	}
+	historyStart := attributes.Positions[0] - pastTokens
+	var compressed, indexerCompressed []deepSeek4CompressedBlock
+	var err error
+	if attributes.Ratio != 0 {
+		compressed, err = deepSeek4CompressedBlocks(inputs[3], inputs[4], inputs[5], attributes.Ratio, width, historyStart, attributes)
+		if err != nil {
+			return Value{}, err
+		}
+	}
+	if attributes.Ratio == 4 {
+		indexerWidth := uint32(inputs[6].Shape.Dims[0])
+		indexerCompressed, err = deepSeek4CompressedBlocks(inputs[8], inputs[9], inputs[10], 4, indexerWidth, historyStart, attributes)
+		if err != nil {
+			return Value{}, err
+		}
+		for index := range indexerCompressed {
+			deepSeek4FWHT(indexerCompressed[index].value)
+		}
+	}
+	output := make([]float32, int(width*heads*newTokens))
+	scale := 1 / math.Sqrt(float64(width))
+	for token := uint32(0); token < newTokens; token++ {
+		position := attributes.Positions[token]
+		visibleCompressed := make([]int, 0, len(compressed))
+		for index, block := range compressed {
+			if block.position+attributes.Ratio <= position+1 {
+				visibleCompressed = append(visibleCompressed, index)
+			}
+		}
+		if attributes.Ratio == 4 && len(visibleCompressed) > 0 {
+			type scored struct {
+				index int
+				score float64
+			}
+			scores := make([]scored, len(visibleCompressed))
+			indexerWidth := uint32(inputs[6].Shape.Dims[0])
+			for item, blockIndex := range visibleCompressed {
+				var score float64
+				for head := uint32(0); head < attributes.IndexerHeads; head++ {
+					queryVector := append([]float32(nil), inputs[6].Data[int((token*attributes.IndexerHeads+head)*indexerWidth):int((token*attributes.IndexerHeads+head+1)*indexerWidth)]...)
+					deepSeek4RotateTail(queryVector, position, false, attributes)
+					deepSeek4FWHT(queryVector)
+					var dot float64
+					for channel := uint32(0); channel < indexerWidth; channel++ {
+						dot += float64(queryVector[channel]) * float64(indexerCompressed[blockIndex].value[channel])
+					}
+					if dot > 0 {
+						score += dot * float64(inputs[7].Data[token*attributes.IndexerHeads+head])
+					}
+				}
+				scores[item] = scored{index: blockIndex, score: score}
+			}
+			sort.SliceStable(scores, func(i, j int) bool { return scores[i].score > scores[j].score })
+			limit := int(attributes.IndexerTopK)
+			if limit > len(scores) {
+				limit = len(scores)
+			}
+			visibleCompressed = visibleCompressed[:limit]
+			for index := range limit {
+				visibleCompressed[index] = scores[index].index
+			}
+		}
+		rawFirst := historyStart
+		if position+1 > attributes.Window {
+			rawFirst = max(rawFirst, position+1-attributes.Window)
+		}
+		rawLast := min(position+1, historyStart+totalTokens)
+		for head := uint32(0); head < heads; head++ {
+			queryBase := int((token*heads + head) * width)
+			queryVector := append([]float32(nil), query.Data[queryBase:queryBase+int(width)]...)
+			deepSeek4RotateTail(queryVector, position, false, attributes)
+			maximum := float64(sinks.Data[head])
+			type candidate struct {
+				value []float32
+				logit float64
+			}
+			candidates := make([]candidate, 0, int(rawLast-rawFirst)+len(visibleCompressed))
+			add := func(vector []float32) {
+				var dot float64
+				for channel := uint32(0); channel < width; channel++ {
+					dot += float64(queryVector[channel]) * float64(vector[channel])
+				}
+				logit := dot * scale
+				maximum = math.Max(maximum, logit)
+				candidates = append(candidates, candidate{value: vector, logit: logit})
+			}
+			for rawPosition := rawFirst; rawPosition < rawLast; rawPosition++ {
+				row := rawPosition - historyStart
+				base := int(row * width)
+				raw := append([]float32(nil), cache.Data[base:base+int(width)]...)
+				deepSeek4RotateTail(raw, rawPosition, false, attributes)
+				add(raw)
+			}
+			for _, blockIndex := range visibleCompressed {
+				add(compressed[blockIndex].value)
+			}
+			denominator := math.Exp(float64(sinks.Data[head]) - maximum)
+			for _, candidate := range candidates {
+				denominator += math.Exp(candidate.logit - maximum)
+			}
+			result := output[queryBase : queryBase+int(width)]
+			for _, candidate := range candidates {
+				weight := math.Exp(candidate.logit-maximum) / denominator
+				for channel := uint32(0); channel < width; channel++ {
+					result[channel] += float32(weight * float64(candidate.value[channel]))
+				}
+			}
+			deepSeek4RotateTail(result, position, true, attributes)
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}

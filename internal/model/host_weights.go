@@ -109,6 +109,25 @@ type HostLayer struct {
 	IndexerProjection           *reference.Value
 	IndexerAttentionK           *reference.Value
 	IndexerAttentionQB          *reference.Value
+	AttentionOutputA            *reference.Value
+	AttentionCompressorKV       *reference.Value
+	AttentionCompressorGate     *reference.Value
+	AttentionCompressorAPE      *reference.Value
+	AttentionCompressorNorm     *reference.Value
+	IndexerCompressorKV         *reference.Value
+	IndexerCompressorGate       *reference.Value
+	IndexerCompressorAPE        *reference.Value
+	IndexerCompressorNorm       *reference.Value
+	HyperAttentionFN            *reference.Value
+	HyperAttentionBase          *reference.Value
+	HyperAttentionScale         *reference.Value
+	HyperFeedForwardFN          *reference.Value
+	HyperFeedForwardBase        *reference.Value
+	HyperFeedForwardScale       *reference.Value
+	HyperHeadFN                 *reference.Value
+	HyperHeadBase               *reference.Value
+	HyperHeadScale              *reference.Value
+	FeedForwardHashExperts      *reference.Value
 
 	AttentionQKV         *reference.Value
 	AttentionQKVBias     *reference.Value
@@ -836,6 +855,25 @@ func LoadHostLayer(
 		{info.IndexerProjection, &result.IndexerProjection},
 		{info.IndexerAttentionK, &result.IndexerAttentionK},
 		{info.IndexerAttentionQB, &result.IndexerAttentionQB},
+		{info.AttentionOutputA, &result.AttentionOutputA},
+		{info.AttentionCompressorKV, &result.AttentionCompressorKV},
+		{info.AttentionCompressorGate, &result.AttentionCompressorGate},
+		{info.AttentionCompressorAPE, &result.AttentionCompressorAPE},
+		{info.AttentionCompressorNorm, &result.AttentionCompressorNorm},
+		{info.IndexerCompressorKV, &result.IndexerCompressorKV},
+		{info.IndexerCompressorGate, &result.IndexerCompressorGate},
+		{info.IndexerCompressorAPE, &result.IndexerCompressorAPE},
+		{info.IndexerCompressorNorm, &result.IndexerCompressorNorm},
+		{info.HyperAttentionFN, &result.HyperAttentionFN},
+		{info.HyperAttentionBase, &result.HyperAttentionBase},
+		{info.HyperAttentionScale, &result.HyperAttentionScale},
+		{info.HyperFeedForwardFN, &result.HyperFeedForwardFN},
+		{info.HyperFeedForwardBase, &result.HyperFeedForwardBase},
+		{info.HyperFeedForwardScale, &result.HyperFeedForwardScale},
+		{info.HyperHeadFN, &result.HyperHeadFN},
+		{info.HyperHeadBase, &result.HyperHeadBase},
+		{info.HyperHeadScale, &result.HyperHeadScale},
+		{info.FeedForwardHashExperts, &result.FeedForwardHashExperts},
 	} {
 		if item.info == nil {
 			continue
@@ -1177,6 +1215,25 @@ func (layer *HostLayer) GraphInputs(
 		{"indexer.proj.weight", layer.IndexerProjection, &result.IndexerProjection},
 		{"indexer.attn_k.weight", layer.IndexerAttentionK, &result.IndexerAttentionK},
 		{"indexer.attn_q_b.weight", layer.IndexerAttentionQB, &result.IndexerAttentionQB},
+		{"attn_output_a.weight", layer.AttentionOutputA, &result.AttentionOutputA},
+		{"attn_compressor_kv.weight", layer.AttentionCompressorKV, &result.AttentionCompressorKV},
+		{"attn_compressor_gate.weight", layer.AttentionCompressorGate, &result.AttentionCompressorGate},
+		{"attn_compressor_ape.weight", layer.AttentionCompressorAPE, &result.AttentionCompressorAPE},
+		{"attn_compressor_norm.weight", layer.AttentionCompressorNorm, &result.AttentionCompressorNorm},
+		{"indexer_compressor_kv.weight", layer.IndexerCompressorKV, &result.IndexerCompressorKV},
+		{"indexer_compressor_gate.weight", layer.IndexerCompressorGate, &result.IndexerCompressorGate},
+		{"indexer_compressor_ape.weight", layer.IndexerCompressorAPE, &result.IndexerCompressorAPE},
+		{"indexer_compressor_norm.weight", layer.IndexerCompressorNorm, &result.IndexerCompressorNorm},
+		{"hc_attn_fn.weight", layer.HyperAttentionFN, &result.HyperAttentionFN},
+		{"hc_attn_base.weight", layer.HyperAttentionBase, &result.HyperAttentionBase},
+		{"hc_attn_scale.weight", layer.HyperAttentionScale, &result.HyperAttentionScale},
+		{"hc_ffn_fn.weight", layer.HyperFeedForwardFN, &result.HyperFeedForwardFN},
+		{"hc_ffn_base.weight", layer.HyperFeedForwardBase, &result.HyperFeedForwardBase},
+		{"hc_ffn_scale.weight", layer.HyperFeedForwardScale, &result.HyperFeedForwardScale},
+		{"output_hc_fn.weight", layer.HyperHeadFN, &result.HyperHeadFN},
+		{"output_hc_base.weight", layer.HyperHeadBase, &result.HyperHeadBase},
+		{"output_hc_scale.weight", layer.HyperHeadScale, &result.HyperHeadScale},
+		{"ffn_gate_tid2eid.weight", layer.FeedForwardHashExperts, &result.FeedForwardHashExperts},
 	} {
 		if item.value != nil {
 			*item.destination = input(item.name, *item.value)

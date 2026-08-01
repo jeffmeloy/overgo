@@ -130,6 +130,14 @@ type Spec struct {
 	IndexerKeyLength      uint32
 	IndexerTopK           uint32
 	IndexerFullLayers     []bool
+	AttentionOutputGroups uint32
+	AttentionOutputRank   uint32
+	CompressRopeBase      float32
+	CompressRatios        []uint32
+	HyperConnectionCount  uint32
+	HyperSinkhornIters    uint32
+	HyperConnectionEps    float32
+	HashLayerCount        uint32
 
 	// RWKV recurrent metadata
 	WKVHeadSize       uint32
@@ -203,6 +211,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "deepseek" &&
 		architecture != "deepseek2" &&
 		architecture != "deepseek32" &&
+		architecture != "deepseek4" &&
 		architecture != "deepseek2-ocr" &&
 		architecture != "glm-dsa" &&
 		architecture != "deci" &&
@@ -596,7 +605,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" || architecture == "qwen35moe" ||
 				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
-				if (!isDeepSeek2Family(architecture) && architecture != "glm-dsa" && architecture != "laguna" && architecture != "grok" && architecture != "mellum") || scalingType != "yarn" {
+				if (!isDeepSeek2Family(architecture) && architecture != "deepseek4" && architecture != "glm-dsa" && architecture != "laguna" && architecture != "grok" && architecture != "mellum") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
 						"model architecture %q uses unsupported RoPE scaling type %q",
 						architecture,
@@ -2368,6 +2377,71 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
+	if architecture == "deepseek4" {
+		if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if spec.RopeDimensionCount, err = required[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		for key, destination := range map[string]*uint32{
+			"attention.sliding_window":             &spec.SlidingWindow,
+			"attention.indexer.head_count":         &spec.IndexerHeadCount,
+			"attention.indexer.key_length":         &spec.IndexerKeyLength,
+			"attention.indexer.top_k":              &spec.IndexerTopK,
+			"attention.output_group_count":         &spec.AttentionOutputGroups,
+			"attention.output_lora_rank":           &spec.AttentionOutputRank,
+			"hyper_connection.count":               &spec.HyperConnectionCount,
+			"hyper_connection.sinkhorn_iterations": &spec.HyperSinkhornIters,
+			"hash_layer_count":                     &spec.HashLayerCount,
+			"expert_count":                         &spec.ExpertCount,
+			"expert_used_count":                    &spec.ExpertUsedCount,
+			"expert_feed_forward_length":           &spec.ExpertFeedForward,
+			"expert_shared_count":                  &spec.SharedExpertCount,
+			"expert_gating_func":                   &spec.ExpertGatingFunc,
+		} {
+			*destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32)
+			if err != nil {
+				return Spec{}, err
+			}
+		}
+		for key, destination := range map[string]*float32{
+			"attention.compress_rope_freq_base": &spec.CompressRopeBase,
+			"hyper_connection.epsilon":          &spec.HyperConnectionEps,
+			"expert_weights_scale":              &spec.ExpertWeightsScale,
+		} {
+			*destination, err = required[float32](values, prefix+key, gguf.ValueTypeFloat32)
+			if err != nil {
+				return Spec{}, err
+			}
+		}
+		if spec.ExpertWeightsNorm, err = required[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool); err != nil {
+			return Spec{}, err
+		}
+		if spec.CompressRatios, err = requiredArray[uint32](values, prefix+"attention.compress_ratios", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if len(spec.CompressRatios) < int(spec.BlockCount) {
+			return Spec{}, errors.New("DeepSeek 4 compression schedule is shorter than its block count")
+		}
+		spec.CompressRatios = spec.CompressRatios[:spec.BlockCount]
+		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_exp", spec.BlockCount); err != nil {
+			return Spec{}, err
+		}
+		if len(spec.LayerSwiGLUClamp) == 0 {
+			return Spec{}, errors.New("DeepSeek 4 expert SwiGLU clamp is missing")
+		}
+		if spec.LayerSharedSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_shexp", spec.BlockCount); err != nil {
+			return Spec{}, err
+		}
+		if len(spec.LayerSharedSwiGLUClamp) == 0 {
+			spec.LayerSharedSwiGLUClamp = append([]float32(nil), spec.LayerSwiGLUClamp...)
+		}
+		if spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+			return Spec{}, errors.New("DeepSeek 4 shared expert width overflows")
+		}
+		spec.SharedExpertFF = spec.SharedExpertCount * spec.ExpertFeedForward
+	}
 	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "gemma4-assistant" ||
 		architecture == "olmo2" || architecture == "cohere2" || architecture == "cohere2moe" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
@@ -3479,6 +3553,49 @@ func (s Spec) validate() error {
 			}
 		}
 	}
+	if s.Architecture == "deepseek4" {
+		switch {
+		case s.BlockCount != 43 || s.HeadCountKV != 1 || s.KeyLength != s.ValueLength:
+			return errors.New("DeepSeek 4 layer metadata is invalid")
+		case s.QLoRARank == 0 || s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
+			return errors.New("DeepSeek 4 attention dimensions are invalid")
+		case s.SlidingWindow == 0 || s.CompressRopeBase <= 0 ||
+			math.IsNaN(float64(s.CompressRopeBase)) || math.IsInf(float64(s.CompressRopeBase), 0):
+			return errors.New("DeepSeek 4 compressed-attention metadata is invalid")
+		case s.AttentionOutputGroups == 0 || s.HeadCount%s.AttentionOutputGroups != 0 || s.AttentionOutputRank == 0:
+			return errors.New("DeepSeek 4 output LoRA metadata is invalid")
+		case s.HyperConnectionCount != 4 || s.HyperSinkhornIters == 0 || s.HyperConnectionEps <= 0 ||
+			math.IsNaN(float64(s.HyperConnectionEps)) || math.IsInf(float64(s.HyperConnectionEps), 0):
+			return errors.New("DeepSeek 4 hyper-connection metadata is invalid")
+		case s.IndexerHeadCount == 0 || s.IndexerKeyLength < s.RopeDimensionCount || s.IndexerTopK == 0 ||
+			s.IndexerTopK > s.ContextLength || s.IndexerKeyLength&(s.IndexerKeyLength-1) != 0:
+			return errors.New("DeepSeek 4 indexer metadata is invalid")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
+			return errors.New("DeepSeek 4 expert metadata is invalid")
+		case s.ExpertGatingFunc != uint32(4):
+			return errors.New("DeepSeek 4 expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("DeepSeek 4 expert weight scale is invalid")
+		case s.HashLayerCount > s.BlockCount || len(s.CompressRatios) != int(s.BlockCount) ||
+			len(s.LayerSwiGLUClamp) != int(s.BlockCount) || len(s.LayerSharedSwiGLUClamp) != int(s.BlockCount):
+			return errors.New("DeepSeek 4 layer schedule is invalid")
+		case s.RopeScalingType == "yarn" &&
+			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 || s.YaRNExtFactor < 0 ||
+				s.YaRNAttentionFactor <= 0 || s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0):
+			return errors.New("DeepSeek 4 YaRN metadata is invalid")
+		}
+		for block, ratio := range s.CompressRatios {
+			if ratio != 0 && ratio != 4 && ratio != 128 {
+				return fmt.Errorf("DeepSeek 4 layer %d compression ratio is invalid", block)
+			}
+			for _, limit := range []float32{s.LayerSwiGLUClamp[block], s.LayerSharedSwiGLUClamp[block]} {
+				if limit < 0 || math.IsNaN(float64(limit)) || math.IsInf(float64(limit), 0) {
+					return fmt.Errorf("DeepSeek 4 layer %d SwiGLU clamp is invalid", block)
+				}
+			}
+		}
+	}
 	if s.Architecture == "kimi-linear" {
 		switch {
 		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
@@ -3967,6 +4084,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "baichuan" ||
 		architecture == "bailingmoe" ||
 		architecture == "deepseek" ||
+		architecture == "deepseek4" ||
 		architecture == "ernie4_5" ||
 		architecture == "ernie4_5-moe" ||
 		architecture == "cohere2" ||

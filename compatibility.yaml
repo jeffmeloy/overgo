@@ -1016,6 +1016,29 @@ models:
       - nextn-mtp-tensors-preserved-unexecuted
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  deepseek4:
+    status: experimental
+    execution:
+      - bounded-host-hyper-connections-and-compressed-attention
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - four-stream-sinkhorn-hyper-connections
+      - grouped-attention-output-lora
+      - attention-sinks
+      - raw-sliding-window-cache
+      - ratio-4-overlap-compression
+      - ratio-128-compression
+      - compressor-gate-ape-and-rmsnorm-state
+      - lightning-indexer-fwht-top-k-selection
+      - hash-derived-early-layer-expert-selection
+      - sqrt-softplus-routed-swiglu-experts
+      - per-layer-routed-and-shared-swiglu-clamps
+      - native-mxfp4-expert-storage
+      - serializable-compressor-and-kv-cache
+    limitations:
+      - noncontiguous-middle-range-cache-edit
+    real_model_validation: pending-fixture
   glm-dsa:
     status: experimental
     execution:

@@ -2472,6 +2472,127 @@ func TestBuildDeepSeek32FullIndexer(t *testing.T) {
 	}
 }
 
+func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "deepseek4", BlockCount: 1, EmbeddingLength: 8, VocabularySize: 32,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
+		RopeFrequencyBase: 10000, CompressRopeBase: 10000, RMSNormEpsilon: 1e-5,
+		QLoRARank: 3, SlidingWindow: 8, CompressRatios: []uint32{4},
+		IndexerHeadCount: 2, IndexerKeyLength: 8, IndexerTopK: 2,
+		AttentionOutputGroups: 1, AttentionOutputRank: 3,
+		HyperConnectionCount: 4, HyperSinkhornIters: 2, HyperConnectionEps: 1e-6,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 8, SharedExpertFF: 8,
+		ExpertWeightsNorm: true, ExpertWeightsScale: 1.25, HashLayerCount: 1,
+		LayerSwiGLUClamp: []float32{7}, LayerSharedSwiGLUClamp: []float32{6},
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:           builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:              builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionQNorm:          builder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionQB:             builder.Input("q_b", dtype.F32, tensor.MustShape(3, 8)),
+		AttentionK:              builder.Input("kv", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionKNorm:          builder.Input("kv_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionSinks:          builder.Input("sinks", dtype.F32, tensor.MustShape(2)),
+		AttentionOutputA:        builder.Input("out_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionOutput:         builder.Input("out_b", dtype.F32, tensor.MustShape(3, 8)),
+		AttentionCompressorKV:   builder.Input("comp_kv", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionCompressorGate: builder.Input("comp_gate", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionCompressorAPE:  builder.Input("comp_ape", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionCompressorNorm: builder.Input("comp_norm", dtype.F32, tensor.MustShape(4)),
+		IndexerProjection:       builder.Input("indexer_proj", dtype.F32, tensor.MustShape(8, 2)),
+		IndexerAttentionQB:      builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
+		IndexerCompressorKV:     builder.Input("indexer_kv", dtype.F32, tensor.MustShape(8, 16)),
+		IndexerCompressorGate:   builder.Input("indexer_gate", dtype.F32, tensor.MustShape(8, 16)),
+		IndexerCompressorAPE:    builder.Input("indexer_ape", dtype.F32, tensor.MustShape(16, 4)),
+		IndexerCompressorNorm:   builder.Input("indexer_norm", dtype.F32, tensor.MustShape(8)),
+		HyperAttentionFN:        builder.Input("hc_attn_fn", dtype.F32, tensor.MustShape(32, 24)),
+		HyperAttentionBase:      builder.Input("hc_attn_base", dtype.F32, tensor.MustShape(24)),
+		HyperAttentionScale:     builder.Input("hc_attn_scale", dtype.F32, tensor.MustShape(3)),
+		FeedForwardNorm:         builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:       builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardHashExperts:  builder.Input("hash", dtype.F32, tensor.MustShape(2, 32)),
+		FeedForwardGateExperts:  builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 8, 4)),
+		FeedForwardUpExperts:    builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 8, 4)),
+		FeedForwardDownExperts:  builder.Input("down_exps", dtype.F32, tensor.MustShape(8, 8, 4)),
+		FeedForwardSharedGate:   builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardSharedUp:     builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardSharedDown:   builder.Input("shared_down", dtype.F32, tensor.MustShape(8, 8)),
+		HyperFeedForwardFN:      builder.Input("hc_ffn_fn", dtype.F32, tensor.MustShape(32, 24)),
+		HyperFeedForwardBase:    builder.Input("hc_ffn_base", dtype.F32, tensor.MustShape(24)),
+		HyperFeedForwardScale:   builder.Input("hc_ffn_scale", dtype.F32, tensor.MustShape(3)),
+		HyperHeadFN:             builder.Input("hc_head_fn", dtype.F32, tensor.MustShape(32, 4)),
+		HyperHeadBase:           builder.Input("hc_head_base", dtype.F32, tensor.MustShape(4)),
+		HyperHeadScale:          builder.Input("hc_head_scale", dtype.F32, tensor.MustShape(1)),
+	}
+	result, err := BuildDeepSeek4BlockCached(builder, input, spec, weights, []uint32{0, 1}, []uint32{3, 4}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.States["compressor_kv"], result.States["indexer_compressor_kv"]}
+	nodes, err := tensor.Topological(outputs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention, hcInit, hcPre, hcPost, hcHead int
+	var moe tensor.MoEAttributes
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpDeepSeek4Attention:
+			attention++
+		case tensor.OpDeepSeek4HCInit:
+			hcInit++
+		case tensor.OpDeepSeek4HCPre:
+			hcPre++
+		case tensor.OpDeepSeek4HCPost:
+			hcPost++
+		case tensor.OpDeepSeek4HCHead:
+			hcHead++
+		case tensor.OpMoE:
+			moe = node.Attrs.(tensor.MoEAttributes)
+		}
+	}
+	if attention != 1 || hcInit != 1 || hcPre != 2 || hcPost != 2 || hcHead != 1 ||
+		moe.Routing != tensor.MoERoutingSqrtSoftplus || !moe.HasSelectedExperts || moe.SwiGLUClamp != 7 ||
+		!result.States["compressor_kv"].Shape.Equal(tensor.MustShape(8, 1, 2)) ||
+		!result.States["indexer_compressor_kv"].Shape.Equal(tensor.MustShape(16, 1, 2)) {
+		t.Fatalf("unexpected DeepSeek 4 graph: attention=%d HC=%d/%d/%d/%d MoE=%+v states=%v",
+			attention, hcInit, hcPre, hcPost, hcHead, moe, result.States)
+	}
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	for _, node := range builder.Nodes() {
+		if node.Op != tensor.OpInput {
+			continue
+		}
+		elements, err := node.Shape.Elements()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data := make([]float32, int(elements))
+		for index := range data {
+			data[index] = float32((index+int(node.ID))%7-3) * 0.05
+		}
+		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
+	}
+	hash := feeds[weights.FeedForwardHashExperts]
+	for row := 0; row < 32; row++ {
+		hash.Data[2*row], hash.Data[2*row+1] = 0, 1
+	}
+	feeds[weights.FeedForwardHashExperts] = hash
+	executed, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		for index, value := range executed[output].Data {
+			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+				t.Fatalf("DeepSeek 4 output %d[%d] is non-finite", output.ID, index)
+			}
+		}
+	}
+}
+
 func TestBuildChameleonSandwichBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

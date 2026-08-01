@@ -1303,6 +1303,7 @@ extern "C" __global__ void moe_f32(
 		const float * gate_bias,
 		const float * up_bias,
 		const float * down_bias,
+		const float * selected_experts,
         float * output,
         unsigned int hidden,
 		unsigned int router_hidden,
@@ -1352,6 +1353,23 @@ extern "C" __global__ void moe_f32(
     float route_weights[16];
     float selected_sum = 0.0f;
     for (unsigned int slot = 0; slot < top_k; ++slot) {
+		if (selected_experts) {
+			const unsigned int expert = (unsigned int) selected_experts[(size_t) token * top_k + slot];
+			const float * weight = router + (size_t) expert * router_hidden;
+			float logit = 0.0f;
+			for (unsigned int channel = 0; channel < router_hidden; ++channel) {
+				logit += router_x[channel] * weight[channel];
+			}
+			if (router_bias) logit += router_bias[expert];
+			const float probability = routing == 4
+				? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
+				: routing == 2 ? 1.0f / (1.0f + expf(-logit))
+				: routing == 3 ? logit : expf(logit - maximum) / denominator;
+			selected[slot] = expert;
+			route_weights[slot] = probability;
+			selected_sum += probability;
+			continue;
+		}
         int best = -1;
 		float best_score = -3.402823466e+38F;
 		float best_probability = 0.0f;
@@ -1367,7 +1385,9 @@ extern "C" __global__ void moe_f32(
                 logit += router_x[channel] * weight[channel];
             }
 			if (router_bias) logit += router_bias[expert];
-			const float probability = routing == 2 ? 1.0f / (1.0f + expf(-logit))
+			const float probability = routing == 4
+				? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
+				: routing == 2 ? 1.0f / (1.0f + expf(-logit))
 				: routing == 3 ? logit : expf(logit - maximum) / denominator;
 			const float score = probability + (selection_bias ? selection_bias[expert] : 0.0f);
 			if (best < 0 || score > best_score) {
@@ -1392,11 +1412,11 @@ extern "C" __global__ void moe_f32(
 	}
 
     float result = 0.0f;
-    for (unsigned int slot = 0; slot < top_k; ++slot) {
+	for (unsigned int slot = 0; slot < top_k; ++slot) {
 		const unsigned int routed_expert = selected[slot];
 		const unsigned int expert = routed_expert / expert_index_divisor;
-        float route = route_weights[slot] * routed_scale;
-		if (normalize_top_k && selected_sum > 0.0f) route /= selected_sum;
+		float route = route_weights[slot] * routed_scale;
+		if (normalize_top_k) route /= fmaxf(selected_sum, 6.103515625e-5f);
 		float expert_output = 0.0f;
 		for (unsigned int inner = 0; inner < intermediate; ++inner) {
 			const size_t gate_offset = ((size_t) expert * (fused_gate_up ? 2 : 1) * intermediate + inner) * hidden;
@@ -1440,11 +1460,12 @@ extern "C" __global__ void moe_f32(
 				activated *= activated;
 			} else {
 				if (gated) {
-					float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
 					if (swiglu_clamp > 0.0f) {
 						up_dot = fminf(swiglu_clamp, fmaxf(-swiglu_clamp, up_dot));
-						gate_activation = fminf(swiglu_clamp, gate_activation);
+						if (routing == 4) gate_dot = fminf(swiglu_clamp, gate_dot);
 					}
+					float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
+					if (swiglu_clamp > 0.0f && routing != 4) gate_activation = fminf(swiglu_clamp, gate_activation);
 					activated = gate_activation * up_dot;
 				} else {
 					activated = up_dot / (1.0f + expf(-up_dot));

@@ -97,6 +97,25 @@ type LayerWeights struct {
 	IndexerProjection           *gguf.TensorInfo
 	IndexerAttentionK           *gguf.TensorInfo
 	IndexerAttentionQB          *gguf.TensorInfo
+	AttentionOutputA            *gguf.TensorInfo
+	AttentionCompressorKV       *gguf.TensorInfo
+	AttentionCompressorGate     *gguf.TensorInfo
+	AttentionCompressorAPE      *gguf.TensorInfo
+	AttentionCompressorNorm     *gguf.TensorInfo
+	IndexerCompressorKV         *gguf.TensorInfo
+	IndexerCompressorGate       *gguf.TensorInfo
+	IndexerCompressorAPE        *gguf.TensorInfo
+	IndexerCompressorNorm       *gguf.TensorInfo
+	HyperAttentionFN            *gguf.TensorInfo
+	HyperAttentionBase          *gguf.TensorInfo
+	HyperAttentionScale         *gguf.TensorInfo
+	HyperFeedForwardFN          *gguf.TensorInfo
+	HyperFeedForwardBase        *gguf.TensorInfo
+	HyperFeedForwardScale       *gguf.TensorInfo
+	HyperHeadFN                 *gguf.TensorInfo
+	HyperHeadBase               *gguf.TensorInfo
+	HyperHeadScale              *gguf.TensorInfo
+	FeedForwardHashExperts      *gguf.TensorInfo
 	VisualAttentionQKV          *gguf.TensorInfo
 	VisualAttentionOutput       *gguf.TensorInfo
 	VisualFeedForwardGate       *gguf.TensorInfo
@@ -494,6 +513,145 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		uint64(spec.VocabularySize),
 	); err != nil {
 		return Weights{}, err
+	}
+	if spec.Architecture == "deepseek4" {
+		width := uint64(spec.EmbeddingLength)
+		headWidth := uint64(spec.KeyLength)
+		hyper := uint64(spec.HyperConnectionCount)
+		hyperWidth := hyper * width
+		mixWidth := (2 + hyper) * hyper
+		if result.OutputNorm, err = required("output_norm.weight", width); err != nil {
+			return Weights{}, err
+		}
+		output, loadErr := required("output.weight", width, uint64(spec.VocabularySize))
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		result.Output = &output
+		result.Layers = make([]LayerWeights, spec.BlockCount)
+		for block := uint32(0); block < spec.BlockCount; block++ {
+			prefix := fmt.Sprintf("blk.%d.", block)
+			layer := &result.Layers[block]
+			for name, item := range map[string]struct {
+				destination *gguf.TensorInfo
+				shape       []uint64
+			}{
+				"attn_norm.weight":   {&layer.AttentionNorm, []uint64{width}},
+				"attn_q_a.weight":    {&layer.AttentionQ, []uint64{width, uint64(spec.QLoRARank)}},
+				"attn_kv.weight":     {&layer.AttentionK, []uint64{width, headWidth}},
+				"attn_output.weight": {&layer.AttentionOutput, []uint64{uint64(spec.AttentionOutputGroups * spec.AttentionOutputRank), width}},
+				"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{width}},
+			} {
+				loaded, itemErr := required(prefix+name, item.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*item.destination = loaded
+			}
+			for name, item := range map[string]struct {
+				destination **gguf.TensorInfo
+				shape       []uint64
+			}{
+				"attn_sinks.weight":     {&layer.AttentionSinks, []uint64{uint64(spec.HeadCount)}},
+				"attn_q_a_norm.weight":  {&layer.AttentionQNorm, []uint64{uint64(spec.QLoRARank)}},
+				"attn_q_b.weight":       {&layer.AttentionQB, []uint64{uint64(spec.QLoRARank), uint64(spec.HeadCount) * headWidth}},
+				"attn_kv_a_norm.weight": {&layer.AttentionKNorm, []uint64{headWidth}},
+				"attn_output_a.weight":  {&layer.AttentionOutputA, []uint64{uint64(spec.HeadCount) * headWidth / uint64(spec.AttentionOutputGroups), uint64(spec.AttentionOutputRank * spec.AttentionOutputGroups)}},
+				"hc_attn_fn.weight":     {&layer.HyperAttentionFN, []uint64{hyperWidth, mixWidth}},
+				"hc_attn_base.weight":   {&layer.HyperAttentionBase, []uint64{mixWidth}},
+				"hc_attn_scale.weight":  {&layer.HyperAttentionScale, []uint64{3}},
+				"hc_ffn_fn.weight":      {&layer.HyperFeedForwardFN, []uint64{hyperWidth, mixWidth}},
+				"hc_ffn_base.weight":    {&layer.HyperFeedForwardBase, []uint64{mixWidth}},
+				"hc_ffn_scale.weight":   {&layer.HyperFeedForwardScale, []uint64{3}},
+				"ffn_gate_inp.weight":   {&layer.FeedForwardRouter, []uint64{width, uint64(spec.ExpertCount)}},
+				"ffn_gate_exps.weight":  {&layer.FeedForwardGateExperts, []uint64{width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}},
+				"ffn_up_exps.weight":    {&layer.FeedForwardUpExperts, []uint64{width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}},
+				"ffn_down_exps.weight":  {&layer.FeedForwardDownExperts, []uint64{uint64(spec.ExpertFeedForward), width, uint64(spec.ExpertCount)}},
+				"ffn_gate_shexp.weight": {&layer.FeedForwardSharedGate, []uint64{width, uint64(spec.SharedExpertFF)}},
+				"ffn_up_shexp.weight":   {&layer.FeedForwardSharedUp, []uint64{width, uint64(spec.SharedExpertFF)}},
+				"ffn_down_shexp.weight": {&layer.FeedForwardSharedDown, []uint64{uint64(spec.SharedExpertFF), width}},
+			} {
+				loaded, itemErr := required(prefix+name, item.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*item.destination = &loaded
+			}
+			if block < spec.HashLayerCount {
+				loaded, itemErr := required(prefix+"ffn_gate_tid2eid.weight", uint64(spec.ExpertUsedCount), uint64(spec.VocabularySize))
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				if loaded.Type != dtype.I32 {
+					return Weights{}, fmt.Errorf("tensor %q must use I32 storage", loaded.Name)
+				}
+				layer.FeedForwardHashExperts = &loaded
+			} else {
+				loaded, itemErr := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				layer.FeedForwardRouterBias = &loaded
+			}
+			ratio := spec.CompressRatios[block]
+			if ratio != 0 {
+				coefficient := uint64(1)
+				if ratio == 4 {
+					coefficient = 2
+				}
+				for name, item := range map[string]struct {
+					destination **gguf.TensorInfo
+					shape       []uint64
+				}{
+					"attn_compressor_kv.weight":   {&layer.AttentionCompressorKV, []uint64{width, coefficient * headWidth}},
+					"attn_compressor_gate.weight": {&layer.AttentionCompressorGate, []uint64{width, coefficient * headWidth}},
+					"attn_compressor_ape.weight":  {&layer.AttentionCompressorAPE, []uint64{coefficient * headWidth, uint64(ratio)}},
+					"attn_compressor_norm.weight": {&layer.AttentionCompressorNorm, []uint64{headWidth}},
+				} {
+					loaded, itemErr := required(prefix+name, item.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*item.destination = &loaded
+				}
+			}
+			if ratio == 4 {
+				indexerWidth := uint64(spec.IndexerKeyLength)
+				for name, item := range map[string]struct {
+					destination **gguf.TensorInfo
+					shape       []uint64
+				}{
+					"indexer.proj.weight":            {&layer.IndexerProjection, []uint64{width, uint64(spec.IndexerHeadCount)}},
+					"indexer.attn_q_b.weight":        {&layer.IndexerAttentionQB, []uint64{uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount) * indexerWidth}},
+					"indexer_compressor_kv.weight":   {&layer.IndexerCompressorKV, []uint64{width, 2 * indexerWidth}},
+					"indexer_compressor_gate.weight": {&layer.IndexerCompressorGate, []uint64{width, 2 * indexerWidth}},
+					"indexer_compressor_ape.weight":  {&layer.IndexerCompressorAPE, []uint64{2 * indexerWidth, 4}},
+					"indexer_compressor_norm.weight": {&layer.IndexerCompressorNorm, []uint64{indexerWidth}},
+				} {
+					loaded, itemErr := required(prefix+name, item.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*item.destination = &loaded
+				}
+			}
+		}
+		last := &result.Layers[len(result.Layers)-1]
+		for name, item := range map[string]struct {
+			destination **gguf.TensorInfo
+			shape       []uint64
+		}{
+			"output_hc_fn.weight":    {&last.HyperHeadFN, []uint64{hyperWidth, hyper}},
+			"output_hc_base.weight":  {&last.HyperHeadBase, []uint64{hyper}},
+			"output_hc_scale.weight": {&last.HyperHeadScale, []uint64{1}},
+		} {
+			loaded, itemErr := required(name, item.shape...)
+			if itemErr != nil {
+				return Weights{}, itemErr
+			}
+			*item.destination = &loaded
+		}
+		return result, nil
 	}
 	if spec.Architecture == "wavtokenizer-dec" {
 		width := uint64(spec.PosNetEmbeddingLength)

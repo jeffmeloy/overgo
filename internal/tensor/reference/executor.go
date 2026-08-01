@@ -70,6 +70,14 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 	return results, nil
 }
 
+// ExecuteOperation: single-node correctness bridge.
+func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
+	if node == nil {
+		return Value{}, errors.New("reference operation is nil")
+	}
+	return executeNode(node, inputs)
+}
+
 func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	switch node.Op {
 	case tensor.OpAdd:
@@ -154,6 +162,16 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid group norm attributes")
 		}
 		return groupNorm(node.Shape, inputs[0], inputs[1], inputs[2], attributes.Groups, attributes.Epsilon)
+	case tensor.OpDeepSeek4HCInit:
+		return deepSeek4HCInit(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
+	case tensor.OpDeepSeek4HCPre:
+		return deepSeek4HCPre(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
+	case tensor.OpDeepSeek4HCPost:
+		return deepSeek4HCPost(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
+	case tensor.OpDeepSeek4HCHead:
+		return deepSeek4HCHead(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
+	case tensor.OpDeepSeek4Attention:
+		return deepSeek4Attention(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4AttentionAttributes))
 	case tensor.OpXIELU:
 		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
 		if !ok {
@@ -1197,6 +1215,9 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	if attributes.HasExpertBiases {
 		expectedInputs += 3
 	}
+	if attributes.HasSelectedExperts {
+		expectedInputs++
+	}
 	if len(inputs) != expectedInputs {
 		return Value{}, errors.New("MoE input count is invalid")
 	}
@@ -1211,7 +1232,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	if attributes.FusedGateUp {
 		gate = up
 	}
-	var selectionBias, expertScale, routerBias, gateBias, upBias, downBias []float32
+	var selectionBias, expertScale, routerBias, gateBias, upBias, downBias, fixedExperts []float32
 	optionalIndex := next + 2
 	if attributes.HasSelectionBias {
 		selectionBias = inputs[optionalIndex].Data
@@ -1229,6 +1250,10 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		gateBias = inputs[optionalIndex].Data
 		upBias = inputs[optionalIndex+1].Data
 		downBias = inputs[optionalIndex+2].Data
+		optionalIndex += 3
+	}
+	if attributes.HasSelectedExperts {
+		fixedExperts = inputs[optionalIndex].Data
 	}
 	hidden := int(input.Shape.Dims[0])
 	routerHidden := int(routerInput.Shape.Dims[0])
@@ -1285,6 +1310,8 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 				probabilities[expert] = 1 / (1 + math.Exp(-logit))
 			case tensor.MoERoutingSelectedSoftmax:
 				probabilities[expert] = logit
+			case tensor.MoERoutingSqrtSoftplus:
+				probabilities[expert] = math.Sqrt(math.Max(logit, 0) + math.Log1p(math.Exp(-math.Abs(logit))))
 			default:
 				return Value{}, errors.New("invalid MoE routing function")
 			}
@@ -1296,6 +1323,17 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		clear(used)
 		var selectedSum float64
 		for slot := 0; slot < topK; slot++ {
+			if fixedExperts != nil {
+				expert := int(fixedExperts[token*topK+slot])
+				if expert < 0 || expert >= experts || used[expert] {
+					return Value{}, errors.New("invalid fixed MoE expert selection")
+				}
+				used[expert] = true
+				selected[slot] = expert
+				weights[slot] = probabilities[expert]
+				selectedSum += weights[slot]
+				continue
+			}
 			best := -1
 			bestScore := math.Inf(-1)
 			for expert, score := range selectionScores {
@@ -1323,8 +1361,8 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 			}
 		}
 		for slot := range topK {
-			if attributes.NormalizeTopKProb && selectedSum > 0 {
-				weights[slot] = weights[slot] / selectedSum * float64(attributes.Scale)
+			if attributes.NormalizeTopKProb {
+				weights[slot] = weights[slot] / math.Max(selectedSum, 6.103515625e-5) * float64(attributes.Scale)
 			} else {
 				weights[slot] *= float64(attributes.Scale)
 			}
@@ -1357,11 +1395,16 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 					case tensor.MoEActivationSiLU:
 						activation = upDot / (1 + math.Exp(-upDot))
 						if attributes.Gated {
-							gateActivation := gateDot / (1 + math.Exp(-gateDot))
 							if attributes.SwiGLUClamp > 0 {
 								limit := float64(attributes.SwiGLUClamp)
 								upDot = math.Max(-limit, math.Min(limit, upDot))
-								gateActivation = math.Min(limit, gateActivation)
+								if attributes.Routing == tensor.MoERoutingSqrtSoftplus {
+									gateDot = math.Min(limit, gateDot)
+								}
+							}
+							gateActivation := gateDot / (1 + math.Exp(-gateDot))
+							if attributes.SwiGLUClamp > 0 && attributes.Routing != tensor.MoERoutingSqrtSoftplus {
+								gateActivation = math.Min(float64(attributes.SwiGLUClamp), gateActivation)
 							}
 							activation = gateActivation * upDot
 						}

@@ -104,6 +104,35 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: DSA shared layer %d has indexer state", index)
 			}
 		}
+		if r.spec.Architecture == "deepseek4" {
+			ratio := r.spec.CompressRatios[index]
+			expected := make(map[string]tensor.Shape)
+			if ratio != 0 {
+				coefficient := uint64(1)
+				if ratio == 4 {
+					coefficient = 2
+				}
+				shape := tensor.MustShape(coefficient*uint64(r.spec.KeyLength), 1, uint64(cache.Tokens))
+				expected["compressor_kv"] = shape
+				expected["compressor_score"] = shape
+			}
+			if ratio == 4 {
+				shape := tensor.MustShape(2*uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
+				expected["indexer_compressor_kv"] = shape
+				expected["indexer_compressor_score"] = shape
+			}
+			for name, shape := range expected {
+				state, present := layer.States[name]
+				if !present || state.Mode != CacheStateToken || !state.Value.Shape.Equal(shape) {
+					return fmt.Errorf("inference: DeepSeek 4 cache layer %d state %q is invalid", index, name)
+				}
+			}
+			for name := range layer.States {
+				if _, present := expected[name]; !present {
+					return fmt.Errorf("inference: DeepSeek 4 cache layer %d state %q is unexpected", index, name)
+				}
+			}
+		}
 		if r.spec.Architecture == "falcon-h1" {
 			conv, hasConv := layer.States["conv_state"]
 			ssm, hasSSM := layer.States["ssm_state"]
@@ -384,6 +413,9 @@ func (r *Runner) RemoveCacheRange(
 			end,
 			cache.Tokens,
 		)
+	}
+	if r.spec.Architecture == "deepseek4" && start > 0 && end < uint64(cache.Tokens) {
+		return nil, errors.New("inference: DeepSeek 4 middle-range cache editing is unsupported")
 	}
 	remaining := cache.Tokens - discard
 	result := &KVCache{

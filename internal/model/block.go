@@ -79,6 +79,7 @@ type LayerGraphWeights struct {
 	SSMA             *tensor.Tensor
 	SSMBeta          *tensor.Tensor
 	SSMAlpha         *tensor.Tensor
+	SSMBetaAlpha     *tensor.Tensor
 	SSMNorm          *tensor.Tensor
 	SSMOutput        *tensor.Tensor
 }
@@ -2145,9 +2146,7 @@ func buildDeciSparseBlockCached(
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
-// BuildQwen35BlockCached: constructs either gated full-attention block or
-// fused gated-delta-net recurrent block, following layer cadence recorded
-// in weight catalog
+// BuildQwen35BlockCached: gated attention/GDN hybrid.
 func BuildQwen35BlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -2157,8 +2156,8 @@ func BuildQwen35BlockCached(
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	if spec.Architecture != "qwen35" && spec.Architecture != "qwen35moe" {
-		return Qwen35BlockResult{}, errors.New("Qwen3.5 block requires qwen35 or qwen35moe architecture")
+	if spec.Architecture != "qwen3next" && spec.Architecture != "qwen35" && spec.Architecture != "qwen35moe" {
+		return Qwen35BlockResult{}, errors.New("Qwen hybrid block architecture is invalid")
 	}
 	if recurrent {
 		return buildQwen35RecurrentBlock(
@@ -2245,30 +2244,31 @@ func buildQwen35AttentionBlock(
 	)
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
-	var multiPositions [4][]uint32
-	for axis := range multiPositions {
-		multiPositions[axis] = positions
-	}
 	frequencyScale := float32(1)
 	if spec.RopeScalingType == "linear" {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	query = builder.RoPEMultiScaled(
-		query,
-		multiPositions,
-		spec.RopeSections,
-		spec.RopeDimensionCount,
-		spec.RopeFrequencyBase,
-		frequencyScale,
-	)
-	key = builder.RoPEMultiScaled(
-		key,
-		multiPositions,
-		spec.RopeSections,
-		spec.RopeDimensionCount,
-		spec.RopeFrequencyBase,
-		frequencyScale,
-	)
+	if spec.Architecture == "qwen3next" {
+		query = builder.RoPENeoXScaled(
+			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
+		)
+		key = builder.RoPENeoXScaled(
+			key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
+		)
+	} else {
+		var multiPositions [4][]uint32
+		for axis := range multiPositions {
+			multiPositions[axis] = positions
+		}
+		query = builder.RoPEMultiScaled(
+			query, multiPositions, spec.RopeSections, spec.RopeDimensionCount,
+			spec.RopeFrequencyBase, frequencyScale,
+		)
+		key = builder.RoPEMultiScaled(
+			key, multiPositions, spec.RopeSections, spec.RopeDimensionCount,
+			spec.RopeFrequencyBase, frequencyScale,
+		)
+	}
 
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
@@ -2280,11 +2280,15 @@ func buildQwen35AttentionBlock(
 		cacheKey = builder.Concat(pastKey, key, 2)
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
+	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	if spec.AttentionScale > 0 {
+		attentionScale = spec.AttentionScale
+	}
 	attention := builder.AttentionWithOffset(
 		query,
 		cacheKey,
 		cacheValue,
-		float32(1/math.Sqrt(float64(spec.KeyLength))),
+		attentionScale,
 		true,
 		queryStart,
 	)
@@ -2318,15 +2322,23 @@ func buildQwen35RecurrentBlock(
 	required := map[string]*tensor.Tensor{
 		"attention norm":      weights.AttentionNorm,
 		"QKV":                 weights.AttentionQKV,
-		"attention gate":      weights.AttentionGate,
 		"SSM convolution":     weights.SSMConv1D,
 		"SSM time-step bias":  weights.SSMTimeStep,
 		"SSM A":               weights.SSMA,
-		"SSM beta":            weights.SSMBeta,
-		"SSM alpha":           weights.SSMAlpha,
 		"SSM norm":            weights.SSMNorm,
 		"SSM output":          weights.SSMOutput,
 		"post-attention norm": weights.FeedForwardNorm,
+	}
+	if spec.Architecture == "qwen3next" {
+		required["SSM beta/alpha"] = weights.SSMBetaAlpha
+		if weights.AttentionQKV.Shape.Dims[1] == uint64(spec.SSMInnerSize)+
+			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount) {
+			required["attention gate"] = weights.AttentionGate
+		}
+	} else {
+		required["attention gate"] = weights.AttentionGate
+		required["SSM beta"] = weights.SSMBeta
+		required["SSM alpha"] = weights.SSMAlpha
 	}
 	addQwen35FeedForwardRequirements(required, spec, weights)
 	for name, item := range required {
@@ -2350,16 +2362,55 @@ func buildQwen35RecurrentBlock(
 	}
 
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	qkvMixed := builder.MulMat(weights.AttentionQKV, normalized)
-	z := builder.MulMat(weights.AttentionGate, normalized)
-	beta := builder.Reshape(
-		builder.Sigmoid(builder.MulMat(weights.SSMBeta, normalized)),
-		1,
-		valueHeads,
-		tokens,
-		1,
-	)
-	alpha := builder.MulMat(weights.SSMAlpha, normalized)
+	qkvProjection := builder.MulMat(weights.AttentionQKV, normalized)
+	qkvMixed := qkvProjection
+	var z *tensor.Tensor
+	if spec.Architecture == "qwen3next" && weights.AttentionGate == nil {
+		valueHeadsPerGroup := valueHeads / keyHeads
+		valueWidthPerGroup := stateWidth * valueHeadsPerGroup
+		groupStride := 2*stateWidth + 2*valueWidthPerGroup
+		query := builder.GroupSlice(qkvProjection, 0, stateWidth, keyHeads, groupStride)
+		key := builder.GroupSlice(qkvProjection, stateWidth, stateWidth, keyHeads, groupStride)
+		value := builder.GroupSlice(
+			qkvProjection, 2*stateWidth, valueWidthPerGroup, keyHeads, groupStride,
+		)
+		z = builder.GroupSlice(
+			qkvProjection, 2*stateWidth+valueWidthPerGroup,
+			valueWidthPerGroup, keyHeads, groupStride,
+		)
+		qkvMixed = builder.Concat(
+			builder.Concat(
+				builder.Reshape(query, keyDimension, tokens),
+				builder.Reshape(key, keyDimension, tokens),
+				0,
+			),
+			builder.Reshape(value, valueDimension, tokens),
+			0,
+		)
+		z = builder.Reshape(z, stateWidth, valueHeads, tokens, 1)
+	} else {
+		z = builder.MulMat(weights.AttentionGate, normalized)
+	}
+	var beta, alpha *tensor.Tensor
+	if spec.Architecture == "qwen3next" {
+		valueHeadsPerGroup := valueHeads / keyHeads
+		betaAlpha := builder.MulMat(weights.SSMBetaAlpha, normalized)
+		beta = builder.GroupSlice(
+			betaAlpha, 0, valueHeadsPerGroup, keyHeads, 2*valueHeadsPerGroup,
+		)
+		alpha = builder.GroupSlice(
+			betaAlpha, valueHeadsPerGroup, valueHeadsPerGroup,
+			keyHeads, 2*valueHeadsPerGroup,
+		)
+		beta = builder.Reshape(builder.Sigmoid(beta), 1, valueHeads, tokens, 1)
+		alpha = builder.Reshape(alpha, valueHeads, tokens)
+	} else {
+		beta = builder.Reshape(
+			builder.Sigmoid(builder.MulMat(weights.SSMBeta, normalized)),
+			1, valueHeads, tokens, 1,
+		)
+		alpha = builder.MulMat(weights.SSMAlpha, normalized)
+	}
 	gate := builder.Multiply(
 		builder.Softplus(builder.Add(alpha, weights.SSMTimeStep)),
 		weights.SSMA,
@@ -2386,7 +2437,12 @@ func buildQwen35RecurrentBlock(
 	query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, 1)
 	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, 1)
 	value = builder.Reshape(value, stateWidth, valueHeads, tokens, 1)
-	packed := builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)
+	var packed *tensor.Tensor
+	if spec.Architecture == "qwen3next" {
+		packed = builder.GatedDeltaNetRepeatInterleave(query, key, value, gate, beta, ssmState)
+	} else {
+		packed = builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)
+	}
 	attentionElements := stateWidth * valueHeads * tokens
 	attention := builder.FlatSlice(
 		packed,
@@ -2436,7 +2492,7 @@ func buildQwen35FeedForward(
 		spec.RMSNormEpsilon,
 	)
 	var feedForward *tensor.Tensor
-	if spec.Architecture == "qwen35moe" {
+	if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
 		if weights.FeedForwardGateUpExperts != nil {
 			feedForward = builder.MoESoftmaxFusedGateUp(
 				normalized, weights.FeedForwardRouter, weights.FeedForwardGateUpExperts,
@@ -2474,7 +2530,7 @@ func addQwen35FeedForwardRequirements(
 	spec Spec,
 	weights LayerGraphWeights,
 ) {
-	if spec.Architecture == "qwen35moe" {
+	if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
 		if weights.FeedForwardGateUpExperts != nil {

@@ -180,7 +180,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpSSMConv:
 		return ssmConv(node.Shape, inputs[0], inputs[1])
 	case tensor.OpGatedDeltaNet:
-		return gatedDeltaNet(node.Shape, inputs)
+		return gatedDeltaNet(node.Shape, inputs, node.Attrs.(tensor.GatedDeltaNetAttributes))
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
 		if !ok {
@@ -439,7 +439,11 @@ func ssmConv(shape tensor.Shape, input, weights Value) (Value, error) {
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func gatedDeltaNet(shape tensor.Shape, inputs []Value) (Value, error) {
+func gatedDeltaNet(
+	shape tensor.Shape,
+	inputs []Value,
+	attributes tensor.GatedDeltaNetAttributes,
+) (Value, error) {
 	if len(inputs) != 6 {
 		return Value{}, errors.New("GatedDeltaNet requires six inputs")
 	}
@@ -472,8 +476,14 @@ func gatedDeltaNet(shape tensor.Shape, inputs []Value) (Value, error) {
 			)
 			for token := range tokens {
 				valueBase := ((sequence*tokens+token)*heads + head) * size
-				queryBase := ((sequence*tokens+token)*qHeads + head%qHeads) * size
-				keyBase := ((sequence*tokens+token)*kHeads + head%kHeads) * size
+				queryHead := head % qHeads
+				keyHead := head % kHeads
+				if attributes.RepeatInterleave {
+					queryHead = head / (heads / qHeads)
+					keyHead = head / (heads / kHeads)
+				}
+				queryBase := ((sequence*tokens+token)*qHeads + queryHead) * size
+				keyBase := ((sequence*tokens+token)*kHeads + keyHead) * size
 				gateBase := ((sequence*tokens+token)*heads + head) * gateWidth
 				betaValue := beta.Data[(sequence*tokens+token)*heads+head]
 

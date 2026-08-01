@@ -203,7 +203,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen2vl" &&
 		architecture != "qwen3vl" &&
 		architecture != "qwen3vlmoe" &&
-		architecture != "qwen35" && architecture != "qwen35moe" && architecture != "gemma" && architecture != "gemma-embedding" &&
+		architecture != "qwen3next" && architecture != "qwen35" && architecture != "qwen35moe" && architecture != "gemma" && architecture != "gemma-embedding" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
 		architecture != "gemma2" &&
@@ -1087,31 +1087,34 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
-	if architecture == "qwen35" || architecture == "qwen35moe" {
-		if spec.RopeDimensionCount, err = required[uint32](
-			values,
-			prefix+"rope.dimension_count",
-			gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		sections, sectionsErr := requiredArray[int32](
-			values,
-			prefix+"rope.dimension_sections",
-			gguf.ValueTypeInt32,
-		)
-		if sectionsErr != nil {
-			return Spec{}, sectionsErr
-		}
-		if len(sections) != len(spec.RopeSections) {
-			return Spec{}, fmt.Errorf(
-				"metadata %q has %d values, need %d",
-				prefix+"rope.dimension_sections",
-				len(sections),
-				len(spec.RopeSections),
+	if architecture == "qwen3next" || architecture == "qwen35" || architecture == "qwen35moe" {
+		if architecture == "qwen3next" {
+			spec.RopeDimensionCount = spec.KeyLength
+			if value, ok := optional[uint32](
+				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+			); ok {
+				spec.RopeDimensionCount = value
+			}
+		} else {
+			if spec.RopeDimensionCount, err = required[uint32](
+				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+			sections, sectionsErr := requiredArray[int32](
+				values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
 			)
+			if sectionsErr != nil {
+				return Spec{}, sectionsErr
+			}
+			if len(sections) != len(spec.RopeSections) {
+				return Spec{}, fmt.Errorf(
+					"metadata %q has %d values, need %d",
+					prefix+"rope.dimension_sections", len(sections), len(spec.RopeSections),
+				)
+			}
+			copy(spec.RopeSections[:], sections)
 		}
-		copy(spec.RopeSections[:], sections)
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1150,7 +1153,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1182,7 +1185,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok {
 			spec.ExpertWeightsScale = value
 		}
-		if architecture == "qwen35moe" {
+		if architecture == "qwen3next" || architecture == "qwen35moe" {
 			spec.SharedExpertFF = spec.FeedForwardLength
 			if value, ok := optional[uint32](
 				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
@@ -1696,7 +1699,7 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 	if len(s.RecurrentLayers) == int(s.BlockCount) {
 		return s.RecurrentLayers[block]
 	}
-	return (s.Architecture == "qwen35" || s.Architecture == "qwen35moe") &&
+	return (s.Architecture == "qwen3next" || s.Architecture == "qwen35" || s.Architecture == "qwen35moe") &&
 		s.FullAttentionInterval > 0 &&
 		(block+1)%s.FullAttentionInterval != 0
 }
@@ -1894,38 +1897,40 @@ func (s Spec) validate() error {
 			s.KeyLength != s.ValueLength) {
 		return errors.New("NomicBERT-MoE metadata is invalid")
 	}
-	if s.Architecture == "qwen35" || s.Architecture == "qwen35moe" {
+	if s.Architecture == "qwen3next" || s.Architecture == "qwen35" || s.Architecture == "qwen35moe" {
 		switch {
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0:
-			return errors.New("Qwen3.5 rotary dimension count is invalid")
+			return errors.New("Qwen hybrid rotary dimension count is invalid")
 		case s.SSMConvKernel == 0:
-			return errors.New("Qwen3.5 SSM convolution kernel is zero")
+			return errors.New("Qwen hybrid SSM convolution kernel is zero")
 		case s.SSMInnerSize == 0:
-			return errors.New("Qwen3.5 SSM inner size is zero")
+			return errors.New("Qwen hybrid SSM inner size is zero")
 		case s.SSMStateSize == 0:
-			return errors.New("Qwen3.5 SSM state size is zero")
+			return errors.New("Qwen hybrid SSM state size is zero")
 		case s.SSMTimeStepRank == 0 || s.SSMInnerSize%s.SSMTimeStepRank != 0:
-			return errors.New("Qwen3.5 SSM inner size is not divisible by time-step rank")
+			return errors.New("Qwen hybrid SSM inner size is not divisible by time-step rank")
 		case s.SSMInnerSize/s.SSMTimeStepRank != s.SSMStateSize:
-			return errors.New("Qwen3.5 SSM value-head width differs from state size")
+			return errors.New("Qwen hybrid SSM value-head width differs from state size")
 		case s.SSMGroupCount == 0 || s.SSMTimeStepRank%s.SSMGroupCount != 0:
-			return errors.New("Qwen3.5 SSM value heads are not divisible by key groups")
+			return errors.New("Qwen hybrid SSM value heads are not divisible by key groups")
 		case s.FullAttentionInterval == 0:
-			return errors.New("Qwen3.5 full-attention interval is zero")
+			return errors.New("Qwen hybrid full-attention interval is zero")
 		}
-		var sectionPairs int64
-		for _, section := range s.RopeSections {
-			if section < 0 {
-				return errors.New("Qwen3.5 RoPE section count is negative")
+		if s.Architecture != "qwen3next" {
+			var sectionPairs int64
+			for _, section := range s.RopeSections {
+				if section < 0 {
+					return errors.New("Qwen3.5 RoPE section count is negative")
+				}
+				sectionPairs += int64(section)
 			}
-			sectionPairs += int64(section)
-		}
-		if sectionPairs == 0 || sectionPairs > int64(s.RopeDimensionCount/2) {
-			return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
+			if sectionPairs == 0 || sectionPairs > int64(s.RopeDimensionCount/2) {
+				return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
+			}
 		}
 	}
-	if s.Architecture == "qwen35moe" &&
+	if (s.Architecture == "qwen3next" || s.Architecture == "qwen35moe") &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
 			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||

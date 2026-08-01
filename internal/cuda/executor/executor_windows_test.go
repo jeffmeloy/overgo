@@ -533,42 +533,47 @@ func TestExecutorGatedDeltaNetMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
 	}
-	for _, gateWidth := range []uint64{1, 4} {
-		t.Run(fmt.Sprintf("gate_width_%d", gateWidth), func(t *testing.T) {
-			builder := tensor.NewBuilder()
-			q := builder.Input("q", dtype.F32, tensor.MustShape(4, 1, 3, 2))
-			k := builder.Input("k", dtype.F32, tensor.MustShape(4, 1, 3, 2))
-			v := builder.Input("v", dtype.F32, tensor.MustShape(4, 2, 3, 2))
-			gate := builder.Input("gate", dtype.F32, tensor.MustShape(gateWidth, 2, 3, 2))
-			beta := builder.Input("beta", dtype.F32, tensor.MustShape(1, 2, 3, 2))
-			state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 2))
-			output := builder.GatedDeltaNet(q, k, v, gate, beta, state)
-			if err := builder.Err(); err != nil {
-				t.Fatal(err)
-			}
-			feeds := map[*tensor.Tensor]reference.Value{
-				q:     patternedValue(q.Shape, 7, 0.08, -0.15),
-				k:     patternedValue(k.Shape, 11, 0.06, -0.1),
-				v:     patternedValue(v.Shape, 13, 0.09, 0.03),
-				gate:  patternedValue(gate.Shape, 5, 0.02, -0.08),
-				beta:  patternedValue(beta.Shape, 3, 0.03, 0.4),
-				state: patternedValue(state.Shape, 17, 0.04, -0.07),
-			}
-			want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cuda, err := New(0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer cuda.Close()
-			got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
-			compare(t, got[output].Data, want[output].Data, 3e-5)
-		})
+	for _, repeatInterleave := range []bool{false, true} {
+		for _, gateWidth := range []uint64{1, 4} {
+			t.Run(fmt.Sprintf("gate_width_%d/repeat_%t", gateWidth, repeatInterleave), func(t *testing.T) {
+				builder := tensor.NewBuilder()
+				q := builder.Input("q", dtype.F32, tensor.MustShape(4, 1, 3, 2))
+				k := builder.Input("k", dtype.F32, tensor.MustShape(4, 1, 3, 2))
+				v := builder.Input("v", dtype.F32, tensor.MustShape(4, 2, 3, 2))
+				gate := builder.Input("gate", dtype.F32, tensor.MustShape(gateWidth, 2, 3, 2))
+				beta := builder.Input("beta", dtype.F32, tensor.MustShape(1, 2, 3, 2))
+				state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 2))
+				output := builder.GatedDeltaNet(q, k, v, gate, beta, state)
+				if repeatInterleave {
+					output = builder.GatedDeltaNetRepeatInterleave(q, k, v, gate, beta, state)
+				}
+				if err := builder.Err(); err != nil {
+					t.Fatal(err)
+				}
+				feeds := map[*tensor.Tensor]reference.Value{
+					q:     patternedValue(q.Shape, 7, 0.08, -0.15),
+					k:     patternedValue(k.Shape, 11, 0.06, -0.1),
+					v:     patternedValue(v.Shape, 13, 0.09, 0.03),
+					gate:  patternedValue(gate.Shape, 5, 0.02, -0.08),
+					beta:  patternedValue(beta.Shape, 3, 0.03, 0.4),
+					state: patternedValue(state.Shape, 17, 0.04, -0.07),
+				}
+				want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cuda, err := New(0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer cuda.Close()
+				got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+				if err != nil {
+					t.Fatal(err)
+				}
+				compare(t, got[output].Data, want[output].Data, 3e-5)
+			})
+		}
 	}
 }
 
@@ -614,8 +619,11 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
 	}
-	for _, architecture := range []string{"qwen35", "qwen35moe"} {
+	for _, architecture := range []string{"qwen35", "qwen35moe", "qwen3next", "qwen3next-legacy"} {
 		for _, recurrent := range []bool{false, true} {
+			if architecture == "qwen3next-legacy" && !recurrent {
+				continue
+			}
 			name := architecture + "/attention"
 			if recurrent {
 				name = architecture + "/recurrent"
@@ -623,8 +631,11 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				builder := tensor.NewBuilder()
 				spec := qwen35ExecutorSpec()
-				if architecture == "qwen35moe" {
+				if architecture == "qwen35moe" || architecture == "qwen3next" || architecture == "qwen3next-legacy" {
 					spec.Architecture = architecture
+					if architecture == "qwen3next-legacy" {
+						spec.Architecture = "qwen3next"
+					}
 					spec.ExpertCount = 4
 					spec.ExpertUsedCount = 2
 					spec.ExpertFeedForward = 6
@@ -633,6 +644,12 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 				}
 				input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 				weights, feeds := qwen35ExecutorWeights(builder, spec, recurrent)
+				if architecture == "qwen3next-legacy" {
+					legacyQKVZ := builder.Input("ssm_in", dtype.F32, tensor.MustShape(8, 12))
+					feeds[legacyQKVZ] = patternedValue(legacyQKVZ.Shape, 61, 0.02, -0.03)
+					weights.AttentionQKV = legacyQKVZ
+					weights.AttentionGate = nil
+				}
 				feeds[input] = patternedValue(input.Shape, 17, 0.04, -0.08)
 				var convState, ssmState *tensor.Tensor
 				if recurrent {
@@ -770,7 +787,7 @@ func qwen35ExecutorWeights(
 			0.9,
 		),
 	}
-	if spec.Architecture == "qwen35moe" {
+	if spec.Architecture == "qwen35moe" || spec.Architecture == "qwen3next" {
 		expertWidth := uint64(spec.ExpertFeedForward)
 		experts := uint64(spec.ExpertCount)
 		sharedWidth := uint64(spec.SharedExpertFF)
@@ -880,6 +897,13 @@ func qwen35ExecutorWeights(
 		0.02,
 		-0.01,
 	)
+	if spec.Architecture == "qwen3next" {
+		result.SSMBeta = nil
+		result.SSMAlpha = nil
+		result.SSMBetaAlpha = input(
+			"ssm_ba", tensor.MustShape(embedding, 2*valueHeads), 0.02, -0.01,
+		)
+	}
 	result.SSMNorm = input("ssm_norm", tensor.MustShape(stateWidth), 0.02, 0.95)
 	result.SSMOutput = input(
 		"ssm_out",

@@ -4972,6 +4972,108 @@ func TestBuildQwen35MoEBlocks(t *testing.T) {
 	}
 }
 
+func TestBuildQwen3NextBlocks(t *testing.T) {
+	for _, recurrent := range []bool{false, true} {
+		name := "attention"
+		if recurrent {
+			name = "recurrent"
+		}
+		t.Run(name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := qwen35TestSpec()
+			spec.Architecture = "qwen3next"
+			spec.ExpertCount = 4
+			spec.ExpertUsedCount = 2
+			spec.ExpertFeedForward = 6
+			spec.SharedExpertFF = 10
+			spec.ExpertWeightsScale = 1.25
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := qwen35AttentionInputs(builder, spec)
+			var convState, ssmState *tensor.Tensor
+			if recurrent {
+				weights = qwen35RecurrentInputs(builder, spec)
+				weights.SSMBeta = nil
+				weights.SSMAlpha = nil
+				weights.SSMBetaAlpha = builder.Input("ssm_ba", dtype.F32, tensor.MustShape(8, 4))
+				convState = builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
+				ssmState = builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+			}
+			setQwen35MoEInputs(builder, spec, &weights)
+			result, err := BuildQwen35BlockCached(
+				builder, input, spec, weights, []uint32{0, 1}, recurrent,
+				nil, nil, convState, ssmState,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var moe, rope, repeatInterleave int
+			for _, node := range nodes {
+				if node.Op == tensor.OpMoE {
+					moe++
+				}
+				if node.Op == tensor.OpRoPENeoX {
+					rope++
+				}
+				if node.Op == tensor.OpGatedDeltaNet &&
+					node.Attrs.(tensor.GatedDeltaNetAttributes).RepeatInterleave {
+					repeatInterleave++
+				}
+			}
+			if moe != 1 || (!recurrent && rope != 2) || (recurrent && repeatInterleave != 1) {
+				t.Fatalf(
+					"Qwen3-Next ops: MoE=%d NeoX=%d repeat-interleave=%d",
+					moe, rope, repeatInterleave,
+				)
+			}
+		})
+	}
+}
+
+func TestBuildQwen3NextLegacyQKVZBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := qwen35TestSpec()
+	spec.Architecture = "qwen3next"
+	spec.ExpertCount = 4
+	spec.ExpertUsedCount = 2
+	spec.ExpertFeedForward = 6
+	spec.SharedExpertFF = 10
+	spec.ExpertWeightsScale = 1
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := qwen35RecurrentInputs(builder, spec)
+	weights.AttentionQKV = builder.Input("ssm_in", dtype.F32, tensor.MustShape(8, 12))
+	weights.AttentionGate = nil
+	weights.SSMBeta = nil
+	weights.SSMAlpha = nil
+	weights.SSMBetaAlpha = builder.Input("ssm_ba", dtype.F32, tensor.MustShape(8, 4))
+	setQwen35MoEInputs(builder, spec, &weights)
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+	result, err := BuildQwen35BlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, true,
+		nil, nil, convState, ssmState,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var groupSlices int
+	for _, node := range nodes {
+		if node.Op == tensor.OpGroupSlice {
+			groupSlices++
+		}
+	}
+	if groupSlices < 9 {
+		t.Fatalf("Qwen3-Next legacy QKVZ group slices = %d, want at least 9", groupSlices)
+	}
+}
+
 func qwen35TestSpec() Spec {
 	return Spec{
 		Architecture:          "qwen35",

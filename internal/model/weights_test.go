@@ -3252,6 +3252,62 @@ func TestReadWeightsQwen35MoEAttention(t *testing.T) {
 	}
 }
 
+func TestReadWeightsQwen3NextRecurrentLayouts(t *testing.T) {
+	for _, legacy := range []bool{false, true} {
+		name := "optimized"
+		if legacy {
+			name = "legacy_qkvz"
+		}
+		t.Run(name, func(t *testing.T) {
+			spec := Spec{
+				Architecture: "qwen3next", BlockCount: 1, EmbeddingLength: 8,
+				FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4,
+				ValueLength: 4, VocabularySize: 32, ExpertCount: 4, ExpertUsedCount: 2,
+				ExpertFeedForward: 6, SharedExpertFF: 10, ExpertWeightsScale: 1.25,
+				SSMConvKernel: 3, SSMInnerSize: 4, SSMStateSize: 2, SSMTimeStepRank: 2,
+				SSMGroupCount: 1, RecurrentLayers: []bool{true},
+			}
+			tensors := []gguf.TensorInfo{
+				tensorInfo("token_embd.weight", 8, 32),
+				tensorInfo("output_norm.weight", 8),
+				tensorInfo("blk.0.attn_norm.weight", 8),
+				tensorInfo("blk.0.post_attention_norm.weight", 8),
+				tensorInfo("blk.0.ssm_conv1d.weight", 3, 8),
+				tensorInfo("blk.0.ssm_dt.bias", 2),
+				tensorInfo("blk.0.ssm_a", 2),
+				tensorInfo("blk.0.ssm_ba.weight", 8, 4),
+				tensorInfo("blk.0.ssm_norm.weight", 2),
+				tensorInfo("blk.0.ssm_out.weight", 4, 8),
+				tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+				tensorInfo("blk.0.ffn_gate_up_exps.weight", 8, 12, 4),
+				tensorInfo("blk.0.ffn_down_exps.weight", 6, 8, 4),
+				tensorInfo("blk.0.ffn_gate_inp_shexp.weight", 8),
+				tensorInfo("blk.0.ffn_gate_shexp.weight", 8, 10),
+				tensorInfo("blk.0.ffn_up_shexp.weight", 8, 10),
+				tensorInfo("blk.0.ffn_down_shexp.weight", 10, 8),
+			}
+			if legacy {
+				tensors = append(tensors, tensorInfo("blk.0.ssm_in.weight", 8, 12))
+			} else {
+				tensors = append(tensors,
+					tensorInfo("blk.0.attn_qkv.weight", 8, 8),
+					tensorInfo("blk.0.attn_gate.weight", 8, 4),
+				)
+			}
+			weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			layer := weights.Layers[0]
+			if !layer.Recurrent || layer.AttentionQKV == nil || layer.SSMBetaAlpha == nil ||
+				(layer.AttentionGate == nil) != legacy || layer.FeedForwardGateUpExperts == nil ||
+				layer.FeedForwardSharedRouter == nil {
+				t.Fatalf("unexpected Qwen3-Next catalog: %+v", layer)
+			}
+		})
+	}
+}
+
 func TestReadRealQwen35Catalog(t *testing.T) {
 	path := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
 	if path == "" {

@@ -191,7 +191,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		} else {
 			recurrent = []*gguf.TensorInfo{
 				info.AttentionQKV, info.AttentionGate, info.SSMConv1D, info.SSMTimeStep,
-				info.SSMA, info.SSMBeta, info.SSMAlpha, info.SSMNorm, info.SSMOutput,
+				info.SSMA, info.SSMBeta, info.SSMAlpha, info.SSMBetaAlpha, info.SSMNorm, info.SSMOutput,
 			}
 		}
 		for _, item := range recurrent {
@@ -332,6 +332,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.SSMA, &result.SSMA},
 		{info.SSMBeta, &result.SSMBeta},
 		{info.SSMAlpha, &result.SSMAlpha},
+		{info.SSMBetaAlpha, &result.SSMBetaAlpha},
 		{info.SSMNorm, &result.SSMNorm},
 		{info.SSMOutput, &result.SSMOutput},
 		{info.ShortConvKernel, &result.ShortConvKernel},

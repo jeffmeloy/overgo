@@ -1174,6 +1174,7 @@ func launchNode(
 		runtime.KeepAlive(count)
 		return err
 	case tensor.OpGatedDeltaNet:
+		attributes := node.Attrs.(tensor.GatedDeltaNetAttributes)
 		size, err := uint32Checked(node.Inputs[2].Shape.Dims[0], "GatedDeltaNet state width")
 		if err != nil {
 			return err
@@ -1206,6 +1207,10 @@ func launchNode(
 			return errors.New("GatedDeltaNet launch count exceeds uint32")
 		}
 		count := heads * sequences
+		var repeatInterleave uint32
+		if attributes.RepeatInterleave {
+			repeatInterleave = 1
+		}
 		query := pointers[node.Inputs[0]]
 		key := pointers[node.Inputs[1]]
 		value := pointers[node.Inputs[2]]
@@ -1227,6 +1232,7 @@ func launchNode(
 			unsafe.Pointer(&tokens),
 			unsafe.Pointer(&sequences),
 			unsafe.Pointer(&gateWidth),
+			unsafe.Pointer(&repeatInterleave),
 		}
 		err = launch1D(state, functions.gatedDeltaNet, count, args)
 		runtime.KeepAlive(query)
@@ -1243,6 +1249,7 @@ func launchNode(
 		runtime.KeepAlive(tokens)
 		runtime.KeepAlive(sequences)
 		runtime.KeepAlive(gateWidth)
+		runtime.KeepAlive(repeatInterleave)
 		return err
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)

@@ -83,6 +83,7 @@ type HostLayer struct {
 	SSMA             *reference.Value
 	SSMBeta          *reference.Value
 	SSMAlpha         *reference.Value
+	SSMBetaAlpha     *reference.Value
 	SSMNorm          *reference.Value
 	SSMOutput        *reference.Value
 }
@@ -329,6 +330,15 @@ func LoadHostLayer(
 		}{&result.FeedForwardNorm, info.FeedForwardNorm})
 	}
 	if info.Recurrent {
+		if info.ShortConvKernel != nil && (info.ShortConvInput == nil || info.ShortConvOutput == nil) {
+			return HostLayer{}, errors.New("host recurrent convolution catalog is incomplete")
+		}
+		if info.ShortConvKernel == nil &&
+			(info.AttentionQKV == nil || info.SSMConv1D == nil || info.SSMTimeStep == nil ||
+				info.SSMA == nil || info.SSMNorm == nil || info.SSMOutput == nil ||
+				(info.SSMBetaAlpha == nil && (info.SSMBeta == nil || info.SSMAlpha == nil))) {
+			return HostLayer{}, errors.New("host recurrent layer catalog is incomplete")
+		}
 		optionalItems := []struct {
 			destination **reference.Value
 			info        *gguf.TensorInfo
@@ -381,6 +391,10 @@ func LoadHostLayer(
 				struct {
 					destination **reference.Value
 					info        *gguf.TensorInfo
+				}{&result.SSMBetaAlpha, info.SSMBetaAlpha},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
 				}{&result.SSMNorm, info.SSMNorm},
 				struct {
 					destination **reference.Value
@@ -390,7 +404,7 @@ func LoadHostLayer(
 		}
 		for _, item := range optionalItems {
 			if item.info == nil {
-				return HostLayer{}, errors.New("host recurrent layer catalog is incomplete")
+				continue
 			}
 			value, valueErr := LoadHostTensor(ctx, file, *item.info)
 			if valueErr != nil {
@@ -587,17 +601,24 @@ func (layer *HostLayer) GraphInputs(
 	if layer.FeedForwardNormBias != nil {
 		result.FeedForwardNormBias = input("ffn_norm.bias", *layer.FeedForwardNormBias)
 	}
-	if layer.AttentionOutput.Shape.Rank == 0 {
-		// Attention-free layer.
-	} else if layer.AttentionQKV != nil {
+	if layer.AttentionQKV != nil {
 		result.AttentionQKV = input("attn_qkv.weight", *layer.AttentionQKV)
-		if layer.AttentionGate != nil {
-			result.AttentionGate = input("attn_gate.weight", *layer.AttentionGate)
+		if layer.SSMConv1D != nil {
+			if layer.AttentionGate != nil {
+				result.AttentionGate = input("attn_gate.weight", *layer.AttentionGate)
+			}
 			result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
 			result.SSMTimeStep = input("ssm_dt.bias", *layer.SSMTimeStep)
 			result.SSMA = input("ssm_a", *layer.SSMA)
-			result.SSMBeta = input("ssm_beta.weight", *layer.SSMBeta)
-			result.SSMAlpha = input("ssm_alpha.weight", *layer.SSMAlpha)
+			if layer.SSMBeta != nil {
+				result.SSMBeta = input("ssm_beta.weight", *layer.SSMBeta)
+			}
+			if layer.SSMAlpha != nil {
+				result.SSMAlpha = input("ssm_alpha.weight", *layer.SSMAlpha)
+			}
+			if layer.SSMBetaAlpha != nil {
+				result.SSMBetaAlpha = input("ssm_ba.weight", *layer.SSMBetaAlpha)
+			}
 			result.SSMNorm = input("ssm_norm.weight", *layer.SSMNorm)
 			result.SSMOutput = input("ssm_out.weight", *layer.SSMOutput)
 		} else {
@@ -607,6 +628,8 @@ func (layer *HostLayer) GraphInputs(
 		result.ShortConvKernel = input("shortconv.conv.weight", *layer.ShortConvKernel)
 		result.ShortConvInput = input("shortconv.in_proj.weight", *layer.ShortConvInput)
 		result.ShortConvOutput = input("shortconv.out_proj.weight", *layer.ShortConvOutput)
+	} else if layer.AttentionOutput.Shape.Rank == 0 {
+		// Attention-free.
 	} else if layer.AttentionKVAMQA != nil {
 		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)

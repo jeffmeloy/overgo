@@ -2,7 +2,7 @@
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
 Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1 and DeepSeek2-OCR text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
-through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3.5/Qwen3.5-MoE hybrid
+through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3 and Gemma Embedding,
 ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4, GPT-2/GPT-NeoX, Granite/GraniteMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
@@ -377,7 +377,8 @@ end-to-end integration tests. Set `LLAMACPP2GO_QWEN35_MODEL` to a compatible
 Qwen3.5 hybrid GGUF to validate gated full attention, recurrent convolution,
 fused delta-net state, serialization, and resumed generation. Qwen3.5-MoE
 catalog, graph, and CUDA differential tests use synthetic fixtures until a
-compatible local GGUF is available.
+compatible local GGUF is available. Qwen3-Next optimized and legacy recurrent
+catalogs plus both hybrid block types are likewise validated synthetically.
 Set `LLAMACPP2GO_BONSAI_MODEL` to the local Bonsai 27B Q1_0 Qwen3.5 fixture
 to validate real-model native one-bit weights against the pinned CPU oracle.
 Set `LLAMACPP2GO_GEMMA3_MODEL` and `LLAMACPP2GO_UMT5_MODEL` to run the

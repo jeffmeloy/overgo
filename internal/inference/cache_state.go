@@ -120,7 +120,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			uint64(r.spec.LayerKVHeadCount(uint32(index))),
 			uint64(cache.Tokens),
 		)
-		if r.spec.Architecture == "qwen35" &&
+		if isQwenGDNArchitecture(r.spec.Architecture) &&
 			index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent {
 			convChannels := uint64(r.spec.SSMInnerSize) +

@@ -460,6 +460,10 @@ func (r *Runner) layerDeviceInputs(
 				struct {
 					info        *gguf.TensorInfo
 					destination **tensor.Tensor
+				}{info.SSMBetaAlpha, &result.SSMBetaAlpha},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
 				}{info.SSMNorm, &result.SSMNorm},
 				struct {
 					info        *gguf.TensorInfo
@@ -469,7 +473,7 @@ func (r *Runner) layerDeviceInputs(
 		}
 		for _, item := range recurrent {
 			if item.info == nil {
-				return result, nil, errors.New("inference: recurrent layer catalog is incomplete")
+				continue
 			}
 			if *item.destination, err = input(*item.info); err != nil {
 				return result, nil, err
@@ -1001,7 +1005,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: nextPosition + uint32(len(tokenIDs)),
 	}
-	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" && r.spec.Architecture != "qwen35moe" &&
+	if r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" {
 		return r.forwardDenseLayersPreloaded(ctx, activation, embeddingSkip, positions, cache, nextCache)
@@ -1280,7 +1284,7 @@ func (r *Runner) runLayerCached(
 	past *LayerCache,
 	embeddingSkip reference.Value,
 ) (reference.Value, LayerCache, error) {
-	if r.spec.Architecture == "qwen35" || r.spec.Architecture == "qwen35moe" {
+	if isQwenGDNArchitecture(r.spec.Architecture) {
 		return r.runQwen35LayerCached(
 			ctx,
 			activation,
@@ -1855,7 +1859,7 @@ func (r *Runner) Generate(
 				}
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
-					(r.spec.Architecture == "qwen35" || r.spec.Architecture == "qwen35moe") {
+					isQwenGDNArchitecture(r.spec.Architecture) {
 					cached = 0
 				}
 				if cached > 0 {
@@ -1930,7 +1934,7 @@ func (r *Runner) Generate(
 			} else {
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
-					(r.spec.Architecture == "qwen35" || r.spec.Architecture == "qwen35moe") {
+					isQwenGDNArchitecture(r.spec.Architecture) {
 					cached = 0
 				}
 				if cached > 0 {
@@ -2457,6 +2461,10 @@ func addOutputBias(logits, bias []float32) error {
 	return nil
 }
 
+func isQwenGDNArchitecture(architecture string) bool {
+	return architecture == "qwen3next" || architecture == "qwen35" || architecture == "qwen35moe"
+}
+
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
 	names := map[string]struct{}{weights.TokenEmbedding.Name: {}}
 	if weights.PositionEmbedding != nil {
@@ -2506,6 +2514,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 				layer.SSMA,
 				layer.SSMBeta,
 				layer.SSMAlpha,
+				layer.SSMBetaAlpha,
 				layer.SSMNorm,
 				layer.SSMOutput,
 				layer.ShortConvKernel,

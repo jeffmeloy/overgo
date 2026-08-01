@@ -356,7 +356,8 @@ extern "C" __global__ void gated_delta_net_f32(
         unsigned int heads,
         unsigned int tokens,
         unsigned int sequences,
-        unsigned int gate_width) {
+        unsigned int gate_width,
+        unsigned int repeat_interleave) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int count = heads * sequences;
     if (index >= count) {
@@ -377,12 +378,16 @@ extern "C" __global__ void gated_delta_net_f32(
     for (unsigned int token = 0; token < tokens; ++token) {
         const unsigned int value_base =
             ((sequence * tokens + token) * heads + head) * size;
+        const unsigned int query_head = repeat_interleave
+            ? head / (heads / query_heads)
+            : head % query_heads;
+        const unsigned int key_head = repeat_interleave
+            ? head / (heads / key_heads)
+            : head % key_heads;
         const unsigned int query_base =
-            ((sequence * tokens + token) * query_heads +
-                head % query_heads) * size;
+            ((sequence * tokens + token) * query_heads + query_head) * size;
         const unsigned int key_base =
-            ((sequence * tokens + token) * key_heads +
-                head % key_heads) * size;
+            ((sequence * tokens + token) * key_heads + key_head) * size;
         const unsigned int gate_base =
             ((sequence * tokens + token) * heads + head) * gate_width;
         const float beta_value =

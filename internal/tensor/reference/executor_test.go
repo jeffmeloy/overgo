@@ -2,6 +2,7 @@ package reference
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"llamacpp2go/internal/tensor"
@@ -267,6 +268,43 @@ func TestExecuteGatedDeltaNet(t *testing.T) {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
 			t.Fatalf("GatedDeltaNet output[%d] = %v, want %v", index, value, want[index])
 		}
+	}
+}
+
+func TestExecuteGatedDeltaNetRepeatInterleave(t *testing.T) {
+	builder := tensor.NewBuilder()
+	q := builder.Input("q", dtype.F32, tensor.MustShape(2, 2, 1, 1))
+	k := builder.Input("k", dtype.F32, tensor.MustShape(2, 2, 1, 1))
+	v := builder.Input("v", dtype.F32, tensor.MustShape(2, 4, 1, 1))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 4, 1, 1))
+	beta := builder.Input("beta", dtype.F32, tensor.MustShape(1, 4, 1, 1))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 4, 1))
+	cyclic := builder.GatedDeltaNet(q, k, v, gate, beta, state)
+	interleaved := builder.GatedDeltaNetRepeatInterleave(q, k, v, gate, beta, state)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	qValue, _ := NewValue(q.Shape, []float32{1, 0, 0, 1})
+	kValue, _ := NewValue(k.Shape, []float32{1, 0, 1, 0})
+	vValue, _ := NewValue(v.Shape, []float32{1, 1, 1, 1, 1, 1, 1, 1})
+	gateValue, _ := NewValue(gate.Shape, make([]float32, 4))
+	betaValue, _ := NewValue(beta.Shape, []float32{1, 1, 1, 1})
+	stateValue, _ := NewValue(state.Shape, make([]float32, 16))
+	results, err := Execute([]*tensor.Tensor{cyclic, interleaved}, map[*tensor.Tensor]Value{
+		q: qValue, k: kValue, v: vValue, gate: gateValue,
+		beta: betaValue, state: stateValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scale := float32(1 / math.Sqrt(2))
+	for index, want := range []float32{scale, scale, scale, scale, 0, 0, 0, 0} {
+		if got := results[interleaved].Data[index]; math.Abs(float64(got-want)) > 1e-6 {
+			t.Fatalf("repeat-interleave output[%d] = %v, want %v", index, got, want)
+		}
+	}
+	if reflect.DeepEqual(results[cyclic].Data[:8], results[interleaved].Data[:8]) {
+		t.Fatal("cyclic and repeat-interleave head mapping unexpectedly match")
 	}
 }
 

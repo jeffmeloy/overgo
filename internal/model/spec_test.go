@@ -2639,6 +2639,44 @@ func TestReadQwen35Spec(t *testing.T) {
 	}
 }
 
+func TestReadQwen3NextSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen3next"),
+		metadata("qwen3next.block_count", gguf.ValueTypeUint32, uint32(48)),
+		metadata("qwen3next.context_length", gguf.ValueTypeUint32, uint32(262144)),
+		metadata("qwen3next.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("qwen3next.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("qwen3next.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen3next.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen3next.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3next.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3next.rope.freq_base", gguf.ValueTypeFloat32, float32(10_000_000)),
+		metadata("qwen3next.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3next.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("qwen3next.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("qwen3next.ssm.inner_size", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3next.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen3next.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen3next.ssm.group_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen3next.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3next.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen3next.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("qwen3next.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(10)),
+		metadata("qwen3next.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "qwen3next" || spec.BlockCount != 48 ||
+		spec.RopeDimensionCount != 4 || spec.ExpertCount != 4 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+		spec.SharedExpertFF != 10 || spec.ExpertWeightsScale != 1.25 ||
+		!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(3) {
+		t.Fatalf("unexpected Qwen3-Next spec: %+v", spec)
+	}
+}
+
 func TestReadQwen35MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen35moe"),

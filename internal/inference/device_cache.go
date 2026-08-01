@@ -368,7 +368,7 @@ func (r *Runner) forwardDeviceCachedLocked(
 		if r.spec.Architecture == "talkie" {
 			graphWeights.EmbeddingSkip = embeddingSkip
 		}
-		if r.spec.Architecture == "qwen35" {
+		if isQwenGDNArchitecture(r.spec.Architecture) {
 			var pastKey, pastValue, convState, ssmState *tensor.Tensor
 			if past != nil {
 				first := past.Keys[layerIndex]

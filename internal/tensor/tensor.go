@@ -160,6 +160,10 @@ type MoEAttributes struct {
 	FusedGateUp       bool
 }
 
+type GatedDeltaNetAttributes struct {
+	RepeatInterleave bool
+}
+
 type MoERouting uint32
 
 const (
@@ -377,6 +381,17 @@ func (b *Builder) SSMConv(input, weights *Tensor) *Tensor {
 // sequences], and state is [state,state,valueHeads,sequences]; output
 // packs attention values followed by newest state snapshot
 func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
+	return b.gatedDeltaNet(q, k, v, gate, beta, state, false)
+}
+
+func (b *Builder) GatedDeltaNetRepeatInterleave(q, k, v, gate, beta, state *Tensor) *Tensor {
+	return b.gatedDeltaNet(q, k, v, gate, beta, state, true)
+}
+
+func (b *Builder) gatedDeltaNet(
+	q, k, v, gate, beta, state *Tensor,
+	repeatInterleave bool,
+) *Tensor {
 	if b.err != nil {
 		return nil
 	}
@@ -413,7 +428,10 @@ func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
 		b.setError(err)
 		return nil
 	}
-	return b.add("", dtype.F32, shape, OpGatedDeltaNet, inputs, nil)
+	return b.add(
+		"", dtype.F32, shape, OpGatedDeltaNet, inputs,
+		GatedDeltaNetAttributes{RepeatInterleave: repeatInterleave},
+	)
 }
 
 // MoE: softmax top-k SwiGLU; GGUF expert layouts.

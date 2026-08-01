@@ -139,6 +139,41 @@ func TestHostLayerGraphInputsPermitDenseFusedQKV(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitFusedBetaAlphaRecurrent(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	qkv := value(8, 8)
+	conv := value(3, 8)
+	dt := value(2)
+	a := value(2)
+	ba := value(8, 4)
+	norm := value(2)
+	output := value(4, 8)
+	layer := HostLayer{
+		AttentionNorm:   value(8),
+		AttentionQKV:    &qkv,
+		SSMConv1D:       &conv,
+		SSMTimeStep:     &dt,
+		SSMA:            &a,
+		SSMBetaAlpha:    &ba,
+		SSMNorm:         &norm,
+		SSMOutput:       &output,
+		FeedForwardNorm: value(8),
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 9 || graph.AttentionQKV == nil || graph.AttentionGate != nil ||
+		graph.SSMBetaAlpha == nil || graph.SSMBeta != nil || graph.SSMAlpha != nil {
+		t.Fatalf("unexpected recurrent graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitParallelDenseAndMoE(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

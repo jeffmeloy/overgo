@@ -967,9 +967,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); err != nil {
 			return Spec{}, err
 		}
-		if pattern, ok := values[prefix+"attention.sliding_window_pattern"]; ok && pattern.Type != gguf.ValueTypeUint32 &&
-			(architecture != "cohere2moe" || pattern.Type != gguf.ValueTypeArray || pattern.ArrayType != gguf.ValueTypeBool) {
-			return Spec{}, errors.New("Cohere2 array sliding attention patterns are not supported")
+		if pattern, ok := values[prefix+"attention.sliding_window_pattern"]; ok &&
+			pattern.Type != gguf.ValueTypeUint32 &&
+			(pattern.Type != gguf.ValueTypeArray || pattern.ArrayType != gguf.ValueTypeBool) {
+			return Spec{}, errors.New("Cohere2 sliding attention pattern has an invalid type")
 		}
 	}
 	if architecture == "stablelm" {
@@ -2583,7 +2584,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			); ok {
 				spec.SlidingPattern = value
 			}
-			if architecture == "cohere2moe" {
+			patternValue := values[prefix+"attention.sliding_window_pattern"]
+			if (architecture == "cohere2" || architecture == "cohere2moe") &&
+				patternValue.Type == gguf.ValueTypeArray {
 				if layers, ok, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
 					return Spec{}, layersErr
 				} else if ok {
@@ -2593,7 +2596,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 					spec.SlidingLayers = append([]bool(nil), layers...)
 				}
 			}
-			if architecture == "cohere2" {
+			if architecture == "cohere2" && len(spec.SlidingLayers) == 0 {
 				spec.NoRopeLayerStep = spec.SlidingPattern
 			}
 		}
@@ -2825,6 +2828,9 @@ func (s Spec) LayerSharedSwiGLUClampLimit(block uint32) float32 {
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
+	if s.Architecture == "cohere2" && len(s.SlidingLayers) != 0 {
+		return !s.RopeDisabled && block < s.BlockCount && s.IsSlidingLayer(block)
+	}
 	if s.Architecture == "cohere2moe" {
 		return !s.RopeDisabled && block < s.BlockCount &&
 			(block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))

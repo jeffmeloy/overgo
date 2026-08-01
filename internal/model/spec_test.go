@@ -1992,6 +1992,41 @@ func TestReadCohere2Spec(t *testing.T) {
 	}
 }
 
+func TestReadCohere2ArraySlidingSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "cohere2"),
+		metadata("cohere2.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("cohere2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("cohere2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("cohere2.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("cohere2.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("cohere2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("cohere2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("cohere2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("cohere2.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("cohere2.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("cohere2.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		metadata("cohere2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("cohere2.logit_scale", gguf.ValueTypeFloat32, float32(0.5)),
+		{
+			Key: "cohere2.attention.sliding_window_pattern",
+			Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool,
+				Data: []bool{true, false, true, false}},
+		},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spec.SlidingLayers) != 4 || spec.NoRopeLayerStep != 0 ||
+		!spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
+		!spec.IsSlidingLayer(2) || spec.IsSlidingLayer(3) ||
+		!spec.UsesRoPE(0) || spec.UsesRoPE(1) ||
+		!spec.UsesRoPE(2) || spec.UsesRoPE(3) {
+		t.Fatalf("unexpected Cohere2 array spec: %+v", spec)
+	}
+}
+
 func TestReadCohere2MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "cohere2moe"),

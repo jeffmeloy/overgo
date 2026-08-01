@@ -19,7 +19,7 @@
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
 | Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE with single-block MTP drafting, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek 3.2/DeepSeek 4/DeepSeek2-OCR, DFlash paired-target block drafting, Eagle3 paired-target autoregressive drafting, ERNIE 4.5-MoE, Gemma3n AltUp/Laurel, Gemma4 with unified image/audio projection plus shared-context Gemma4 Assistant drafting, GLM-DSA/GLM4-MoE, Granite Hybrid/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3 with greedy/stochastic multi-head MTP drafting, Jamba, Kimi Linear KDA/no-RoPE MLA, Mamba v1/v2, Falcon-H1 parallel attention/Mamba2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniMax-M2, Mistral 3/Mistral 3 MoE/Mistral 4, PLaMo2, SmallThinker, Step3.5 with greedy/stochastic multi-head MTP drafting, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE with greedy and stochastic Qwen3.5 single-block MTP drafting plus Qwen3.5 image projection, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3 MoE/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, T5 encoder-decoder sessions, WavTokenizer semantic-token audio-feature decoding, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM text/projected-visual decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, MPT, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Seven tokenizer corpora match 326 upstream cases; Gemma4 raw UTF-8 BPE, BERT WordPiece, and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
-| CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
+| CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, JSON-Schema, and native/OpenAI projected image/audio HTTP paths |
 | Local verification | Complete | Unit and optional CUDA integration script |
 
 ## Validated milestones
@@ -245,11 +245,15 @@
   token/string sequences, and bounded heterogeneous batches. Exact token IDs
   enter `EmbedTokens` directly; on real Qwen3 Q8, `[9707]` is byte-for-byte
   identical to textual `Hello` and retains unit L2 norm.
-- Chat messages accept both string bodies and bounded OpenAI text content-part
-  arrays; non-text parts remain explicit errors. Public `/v1/health` aliases
+- Chat messages accept string bodies and bounded OpenAI content-part arrays.
+  One image or WAV-audio part in a single user turn uses native projected
+  generation for buffered and streaming Chat requests; unsupported history,
+  multiple media, remote image URLs, tools, and multimodal token counting fail
+  explicitly. Public `/v1/health` aliases
   the existing health probe. Authenticated `/responses` and
   `/v1/responses` convert text or text-message inputs through the same native
-  formatter and return pinned Responses output/usage objects. Streaming emits
+  formatter and accept one base64 `input_image` user part through projected
+  generation. They return pinned Responses output/usage objects. Streaming emits
   the named created/in-progress/item/content/delta/done/completed SSE
   lifecycle without a `[DONE]` marker. Flat function definitions,
   auto/none/required/named selection, replayable `function_call` and

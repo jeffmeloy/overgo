@@ -116,7 +116,7 @@ func buildBERTEncoderBlock(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "nomic-bert" {
+	if spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" {
 		return DenseBlockResult{}, errors.New("BERT-family block requires a supported encoder architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -187,7 +187,7 @@ func buildBERTEncoderBlock(
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
-	if spec.Architecture == "nomic-bert" {
+	if spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" {
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
@@ -657,7 +657,7 @@ func BuildDenseBlockCachedForLayer(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" {
+	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" {
 		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"

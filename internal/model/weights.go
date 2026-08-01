@@ -161,7 +161,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.PositionEmbedding = &positionEmbedding
 	}
-	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" {
+	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" {
 		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
 			if typeEmbedding.Dimensions != 2 ||
 				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||
@@ -217,12 +217,12 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	} else if spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe" {
 		outputNormName = "token_embd_norm.weight"
 	}
-	if !spec.UsesUnweightedLayerNorm() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "nomic-bert" {
+	if !spec.UsesUnweightedLayerNorm() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" {
 		if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
 			return Weights{}, err
 		}
 	}
-	if spec.RequiresLayerNormBias() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "nomic-bert" {
+	if spec.RequiresLayerNormBias() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" {
 		outputNormBias, biasErr := required("output_norm.bias", uint64(spec.EmbeddingLength))
 		if biasErr != nil {
 			return Weights{}, biasErr
@@ -673,7 +673,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "minimax-m2" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -973,7 +973,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if hasPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
 			attentionPostNormName := "post_attention_norm.weight"
 			feedForwardPostNormName := "post_ffw_norm.weight"
-			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" || spec.Architecture == "grok" {
+			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "grok" {
 				attentionPostNormName = "attn_output_norm.weight"
 				feedForwardPostNormName = "layer_output_norm.weight"
 				if spec.Architecture == "grok" {
@@ -998,7 +998,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionPostNorm = &attentionPostNorm
 			layer.FeedForwardPostNorm = &feedForwardPostNorm
-			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "nomic-bert" {
+			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" {
 				attentionBias, biasErr := required(prefix+"attn_output_norm.bias", uint64(spec.EmbeddingLength))
 				if biasErr != nil {
 					return Weights{}, biasErr

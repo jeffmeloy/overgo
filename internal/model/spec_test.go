@@ -510,6 +510,31 @@ func TestReadJinaBERTV2SpecUsesBidirectionalALiBi(t *testing.T) {
 	}
 }
 
+func TestReadJinaBERTV3SpecUsesBidirectionalNeoXRoPE(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "jina-bert-v3"),
+		metadata("jina-bert-v3.block_count", gguf.ValueTypeUint32, uint32(24)),
+		metadata("jina-bert-v3.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("jina-bert-v3.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("jina-bert-v3.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("jina-bert-v3.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("jina-bert-v3.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jina-bert-v3.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("tokenizer.ggml.token_type_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "jina-bert-v3" || !spec.NonCausalAttention || !spec.IsEncoderOnly() ||
+		spec.HeadCountKV != 2 || spec.KeyLength != 4 || spec.ValueLength != 4 ||
+		spec.RopeDimensionCount != 4 || spec.RopeFrequencyBase != 10000 ||
+		spec.TokenTypeCount != 2 || !spec.UsesLayerNorm() || usesNormalRoPE(spec.Architecture) ||
+		!usesPostOnlyNorm(spec.Architecture) || !usesGELU(spec.Architecture) {
+		t.Fatalf("unexpected JinaBERT v3 spec: %+v", spec)
+	}
+}
+
 func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),

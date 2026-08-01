@@ -33,6 +33,7 @@ type LayerGraphWeights struct {
 	AttentionQNormBias       *tensor.Tensor
 	AttentionKNormBias       *tensor.Tensor
 	AttentionPostNorm        *tensor.Tensor
+	AttentionPostNormBias    *tensor.Tensor
 	AttentionRelativeBias    *tensor.Tensor
 	AttentionOutputGate      *tensor.Tensor
 	RopeFactors              *tensor.Tensor
@@ -50,6 +51,7 @@ type LayerGraphWeights struct {
 	FeedForwardUpBias        *tensor.Tensor
 	FeedForwardDownBias      *tensor.Tensor
 	FeedForwardPostNorm      *tensor.Tensor
+	FeedForwardPostNormBias  *tensor.Tensor
 	FeedForwardRouter        *tensor.Tensor
 	FeedForwardGateUpExperts *tensor.Tensor
 	FeedForwardGateExperts   *tensor.Tensor
@@ -104,6 +106,103 @@ func ApplyNormalization(
 		return builder.Add(normalized, bias)
 	}
 	return normalized
+}
+
+func buildBERTEncoderBlock(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "bert" {
+		return DenseBlockResult{}, errors.New("BERT block requires bert architecture")
+	}
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("BERT block input shape is incompatible")
+	}
+	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("BERT block position count is incompatible")
+	}
+	if pastKey != nil || pastValue != nil {
+		return DenseBlockResult{}, errors.New("BERT block does not support a KV cache")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention output":            weights.AttentionOutput,
+		"attention post norm":         weights.AttentionPostNorm,
+		"attention post norm bias":    weights.AttentionPostNormBias,
+		"feed-forward up":             weights.FeedForwardUp,
+		"feed-forward down":           weights.FeedForwardDown,
+		"feed-forward post norm":      weights.FeedForwardPostNorm,
+		"feed-forward post norm bias": weights.FeedForwardPostNormBias,
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("BERT block %s weight is nil", name)
+		}
+	}
+	tokens := uint64(len(positions))
+	queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
+	keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
+	valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+	var query, key, value *tensor.Tensor
+	if weights.AttentionQKV != nil {
+		mixed := builder.MulMat(weights.AttentionQKV, input)
+		if weights.AttentionQKVBias != nil {
+			mixed = builder.Add(mixed, weights.AttentionQKVBias)
+		}
+		stride := queryLength + keyLength + valueLength
+		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, tokens)
+		key = builder.Reshape(builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, tokens)
+		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
+	} else {
+		if weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil {
+			return DenseBlockResult{}, errors.New("BERT block Q/K/V weights are incomplete")
+		}
+		query = builder.MulMat(weights.AttentionQ, input)
+		key = builder.MulMat(weights.AttentionK, input)
+		value = builder.MulMat(weights.AttentionV, input)
+		if weights.AttentionQBias != nil {
+			query = builder.Add(query, weights.AttentionQBias)
+		}
+		if weights.AttentionKBias != nil {
+			key = builder.Add(key, weights.AttentionKBias)
+		}
+		if weights.AttentionVBias != nil {
+			value = builder.Add(value, weights.AttentionVBias)
+		}
+	}
+	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
+	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
+	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
+	attention := builder.Attention(query, key, value, float32(1/math.Sqrt(float64(spec.KeyLength))), false)
+	attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if weights.AttentionOutputBias != nil {
+		attention = builder.Add(attention, weights.AttentionOutputBias)
+	}
+	attention = builder.AffineLayerNorm(
+		builder.Add(input, attention), weights.AttentionPostNorm,
+		weights.AttentionPostNormBias, spec.LayerNormEpsilon,
+	)
+	feedForward := builder.MulMat(weights.FeedForwardUp, attention)
+	if weights.FeedForwardUpBias != nil {
+		feedForward = builder.Add(feedForward, weights.FeedForwardUpBias)
+	}
+	feedForward = builder.GELU(feedForward)
+	feedForward = builder.MulMat(weights.FeedForwardDown, feedForward)
+	if weights.FeedForwardDownBias != nil {
+		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+	}
+	output := builder.AffineLayerNorm(
+		builder.Add(attention, feedForward), weights.FeedForwardPostNorm,
+		weights.FeedForwardPostNormBias, spec.LayerNormEpsilon,
+	)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
 }
 
 // BuildT5EncoderBlock: constructs one full, bidirectional T5 encoder block
@@ -503,6 +602,9 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
+	}
+	if spec.Architecture == "bert" {
+		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"

@@ -34,6 +34,7 @@ type LayerWeights struct {
 	AttentionQNormBias       *gguf.TensorInfo
 	AttentionKNormBias       *gguf.TensorInfo
 	AttentionPostNorm        *gguf.TensorInfo
+	AttentionPostNormBias    *gguf.TensorInfo
 	AttentionRelativeBias    *gguf.TensorInfo
 	AttentionOutputGate      *gguf.TensorInfo
 	RopeFactors              *gguf.TensorInfo
@@ -51,6 +52,7 @@ type LayerWeights struct {
 	FeedForwardUpBias        *gguf.TensorInfo
 	FeedForwardDownBias      *gguf.TensorInfo
 	FeedForwardPostNorm      *gguf.TensorInfo
+	FeedForwardPostNormBias  *gguf.TensorInfo
 	FeedForwardRouter        *gguf.TensorInfo
 	FeedForwardGateUpExperts *gguf.TensorInfo
 	FeedForwardGateExperts   *gguf.TensorInfo
@@ -83,6 +85,7 @@ type LayerWeights struct {
 // Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
 	TokenEmbedding         gguf.TensorInfo
+	TokenTypeEmbedding     *gguf.TensorInfo
 	PositionEmbedding      *gguf.TensorInfo
 	TokenEmbeddingNorm     *gguf.TensorInfo
 	TokenEmbeddingNormBias *gguf.TensorInfo
@@ -147,7 +150,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	); err != nil {
 		return Weights{}, err
 	}
-	if spec.Architecture == "gpt2" || spec.Architecture == "starcoder" {
+	if spec.Architecture == "bert" || spec.Architecture == "gpt2" || spec.Architecture == "starcoder" {
 		positionEmbedding, positionErr := required(
 			"position_embd.weight",
 			uint64(spec.EmbeddingLength),
@@ -157,6 +160,26 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, positionErr
 		}
 		result.PositionEmbedding = &positionEmbedding
+	}
+	if spec.Architecture == "bert" {
+		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
+			if typeEmbedding.Dimensions != 2 ||
+				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||
+				typeEmbedding.Shape[1] != uint64(spec.TokenTypeCount) {
+				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", typeEmbedding.Name, typeEmbedding.Shape)
+			}
+			result.TokenTypeEmbedding = &typeEmbedding
+		}
+		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
+		if normErr != nil {
+			return Weights{}, normErr
+		}
+		tokenNormBias, normErr := required("token_embd_norm.bias", uint64(spec.EmbeddingLength))
+		if normErr != nil {
+			return Weights{}, normErr
+		}
+		result.TokenEmbeddingNorm = &tokenNorm
+		result.TokenEmbeddingNormBias = &tokenNormBias
 	}
 	if spec.Architecture == "mpt" {
 		if _, ok := tensors["position_embd.weight"]; ok {
@@ -189,12 +212,12 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	} else if spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe" {
 		outputNormName = "token_embd_norm.weight"
 	}
-	if !spec.UsesUnweightedLayerNorm() {
+	if !spec.UsesUnweightedLayerNorm() && spec.Architecture != "bert" {
 		if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
 			return Weights{}, err
 		}
 	}
-	if spec.RequiresLayerNormBias() {
+	if spec.RequiresLayerNormBias() && spec.Architecture != "bert" {
 		outputNormBias, biasErr := required("output_norm.bias", uint64(spec.EmbeddingLength))
 		if biasErr != nil {
 			return Weights{}, biasErr
@@ -645,7 +668,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -898,11 +921,13 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if hasPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
 			attentionPostNormName := "post_attention_norm.weight"
 			feedForwardPostNormName := "post_ffw_norm.weight"
-			if spec.Architecture == "grok" {
+			if spec.Architecture == "bert" || spec.Architecture == "grok" {
 				attentionPostNormName = "attn_output_norm.weight"
 				feedForwardPostNormName = "layer_output_norm.weight"
-				if _, ok := tensors[prefix+feedForwardPostNormName]; !ok {
-					feedForwardPostNormName = "ffn_post_norm.weight"
+				if spec.Architecture == "grok" {
+					if _, ok := tensors[prefix+feedForwardPostNormName]; !ok {
+						feedForwardPostNormName = "ffn_post_norm.weight"
+					}
 				}
 			}
 			attentionPostNorm, normErr := required(
@@ -921,6 +946,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionPostNorm = &attentionPostNorm
 			layer.FeedForwardPostNorm = &feedForwardPostNorm
+			if spec.Architecture == "bert" {
+				attentionBias, biasErr := required(prefix+"attn_output_norm.bias", uint64(spec.EmbeddingLength))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				feedForwardBias, biasErr := required(prefix+"layer_output_norm.bias", uint64(spec.EmbeddingLength))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				layer.AttentionPostNormBias = &attentionBias
+				layer.FeedForwardPostNormBias = &feedForwardBias
+			}
 		}
 		feedForwardNormName := "ffn_norm.weight"
 		if spec.Architecture == "dbrx" {

@@ -397,6 +397,29 @@ func TestReadEuroBERTSpecIsNonCausalNeoX(t *testing.T) {
 	}
 }
 
+func TestReadBERTSpecUsesLearnedPositions(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "bert"),
+		metadata("bert.block_count", gguf.ValueTypeUint32, uint32(12)),
+		metadata("bert.context_length", gguf.ValueTypeUint32, uint32(512)),
+		metadata("bert.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("bert.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("bert.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("bert.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bert.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("tokenizer.ggml.token_type_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "bert" || !spec.NonCausalAttention || !spec.RopeDisabled ||
+		spec.HeadCountKV != 2 || spec.KeyLength != 4 || spec.ValueLength != 4 ||
+		spec.TokenTypeCount != 2 || !spec.UsesLayerNorm() || !usesPostOnlyNorm(spec.Architecture) {
+		t.Fatalf("unexpected BERT spec: %+v", spec)
+	}
+}
+
 func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),

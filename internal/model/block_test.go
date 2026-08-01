@@ -899,6 +899,58 @@ func TestBuildEuroBERTBlockUsesNonCausalNeoXAttention(t *testing.T) {
 	}
 }
 
+func TestBuildBERTBlockUsesPostNormNonCausalAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "bert", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDisabled: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := LayerGraphWeights{
+		AttentionQKV:            builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionQKVBias:        builder.Input("qkv_bias", dtype.F32, tensor.MustShape(24)),
+		AttentionOutput:         builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionOutputBias:     builder.Input("attn_out_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionPostNorm:       builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionPostNormBias:   builder.Input("attn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:           builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
+		FeedForwardUpBias:       builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(16)),
+		FeedForwardDown:         builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+		FeedForwardDownBias:     builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(8)),
+		FeedForwardPostNorm:     builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardPostNormBias: builder.Input("ffn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention *tensor.Tensor
+	var layerNorm, gelu, rope int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attention = node
+		case tensor.OpLayerNorm:
+			layerNorm++
+		case tensor.OpGELU:
+			gelu++
+		case tensor.OpRoPENormal, tensor.OpRoPENeoX:
+			rope++
+		}
+	}
+	if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Causal ||
+		layerNorm != 2 || gelu != 1 || rope != 0 {
+		t.Fatalf("unexpected BERT graph: attention=%+v LayerNorm=%d GELU=%d RoPE=%d", attention, layerNorm, gelu, rope)
+	}
+}
+
 func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

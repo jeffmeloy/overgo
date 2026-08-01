@@ -38,6 +38,7 @@ type HostLayer struct {
 	AttentionQNormBias       *reference.Value
 	AttentionKNormBias       *reference.Value
 	AttentionPostNorm        *reference.Value
+	AttentionPostNormBias    *reference.Value
 	AttentionRelativeBias    *reference.Value
 	AttentionOutputGate      *reference.Value
 	RopeFactors              *reference.Value
@@ -55,6 +56,7 @@ type HostLayer struct {
 	FeedForwardUpBias        *reference.Value
 	FeedForwardDownBias      *reference.Value
 	FeedForwardPostNorm      *reference.Value
+	FeedForwardPostNormBias  *reference.Value
 	FeedForwardRouter        *reference.Value
 	FeedForwardGateUpExperts *reference.Value
 	FeedForwardGateExperts   *reference.Value
@@ -465,10 +467,12 @@ func LoadHostLayer(
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
 		{info.AttentionOutputBias, &result.AttentionOutputBias},
+		{info.AttentionPostNormBias, &result.AttentionPostNormBias},
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
 		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
+		{info.FeedForwardPostNormBias, &result.FeedForwardPostNormBias},
 		{info.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
@@ -634,9 +638,11 @@ func (layer *HostLayer) GraphInputs(
 		{"attn_k.bias", layer.AttentionKBias, &result.AttentionKBias},
 		{"attn_v.bias", layer.AttentionVBias, &result.AttentionVBias},
 		{"attn_output.bias", layer.AttentionOutputBias, &result.AttentionOutputBias},
+		{"post_attention_norm.bias", layer.AttentionPostNormBias, &result.AttentionPostNormBias},
 		{"ffn_gate.bias", layer.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{"ffn_up.bias", layer.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{"ffn_down.bias", layer.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{"post_ffw_norm.bias", layer.FeedForwardPostNormBias, &result.FeedForwardPostNormBias},
 		{"ffn_norm_exps.weight", layer.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{"ffn_gate.scale", layer.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{"ffn_up.scale", layer.FeedForwardUpScale, &result.FeedForwardUpScale},

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/tensor/reference"
 )
 
 func TestNonCausalRunnerRejectsCacheEntryPoint(t *testing.T) {
@@ -13,6 +14,14 @@ func TestNonCausalRunnerRejectsCacheEntryPoint(t *testing.T) {
 	_, _, err := runner.ForwardCached(context.Background(), nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "do not support KV caching") {
 		t.Fatalf("ForwardCached error = %v", err)
+	}
+}
+
+func TestBERTRunnerRejectsVocabularyLogits(t *testing.T) {
+	runner := &Runner{spec: model.Spec{Architecture: "bert"}}
+	_, err := runner.projectAllLogits(context.Background(), reference.Value{})
+	if err == nil || !strings.Contains(err.Error(), "hidden states") {
+		t.Fatalf("BERT logits error = %v", err)
 	}
 }
 

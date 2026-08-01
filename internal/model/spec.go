@@ -37,6 +37,7 @@ type Spec struct {
 	RMSNormEpsilon        float32
 	LayerNormEpsilon      float32
 	VocabularySize        uint32
+	TokenTypeCount        uint32
 	ExpertCount           uint32
 	ExpertUsedCount       uint32
 	ExpertFeedForward     uint32
@@ -116,6 +117,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "baichuan" &&
 		architecture != "bailingmoe" &&
 		architecture != "bailingmoe2" &&
+		architecture != "bert" &&
 		architecture != "bitnet" &&
 		architecture != "bloom" &&
 		architecture != "codeshell" &&
@@ -193,8 +195,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "dream" || architecture == "eurobert" || architecture == "llada" || architecture == "llada-moe" || architecture == "rnd1" {
+	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "llada" || architecture == "llada-moe" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
+	}
+	if architecture == "bert" {
+		spec.RopeDisabled = true
 	}
 	if architecture == "chameleon" {
 		spec.QKNormEpsilon = 1e-5
@@ -237,7 +242,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
+	if architecture == "bert" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
 		if architecture == "gptneox" || architecture == "falcon" || architecture == "mpt" {
@@ -304,7 +309,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture == "refact" || architecture == "starcoder" {
 		// architectures use ALiBi or learned absolute rows instead of RoPE
 		spec.RopeDisabled = true
-	} else if architecture != "t5encoder" {
+	} else if architecture != "bert" && architecture != "t5encoder" {
 		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](
@@ -1532,6 +1537,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.VocabularySize = uint32(tokens.Count())
 	}
+	if architecture == "bert" {
+		if spec.TokenTypeCount, err = required[uint32](values, "tokenizer.ggml.token_type_count", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+	}
 	if err := spec.validate(); err != nil {
 		return Spec{}, err
 	}
@@ -1638,7 +1648,8 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Architecture == "dbrx" ||
+	return s.Architecture == "bert" ||
+		s.Architecture == "dbrx" ||
 		s.Architecture == "falcon" ||
 		s.Architecture == "jais" ||
 		s.Architecture == "nemotron" ||
@@ -1690,6 +1701,10 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "t5encoder" && s.RelativeBuckets == 0 {
 		return errors.New("T5 encoder relative attention bucket count is zero")
+	}
+	if s.Architecture == "bert" &&
+		(s.TokenTypeCount == 0 || s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength) {
+		return errors.New("BERT metadata is invalid")
 	}
 	if s.Architecture == "qwen35" {
 		switch {
@@ -2353,7 +2368,7 @@ func isGemmaArchitecture(architecture string) bool {
 }
 
 func hasPostNorm(architecture string) bool {
-	return architecture == "afmoe" || architecture == "exaone4" || architecture == "gemma2" ||
+	return architecture == "afmoe" || architecture == "bert" || architecture == "exaone4" || architecture == "gemma2" ||
 		architecture == "gemma3" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
 }
 
@@ -2365,7 +2380,7 @@ func usesSlidingAttention(architecture string) bool {
 }
 
 func usesPostOnlyNorm(architecture string) bool {
-	return architecture == "exaone4"
+	return architecture == "bert" || architecture == "exaone4"
 }
 
 func usesNormalRoPE(architecture string) bool {
@@ -2432,7 +2447,7 @@ func firstPositive(values []uint32) uint32 {
 }
 
 func usesGELU(architecture string) bool {
-	return architecture == "falcon" || architecture == "mpt" || usesSequentialGELU(architecture)
+	return architecture == "bert" || architecture == "falcon" || architecture == "mpt" || usesSequentialGELU(architecture)
 }
 
 func usesSquaredReLU(architecture string) bool {

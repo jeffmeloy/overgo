@@ -347,6 +347,9 @@ func (r *Runner) applyDeviceOutputNorm(
 	input *tensor.Tensor,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (*tensor.Tensor, error) {
+	if r.spec.Architecture == "bert" {
+		return input, nil
+	}
 	if r.spec.UsesUnweightedLayerNorm() {
 		return builder.LayerNorm(input, r.spec.LayerNormEpsilon), builder.Err()
 	}
@@ -520,11 +523,13 @@ func (r *Runner) layerDeviceInputs(
 		{info.AttentionKBias, &result.AttentionKBias},
 		{info.AttentionVBias, &result.AttentionVBias},
 		{info.AttentionOutputBias, &result.AttentionOutputBias},
+		{info.AttentionPostNormBias, &result.AttentionPostNormBias},
 		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
 		{info.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{info.FeedForwardPostNormBias, &result.FeedForwardPostNormBias},
 		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
@@ -730,6 +735,10 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
+	activation, err = r.addTokenTypeEmbedding(ctx, activation)
+	if err != nil {
+		return reference.Value{}, err
+	}
 	activation, err = r.addPositionEmbeddings(ctx, activation, positions)
 	if err != nil {
 		return reference.Value{}, err
@@ -761,6 +770,9 @@ func (r *Runner) projectAllLogits(
 	ctx context.Context,
 	hidden reference.Value,
 ) (reference.Value, error) {
+	if r.spec.Architecture == "bert" {
+		return reference.Value{}, errors.New("inference: BERT exposes hidden states, not vocabulary logits")
+	}
 	if hidden.Shape.Rank != 2 || hidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) {
 		return reference.Value{}, errors.New("inference: non-causal hidden-state shape is incompatible")
 	}
@@ -1591,6 +1603,9 @@ func (r *Runner) runQwen35LayerCached(
 }
 
 func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) (reference.Value, error) {
+	if r.spec.Architecture == "bert" {
+		return activation, nil
+	}
 	if r.spec.UsesUnweightedLayerNorm() {
 		builder := tensor.NewBuilder()
 		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
@@ -2184,6 +2199,31 @@ func (r *Runner) addPositionEmbeddings(
 	return activation, nil
 }
 
+func (r *Runner) addTokenTypeEmbedding(
+	ctx context.Context,
+	activation reference.Value,
+) (reference.Value, error) {
+	if r.weights.TokenTypeEmbedding == nil {
+		return activation, nil
+	}
+	typeRow, err := r.loadRows(ctx, *r.weights.TokenTypeEmbedding, []uint32{0})
+	if err != nil {
+		return reference.Value{}, fmt.Errorf("inference: load token-type embedding: %w", err)
+	}
+	width := int(activation.Shape.Dims[0])
+	if typeRow.Shape.Rank != 2 || typeRow.Shape.Dims[0] != uint64(width) ||
+		typeRow.Shape.Dims[1] != 1 || len(typeRow.Data) != width {
+		return reference.Value{}, errors.New("inference: token-type embedding shape is incompatible")
+	}
+	for token := 0; token < int(activation.Shape.Dims[1]); token++ {
+		start := token * width
+		for index, value := range typeRow.Data {
+			activation.Data[start+index] += value
+		}
+	}
+	return activation, nil
+}
+
 func (r *Runner) applyTokenEmbeddingNorm(
 	ctx context.Context,
 	activation reference.Value,
@@ -2370,6 +2410,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	if weights.PositionEmbedding != nil {
 		names[weights.PositionEmbedding.Name] = struct{}{}
 	}
+	if weights.TokenTypeEmbedding != nil {
+		names[weights.TokenTypeEmbedding.Name] = struct{}{}
+	}
 	if weights.TokenEmbeddingNorm != nil {
 		names[weights.TokenEmbeddingNorm.Name] = struct{}{}
 	}
@@ -2482,6 +2525,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		if layer.AttentionPostNorm != nil {
 			names[layer.AttentionPostNorm.Name] = struct{}{}
 		}
+		if layer.AttentionPostNormBias != nil {
+			names[layer.AttentionPostNormBias.Name] = struct{}{}
+		}
 		if layer.AttentionRelativeBias != nil {
 			names[layer.AttentionRelativeBias.Name] = struct{}{}
 		}
@@ -2490,6 +2536,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		}
 		if layer.FeedForwardPostNorm != nil {
 			names[layer.FeedForwardPostNorm.Name] = struct{}{}
+		}
+		if layer.FeedForwardPostNormBias != nil {
+			names[layer.FeedForwardPostNormBias.Name] = struct{}{}
 		}
 	}
 	result := make([]gguf.TensorInfo, 0, len(names))

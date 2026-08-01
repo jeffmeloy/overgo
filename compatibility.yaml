@@ -1692,8 +1692,7 @@ models:
   cohere2moe:
     status: experimental
     constraints:
-      - ordinary-decoder-trunk
-      - nextn-mtp-prediction-pending
+      - single-nextn-mtp-block
     execution:
       - bounded-host
       - f32-preload
@@ -1710,7 +1709,12 @@ models:
       - optional-shared-experts-with-half-averaging
       - direct-logit-scale
       - optional-tied-output
-      - preserved-unexecuted-nextn-mtp-layers
+      - combined-trunk-or-mtp-sidecar
+      - full-attention-rope-nextn-mtp
+      - private-or-shared-mtp-embedding-norm-and-head
+      - greedy-or-sampled-speculative-verification
+      - transactional-sampler-state
+      - serializable-model-bound-mtp-state
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
   ernie4_5:

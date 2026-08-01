@@ -458,6 +458,16 @@ sampled draft/verify, and save/load APIs. It reuses the per-head growing-prefix
 coordinator while retaining HY-V3's distinct post-final-norm target and draft
 hidden states. Set `LLAMACPP2GO_HYV3_MTP_MODEL` to run its optional
 native-quantized session and coordinator integration test.
+Cohere2-MoE files declaring the pinned single NextN block expose
+`NewCohere2MTPSession`/`AdvanceCohere2MTP`, with
+`NewCohere2MTPPairedSession` for an MTP sidecar. The draft graph uses the
+pinned full-attention RoPE block, parallel attention/expert residuals,
+optional shared-expert averaging, LayerNorm-or-RMSNorm selection, post-norm
+hidden state, and direct logit scaling. Greedy and sampled draft/verify plus
+`SaveCohere2MTPSession`/`LoadCohere2MTPSession` provide the same transactional,
+target-bound coordination guarantees as the Qwen3.5 single-block path. Set
+`LLAMACPP2GO_COHERE2_MTP_MODEL` to run the optional native-quantized session,
+state, and coordinator integration test.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA
 differentials use synthetic fixtures until a compatible local GGUF is available.
 GLM4-MoE dense-leading and expert catalogs, text-coordinate MRoPE, norm ordering,

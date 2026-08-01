@@ -3277,6 +3277,39 @@ func TestBuildDenseBaichuan7BUsesNormalRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildDenseBaichuan13BUsesALiBi(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "baichuan", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RMSNormEpsilon: 1e-6, RopeDisabled: true, MaxALiBiBias: 8,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	output, err := BuildDenseBlock(
+		builder, input, spec, denseBlockInputs(builder, spec), []uint32{0, 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var alibi int
+	for _, node := range nodes {
+		if node.Op == tensor.OpRoPENormal || node.Op == tensor.OpRoPENeoX {
+			t.Fatal("Baichuan 13B graph unexpectedly contains RoPE")
+		}
+		if node.Op == tensor.OpAttention &&
+			node.Attrs.(tensor.AttentionAttributes).MaxALiBiBias == 8 {
+			alibi++
+		}
+	}
+	if alibi != 1 {
+		t.Fatalf("Baichuan 13B ALiBi attention count = %d, want 1", alibi)
+	}
+}
+
 func TestBuildDenseArceeUsesSquaredReLU(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -2831,7 +2831,7 @@ func TestReadCodeShellSpec(t *testing.T) {
 	}
 }
 
-func TestReadBaichuan7BSpec(t *testing.T) {
+func TestReadBaichuanVariantsSpec(t *testing.T) {
 	metadataValues := []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "baichuan"),
 		metadata("baichuan.block_count", gguf.ValueTypeUint32, uint32(32)),
@@ -2855,9 +2855,13 @@ func TestReadBaichuan7BSpec(t *testing.T) {
 	}
 
 	metadataValues[1] = metadata("baichuan.block_count", gguf.ValueTypeUint32, uint32(40))
-	if _, err := ReadSpec(&gguf.File{Metadata: metadataValues}); err == nil ||
-		!strings.Contains(err.Error(), "32-layer Baichuan") {
-		t.Fatalf("Baichuan 13B error = %v, want explicit unsupported variant", err)
+	metadataValues = append(metadataValues[:7], metadataValues[8:]...)
+	spec, err = ReadSpec(&gguf.File{Metadata: metadataValues})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.BlockCount != 40 || spec.UsesRoPE(0) || spec.MaxALiBiBias != 8 {
+		t.Fatalf("unexpected Baichuan 13B spec: %+v", spec)
 	}
 }
 

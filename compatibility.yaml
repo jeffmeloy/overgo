@@ -977,13 +977,12 @@ models:
     status: experimental
     variants:
       - 7b-32-layer
+      - 13b-40-layer
     features:
       - rmsnorm
-      - normal-rope
+      - variant-selected-normal-rope-or-alibi
       - swiglu
       - untied-output-projection
-    limitations:
-      - 13b-alibi-rejected
     real_model_validation: pending-fixture
   bloom:
     status: experimental

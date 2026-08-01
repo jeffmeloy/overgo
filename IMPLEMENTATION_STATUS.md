@@ -572,10 +572,9 @@
   required projection biases and an untied output projection. Its optional
   token embedding correctly falls back to the output table when absent.
   Real-model validation is pending a local fixture.
-- Baichuan 7B supports the 32-layer RMSNorm/SwiGLU graph, normal
-  consecutive-pair RoPE, and required untied output projection. The 40-layer
-  Baichuan 13B ALiBi variant is rejected explicitly until ALiBi attention is
-  available. Real-model validation is pending a local fixture.
+- Baichuan selects the 32-layer 7B normal-RoPE or 40-layer 13B ALiBi graph,
+  with RMSNorm, parallel SwiGLU, and required untied output projection.
+  Real-model validation is pending a local fixture.
 - Arcee dense decoders support RMSNorm, metadata attention scaling, optional
   tied output embeddings, normal RoPE with optional per-pair factors, and the
   gate-free squared-ReLU FFN. Real-model validation is pending a local fixture.

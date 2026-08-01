@@ -588,6 +588,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
+	if architecture == "baichuan" && spec.BlockCount == 40 {
+		spec.RopeDisabled = true
+		spec.MaxALiBiBias = 8
+	}
 	if architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" ||
 		architecture == "refact" || architecture == "starcoder" {
 		// architectures use ALiBi or learned absolute rows instead of RoPE
@@ -1315,8 +1319,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			gguf.ValueTypeFloat32,
 		)
 	}
-	if architecture == "baichuan" && spec.BlockCount != 32 {
-		return Spec{}, errors.New("only the 32-layer Baichuan RoPE variant is supported")
+	if architecture == "baichuan" && spec.BlockCount != 32 && spec.BlockCount != 40 {
+		return Spec{}, errors.New("Baichuan block count must select the 32-layer RoPE or 40-layer ALiBi variant")
 	}
 	if architecture == "mistral3" {
 		spec.OriginalContextLength = spec.ContextLength

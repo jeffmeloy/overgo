@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -4161,6 +4162,83 @@ func TestBuildModernBERTBlocksUseDenseFirstSymmetricWindows(t *testing.T) {
 			}
 			if ropeBase != wantBase {
 				t.Fatalf("ModernBERT RoPE base = %v, want %v", ropeBase, wantBase)
+			}
+		})
+	}
+}
+
+func TestBuildGemmaEmbeddingBlocksUseQKNormAndPeriodicSymmetricWindows(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		layer      uint32
+		wantWindow bool
+		wantBase   float32
+	}{
+		{name: "local", layer: 0, wantWindow: true, wantBase: 50000},
+		{name: "periodic full", layer: 5, wantBase: 10000},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: "gemma-embedding", BlockCount: 6, EmbeddingLength: 8,
+				FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+				KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+				RopeFrequencyBase: 10000, RopeFrequencySWA: 50000,
+				SlidingWindow: 4, SlidingPattern: 6, RMSNormEpsilon: 1e-6,
+				NonCausalAttention: true,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 5))
+			weights := LayerGraphWeights{
+				AttentionNorm:       builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+				AttentionQKV:        builder.Input("qkv", dtype.F32, tensor.MustShape(8, 16)),
+				AttentionQKVBias:    builder.Input("qkv_bias", dtype.F32, tensor.MustShape(16)),
+				AttentionOutput:     builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+				AttentionQNorm:      builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+				AttentionKNorm:      builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+				AttentionPostNorm:   builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+				FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+				FeedForwardGate:     builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 16)),
+				FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
+				FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+				FeedForwardPostNorm: builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+			}
+			result, err := BuildDenseBlockCachedForLayer(
+				builder, input, spec, weights, []uint32{0, 1, 2, 3, 4}, nil, nil, test.layer,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var attention *tensor.Tensor
+			var neoX, rmsNorm, gelu int
+			var ropeBase float32
+			queryScale := float32(0)
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpAttention:
+					attention = node
+				case tensor.OpRoPENeoX:
+					neoX++
+					ropeBase = node.Attrs.(tensor.RoPEAttributes).FrequencyBase
+				case tensor.OpRMSNorm:
+					rmsNorm++
+				case tensor.OpGELU:
+					gelu++
+				case tensor.OpScale:
+					queryScale = node.Attrs.(tensor.ScaleAttributes).Value
+				}
+			}
+			if attention == nil {
+				t.Fatal("Gemma embedding attention node is missing")
+			}
+			attributes := attention.Attrs.(tensor.AttentionAttributes)
+			if attributes.Causal || attributes.Scale != 1 ||
+				attributes.SymmetricWindow != test.wantWindow || neoX != 2 || rmsNorm != 6 || gelu != 1 ||
+				math.Abs(float64(queryScale-0.5)) > 1e-6 || ropeBase != test.wantBase {
+				t.Fatalf("unexpected Gemma embedding graph: attention=%v RMS=%d NeoX=%d GELU=%d query-scale=%v base=%v", attention, rmsNorm, neoX, gelu, queryScale, ropeBase)
 			}
 		})
 	}

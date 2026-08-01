@@ -2426,6 +2426,36 @@ func TestReadModernBERTSpecUsesDenseFirstSymmetricWindows(t *testing.T) {
 	}
 }
 
+func TestReadGemmaEmbeddingSpecUsesPeriodicSymmetricWindows(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gemma-embedding"),
+		metadata("gemma-embedding.block_count", gguf.ValueTypeUint32, uint32(24)),
+		metadata("gemma-embedding.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("gemma-embedding.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gemma-embedding.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("gemma-embedding.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma-embedding.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("gemma-embedding.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		metadata("gemma-embedding.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("gemma-embedding.dense_2_feat_in", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gemma-embedding.dense_2_feat_out", gguf.ValueTypeUint32, uint32(6)),
+		metadata("gemma-embedding.dense_3_feat_in", gguf.ValueTypeUint32, uint32(6)),
+		metadata("gemma-embedding.dense_3_feat_out", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gemma-embedding.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gemma-embedding" || !spec.NonCausalAttention || !spec.IsEncoderOnly() ||
+		spec.HeadCountKV != 1 || spec.RopeFrequencyBase != 10000 || spec.RopeFrequencySWA != 10000 ||
+		spec.RopeDimensionCount != 4 || spec.SlidingPattern != 6 || !spec.IsSlidingLayer(0) ||
+		!spec.IsSlidingLayer(4) || spec.IsSlidingLayer(5) || spec.InputEmbeddingScale() != float32(math.Sqrt(8)) ||
+		spec.Dense2FeatureOut != 6 || spec.Dense3FeatureIn != 6 {
+		t.Fatalf("unexpected Gemma embedding spec: %+v", spec)
+	}
+}
+
 func TestReadSpecAcceptsLinearRoPEScaling(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

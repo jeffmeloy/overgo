@@ -372,6 +372,127 @@ func buildModernBERTBlock(
 	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
 }
 
+func buildGemmaEmbeddingBlock(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "gemma-embedding" {
+		return DenseBlockResult{}, errors.New("Gemma embedding block requires gemma-embedding architecture")
+	}
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("Gemma embedding block input shape is incompatible")
+	}
+	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Gemma embedding block position count is incompatible")
+	}
+	if pastKey != nil || pastValue != nil {
+		return DenseBlockResult{}, errors.New("Gemma embedding block does not support a KV cache")
+	}
+	if weights.AttentionQKV != nil &&
+		(weights.AttentionQBias != nil || weights.AttentionKBias != nil || weights.AttentionVBias != nil) {
+		return DenseBlockResult{}, errors.New("Gemma embedding fused QKV cannot use separate projection biases")
+	}
+	if weights.AttentionQKV == nil && weights.AttentionQKVBias != nil {
+		return DenseBlockResult{}, errors.New("Gemma embedding fused QKV bias has no fused projection")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm":         weights.AttentionNorm,
+		"attention output":       weights.AttentionOutput,
+		"attention Q norm":       weights.AttentionQNorm,
+		"attention K norm":       weights.AttentionKNorm,
+		"attention post norm":    weights.AttentionPostNorm,
+		"feed-forward norm":      weights.FeedForwardNorm,
+		"feed-forward gate":      weights.FeedForwardGate,
+		"feed-forward up":        weights.FeedForwardUp,
+		"feed-forward down":      weights.FeedForwardDown,
+		"feed-forward post norm": weights.FeedForwardPostNorm,
+	}
+	if weights.AttentionQKV != nil {
+		required["attention QKV"] = weights.AttentionQKV
+	} else {
+		required["attention Q"] = weights.AttentionQ
+		required["attention K"] = weights.AttentionK
+		required["attention V"] = weights.AttentionV
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("Gemma embedding block %s weight is nil", name)
+		}
+	}
+	tokens := uint64(len(positions))
+	headCount := uint64(spec.HeadCount)
+	kvHeadCount := uint64(spec.HeadCountKV)
+	queryLength := headCount * uint64(spec.KeyLength)
+	keyLength := kvHeadCount * uint64(spec.KeyLength)
+	valueLength := kvHeadCount * uint64(spec.ValueLength)
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	var query, key, value *tensor.Tensor
+	if weights.AttentionQKV != nil {
+		mixed := builder.MulMat(weights.AttentionQKV, normalized)
+		if weights.AttentionQKVBias != nil {
+			mixed = builder.Add(mixed, weights.AttentionQKVBias)
+		}
+		stride := queryLength + keyLength + valueLength
+		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, tokens)
+		key = builder.Reshape(builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, tokens)
+		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
+	} else {
+		query = builder.MulMat(weights.AttentionQ, normalized)
+		key = builder.MulMat(weights.AttentionK, normalized)
+		value = builder.MulMat(weights.AttentionV, normalized)
+		if weights.AttentionQBias != nil {
+			query = builder.Add(query, weights.AttentionQBias)
+		}
+		if weights.AttentionKBias != nil {
+			key = builder.Add(key, weights.AttentionKBias)
+		}
+		if weights.AttentionVBias != nil {
+			value = builder.Add(value, weights.AttentionVBias)
+		}
+	}
+	query = builder.Reshape(query, uint64(spec.KeyLength), headCount, tokens)
+	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeadCount, tokens)
+	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeadCount, tokens)
+	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+	frequencyBase := spec.RopeFrequencyBase
+	if spec.IsSlidingLayer(layerIndex) {
+		frequencyBase = spec.RopeFrequencySWA
+	}
+	frequencyScale := float32(1)
+	if spec.RopeScalingType == "linear" {
+		frequencyScale = 1 / spec.RopeScalingFactor
+	}
+	query = builder.RoPENeoXScaled(query, positions, spec.RopeDimensionCount, frequencyBase, frequencyScale)
+	key = builder.RoPENeoXScaled(key, positions, spec.RopeDimensionCount, frequencyBase, frequencyScale)
+	query = builder.Scale(query, float32(1/math.Sqrt(float64(spec.KeyLength))))
+	var attention *tensor.Tensor
+	if spec.IsSlidingLayer(layerIndex) {
+		attention = builder.AttentionSymmetricWindow(query, key, value, 1, spec.SlidingWindow)
+	} else {
+		attention = builder.Attention(query, key, value, 1, false)
+	}
+	attention = builder.Reshape(attention, headCount*uint64(spec.ValueLength), tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
+	residual := builder.Add(input, attention)
+	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	gate := builder.MulMat(weights.FeedForwardGate, normalized)
+	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up))
+	feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
+	output := builder.Add(residual, feedForward)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
+}
+
 // BuildT5EncoderBlock: constructs one full, bidirectional T5 encoder block
 func BuildT5EncoderBlock(
 	builder *tensor.Builder,
@@ -775,6 +896,9 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if spec.Architecture == "modern-bert" {
 		return buildModernBERTBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
+	}
+	if spec.Architecture == "gemma-embedding" {
+		return buildGemmaEmbeddingBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"

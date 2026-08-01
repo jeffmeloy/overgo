@@ -57,6 +57,10 @@ type Spec struct {
 	RelativeBuckets       uint32
 	NoRopeLayerStep       uint32
 	HiddenActivation      string
+	Dense2FeatureIn       uint32
+	Dense2FeatureOut      uint32
+	Dense3FeatureIn       uint32
+	Dense3FeatureOut      uint32
 	RopeDisabled          bool
 	ParallelResidual      bool
 	NonCausalAttention    bool
@@ -193,7 +197,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen3" &&
 		architecture != "qwen3moe" &&
 		architecture != "qwen2moe" &&
-		architecture != "qwen35" && architecture != "gemma" &&
+		architecture != "qwen35" && architecture != "gemma" && architecture != "gemma-embedding" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
 		architecture != "gemma2" &&
@@ -203,7 +207,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" {
+	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "bert" || architecture == "jina-bert-v2" {
@@ -250,10 +254,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
+	if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
-		if architecture == "gptneox" || architecture == "falcon" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
 			if value, ok := optional[uint32](
 				values,
 				prefix+"attention.head_count_kv",
@@ -318,7 +322,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		// architectures use ALiBi or learned absolute rows instead of RoPE
 		spec.RopeDisabled = true
 	} else if !spec.RopeDisabled && architecture != "t5encoder" {
-		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" || architecture == "gemma-embedding" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](
 				values,
@@ -686,6 +690,27 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if spec.HiddenActivation != "gelu" && spec.HiddenActivation != "silu" {
 			return Spec{}, fmt.Errorf("ModernBERT hidden activation %q is unsupported", spec.HiddenActivation)
 		}
+	}
+	if architecture == "gemma-embedding" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		spec.RopeFrequencySWA = 10000
+		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
+			spec.RopeFrequencySWA = value
+		}
+		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.SlidingPattern = 6
+		if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
+			spec.SlidingPattern = value
+		}
+		spec.Dense2FeatureIn, _ = optional[uint32](values, prefix+"dense_2_feat_in", gguf.ValueTypeUint32)
+		spec.Dense2FeatureOut, _ = optional[uint32](values, prefix+"dense_2_feat_out", gguf.ValueTypeUint32)
+		spec.Dense3FeatureIn, _ = optional[uint32](values, prefix+"dense_3_feat_in", gguf.ValueTypeUint32)
+		spec.Dense3FeatureOut, _ = optional[uint32](values, prefix+"dense_3_feat_out", gguf.ValueTypeUint32)
 	}
 	if architecture == "deci" {
 		spec.RopeDimensionCount = spec.KeyLength
@@ -1737,6 +1762,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 
 func (s Spec) IsEncoderOnly() bool {
 	return s.Architecture == "bert" || s.Architecture == "eurobert" || s.Architecture == "jina-bert-v2" || s.Architecture == "jina-bert-v3" ||
+		s.Architecture == "gemma-embedding" ||
 		s.Architecture == "llama-embed" ||
 		s.Architecture == "modern-bert" ||
 		s.Architecture == "neo-bert" || s.Architecture == "nomic-bert" ||
@@ -2405,6 +2431,20 @@ func (s Spec) validate() error {
 			return errors.New("ModernBERT sliding attention metadata is invalid")
 		}
 	}
+	if s.Architecture == "gemma-embedding" {
+		switch {
+		case s.KeyLength != s.ValueLength:
+			return errors.New("Gemma embedding requires matching key/value head widths")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
+			return errors.New("Gemma embedding rotary dimension count is invalid")
+		case s.SlidingWindow == 0 || s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0:
+			return errors.New("Gemma embedding sliding attention metadata is invalid")
+		case s.Dense2FeatureIn > 0 && s.Dense2FeatureIn != s.EmbeddingLength:
+			return errors.New("Gemma embedding dense-2 input width must match embedding length")
+		case s.Dense3FeatureOut > 0 && s.Dense3FeatureOut != s.EmbeddingLength:
+			return errors.New("Gemma embedding dense-3 output width must match embedding length")
+		}
+	}
 	if s.Architecture == "apertus" {
 		if s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0 ||
 			s.OriginalContextLength == 0 || s.RopeAttentionFactor <= 0 ||
@@ -2509,16 +2549,16 @@ func (s Spec) validate() error {
 }
 
 func isGemmaArchitecture(architecture string) bool {
-	return architecture == "gemma" || architecture == "gemma2" || architecture == "gemma3"
+	return architecture == "gemma" || architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3"
 }
 
 func hasPostNorm(architecture string) bool {
 	return architecture == "afmoe" || architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4" || architecture == "gemma2" ||
-		architecture == "gemma3" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
+		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return architecture == "afmoe" || (architecture == "gemma2" || architecture == "gemma3") ||
+	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" ||
 		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" ||
 		architecture == "plamo3" || architecture == "smallthinker"

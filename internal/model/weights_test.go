@@ -823,6 +823,37 @@ func TestReadWeightsModernBERTUsesOptionalFirstNormAndFusedGEGLU(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGemmaEmbeddingLoadsProjectionAndPostNormCatalog(t *testing.T) {
+	spec := Spec{
+		Architecture: "gemma-embedding", BlockCount: 1, ContextLength: 2048,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, VocabularySize: 32,
+		RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+		Dense2FeatureIn: 8, Dense2FeatureOut: 6, Dense3FeatureIn: 6, Dense3FeatureOut: 8,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("dense_2.weight", 8, 6), tensorInfo("dense_3.weight", 6, 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_qkv.weight", 8, 16),
+		tensorInfo("blk.0.attn_qkv.bias", 16), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_q_norm.weight", 4), tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.post_attention_norm.weight", 8), tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 16), tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8), tensorInfo("blk.0.post_ffw_norm.weight", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Dense2Output == nil || weights.Dense3Output == nil || weights.Output != nil ||
+		layer.AttentionQKV == nil || layer.AttentionQKVBias == nil ||
+		layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
+		layer.AttentionPostNorm == nil || layer.FeedForwardPostNorm == nil {
+		t.Fatalf("unexpected Gemma embedding catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsEuroBERTFusedQKVWithoutOutput(t *testing.T) {
 	spec := Spec{
 		Architecture: "eurobert", BlockCount: 1, EmbeddingLength: 8,

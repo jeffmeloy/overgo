@@ -1,10 +1,15 @@
 package inference
 
 import (
+	"bytes"
+	"context"
+	"encoding/binary"
 	"math"
 	"strings"
 	"testing"
 
+	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -100,5 +105,53 @@ func TestEmbeddingPoolingAndNormalizationModes(t *testing.T) {
 	if math.Abs(float64(l1[0]-(-1.0/3))) > 1e-6 ||
 		math.Abs(float64(l1[1]-(2.0/3))) > 1e-6 {
 		t.Fatalf("L1 normalization = %v", l1)
+	}
+}
+
+func TestProjectEmbeddingVectorsHostAppliesDenseChain(t *testing.T) {
+	var dense2, dense3 bytes.Buffer
+	if err := binary.Write(&dense2, binary.LittleEndian, []float32{1, 0, 0, 1, 1, 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := binary.Write(&dense3, binary.LittleEndian, []float32{1, 1, 0, 0, 0, 1}); err != nil {
+		t.Fatal(err)
+	}
+	var encoded bytes.Buffer
+	if err := gguf.Write(
+		&encoded,
+		nil,
+		[]gguf.TensorData{
+			{Name: "dense_2.weight", Shape: []uint64{2, 3}, Type: gguf.DTypeF32, Data: bytes.NewReader(dense2.Bytes())},
+			{Name: "dense_3.weight", Shape: []uint64{3, 2}, Type: gguf.DTypeF32, Data: bytes.NewReader(dense3.Bytes())},
+		},
+		gguf.WriteOptions{},
+	); err != nil {
+		t.Fatal(err)
+	}
+	reader := bytes.NewReader(encoded.Bytes())
+	file, err := gguf.Parse(reader, uint64(encoded.Len()), gguf.DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dense2Info, ok := file.Tensor("dense_2.weight")
+	if !ok {
+		t.Fatal("dense-2 projection tensor is missing")
+	}
+	dense3Info, ok := file.Tensor("dense_3.weight")
+	if !ok {
+		t.Fatal("dense-3 projection tensor is missing")
+	}
+	runner := &Runner{file: file, weights: model.Weights{Dense2Output: &dense2Info, Dense3Output: &dense3Info}}
+	got, err := runner.projectEmbeddingVectors(context.Background(), [][]float32{{2, 3}, {-1, 4}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]float32{{5, 5}, {3, 3}}
+	for vector := range want {
+		for index := range want[vector] {
+			if got[vector][index] != want[vector][index] {
+				t.Fatalf("projection = %v, want %v", got, want)
+			}
+		}
 	}
 }

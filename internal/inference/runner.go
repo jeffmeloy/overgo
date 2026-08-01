@@ -2431,6 +2431,12 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	if weights.OutputBias != nil {
 		names[weights.OutputBias.Name] = struct{}{}
 	}
+	if weights.Dense2Output != nil {
+		names[weights.Dense2Output.Name] = struct{}{}
+	}
+	if weights.Dense3Output != nil {
+		names[weights.Dense3Output.Name] = struct{}{}
+	}
 	for _, layer := range weights.Layers {
 		infos := []gguf.TensorInfo{
 			layer.AttentionNorm,

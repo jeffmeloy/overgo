@@ -277,6 +277,101 @@ func buildBERTEncoderBlock(
 	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
 }
 
+func buildModernBERTBlock(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "modern-bert" {
+		return DenseBlockResult{}, errors.New("ModernBERT block requires ModernBERT architecture")
+	}
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("ModernBERT block input shape is incompatible")
+	}
+	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("ModernBERT block position count is incompatible")
+	}
+	if pastKey != nil || pastValue != nil {
+		return DenseBlockResult{}, errors.New("ModernBERT block does not support a KV cache")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention QKV":     weights.AttentionQKV,
+		"attention output":  weights.AttentionOutput,
+		"feed-forward norm": weights.FeedForwardNorm,
+		"feed-forward up":   weights.FeedForwardUp,
+		"feed-forward down": weights.FeedForwardDown,
+	}
+	if layerIndex > 0 {
+		required["attention norm"] = weights.AttentionNorm
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("ModernBERT block %s weight is nil", name)
+		}
+	}
+	tokens := uint64(len(positions))
+	normalized := input
+	if weights.AttentionNorm != nil {
+		normalized = ApplyNormalization(builder, input, weights.AttentionNorm, nil, spec)
+	}
+	mixed := builder.MulMat(weights.AttentionQKV, normalized)
+	if weights.AttentionQKVBias != nil {
+		mixed = builder.Add(mixed, weights.AttentionQKVBias)
+	}
+	width := uint64(spec.EmbeddingLength)
+	query := builder.Reshape(builder.GroupSlice(mixed, 0, width, 1, 3*width), width, tokens)
+	key := builder.Reshape(builder.GroupSlice(mixed, width, width, 1, 3*width), width, tokens)
+	value := builder.Reshape(builder.GroupSlice(mixed, 2*width, width, 1, 3*width), width, tokens)
+	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
+	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
+	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
+	frequencyBase := spec.RopeFrequencyBase
+	if spec.IsSlidingLayer(layerIndex) {
+		frequencyBase = spec.RopeFrequencySWA
+	}
+	frequencyScale := float32(1)
+	if spec.RopeScalingType == "linear" {
+		frequencyScale = 1 / spec.RopeScalingFactor
+	}
+	query = builder.RoPENeoXScaled(query, positions, spec.RopeDimensionCount, frequencyBase, frequencyScale)
+	key = builder.RoPENeoXScaled(key, positions, spec.RopeDimensionCount, frequencyBase, frequencyScale)
+	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	var attention *tensor.Tensor
+	if spec.IsSlidingLayer(layerIndex) {
+		attention = builder.AttentionSymmetricWindow(query, key, value, attentionScale, spec.SlidingWindow)
+	} else {
+		attention = builder.Attention(query, key, value, attentionScale, false)
+	}
+	attention = builder.Reshape(attention, width, tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	residual := builder.Add(input, attention)
+	normalized = ApplyNormalization(builder, residual, weights.FeedForwardNorm, nil, spec)
+	fused := builder.MulMat(weights.FeedForwardUp, normalized)
+	feedForwardWidth := uint64(spec.FeedForwardLength)
+	gate := builder.Reshape(
+		builder.GroupSlice(fused, 0, feedForwardWidth, 1, 2*feedForwardWidth),
+		feedForwardWidth, tokens,
+	)
+	up := builder.Reshape(
+		builder.GroupSlice(fused, feedForwardWidth, feedForwardWidth, 1, 2*feedForwardWidth),
+		feedForwardWidth, tokens,
+	)
+	if spec.HiddenActivation == "silu" {
+		fused = builder.SwiGLU(gate, up)
+	} else {
+		fused = builder.GEGLU(gate, up)
+	}
+	output := builder.Add(residual, builder.MulMat(weights.FeedForwardDown, fused))
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
+}
+
 // BuildT5EncoderBlock: constructs one full, bidirectional T5 encoder block
 func BuildT5EncoderBlock(
 	builder *tensor.Builder,
@@ -677,6 +772,9 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
 		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
+	}
+	if spec.Architecture == "modern-bert" {
+		return buildModernBERTBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"

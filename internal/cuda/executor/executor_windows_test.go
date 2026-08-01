@@ -2079,6 +2079,61 @@ func TestExecutorPanguEmbeddedBlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorModernBERTBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "modern-bert", BlockCount: 3, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 50000,
+		SlidingWindow: 4, SlidingPattern: 3, LayerNormEpsilon: 1e-5,
+		NonCausalAttention: true, HiddenActivation: "silu",
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 5))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:    builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionOutput: builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 32)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1, 2, 3, 4}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQKV, weights.AttentionOutput, weights.FeedForwardUp, weights.FeedForwardDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.05, 0)
+	}
+	feeds[weights.AttentionNorm] = patternedValue(weights.AttentionNorm.Shape, 31, 0.03, 1)
+	feeds[weights.FeedForwardNorm] = patternedValue(weights.FeedForwardNorm.Shape, 37, 0.03, 1)
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 9e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 6e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorNomicBERTBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

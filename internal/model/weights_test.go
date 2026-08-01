@@ -786,6 +786,43 @@ func TestReadWeightsPanguEmbeddedRequiresOutputBiasAndSelectsLongRoPE(t *testing
 	}
 }
 
+func TestReadWeightsModernBERTUsesOptionalFirstNormAndFusedGEGLU(t *testing.T) {
+	spec := Spec{
+		Architecture: "modern-bert", BlockCount: 2, ContextLength: 8192,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, VocabularySize: 32,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, HiddenActivation: "gelu",
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_embd_norm.weight", 8),
+		tensorInfo("output_norm.weight", 8),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		if block > 0 {
+			tensors = append(tensors, tensorInfo(prefix+"attn_norm.weight", 8))
+		}
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_qkv.weight", 8, 24),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_up.weight", 8, 32),
+			tensorInfo(prefix+"ffn_down.weight", 16, 8),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.TokenEmbeddingNorm == nil || weights.TokenEmbeddingNormBias != nil ||
+		weights.OutputNorm.Name != "output_norm.weight" || weights.Output != nil ||
+		weights.Layers[0].AttentionNorm.Name != "" || weights.Layers[1].AttentionNorm.Name == "" ||
+		weights.Layers[0].AttentionQKV == nil || weights.Layers[0].FeedForwardUp.Shape[1] != 32 ||
+		weights.Layers[0].FeedForwardGate.Name != "" {
+		t.Fatalf("unexpected ModernBERT catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsEuroBERTFusedQKVWithoutOutput(t *testing.T) {
 	spec := Spec{
 		Architecture: "eurobert", BlockCount: 1, EmbeddingLength: 8,

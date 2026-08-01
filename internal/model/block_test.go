@@ -4091,6 +4091,81 @@ func TestBuildPanguEmbeddedBlockUsesCausalNeoXRoPEAndOutputBias(t *testing.T) {
 	}
 }
 
+func TestBuildModernBERTBlocksUseDenseFirstSymmetricWindows(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		layer      uint32
+		activation string
+		wantWindow bool
+	}{
+		{name: "first GEGLU", layer: 0, activation: "gelu"},
+		{name: "local SwiGLU", layer: 1, activation: "silu", wantWindow: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: "modern-bert", BlockCount: 3, EmbeddingLength: 8,
+				FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+				KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+				RopeFrequencyBase: 10000, RopeFrequencySWA: 50000,
+				SlidingWindow: 4, SlidingPattern: 3, LayerNormEpsilon: 1e-5,
+				NonCausalAttention: true, HiddenActivation: test.activation,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 5))
+			weights := LayerGraphWeights{
+				AttentionQKV:    builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+				AttentionOutput: builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+				FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+				FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 32)),
+				FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+			}
+			if test.layer > 0 {
+				weights.AttentionNorm = builder.Input("attn_norm", dtype.F32, tensor.MustShape(8))
+			}
+			result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2, 3, 4}, nil, nil, test.layer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var attention *tensor.Tensor
+			var layerNorm, neoX, gelu, silu int
+			var ropeBase float32
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpAttention:
+					attention = node
+				case tensor.OpLayerNorm:
+					layerNorm++
+				case tensor.OpRoPENeoX:
+					neoX++
+					ropeBase = node.Attrs.(tensor.RoPEAttributes).FrequencyBase
+				case tensor.OpGELU:
+					gelu++
+				case tensor.OpSiLU:
+					silu++
+				}
+			}
+			if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Causal ||
+				attention.Attrs.(tensor.AttentionAttributes).SymmetricWindow != test.wantWindow ||
+				neoX != 2 || layerNorm != int(test.layer)+1 ||
+				(test.activation == "gelu" && (gelu != 1 || silu != 0)) ||
+				(test.activation == "silu" && (silu != 1 || gelu != 0)) {
+				t.Fatalf("unexpected ModernBERT graph: attention=%v norms=%d NeoX=%d GELU=%d SiLU=%d", attention, layerNorm, neoX, gelu, silu)
+			}
+			wantBase := float32(10000)
+			if test.wantWindow {
+				wantBase = 50000
+			}
+			if ropeBase != wantBase {
+				t.Fatalf("ModernBERT RoPE base = %v, want %v", ropeBase, wantBase)
+			}
+		})
+	}
+}
+
 func TestBuildDenseLlamaBlockUsesLinearRoPEScale(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

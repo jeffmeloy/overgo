@@ -23,6 +23,7 @@ type LayerGraphWeights struct {
 	AttentionKScale             *tensor.Tensor
 	AttentionVScale             *tensor.Tensor
 	AttentionOutputScale        *tensor.Tensor
+	AttentionTemperatureScale   *tensor.Tensor
 	AttentionSubNorm            *tensor.Tensor
 	AttentionQBias              *tensor.Tensor
 	AttentionKBias              *tensor.Tensor
@@ -1073,6 +1074,7 @@ func BuildDenseBlockCachedForLayer(
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
+	isLlama4 := spec.Architecture == "llama4"
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
 	isQwen2MoE := spec.Architecture == "qwen2moe"
@@ -1097,7 +1099,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isLlama4 && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -1122,6 +1124,11 @@ func BuildDenseBlockCachedForLayer(
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
 		}
 		if isStep35 && spec.SharedExpertFF > 0 {
+			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+			required["feed-forward shared up"] = weights.FeedForwardSharedUp
+			required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		}
+		if isLlama4 {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
@@ -1284,6 +1291,9 @@ func BuildDenseBlockCachedForLayer(
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 		required["attention output gate"] = weights.AttentionOutputGate
+	}
+	if isLlama4 && !spec.UsesRoPE(layerIndex) {
+		required["attention temperature scale"] = weights.AttentionTemperatureScale
 	}
 	if spec.Architecture == "stablelm" &&
 		(weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {
@@ -1506,7 +1516,7 @@ func BuildDenseBlockCachedForLayer(
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
 		}
-		if (spec.Architecture == "cohere2" || isCohere2MoE) && spec.IsSlidingLayer(layerIndex) {
+		if (spec.Architecture == "cohere2" || isCohere2MoE || isLlama4) && spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
 		}
 		if weights.RopeFactors != nil {
@@ -1593,6 +1603,13 @@ func BuildDenseBlockCachedForLayer(
 		query = builder.Scale(query, spec.RopeAttentionFactor)
 		key = builder.Scale(key, spec.RopeAttentionFactor)
 	}
+	if isLlama4 && spec.UsesRoPE(layerIndex) && spec.ExpertCount != 128 {
+		query = builder.RMSNorm(query, spec.RMSNormEpsilon)
+		key = builder.RMSNorm(key, spec.RMSNormEpsilon)
+	}
+	if isLlama4 && !spec.UsesRoPE(layerIndex) {
+		query = builder.Multiply(query, weights.AttentionTemperatureScale)
+	}
 	if spec.Architecture == "maincoder" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
@@ -1638,7 +1655,11 @@ func BuildDenseBlockCachedForLayer(
 		attentionScale = 1
 	}
 	var attention *tensor.Tensor
-	if spec.IsSlidingLayer(layerIndex) {
+	if isLlama4 && spec.IsSlidingLayer(layerIndex) {
+		attention = builder.AttentionChunkedWindowWithOffset(
+			query, cacheKey, cacheValue, attentionScale, true, queryStart, spec.SlidingWindow,
+		)
+	} else if spec.IsSlidingLayer(layerIndex) {
 		if isMiMo2 && weights.AttentionSinks != nil {
 			attention = builder.AttentionWindowWithSinksWithOffset(
 				query, cacheKey, cacheValue, weights.AttentionSinks, attentionScale,
@@ -1999,6 +2020,19 @@ func BuildDenseBlockCachedForLayer(
 					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
 				)
 			}
+		} else if isLlama4 {
+			feedForward = builder.MoESigmoid(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, nil,
+				spec.ExpertUsedCount, false, spec.ExpertWeightsScale,
+			)
+			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+			shared := builder.MulMat(
+				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
+			)
+			feedForward = builder.Add(feedForward, shared)
 		} else if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE || isDOTS1) && spec.ExpertGatingFunc == 2) {
 			feedForward = builder.MoESigmoid(
 				normalized, weights.FeedForwardRouter,

@@ -2078,6 +2078,8 @@ func launchNode(
 		var symmetricWindow uint32
 		if attributes.SymmetricWindow {
 			symmetricWindow = 1
+		} else if attributes.ChunkedWindow {
+			symmetricWindow = 2
 		}
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&query),

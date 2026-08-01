@@ -1420,6 +1420,22 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					*destination = &item
 				}
 			}
+			if spec.Architecture == "llama4" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
 			if spec.Architecture == "grovemoe" {
 				chunkExperts := uint64(spec.ExpertCount / spec.ExpertsPerGroup)
 				for name, shapeAndDestination := range map[string]struct {

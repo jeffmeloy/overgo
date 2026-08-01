@@ -1149,6 +1149,9 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
+		if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+			return reference.Value{}, nil, err
+		}
 		var pastKey, pastValue *tensor.Tensor
 		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
 			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
@@ -1227,6 +1230,9 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		}
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
+		}
+		if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+			return reference.Value{}, err
 		}
 		result, err := model.BuildDenseBlockCachedForLayer(
 			builder,
@@ -1375,6 +1381,9 @@ func (r *Runner) runLayerCached(
 		perLayer := builder.Input("per_layer_input", dtype.F32, perLayerInput.Shape)
 		hostFeeds[perLayer] = *perLayerInput
 		graphWeights.PerLayerInput = perLayer
+	}
+	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+		return reference.Value{}, LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil {
@@ -1531,6 +1540,9 @@ func (r *Runner) runDenseLayerNoCache(
 	for node, value := range layerFeeds {
 		hostFeeds[node] = value
 	}
+	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+		return reference.Value{}, err
+	}
 	result, err := model.BuildDenseBlockCachedForLayer(
 		builder,
 		input,
@@ -1549,6 +1561,32 @@ func (r *Runner) runDenseLayerNoCache(
 		return reference.Value{}, err
 	}
 	return results[result.Output], nil
+}
+
+func addAttentionTemperatureInput(
+	builder *tensor.Builder,
+	spec model.Spec,
+	positions []uint32,
+	layer uint32,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	weights *model.LayerGraphWeights,
+) error {
+	if spec.Architecture != "llama4" || spec.UsesRoPE(layer) {
+		return nil
+	}
+	if builder == nil || weights == nil || spec.AttentionTempFloor == 0 {
+		return errors.New("Llama 4 attention temperature input is invalid")
+	}
+	shape := tensor.MustShape(1, 1, uint64(len(positions)))
+	data := make([]float32, len(positions))
+	for index, position := range positions {
+		step := math.Floor((float64(position) + float64(spec.AttentionTempOffset)) / float64(spec.AttentionTempFloor))
+		data[index] = float32(math.Log(step+1))*spec.AttentionTempScale + 1
+	}
+	input := builder.Input("attention_temperature", dtype.F32, shape)
+	hostFeeds[input] = reference.Value{Shape: shape, Data: data}
+	weights.AttentionTemperatureScale = input
+	return builder.Err()
 }
 
 func (r *Runner) runQwen35LayerCached(

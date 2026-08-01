@@ -923,7 +923,9 @@ extern "C" __global__ void attention_f32(
         : key_value_tokens;
     unsigned int key_first =
         window > 0 && key_limit > window ? key_limit - window : 0;
-    if (symmetric_window) {
+    if (symmetric_window == 2) {
+        key_first = ((query_start + query_token) / window) * window;
+    } else if (symmetric_window) {
         const unsigned int half_window = window / 2;
         const unsigned int query_position = query_start + query_token;
         key_first = query_position > half_window ? query_position - half_window : 0;

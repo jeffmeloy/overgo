@@ -78,6 +78,8 @@ func (v *Vocab) encodeText(text string) ([]TokenID, error) {
 		words = preTokenizeDeepSeekLLM(text)
 	} else if isLlama3Pre(v.Pre) {
 		words = preTokenizeLlama3(text)
+	} else if isGPT4OPre(v.Pre) {
+		words = preTokenizeGPT4O(text)
 	} else if isQwen35Pre(v.Pre) {
 		words = preTokenizeQwen35(text)
 	} else if isQwen2Pre(v.Pre) {
@@ -173,6 +175,15 @@ func isQwen2Pre(pre string) bool {
 func isLlama3Pre(pre string) bool {
 	switch pre {
 	case "dbrx", "llama3", "llama-v3", "llama-bpe":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGPT4OPre(pre string) bool {
+	switch pre {
+	case "gpt-4o", "llama4", "kanana2", "talkie":
 		return true
 	default:
 		return false
@@ -587,6 +598,76 @@ func preTokenizeQwen35(text string) []string {
 			continue
 		}
 
+		position++
+		output = append(output, string(values[start:position]))
+	}
+	return output
+}
+
+func preTokenizeGPT4O(text string) []string {
+	values := []rune(text)
+	output := make([]string, 0, len(values)/3+1)
+	for position := 0; position < len(values); {
+		start := position
+		letterStart := position
+		if values[position] != '\r' && values[position] != '\n' &&
+			!unicode.IsLetter(values[position]) && !unicode.IsNumber(values[position]) &&
+			position+1 < len(values) && isLetterOrMark(values[position+1]) {
+			letterStart++
+		}
+		if letterStart < len(values) && isLetterOrMark(values[letterStart]) {
+			position = letterStart + 1
+			for position < len(values) && isLetterOrMark(values[position]) {
+				position++
+			}
+			if count := contractionLength(values[position:], true); count > 0 {
+				position += count
+			}
+			output = append(output, string(values[start:position]))
+			continue
+		}
+		if unicode.IsNumber(values[position]) {
+			position++
+			for position < len(values) && position-start < 3 && unicode.IsNumber(values[position]) {
+				position++
+			}
+			output = append(output, string(values[start:position]))
+			continue
+		}
+		content := position
+		if values[position] == ' ' {
+			content++
+		}
+		if content < len(values) && isQwen35NonWord(values[content]) {
+			position = content + 1
+			for position < len(values) && isQwen35NonWord(values[position]) {
+				position++
+			}
+			for position < len(values) && (values[position] == '\r' || values[position] == '\n') {
+				position++
+			}
+			output = append(output, string(values[start:position]))
+			continue
+		}
+		if unicode.IsSpace(values[position]) {
+			end := position
+			lastNewline := -1
+			for end < len(values) && unicode.IsSpace(values[end]) {
+				if values[end] == '\r' || values[end] == '\n' {
+					lastNewline = end + 1
+				}
+				end++
+			}
+			if lastNewline >= 0 {
+				position = lastNewline
+			} else if end < len(values) && end-position > 1 {
+				position = end - 1
+			} else {
+				position = end
+			}
+			output = append(output, string(values[start:position]))
+			continue
+		}
 		position++
 		output = append(output, string(values[start:position]))
 	}

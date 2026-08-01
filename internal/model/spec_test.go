@@ -70,6 +70,37 @@ func TestReadQwen3MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadLlama4Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "llama4"),
+		metadata("llama4.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("llama4.context_length", gguf.ValueTypeUint32, uint32(131072)),
+		metadata("llama4.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("llama4.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("llama4.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("llama4.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("llama4.rope.freq_base", gguf.ValueTypeFloat32, float32(500000)),
+		metadata("llama4.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("llama4.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("llama4.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(4)),
+		metadata("llama4.expert_count", gguf.ValueTypeUint32, uint32(16)),
+		metadata("llama4.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("llama4.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("llama4.interleave_moe_layer_step", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "llama4" || spec.SlidingWindow != 8192 || spec.SlidingPattern != 4 ||
+		spec.AttentionTempFloor != 8192 || spec.AttentionTempScale != 0.1 || spec.AttentionTempOffset != 1 ||
+		spec.ExpertCount != 16 || spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+		spec.SharedExpertFF != 6 || !spec.IsSlidingLayer(2) || spec.IsSlidingLayer(3) ||
+		!spec.UsesRoPE(2) || spec.UsesRoPE(3) || !spec.IsInterleavedMoELayer(1) {
+		t.Fatalf("unexpected Llama 4 spec: %+v", spec)
+	}
+}
+
 func TestReadGroveMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "grovemoe"),

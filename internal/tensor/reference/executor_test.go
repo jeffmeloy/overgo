@@ -1088,6 +1088,33 @@ func TestExecuteSymmetricWindowAttention(t *testing.T) {
 	}
 }
 
+func TestExecuteChunkedWindowAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(1, 1, 6)
+	query := builder.Input("query", dtype.F32, shape)
+	key := builder.Input("key", dtype.F32, shape)
+	value := builder.Input("value", dtype.F32, shape)
+	output := builder.AttentionChunkedWindowWithOffset(query, key, value, 1, true, 0, 4)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: shape, Data: make([]float32, 6)},
+		key:   {Shape: shape, Data: make([]float32, 6)},
+		value: {Shape: shape, Data: []float32{1, 2, 4, 8, 16, 32}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1, 1.5, 7.0 / 3, 15.0 / 4, 16, 24}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("chunked attention[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+	attributes := output.Attrs.(tensor.AttentionAttributes)
+	if !attributes.ChunkedWindow || !attributes.Causal || attributes.Window != 4 {
+		t.Fatalf("unexpected chunked attention attributes: %+v", attributes)
+	}
+}
+
 func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))

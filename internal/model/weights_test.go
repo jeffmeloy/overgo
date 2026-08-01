@@ -93,6 +93,53 @@ func TestReadWeightsQwen3MoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsLlama4InterleavedMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "llama4", BlockCount: 2, EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 6,
+		ExpertWeightsScale: 1, MoELayerStep: 2,
+	}
+	tensors := []gguf.TensorInfo{tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8)}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 8),
+			tensorInfo(prefix+"attn_k.weight", 8, 4),
+			tensorInfo(prefix+"attn_v.weight", 8, 4),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+		)
+		if block == 0 {
+			tensors = append(tensors,
+				tensorInfo(prefix+"ffn_gate.weight", 8, 12),
+				tensorInfo(prefix+"ffn_up.weight", 8, 12),
+				tensorInfo(prefix+"ffn_down.weight", 12, 8),
+			)
+		} else {
+			tensors = append(tensors,
+				tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4),
+				tensorInfo(prefix+"ffn_gate_exps.weight", 8, 6, 4),
+				tensorInfo(prefix+"ffn_up_exps.weight", 8, 6, 4),
+				tensorInfo(prefix+"ffn_down_exps.weight", 6, 8, 4),
+				tensorInfo(prefix+"ffn_gate_shexp.weight", 8, 6),
+				tensorInfo(prefix+"ffn_up_shexp.weight", 8, 6),
+				tensorInfo(prefix+"ffn_down_shexp.weight", 6, 8),
+			)
+		}
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[0].FeedForwardGate.Name == "" || weights.Layers[0].FeedForwardRouter != nil ||
+		weights.Layers[1].FeedForwardRouter == nil || weights.Layers[1].FeedForwardSharedGate == nil ||
+		weights.Layers[1].FeedForwardSharedUp == nil || weights.Layers[1].FeedForwardSharedDown == nil {
+		t.Fatalf("unexpected Llama 4 catalog: %+v", weights.Layers)
+	}
+}
+
 func TestReadWeightsGroveMoE(t *testing.T) {
 	spec := Spec{
 		Architecture: "grovemoe", BlockCount: 1, EmbeddingLength: 8,

@@ -145,6 +145,7 @@ type AttentionAttributes struct {
 	Causal          bool
 	HasSinks        bool
 	SymmetricWindow bool
+	ChunkedWindow   bool
 	QueryStart      uint32
 	Window          uint32
 	RelativeBuckets uint32
@@ -1315,6 +1316,28 @@ func (b *Builder) AttentionWindowWithSinksWithOffset(
 		return nil
 	}
 	return b.attentionWithWindow(query, key, value, nil, sinks, scale, 0, 0, causal, false, queryStart, window)
+}
+
+func (b *Builder) AttentionChunkedWindowWithOffset(
+	query, key, value *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+	window uint32,
+) *Tensor {
+	if window == 0 {
+		b.setError(errors.New("attention chunk must be positive"))
+		return nil
+	}
+	result := b.attentionWithWindow(
+		query, key, value, nil, nil, scale, 0, 0, causal, false, queryStart, window,
+	)
+	if result != nil {
+		attributes := result.Attrs.(AttentionAttributes)
+		attributes.ChunkedWindow = true
+		result.Attrs = attributes
+	}
+	return result
 }
 
 func (b *Builder) AttentionWindowSoftcappedWithOffset(

@@ -495,6 +495,9 @@ func (r *Runner) forwardDeviceCachedLocked(
 				deviceFeeds[pastKey] = past.Keys[layerIndex].Pointer
 				deviceFeeds[pastValue] = past.Values[layerIndex].Pointer
 			}
+			if tempErr := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); tempErr != nil {
+				return reference.Value{}, nil, tempErr
+			}
 			result, layerErr := model.BuildDenseBlockCachedForLayer(
 				builder,
 				current,

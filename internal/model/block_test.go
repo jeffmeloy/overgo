@@ -5583,3 +5583,73 @@ func denseBlockInputs(builder *tensor.Builder, spec Spec) LayerGraphWeights {
 		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(feedForward, embedding)),
 	}
 }
+
+func TestBuildLlama4AttentionAndMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "llama4", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 10000,
+		RMSNormEpsilon: 1e-5, SlidingWindow: 4, SlidingPattern: 4, NoRopeLayerStep: 4,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 6,
+		ExpertWeightsScale: 1, ExpertGatingFunc: 2, MoELayerStep: 4,
+	}
+	for _, test := range []struct {
+		name  string
+		layer uint32
+		moe   bool
+	}{
+		{name: "chunked dense", layer: 0},
+		{name: "temperature MoE", layer: 3, moe: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := denseBlockInputs(builder, spec)
+			if test.layer == 3 {
+				weights.AttentionTemperatureScale = builder.Input("temp", dtype.F32, tensor.MustShape(1, 1, 2))
+			}
+			if test.moe {
+				weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+				weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+				weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+				weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
+				weights.FeedForwardSharedGate = builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 6))
+				weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6))
+				weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8))
+			}
+			result, err := BuildDenseBlockCachedForLayer(
+				builder, input, spec, weights, []uint32{8192, 8193}, nil, nil, test.layer,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var rope, qkNorm int
+			var attention tensor.AttentionAttributes
+			var moe tensor.MoEAttributes
+			nodes, graphErr := tensor.Topological(result.Output)
+			if graphErr != nil {
+				t.Fatal(graphErr)
+			}
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpRoPENormal:
+					rope++
+				case tensor.OpRMSNorm:
+					if node.Shape.Rank == 3 {
+						qkNorm++
+					}
+				case tensor.OpAttention:
+					attention = node.Attrs.(tensor.AttentionAttributes)
+				case tensor.OpMoE:
+					moe = node.Attrs.(tensor.MoEAttributes)
+				}
+			}
+			if test.layer == 0 && (rope != 2 || qkNorm < 2 || !attention.ChunkedWindow) {
+				t.Fatalf("Llama 4 chunked graph: rope=%d qk_norm=%d attention=%+v", rope, qkNorm, attention)
+			}
+			if test.layer == 3 && (rope != 0 || moe.Routing != tensor.MoERoutingSigmoid || moe.NormalizeTopKProb) {
+				t.Fatalf("Llama 4 MoE graph: rope=%d moe=%+v", rope, moe)
+			}
+		})
+	}
+}

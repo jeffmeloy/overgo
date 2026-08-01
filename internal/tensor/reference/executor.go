@@ -1062,7 +1062,10 @@ func attention(
 			keyLimit = int(attributes.QueryStart) + queryToken + 1
 		}
 		keyFirst := 0
-		if attributes.SymmetricWindow {
+		if attributes.ChunkedWindow {
+			queryPosition := int(attributes.QueryStart) + queryToken
+			keyFirst = queryPosition / int(attributes.Window) * int(attributes.Window)
+		} else if attributes.SymmetricWindow {
 			halfWindow := int(attributes.Window / 2)
 			queryPosition := int(attributes.QueryStart) + queryToken
 			keyFirst = max(0, queryPosition-halfWindow)

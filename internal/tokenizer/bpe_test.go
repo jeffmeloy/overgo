@@ -70,6 +70,22 @@ func TestDBRXPreTokenizerUsesLlama3Segmentation(t *testing.T) {
 	}
 }
 
+func TestLlama4PreTokenizerUsesGPT4OSegmentation(t *testing.T) {
+	if !supportedPreTokenizer("llama4") || !isGPT4OPre("llama4") {
+		t.Fatal("Llama 4 pre-tokenizer is not registered")
+	}
+	got := preTokenizeGPT4O("Hello'S 1234!!\n next")
+	want := []string{"Hello'S", " ", "123", "4", "!!\n", " next"}
+	if len(got) != len(want) {
+		t.Fatalf("segments = %q, want %q", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("segment %d = %q, want %q", index, got[index], want[index])
+		}
+	}
+}
+
 func TestPreTokenizeDeepSeekLLM(t *testing.T) {
 	tests := []struct {
 		text string

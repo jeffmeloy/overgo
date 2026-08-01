@@ -1194,6 +1194,22 @@ device-cache paths share the graph. Metadata, strict catalog, cache topology,
 and complete reference/CUDA block differentials pass; real-model validation is
 pending because no Talkie GGUF is present locally.
 
+Llama 4 now executes separate-Q/K/V grouped-query attention with normal RoPE,
+post-RoPE unweighted Q/K RMSNorm where required, chunk-aligned causal attention,
+and position-dependent query temperature on periodic full-attention layers.
+Its metadata-selected expert layers use unnormalized sigmoid top-k routed
+SwiGLU experts plus the dense shared SwiGLU expert; intervening layers remain
+dense. Bounded-host, F32-preload, native-quantized expert, and retained-device
+cache paths share the graph. GPT-4o/Llama-4 BPE pre-tokenization, strict mixed
+catalogs, chunk-mask reference/CUDA parity, and a complete Llama 4 MoE block
+differential pass. Real-model validation remains pending a local GGUF fixture;
+the multimodal encoder/projector remains external to the text decoder.
+
+GPT-J remains deferred at the pinned-oracle boundary. The pinned tree retains
+its architecture enum and GGUF constants but has no model loader or graph and
+explicitly excludes GPT-J from architecture tests, so there is no executable
+upstream oracle to port against.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

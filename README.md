@@ -387,6 +387,9 @@ MiMo2 mixed dense/expert layers, per-layer KV heads and sliding selection, atten
 sinks, value scaling, MTP trimming, and CUDA differentials are synthetic-fixture validated.
 Gemma4 full/sliding head widths, shared KV, absent-V fallback, mixed dense/GELU-MoE
 blocks, expert output scales, projected per-layer inputs, and raw BPE are synthetic-fixture validated.
+Llama4 chunk-aligned attention, periodic temperature-scaled full attention,
+post-RoPE Q/K normalization, interleaved sigmoid MoE/shared-expert blocks, and
+GPT-4o pre-tokenization are synthetic-fixture and CUDA-differential validated.
 Set `LLAMACPP2GO_BONSAI_MODEL` to the local Bonsai 27B Q1_0 Qwen3.5 fixture
 to validate real-model native one-bit weights against the pinned CPU oracle.
 Set `LLAMACPP2GO_GEMMA3_MODEL` and `LLAMACPP2GO_UMT5_MODEL` to run the

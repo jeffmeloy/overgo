@@ -2119,6 +2119,30 @@ models:
     limitations:
       - multimodal-encoder-external
     real_model_validation: pending-fixture
+  llama4:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+      - retained-device-cache
+    tokenizers:
+      - gpt4o-bpe
+      - llama4-pre-tokenizer
+    features:
+      - separate-qkv
+      - normal-rope
+      - post-rope-unweighted-qk-rmsnorm
+      - chunk-aligned-causal-attention
+      - position-dependent-full-attention-temperature
+      - interleaved-dense-and-moe-layers
+      - unnormalized-sigmoid-top-k-routing
+      - packed-swiglu-experts
+      - dense-shared-expert-branch
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - multimodal-encoder-external
+    real_model_validation: pending-fixture
   step35:
     status: experimental
     execution:

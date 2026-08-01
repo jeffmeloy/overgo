@@ -358,7 +358,8 @@ func supportedPreTokenizer(pre string) bool {
 	switch pre {
 	case "", "default", "gpt-2", "phi-2", "qwen2", "deepseek-r1-qwen", "kormo", "f2llmv2", "megrez",
 		"bailingmoe", "bailingmoe2", "deepseek-llm",
-		"qwen35", "dbrx", "llama3", "llama-v3", "llama-bpe":
+		"qwen35", "dbrx", "llama3", "llama-v3", "llama-bpe",
+		"gpt-4o", "llama4", "kanana2", "talkie":
 		return true
 	default:
 		return false

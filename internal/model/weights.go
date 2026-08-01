@@ -70,6 +70,11 @@ type LayerWeights struct {
 	AttentionKVAMQA          *gguf.TensorInfo
 	AttentionKVANorm         *gguf.TensorInfo
 	AttentionKVB             *gguf.TensorInfo
+	VisualAttentionQKV       *gguf.TensorInfo
+	VisualAttentionOutput    *gguf.TensorInfo
+	VisualFeedForwardGate    *gguf.TensorInfo
+	VisualFeedForwardUp      *gguf.TensorInfo
+	VisualFeedForwardDown    *gguf.TensorInfo
 
 	AttentionQKV     *gguf.TensorInfo
 	AttentionQKVBias *gguf.TensorInfo
@@ -384,12 +389,12 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			"ffn_up.bias",
 			"ffn_down.bias",
 		}
-		if spec.Architecture == "qwen35" {
+		if spec.Architecture == "qwen35" || spec.Architecture == "cogvlm" {
 			for _, name := range biasNames {
 				if _, ok := tensors[prefix+name]; ok {
 					return Weights{}, fmt.Errorf(
-						"tensor %q requires unsupported Qwen3.5 projection biases",
-						prefix+name,
+						"tensor %q requires unsupported %s projection biases",
+						prefix+name, spec.Architecture,
 					)
 				}
 			}
@@ -723,10 +728,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
-				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "modern-bert" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
+				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "cogvlm" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "modern-bert" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight",
 						uint64(spec.EmbeddingLength),
@@ -1605,6 +1610,39 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				if item == nil {
 					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
 				}
+			}
+		}
+		if spec.Architecture == "cogvlm" {
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"vis_attn_qkv.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), 3 * uint64(spec.EmbeddingLength)},
+					&layer.VisualAttentionQKV,
+				},
+				"vis_attn_output.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)},
+					&layer.VisualAttentionOutput,
+				},
+				"vis_gate.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)},
+					&layer.VisualFeedForwardGate,
+				},
+				"vis_up.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)},
+					&layer.VisualFeedForwardUp,
+				},
+				"vis_down.weight": {
+					[]uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)},
+					&layer.VisualFeedForwardDown,
+				},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
 			}
 		}
 	}

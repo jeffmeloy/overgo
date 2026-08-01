@@ -933,6 +933,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	if r.spec.Architecture == "t5encoder" {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
 	}
+	if r.spec.Architecture == "cogvlm" && len(overrides) > 0 {
+		return reference.Value{}, nil, errors.New("inference: CogVLM visual embedding mode is not supported")
+	}
 	if len(tokenIDs) == 0 {
 		return reference.Value{}, nil, errors.New("inference: token sequence is empty")
 	}

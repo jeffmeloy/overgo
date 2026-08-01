@@ -129,6 +129,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "codeshell" &&
 		architecture != "chameleon" &&
 		architecture != "chatglm" &&
+		architecture != "cogvlm" &&
 		architecture != "dream" &&
 		architecture != "deepseek" &&
 		architecture != "deepseek2-ocr" &&
@@ -502,6 +503,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if spec.LogitScale, err = required[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err
 		}
+		spec.RopeDimensionCount = spec.KeyLength
+	}
+	if architecture == "cogvlm" {
 		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if architecture == "minicpm" || architecture == "minicpm3" {
@@ -2510,6 +2514,12 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength) {
 		return errors.New("ChatGLM attention metadata is invalid")
 	}
+	if s.Architecture == "cogvlm" &&
+		(s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength ||
+			uint64(s.KeyLength)*uint64(s.HeadCount) != uint64(s.EmbeddingLength) ||
+			s.RopeDimensionCount != s.KeyLength) {
+		return errors.New("CogVLM attention metadata is invalid")
+	}
 	if (s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan-vl") &&
 		(s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			s.RopeDimensionCount%2 != 0 || s.RopeFrequencyBase <= 0 ||
@@ -2626,6 +2636,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "command-r" ||
 		architecture == "chameleon" ||
 		architecture == "chatglm" ||
+		architecture == "cogvlm" ||
 		architecture == "granite" ||
 		architecture == "granitemoe" ||
 		architecture == "hunyuan-dense" ||

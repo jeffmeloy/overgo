@@ -827,6 +827,24 @@ models:
       - optional-tied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  cogvlm:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - token-input-decoder
+      - required-contiguous-fused-qkv
+      - normal-rope-with-optional-factors
+      - rmsnorm
+      - swiglu
+      - strict-parallel-visual-expert-catalog
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - visual-embedding-mode-external
+      - image-encoder-external
+    real_model_validation: pending-fixture
   qwen:
     status: experimental
     execution:

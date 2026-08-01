@@ -1,13 +1,26 @@
 package inference
 
 import (
+	"context"
 	"math"
 	"strings"
 	"testing"
 
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
+
+func TestCogVLMRejectsVisualEmbeddingMode(t *testing.T) {
+	runner := &Runner{spec: model.Spec{Architecture: "cogvlm"}}
+	_, _, err := runner.forwardCachedWithEmbeddingOverridesLocked(
+		context.Background(), nil, nil,
+		[]EmbeddingOverride{{TokenIndex: 0, Embedding: []float32{1}}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "visual embedding mode") {
+		t.Fatalf("error = %v", err)
+	}
+}
 
 func TestApplyEmbeddingOverrides(t *testing.T) {
 	activation := reference.Value{

@@ -495,6 +495,35 @@ func TestBuildHunyuanVLBlockUsesPostMRoPEQKNorm(t *testing.T) {
 	}
 }
 
+func TestBuildCogVLMTokenBlockUsesFusedQKVAndNormalRoPE(t *testing.T) {
+	b := tensor.NewBuilder()
+	s := Spec{Architecture: "cogvlm", EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6}
+	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
+	r, err := BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(r.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rope, rms, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRoPENormal:
+			rope++
+		case tensor.OpRMSNorm:
+			rms++
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if rope != 2 || rms != 2 || silu != 1 {
+		t.Fatalf("CogVLM token graph has RoPE=%d RMS=%d SiLU=%d", rope, rms, silu)
+	}
+}
+
 func TestBuildArcticParallelDenseAndMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

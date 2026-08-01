@@ -878,6 +878,31 @@ func TestReadChatGLMSpec(t *testing.T) {
 	}
 }
 
+func TestReadCogVLMSpecUsesFusedNormalRoPEDecoder(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "cogvlm"),
+		metadata("cogvlm.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("cogvlm.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("cogvlm.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("cogvlm.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("cogvlm.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("cogvlm.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("cogvlm.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("cogvlm.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("cogvlm.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("cogvlm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("cogvlm.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "cogvlm" || spec.RopeDimensionCount != 4 ||
+		!usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected CogVLM spec: %+v", spec)
+	}
+}
+
 func TestReadHunyuanDenseSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "hunyuan-dense"),

@@ -967,6 +967,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		downBias = inputs[optionalIndex+2].Data
 	}
 	hidden := int(input.Shape.Dims[0])
+	routerHidden := int(routerInput.Shape.Dims[0])
 	tokens := int(input.Shape.Dims[1])
 	experts := int(attributes.Experts)
 	expertIndexDivisor := int(attributes.ExpertIndexDivisor)
@@ -993,12 +994,12 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	used := make([]bool, experts)
 	for token := 0; token < tokens; token++ {
 		x := input.Data[token*hidden : (token+1)*hidden]
-		routerX := routerInput.Data[token*hidden : (token+1)*hidden]
+		routerX := routerInput.Data[token*routerHidden : (token+1)*routerHidden]
 		maximum := math.Inf(-1)
 		for expert := 0; expert < experts; expert++ {
 			var dot float64
-			for channel := 0; channel < hidden; channel++ {
-				dot += float64(routerX[channel]) * float64(router.Data[expert*hidden+channel])
+			for channel := 0; channel < routerHidden; channel++ {
+				dot += float64(routerX[channel]) * float64(router.Data[expert*routerHidden+channel])
 			}
 			if routerBias != nil {
 				dot += float64(routerBias[expert])
@@ -1105,6 +1106,9 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 						if attributes.Gated {
 							activation = math.Max(gateDot, 0) * upDot
 						}
+					case tensor.MoEActivationReLUSquared:
+						activation = math.Max(upDot, 0)
+						activation *= activation
 					case tensor.MoEActivationGELU:
 						activation = moeGELU(upDot)
 						if attributes.Gated {

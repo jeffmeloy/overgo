@@ -187,10 +187,11 @@ const (
 type MoEActivation uint32
 
 const (
-	MoEActivationSiLU      MoEActivation = 1
-	MoEActivationReLU      MoEActivation = 2
-	MoEActivationGELU      MoEActivation = 3
-	MoEActivationSwiGLUOAI MoEActivation = 4
+	MoEActivationSiLU        MoEActivation = 1
+	MoEActivationReLU        MoEActivation = 2
+	MoEActivationGELU        MoEActivation = 3
+	MoEActivationSwiGLUOAI   MoEActivation = 4
+	MoEActivationReLUSquared MoEActivation = 5
 )
 
 type moeBiases struct {
@@ -619,6 +620,18 @@ func (b *Builder) MoEReLUWithRouterInput(
 		routing, MoEActivationReLU, false, 1, 0, nil)
 }
 
+// MoEReLUSquaredWithRouterInput: split router input; ungated squared-ReLU experts.
+func (b *Builder) MoEReLUSquaredWithRouterInput(
+	input, routerInput, router, up, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+	routing MoERouting,
+) *Tensor {
+	return b.moe(input, routerInput, router, nil, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
+		routing, MoEActivationReLUSquared, false, 1, 0, nil)
+}
+
 // MoEGELU: softmax top-k GELU/GEGLU experts.
 func (b *Builder) MoEGELU(
 	input, router, gate, up, down *Tensor,
@@ -698,6 +711,7 @@ func (b *Builder) moe(
 		return nil
 	}
 	hidden := input.Shape.Dims[0]
+	routerHidden := routerInput.Shape.Dims[0]
 	experts := router.Shape.Dims[1]
 	if expertIndexDivisor == 0 || experts%uint64(expertIndexDivisor) != 0 {
 		b.setError(errors.New("MoE expert index divisor is invalid"))
@@ -715,8 +729,8 @@ func (b *Builder) moe(
 	if hidden == 0 || experts == 0 || experts > math.MaxUint32 || topK == 0 ||
 		uint64(topK) > experts || uint64(topK) > bankExperts || topK > 16 || scale == 0 ||
 		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) ||
-		router.Shape.Dims[0] != hidden || up.Shape.Dims[0] != hidden ||
-		routerInput.Shape.Dims[0] != hidden || routerInput.Shape.Dims[1] != input.Shape.Dims[1] ||
+		routerHidden == 0 || router.Shape.Dims[0] != routerHidden || up.Shape.Dims[0] != hidden ||
+		routerInput.Shape.Dims[1] != input.Shape.Dims[1] ||
 		up.Shape.Dims[2] != bankExperts ||
 		down.Shape.Dims[0] != intermediate || down.Shape.Dims[1] != hidden ||
 		down.Shape.Dims[2] != bankExperts {
@@ -733,6 +747,7 @@ func (b *Builder) moe(
 		return nil
 	}
 	if activation != MoEActivationSiLU && activation != MoEActivationReLU && activation != MoEActivationGELU &&
+		activation != MoEActivationReLUSquared &&
 		activation != MoEActivationSwiGLUOAI {
 		b.setError(errors.New("MoE activation is invalid"))
 		return nil

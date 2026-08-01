@@ -1251,6 +1251,20 @@ second model context. The current single-model runner has no target/draft
 speculative coordinator or cross-model hidden-state API; its standalone tensor
 graph would therefore be incomplete and misleading.
 
+Gemma4 Assistant remains deferred at the orchestration boundary. It consumes
+target-model token embeddings plus external target hidden states, reads K/V
+through the target model's shared-attention cache, and returns both logits and
+the next hidden-state stream. The current runner owns one model, one cache, one
+hidden input, and one output; standalone assistant execution would omit its
+required target context.
+
+Gemma3n remains deferred at the activation ABI boundary. Its AltUp/Laurel graph
+keeps a rank-3 stack of hidden streams, performs prediction/correction routing
+and magnitude normalization, injects per-layer token projections, and shares
+K/V across a metadata-selected layer suffix. The current decoder activation and
+cache contracts expose one rank-2 hidden stream and ordinary per-layer K/V.
+Partial dense-block execution would not match the pinned graph.
+
 Falcon-H1 remains deferred at the cache ABI boundary. Every layer executes
 attention and Mamba2 in parallel, requiring simultaneous attention K/V plus
 convolution/SSM state. The current two-tensor `LayerCache` can hold either pair,
@@ -1304,6 +1318,16 @@ inverse-logit scaling; optional convolution and dense projection biases; gated
 or ungated softmax experts; and optional shared SwiGLU experts. Strict metadata,
 mixed catalog, topology, cache, and complete CUDA block differential tests pass;
 real-model validation remains pending a local GGUF fixture.
+
+Nemotron-H and Nemotron-H-MoE now execute metadata-selected no-RoPE GQA,
+Mamba2, and standalone FFN layers in one hybrid cache. Dense layers use
+squared ReLU. MoE layers use sigmoid top-k squared-ReLU experts with correction
+bias, optional latent down/up projections, optional selected-weight
+normalization, routed scaling, and the shared squared-ReLU expert. The expert
+primitive permits distinct router and expert widths across F32 and native
+quantized storage. Strict metadata, three-way catalogs, graph topology, cache,
+attention/recurrent/MoE CUDA differentials, and native-quantized expert
+differentials pass; real-model validation remains pending a local GGUF fixture.
 
 ## Working rules
 

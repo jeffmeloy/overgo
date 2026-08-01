@@ -49,6 +49,72 @@ func TestReadWeightsQwen3(t *testing.T) {
 	}
 }
 
+func TestReadWeightsNemotronHMoEThreeWayLayers(t *testing.T) {
+	spec := Spec{
+		Architecture: "nemotron_h_moe", BlockCount: 3, EmbeddingLength: 8,
+		FeedForwardLength: 6, LayerFeedForward: []uint32{0, 0, 6},
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 0, 2},
+		LayerKVHeadCounts: []uint32{1, 0, 1}, RecurrentLayers: []bool{false, true, false},
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+		SSMConvKernel: 3, SSMInnerSize: 16, SSMStateSize: 2, SSMTimeStepRank: 4, SSMGroupCount: 2,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 5,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, MoELatentSize: 4,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 4),
+		tensorInfo("blk.0.attn_v.weight", 8, 4), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.1.attn_norm.weight", 8), tensorInfo("blk.1.ssm_in.weight", 8, 44),
+		tensorInfo("blk.1.ssm_conv1d.weight", 3, 24), tensorInfo("blk.1.ssm_conv1d.bias", 24),
+		tensorInfo("blk.1.ssm_dt.bias", 4), tensorInfo("blk.1.ssm_a", 1, 4),
+		tensorInfo("blk.1.ssm_d", 1, 4), tensorInfo("blk.1.ssm_norm.weight", 8, 2),
+		tensorInfo("blk.1.ssm_out.weight", 16, 8),
+		tensorInfo("blk.2.attn_norm.weight", 8), tensorInfo("blk.2.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.2.exp_probs_b.bias", 4), tensorInfo("blk.2.ffn_latent_down.weight", 8, 4),
+		tensorInfo("blk.2.ffn_latent_up.weight", 4, 8), tensorInfo("blk.2.ffn_up_exps.weight", 4, 6, 4),
+		tensorInfo("blk.2.ffn_down_exps.weight", 6, 4, 4), tensorInfo("blk.2.ffn_up_shexp.weight", 8, 5),
+		tensorInfo("blk.2.ffn_down_shexp.weight", 5, 8),
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attention, recurrent, moe := weights.Layers[0], weights.Layers[1], weights.Layers[2]
+	if attention.AttentionQ.Name == "" || attention.AttentionOutputBias == nil || attention.FeedForwardUp.Name != "" ||
+		!recurrent.Recurrent || recurrent.SSMInput == nil || recurrent.SSMConv1DBias == nil ||
+		moe.Recurrent || moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
+		moe.FeedForwardLatentDown == nil || moe.FeedForwardLatentUp == nil ||
+		moe.FeedForwardUpExperts == nil || moe.FeedForwardDownExperts == nil ||
+		moe.FeedForwardSharedUp == nil || moe.FeedForwardSharedDown == nil || moe.AttentionQ.Name != "" {
+		t.Fatalf("unexpected Nemotron-H MoE catalog: %+v", weights.Layers)
+	}
+}
+
+func TestReadWeightsNemotronHDenseFFNLayer(t *testing.T) {
+	spec := Spec{
+		Architecture: "nemotron_h", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 6, LayerFeedForward: []uint32{6},
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2}, LayerKVHeadCounts: []uint32{1},
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.ffn_up.weight", 8, 6),
+		tensorInfo("blk.0.ffn_up.bias", 6), tensorInfo("blk.0.ffn_down.weight", 6, 8),
+		tensorInfo("blk.0.ffn_down.bias", 8),
+	}}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.AttentionNorm.Name == "" || layer.FeedForwardUp.Name == "" || layer.FeedForwardDown.Name == "" ||
+		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil || layer.AttentionQ.Name != "" {
+		t.Fatalf("unexpected dense Nemotron-H catalog: %+v", layer)
+	}
+}
+
 func TestReadWeightsQwen3MoE(t *testing.T) {
 	spec := Spec{
 		Architecture:       "qwen3moe",

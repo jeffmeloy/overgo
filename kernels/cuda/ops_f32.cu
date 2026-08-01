@@ -801,6 +801,7 @@ extern "C" __global__ void moe_f32(
 		const float * down_bias,
         float * output,
         unsigned int hidden,
+		unsigned int router_hidden,
         unsigned int tokens,
         unsigned int experts,
         unsigned int top_k,
@@ -820,13 +821,13 @@ extern "C" __global__ void moe_f32(
     const unsigned int output_channel = index % hidden;
     const unsigned int token = index / hidden;
     const float * x = input + (size_t) token * hidden;
-	const float * router_x = router_input + (size_t) token * hidden;
+	const float * router_x = router_input + (size_t) token * router_hidden;
 
     float maximum = -3.402823466e+38F;
     for (unsigned int expert = 0; expert < experts; ++expert) {
-        const float * weight = router + (size_t) expert * hidden;
+		const float * weight = router + (size_t) expert * router_hidden;
         float logit = 0.0f;
-        for (unsigned int channel = 0; channel < hidden; ++channel) {
+		for (unsigned int channel = 0; channel < router_hidden; ++channel) {
             logit += router_x[channel] * weight[channel];
         }
 		if (router_bias) logit += router_bias[expert];
@@ -834,9 +835,9 @@ extern "C" __global__ void moe_f32(
     }
 	float denominator = 0.0f;
 	if (routing == 1) for (unsigned int expert = 0; expert < experts; ++expert) {
-        const float * weight = router + (size_t) expert * hidden;
+		const float * weight = router + (size_t) expert * router_hidden;
         float logit = 0.0f;
-        for (unsigned int channel = 0; channel < hidden; ++channel) {
+		for (unsigned int channel = 0; channel < router_hidden; ++channel) {
             logit += router_x[channel] * weight[channel];
         }
 		if (router_bias) logit += router_bias[expert];
@@ -856,9 +857,9 @@ extern "C" __global__ void moe_f32(
                 used = used || selected[prior] == expert;
             }
             if (used) continue;
-            const float * weight = router + (size_t) expert * hidden;
+			const float * weight = router + (size_t) expert * router_hidden;
             float logit = 0.0f;
-            for (unsigned int channel = 0; channel < hidden; ++channel) {
+			for (unsigned int channel = 0; channel < router_hidden; ++channel) {
                 logit += router_x[channel] * weight[channel];
             }
 			if (router_bias) logit += router_bias[expert];
@@ -930,6 +931,9 @@ extern "C" __global__ void moe_f32(
 				const float gate_value = fminf(gate_dot, 7.0f);
 				const float up_value = fminf(7.0f, fmaxf(-7.0f, up_dot));
 				activated = gate_value / (1.0f + expf(-1.702f * gate_value)) * (up_value + 1.0f);
+			} else if (activation == 5) {
+				activated = fmaxf(up_dot, 0.0f);
+				activated *= activated;
 			} else {
 				if (gated) {
 					float gate_activation = gate_dot / (1.0f + expf(-gate_dot));

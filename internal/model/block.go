@@ -69,6 +69,8 @@ type LayerGraphWeights struct {
 	FeedForwardUpChunkExperts   *tensor.Tensor
 	FeedForwardDownChunkExperts *tensor.Tensor
 	FeedForwardExpertBias       *tensor.Tensor
+	FeedForwardLatentDown       *tensor.Tensor
+	FeedForwardLatentUp         *tensor.Tensor
 	FeedForwardSharedGate       *tensor.Tensor
 	FeedForwardSharedUp         *tensor.Tensor
 	FeedForwardSharedDown       *tensor.Tensor
@@ -901,7 +903,8 @@ func buildMamba2MixerCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Mamba2 block input/state is nil")
 	}
-	if (spec.Architecture != "mamba2" && spec.Architecture != "granitehybrid") || input.Shape.Rank != 2 ||
+	if (spec.Architecture != "mamba2" && spec.Architecture != "granitehybrid" &&
+		spec.Architecture != "nemotron_h" && spec.Architecture != "nemotron_h_moe") || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Mamba2 mixer architecture/input is invalid")
 	}
@@ -1180,6 +1183,144 @@ func BuildPLaMo2RecurrentBlockCached(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
+}
+
+// BuildNemotronHBlockCached: attention, Mamba2, or FFN mixer.
+func BuildNemotronHBlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if builder == nil || input == nil || input.Shape.Rank != 2 ||
+		(spec.Architecture != "nemotron_h" && spec.Architecture != "nemotron_h_moe") {
+		return DenseBlockResult{}, errors.New("Nemotron-H block architecture/input is invalid")
+	}
+	if weights.AttentionNorm == nil {
+		return DenseBlockResult{}, errors.New("Nemotron-H block norm is nil")
+	}
+	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Nemotron-H position count is invalid")
+	}
+	if (pastKey == nil) != (pastValue == nil) {
+		return DenseBlockResult{}, errors.New("Nemotron-H cache must contain both tensors")
+	}
+	if spec.IsRecurrentLayer(layerIndex) {
+		result, err := buildMamba2MixerCached(builder, input, spec, weights, pastKey, pastValue)
+		if err != nil {
+			return DenseBlockResult{}, err
+		}
+		result.Output = builder.Add(input, result.Output)
+		return result, builder.Err()
+	}
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	tokens := input.Shape.Dims[1]
+	if spec.LayerFeedForwardLength(layerIndex) == 0 {
+		for name, item := range map[string]*tensor.Tensor{
+			"attention Q": weights.AttentionQ, "attention K": weights.AttentionK,
+			"attention V": weights.AttentionV, "attention output": weights.AttentionOutput,
+		} {
+			if item == nil {
+				return DenseBlockResult{}, fmt.Errorf("Nemotron-H %s weight is nil", name)
+			}
+		}
+		query := builder.MulMat(weights.AttentionQ, normalized)
+		key := builder.MulMat(weights.AttentionK, normalized)
+		value := builder.MulMat(weights.AttentionV, normalized)
+		if weights.AttentionQBias != nil {
+			query = builder.Add(query, weights.AttentionQBias)
+		}
+		if weights.AttentionKBias != nil {
+			key = builder.Add(key, weights.AttentionKBias)
+		}
+		if weights.AttentionVBias != nil {
+			value = builder.Add(value, weights.AttentionVBias)
+		}
+		heads := uint64(spec.LayerHeadCount(layerIndex))
+		kvHeads := uint64(spec.LayerKVHeadCount(layerIndex))
+		query = builder.Reshape(query, uint64(spec.KeyLength), heads, tokens)
+		key = builder.Reshape(key, uint64(spec.KeyLength), kvHeads, tokens)
+		value = builder.Reshape(value, uint64(spec.ValueLength), kvHeads, tokens)
+		cacheKey, cacheValue := key, value
+		var queryStart uint32
+		if pastKey != nil {
+			if pastKey.Shape.Dims[2] > math.MaxUint32 {
+				return DenseBlockResult{}, errors.New("Nemotron-H cache token count exceeds uint32")
+			}
+			queryStart = uint32(pastKey.Shape.Dims[2])
+			cacheKey = builder.Concat(pastKey, key, 2)
+			cacheValue = builder.Concat(pastValue, value, 2)
+		}
+		scale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+		if spec.AttentionScale > 0 {
+			scale = spec.AttentionScale
+		}
+		attention := builder.AttentionWithOffset(query, cacheKey, cacheValue, scale, true, queryStart)
+		attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
+		attention = builder.MulMat(weights.AttentionOutput, attention)
+		if weights.AttentionOutputBias != nil {
+			attention = builder.Add(attention, weights.AttentionOutputBias)
+		}
+		return DenseBlockResult{Output: builder.Add(input, attention), Key: cacheKey, Value: cacheValue}, builder.Err()
+	}
+	sentinel := builder.GroupSlice(input, 0, 1, 1, input.Shape.Dims[0])
+	cacheKey, cacheValue := sentinel, sentinel
+	if pastKey != nil {
+		wantPrefix := tensor.MustShape(1, 1, pastKey.Shape.Dims[2])
+		if !pastKey.Shape.Equal(wantPrefix) || !pastValue.Shape.Equal(wantPrefix) {
+			return DenseBlockResult{}, errors.New("Nemotron-H FFN sentinel cache shape is invalid")
+		}
+		cacheKey = builder.Concat(pastKey, sentinel, 2)
+		cacheValue = builder.Concat(pastValue, sentinel, 2)
+	}
+	var feedForward *tensor.Tensor
+	if spec.Architecture == "nemotron_h_moe" {
+		for name, item := range map[string]*tensor.Tensor{
+			"router": weights.FeedForwardRouter, "expert bias": weights.FeedForwardExpertBias,
+			"expert up": weights.FeedForwardUpExperts, "expert down": weights.FeedForwardDownExperts,
+			"shared up": weights.FeedForwardSharedUp, "shared down": weights.FeedForwardSharedDown,
+		} {
+			if item == nil {
+				return DenseBlockResult{}, fmt.Errorf("Nemotron-H MoE %s weight is nil", name)
+			}
+		}
+		expertInput := normalized
+		if weights.FeedForwardLatentDown != nil {
+			if weights.FeedForwardLatentUp == nil {
+				return DenseBlockResult{}, errors.New("Nemotron-H MoE latent projection is incomplete")
+			}
+			expertInput = builder.MulMat(weights.FeedForwardLatentDown, normalized)
+		} else if weights.FeedForwardLatentUp != nil {
+			return DenseBlockResult{}, errors.New("Nemotron-H MoE latent projection is incomplete")
+		}
+		feedForward = builder.MoEReLUSquaredWithRouterInput(
+			expertInput, normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
+			weights.FeedForwardDownExperts, weights.FeedForwardExpertBias, spec.ExpertUsedCount,
+			spec.ExpertWeightsNorm, spec.ExpertWeightsScale, tensor.MoERoutingSigmoid,
+		)
+		if weights.FeedForwardLatentUp != nil {
+			feedForward = builder.MulMat(weights.FeedForwardLatentUp, feedForward)
+		}
+		shared := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+		shared = builder.MulMat(weights.FeedForwardSharedDown, builder.ReLUSquared(shared))
+		feedForward = builder.Add(feedForward, shared)
+	} else {
+		if weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
+			return DenseBlockResult{}, errors.New("Nemotron-H dense FFN catalog is incomplete")
+		}
+		feedForward = builder.MulMat(weights.FeedForwardUp, normalized)
+		if weights.FeedForwardUpBias != nil {
+			feedForward = builder.Add(feedForward, weights.FeedForwardUpBias)
+		}
+		feedForward = builder.MulMat(weights.FeedForwardDown, builder.ReLUSquared(feedForward))
+		if weights.FeedForwardDownBias != nil {
+			feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+		}
+	}
+	return DenseBlockResult{Output: builder.Add(input, feedForward), Key: cacheKey, Value: cacheValue}, builder.Err()
 }
 
 // BuildPLMBlockCached: PLM MLA block

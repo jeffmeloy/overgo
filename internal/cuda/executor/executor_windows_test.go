@@ -30,6 +30,181 @@ func TestAllZeroFloat32(t *testing.T) {
 	}
 }
 
+func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "nemotron_h", BlockCount: 1, EmbeddingLength: 4,
+		FeedForwardLength: 1, LayerFeedForward: []uint32{0},
+		HeadCount: 1, HeadCountKV: 1, LayerHeadCounts: []uint32{0}, LayerKVHeadCounts: []uint32{0},
+		RecurrentLayers: []bool{true}, KeyLength: 4, ValueLength: 4, RMSNormEpsilon: 1e-5,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4, SSMGroupCount: 2,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	weights := model.LayerGraphWeights{
+		AttentionNorm: builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		SSMInput:      builder.Input("ssm_in", dtype.F32, tensor.MustShape(4, 28)),
+		SSMConv1D:     builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
+		SSMConv1DBias: builder.Input("conv_bias", dtype.F32, tensor.MustShape(16)),
+		SSMTimeStep:   builder.Input("dt_bias", dtype.F32, tensor.MustShape(4)),
+		SSMA:          builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
+		SSMD:          builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
+		SSMNorm:       builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
+		SSMOutput:     builder.Input("ssm_out", dtype.F32, tensor.MustShape(8, 4)),
+	}
+	result, err := model.BuildNemotronHBlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, convState, ssmState, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{}
+	for index, node := range []*tensor.Tensor{
+		input, convState, ssmState, weights.AttentionNorm, weights.SSMInput, weights.SSMConv1D,
+		weights.SSMConv1DBias, weights.SSMTimeStep, weights.SSMA, weights.SSMD, weights.SSMNorm, weights.SSMOutput,
+	} {
+		offset := float32(0)
+		if node == weights.AttentionNorm || node == weights.SSMNorm {
+			offset = 1
+		}
+		feeds[node] = patternedValue(node.Shape, index+3, 0.04, offset)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 8e-4)
+}
+
+func TestExecutorNemotronHMoEBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "nemotron_h_moe", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 6, LayerFeedForward: []uint32{6}, HeadCount: 2, HeadCountKV: 1,
+		LayerHeadCounts: []uint32{2}, LayerKVHeadCounts: []uint32{1}, RecurrentLayers: []bool{false},
+		KeyLength: 4, ValueLength: 4, RMSNormEpsilon: 1e-5,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 5,
+		ExpertWeightsNorm: true, ExpertWeightsScale: 1.25, MoELatentSize: 4,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:          builder.Input("norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardExpertBias:  builder.Input("bias", dtype.F32, tensor.MustShape(4)),
+		FeedForwardLatentDown:  builder.Input("latent_down", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardLatentUp:    builder.Input("latent_up", dtype.F32, tensor.MustShape(4, 8)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(4, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 4, 4)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
+	}
+	result, err := model.BuildNemotronHBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                         patternedValue(input.Shape, 3, 0.15, 0),
+		weights.AttentionNorm:         patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 1),
+		weights.FeedForwardExpertBias: {Shape: weights.FeedForwardExpertBias.Shape, Data: []float32{0.1, -0.2, 0.3, -0.1}},
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.FeedForwardRouter, weights.FeedForwardLatentDown, weights.FeedForwardLatentUp,
+		weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+		weights.FeedForwardSharedUp, weights.FeedForwardSharedDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.06, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
+func TestExecutorNemotronHAttentionBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "nemotron_h", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 1, LayerFeedForward: []uint32{0}, HeadCount: 2, HeadCountKV: 1,
+		LayerHeadCounts: []uint32{2}, LayerKVHeadCounts: []uint32{1}, RecurrentLayers: []bool{false},
+		KeyLength: 4, ValueLength: 4, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:       builder.Input("norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:          builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:          builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:          builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:     builder.Input("output", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionOutputBias: builder.Input("output_bias", dtype.F32, tensor.MustShape(8)),
+	}
+	result, err := model.BuildNemotronHBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                 patternedValue(input.Shape, 3, 0.15, 0),
+		weights.AttentionNorm: patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 1),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQ, weights.AttentionK, weights.AttentionV,
+		weights.AttentionOutput, weights.AttentionOutputBias,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.06, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 6e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
@@ -625,10 +800,15 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	width := traits.BlockSize
 	inputShape := tensor.MustShape(width, 1)
 	routerShape := tensor.MustShape(width, 2)
+	wideRouterInputShape := tensor.MustShape(2*width, 1)
+	wideRouterShape := tensor.MustShape(2*width, 2)
 	gateShape := tensor.MustShape(width, width, 2)
 	downShape := tensor.MustShape(width, width, 2)
 	inputValue := patternedValue(inputShape, 3, 0.02, 0)
 	routerValue := patternedValue(routerShape, 5, 0.01, 0)
+	wideRouterInputValue := patternedValue(wideRouterInputShape, 6, 0.01, 0)
+	wideRouterValue := patternedValue(wideRouterShape, 8, 0.01, 0)
+	selectionBiasValue := reference.Value{Shape: tensor.MustShape(2), Data: []float32{0.2, -0.1}}
 	gateValue := patternedValue(gateShape, 7, 0.01, 0)
 	upValue := patternedValue(gateShape, 11, 0.01, 0)
 	downValue := patternedValue(downShape, 13, 0.01, 0)
@@ -669,6 +849,9 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	referenceBuilder := tensor.NewBuilder()
 	referenceInput := referenceBuilder.Input("input", dtype.F32, inputShape)
 	referenceRouter := referenceBuilder.Input("router", dtype.F32, routerShape)
+	referenceWideRouterInput := referenceBuilder.Input("wide_router_input", dtype.F32, wideRouterInputShape)
+	referenceWideRouter := referenceBuilder.Input("wide_router", dtype.F32, wideRouterShape)
+	referenceSelectionBias := referenceBuilder.Input("selection_bias", dtype.F32, tensor.MustShape(2))
 	referenceGate := referenceBuilder.Input("gate", dtype.F32, gateShape)
 	referenceUp := referenceBuilder.Input("up", dtype.F32, gateShape)
 	referenceDown := referenceBuilder.Input("down", dtype.F32, downShape)
@@ -679,15 +862,22 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	referenceFusedOutput := referenceBuilder.MoESigmoidFusedGateUp(
 		referenceInput, referenceRouter, referenceGateUp, referenceDown, nil, 2, true, 1.25,
 	)
+	referenceSquaredOutput := referenceBuilder.MoEReLUSquaredWithRouterInput(
+		referenceInput, referenceWideRouterInput, referenceWideRouter, referenceUp, referenceDown,
+		referenceSelectionBias, 2, true, 1.25, tensor.MoERoutingSigmoid,
+	)
 	want, err := reference.Execute(
-		[]*tensor.Tensor{referenceOutput, referenceFusedOutput},
+		[]*tensor.Tensor{referenceOutput, referenceFusedOutput, referenceSquaredOutput},
 		map[*tensor.Tensor]reference.Value{
-			referenceInput:  inputValue,
-			referenceRouter: routerValue,
-			referenceGate:   gateReference,
-			referenceUp:     upReference,
-			referenceDown:   downReference,
-			referenceGateUp: gateUpReference,
+			referenceInput:           inputValue,
+			referenceRouter:          routerValue,
+			referenceWideRouterInput: wideRouterInputValue,
+			referenceWideRouter:      wideRouterValue,
+			referenceSelectionBias:   selectionBiasValue,
+			referenceGate:            gateReference,
+			referenceUp:              upReference,
+			referenceDown:            downReference,
+			referenceGateUp:          gateUpReference,
 		},
 	)
 	if err != nil {
@@ -697,12 +887,18 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, inputShape)
 	router := builder.Input("router", dtype.F32, routerShape)
+	wideRouterInput := builder.Input("wide_router_input", dtype.F32, wideRouterInputShape)
+	wideRouter := builder.Input("wide_router", dtype.F32, wideRouterShape)
+	selectionBias := builder.Input("selection_bias", dtype.F32, tensor.MustShape(2))
 	gate := builder.Input("gate", dataType, gateShape)
 	up := builder.Input("up", dataType, gateShape)
 	down := builder.Input("down", dataType, downShape)
 	gateUp := builder.Input("gate_up", dataType, gateUpShape)
 	output := builder.MoE(input, router, gate, up, down, 2, true, 1.25)
 	fusedOutput := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1.25)
+	squaredOutput := builder.MoEReLUSquaredWithRouterInput(
+		input, wideRouterInput, wideRouter, up, down, selectionBias, 2, true, 1.25, tensor.MoERoutingSigmoid,
+	)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -750,8 +946,11 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	defer cuda.Close()
 	got, err := cuda.ExecuteWithDeviceFeeds(
 		context.Background(),
-		[]*tensor.Tensor{output, fusedOutput},
-		map[*tensor.Tensor]reference.Value{input: inputValue, router: routerValue},
+		[]*tensor.Tensor{output, fusedOutput, squaredOutput},
+		map[*tensor.Tensor]reference.Value{
+			input: inputValue, router: routerValue, wideRouterInput: wideRouterInputValue,
+			wideRouter: wideRouterValue, selectionBias: selectionBiasValue,
+		},
 		deviceFeeds,
 	)
 	if err != nil {
@@ -759,6 +958,7 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	}
 	compare(t, got[output].Data, want[referenceOutput].Data, 5e-4)
 	compare(t, got[fusedOutput].Data, want[referenceFusedOutput].Data, 5e-4)
+	compare(t, got[squaredOutput].Data, want[referenceSquaredOutput].Data, 5e-4)
 }
 
 func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {

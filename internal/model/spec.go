@@ -48,6 +48,7 @@ type Spec struct {
 	ExpertCount            uint32
 	ExpertUsedCount        uint32
 	ExpertFeedForward      uint32
+	MoELatentSize          uint32
 	ExpertChunkFeedForward uint32
 	ExpertWeightsScale     float32
 	ExpertGroupScale       float32
@@ -206,6 +207,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "modern-bert" &&
 		architecture != "mpt" &&
 		architecture != "nemotron" &&
+		architecture != "nemotron_h" &&
+		architecture != "nemotron_h_moe" &&
 		architecture != "neo-bert" &&
 		architecture != "nomic-bert" &&
 		architecture != "nomic-bert-moe" &&
@@ -251,7 +254,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" {
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" ||
+		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		spec.RopeDisabled = true
 	}
 	if architecture == "chameleon" {
@@ -290,7 +294,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "gemma4" {
+	if architecture == "gemma4" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		if spec.LayerFeedForward, err = requiredLayerUint32Compatible(
 			values, prefix+"feed_forward_length", spec.BlockCount,
 		); err != nil {
@@ -305,7 +309,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "step35" {
+	if architecture == "step35" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		if spec.LayerHeadCounts, err = requiredLayerUint32Compatible(
 			values, prefix+"attention.head_count", declaredBlockCount,
 		); err != nil {
@@ -336,13 +340,19 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.HeadCountKV = value
 			}
 		}
-	} else if architecture == "mimo2" || architecture == "step35" || architecture == "gemma4" {
+	} else if architecture == "mimo2" || architecture == "step35" || architecture == "gemma4" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		if spec.LayerKVHeadCounts, err = requiredLayerUint32Compatible(
 			values, prefix+"attention.head_count_kv", declaredBlockCount,
 		); err != nil {
 			return Spec{}, err
 		}
 		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
+		if architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
+			spec.RecurrentLayers = make([]bool, spec.BlockCount)
+			for block := uint32(0); block < spec.BlockCount; block++ {
+				spec.RecurrentLayers[block] = spec.LayerKVHeadCounts[block] == 0 && spec.LayerFeedForward[block] == 0
+			}
+		}
 	} else if architecture == "deci" || architecture == "laguna" || architecture == "openelm" || architecture == "plamo3" {
 		if spec.LayerKVHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count_kv", declaredBlockCount,
@@ -1354,7 +1364,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" {
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1387,6 +1397,27 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ExpertWeightsNorm = true
 			spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		}
+	}
+	if architecture == "nemotron_h_moe" {
+		for key, destination := range map[string]*uint32{
+			"expert_count":                      &spec.ExpertCount,
+			"expert_used_count":                 &spec.ExpertUsedCount,
+			"expert_feed_forward_length":        &spec.ExpertFeedForward,
+			"expert_shared_feed_forward_length": &spec.SharedExpertFF,
+		} {
+			*destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32)
+			if err != nil {
+				return Spec{}, err
+			}
+		}
+		spec.SharedExpertCount, _ = optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32)
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
+		spec.ExpertWeightsScale = 1
+		if value, ok := optional[float32](values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32); ok {
+			spec.ExpertWeightsScale = value
+		}
+		spec.MoELatentSize, _ = optional[uint32](values, prefix+"moe_latent_size", gguf.ValueTypeUint32)
+		spec.ExpertGatingFunc = 2
 	}
 	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
@@ -2420,6 +2451,43 @@ func (s Spec) validate() error {
 			return errors.New("PLaMo2 SSM metadata is invalid")
 		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
 			return errors.New("PLaMo2 layer schedule is invalid")
+		}
+	}
+	if s.Architecture == "nemotron_h" || s.Architecture == "nemotron_h_moe" {
+		switch {
+		case s.SSMConvKernel < 2 || s.SSMInnerSize == 0 || s.SSMStateSize == 0 ||
+			s.SSMTimeStepRank == 0 || s.SSMGroupCount == 0 ||
+			s.SSMInnerSize%s.SSMTimeStepRank != 0 || s.SSMInnerSize%s.SSMGroupCount != 0 ||
+			s.SSMTimeStepRank%s.SSMGroupCount != 0:
+			return errors.New("Nemotron-H SSM metadata is invalid")
+		case len(s.LayerHeadCounts) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerFeedForward) != int(s.BlockCount) || len(s.RecurrentLayers) != int(s.BlockCount):
+			return errors.New("Nemotron-H layer schedule is invalid")
+		}
+		for block := uint32(0); block < s.BlockCount; block++ {
+			heads, kvHeads, ff := s.LayerHeadCount(block), s.LayerKVHeadCount(block), s.LayerFeedForwardLength(block)
+			if ff > 0 {
+				continue
+			}
+			if s.IsRecurrentLayer(block) {
+				if heads != 0 || kvHeads != 0 {
+					return errors.New("Nemotron-H recurrent layer schedule is invalid")
+				}
+				continue
+			}
+			if heads == 0 || kvHeads == 0 || heads%kvHeads != 0 {
+				return errors.New("Nemotron-H attention layer schedule is invalid")
+			}
+		}
+		if s.Architecture == "nemotron_h_moe" {
+			if s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+				s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+				s.ExpertWeightsScale <= 0 {
+				return errors.New("Nemotron-H MoE metadata is invalid")
+			}
+		} else if s.ExpertCount != 0 || s.ExpertUsedCount != 0 || s.ExpertFeedForward != 0 ||
+			s.SharedExpertFF != 0 || s.MoELatentSize != 0 {
+			return errors.New("dense Nemotron-H expert metadata is inconsistent")
 		}
 	}
 	if s.Architecture == "bert" &&

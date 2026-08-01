@@ -108,6 +108,27 @@ func TestPLaMo2HybridCacheValidation(t *testing.T) {
 	}
 }
 
+func TestNemotronHThreeWayCacheValidation(t *testing.T) {
+	runner := &Runner{
+		spec: model.Spec{Architecture: "nemotron_h_moe", BlockCount: 3, SSMConvKernel: 3,
+			SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: 2, KeyLength: 2, ValueLength: 2,
+			HeadCountKV: 1, LayerKVHeadCounts: []uint32{1, 0, 1}, LayerFeedForward: []uint32{0, 0, 6},
+			RecurrentLayers: []bool{false, true, false}},
+		weights: model.Weights{Layers: []model.LayerWeights{{}, {Recurrent: true}, {}}},
+	}
+	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
+	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
+	sentinel, _ := reference.NewValue(tensor.MustShape(1, 1, 2), make([]float32, 2))
+	cache := &KVCache{Layers: []LayerCache{
+		{Key: key, Value: value}, {Key: conv, Value: ssm}, {Key: sentinel, Value: sentinel},
+	}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{

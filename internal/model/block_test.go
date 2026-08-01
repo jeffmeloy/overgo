@@ -6027,3 +6027,53 @@ func TestBuildGPTOSSBiasedMoEBlock(t *testing.T) {
 		t.Fatalf("unexpected GPT-OSS MoE: %+v", moe)
 	}
 }
+
+func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "nemotron_h_moe", BlockCount: 3, EmbeddingLength: 8,
+		FeedForwardLength: 6, LayerFeedForward: []uint32{0, 0, 6},
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 0, 2},
+		LayerKVHeadCounts: []uint32{1, 0, 1}, RecurrentLayers: []bool{false, true, false},
+		KeyLength: 4, ValueLength: 4, RMSNormEpsilon: 1e-5,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 5,
+		ExpertWeightsNorm: true, ExpertWeightsScale: 1.25, MoELatentSize: 4,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardExpertBias:  builder.Input("bias", dtype.F32, tensor.MustShape(4)),
+		FeedForwardLatentDown:  builder.Input("latent_down", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardLatentUp:    builder.Input("latent_up", dtype.F32, tensor.MustShape(4, 8)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(4, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 4, 4)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
+	}
+	result, err := BuildNemotronHBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe tensor.MoEAttributes
+	var squaredReLU int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node.Attrs.(tensor.MoEAttributes)
+		case tensor.OpReLUSquared:
+			squaredReLU++
+		case tensor.OpAttention, tensor.OpRoPENormal, tensor.OpRoPENeoX:
+			t.Fatalf("Nemotron-H FFN graph contains %v", node.Op)
+		}
+	}
+	if moe.Routing != tensor.MoERoutingSigmoid || moe.Activation != tensor.MoEActivationReLUSquared ||
+		!moe.NormalizeTopKProb || !moe.HasSelectionBias || squaredReLU != 1 ||
+		result.Key == nil || result.Value == nil {
+		t.Fatalf("unexpected Nemotron-H MoE graph: moe=%+v squared_relu=%d", moe, squaredReLU)
+	}
+}

@@ -87,9 +87,11 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			r.weights.Layers[index].Recurrent
 		plamo2Recurrent := r.spec.Architecture == "plamo2" && index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent
-		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent {
+		nemotronHRecurrent := (r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe") &&
+			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
+		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent || nemotronHRecurrent {
 			convWidth := uint64(r.spec.SSMInnerSize)
-			if r.spec.Architecture == "mamba2" || graniteHybridRecurrent {
+			if r.spec.Architecture == "mamba2" || graniteHybridRecurrent || nemotronHRecurrent {
 				convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
 			}
 			convShape := tensor.MustShape(
@@ -106,6 +108,20 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 			if err := validateStateValue(layer.Value); err != nil {
 				return fmt.Errorf("inference: Mamba recurrent cache layer %d SSM: %w", index, err)
+			}
+			continue
+		}
+		if (r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe") &&
+			r.spec.LayerFeedForwardLength(uint32(index)) > 0 {
+			sentinelShape := tensor.MustShape(1, 1, uint64(cache.Tokens))
+			if !layer.Key.Shape.Equal(sentinelShape) || !layer.Value.Shape.Equal(sentinelShape) {
+				return fmt.Errorf("inference: Nemotron-H sentinel cache layer %d shape is invalid", index)
+			}
+			if err := validateStateValue(layer.Key); err != nil {
+				return fmt.Errorf("inference: Nemotron-H sentinel cache layer %d key: %w", index, err)
+			}
+			if err := validateStateValue(layer.Value); err != nil {
+				return fmt.Errorf("inference: Nemotron-H sentinel cache layer %d value: %w", index, err)
 			}
 			continue
 		}

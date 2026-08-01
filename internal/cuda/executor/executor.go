@@ -1340,7 +1340,8 @@ func launchNode(
 			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid &&
 				attributes.Routing != tensor.MoERoutingSelectedSoftmax) ||
 			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU &&
-				attributes.Activation != tensor.MoEActivationGELU && attributes.Activation != tensor.MoEActivationSwiGLUOAI) ||
+				attributes.Activation != tensor.MoEActivationGELU && attributes.Activation != tensor.MoEActivationSwiGLUOAI &&
+				attributes.Activation != tensor.MoEActivationReLUSquared) ||
 			attributes.SwiGLUClamp < 0 ||
 			math.IsNaN(float64(attributes.SwiGLUClamp)) || math.IsInf(float64(attributes.SwiGLUClamp), 0) ||
 			attributes.SwiGLUClamp > 0 && (attributes.Activation != tensor.MoEActivationSiLU || !attributes.Gated) {
@@ -1351,6 +1352,10 @@ func launchNode(
 			return err
 		}
 		hidden, err := uint32Checked(node.Shape.Dims[0], "MoE hidden width")
+		if err != nil {
+			return err
+		}
+		routerHidden, err := uint32Checked(node.Inputs[1].Shape.Dims[0], "MoE router hidden width")
 		if err != nil {
 			return err
 		}
@@ -1441,7 +1446,7 @@ func launchNode(
 			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&expertScale),
 			unsafe.Pointer(&routerBias), unsafe.Pointer(&gateBias), unsafe.Pointer(&upBias), unsafe.Pointer(&downBias),
 			unsafe.Pointer(&output),
-			unsafe.Pointer(&hidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
+			unsafe.Pointer(&hidden), unsafe.Pointer(&routerHidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
 			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
 			unsafe.Pointer(&gated), unsafe.Pointer(&fusedGateUp), unsafe.Pointer(&activation),

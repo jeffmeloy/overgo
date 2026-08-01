@@ -69,6 +69,8 @@ type LayerWeights struct {
 	FeedForwardUpChunkExperts   *gguf.TensorInfo
 	FeedForwardDownChunkExperts *gguf.TensorInfo
 	FeedForwardExpertBias       *gguf.TensorInfo
+	FeedForwardLatentDown       *gguf.TensorInfo
+	FeedForwardLatentUp         *gguf.TensorInfo
 	FeedForwardSharedGate       *gguf.TensorInfo
 	FeedForwardSharedUp         *gguf.TensorInfo
 	FeedForwardSharedDown       *gguf.TensorInfo
@@ -572,6 +574,138 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				layer.AttentionNormBias = &attentionNormBias
 			}
+		}
+		if spec.Architecture == "nemotron_h" || spec.Architecture == "nemotron_h_moe" {
+			if spec.IsRecurrentLayer(block) {
+				layer.Recurrent = true
+				convDimension := uint64(spec.SSMInnerSize) +
+					2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+				inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ssm_in.weight":     {[]uint64{uint64(spec.EmbeddingLength), inputDimension}, &layer.SSMInput},
+					"ssm_conv1d.weight": {[]uint64{uint64(spec.SSMConvKernel), convDimension}, &layer.SSMConv1D},
+					"ssm_dt.bias":       {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep},
+					"ssm_a":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMA},
+					"ssm_d":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMD},
+					"ssm_norm.weight":   {[]uint64{uint64(spec.SSMInnerSize / spec.SSMGroupCount), uint64(spec.SSMGroupCount)}, &layer.SSMNorm},
+					"ssm_out.weight":    {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+				if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
+					if item.Dimensions != 1 || item.Shape[0] != convDimension {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+					}
+					layer.SSMConv1DBias = &item
+				}
+				continue
+			}
+			if spec.LayerFeedForwardLength(block) == 0 {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination *gguf.TensorInfo
+				}{
+					"attn_q.weight":      {[]uint64{uint64(spec.EmbeddingLength), queryLength}, &layer.AttentionQ},
+					"attn_k.weight":      {[]uint64{uint64(spec.EmbeddingLength), keyLength}, &layer.AttentionK},
+					"attn_v.weight":      {[]uint64{uint64(spec.EmbeddingLength), valueLength}, &layer.AttentionV},
+					"attn_output.weight": {[]uint64{attentionOutputLength, uint64(spec.EmbeddingLength)}, &layer.AttentionOutput},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = item
+				}
+				for name, widthAndDestination := range map[string]struct {
+					width       uint64
+					destination **gguf.TensorInfo
+				}{
+					"attn_q.bias":      {queryLength, &layer.AttentionQBias},
+					"attn_k.bias":      {keyLength, &layer.AttentionKBias},
+					"attn_v.bias":      {valueLength, &layer.AttentionVBias},
+					"attn_output.bias": {uint64(spec.EmbeddingLength), &layer.AttentionOutputBias},
+				} {
+					if item, ok := tensors[prefix+name]; ok {
+						if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != widthAndDestination.width {
+							return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+						}
+						*widthAndDestination.destination = &item
+					}
+				}
+				continue
+			}
+			if spec.Architecture == "nemotron_h" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination *gguf.TensorInfo
+				}{
+					"ffn_up.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))}, &layer.FeedForwardUp},
+					"ffn_down.weight": {[]uint64{uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)}, &layer.FeedForwardDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = item
+				}
+				for name, widthAndDestination := range map[string]struct {
+					width       uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_up.bias":   {uint64(spec.LayerFeedForwardLength(block)), &layer.FeedForwardUpBias},
+					"ffn_down.bias": {uint64(spec.EmbeddingLength), &layer.FeedForwardDownBias},
+				} {
+					if item, ok := tensors[prefix+name]; ok {
+						if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != widthAndDestination.width {
+							return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+						}
+						*widthAndDestination.destination = &item
+					}
+				}
+				continue
+			}
+			moeWidth := uint64(spec.EmbeddingLength)
+			if spec.MoELatentSize > 0 {
+				moeWidth = uint64(spec.MoELatentSize)
+				latentDown, latentErr := required(prefix+"ffn_latent_down.weight", uint64(spec.EmbeddingLength), moeWidth)
+				if latentErr != nil {
+					return Weights{}, latentErr
+				}
+				latentUp, latentErr := required(prefix+"ffn_latent_up.weight", moeWidth, uint64(spec.EmbeddingLength))
+				if latentErr != nil {
+					return Weights{}, latentErr
+				}
+				layer.FeedForwardLatentDown = &latentDown
+				layer.FeedForwardLatentUp = &latentUp
+			}
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"ffn_gate_inp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardRouter},
+				"exp_probs_b.bias":      {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias},
+				"ffn_up_exps.weight":    {[]uint64{moeWidth, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpExperts},
+				"ffn_down_exps.weight":  {[]uint64{uint64(spec.ExpertFeedForward), moeWidth, uint64(spec.ExpertCount)}, &layer.FeedForwardDownExperts},
+				"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+				"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				if name == "exp_probs_b.bias" && item.Type != dtype.F32 {
+					return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", item.Name)
+				}
+				*shapeAndDestination.destination = &item
+			}
+			continue
 		}
 		if spec.Architecture == "falcon" {
 			if item, ok := tensors[prefix+"attn_norm_2.weight"]; ok {

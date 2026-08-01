@@ -362,6 +362,8 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardUpChunkExperts, &result.FeedForwardUpChunkExperts},
 		{info.FeedForwardDownChunkExperts, &result.FeedForwardDownChunkExperts},
 		{info.FeedForwardExpertBias, &result.FeedForwardExpertBias},
+		{info.FeedForwardLatentDown, &result.FeedForwardLatentDown},
+		{info.FeedForwardLatentUp, &result.FeedForwardLatentUp},
 		{info.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},

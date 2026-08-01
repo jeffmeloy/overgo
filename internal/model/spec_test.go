@@ -3500,6 +3500,53 @@ func TestReadPLaMo2Spec(t *testing.T) {
 	}
 }
 
+func TestReadNemotronHMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "nemotron_h_moe"),
+		metadata("nemotron_h_moe.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("nemotron_h_moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("nemotron_h_moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		{Key: "nemotron_h_moe.feed_forward_length", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{0, 0, 6},
+		}},
+		{Key: "nemotron_h_moe.attention.head_count", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{2, 0, 2},
+		}},
+		{Key: "nemotron_h_moe.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{1, 0, 1},
+		}},
+		metadata("nemotron_h_moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h_moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h_moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("nemotron_h_moe.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("nemotron_h_moe.ssm.inner_size", gguf.ValueTypeUint32, uint32(16)),
+		metadata("nemotron_h_moe.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nemotron_h_moe.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h_moe.ssm.group_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nemotron_h_moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h_moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nemotron_h_moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("nemotron_h_moe.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(5)),
+		metadata("nemotron_h_moe.expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("nemotron_h_moe.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("nemotron_h_moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("nemotron_h_moe.moe_latent_size", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h_moe.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "nemotron_h_moe" || !spec.RopeDisabled || spec.IsRecurrentLayer(0) ||
+		!spec.IsRecurrentLayer(1) || spec.IsRecurrentLayer(2) || spec.LayerFeedForwardLength(2) != 6 ||
+		spec.LayerHeadCount(1) != 0 || spec.LayerKVHeadCount(0) != 1 || spec.SSMInnerSize != 16 ||
+		spec.SSMGroupCount != 2 || spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 5 || spec.MoELatentSize != 4 ||
+		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 || spec.ExpertGatingFunc != 2 {
+		t.Fatalf("unexpected Nemotron-H MoE spec: %+v", spec)
+	}
+}
+
 func TestReadTalkieSpecUsesUnweightedRMSNormAndDirectLogitScale(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "talkie"),

@@ -1349,6 +1349,36 @@ models:
       - optional-projection-biases
       - untied-output-projection
     real_model_validation: pending-fixture
+  nemotron_h:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - metadata-selected-attention-mamba2-and-ffn-layers
+      - no-rope-grouped-query-attention
+      - optional-projection-and-convolution-biases
+      - grouped-mamba2-selective-scan
+      - sequential-squared-relu-ffn
+      - serializable-hybrid-cache
+    real_model_validation: pending-fixture
+  nemotron_h_moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - metadata-selected-attention-mamba2-and-moe-layers
+      - no-rope-grouped-query-attention
+      - grouped-mamba2-selective-scan
+      - sigmoid-top-k-squared-relu-experts
+      - selection-correction-bias
+      - optional-latent-expert-projections
+      - shared-squared-relu-expert
+      - serializable-hybrid-cache
+    real_model_validation: pending-fixture
   olmo:
     status: experimental
     features:

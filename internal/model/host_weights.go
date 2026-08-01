@@ -73,6 +73,8 @@ type HostLayer struct {
 	FeedForwardUpChunkExperts   *reference.Value
 	FeedForwardDownChunkExperts *reference.Value
 	FeedForwardExpertBias       *reference.Value
+	FeedForwardLatentDown       *reference.Value
+	FeedForwardLatentUp         *reference.Value
 	FeedForwardSharedGate       *reference.Value
 	FeedForwardSharedUp         *reference.Value
 	FeedForwardSharedDown       *reference.Value
@@ -605,6 +607,8 @@ func LoadHostLayer(
 		{info.FeedForwardUpChunkExperts, &result.FeedForwardUpChunkExperts},
 		{info.FeedForwardDownChunkExperts, &result.FeedForwardDownChunkExperts},
 		{info.FeedForwardExpertBias, &result.FeedForwardExpertBias},
+		{info.FeedForwardLatentDown, &result.FeedForwardLatentDown},
+		{info.FeedForwardLatentUp, &result.FeedForwardLatentUp},
 		{info.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
@@ -825,6 +829,8 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_up_chexps.weight", layer.FeedForwardUpChunkExperts, &result.FeedForwardUpChunkExperts},
 		{"ffn_down_chexps.weight", layer.FeedForwardDownChunkExperts, &result.FeedForwardDownChunkExperts},
 		{"exp_probs_b.bias", layer.FeedForwardExpertBias, &result.FeedForwardExpertBias},
+		{"ffn_latent_down.weight", layer.FeedForwardLatentDown, &result.FeedForwardLatentDown},
+		{"ffn_latent_up.weight", layer.FeedForwardLatentUp, &result.FeedForwardLatentUp},
 		{"ffn_gate_shexp.weight", layer.FeedForwardSharedGate, &result.FeedForwardSharedGate},
 		{"ffn_up_shexp.weight", layer.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{"ffn_down_shexp.weight", layer.FeedForwardSharedDown, &result.FeedForwardSharedDown},

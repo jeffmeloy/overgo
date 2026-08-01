@@ -792,7 +792,7 @@ func ropeMulti(
 						axis++
 						boundary += int(attributes.Sections[axis])
 					}
-					theta := float64(attributes.Positions[axis][token]) * math.Pow(
+					theta := float64(attributes.Positions[axis][token]) * float64(attributes.FrequencyScale) * math.Pow(
 						float64(attributes.FrequencyBase),
 						-2*float64(pair)/float64(rotary),
 					)

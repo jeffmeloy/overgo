@@ -550,12 +550,13 @@ func TestExecuteRoPEMulti(t *testing.T) {
 		{3},
 		{4},
 	}
-	output := builder.RoPEMulti(
+	output := builder.RoPEMultiScaled(
 		input,
 		positions,
 		[4]int32{1, 1, 1, 1},
 		8,
 		10000,
+		0.25,
 	)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
@@ -570,7 +571,7 @@ func TestExecuteRoPEMulti(t *testing.T) {
 	}
 	want := make([]float32, 8)
 	for pair, position := range []float64{1, 2, 3, 4} {
-		theta := position * math.Pow(10000, -2*float64(pair)/8)
+		theta := position * 0.25 * math.Pow(10000, -2*float64(pair)/8)
 		cosine, sine := float32(math.Cos(theta)), float32(math.Sin(theta))
 		want[pair] = inputValue.Data[pair]*cosine - inputValue.Data[pair+4]*sine
 		want[pair+4] = inputValue.Data[pair]*sine + inputValue.Data[pair+4]*cosine

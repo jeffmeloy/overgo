@@ -1932,6 +1932,7 @@ func launchNode(
 		}
 		rotary := attributes.RotaryDimensions
 		frequencyBase := attributes.FrequencyBase
+		frequencyScale := attributes.FrequencyScale
 		var sections [4]uint32
 		for index, section := range attributes.Sections {
 			if section < 0 {
@@ -1948,6 +1949,7 @@ func launchNode(
 			unsafe.Pointer(&tokens),
 			unsafe.Pointer(&rotary),
 			unsafe.Pointer(&frequencyBase),
+			unsafe.Pointer(&frequencyScale),
 			unsafe.Pointer(&sections[0]),
 			unsafe.Pointer(&sections[1]),
 			unsafe.Pointer(&sections[2]),
@@ -1963,6 +1965,7 @@ func launchNode(
 		runtime.KeepAlive(tokens)
 		runtime.KeepAlive(rotary)
 		runtime.KeepAlive(frequencyBase)
+		runtime.KeepAlive(frequencyScale)
 		runtime.KeepAlive(sections)
 		runtime.KeepAlive(count)
 		return err

@@ -135,6 +135,7 @@ type RoPEMultiAttributes struct {
 	Sections         [4]int32
 	RotaryDimensions uint32
 	FrequencyBase    float32
+	FrequencyScale   float32
 }
 
 type AttentionAttributes struct {
@@ -885,6 +886,16 @@ func (b *Builder) RoPEMulti(
 	rotaryDimensions uint32,
 	frequencyBase float32,
 ) *Tensor {
+	return b.RoPEMultiScaled(input, positions, sections, rotaryDimensions, frequencyBase, 1)
+}
+
+func (b *Builder) RoPEMultiScaled(
+	input *Tensor,
+	positions [4][]uint32,
+	sections [4]int32,
+	rotaryDimensions uint32,
+	frequencyBase, frequencyScale float32,
+) *Tensor {
 	if b.err != nil {
 		return nil
 	}
@@ -913,14 +924,16 @@ func (b *Builder) RoPEMulti(
 		b.setError(errors.New("rope_multi sections exceed rotary pair count"))
 		return nil
 	}
-	if frequencyBase <= 0 {
-		b.setError(errors.New("rope_multi frequency base must be positive"))
+	if frequencyBase <= 0 || frequencyScale <= 0 ||
+		math.IsNaN(float64(frequencyScale)) || math.IsInf(float64(frequencyScale), 0) {
+		b.setError(errors.New("rope_multi frequency parameters must be positive and finite"))
 		return nil
 	}
 	attributes := RoPEMultiAttributes{
 		Sections:         sections,
 		RotaryDimensions: rotaryDimensions,
 		FrequencyBase:    frequencyBase,
+		FrequencyScale:   frequencyScale,
 	}
 	for axis := range positions {
 		attributes.Positions[axis] = append([]uint32(nil), positions[axis]...)

@@ -1385,18 +1385,22 @@ func BuildDenseBlockCachedForLayer(
 	if !spec.UsesRoPE(layerIndex) {
 		// Some dense architectures leave periodic layers
 		// position-independent
-	} else if spec.Architecture == "paddleocr" {
+	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" {
 		var multiPositions [4][]uint32
 		for axis := range multiPositions {
 			multiPositions[axis] = positions
 		}
-		query = builder.RoPEMulti(
+		frequencyScale := float32(1)
+		if spec.RopeScalingType == "linear" {
+			frequencyScale = 1 / spec.RopeScalingFactor
+		}
+		query = builder.RoPEMultiScaled(
 			query, multiPositions, spec.RopeSections,
-			rotaryDimensions, spec.RopeFrequencyBase,
+			rotaryDimensions, spec.RopeFrequencyBase, frequencyScale,
 		)
-		key = builder.RoPEMulti(
+		key = builder.RoPEMultiScaled(
 			key, multiPositions, spec.RopeSections,
-			rotaryDimensions, spec.RopeFrequencyBase,
+			rotaryDimensions, spec.RopeFrequencyBase, frequencyScale,
 		)
 	} else if isLaguna {
 		if spec.IsSlidingLayer(layerIndex) {
@@ -2234,19 +2238,25 @@ func buildQwen35AttentionBlock(
 	for axis := range multiPositions {
 		multiPositions[axis] = positions
 	}
-	query = builder.RoPEMulti(
+	frequencyScale := float32(1)
+	if spec.RopeScalingType == "linear" {
+		frequencyScale = 1 / spec.RopeScalingFactor
+	}
+	query = builder.RoPEMultiScaled(
 		query,
 		multiPositions,
 		spec.RopeSections,
 		spec.RopeDimensionCount,
 		spec.RopeFrequencyBase,
+		frequencyScale,
 	)
-	key = builder.RoPEMulti(
+	key = builder.RoPEMultiScaled(
 		key,
 		multiPositions,
 		spec.RopeSections,
 		spec.RopeDimensionCount,
 		spec.RopeFrequencyBase,
+		frequencyScale,
 	)
 
 	cacheKey, cacheValue := key, value

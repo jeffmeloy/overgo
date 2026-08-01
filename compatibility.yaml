@@ -1803,6 +1803,24 @@ models:
       - neox-rope
       - swiglu
     real_model_validation: pending-fixture
+  qwen2vl:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quant
+    features:
+      - text-coordinate-decoder
+      - fused-or-separate-qkv-with-optional-bias
+      - scaled-four-axis-split-half-mrope
+      - optional-output-bias
+      - swiglu
+      - projected-embedding-overrides
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - image-encoder-external
+      - image-grid-coordinate-construction-external
+    real_model_validation: pending-fixture
   qwen3:
     status: experimental
     types:

@@ -2712,6 +2712,37 @@ func TestReadPaddleOCRSpec(t *testing.T) {
 	}
 }
 
+func TestReadQwen2VLSpecUsesMRoPESections(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen2vl"),
+		metadata("qwen2vl.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen2vl.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("qwen2vl.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("qwen2vl.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("qwen2vl.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen2vl.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen2vl.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen2vl.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen2vl.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("qwen2vl.rope.scaling.type", gguf.ValueTypeString, "linear"),
+		metadata("qwen2vl.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("qwen2vl.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("qwen2vl.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		{Key: "qwen2vl.rope.dimension_sections", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
+		}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "qwen2vl" || spec.RopeDimensionCount != 4 ||
+		spec.RopeSections != [4]int32{1, 1, 0, 0} || spec.RopeScalingFactor != 4 ||
+		usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected Qwen2-VL spec: %+v", spec)
+	}
+}
+
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "mamba"),

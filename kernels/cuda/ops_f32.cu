@@ -676,6 +676,7 @@ extern "C" __global__ void rope_multi_f32(
         unsigned int tokens,
         unsigned int rotary_dimensions,
         float frequency_base,
+        float frequency_scale,
         unsigned int section_0,
         unsigned int section_1,
         unsigned int section_2,
@@ -707,7 +708,7 @@ extern "C" __global__ void rope_multi_f32(
     }
     const unsigned int pair_offset = row * width + pair;
     const float theta =
-        (float) positions[axis * tokens + token] *
+        (float) positions[axis * tokens + token] * frequency_scale *
         powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions);
     float sine;
     float cosine;

@@ -3329,8 +3329,16 @@ func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 }
 
 func TestReadWeightsPaddleOCR(t *testing.T) {
+	testReadWeightsMRoPETextDecoder(t, "paddleocr")
+}
+
+func TestReadWeightsQwen2VL(t *testing.T) {
+	testReadWeightsMRoPETextDecoder(t, "qwen2vl")
+}
+
+func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 	spec := Spec{
-		Architecture: "paddleocr", BlockCount: 1, EmbeddingLength: 8,
+		Architecture: architecture, BlockCount: 1, EmbeddingLength: 8,
 		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, VocabularySize: 32, RMSNormEpsilon: 1e-6,
 	}
@@ -3348,7 +3356,7 @@ func TestReadWeightsPaddleOCR(t *testing.T) {
 	layer := weights.Layers[0]
 	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionOutputBias == nil ||
 		layer.FeedForwardNorm.Name == "" || layer.FeedForwardGate.Name == "" {
-		t.Fatalf("unexpected PaddleOCR catalog: %+v", weights)
+		t.Fatalf("unexpected %s catalog: %+v", architecture, weights)
 	}
 }
 

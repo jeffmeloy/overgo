@@ -685,12 +685,13 @@ func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
 		{2, 4, 6, 8},
 		{11, 13, 17, 19},
 	}
-	output := builder.RoPEMulti(
+	output := builder.RoPEMultiScaled(
 		input,
 		positions,
 		[4]int32{2, 1, 1, 0},
 		8,
 		1_000_000,
+		0.25,
 	)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
@@ -4653,15 +4654,24 @@ func TestExecutorPLaMo3BlockMatchesReference(t *testing.T) {
 }
 
 func TestExecutorPaddleOCRBlockMatchesReference(t *testing.T) {
+	testExecutorMRoPETextDecoderBlockMatchesReference(t, "paddleocr")
+}
+
+func TestExecutorQwen2VLBlockMatchesReference(t *testing.T) {
+	testExecutorMRoPETextDecoderBlockMatchesReference(t, "qwen2vl")
+}
+
+func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architecture string) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
 	}
 	builder := tensor.NewBuilder()
 	spec := model.Spec{
-		Architecture: "paddleocr", EmbeddingLength: 8, FeedForwardLength: 12,
+		Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
 		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+		RopeFrequencyBase: 10000, RopeScalingType: "linear", RopeScalingFactor: 4,
+		RMSNormEpsilon: 1e-6,
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := model.LayerGraphWeights{

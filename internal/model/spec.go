@@ -197,6 +197,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen3" &&
 		architecture != "qwen3moe" &&
 		architecture != "qwen2moe" &&
+		architecture != "qwen2vl" &&
 		architecture != "qwen35" && architecture != "gemma" && architecture != "gemma-embedding" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
@@ -961,7 +962,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
-	if architecture == "paddleocr" {
+	if architecture == "paddleocr" || architecture == "qwen2vl" {
 		spec.RopeDimensionCount = spec.KeyLength
 		sections, sectionsErr := requiredArray[int32](
 			values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
@@ -2280,18 +2281,18 @@ func (s Spec) validate() error {
 	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
 	}
-	if s.Architecture == "paddleocr" {
+	if s.Architecture == "paddleocr" || s.Architecture == "qwen2vl" {
 		var sectionPairs int32
 		for _, section := range s.RopeSections {
 			if section < 0 {
-				return errors.New("PaddleOCR MRoPE section count is negative")
+				return fmt.Errorf("%s MRoPE section count is negative", s.Architecture)
 			}
 			sectionPairs += section
 		}
 		if s.RopeDimensionCount == 0 || s.RopeDimensionCount%2 != 0 ||
 			s.RopeDimensionCount > s.KeyLength || sectionPairs == 0 ||
 			sectionPairs > int32(s.RopeDimensionCount/2) {
-			return errors.New("PaddleOCR MRoPE metadata is invalid")
+			return fmt.Errorf("%s MRoPE metadata is invalid", s.Architecture)
 		}
 	}
 	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {

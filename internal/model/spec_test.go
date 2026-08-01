@@ -2775,6 +2775,43 @@ func TestReadQwen3VLSpecUsesMRoPEAndDeepstackMetadata(t *testing.T) {
 	}
 }
 
+func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen3vlmoe"),
+		metadata("qwen3vlmoe.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3vlmoe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("qwen3vlmoe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("qwen3vlmoe.feed_forward_length", gguf.ValueTypeUint32, uint32(24)),
+		metadata("qwen3vlmoe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("qwen3vlmoe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3vlmoe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen3vlmoe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("qwen3vlmoe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen3vlmoe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen3vlmoe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3vlmoe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3vlmoe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("qwen3vlmoe.rope.scaling.type", gguf.ValueTypeString, "linear"),
+		metadata("qwen3vlmoe.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("qwen3vlmoe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("qwen3vlmoe.n_deepstack_layers", gguf.ValueTypeUint32, uint32(3)),
+		metadata("qwen3vlmoe.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		{Key: "qwen3vlmoe.rope.dimension_sections", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
+		}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "qwen3vlmoe" || spec.RopeDimensionCount != 4 ||
+		spec.RopeSections != [4]int32{1, 1, 0, 0} || spec.RopeScalingFactor != 4 ||
+		spec.DeepstackLayerCount != 3 || spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 ||
+		spec.ExpertFeedForward != 12 || spec.ExpertWeightsScale != 1.25 || usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected Qwen3-VL-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "mamba"),

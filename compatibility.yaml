@@ -1841,6 +1841,29 @@ models:
       - image-grid-coordinate-construction-external
       - classification-rerank-head-external
     real_model_validation: pending-fixture
+  qwen3vlmoe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - text-coordinate-decoder
+      - fused-or-separate-qkv-with-optional-bias
+      - pre-rope-per-head-qk-rmsnorm
+      - scaled-four-axis-split-half-mrope
+      - softmax-top-k-routing
+      - selected-probability-normalization
+      - routed-weight-scaling
+      - packed-swiglu-experts
+      - zero-filled-token-deepstack
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - projected-visual-deepstack-injection-external
+      - image-encoder-external
+      - image-grid-coordinate-construction-external
+      - classification-rerank-head-external
+    real_model_validation: pending-fixture
   qwen3:
     status: experimental
     types:

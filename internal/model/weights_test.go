@@ -3340,6 +3340,37 @@ func TestReadWeightsQwen3VL(t *testing.T) {
 	testReadWeightsMRoPETextDecoder(t, "qwen3vl")
 }
 
+func TestReadWeightsQwen3VLMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "qwen3vlmoe", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 24, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 12, ExpertWeightsScale: 1.25,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		VocabularySize: 32, RMSNormEpsilon: 1e-6,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_qkv.weight", 8, 16),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_q_norm.weight", 4), tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_gate_exps.weight", 8, 12, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 8, 12, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 12, 8, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.AttentionQKV == nil || layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
+		layer.FeedForwardRouter == nil || layer.FeedForwardGateExperts == nil ||
+		layer.FeedForwardUpExperts == nil || layer.FeedForwardDownExperts == nil ||
+		layer.FeedForwardGate.Name != "" || layer.FeedForwardUp.Name != "" || layer.FeedForwardDown.Name != "" {
+		t.Fatalf("unexpected Qwen3-VL-MoE catalog: %+v", weights)
+	}
+}
+
 func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 	spec := Spec{
 		Architecture: architecture, BlockCount: 1, EmbeddingLength: 8,

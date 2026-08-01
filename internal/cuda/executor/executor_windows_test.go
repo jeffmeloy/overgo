@@ -4665,6 +4665,10 @@ func TestExecutorQwen3VLBlockMatchesReference(t *testing.T) {
 	testExecutorMRoPETextDecoderBlockMatchesReference(t, "qwen3vl")
 }
 
+func TestExecutorQwen3VLMoEBlockMatchesReference(t *testing.T) {
+	testExecutorMRoPETextDecoderBlockMatchesReference(t, "qwen3vlmoe")
+}
+
 func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architecture string) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
@@ -4677,6 +4681,13 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 		RopeFrequencyBase: 10000, RopeScalingType: "linear", RopeScalingFactor: 4,
 		RMSNormEpsilon: 1e-6,
 	}
+	if architecture == "qwen3vlmoe" {
+		spec.FeedForwardLength = 24
+		spec.ExpertCount = 4
+		spec.ExpertUsedCount = 2
+		spec.ExpertFeedForward = 12
+		spec.ExpertWeightsScale = 1.25
+	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := model.LayerGraphWeights{
 		AttentionNorm:       builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
@@ -4688,9 +4699,17 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	if architecture == "qwen3vl" {
+	if architecture == "qwen3vl" || architecture == "qwen3vlmoe" {
 		weights.AttentionQNorm = builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(4))
 		weights.AttentionKNorm = builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(4))
+	}
+	if architecture == "qwen3vlmoe" {
+		weights.AttentionOutputBias = nil
+		weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
+		weights.FeedForwardRouter = builder.Input("ffn_router", dtype.F32, tensor.MustShape(8, 4))
+		weights.FeedForwardGateExperts = builder.Input("ffn_gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+		weights.FeedForwardUpExperts = builder.Input("ffn_up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+		weights.FeedForwardDownExperts = builder.Input("ffn_down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
 	}
 	result, err := model.BuildDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
@@ -4699,11 +4718,17 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 		t.Fatal(err)
 	}
 	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
-	for index, node := range []*tensor.Tensor{
+	feedNodes := []*tensor.Tensor{
 		weights.AttentionNorm, weights.AttentionQKV, weights.AttentionOutput,
 		weights.AttentionOutputBias, weights.FeedForwardNorm, weights.FeedForwardGate,
 		weights.FeedForwardUp, weights.FeedForwardDown,
-	} {
+		weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+		weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+	}
+	for index, node := range feedNodes {
+		if node == nil {
+			continue
+		}
 		offset := float32(0)
 		if node.Shape.Rank == 1 && node != weights.AttentionOutputBias {
 			offset = 1

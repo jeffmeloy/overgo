@@ -200,6 +200,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen2moe" &&
 		architecture != "qwen2vl" &&
 		architecture != "qwen3vl" &&
+		architecture != "qwen3vlmoe" &&
 		architecture != "qwen35" && architecture != "gemma" && architecture != "gemma-embedding" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
@@ -964,7 +965,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
-	if architecture == "paddleocr" || architecture == "qwen2vl" || architecture == "qwen3vl" {
+	if architecture == "paddleocr" || architecture == "qwen2vl" || architecture == "qwen3vl" || architecture == "qwen3vlmoe" {
 		spec.RopeDimensionCount = spec.KeyLength
 		sections, sectionsErr := requiredArray[int32](
 			values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
@@ -980,7 +981,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		copy(spec.RopeSections[:], sections)
 	}
-	if architecture == "qwen3vl" {
+	if architecture == "qwen3vl" || architecture == "qwen3vlmoe" {
 		if value, ok := optional[uint32](values, prefix+"n_deepstack_layers", gguf.ValueTypeUint32); ok {
 			spec.DeepstackLayerCount = value
 		}
@@ -1143,7 +1144,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1910,7 +1911,7 @@ func (s Spec) validate() error {
 			return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
 		}
 	}
-	if (s.Architecture == "qwen3moe" || s.Architecture == "rnd1") &&
+	if (s.Architecture == "qwen3moe" || s.Architecture == "qwen3vlmoe" || s.Architecture == "rnd1") &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
 			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||
@@ -2288,7 +2289,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
 	}
-	if s.Architecture == "paddleocr" || s.Architecture == "qwen2vl" || s.Architecture == "qwen3vl" {
+	if s.Architecture == "paddleocr" || s.Architecture == "qwen2vl" || s.Architecture == "qwen3vl" || s.Architecture == "qwen3vlmoe" {
 		var sectionPairs int32
 		for _, section := range s.RopeSections {
 			if section < 0 {
@@ -2301,7 +2302,7 @@ func (s Spec) validate() error {
 			sectionPairs > int32(s.RopeDimensionCount/2) {
 			return fmt.Errorf("%s MRoPE metadata is invalid", s.Architecture)
 		}
-		if s.Architecture == "qwen3vl" && s.DeepstackLayerCount > s.BlockCount {
+		if (s.Architecture == "qwen3vl" || s.Architecture == "qwen3vlmoe") && s.DeepstackLayerCount > s.BlockCount {
 			return errors.New("Qwen3-VL deepstack layer count exceeds block count")
 		}
 	}

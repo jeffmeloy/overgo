@@ -2910,6 +2910,55 @@ func TestBuildQwen3VLBlockUsesQKNormAndMRoPE(t *testing.T) {
 	testBuildMRoPETextDecoderBlock(t, "qwen3vl")
 }
 
+func TestBuildQwen3VLMoEBlockUsesQKNormMRoPEAndNormalizedExperts(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "qwen3vlmoe", EmbeddingLength: 8, FeedForwardLength: 24,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1.25,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
+		RopeFrequencyBase: 10000, RopeScalingType: "linear", RopeScalingFactor: 4,
+		RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ, weights.AttentionK, weights.AttentionV = nil, nil, nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16))
+	weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
+	weights.FeedForwardRouter = builder.Input("ffn_router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("ffn_gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardUpExperts = builder.Input("ffn_up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+	weights.FeedForwardDownExperts = builder.Input("ffn_down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var multiRoPE, rmsNorm int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPEMulti:
+			multiRoPE++
+		case tensor.OpRMSNorm:
+			rmsNorm++
+		}
+	}
+	if moe == nil {
+		t.Fatal("Qwen3-VL-MoE graph is missing MoE")
+	}
+	attrs := moe.Attrs.(tensor.MoEAttributes)
+	if !attrs.Gated || attrs.Routing != tensor.MoERoutingSoftmax || !attrs.NormalizeTopKProb ||
+		attrs.TopK != 2 || attrs.Scale != 1.25 || multiRoPE != 2 || rmsNorm != 4 {
+		t.Fatalf("unexpected Qwen3-VL-MoE graph: MoE=%+v MRoPE=%d RMS=%d", attrs, multiRoPE, rmsNorm)
+	}
+}
+
 func testBuildMRoPETextDecoderBlock(t *testing.T, architecture string) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

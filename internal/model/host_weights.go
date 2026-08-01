@@ -99,8 +99,11 @@ type HostLayer struct {
 	SSMX              *reference.Value
 	SSMTimeStepWeight *reference.Value
 	SSMTimeStep       *reference.Value
+	SSMTimeStepNorm   *reference.Value
 	SSMA              *reference.Value
 	SSMD              *reference.Value
+	SSMBNorm          *reference.Value
+	SSMCNorm          *reference.Value
 	SSMBeta           *reference.Value
 	SSMAlpha          *reference.Value
 	SSMBetaAlpha      *reference.Value
@@ -357,6 +360,7 @@ func LoadHostLayer(
 			(info.SSMConv1D == nil || info.SSMConv1DBias == nil || info.SSMTimeStep == nil ||
 				info.SSMA == nil || info.SSMD == nil || info.SSMOutput == nil ||
 				(info.SSMX != nil && info.SSMTimeStepWeight == nil) ||
+				(info.SSMTimeStepNorm != nil && (info.SSMBNorm == nil || info.SSMCNorm == nil)) ||
 				(info.SSMX == nil && info.SSMNorm == nil)) {
 			return HostLayer{}, errors.New("host Mamba SSM catalog is incomplete")
 		}
@@ -427,6 +431,22 @@ func LoadHostLayer(
 						info        *gguf.TensorInfo
 					}{&result.SSMTimeStepWeight, info.SSMTimeStepWeight},
 				)
+				if info.SSMTimeStepNorm != nil {
+					optionalItems = append(optionalItems,
+						struct {
+							destination **reference.Value
+							info        *gguf.TensorInfo
+						}{&result.SSMTimeStepNorm, info.SSMTimeStepNorm},
+						struct {
+							destination **reference.Value
+							info        *gguf.TensorInfo
+						}{&result.SSMBNorm, info.SSMBNorm},
+						struct {
+							destination **reference.Value
+							info        *gguf.TensorInfo
+						}{&result.SSMCNorm, info.SSMCNorm},
+					)
+				}
 			} else {
 				optionalItems = append(optionalItems, struct {
 					destination **reference.Value
@@ -703,6 +723,11 @@ func (layer *HostLayer) GraphInputs(
 		if layer.SSMX != nil {
 			result.SSMX = input("ssm_x.weight", *layer.SSMX)
 			result.SSMTimeStepWeight = input("ssm_dt.weight", *layer.SSMTimeStepWeight)
+			if layer.SSMTimeStepNorm != nil {
+				result.SSMTimeStepNorm = input("ssm_dt_norm.weight", *layer.SSMTimeStepNorm)
+				result.SSMBNorm = input("ssm_b_norm.weight", *layer.SSMBNorm)
+				result.SSMCNorm = input("ssm_c_norm.weight", *layer.SSMCNorm)
+			}
 		} else {
 			result.SSMNorm = input("ssm_norm.weight", *layer.SSMNorm)
 		}

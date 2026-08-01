@@ -100,8 +100,11 @@ type LayerWeights struct {
 	SSMX              *gguf.TensorInfo
 	SSMTimeStepWeight *gguf.TensorInfo
 	SSMTimeStep       *gguf.TensorInfo
+	SSMTimeStepNorm   *gguf.TensorInfo
 	SSMA              *gguf.TensorInfo
 	SSMD              *gguf.TensorInfo
+	SSMBNorm          *gguf.TensorInfo
+	SSMCNorm          *gguf.TensorInfo
 	SSMBeta           *gguf.TensorInfo
 	SSMAlpha          *gguf.TensorInfo
 	SSMBetaAlpha      *gguf.TensorInfo
@@ -627,6 +630,31 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				uint64(spec.EmbeddingLength),
 			); err != nil {
 				return Weights{}, err
+			}
+		} else if spec.Architecture == "jamba" && spec.IsRecurrentLayer(block) {
+			layer.Recurrent = true
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"ssm_in.weight":      {[]uint64{uint64(spec.EmbeddingLength), 2 * uint64(spec.SSMInnerSize)}, &layer.SSMInput},
+				"ssm_conv1d.weight":  {[]uint64{uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)}, &layer.SSMConv1D},
+				"ssm_conv1d.bias":    {[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMConv1DBias},
+				"ssm_x.weight":       {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank + 2*spec.SSMStateSize)}, &layer.SSMX},
+				"ssm_dt_norm.weight": {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStepNorm},
+				"ssm_dt.weight":      {[]uint64{uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)}, &layer.SSMTimeStepWeight},
+				"ssm_dt.bias":        {[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMTimeStep},
+				"ssm_b_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMBNorm},
+				"ssm_c_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMCNorm},
+				"ssm_a":              {[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)}, &layer.SSMA},
+				"ssm_d":              {[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMD},
+				"ssm_out.weight":     {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
 			}
 		} else if spec.Architecture == "mamba" {
 			layer.Recurrent = true
@@ -1449,6 +1477,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		_, tensorSelectedMoE := tensors[prefix+"ffn_gate_inp.weight"]
 		if ((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grovemoe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
+			(spec.Architecture == "jamba" && tensorSelectedMoE) ||
 			((spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "gemma4") && tensorSelectedMoE) ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "glm4-moe" && block >= spec.LeadingDenseBlocks) ||

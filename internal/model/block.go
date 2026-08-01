@@ -97,8 +97,11 @@ type LayerGraphWeights struct {
 	SSMX              *tensor.Tensor
 	SSMTimeStepWeight *tensor.Tensor
 	SSMTimeStep       *tensor.Tensor
+	SSMTimeStepNorm   *tensor.Tensor
 	SSMA              *tensor.Tensor
 	SSMD              *tensor.Tensor
+	SSMBNorm          *tensor.Tensor
+	SSMCNorm          *tensor.Tensor
 	SSMBeta           *tensor.Tensor
 	SSMAlpha          *tensor.Tensor
 	SSMBetaAlpha      *tensor.Tensor
@@ -752,7 +755,7 @@ func BuildMambaBlockCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Mamba block input/state is nil")
 	}
-	if spec.Architecture != "mamba" || input.Shape.Rank != 2 ||
+	if (spec.Architecture != "mamba" && spec.Architecture != "jamba") || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Mamba block architecture/input is invalid")
 	}
@@ -771,6 +774,17 @@ func BuildMambaBlockCached(
 	for name, item := range required {
 		if item == nil {
 			return DenseBlockResult{}, fmt.Errorf("Mamba block %s weight is nil", name)
+		}
+	}
+	if spec.Architecture == "jamba" {
+		for name, item := range map[string]*tensor.Tensor{
+			"SSM time-step norm": weights.SSMTimeStepNorm,
+			"SSM B norm":         weights.SSMBNorm,
+			"SSM C norm":         weights.SSMCNorm,
+		} {
+			if item == nil {
+				return DenseBlockResult{}, fmt.Errorf("Jamba block %s weight is nil", name)
+			}
 		}
 	}
 	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), uint64(spec.SSMInnerSize))
@@ -806,6 +820,10 @@ func BuildMambaBlockCached(
 		dt = builder.RMSNorm(dt, spec.RMSNormEpsilon)
 		beta = builder.RMSNorm(beta, spec.RMSNormEpsilon)
 		c = builder.RMSNorm(c, spec.RMSNormEpsilon)
+	} else if spec.Architecture == "jamba" {
+		dt = builder.WeightedRMSNorm(dt, weights.SSMTimeStepNorm, spec.RMSNormEpsilon)
+		beta = builder.WeightedRMSNorm(beta, weights.SSMBNorm, spec.RMSNormEpsilon)
+		c = builder.WeightedRMSNorm(c, weights.SSMCNorm, spec.RMSNormEpsilon)
 	}
 	dt = builder.Add(builder.MulMat(weights.SSMTimeStepWeight, dt), weights.SSMTimeStep)
 	packed := builder.SSMScan(
@@ -827,6 +845,50 @@ func BuildMambaBlockCached(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
+}
+
+func BuildJambaRecurrentBlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	convState, ssmState *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "jamba" {
+		return DenseBlockResult{}, errors.New("Jamba recurrent block architecture is invalid")
+	}
+	result, err := BuildMambaBlockCached(builder, input, spec, weights, convState, ssmState)
+	if err != nil {
+		return DenseBlockResult{}, err
+	}
+	if weights.FeedForwardNorm == nil {
+		return DenseBlockResult{}, errors.New("Jamba feed-forward norm is nil")
+	}
+	normalized := builder.WeightedRMSNorm(result.Output, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	var feedForward *tensor.Tensor
+	if weights.FeedForwardRouter != nil {
+		if weights.FeedForwardGateExperts == nil || weights.FeedForwardUpExperts == nil ||
+			weights.FeedForwardDownExperts == nil {
+			return DenseBlockResult{}, errors.New("Jamba expert catalog is incomplete")
+		}
+		feedForward = builder.MoE(
+			normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+			weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+			spec.ExpertUsedCount, false, spec.ExpertWeightsScale,
+		)
+	} else {
+		if weights.FeedForwardGate == nil || weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
+			return DenseBlockResult{}, errors.New("Jamba dense FFN catalog is incomplete")
+		}
+		gate := builder.MulMat(weights.FeedForwardGate, normalized)
+		up := builder.MulMat(weights.FeedForwardUp, normalized)
+		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	}
+	result.Output = builder.Add(result.Output, feedForward)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return result, nil
 }
 
 func BuildMamba2BlockCached(
@@ -1348,6 +1410,7 @@ func BuildDenseBlockCachedForLayer(
 	isGrok := spec.Architecture == "grok"
 	isHunyuanMoE := spec.Architecture == "hunyuan-moe"
 	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl"
+	isJamba := spec.Architecture == "jamba"
 	isHYV3 := spec.Architecture == "hy_v3"
 	isMellum := spec.Architecture == "mellum"
 	isMiMo2 := spec.Architecture == "mimo2"
@@ -1381,7 +1444,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isLlama4 && !isGPTOSS && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isJamba && !isLlama4 && !isGPTOSS && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -2459,6 +2522,10 @@ func BuildDenseBlockCachedForLayer(
 				feedForward = builder.Add(feedForward, builder.Multiply(shared, sharedScale))
 			}
 		} else {
+			normalizeWeights := true
+			if isJamba {
+				normalizeWeights = spec.ExpertWeightsNorm
+			}
 			feedForward = builder.MoE(
 				normalized,
 				weights.FeedForwardRouter,
@@ -2466,7 +2533,7 @@ func BuildDenseBlockCachedForLayer(
 				weights.FeedForwardUpExperts,
 				weights.FeedForwardDownExperts,
 				spec.ExpertUsedCount,
-				true,
+				normalizeWeights,
 				spec.ExpertWeightsScale,
 			)
 		}

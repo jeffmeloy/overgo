@@ -195,6 +195,9 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 			}
 			if info.SSMX != nil {
 				recurrent = append(recurrent, info.SSMX, info.SSMTimeStepWeight)
+				if info.SSMTimeStepNorm != nil {
+					recurrent = append(recurrent, info.SSMTimeStepNorm, info.SSMBNorm, info.SSMCNorm)
+				}
 			} else {
 				recurrent = append(recurrent, info.SSMNorm)
 			}
@@ -368,8 +371,11 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.SSMX, &result.SSMX},
 		{info.SSMTimeStepWeight, &result.SSMTimeStepWeight},
 		{info.SSMTimeStep, &result.SSMTimeStep},
+		{info.SSMTimeStepNorm, &result.SSMTimeStepNorm},
 		{info.SSMA, &result.SSMA},
 		{info.SSMD, &result.SSMD},
+		{info.SSMBNorm, &result.SSMBNorm},
+		{info.SSMCNorm, &result.SSMCNorm},
 		{info.SSMBeta, &result.SSMBeta},
 		{info.SSMAlpha, &result.SSMAlpha},
 		{info.SSMBetaAlpha, &result.SSMBetaAlpha},

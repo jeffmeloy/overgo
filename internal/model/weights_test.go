@@ -1941,6 +1941,42 @@ func TestReadWeightsMamba2(t *testing.T) {
 	}
 }
 
+func TestReadWeightsJamba(t *testing.T) {
+	spec := Spec{Architecture: "jamba", BlockCount: 2, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		LayerKVHeadCounts: []uint32{0, 1}, RecurrentLayers: []bool{true, false},
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 2,
+		SSMGroupCount: 1, ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		VocabularySize: 32}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 4, 32), tensorInfo("output_norm.weight", 4),
+		tensorInfo("blk.0.attn_norm.weight", 4), tensorInfo("blk.0.ssm_in.weight", 4, 16),
+		tensorInfo("blk.0.ssm_conv1d.weight", 3, 8), tensorInfo("blk.0.ssm_conv1d.bias", 8),
+		tensorInfo("blk.0.ssm_x.weight", 8, 6), tensorInfo("blk.0.ssm_dt_norm.weight", 2),
+		tensorInfo("blk.0.ssm_dt.weight", 2, 8), tensorInfo("blk.0.ssm_dt.bias", 8),
+		tensorInfo("blk.0.ssm_b_norm.weight", 2), tensorInfo("blk.0.ssm_c_norm.weight", 2),
+		tensorInfo("blk.0.ssm_a", 2, 8), tensorInfo("blk.0.ssm_d", 8),
+		tensorInfo("blk.0.ssm_out.weight", 8, 4), tensorInfo("blk.0.ffn_norm.weight", 4),
+		tensorInfo("blk.0.ffn_gate.weight", 4, 6), tensorInfo("blk.0.ffn_up.weight", 4, 6),
+		tensorInfo("blk.0.ffn_down.weight", 6, 4), tensorInfo("blk.1.attn_norm.weight", 4),
+		tensorInfo("blk.1.attn_q.weight", 4, 4), tensorInfo("blk.1.attn_k.weight", 4, 2),
+		tensorInfo("blk.1.attn_v.weight", 4, 2), tensorInfo("blk.1.attn_output.weight", 4, 4),
+		tensorInfo("blk.1.ffn_norm.weight", 4), tensorInfo("blk.1.ffn_gate_inp.weight", 4, 4),
+		tensorInfo("blk.1.ffn_gate_exps.weight", 4, 6, 4), tensorInfo("blk.1.ffn_up_exps.weight", 4, 6, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 6, 4, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !weights.Layers[0].Recurrent || weights.Layers[0].SSMTimeStepNorm == nil ||
+		weights.Layers[0].SSMBNorm == nil || weights.Layers[0].SSMCNorm == nil ||
+		weights.Layers[0].FeedForwardGate.Name == "" || weights.Layers[1].Recurrent ||
+		weights.Layers[1].AttentionQ.Name == "" || weights.Layers[1].FeedForwardRouter == nil {
+		t.Fatalf("unexpected Jamba catalog: %+v", weights.Layers)
+	}
+}
+
 func testReadWeightsDeepSeek2FamilyAbsorbedMLA(t *testing.T, architecture string) {
 	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,
 		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,

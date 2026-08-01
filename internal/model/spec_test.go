@@ -3394,6 +3394,37 @@ func TestReadMamba2Spec(t *testing.T) {
 	}
 }
 
+func TestReadJambaSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "jamba"),
+		metadata("jamba.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jamba.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("jamba.embedding_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("jamba.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("jamba.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "jamba.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{0, 1},
+		}},
+		metadata("jamba.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("jamba.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("jamba.ssm.inner_size", gguf.ValueTypeUint32, uint32(8)),
+		metadata("jamba.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jamba.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jamba.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("jamba.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jamba.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "jamba" || !spec.RopeDisabled || !spec.IsRecurrentLayer(0) ||
+		spec.IsRecurrentLayer(1) || spec.LayerKVHeadCount(1) != 1 || spec.SSMInnerSize != 8 ||
+		spec.SSMGroupCount != 1 || spec.ExpertFeedForward != 6 || spec.ExpertWeightsNorm {
+		t.Fatalf("unexpected Jamba spec: %+v", spec)
+	}
+}
+
 func TestReadTalkieSpecUsesUnweightedRMSNormAndDirectLogitScale(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "talkie"),

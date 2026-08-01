@@ -81,7 +81,9 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		)
 	}
 	for index, layer := range cache.Layers {
-		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" {
+		jambaRecurrent := r.spec.Architecture == "jamba" && index < len(r.weights.Layers) &&
+			r.weights.Layers[index].Recurrent
+		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent {
 			convWidth := uint64(r.spec.SSMInnerSize)
 			if r.spec.Architecture == "mamba2" {
 				convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)

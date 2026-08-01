@@ -1930,6 +1930,45 @@ func TestBuildMamba2Block(t *testing.T) {
 	}
 }
 
+func TestBuildJambaAttentionMoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{Architecture: "jamba", BlockCount: 2, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		LayerKVHeadCounts: []uint32{0, 1}, RecurrentLayers: []bool{true, false},
+		RopeDisabled: true, RMSNormEpsilon: 1e-5, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionK:             builder.Input("k", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionV:             builder.Input("v", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardGateExperts: builder.Input("gate", dtype.F32, tensor.MustShape(4, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up", dtype.F32, tensor.MustShape(4, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down", dtype.F32, tensor.MustShape(6, 4, 4)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attention, moe, rope := false, false, false
+	for _, node := range nodes {
+		attention = attention || node.Op == tensor.OpAttention
+		moe = moe || node.Op == tensor.OpMoE
+		rope = rope || node.Op == tensor.OpRoPENormal || node.Op == tensor.OpRoPENeoX
+	}
+	if !attention || !moe || rope {
+		t.Fatalf("Jamba attention graph attention=%v moe=%v rope=%v", attention, moe, rope)
+	}
+}
+
 func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string) {
 	builder := tensor.NewBuilder()
 	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,

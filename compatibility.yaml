@@ -1031,6 +1031,21 @@ models:
       - silu-z-gate
       - serializable-recurrent-cache
     real_model_validation: pending-fixture
+  jamba:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - metadata-selected-attention-and-mamba-layers
+      - no-rope-grouped-query-attention
+      - learned-dt-b-c-rmsnorm
+      - mamba-v1-selective-scan
+      - dense-swiglu-or-softmax-routed-moe
+      - non-renormalized-selected-expert-weights
+      - serializable-hybrid-cache
+    real_model_validation: pending-fixture
   mamba2:
     status: experimental
     execution:

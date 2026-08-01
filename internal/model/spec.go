@@ -193,6 +193,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "hunyuan-vl" &&
 		architecture != "hunyuan-moe" &&
 		architecture != "hy_v3" &&
+		architecture != "jamba" &&
 		architecture != "jina-bert-v2" &&
 		architecture != "jina-bert-v3" &&
 		architecture != "maincoder" &&
@@ -248,7 +249,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" {
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" {
 		spec.RopeDisabled = true
 	}
 	if architecture == "chameleon" {
@@ -347,7 +348,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
-	} else if architecture == "lfm2" || architecture == "lfm2moe" {
+	} else if architecture == "lfm2" || architecture == "lfm2moe" || architecture == "jamba" {
 		counts, countErr := requiredArray[uint32](
 			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
 		)
@@ -361,6 +362,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			)
 		}
 		spec.RecurrentLayers = make([]bool, len(counts))
+		if architecture == "jamba" {
+			spec.LayerKVHeadCounts = append([]uint32(nil), counts...)
+		}
 		for index, count := range counts {
 			if count == 0 {
 				spec.RecurrentLayers[index] = true
@@ -369,7 +373,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if spec.HeadCountKV == 0 {
 				spec.HeadCountKV = count
 			} else if spec.HeadCountKV != count {
-				return Spec{}, errors.New("LFM2 attention layers use differing positive KV head counts")
+				return Spec{}, errors.New("hybrid attention layers use differing positive KV head counts")
 			}
 		}
 	} else {
@@ -1348,7 +1352,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "mamba" || architecture == "mamba2" {
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1360,14 +1364,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				return Spec{}, err
 			}
 		}
-		if architecture == "mamba" {
+		if architecture == "mamba" || architecture == "jamba" {
 			spec.SSMGroupCount = 1
 			spec.SSMDtBCNorm, _ = optional[bool](values, prefix+"ssm.dt_b_c_rms", gguf.ValueTypeBool)
 		} else if spec.SSMGroupCount, err = required[uint32](values, prefix+"ssm.group_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
 	}
-	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1392,6 +1396,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		if architecture == "nomic-bert-moe" {
 			spec.ExpertFeedForward = spec.FeedForwardLength
+		}
+		if architecture == "jamba" {
+			spec.ExpertFeedForward = spec.FeedForwardLength
+			spec.ExpertWeightsNorm = false
 		}
 		if architecture == "llama4" {
 			if spec.ExpertFeedForward, err = required[uint32](
@@ -2357,6 +2365,18 @@ func (s Spec) validate() error {
 			s.SSMInnerSize%s.SSMTimeStepRank != 0 || s.SSMInnerSize%s.SSMGroupCount != 0 ||
 			s.SSMTimeStepRank%s.SSMGroupCount != 0:
 			return errors.New("Mamba2 SSM metadata is invalid")
+		}
+	}
+	if s.Architecture == "jamba" {
+		switch {
+		case s.SSMConvKernel < 2 || s.SSMInnerSize != 2*s.EmbeddingLength ||
+			s.SSMStateSize == 0 || s.SSMTimeStepRank == 0:
+			return errors.New("Jamba SSM metadata is invalid")
+		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
+			return errors.New("Jamba layer schedule is invalid")
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0:
+			return errors.New("Jamba expert metadata is invalid")
 		}
 	}
 	if s.Architecture == "bert" &&

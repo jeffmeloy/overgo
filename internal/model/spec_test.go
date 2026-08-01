@@ -3525,7 +3525,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
-		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant", "falcon-h1",
+		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant",
 		"deepseek32", "deepseek4", "t5", "wavtokenizer-dec", "eagle3", "dflash",
 	} {
 		t.Run(architecture, func(t *testing.T) {
@@ -3592,6 +3592,36 @@ func TestReadMamba2Spec(t *testing.T) {
 		spec.FeedForwardLength != 0 || spec.SSMConvKernel != 3 || spec.SSMInnerSize != 8 ||
 		spec.SSMStateSize != 2 || spec.SSMTimeStepRank != 4 || spec.SSMGroupCount != 2 {
 		t.Fatalf("unexpected Mamba2 spec: %+v", spec)
+	}
+}
+
+func TestReadFalconH1Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "falcon-h1"),
+		metadata("falcon-h1.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("falcon-h1.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("falcon-h1.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("falcon-h1.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("falcon-h1.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("falcon-h1.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("falcon-h1.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("falcon-h1.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("falcon-h1.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("falcon-h1.ssm.inner_size", gguf.ValueTypeUint32, uint32(8)),
+		metadata("falcon-h1.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("falcon-h1.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(4)),
+		metadata("falcon-h1.ssm.group_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("falcon-h1.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "falcon-h1" || spec.RopeDisabled || spec.HeadCount != 2 ||
+		spec.HeadCountKV != 1 || spec.KeyLength != 4 || spec.ValueLength != 4 ||
+		spec.RopeDimensionCount != 4 || spec.SSMConvKernel != 3 || spec.SSMInnerSize != 8 ||
+		spec.SSMStateSize != 2 || spec.SSMTimeStepRank != 4 || spec.SSMGroupCount != 2 {
+		t.Fatalf("unexpected Falcon-H1 spec: %+v", spec)
 	}
 }
 

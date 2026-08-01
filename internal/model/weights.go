@@ -1315,6 +1315,79 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
+		} else if spec.Architecture == "falcon-h1" {
+			convDimension := uint64(spec.SSMInnerSize) +
+				2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+			inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"ssm_in.weight":     {[]uint64{uint64(spec.EmbeddingLength), inputDimension}, &layer.SSMInput},
+				"ssm_conv1d.weight": {[]uint64{uint64(spec.SSMConvKernel), convDimension}, &layer.SSMConv1D},
+				"ssm_dt.bias":       {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep},
+				"ssm_a":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMA},
+				"ssm_d":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMD},
+				"ssm_out.weight":    {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
+			if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
+				if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != convDimension {
+					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+				}
+				layer.SSMConv1DBias = &item
+			}
+			if item, ok := tensors[prefix+"ssm_norm.weight"]; ok {
+				norm, itemErr := required(
+					item.Name, uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount),
+				)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				layer.SSMNorm = &norm
+			}
+			if item, ok := tensors[prefix+"attn_qkv.weight"]; ok {
+				qkv, itemErr := required(item.Name, uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				layer.AttentionQKV = &qkv
+				if bias, ok := tensors[prefix+"attn_qkv.bias"]; ok {
+					validated, biasErr := required(bias.Name, queryLength+keyLength+valueLength)
+					if biasErr != nil {
+						return Weights{}, biasErr
+					}
+					if validated.Type != dtype.F32 {
+						return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", validated.Name)
+					}
+					layer.AttentionQKVBias = &validated
+				}
+			} else {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination *gguf.TensorInfo
+				}{
+					"attn_q.weight": {[]uint64{uint64(spec.EmbeddingLength), queryLength}, &layer.AttentionQ},
+					"attn_k.weight": {[]uint64{uint64(spec.EmbeddingLength), keyLength}, &layer.AttentionK},
+					"attn_v.weight": {[]uint64{uint64(spec.EmbeddingLength), valueLength}, &layer.AttentionV},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = item
+				}
+			}
+			if layer.AttentionOutput, err = required(
+				prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength),
+			); err != nil {
+				return Weights{}, err
+			}
 		} else if spec.Architecture == "mamba2" ||
 			(spec.Architecture == "granitehybrid" && spec.IsRecurrentLayer(block)) {
 			layer.Recurrent = true
@@ -2089,6 +2162,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			continue
 		}
 		feedForwardNormName := "ffn_norm.weight"
+		if spec.Architecture == "falcon-h1" {
+			feedForwardNormName = "ffn_norm"
+		}
 		if spec.Architecture == "dbrx" {
 			feedForwardNormName = "attn_output_norm.weight"
 		}

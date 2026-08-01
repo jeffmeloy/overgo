@@ -775,11 +775,12 @@ func BuildT5EncoderBlock(
 }
 
 type DenseBlockResult struct {
-	Output    *tensor.Tensor
-	Key       *tensor.Tensor
-	Value     *tensor.Tensor
-	Auxiliary *tensor.Tensor
-	States    map[string]*tensor.Tensor
+	Output      *tensor.Tensor
+	Key         *tensor.Tensor
+	Value       *tensor.Tensor
+	Auxiliary   *tensor.Tensor
+	States      map[string]*tensor.Tensor
+	FixedStates map[string]*tensor.Tensor
 }
 
 type Qwen35BlockResult struct {
@@ -954,7 +955,7 @@ func buildMamba2MixerCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Mamba2 block input/state is nil")
 	}
-	if (spec.Architecture != "mamba2" && spec.Architecture != "granitehybrid" &&
+	if (spec.Architecture != "mamba2" && spec.Architecture != "granitehybrid" && spec.Architecture != "falcon-h1" &&
 		spec.Architecture != "nemotron_h" && spec.Architecture != "nemotron_h_moe") || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Mamba2 mixer architecture/input is invalid")
@@ -966,8 +967,10 @@ func buildMamba2MixerCached(
 		"SSM time-step bias": weights.SSMTimeStep,
 		"SSM A":              weights.SSMA,
 		"SSM D":              weights.SSMD,
-		"SSM norm":           weights.SSMNorm,
 		"SSM output":         weights.SSMOutput,
+	}
+	if spec.Architecture != "falcon-h1" {
+		required["SSM norm"] = weights.SSMNorm
 	}
 	for name, item := range required {
 		if item == nil {
@@ -1026,13 +1029,139 @@ func buildMamba2MixerCached(
 	attention = builder.Add(attention, builder.Multiply(x, weights.SSMD))
 	attention = builder.Multiply(attention, builder.SiLU(z))
 	attention = builder.Reshape(attention, inner/groups, groups, tokens, 1)
-	attention = builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon)
+	if weights.SSMNorm != nil {
+		attention = builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon)
+	}
 	attention = builder.Reshape(attention, inner, tokens)
 	attention = builder.MulMat(weights.SSMOutput, attention)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
+}
+
+func BuildFalconH1BlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue, convState, ssmState *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if builder == nil || input == nil || convState == nil || ssmState == nil {
+		return DenseBlockResult{}, errors.New("Falcon-H1 block input/state is nil")
+	}
+	if spec.Architecture != "falcon-h1" || input.Shape.Rank != 2 ||
+		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("Falcon-H1 block architecture/input is invalid")
+	}
+	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Falcon-H1 block position count is invalid")
+	}
+	if (pastKey == nil) != (pastValue == nil) {
+		return DenseBlockResult{}, errors.New("Falcon-H1 KV cache is incomplete")
+	}
+	for name, item := range map[string]*tensor.Tensor{
+		"attention norm": weights.AttentionNorm, "attention output": weights.AttentionOutput,
+		"feed-forward norm": weights.FeedForwardNorm, "feed-forward gate": weights.FeedForwardGate,
+		"feed-forward up": weights.FeedForwardUp, "feed-forward down": weights.FeedForwardDown,
+	} {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("Falcon-H1 block %s weight is nil", name)
+		}
+	}
+	if weights.AttentionQKV == nil && (weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
+		return DenseBlockResult{}, errors.New("Falcon-H1 attention projection catalog is incomplete")
+	}
+
+	tokens := uint64(len(positions))
+	heads := uint64(spec.HeadCount)
+	kvHeads := uint64(spec.HeadCountKV)
+	queryWidth := heads * uint64(spec.KeyLength)
+	keyWidth := kvHeads * uint64(spec.KeyLength)
+	valueWidth := kvHeads * uint64(spec.ValueLength)
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	var query, key, value *tensor.Tensor
+	if weights.AttentionQKV != nil {
+		mixed := builder.MulMat(weights.AttentionQKV, normalized)
+		if weights.AttentionQKVBias != nil {
+			mixed = builder.Add(mixed, weights.AttentionQKVBias)
+		}
+		stride := queryWidth + keyWidth + valueWidth
+		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryWidth, 1, stride), queryWidth, tokens)
+		key = builder.Reshape(builder.GroupSlice(mixed, queryWidth, keyWidth, 1, stride), keyWidth, tokens)
+		value = builder.Reshape(builder.GroupSlice(mixed, queryWidth+keyWidth, valueWidth, 1, stride), valueWidth, tokens)
+	} else {
+		query = builder.MulMat(weights.AttentionQ, normalized)
+		key = builder.MulMat(weights.AttentionK, normalized)
+		value = builder.MulMat(weights.AttentionV, normalized)
+		if weights.AttentionQBias != nil {
+			query = builder.Add(query, weights.AttentionQBias)
+		}
+		if weights.AttentionKBias != nil {
+			key = builder.Add(key, weights.AttentionKBias)
+		}
+		if weights.AttentionVBias != nil {
+			value = builder.Add(value, weights.AttentionVBias)
+		}
+	}
+	query = builder.Reshape(query, uint64(spec.KeyLength), heads, tokens)
+	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeads, tokens)
+	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeads, tokens)
+	if weights.RopeFactors != nil {
+		query = builder.RoPENeoXScaledWithFactors(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1, weights.RopeFactors)
+		key = builder.RoPENeoXScaledWithFactors(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1, weights.RopeFactors)
+	} else {
+		query = builder.RoPENeoXScaled(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
+		key = builder.RoPENeoXScaled(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
+	}
+	cacheKey, cacheValue := key, value
+	var queryStart uint32
+	if pastKey != nil {
+		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
+			return DenseBlockResult{}, errors.New("Falcon-H1 KV cache shape is invalid")
+		}
+		queryStart = uint32(pastKey.Shape.Dims[2])
+		cacheKey = builder.Concat(pastKey, key, 2)
+		cacheValue = builder.Concat(pastValue, value, 2)
+	}
+	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	if spec.AttentionScale > 0 {
+		attentionScale = spec.AttentionScale
+	}
+	attention := builder.AttentionWithOffset(query, cacheKey, cacheValue, attentionScale, true, queryStart)
+	attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if weights.AttentionOutputBias != nil {
+		attention = builder.Add(attention, weights.AttentionOutputBias)
+	}
+
+	ssm, err := buildMamba2MixerCached(builder, input, spec, weights, convState, ssmState)
+	if err != nil {
+		return DenseBlockResult{}, err
+	}
+	residual := builder.Add(input, builder.Add(attention, ssm.Output))
+	ffnInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	gate := builder.MulMat(weights.FeedForwardGate, ffnInput)
+	up := builder.MulMat(weights.FeedForwardUp, ffnInput)
+	if weights.FeedForwardGateBias != nil {
+		gate = builder.Add(gate, weights.FeedForwardGateBias)
+	}
+	if weights.FeedForwardUpBias != nil {
+		up = builder.Add(up, weights.FeedForwardUpBias)
+	}
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	if weights.FeedForwardDownBias != nil {
+		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+	}
+	output := builder.Add(residual, feedForward)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{
+		Output: output, Key: cacheKey, Value: cacheValue,
+		FixedStates: map[string]*tensor.Tensor{"conv_state": ssm.Key, "ssm_state": ssm.Value},
+	}, nil
 }
 
 func BuildMamba2BlockCached(

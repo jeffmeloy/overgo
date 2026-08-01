@@ -336,6 +336,34 @@ func TestHostLayerGraphInputsPermitMamba2(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitFalconH1(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	ssmInput, conv, dt := value(4, 28), value(3, 16), value(4)
+	a, d, ssmOutput := value(1, 4), value(1, 4), value(8, 4)
+	layer := HostLayer{
+		AttentionNorm: value(4), AttentionQ: value(4, 4), AttentionK: value(4, 2),
+		AttentionV: value(4, 2), AttentionOutput: value(4, 4),
+		FeedForwardNorm: value(4), FeedForwardGate: value(4, 6),
+		FeedForwardUp: value(4, 6), FeedForwardDown: value(6, 4),
+		SSMInput: &ssmInput, SSMConv1D: &conv, SSMTimeStep: &dt,
+		SSMA: &a, SSMD: &d, SSMOutput: &ssmOutput,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 15 || graph.AttentionQ == nil || graph.AttentionOutput == nil ||
+		graph.SSMInput == nil || graph.SSMConv1D == nil || graph.SSMOutput == nil ||
+		graph.FeedForwardGate == nil || graph.FeedForwardDown == nil {
+		t.Fatalf("unexpected Falcon-H1 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitParallelDenseAndMoE(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

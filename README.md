@@ -4,7 +4,7 @@
 Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1, DeepSeek2, DeepSeek2-OCR, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
-dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3/4 and Gemma Embedding,
+dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon/Falcon-H1, Gemma 1/2/3/4 and Gemma Embedding,
 ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE, GPT-2/GPT-NeoX, Granite/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniCPM/MiniCPM3, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
@@ -403,6 +403,8 @@ Mamba v1 convolution state, selective-scan state, optional FalconMamba dt/B/C
 RMSNorm, D skip, and SiLU gate are synthetic-fixture and CUDA-differential validated.
 Mamba2 grouped B/C state, scalar-per-head A/D, grouped output RMSNorm, and
 expanded convolution state are likewise synthetic-fixture and CUDA-differential validated.
+Falcon-H1 parallel GQA/Mamba2 mixing, NeoX RoPE, projection biases, and mixed
+token/fixed cache state are synthetic-fixture and CUDA-differential validated.
 RWKV6 dual token shifts, WKV6 state, affine normalization, time-first mixing,
 per-head group normalization, and squared-ReLU channel mixing are
 synthetic-fixture and CUDA-differential validated.

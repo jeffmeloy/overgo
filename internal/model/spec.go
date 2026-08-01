@@ -275,6 +275,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "gemma2" &&
 		architecture != "gemma3" && architecture != "gemma4" &&
 		architecture != "falcon" &&
+		architecture != "falcon-h1" &&
 		architecture != "talkie" &&
 		architecture != "t5encoder" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
@@ -1464,7 +1465,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.TokenShiftCount = value
 		}
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" || architecture == "falcon-h1" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1481,6 +1482,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SSMDtBCNorm, _ = optional[bool](values, prefix+"ssm.dt_b_c_rms", gguf.ValueTypeBool)
 		} else if spec.SSMGroupCount, err = required[uint32](values, prefix+"ssm.group_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
+		}
+	}
+	if architecture == "falcon-h1" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
 		}
 	}
 	if architecture == "plamo2" {
@@ -2588,6 +2595,18 @@ func (s Spec) validate() error {
 			s.SSMInnerSize%s.SSMTimeStepRank != 0 || s.SSMInnerSize%s.SSMGroupCount != 0 ||
 			s.SSMTimeStepRank%s.SSMGroupCount != 0:
 			return errors.New("Mamba2 SSM metadata is invalid")
+		}
+	}
+	if s.Architecture == "falcon-h1" {
+		switch {
+		case s.SSMConvKernel < 2 || s.SSMInnerSize == 0 || s.SSMStateSize == 0 ||
+			s.SSMTimeStepRank == 0 || s.SSMGroupCount == 0 ||
+			s.SSMInnerSize%s.SSMTimeStepRank != 0 || s.SSMInnerSize%s.SSMGroupCount != 0 ||
+			s.SSMTimeStepRank%s.SSMGroupCount != 0:
+			return errors.New("Falcon-H1 SSM metadata is invalid")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength:
+			return errors.New("Falcon-H1 rotary/head dimensions are invalid")
 		}
 	}
 	if s.Architecture == "rwkv6" || s.Architecture == "rwkv6qwen2" {

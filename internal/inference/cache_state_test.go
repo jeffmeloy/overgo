@@ -157,6 +157,27 @@ func TestMamba2CacheValidation(t *testing.T) {
 	}
 }
 
+func TestFalconH1CacheValidation(t *testing.T) {
+	runner := &Runner{spec: model.Spec{Architecture: "falcon-h1", BlockCount: 1,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: 2,
+		KeyLength: 2, ValueLength: 2, HeadCountKV: 1}}
+	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
+	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
+	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value, States: map[string]LayerState{
+		"conv_state": {Mode: CacheStateFixed, Value: conv},
+		"ssm_state":  {Mode: CacheStateFixed, Value: ssm},
+	}}}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+	cache.Layers[0].States["conv_state"] = LayerState{Mode: CacheStateToken, Value: conv}
+	if err := runner.validateCache(cache); err == nil {
+		t.Fatal("Falcon-H1 token-mode recurrent state was accepted")
+	}
+}
+
 func TestJambaHybridCacheValidation(t *testing.T) {
 	runner := &Runner{
 		spec: model.Spec{Architecture: "jamba", BlockCount: 2, SSMConvKernel: 3,

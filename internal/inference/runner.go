@@ -734,6 +734,23 @@ func (r *Runner) layerDeviceInputs(
 			}
 		}
 	}
+	if !info.Recurrent && info.SSMInput != nil {
+		for _, item := range []struct {
+			info        *gguf.TensorInfo
+			destination **tensor.Tensor
+		}{
+			{info.SSMInput, &result.SSMInput}, {info.SSMConv1D, &result.SSMConv1D},
+			{info.SSMConv1DBias, &result.SSMConv1DBias}, {info.SSMTimeStep, &result.SSMTimeStep},
+			{info.SSMA, &result.SSMA}, {info.SSMD, &result.SSMD},
+			{info.SSMNorm, &result.SSMNorm}, {info.SSMOutput, &result.SSMOutput},
+		} {
+			if item.info != nil {
+				if *item.destination, err = input(*item.info); err != nil {
+					return result, nil, err
+				}
+			}
+		}
+	}
 	if info.AttentionQNorm != nil {
 		if result.AttentionQNorm, err = input(*info.AttentionQNorm); err != nil {
 			return result, nil, err
@@ -1262,7 +1279,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
-		r.spec.Architecture != "glm-dsa" &&
+		r.spec.Architecture != "glm-dsa" && r.spec.Architecture != "falcon-h1" &&
 		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
 		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
@@ -1641,7 +1658,7 @@ func (r *Runner) runLayerCached(
 	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	var pastKey, pastValue, pastIndexerKey *tensor.Tensor
+	var pastKey, pastValue, pastIndexerKey, pastConvState, pastSSMState *tensor.Tensor
 	jambaRecurrent := r.spec.Architecture == "jamba" && layerIndex < len(r.weights.Layers) &&
 		r.weights.Layers[layerIndex].Recurrent
 	graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && layerIndex < len(r.weights.Layers) &&
@@ -1704,6 +1721,28 @@ func (r *Runner) runLayerCached(
 		pastKey = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convValue.Shape)
 		pastValue = builder.Input(fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmValue.Shape)
 		hostFeeds[pastKey], hostFeeds[pastValue] = convValue, ssmValue
+	} else if r.spec.Architecture == "falcon-h1" {
+		convWidth := uint64(r.spec.SSMInnerSize) + 2*uint64(r.spec.SSMGroupCount)*uint64(r.spec.SSMStateSize)
+		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convWidth)
+		ssmShape := tensor.MustShape(uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize))
+		convElements, _ := convShape.Elements()
+		ssmElements, _ := ssmShape.Elements()
+		convValue := reference.Value{Shape: convShape, Data: make([]float32, int(convElements))}
+		ssmValue := reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmElements))}
+		if past != nil {
+			pastKey = builder.Input(fmt.Sprintf("blk.%d.cache_key", layerIndex), dtype.F32, past.Key.Shape)
+			pastValue = builder.Input(fmt.Sprintf("blk.%d.cache_value", layerIndex), dtype.F32, past.Value.Shape)
+			hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
+			if state, ok := past.States["conv_state"]; ok {
+				convValue = state.Value
+			}
+			if state, ok := past.States["ssm_state"]; ok {
+				ssmValue = state.Value
+			}
+		}
+		pastConvState = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convValue.Shape)
+		pastSSMState = builder.Input(fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmValue.Shape)
+		hostFeeds[pastConvState], hostFeeds[pastSSMState] = convValue, ssmValue
 	} else if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent || nemotronHRecurrent {
 		convWidth := uint64(r.spec.SSMInnerSize)
 		if r.spec.Architecture == "mamba2" || graniteHybridRecurrent || nemotronHRecurrent {
@@ -1739,6 +1778,11 @@ func (r *Runner) runLayerCached(
 		result, err = model.BuildMambaBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
 	} else if r.spec.Architecture == "mamba2" {
 		result, err = model.BuildMamba2BlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
+	} else if r.spec.Architecture == "falcon-h1" {
+		result, err = model.BuildFalconH1BlockCached(
+			builder, input, r.spec, graphWeights, positions,
+			pastKey, pastValue, pastConvState, pastSSMState,
+		)
 	} else if jambaRecurrent {
 		result, err = model.BuildJambaRecurrentBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
 	} else if graniteHybridRecurrent {
@@ -1793,6 +1837,9 @@ func (r *Runner) runLayerCached(
 	for _, state := range result.States {
 		outputs = append(outputs, state)
 	}
+	for _, state := range result.FixedStates {
+		outputs = append(outputs, state)
+	}
 	var results map[*tensor.Tensor]reference.Value
 	if r.hasPreloadedWeights() {
 		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
@@ -1810,10 +1857,13 @@ func (r *Runner) runLayerCached(
 		auxiliary := results[result.Auxiliary]
 		layerCache.Auxiliary = &auxiliary
 	}
-	if len(result.States) > 0 {
-		layerCache.States = make(map[string]LayerState, len(result.States))
+	if len(result.States)+len(result.FixedStates) > 0 {
+		layerCache.States = make(map[string]LayerState, len(result.States)+len(result.FixedStates))
 		for name, state := range result.States {
 			layerCache.States[name] = LayerState{Mode: CacheStateToken, Value: results[state]}
+		}
+		for name, state := range result.FixedStates {
+			layerCache.States[name] = LayerState{Mode: CacheStateFixed, Value: results[state]}
 		}
 	}
 	return results[outputTensor], layerCache, nil
@@ -2299,7 +2349,7 @@ func (r *Runner) Generate(
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" &&
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
-		r.spec.Architecture != "mistral4" && r.spec.Architecture != "glm-dsa" && r.spec.Architecture != "mamba" &&
+		r.spec.Architecture != "mistral4" && r.spec.Architecture != "glm-dsa" && r.spec.Architecture != "falcon-h1" && r.spec.Architecture != "mamba" &&
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
 		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2" &&
 		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe" &&
@@ -3229,6 +3279,14 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.IndexerProjection,
 			layer.IndexerAttentionK,
 			layer.IndexerAttentionQB,
+			layer.SSMInput,
+			layer.SSMConv1D,
+			layer.SSMConv1DBias,
+			layer.SSMTimeStep,
+			layer.SSMA,
+			layer.SSMD,
+			layer.SSMNorm,
+			layer.SSMOutput,
 		} {
 			if pointer != nil {
 				names[pointer.Name] = struct{}{}

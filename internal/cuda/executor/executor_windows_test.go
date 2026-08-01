@@ -1450,6 +1450,80 @@ func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorFalconH1BlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{Architecture: "falcon-h1", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2, RopeDimensionCount: 2,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5, SSMConvKernel: 3,
+		SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4, SSMGroupCount: 2}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 3))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:       builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		AttentionQ:          builder.Input("q", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionK:          builder.Input("k", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionV:          builder.Input("v", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionOutput:     builder.Input("attn_out", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionOutputBias: builder.Input("attn_out_bias", dtype.F32, tensor.MustShape(4)),
+		SSMInput:            builder.Input("ssm_in", dtype.F32, tensor.MustShape(4, 28)),
+		SSMConv1D:           builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
+		SSMConv1DBias:       builder.Input("conv_bias", dtype.F32, tensor.MustShape(16)),
+		SSMTimeStep:         builder.Input("dt", dtype.F32, tensor.MustShape(4)),
+		SSMA:                builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
+		SSMD:                builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
+		SSMNorm:             builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
+		SSMOutput:           builder.Input("ssm_out", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGate:     builder.Input("gate", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardUp:       builder.Input("up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown:     builder.Input("down", dtype.F32, tensor.MustShape(6, 4)),
+		FeedForwardGateBias: builder.Input("gate_bias", dtype.F32, tensor.MustShape(6)),
+		FeedForwardUpBias:   builder.Input("up_bias", dtype.F32, tensor.MustShape(6)),
+		FeedForwardDownBias: builder.Input("down_bias", dtype.F32, tensor.MustShape(4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	result, err := model.BuildFalconH1BlockCached(
+		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, convState, ssmState,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	for index, node := range builder.Nodes() {
+		if node.Op != tensor.OpInput {
+			continue
+		}
+		offset := float32(-0.1)
+		if node == weights.AttentionNorm || node == weights.SSMNorm || node == weights.FeedForwardNorm {
+			offset = 0.9
+		}
+		feeds[node] = patternedValue(node.Shape, index+3, 0.025, offset)
+	}
+	outputs := []*tensor.Tensor{
+		result.Output, result.Key, result.Value,
+		result.FixedStates["conv_state"], result.FixedStates["ssm_state"],
+	}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 1e-3)
+	}
+}
+
 func TestExecutorGraniteHybridRecurrentBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

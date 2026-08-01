@@ -1930,6 +1930,58 @@ func TestBuildMamba2Block(t *testing.T) {
 	}
 }
 
+func TestBuildFalconH1Block(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{Architecture: "falcon-h1", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2, RopeDimensionCount: 2,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5, SSMConvKernel: 3,
+		SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4, SSMGroupCount: 2}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:   builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		AttentionQ:      builder.Input("q", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionK:      builder.Input("k", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionV:      builder.Input("v", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionOutput: builder.Input("attn_out", dtype.F32, tensor.MustShape(4, 4)),
+		SSMInput:        builder.Input("ssm_in", dtype.F32, tensor.MustShape(4, 28)),
+		SSMConv1D:       builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
+		SSMTimeStep:     builder.Input("dt", dtype.F32, tensor.MustShape(4)),
+		SSMA:            builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
+		SSMD:            builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
+		SSMOutput:       builder.Input("ssm_out", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGate: builder.Input("gate", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardUp:   builder.Input("up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown: builder.Input("down", dtype.F32, tensor.MustShape(6, 4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	result, err := BuildFalconH1BlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, convState, ssmState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(2, 1, 2)) ||
+		!result.Value.Shape.Equal(tensor.MustShape(2, 1, 2)) || len(result.FixedStates) != 2 ||
+		!result.FixedStates["conv_state"].Shape.Equal(convState.Shape) ||
+		!result.FixedStates["ssm_state"].Shape.Equal(ssmState.Shape) {
+		t.Fatalf("unexpected Falcon-H1 result: %+v", result)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value, result.FixedStates["conv_state"], result.FixedStates["ssm_state"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	attention, convolution, scan, rope := false, false, false, false
+	for _, node := range nodes {
+		attention = attention || node.Op == tensor.OpAttention
+		convolution = convolution || node.Op == tensor.OpSSMConv
+		scan = scan || node.Op == tensor.OpSSMScan
+		rope = rope || node.Op == tensor.OpRoPENeoX
+	}
+	if !attention || !convolution || !scan || !rope {
+		t.Fatalf("Falcon-H1 graph attention=%v convolution=%v scan=%v rope=%v", attention, convolution, scan, rope)
+	}
+}
+
 func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{Architecture: "granitehybrid", EmbeddingLength: 4, FeedForwardLength: 6,

@@ -403,6 +403,30 @@ func LoadHostLayer(
 			info        gguf.TensorInfo
 		}{&result.FeedForwardNorm, info.FeedForwardNorm})
 	}
+	if !info.Recurrent && info.SSMInput != nil {
+		if info.SSMConv1D == nil || info.SSMTimeStep == nil || info.SSMA == nil ||
+			info.SSMD == nil || info.SSMOutput == nil {
+			return HostLayer{}, errors.New("host hybrid SSM catalog is incomplete")
+		}
+		for _, item := range []struct {
+			destination **reference.Value
+			info        *gguf.TensorInfo
+		}{
+			{&result.SSMInput, info.SSMInput}, {&result.SSMConv1D, info.SSMConv1D},
+			{&result.SSMConv1DBias, info.SSMConv1DBias}, {&result.SSMTimeStep, info.SSMTimeStep},
+			{&result.SSMA, info.SSMA}, {&result.SSMD, info.SSMD},
+			{&result.SSMNorm, info.SSMNorm}, {&result.SSMOutput, info.SSMOutput},
+		} {
+			if item.info == nil {
+				continue
+			}
+			value, valueErr := LoadHostTensor(ctx, file, *item.info)
+			if valueErr != nil {
+				return HostLayer{}, valueErr
+			}
+			*item.destination = &value
+		}
+	}
 	if info.Recurrent {
 		kimi := info.SSMQueryConv != nil
 		rwkv := info.TimeMixW1 != nil
@@ -934,7 +958,7 @@ func (layer *HostLayer) GraphInputs(
 			}
 			*item.destination = input(item.name, *item.value)
 		}
-	} else if layer.SSMInput != nil {
+	} else if layer.SSMInput != nil && layer.AttentionOutput.Shape.Rank == 0 {
 		result.SSMInput = input("ssm_in.weight", *layer.SSMInput)
 		result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
 		if layer.SSMConv1DBias != nil {
@@ -952,7 +976,7 @@ func (layer *HostLayer) GraphInputs(
 				result.SSMBNorm = input("ssm_b_norm.weight", *layer.SSMBNorm)
 				result.SSMCNorm = input("ssm_c_norm.weight", *layer.SSMCNorm)
 			}
-		} else {
+		} else if layer.SSMNorm != nil {
 			result.SSMNorm = input("ssm_norm.weight", *layer.SSMNorm)
 		}
 	} else if layer.SSMQueryConv != nil {
@@ -1022,6 +1046,20 @@ func (layer *HostLayer) GraphInputs(
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
 	} else {
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
+	}
+	if layer.SSMInput != nil && layer.AttentionOutput.Shape.Rank != 0 {
+		result.SSMInput = input("ssm_in.weight", *layer.SSMInput)
+		result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
+		if layer.SSMConv1DBias != nil {
+			result.SSMConv1DBias = input("ssm_conv1d.bias", *layer.SSMConv1DBias)
+		}
+		result.SSMTimeStep = input("ssm_dt.bias", *layer.SSMTimeStep)
+		result.SSMA = input("ssm_a", *layer.SSMA)
+		result.SSMD = input("ssm_d", *layer.SSMD)
+		if layer.SSMNorm != nil {
+			result.SSMNorm = input("ssm_norm.weight", *layer.SSMNorm)
+		}
+		result.SSMOutput = input("ssm_out.weight", *layer.SSMOutput)
 	}
 	if layer.AttentionQNorm != nil {
 		result.AttentionQNorm = input("attn_q_norm.weight", *layer.AttentionQNorm)

@@ -101,6 +101,17 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: GLM-DSA shared layer %d has indexer state", index)
 			}
 		}
+		if r.spec.Architecture == "falcon-h1" {
+			conv, hasConv := layer.States["conv_state"]
+			ssm, hasSSM := layer.States["ssm_state"]
+			convWidth := uint64(r.spec.SSMInnerSize) + 2*uint64(r.spec.SSMGroupCount)*uint64(r.spec.SSMStateSize)
+			convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convWidth)
+			ssmShape := tensor.MustShape(uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize))
+			if !hasConv || conv.Mode != CacheStateFixed || !conv.Value.Shape.Equal(convShape) ||
+				!hasSSM || ssm.Mode != CacheStateFixed || !ssm.Value.Shape.Equal(ssmShape) {
+				return fmt.Errorf("inference: Falcon-H1 cache layer %d recurrent state is invalid", index)
+			}
+		}
 		jambaRecurrent := r.spec.Architecture == "jamba" && index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent
 		graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && index < len(r.weights.Layers) &&

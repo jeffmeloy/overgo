@@ -2045,6 +2045,35 @@ func TestReadWeightsMamba2(t *testing.T) {
 	}
 }
 
+func TestReadWeightsFalconH1(t *testing.T) {
+	spec := Spec{Architecture: "falcon-h1", BlockCount: 1, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		RopeDimensionCount: 2, SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2,
+		SSMTimeStepRank: 4, SSMGroupCount: 2, VocabularySize: 32}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 4, 32), tensorInfo("output_norm.weight", 4),
+		tensorInfo("blk.0.attn_norm.weight", 4), tensorInfo("blk.0.attn_q.weight", 4, 4),
+		tensorInfo("blk.0.attn_k.weight", 4, 2), tensorInfo("blk.0.attn_v.weight", 4, 2),
+		tensorInfo("blk.0.attn_output.weight", 4, 4), tensorInfo("blk.0.ssm_in.weight", 4, 28),
+		tensorInfo("blk.0.ssm_conv1d.weight", 3, 16), tensorInfo("blk.0.ssm_dt.bias", 4),
+		tensorInfo("blk.0.ssm_a", 1, 4), tensorInfo("blk.0.ssm_d", 1, 4),
+		tensorInfo("blk.0.ssm_out.weight", 8, 4), tensorInfo("blk.0.ffn_norm", 4),
+		tensorInfo("blk.0.ffn_gate.weight", 4, 6), tensorInfo("blk.0.ffn_up.weight", 4, 6),
+		tensorInfo("blk.0.ffn_down.weight", 6, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.Recurrent || layer.SSMInput == nil || layer.SSMConv1D == nil || layer.SSMTimeStep == nil ||
+		layer.SSMA == nil || layer.SSMD == nil || layer.SSMOutput == nil || layer.AttentionQ.Name == "" ||
+		layer.AttentionK.Name == "" || layer.AttentionV.Name == "" || layer.AttentionOutput.Name == "" ||
+		layer.FeedForwardNorm.Name != "blk.0.ffn_norm" {
+		t.Fatalf("unexpected Falcon-H1 catalog: %+v", layer)
+	}
+}
+
 func TestReadWeightsJamba(t *testing.T) {
 	spec := Spec{Architecture: "jamba", BlockCount: 2, EmbeddingLength: 4,
 		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,

@@ -253,6 +253,16 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 			}
 		}
 	}
+	if !info.Recurrent && info.SSMInput != nil {
+		for _, item := range []*gguf.TensorInfo{
+			info.SSMInput, info.SSMConv1D, info.SSMConv1DBias, info.SSMTimeStep,
+			info.SSMA, info.SSMD, info.SSMNorm, info.SSMOutput,
+		} {
+			if item != nil {
+				required = append(required, *item)
+			}
+		}
+	}
 	if info.FeedForwardGate.Name != "" {
 		required = append(required, info.FeedForwardGate)
 	}

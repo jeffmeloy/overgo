@@ -2525,6 +2525,31 @@ models:
     validation:
       - perplexity-relative-delta-below-0.5-percent
       - greedy-token-id-exact
+  gemma3n:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+    tokenizers:
+      - gemma4-raw-bpe
+    features:
+      - four-stream-altup-prediction-and-correction
+      - magnitude-matched-altup-projection-and-unembedding
+      - laurel-low-rank-residual
+      - gaussian-activation-sparsity-first-ten-layers
+      - projected-per-layer-token-inputs
+      - first-twenty-layer-kv-production
+      - sliding-and-global-layer-18-or-19-kv-sharing
+      - serializable-prefix-editable-kv-cache
+      - final-logit-softcap
+    validation:
+      - synthetic-metadata-and-catalog
+      - altup-layout-and-formula-tests
+      - reference-cuda-active-stage-differential
+    limitations:
+      - multimodal-encoder-external
+      - real-model-validation-pending-fixture
   gemma4-assistant:
     status: experimental
     execution:

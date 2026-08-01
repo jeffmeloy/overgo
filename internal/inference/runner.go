@@ -910,6 +910,14 @@ func (r *Runner) layerDeviceInputs(
 		{info.PerLayerInputGate, &result.PerLayerInputGate},
 		{info.PerLayerProjection, &result.PerLayerProjection},
 		{info.PerLayerPostNorm, &result.PerLayerPostNorm},
+		{info.AltUpCorrectCoefficient, &result.AltUpCorrectCoefficient},
+		{info.AltUpCorrectScale, &result.AltUpCorrectScale},
+		{info.AltUpPredictCoefficient, &result.AltUpPredictCoefficient},
+		{info.AltUpRouter, &result.AltUpRouter},
+		{info.AltUpRouterNorm, &result.AltUpRouterNorm},
+		{info.LaurelLeft, &result.LaurelLeft},
+		{info.LaurelRight, &result.LaurelRight},
+		{info.LaurelPostNorm, &result.LaurelPostNorm},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -1590,6 +1598,11 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	perLayerInputs, err := r.prepareGemma4PerLayerInputs(ctx, activation, rows)
 	if err != nil {
 		return reference.Value{}, nil, err
+	}
+	if r.spec.Architecture == "gemma3n" {
+		return r.forwardGemma3nCachedLocked(
+			ctx, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
+		)
 	}
 	nextCache := &KVCache{
 		Layers:   make([]LayerCache, len(r.weights.Layers)),
@@ -2794,7 +2807,8 @@ func (r *Runner) Generate(
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
-		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" &&
+		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "gemma3n" &&
+		r.spec.Architecture != "plm" &&
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
 		r.spec.Architecture != "mistral4" && r.spec.Architecture != "glm-dsa" && r.spec.Architecture != "falcon-h1" && r.spec.Architecture != "mamba" &&
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
@@ -3186,16 +3200,17 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	activation reference.Value,
 	rows []uint32,
 ) ([]reference.Value, error) {
-	if r.spec.Architecture != "gemma4" || r.spec.EmbeddingPerLayer == 0 {
+	if (r.spec.Architecture != "gemma4" && r.spec.Architecture != "gemma3n") ||
+		r.spec.EmbeddingPerLayer == 0 {
 		return nil, nil
 	}
 	if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 		r.weights.PerLayerProjectionNorm == nil {
-		return nil, errors.New("inference: Gemma 4 per-layer weights are incomplete")
+		return nil, errors.New("inference: Gemma per-layer weights are incomplete")
 	}
 	selected, err := r.loadRows(ctx, *r.weights.PerLayerTokenEmbedding, rows)
 	if err != nil {
-		return nil, fmt.Errorf("inference: load Gemma 4 per-layer embeddings: %w", err)
+		return nil, fmt.Errorf("inference: load Gemma per-layer embeddings: %w", err)
 	}
 	builder := tensor.NewBuilder()
 	input := builder.Input("gemma4.per_layer.input", dtype.F32, activation.Shape)
@@ -3562,6 +3577,8 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		weights.PerLayerTokenEmbedding,
 		weights.PerLayerModelProjection,
 		weights.PerLayerProjectionNorm,
+		weights.AltUpProjection,
+		weights.AltUpUnembedding,
 		weights.FeatureProjection,
 		weights.FeatureProjectionPost,
 		weights.DraftToTarget,
@@ -3751,6 +3768,14 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.PerLayerInputGate,
 			layer.PerLayerProjection,
 			layer.PerLayerPostNorm,
+			layer.AltUpCorrectCoefficient,
+			layer.AltUpCorrectScale,
+			layer.AltUpPredictCoefficient,
+			layer.AltUpRouter,
+			layer.AltUpRouterNorm,
+			layer.LaurelLeft,
+			layer.LaurelRight,
+			layer.LaurelPostNorm,
 			layer.AttentionKVAMQA,
 			layer.AttentionKVANorm,
 			layer.AttentionKVB,

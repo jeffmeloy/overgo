@@ -17,7 +17,7 @@
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
 | Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, grouped/batched matmul, clamp, RMSNorm/affine LayerNorm, channel-group normalization, dense/depthwise same-padding Conv1D, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, scaled multi-axis RoPE, ALiBi, causal and symmetric sliding/softcapped/gated GQA with per-head sink logits, bidirectional and causal cached T5 relative-position attention, gated linear attention and WKV6/WKV7 recurrence, legacy and absorbed MLA decomposition, softmax/sigmoid top-k routed gated or ungated SiLU/ReLU/GELU MoE with separate or fused gate/up expert storage, split router inputs, grouped expert-bank indices, correction bias, and per-expert output scales, ReLU/GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, Mamba selective scan, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek2-OCR, DFlash paired-target block drafting, Eagle3 paired-target autoregressive drafting, ERNIE 4.5-MoE, Gemma4 plus shared-context Gemma4 Assistant drafting, GLM4-MoE, Granite Hybrid/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3, Jamba, Kimi Linear KDA/no-RoPE MLA, Mamba v1/v2, Falcon-H1 parallel attention/Mamba2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniMax-M2, Mistral 4, PLaMo2, SmallThinker, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, T5 encoder-decoder sessions, WavTokenizer semantic-token audio-feature decoding, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM token-input decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek2-OCR, DFlash paired-target block drafting, Eagle3 paired-target autoregressive drafting, ERNIE 4.5-MoE, Gemma3n AltUp/Laurel, Gemma4 plus shared-context Gemma4 Assistant drafting, GLM4-MoE, Granite Hybrid/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3, Jamba, Kimi Linear KDA/no-RoPE MLA, Mamba v1/v2, Falcon-H1 parallel attention/Mamba2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniMax-M2, Mistral 4, PLaMo2, SmallThinker, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, T5 encoder-decoder sessions, WavTokenizer semantic-token audio-feature decoding, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM token-input decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Seven tokenizer corpora match 326 upstream cases; Gemma4 raw UTF-8 BPE, BERT WordPiece, and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -1276,26 +1276,28 @@ including MXFP4, share the reference/CUDA graph. Strict metadata/catalog tests,
 formula-level routing tests, and a complete CUDA block differential pass;
 real-model validation remains pending a local GPT-OSS GGUF fixture.
 
-Eagle3 remains deferred at the orchestration boundary. Its encoder consumes
-three hidden-state streams selected from a separate target model, fuses them
-through `fc`, and may borrow target embeddings and output projection through a
-second model context. The current single-model runner has no target/draft
-speculative coordinator or cross-model hidden-state API; its standalone tensor
-graph would therefore be incomplete and misleading.
+Eagle3 now uses an explicit paired target/draft session. Three configured target
+hidden streams pass through the draft feature encoder; target embeddings and
+output projection may be shared. Autoregressive draft advance retains its own
+KV cache. Strict paired-contract, reference, and CUDA pipeline tests pass;
+real-model pair validation remains pending local fixtures.
 
-Gemma4 Assistant remains deferred at the orchestration boundary. It consumes
-target-model token embeddings plus external target hidden states, reads K/V
-through the target model's shared-attention cache, and returns both logits and
-the next hidden-state stream. The current runner owns one model, one cache, one
-hidden input, and one output; standalone assistant execution would omit its
-required target context.
+Gemma4 Assistant now uses an explicit shared-target-context session. Each step
+combines the target token embedding and pending target hidden state, selects the
+target model's final sliding/global K/V caches, runs fixed-position query-only
+attention, and returns logits plus the recurrent next hidden state. Strict
+paired-contract, reference, and CUDA pipeline tests pass; real-model pair
+validation remains pending local fixtures.
 
-Gemma3n remains deferred at the activation ABI boundary. Its AltUp/Laurel graph
-keeps a rank-3 stack of hidden streams, performs prediction/correction routing
-and magnitude normalization, injects per-layer token projections, and shares
-K/V across a metadata-selected layer suffix. The current decoder activation and
-cache contracts expose one rank-2 hidden stream and ordinary per-layer K/V.
-Partial dense-block execution would not match the pinned graph.
+Gemma3n now executes four-stream AltUp prediction/correction, magnitude-matched
+projection and unembedding, Laurel low-rank residuals, first-ten-layer Gaussian
+activation sparsity, projected per-layer token inputs, and query-only suffix
+layers sharing sliding/global K/V from layers 18/19. Cross-stream reductions
+remain bounded host operations; attention and dense projections use the normal
+reference/CUDA and preloaded-weight paths. Metadata, strict 30/35-layer catalog,
+AltUp formula/layout, cache topology, and CUDA active-stage differential tests
+pass. Multimodal encoding remains external; real-model validation awaits a
+local Gemma3n GGUF fixture.
 
 Falcon-H1 now executes parallel NeoX-RoPE GQA and Mamba2 in every layer, sums
 both mixer outputs into one residual, then applies the parallel SwiGLU FFN.

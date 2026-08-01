@@ -337,6 +337,38 @@ func TestReadGemma4Spec(t *testing.T) {
 	}
 }
 
+func TestReadGemma3nSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gemma3n"),
+		metadata("gemma3n.block_count", gguf.ValueTypeUint32, uint32(30)),
+		metadata("gemma3n.context_length", gguf.ValueTypeUint32, uint32(32768)),
+		metadata("gemma3n.embedding_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("gemma3n.feed_forward_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("gemma3n.attention.head_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gemma3n.attention.head_count_kv", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma3n.attention.key_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("gemma3n.attention.value_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("gemma3n.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("gemma3n.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(10_000)),
+		metadata("gemma3n.attention.sliding_window", gguf.ValueTypeUint32, uint32(1024)),
+		metadata("gemma3n.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(5)),
+		metadata("gemma3n.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("gemma3n.final_logit_softcapping", gguf.ValueTypeFloat32, float32(30)),
+		metadata("gemma3n.vocab_size", gguf.ValueTypeUint32, uint32(262144)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gemma3n" || spec.AltUpCount != 4 || spec.LaurelRank != 64 ||
+		spec.EmbeddingPerLayer != 256 || spec.KVFromStart != 20 || spec.SharedKVLayers != 10 ||
+		!spec.IsSlidingLayer(18) || spec.IsSlidingLayer(19) || spec.LayerHasKV(20) ||
+		spec.LayerSharedKVSource(20) != 18 || spec.LayerSharedKVSource(24) != 19 ||
+		spec.InputEmbeddingScale() != float32(math.Sqrt(2048)) {
+		t.Fatalf("unexpected Gemma 3n spec: %+v", spec)
+	}
+}
+
 func TestReadGemma4AssistantSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "gemma4-assistant"),
@@ -3669,7 +3701,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
-		"unsupported-test", "gptj", "gemma3n",
+		"unsupported-test", "gptj",
 		"deepseek32", "deepseek4",
 	} {
 		t.Run(architecture, func(t *testing.T) {

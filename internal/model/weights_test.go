@@ -4603,6 +4603,71 @@ func TestReadWeightsGemma4Assistant(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGemma3nAltUpAndLaurel(t *testing.T) {
+	spec := Spec{
+		Architecture: "gemma3n", BlockCount: 21, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		RMSNormEpsilon: 1e-6, EmbeddingPerLayer: 3,
+		AltUpCount: 4, AltUpActive: 0, LaurelRank: 2,
+		KVFromStart: 20, SharedKVLayers: 1,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("per_layer_token_embd.weight", 63, 32),
+		tensorInfo("per_layer_model_proj.weight", 8, 63),
+		tensorInfo("per_layer_proj_norm.weight", 3),
+		tensorInfo("altup_proj.weight", 8, 8, 3),
+		tensorInfo("altup_unembd_proj.weight", 8, 8, 3),
+	}
+	for block := range uint32(21) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 8),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", 4),
+			tensorInfo(prefix+"post_attention_norm.weight", 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 12),
+			tensorInfo(prefix+"ffn_up.weight", 8, 12),
+			tensorInfo(prefix+"ffn_down.weight", 12, 8),
+			tensorInfo(prefix+"post_ffw_norm.weight", 8),
+			tensorInfo(prefix+"per_layer_inp_gate.weight", 8, 3),
+			tensorInfo(prefix+"per_layer_proj.weight", 3, 8),
+			tensorInfo(prefix+"per_layer_post_norm.weight", 8),
+			tensorInfo(prefix+"altup_correct_coef.weight", 4, 4),
+			tensorInfo(prefix+"altup_correct_scale.weight", 8),
+			tensorInfo(prefix+"altup_predict_coef.weight", 4, 16),
+			tensorInfo(prefix+"altup_router.weight", 8, 4),
+			tensorInfo(prefix+"altup_router_norm.weight", 8),
+			tensorInfo(prefix+"laurel_l.weight", 8, 2),
+			tensorInfo(prefix+"laurel_r.weight", 2, 8),
+			tensorInfo(prefix+"laurel_post_norm.weight", 8),
+		)
+		if spec.LayerHasKV(block) {
+			tensors = append(tensors,
+				tensorInfo(prefix+"attn_k.weight", 8, 4),
+				tensorInfo(prefix+"attn_v.weight", 8, 4),
+				tensorInfo(prefix+"attn_k_norm.weight", 4),
+			)
+		}
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[20]
+	if weights.AltUpProjection == nil || weights.AltUpUnembedding == nil ||
+		layer.AltUpCorrectCoefficient == nil || layer.AltUpPredictCoefficient == nil ||
+		layer.AltUpRouter == nil || layer.LaurelLeft == nil || layer.LaurelRight == nil ||
+		layer.PerLayerProjection == nil || layer.AttentionK.Name != "" ||
+		layer.AttentionV.Name != "" || layer.AttentionKNorm != nil {
+		t.Fatalf("unexpected Gemma 3n catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsQwen2VL(t *testing.T) {
 	testReadWeightsMRoPETextDecoder(t, "qwen2vl")
 }

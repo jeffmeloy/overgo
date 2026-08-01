@@ -119,6 +119,12 @@ type Spec struct {
 	DeepstackLayerCount   uint32
 	EmbeddingPerLayer     uint32
 	SharedKVLayers        uint32
+	KVFromStart           uint32
+	AltUpCount            uint32
+	AltUpActive           uint32
+	LaurelRank            uint32
+	SparseLayerCount      uint32
+	SparsityStdMultiplier float32
 	RecurrentLayers       []bool
 	IndexerHeadCount      uint32
 	IndexerKeyLength      uint32
@@ -286,7 +292,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "rwkv7" &&
 		architecture != "arwkv7" &&
 		architecture != "gemma2" &&
-		architecture != "gemma3" && architecture != "gemma4" && architecture != "gemma4-assistant" &&
+		architecture != "gemma3" && architecture != "gemma3n" && architecture != "gemma4" && architecture != "gemma4-assistant" &&
 		architecture != "falcon" &&
 		architecture != "falcon-h1" &&
 		architecture != "talkie" &&
@@ -354,6 +360,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		if nextN != spec.BlockCount {
 			return Spec{}, errors.New("Gemma 4 assistant NextN layer count must match block count")
+		}
+	}
+	if architecture == "gemma3n" {
+		spec.AltUpCount = 4
+		spec.AltUpActive = 0
+		spec.LaurelRank = 64
+		spec.EmbeddingPerLayer = 256
+		spec.KVFromStart = 20
+		spec.SparseLayerCount = 10
+		spec.SparsityStdMultiplier = 1.6448533535003662
+		if spec.BlockCount >= spec.KVFromStart {
+			spec.SharedKVLayers = spec.BlockCount - spec.KVFromStart
 		}
 	}
 	if architecture == "wavtokenizer-dec" {
@@ -741,6 +759,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
 		}
+	}
+	if architecture == "gemma3n" {
+		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if architecture == "cogvlm" {
 		spec.RopeDimensionCount = spec.KeyLength
@@ -2323,10 +2344,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4" || architecture == "gemma4-assistant" ||
+	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "gemma4-assistant" ||
 		architecture == "olmo2" || architecture == "cohere2" || architecture == "cohere2moe" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if architecture == "gemma3" || architecture == "gemma4" || architecture == "gemma4-assistant" {
+		if architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "gemma4-assistant" {
 			spec.RopeFrequencySWA = 10000
 		}
 		if value, ok := optional[float32](
@@ -2353,6 +2374,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 			if architecture == "gemma3" {
 				spec.SlidingPattern = 6
+			}
+			if architecture == "gemma3n" {
+				spec.SlidingPattern = 5
 			}
 			if architecture == "gemma4" || architecture == "gemma4-assistant" {
 				if spec.SlidingLayers, err = requiredLayerBoolCompatible(
@@ -2547,7 +2571,7 @@ func (s Spec) LayerValueLength(block uint32) uint32 {
 }
 
 func (s Spec) LayerHasKV(block uint32) bool {
-	return s.Architecture != "gemma4" || block < s.BlockCount-s.SharedKVLayers
+	return (s.Architecture != "gemma4" && s.Architecture != "gemma3n") || block < s.BlockCount-s.SharedKVLayers
 }
 
 func (s Spec) LayerSharedKVSource(block uint32) uint32 {
@@ -3585,6 +3609,26 @@ func (s Spec) validate() error {
 			return errors.New("Gemma 3 sliding attention pattern must be at least 2")
 		}
 	}
+	if s.Architecture == "gemma3n" {
+		switch {
+		case s.BlockCount != 30 && s.BlockCount != 35:
+			return errors.New("Gemma 3n block count must be 30 or 35")
+		case s.KVFromStart != 20 || s.SharedKVLayers != s.BlockCount-s.KVFromStart:
+			return errors.New("Gemma 3n shared-KV boundary is invalid")
+		case s.AltUpCount != 4 || s.AltUpActive != 0 || s.LaurelRank != 64 || s.EmbeddingPerLayer != 256:
+			return errors.New("Gemma 3n AltUp/Laurel dimensions are invalid")
+		case s.SparseLayerCount != 10 || s.SparsityStdMultiplier != 1.6448533535003662:
+			return errors.New("Gemma 3n sparsity parameters are invalid")
+		case s.KeyLength == 0 || s.KeyLength != s.ValueLength || s.HeadCount == 0 ||
+			s.HeadCountKV == 0 || s.HeadCount%s.HeadCountKV != 0:
+			return errors.New("Gemma 3n attention dimensions are invalid")
+		case s.RopeDimensionCount != s.KeyLength || s.KeyLength%2 != 0 ||
+			s.RopeFrequencySWA <= 0 || s.SlidingWindow == 0 || s.SlidingPattern != 5:
+			return errors.New("Gemma 3n rotary/sliding metadata is invalid")
+		case s.FinalLogitSoftcap <= 0:
+			return errors.New("Gemma 3n final logit softcap must be positive")
+		}
+	}
 	if s.Architecture == "gemma4" {
 		switch {
 		case s.KeyLength == 0 || s.ValueLength == 0 || s.KeyLength != s.ValueLength ||
@@ -3861,16 +3905,16 @@ func (s Spec) validate() error {
 }
 
 func isGemmaArchitecture(architecture string) bool {
-	return architecture == "gemma" || architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4"
+	return architecture == "gemma" || architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4"
 }
 
 func hasPostNorm(architecture string) bool {
 	return architecture == "afmoe" || architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4" || architecture == "gemma2" ||
-		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "gemma4" || architecture == "glm4" || architecture == "grok" || architecture == "plamo2" || architecture == "plamo3"
+		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "glm4" || architecture == "grok" || architecture == "plamo2" || architecture == "plamo3"
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4" || architecture == "gemma4-assistant") ||
+	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "gemma4-assistant") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "gpt-oss" || architecture == "llama4" || architecture == "olmo2" ||
 		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "mimo2" ||
 		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35" || architecture == "dflash"

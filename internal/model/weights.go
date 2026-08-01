@@ -102,6 +102,14 @@ type LayerWeights struct {
 	VisualFeedForwardGate       *gguf.TensorInfo
 	VisualFeedForwardUp         *gguf.TensorInfo
 	VisualFeedForwardDown       *gguf.TensorInfo
+	AltUpCorrectCoefficient     *gguf.TensorInfo
+	AltUpCorrectScale           *gguf.TensorInfo
+	AltUpPredictCoefficient     *gguf.TensorInfo
+	AltUpRouter                 *gguf.TensorInfo
+	AltUpRouterNorm             *gguf.TensorInfo
+	LaurelLeft                  *gguf.TensorInfo
+	LaurelRight                 *gguf.TensorInfo
+	LaurelPostNorm              *gguf.TensorInfo
 
 	AttentionQKV         *gguf.TensorInfo
 	AttentionQKVBias     *gguf.TensorInfo
@@ -218,6 +226,8 @@ type Weights struct {
 	FeatureProjection       *gguf.TensorInfo
 	FeatureProjectionPost   *gguf.TensorInfo
 	DraftToTarget           *gguf.TensorInfo
+	AltUpProjection         *gguf.TensorInfo
+	AltUpUnembedding        *gguf.TensorInfo
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
 	WavTokenizer            *WavTokenizerWeights
@@ -972,7 +982,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, errors.New("Gemma embedding dense projection widths do not compose")
 		}
 	}
-	if spec.Architecture == "gemma4" && spec.EmbeddingPerLayer > 0 {
+	if (spec.Architecture == "gemma4" || spec.Architecture == "gemma3n") && spec.EmbeddingPerLayer > 0 {
 		perLayerTokenEmbedding, itemErr := required(
 			"per_layer_token_embd.weight",
 			uint64(spec.EmbeddingPerLayer)*uint64(spec.BlockCount),
@@ -998,6 +1008,21 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		result.PerLayerTokenEmbedding = &perLayerTokenEmbedding
 		result.PerLayerModelProjection = &perLayerModelProjection
 		result.PerLayerProjectionNorm = &perLayerProjectionNorm
+	}
+	if spec.Architecture == "gemma3n" {
+		projection, itemErr := required(
+			"altup_proj.weight", uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength), uint64(spec.AltUpCount-1),
+		)
+		if itemErr != nil {
+			return Weights{}, itemErr
+		}
+		unembedding, itemErr := required(
+			"altup_unembd_proj.weight", uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength), uint64(spec.AltUpCount-1),
+		)
+		if itemErr != nil {
+			return Weights{}, itemErr
+		}
+		result.AltUpProjection, result.AltUpUnembedding = &projection, &unembedding
 	}
 
 	result.Layers = make([]LayerWeights, spec.BlockCount)
@@ -2080,7 +2105,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
-		} else if spec.Architecture == "gemma4" {
+		} else if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
 			if layer.AttentionQ, err = required(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
 			); err != nil {
@@ -2098,6 +2123,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 						return Weights{}, valueErr
 					}
 					layer.AttentionV = value
+				} else if spec.Architecture == "gemma3n" {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_v.weight")
 				}
 			}
 			if layer.AttentionOutput, err = required(
@@ -2272,7 +2299,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
-		if spec.Architecture == "gemma4" {
+		if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.LayerKeyLength(block)))
 			if normErr != nil {
 				return Weights{}, normErr
@@ -2627,8 +2654,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardPostNormBias = &feedForwardBias
 			}
 		}
-		if spec.Architecture == "gemma4" {
-			if scale, ok := tensors[prefix+"layer_output_scale.weight"]; ok {
+		if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
+			if scale, ok := tensors[prefix+"layer_output_scale.weight"]; ok && spec.Architecture == "gemma4" {
 				if scale.Type != dtype.F32 || scale.Dimensions != 1 || scale.Shape[0] != 1 {
 					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", scale.Name, scale.Shape)
 				}
@@ -2649,6 +2676,27 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					*shapeAndDestination.destination = &item
 				}
+			}
+		}
+		if spec.Architecture == "gemma3n" {
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"altup_correct_coef.weight":  {[]uint64{uint64(spec.AltUpCount), uint64(spec.AltUpCount)}, &layer.AltUpCorrectCoefficient},
+				"altup_correct_scale.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.AltUpCorrectScale},
+				"altup_predict_coef.weight":  {[]uint64{uint64(spec.AltUpCount), uint64(spec.AltUpCount * spec.AltUpCount)}, &layer.AltUpPredictCoefficient},
+				"altup_router.weight":        {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.AltUpCount)}, &layer.AltUpRouter},
+				"altup_router_norm.weight":   {[]uint64{uint64(spec.EmbeddingLength)}, &layer.AltUpRouterNorm},
+				"laurel_l.weight":            {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.LaurelRank)}, &layer.LaurelLeft},
+				"laurel_r.weight":            {[]uint64{uint64(spec.LaurelRank), uint64(spec.EmbeddingLength)}, &layer.LaurelRight},
+				"laurel_post_norm.weight":    {[]uint64{uint64(spec.EmbeddingLength)}, &layer.LaurelPostNorm},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
 			}
 		}
 		if spec.Architecture == "mamba" || spec.Architecture == "mamba2" {

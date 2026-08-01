@@ -88,6 +88,14 @@ type HostLayer struct {
 	PerLayerInputGate           *reference.Value
 	PerLayerProjection          *reference.Value
 	PerLayerPostNorm            *reference.Value
+	AltUpCorrectCoefficient     *reference.Value
+	AltUpCorrectScale           *reference.Value
+	AltUpPredictCoefficient     *reference.Value
+	AltUpRouter                 *reference.Value
+	AltUpRouterNorm             *reference.Value
+	LaurelLeft                  *reference.Value
+	LaurelRight                 *reference.Value
+	LaurelPostNorm              *reference.Value
 	ShortConvKernel             *reference.Value
 	ShortConvInput              *reference.Value
 	ShortConvOutput             *reference.Value
@@ -810,6 +818,14 @@ func LoadHostLayer(
 		{info.PerLayerInputGate, &result.PerLayerInputGate},
 		{info.PerLayerProjection, &result.PerLayerProjection},
 		{info.PerLayerPostNorm, &result.PerLayerPostNorm},
+		{info.AltUpCorrectCoefficient, &result.AltUpCorrectCoefficient},
+		{info.AltUpCorrectScale, &result.AltUpCorrectScale},
+		{info.AltUpPredictCoefficient, &result.AltUpPredictCoefficient},
+		{info.AltUpRouter, &result.AltUpRouter},
+		{info.AltUpRouterNorm, &result.AltUpRouterNorm},
+		{info.LaurelLeft, &result.LaurelLeft},
+		{info.LaurelRight, &result.LaurelRight},
+		{info.LaurelPostNorm, &result.LaurelPostNorm},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -1143,6 +1159,14 @@ func (layer *HostLayer) GraphInputs(
 		{"per_layer_inp_gate.weight", layer.PerLayerInputGate, &result.PerLayerInputGate},
 		{"per_layer_proj.weight", layer.PerLayerProjection, &result.PerLayerProjection},
 		{"per_layer_post_norm.weight", layer.PerLayerPostNorm, &result.PerLayerPostNorm},
+		{"altup_correct_coef.weight", layer.AltUpCorrectCoefficient, &result.AltUpCorrectCoefficient},
+		{"altup_correct_scale.weight", layer.AltUpCorrectScale, &result.AltUpCorrectScale},
+		{"altup_predict_coef.weight", layer.AltUpPredictCoefficient, &result.AltUpPredictCoefficient},
+		{"altup_router.weight", layer.AltUpRouter, &result.AltUpRouter},
+		{"altup_router_norm.weight", layer.AltUpRouterNorm, &result.AltUpRouterNorm},
+		{"laurel_l.weight", layer.LaurelLeft, &result.LaurelLeft},
+		{"laurel_r.weight", layer.LaurelRight, &result.LaurelRight},
+		{"laurel_post_norm.weight", layer.LaurelPostNorm, &result.LaurelPostNorm},
 		{"attn_kv_a_mqa.weight", layer.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{"attn_kv_a_norm.weight", layer.AttentionKVANorm, &result.AttentionKVANorm},
 		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},

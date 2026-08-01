@@ -86,6 +86,14 @@ type LayerGraphWeights struct {
 	PerLayerInputGate           *tensor.Tensor
 	PerLayerProjection          *tensor.Tensor
 	PerLayerPostNorm            *tensor.Tensor
+	AltUpCorrectCoefficient     *tensor.Tensor
+	AltUpCorrectScale           *tensor.Tensor
+	AltUpPredictCoefficient     *tensor.Tensor
+	AltUpRouter                 *tensor.Tensor
+	AltUpRouterNorm             *tensor.Tensor
+	LaurelLeft                  *tensor.Tensor
+	LaurelRight                 *tensor.Tensor
+	LaurelPostNorm              *tensor.Tensor
 	ShortConvKernel             *tensor.Tensor
 	ShortConvInput              *tensor.Tensor
 	ShortConvOutput             *tensor.Tensor
@@ -2687,6 +2695,9 @@ func BuildDenseBlockCachedForLayer(
 	if spec.Architecture == "gemma4" {
 		return buildGemma4BlockCached(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
+	if spec.Architecture == "gemma3n" {
+		return DenseBlockResult{}, errors.New("Gemma 3n block requires AltUp execution")
+	}
 	if spec.Architecture == "rwkv6qwen2" {
 		return BuildRWKV6Qwen2BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
 	}
@@ -4122,6 +4133,151 @@ func buildGemma4BlockCached(
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
+// Gemma3nAttentionResult: attention/Laurel stage plus FFN projections.
+type Gemma3nAttentionResult struct {
+	Residual *tensor.Tensor
+	Gate     *tensor.Tensor
+	Up       *tensor.Tensor
+	Key      *tensor.Tensor
+	Value    *tensor.Tensor
+}
+
+// BuildGemma3nAttentionStage: active AltUp attention, Laurel, FFN projections.
+func BuildGemma3nAttentionStage(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (Gemma3nAttentionResult, error) {
+	if builder == nil || input == nil || spec.Architecture != "gemma3n" ||
+		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
+		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return Gemma3nAttentionResult{}, errors.New("Gemma 3n attention input is invalid")
+	}
+	if (pastKey == nil) != (pastValue == nil) {
+		return Gemma3nAttentionResult{}, errors.New("Gemma 3n cache pair is incomplete")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm":          weights.AttentionNorm,
+		"attention query":         weights.AttentionQ,
+		"attention query norm":    weights.AttentionQNorm,
+		"attention output":        weights.AttentionOutput,
+		"attention post norm":     weights.AttentionPostNorm,
+		"feed-forward norm":       weights.FeedForwardNorm,
+		"feed-forward gate":       weights.FeedForwardGate,
+		"feed-forward up":         weights.FeedForwardUp,
+		"Laurel left projection":  weights.LaurelLeft,
+		"Laurel right projection": weights.LaurelRight,
+		"Laurel post norm":        weights.LaurelPostNorm,
+	}
+	if spec.LayerHasKV(layerIndex) {
+		required["attention key"] = weights.AttentionK
+		required["attention value"] = weights.AttentionV
+		required["attention key norm"] = weights.AttentionKNorm
+	} else if pastKey == nil {
+		return Gemma3nAttentionResult{}, errors.New("Gemma 3n shared-KV layer has no source cache")
+	}
+	for name, item := range required {
+		if item == nil {
+			return Gemma3nAttentionResult{}, fmt.Errorf("Gemma 3n %s weight is nil", name)
+		}
+	}
+	tokens := input.Shape.Dims[1]
+	headCount := uint64(spec.LayerHeadCount(layerIndex))
+	kvHeadCount := uint64(spec.LayerKVHeadCount(layerIndex))
+	keyLength := uint64(spec.LayerKeyLength(layerIndex))
+	valueLength := uint64(spec.LayerValueLength(layerIndex))
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	laurel := builder.MulMat(weights.LaurelLeft, normalized)
+	laurel = builder.MulMat(weights.LaurelRight, laurel)
+	laurel = builder.WeightedRMSNorm(laurel, weights.LaurelPostNorm, spec.RMSNormEpsilon)
+	laurel = builder.Add(laurel, normalized)
+	query := builder.Reshape(builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens)
+	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+	frequencyBase := spec.RopeFrequencyBase
+	if spec.IsSlidingLayer(layerIndex) {
+		frequencyBase = spec.RopeFrequencySWA
+	}
+	query = builder.RoPENeoXScaled(query, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1)
+	cacheKey, cacheValue := pastKey, pastValue
+	queryStart := uint32(0)
+	if spec.LayerHasKV(layerIndex) {
+		key := builder.Reshape(builder.MulMat(weights.AttentionK, normalized), keyLength, kvHeadCount, tokens)
+		value := builder.Reshape(builder.MulMat(weights.AttentionV, normalized), valueLength, kvHeadCount, tokens)
+		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+		value = builder.RMSNorm(value, spec.RMSNormEpsilon)
+		key = builder.RoPENeoXScaled(key, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1)
+		cacheKey, cacheValue = key, value
+		if pastKey != nil {
+			if pastKey.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
+				return Gemma3nAttentionResult{}, errors.New("Gemma 3n cache shape is invalid")
+			}
+			queryStart = uint32(pastKey.Shape.Dims[2])
+			cacheKey = builder.Concat(pastKey, key, 2)
+			cacheValue = builder.Concat(pastValue, value, 2)
+		}
+	} else {
+		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 ||
+			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
+			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
+			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
+			return Gemma3nAttentionResult{}, errors.New("Gemma 3n shared-KV source shape is invalid")
+		}
+		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
+	}
+	var attention *tensor.Tensor
+	attentionScale := spec.AttentionScale
+	if attentionScale == 0 {
+		attentionScale = 1 / float32(math.Sqrt(float64(keyLength)))
+	}
+	query = builder.Scale(query, attentionScale)
+	if spec.IsSlidingLayer(layerIndex) {
+		attention = builder.AttentionWindowWithOffset(
+			query, cacheKey, cacheValue, 1, true, queryStart, spec.SlidingWindow,
+		)
+	} else {
+		attention = builder.AttentionWithOffset(query, cacheKey, cacheValue, 1, true, queryStart)
+	}
+	attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, headCount*valueLength, tokens))
+	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
+	residual := builder.Scale(builder.Add(builder.Add(input, attention), laurel), 1/float32(math.Sqrt2))
+	feedForwardInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	result := Gemma3nAttentionResult{
+		Residual: residual,
+		Gate:     builder.MulMat(weights.FeedForwardGate, feedForwardInput),
+		Up:       builder.MulMat(weights.FeedForwardUp, feedForwardInput),
+		Key:      cacheKey,
+		Value:    cacheValue,
+	}
+	if err := builder.Err(); err != nil {
+		return Gemma3nAttentionResult{}, err
+	}
+	return result, nil
+}
+
+// BuildGemma3nFeedForwardOutput: down projection, post norm, residual.
+func BuildGemma3nFeedForwardOutput(
+	builder *tensor.Builder,
+	residual, activated *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+) (*tensor.Tensor, error) {
+	if builder == nil || residual == nil || activated == nil || spec.Architecture != "gemma3n" ||
+		weights.FeedForwardDown == nil || weights.FeedForwardPostNorm == nil {
+		return nil, errors.New("Gemma 3n feed-forward output is incomplete")
+	}
+	output := builder.MulMat(weights.FeedForwardDown, activated)
+	output = builder.WeightedRMSNorm(output, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
+	output = builder.Add(residual, output)
+	if err := builder.Err(); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
 // BuildGemma4PerLayerInputs: projects token and model embeddings per block.
 func BuildGemma4PerLayerInputs(
 	builder *tensor.Builder,
@@ -4131,7 +4287,8 @@ func BuildGemma4PerLayerInputs(
 	if builder == nil || input == nil || tokenEmbedding == nil || modelProjection == nil || projectionNorm == nil {
 		return nil, errors.New("Gemma 4 per-layer input is incomplete")
 	}
-	if spec.Architecture != "gemma4" || spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
+	if (spec.Architecture != "gemma4" && spec.Architecture != "gemma3n") ||
+		spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New("Gemma 4 per-layer input configuration is invalid")
 	}

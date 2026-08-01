@@ -129,6 +129,73 @@ func gemma4BlockInputs(builder *tensor.Builder, spec Spec, hasKV, moe bool) Laye
 	return weights
 }
 
+func TestBuildGemma3nAttentionAndFeedForwardStages(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "gemma3n", BlockCount: 21, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 2, ValueLength: 2, RopeDimensionCount: 2,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 10000,
+		RMSNormEpsilon: 1e-6, SlidingWindow: 4,
+		KVFromStart: 20, SharedKVLayers: 1,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	owned, err := BuildGemma3nAttentionStage(
+		builder, input, spec, gemma3nBlockInputs(builder, spec, true),
+		[]uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activated := builder.Input("activated", dtype.F32, tensor.MustShape(6, 2))
+	output, err := BuildGemma3nFeedForwardOutput(
+		builder, owned.Residual, activated, spec, gemma3nBlockInputs(builder, spec, true),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shared, err := BuildGemma3nAttentionStage(
+		builder, output, spec, gemma3nBlockInputs(builder, spec, false),
+		[]uint32{0, 1}, owned.Key, owned.Value, 20,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.Shape.Equal(input.Shape) || shared.Key != owned.Key || shared.Value != owned.Value ||
+		!shared.Gate.Shape.Equal(tensor.MustShape(6, 2)) ||
+		!shared.Up.Shape.Equal(tensor.MustShape(6, 2)) {
+		t.Fatalf("Gemma 3n stage shapes = %v/%v/%v/%v", output.Shape.Slice(), shared.Key.Shape.Slice(), shared.Gate.Shape.Slice(), shared.Up.Shape.Slice())
+	}
+}
+
+func gemma3nBlockInputs(builder *tensor.Builder, spec Spec, hasKV bool) LayerGraphWeights {
+	embedding := uint64(spec.EmbeddingLength)
+	key := uint64(spec.KeyLength)
+	value := uint64(spec.ValueLength)
+	ff := uint64(spec.FeedForwardLength)
+	weights := LayerGraphWeights{
+		AttentionNorm:       builder.Input("g3n_attn_norm", dtype.F32, tensor.MustShape(embedding)),
+		AttentionQ:          builder.Input("g3n_attn_q", dtype.F32, tensor.MustShape(embedding, uint64(spec.HeadCount)*key)),
+		AttentionOutput:     builder.Input("g3n_attn_output", dtype.F32, tensor.MustShape(uint64(spec.HeadCount)*value, embedding)),
+		AttentionQNorm:      builder.Input("g3n_attn_q_norm", dtype.F32, tensor.MustShape(key)),
+		AttentionPostNorm:   builder.Input("g3n_post_attention_norm", dtype.F32, tensor.MustShape(embedding)),
+		FeedForwardNorm:     builder.Input("g3n_ffn_norm", dtype.F32, tensor.MustShape(embedding)),
+		FeedForwardGate:     builder.Input("g3n_ffn_gate", dtype.F32, tensor.MustShape(embedding, ff)),
+		FeedForwardUp:       builder.Input("g3n_ffn_up", dtype.F32, tensor.MustShape(embedding, ff)),
+		FeedForwardDown:     builder.Input("g3n_ffn_down", dtype.F32, tensor.MustShape(ff, embedding)),
+		FeedForwardPostNorm: builder.Input("g3n_post_ffw_norm", dtype.F32, tensor.MustShape(embedding)),
+		LaurelLeft:          builder.Input("g3n_laurel_l", dtype.F32, tensor.MustShape(embedding, 2)),
+		LaurelRight:         builder.Input("g3n_laurel_r", dtype.F32, tensor.MustShape(2, embedding)),
+		LaurelPostNorm:      builder.Input("g3n_laurel_post_norm", dtype.F32, tensor.MustShape(embedding)),
+	}
+	if hasKV {
+		weights.AttentionK = builder.Input("g3n_attn_k", dtype.F32, tensor.MustShape(embedding, key))
+		weights.AttentionV = builder.Input("g3n_attn_v", dtype.F32, tensor.MustShape(embedding, value))
+		weights.AttentionKNorm = builder.Input("g3n_attn_k_norm", dtype.F32, tensor.MustShape(key))
+	}
+	return weights
+}
+
 func TestBuildDenseQwen3Block(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

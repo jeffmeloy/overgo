@@ -2,6 +2,7 @@ package projector
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"image"
 	"image/color"
@@ -50,6 +51,52 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 	for index, value := range output.Embeddings.Data {
 		if value != 0 {
 			t.Fatalf("output[%d] = %g", index, value)
+		}
+	}
+}
+
+func TestGemma4AudioTinyFixture(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenGemma4(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	spec, err := runner.AudioSpec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.SampleRate != 16000 || spec.SamplesPerToken != 3 || spec.Hidden != 2 {
+		t.Fatalf("audio spec = %+v", spec)
+	}
+	frames, rows, err := PreprocessGemma4Audio([]float32{1, 2, 3, 4}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows != 2 || len(frames) != 6 || frames[3] != 4 || frames[4] != 0 || frames[5] != 0 {
+		t.Fatalf("audio frames = %v rows=%d", frames, rows)
+	}
+	output, err := runner.EncodeAudio(context.Background(), []float32{1, 2, 3, 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.Embeddings.Shape.Equal(mustShape(2, 2)) {
+		t.Fatalf("audio output shape = %v", output.Embeddings.Shape)
+	}
+	for index, value := range output.Embeddings.Data {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			t.Fatalf("audio output[%d] = %g", index, value)
 		}
 	}
 }
@@ -214,6 +261,119 @@ func TestGemma4RealPromptTokens(t *testing.T) {
 	}
 }
 
+func TestGemma4RealAudioFixture(t *testing.T) {
+	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
+	wavePath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_WAVE")
+	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	if projectorPath == "" || wavePath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_AUDIO_WAVE, and LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	}
+	type probeRecord struct {
+		Shape      []int     `json:"shape"`
+		ProbeIndex []int     `json:"probe_index"`
+		ProbeValue []float32 `json:"probe_value"`
+		L2         float64   `json:"l2"`
+	}
+	var golden struct {
+		SamplesPerToken    int                    `json:"samples_per_token"`
+		NumAudioTokens     int                    `json:"num_audio_placeholder_tokens"`
+		InputFeatures      probeRecord            `json:"input_features"`
+		AudioIntermediates map[string]probeRecord `json:"audio_intermediates"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(wavePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw)%4 != 0 {
+		t.Fatalf("wave byte count = %d", len(raw))
+	}
+	samples := make([]float32, len(raw)/4)
+	for index := range samples {
+		samples[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[index*4:]))
+	}
+	runner, err := OpenGemma4(projectorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	spec, err := runner.AudioSpec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	frames, rows, err := PreprocessGemma4Audio(samples, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.SamplesPerToken != golden.SamplesPerToken || rows != golden.NumAudioTokens {
+		t.Fatalf("audio spec=%+v rows=%d, want width=%d rows=%d", spec, rows, golden.SamplesPerToken, golden.NumAudioTokens)
+	}
+	compareProbes(t, "Gemma 4 audio frames", frames, golden.InputFeatures, 1e-6)
+	output, err := runner.EncodeAudio(context.Background(), samples)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.Embeddings.Shape.Equal(mustShape(uint64(spec.Hidden), uint64(rows))) {
+		t.Fatalf("audio embedding shape = %v", output.Embeddings.Shape)
+	}
+	soft := golden.AudioIntermediates["audio_soft_tokens"]
+	compareProbes(t, "Gemma 4 audio embeddings", output.Embeddings.Data, soft, 0.03)
+	var sumSquares float64
+	for _, value := range output.Embeddings.Data {
+		sumSquares += float64(value) * float64(value)
+	}
+	if relative := math.Abs(math.Sqrt(sumSquares)-soft.L2) / soft.L2; relative > 0.02 {
+		t.Fatalf("audio embedding L2 relative = %g", relative)
+	}
+}
+
+func TestGemma4RealAudioPromptTokens(t *testing.T) {
+	vocabPath := os.Getenv("LLAMACPP2GO_GEMMA4_VOCAB")
+	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	if vocabPath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_GEMMA4_VOCAB and LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	}
+	var golden struct {
+		InputIDs       []tokenizer.TokenID `json:"input_ids"`
+		NumAudioTokens int                 `json:"num_audio_placeholder_tokens"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	file, err := gguf.Open(vocabPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	vocab, err := tokenizer.Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := Gemma4AudioPromptText("What note do you hear? One word.", golden.NumAudioTokens)
+	ids, err := vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != len(golden.InputIDs) {
+		t.Fatalf("audio prompt tokens = %d, want %d", len(ids), len(golden.InputIDs))
+	}
+	for index, id := range ids {
+		if id != golden.InputIDs[index] {
+			t.Fatalf("audio prompt token %d = %d, want %d", index, id, golden.InputIDs[index])
+		}
+	}
+}
+
 func TestGemma4RealResizeFixture(t *testing.T) {
 	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_RESIZE_IMAGE")
@@ -286,6 +446,11 @@ func tinyGemma4Metadata() []gguf.Metadata {
 		{Key: "clip.vision.patch_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
+		{Key: "clip.audio.projector_type", Value: gguf.Value{Type: gguf.ValueTypeString, Data: gemma4UAProjectorType}},
+		{Key: "clip.has_audio_encoder", Value: gguf.Value{Type: gguf.ValueTypeBool, Data: true}},
+		{Key: "clip.audio.embedding_length", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(3)}},
+		{Key: "clip.audio.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
+		{Key: "clip.audio.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 	}
 }
 
@@ -301,5 +466,6 @@ func tinyGemma4Tensors() []gguf.TensorData {
 		f32Tensor("v.patch_norm.3.weight", []uint64{2}, []float32{1, 1}),
 		f32Tensor("v.patch_norm.3.bias", []uint64{2}, nil),
 		f32Tensor("mm.input_projection.weight", []uint64{2, 2}, nil),
+		f32Tensor("mm.a.input_projection.weight", []uint64{3, 2}, []float32{1, 0, 0, 0, 1, 0}),
 	}
 }

@@ -66,6 +66,27 @@ type fakeQwen3VLProjector struct {
 	after  string
 }
 
+type fakeAudioProjector struct {
+	before  string
+	after   string
+	samples []float32
+}
+
+func (f *fakeAudioProjector) BuildAudioPrompt(
+	_ context.Context,
+	_ projector.ImageTokenizer,
+	samples []float32,
+	before, after string,
+) (projector.MultimodalPrompt, error) {
+	f.before, f.after = before, after
+	f.samples = append([]float32(nil), samples...)
+	return projector.MultimodalPrompt{
+		TokenIDs:   []tokenizer.TokenID{1, 4, 4, 3},
+		Embeddings: make([]float32, 2*2560), EmbeddingWidth: 2560,
+		EmbeddingTokenIndices: []uint32{1, 2},
+	}, nil
+}
+
 func (f *fakeQwen3VLProjector) BuildQwen35ImagePrompt(
 	_ context.Context,
 	_ projector.Qwen3VLTokenizer,
@@ -80,7 +101,7 @@ func (f *fakeQwen3VLProjector) BuildQwen35ImagePrompt(
 	return projector.Qwen3VLPrompt{
 		TokenIDs:   []tokenizer.TokenID{1, 2, 2, 3},
 		Embeddings: make([]float32, 2*2560), EmbeddingWidth: 2560,
-		ImageStart: 1, EmbeddingTokenIndices: []uint32{1, 2}, MultiAxisPositions: positions,
+		EmbeddingStart: 1, EmbeddingTokenIndices: []uint32{1, 2}, MultiAxisPositions: positions,
 	}, nil
 }
 
@@ -1420,6 +1441,60 @@ func TestNativeCompletionImageProjectorMultimodalPrompt(t *testing.T) {
 	}
 	if result.GenerationSettings["multimodal"] != true || result.Prompt != "Look <__media__> now" {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestNativeCompletionAudioProjectorMultimodalPrompt(t *testing.T) {
+	generator := &fakeGenerator{}
+	audio := &fakeAudioProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		AudioProjector: audio,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wav := make([]byte, 48)
+	copy(wav[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:8], 40)
+	copy(wav[8:12], "WAVE")
+	copy(wav[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(wav[16:20], 16)
+	binary.LittleEndian.PutUint16(wav[20:22], 1)
+	binary.LittleEndian.PutUint16(wav[22:24], 1)
+	binary.LittleEndian.PutUint32(wav[24:28], 16000)
+	binary.LittleEndian.PutUint32(wav[28:32], 32000)
+	binary.LittleEndian.PutUint16(wav[32:34], 2)
+	binary.LittleEndian.PutUint16(wav[34:36], 16)
+	copy(wav[36:40], "data")
+	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	binary.LittleEndian.PutUint16(wav[44:46], uint16(16384))
+	binary.LittleEndian.PutUint16(wav[46:48], uint16(49152))
+	body, err := json.Marshal(map[string]any{
+		"prompt": map[string]any{
+			"prompt_string": "Hear <__media__> now",
+			"multimodal_data": []string{
+				"data:audio/wav;base64," + base64.StdEncoding.EncodeToString(wav),
+			},
+		},
+		"n_predict": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/completion", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if audio.before != "Hear " || audio.after != " now" || !slices.Equal(audio.samples, []float32{0.5, -0.5}) {
+		t.Fatalf("projector input = %q, %q, %v", audio.before, audio.after, audio.samples)
+	}
+	if !slices.Equal(generator.promptIDs, []tokenizer.TokenID{1, 4, 4, 3}) ||
+		generator.projectedInputs == nil || len(generator.projectedInputs.EmbeddingOverrides) != 2 {
+		t.Fatalf("prompt IDs = %v, projected = %+v", generator.promptIDs, generator.projectedInputs)
 	}
 }
 

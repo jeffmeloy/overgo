@@ -116,6 +116,7 @@ func run() error {
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	imagePath := flag.String("image", "", "image input for multimodal generation")
+	audioPath := flag.String("audio", "", "Gemma 4 mono 16 kHz WAV or raw float32-LE audio")
 	videoFrames := stringListFlag{}
 	flag.Var(&videoFrames, "video-frame", "ordered Qwen3-VL video frame; repeatable")
 	videoFPS := flag.Float64("video-fps", 24, "source FPS for Qwen3-VL video timestamps")
@@ -290,11 +291,14 @@ func run() error {
 	if len(videoFrames) > 0 {
 		mediaInputs++
 	}
+	if *audioPath != "" {
+		mediaInputs++
+	}
 	if mediaInputs > 1 {
-		return errors.New("generate: -image and -video-frame are mutually exclusive")
+		return errors.New("generate: -image, -audio, and -video-frame are mutually exclusive")
 	}
 	if (*projectorPath == "") != (mediaInputs == 0) {
-		return errors.New("generate: -mmproj requires -image or at least one -video-frame")
+		return errors.New("generate: -mmproj requires -image, -audio, or at least one -video-frame")
 	}
 	if *projectedInputsFile != "" && *projectorPath != "" {
 		return errors.New("generate: -projected-inputs and -mmproj are mutually exclusive")
@@ -308,7 +312,7 @@ func run() error {
 	}
 	if mediaInputs > 0 {
 		if runner.Spec().Architecture == "t5" {
-			return errors.New("generate: image projection is unavailable for T5")
+			return errors.New("generate: multimodal projection is unavailable for T5")
 		}
 		var promptIDs []tokenizer.TokenID
 		var projected inference.ProjectedInputs
@@ -316,6 +320,10 @@ func run() error {
 		if *imagePath != "" {
 			promptIDs, projected, projectedErr = imageProjectedPrompt(
 				context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
+			)
+		} else if *audioPath != "" {
+			promptIDs, projected, projectedErr = audioProjectedPrompt(
+				context.Background(), runner, *projectorPath, *audioPath, flag.Arg(1),
 			)
 		} else {
 			promptIDs, projected, projectedErr = qwen3VLProjectedVideoPrompt(

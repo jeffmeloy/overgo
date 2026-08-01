@@ -25,7 +25,7 @@ type MultimodalPrompt struct {
 	TokenIDs              []tokenizer.TokenID
 	Embeddings            []float32
 	EmbeddingWidth        int
-	ImageStart            int
+	EmbeddingStart        int
 	EmbeddingTokenIndices []uint32
 	MultiAxisPositions    [4][]uint32
 }
@@ -35,6 +35,11 @@ type Gemma4Prompt = MultimodalPrompt
 
 type ImageProjector interface {
 	BuildImagePrompt(context.Context, ImageTokenizer, image.Image, string, string, bool) (MultimodalPrompt, error)
+	Close() error
+}
+
+type AudioProjector interface {
+	BuildAudioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
 	Close() error
 }
 
@@ -60,6 +65,24 @@ func OpenImageProjector(path string) (ImageProjector, error) {
 		return OpenGemma4(path)
 	default:
 		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
+	}
+}
+
+func OpenAudioProjector(path string) (AudioProjector, error) {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	projectorType := ""
+	if value, ok := file.MetadataValue("clip.audio.projector_type"); ok && value.Type == gguf.ValueTypeString {
+		projectorType, _ = value.Data.(string)
+	}
+	_ = file.Close()
+	switch projectorType {
+	case gemma4UAProjectorType:
+		return OpenGemma4(path)
+	default:
+		return nil, fmt.Errorf("projector: audio projector type %q is unsupported", projectorType)
 	}
 }
 
@@ -109,7 +132,7 @@ func (r *Gemma4Runner) BuildImagePrompt(
 	}
 	return MultimodalPrompt{
 		TokenIDs: ids, Embeddings: output.Embeddings.Data,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), ImageStart: imageStart,
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: imageStart,
 		EmbeddingTokenIndices: sequentialTokenIndices(imageStart, imageTokens),
 	}, nil
 }
@@ -117,6 +140,52 @@ func (r *Gemma4Runner) BuildImagePrompt(
 func Gemma4ImagePromptText(question string, imageTokens int) string {
 	return "<bos><|turn>user\n<|image>" + strings.Repeat("<|image|>", imageTokens) +
 		"<image|>" + strings.TrimSpace(question) +
+		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
+}
+
+func (r *Gemma4Runner) BuildAudioPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	samples []float32,
+	beforeAudio, afterAudio string,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if strings.TrimSpace(beforeAudio) != "" {
+		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires audio before user text")
+	}
+	output, err := r.EncodeAudio(ctx, samples)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	audioTokens := int(output.Embeddings.Shape.Dims[1])
+	text := Gemma4AudioPromptText(afterAudio, audioTokens)
+	ids, err := tokenizer.TokenizeText(text, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 audio prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText("<|audio|>", false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 audio placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 audio placeholder maps to %d tokens", len(padIDs))
+	}
+	audioStart, err := contiguousTokenRun(ids, padIDs[0], audioTokens)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 audio prompt: %w", err)
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: output.Embeddings.Data,
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: audioStart,
+		EmbeddingTokenIndices: sequentialTokenIndices(audioStart, audioTokens),
+	}, nil
+}
+
+func Gemma4AudioPromptText(question string, audioTokens int) string {
+	return "<bos><|turn>user\n<|audio>" + strings.Repeat("<|audio|>", audioTokens) +
+		"<audio|>" + strings.TrimSpace(question) +
 		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
 }
 
@@ -160,7 +229,7 @@ func (r *Qwen3VLRunner) BuildQwen35ImagePrompt(
 	}
 	return Qwen3VLPrompt{
 		TokenIDs: ids, Embeddings: output.Embeddings.Data,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), ImageStart: imageStart,
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: imageStart,
 		EmbeddingTokenIndices: sequentialTokenIndices(imageStart, imageTokens),
 		MultiAxisPositions:    positions,
 	}, nil

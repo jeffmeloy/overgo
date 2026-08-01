@@ -9,6 +9,8 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"llamacpp2go/internal/inference"
 	"llamacpp2go/internal/projector"
@@ -38,6 +40,43 @@ func imageProjectedPrompt(
 	prompt, err := vision.BuildImagePrompt(ctx, runner, input, "", question, thinking)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode image: %w", err)
+	}
+	return projectedInputsForPrompt(runner, prompt)
+}
+
+func audioProjectedPrompt(
+	ctx context.Context,
+	runner *inference.Runner,
+	projectorPath, audioPath, question string,
+) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
+	audio, err := projector.OpenAudioProjector(projectorPath)
+	if err != nil {
+		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open audio projector: %w", err)
+	}
+	defer audio.Close()
+	data, err := os.ReadFile(audioPath)
+	if err != nil {
+		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: read audio: %w", err)
+	}
+	var samples []float32
+	switch strings.ToLower(filepath.Ext(audioPath)) {
+	case ".f32":
+		samples, err = projector.DecodeFloat32LE(data)
+	case ".wav":
+		var sampleRate int
+		samples, sampleRate, err = projector.DecodeWAV(data)
+		if err == nil && sampleRate != 16000 {
+			err = fmt.Errorf("sample rate %d Hz; want 16000 Hz", sampleRate)
+		}
+	default:
+		err = errors.New("audio input must use .wav or .f32")
+	}
+	if err != nil {
+		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: decode audio: %w", err)
+	}
+	prompt, err := audio.BuildAudioPrompt(ctx, runner, samples, "", question)
+	if err != nil {
+		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode audio: %w", err)
 	}
 	return projectedInputsForPrompt(runner, prompt)
 }

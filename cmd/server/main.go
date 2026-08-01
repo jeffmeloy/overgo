@@ -99,12 +99,14 @@ func run() error {
 	}
 	defer runner.Close()
 	var vision projector.ImageProjector
+	var audio projector.AudioProjector
 	if *projectorPath != "" {
 		vision, err = projector.OpenImageProjector(*projectorPath)
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}
 		defer vision.Close()
+		audio, _ = vision.(projector.AudioProjector)
 	}
 	apiKey := strings.TrimSpace(os.Getenv("LLAMACPP2GO_API_KEY"))
 	if *apiKeyFile != "" {
@@ -131,6 +133,7 @@ func run() error {
 		InfillBatchSize:    *infillBatchSize,
 		SPMInfill:          *spmInfill,
 		ImageProjector:     vision,
+		AudioProjector:     audio,
 	}, runner)
 	if err != nil {
 		return err

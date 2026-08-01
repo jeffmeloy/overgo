@@ -156,6 +156,10 @@ scatter required by its decoder.
 Repeatable `-video-frame` inputs run temporal-pair preprocessing and the same
 projector, emit timestamped video chunks, and construct compressed MRoPE grids
 per chunk. Odd frame counts repeat the final frame.
+Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
+float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
+unweighted RMSNorm and the 3840-wide audio projection, then renders the native
+audio turn.
 
 The native `/completion` route accepts the same object as `projected_inputs`
 for a single prompt and completion. Token-only prompt caching and
@@ -165,6 +169,8 @@ With server `-mmproj`, the pinned llama.cpp native multimodal prompt object is
 also accepted: `{"prompt_string":"<__media__>Describe it.",
 "multimodal_data":["BASE64_IMAGE"]}`. One image and one media marker are
 supported per request; raw base64 and `data:image/...;base64,...` are accepted.
+Gemma audio uses the same object with a mono 16 kHz WAV
+`data:audio/wav;base64,...` payload.
 
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,

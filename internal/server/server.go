@@ -192,6 +192,16 @@ type ImageProjector interface {
 	) (projector.MultimodalPrompt, error)
 }
 
+type AudioProjector interface {
+	BuildAudioPrompt(
+		context.Context,
+		projector.ImageTokenizer,
+		[]float32,
+		string,
+		string,
+	) (projector.MultimodalPrompt, error)
+}
+
 type Config struct {
 	ModelID            string
 	MaxTokens          int
@@ -207,6 +217,7 @@ type Config struct {
 	SPMInfill          bool
 	Qwen3VLProjector   Qwen3VLProjector
 	ImageProjector     ImageProjector
+	AudioProjector     AudioProjector
 }
 
 type slotRuntimeStats struct {
@@ -2276,8 +2287,9 @@ type nativePrompt struct {
 	TokenIDs    []tokenizer.TokenID
 	Response    any
 	Image       []byte
-	BeforeImage string
-	AfterImage  string
+	Audio       []float32
+	BeforeMedia string
+	AfterMedia  string
 }
 
 func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.Request) {
@@ -2362,7 +2374,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "projected_inputs requires one prompt and one completion")
 		return
 	}
-	multimodal := len(prompts) == 1 && len(prompts[0].Image) > 0
+	multimodal := len(prompts) == 1 && (len(prompts[0].Image) > 0 || len(prompts[0].Audio) > 0)
 	if multimodal && (projectedInputs != nil || body.NCmpl != 1) {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal prompt requires one completion and no projected_inputs")
 		return
@@ -2389,7 +2401,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	}
 	defer h.releaseSlot(slotID)
 	if multimodal {
-		projectedPrompt, projected, projectErr := h.projectNativeImagePrompt(request.Context(), prompts[0])
+		projectedPrompt, projected, projectErr := h.projectNativeMultimodalPrompt(request.Context(), prompts[0])
 		if projectErr != nil {
 			writeGenerationError(response, projectErr)
 			return
@@ -2560,7 +2572,7 @@ func (h *Handler) parseNativePrompts(raw json.RawMessage) ([]nativePrompt, error
 }
 
 func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt, error) {
-	if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil {
+	if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil && h.config.AudioProjector == nil {
 		return nativePrompt{}, errors.New("multimodal data provided, but the server has no multimodal projector")
 	}
 	var document struct {
@@ -2576,21 +2588,56 @@ func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt
 		return nativePrompt{}, errors.New("prompt_string must not be empty")
 	}
 	if len(document.MultimodalData) != 1 {
-		return nativePrompt{}, errors.New("multimodal prompt requires exactly one image")
+		return nativePrompt{}, errors.New("multimodal prompt requires exactly one media item")
 	}
 	const marker = "<__media__>"
 	if strings.Count(document.PromptString, marker) != 1 {
 		return nativePrompt{}, errors.New("prompt_string must contain exactly one <__media__> marker")
 	}
+	before, after, _ := strings.Cut(document.PromptString, marker)
+	if strings.HasPrefix(document.MultimodalData[0], "data:audio/") {
+		if h.config.AudioProjector == nil {
+			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
+		}
+		audio, err := decodeNativeAudioData(document.MultimodalData[0])
+		if err != nil {
+			return nativePrompt{}, err
+		}
+		return nativePrompt{
+			Text: document.PromptString, Response: document.PromptString,
+			Audio: audio, BeforeMedia: before, AfterMedia: after,
+		}, nil
+	}
+	if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil {
+		return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
+	}
 	imageData, err := decodeNativeImageData(document.MultimodalData[0])
 	if err != nil {
 		return nativePrompt{}, err
 	}
-	before, after, _ := strings.Cut(document.PromptString, marker)
 	return nativePrompt{
 		Text: document.PromptString, Response: document.PromptString,
-		Image: imageData, BeforeImage: before, AfterImage: after,
+		Image: imageData, BeforeMedia: before, AfterMedia: after,
 	}, nil
+}
+
+func decodeNativeAudioData(encoded string) ([]float32, error) {
+	header, payload, ok := strings.Cut(encoded, ",")
+	if !ok || !strings.HasPrefix(header, "data:audio/") || !strings.HasSuffix(header, ";base64") {
+		return nil, errors.New("multimodal_data audio must use a base64 data URI")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil || len(decoded) == 0 {
+		return nil, errors.New("multimodal_data audio is not valid base64")
+	}
+	samples, sampleRate, err := projector.DecodeWAV(decoded)
+	if err != nil {
+		return nil, fmt.Errorf("multimodal_data audio: %w", err)
+	}
+	if sampleRate != 16000 {
+		return nil, fmt.Errorf("multimodal_data audio sample rate %d Hz; want 16000 Hz", sampleRate)
+	}
+	return samples, nil
 }
 
 func decodeNativeImageData(encoded string) ([]byte, error) {
@@ -2614,7 +2661,7 @@ func decodeNativeImageData(encoded string) ([]byte, error) {
 	return decoded, nil
 }
 
-func (h *Handler) projectNativeImagePrompt(
+func (h *Handler) projectNativeMultimodalPrompt(
 	ctx context.Context,
 	prompt nativePrompt,
 ) (nativePrompt, inference.ProjectedInputs, error) {
@@ -2622,22 +2669,32 @@ func (h *Handler) projectNativeImagePrompt(
 	if !ok {
 		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: generator cannot tokenize multimodal prompt")
 	}
-	input, _, err := image.Decode(bytes.NewReader(prompt.Image))
-	if err != nil {
-		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: multimodal_data is not a supported image")
-	}
 	var projected projector.MultimodalPrompt
-	if h.config.ImageProjector != nil {
-		projected, err = h.config.ImageProjector.BuildImagePrompt(
-			ctx, tokenizerAPI, input, prompt.BeforeImage, prompt.AfterImage, true,
+	var err error
+	if len(prompt.Audio) > 0 {
+		if h.config.AudioProjector == nil {
+			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: audio projector is unavailable")
+		}
+		projected, err = h.config.AudioProjector.BuildAudioPrompt(
+			ctx, tokenizerAPI, prompt.Audio, prompt.BeforeMedia, prompt.AfterMedia,
 		)
 	} else {
-		projected, err = h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
-			ctx, tokenizerAPI, input, prompt.BeforeImage, prompt.AfterImage, true,
-		)
+		input, _, decodeErr := image.Decode(bytes.NewReader(prompt.Image))
+		if decodeErr != nil {
+			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: multimodal_data is not a supported image")
+		}
+		if h.config.ImageProjector != nil {
+			projected, err = h.config.ImageProjector.BuildImagePrompt(
+				ctx, tokenizerAPI, input, prompt.BeforeMedia, prompt.AfterMedia, true,
+			)
+		} else {
+			projected, err = h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
+				ctx, tokenizerAPI, input, prompt.BeforeMedia, prompt.AfterMedia, true,
+			)
+		}
 	}
 	if err != nil {
-		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: project image: %w", err)
+		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: project media: %w", err)
 	}
 	if projected.EmbeddingWidth <= 0 || len(projected.Embeddings)%projected.EmbeddingWidth != 0 {
 		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: projector returned invalid embeddings")
@@ -2663,6 +2720,7 @@ func (h *Handler) projectNativeImagePrompt(
 	}
 	prompt.TokenIDs = projected.TokenIDs
 	prompt.Image = nil
+	prompt.Audio = nil
 	inputs := inference.ProjectedInputs{EmbeddingOverrides: overrides}
 	hasMultiAxis := false
 	for _, axis := range projected.MultiAxisPositions {

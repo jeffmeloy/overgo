@@ -152,3 +152,81 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 		t.Fatalf("first generated token = %v, want %v", generated[len(ids):], golden.GeneratedTokenIDs[:1])
 	}
 }
+
+func TestGemma4AudioEndToEndOracle(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_GEMMA4_MODEL")
+	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
+	wavePath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_WAVE")
+	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	if modelPath == "" || projectorPath == "" || wavePath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_GEMMA4_MODEL, LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_AUDIO_WAVE, and LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	}
+	var golden struct {
+		InputIDs          []tokenizer.TokenID `json:"input_ids"`
+		GeneratedTokenIDs []tokenizer.TokenID `json:"generated_token_ids"`
+		Steps             []struct {
+			TopIDs []tokenizer.TokenID `json:"top_ids"`
+		} `json:"steps"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	wave, err := os.ReadFile(wavePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	samples, err := projector.DecodeFloat32LE(wave)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := inference.OpenWithOptions(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	audio, err := projector.OpenAudioProjector(projectorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer audio.Close()
+	prompt, err := audio.BuildAudioPrompt(
+		context.Background(), runner, samples, "", "What note do you hear? One word.",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(prompt.TokenIDs, golden.InputIDs) {
+		t.Fatalf("audio prompt IDs differ: got %d, want %d", len(prompt.TokenIDs), len(golden.InputIDs))
+	}
+	ids, projected, err := projectedInputsForPrompt(runner, prompt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampler, err := sampling.New(sampling.Config{Temperature: 0, TopK: 1, TopP: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, _, err := runner.Generate(context.Background(), "", inference.GenerateOptions{
+		MaxNewTokens: 1, Sampler: sampler, PromptTokenIDs: ids, ProjectedInputs: &projected,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(generated) != len(ids)+1 || len(golden.GeneratedTokenIDs) == 0 || len(golden.Steps) == 0 {
+		t.Fatalf("generated IDs = %v; golden is incomplete", generated)
+	}
+	got := generated[len(ids)]
+	if os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_EXACT") != "" {
+		if got != golden.GeneratedTokenIDs[0] {
+			t.Fatalf("first generated token = %d, want %d", got, golden.GeneratedTokenIDs[0])
+		}
+		return
+	}
+	if !slices.Contains(golden.Steps[0].TopIDs, got) {
+		t.Fatalf("first generated token = %d, outside reference top IDs %v", got, golden.Steps[0].TopIDs)
+	}
+}

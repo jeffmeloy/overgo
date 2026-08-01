@@ -1044,6 +1044,9 @@ func (r *Runner) forwardLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
+	if r.spec.Architecture == "dflash" {
+		return reference.Value{}, errors.New("inference: DFlash requires feature fusion, cache injection, and paired target decode")
+	}
 	if r.spec.Architecture == "wavtokenizer-dec" {
 		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
 	}
@@ -3550,6 +3553,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		weights.PerLayerTokenEmbedding,
 		weights.PerLayerModelProjection,
 		weights.PerLayerProjectionNorm,
+		weights.FeatureProjection,
 	} {
 		if pointer != nil {
 			names[pointer.Name] = struct{}{}

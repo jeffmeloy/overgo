@@ -2976,7 +2976,7 @@ func BuildDenseBlockCachedForLayer(
 	if (pastKey == nil) != (pastValue == nil) {
 		return DenseBlockResult{}, errors.New("dense block past key/value cache must both be present")
 	}
-	if spec.NonCausalAttention && pastKey != nil {
+	if spec.NonCausalAttention && spec.Architecture != "dflash" && pastKey != nil {
 		return DenseBlockResult{}, errors.New("non-causal dense block does not support a KV cache")
 	}
 
@@ -3070,7 +3070,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isGroveMoE || isHYV3 || isLLaDAMoE || isMellum || spec.Architecture == "openelm" || spec.Architecture == "plamo2" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "dflash" || spec.Architecture == "exaone4" || isEXAOneMoE || isGroveMoE || isHYV3 || isLLaDAMoE || isMellum || spec.Architecture == "openelm" || spec.Architecture == "plamo2" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}
@@ -3326,6 +3326,7 @@ func BuildDenseBlockCachedForLayer(
 			query, cacheKey, cacheValue, attentionScale, true, queryStart, spec.SlidingWindow,
 		)
 	} else if spec.IsSlidingLayer(layerIndex) {
+		causal := !spec.NonCausalAttention
 		if (isMiMo2 || isGPTOSS) && weights.AttentionSinks != nil {
 			attention = builder.AttentionWindowWithSinksWithOffset(
 				query, cacheKey, cacheValue, weights.AttentionSinks, attentionScale,
@@ -3338,7 +3339,7 @@ func BuildDenseBlockCachedForLayer(
 			)
 		} else {
 			attention = builder.AttentionWindowWithOffset(
-				query, cacheKey, cacheValue, attentionScale, true, queryStart, spec.SlidingWindow,
+				query, cacheKey, cacheValue, attentionScale, causal, queryStart, spec.SlidingWindow,
 			)
 		}
 	} else {

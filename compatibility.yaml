@@ -2525,6 +2525,30 @@ models:
     validation:
       - perplexity-relative-delta-below-0.5-percent
       - greedy-token-id-exact
+  dflash:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+    features:
+      - strict-target-layer-metadata-and-catalog
+      - full-sequence-target-layer-input-extraction
+      - target-feature-fusion
+      - committed-kv-cache-injection
+      - neox-rope-qk-normalization
+      - cache-aware-non-causal-noise-block-attention
+      - interleaved-sliding-window-patterns
+      - paired-target-embedding-and-output-projection
+      - prefix-resynchronization
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-feature-injection-noise-pipeline
+      - full-cuda-pipeline-differential
+    limitations:
+      - target-extraction-recomputes-full-prefix
+      - external-scheduler-owns-verification-and-acceptance
+      - real-model-pair-pending
   t5:
     status: experimental
     types:

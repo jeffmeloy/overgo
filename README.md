@@ -410,6 +410,12 @@ decoder relative buckets, fixed cross-attention K/V, classic ReLU or gated
 GELU FFNs, and model-bound resumable session serialization. The public path is
 `NewT5Session` followed by chunked `DecodeT5`; `SaveT5Session` and
 `LoadT5Session` preserve both encoder output and decoder cache.
+DFlash uses the paired-runner path: `PrimeDFlash` or `SyncDFlashPrefix`
+extracts configured target-layer inputs, fuses them, and injects committed K/V;
+`DraftDFlashBlock` evaluates the last-token plus MASK noise block with
+non-causal cache-aware attention and the target model's embedding/output
+tables. Lower-level fusion, injection, extraction, and explicit noise-block
+methods remain public for schedulers that own verification and acceptance.
 WavTokenizer decoder execution maps semantic token IDs to audio-feature frames
 through the strict upstream tensor catalog, six-stage PosNet, full non-causal
 single-head attention, dense/depthwise same-padding convolutions, GroupNorm,

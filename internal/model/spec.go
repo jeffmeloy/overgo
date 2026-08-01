@@ -75,6 +75,8 @@ type Spec struct {
 	ConvNextBlockCount      uint32
 	GroupNormGroups         uint32
 	GroupNormEpsilon        float32
+	DFlashBlockSize         uint32
+	TargetLayers            []int32
 	NoRopeLayerStep         uint32
 	HiddenActivation        string
 	Dense2FeatureIn         uint32
@@ -288,11 +290,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "talkie" &&
 		architecture != "t5" &&
 		architecture != "t5encoder" &&
-		architecture != "wavtokenizer-dec" {
+		architecture != "wavtokenizer-dec" &&
+		architecture != "dflash" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" || architecture == "wavtokenizer-dec" {
+	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" || architecture == "wavtokenizer-dec" || architecture == "dflash" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "bert" || architecture == "jina-bert-v2" {
@@ -352,6 +355,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if *destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
+		}
+	}
+	if architecture == "dflash" {
+		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
+			return Spec{}, err
+		}
+		spec.DFlashBlockSize = 16
+		if value, ok := optional[uint32](values, prefix+"block_size", gguf.ValueTypeUint32); ok {
+			spec.DFlashBlockSize = value
 		}
 	}
 	if architecture == "gemma4" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
@@ -679,6 +691,26 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.RopeDimensionCount = spec.KeyLength
+	}
+	if architecture == "dflash" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if window, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok && window > 0 {
+			spec.SlidingWindow = window
+			spec.RopeFrequencySWA = spec.RopeFrequencyBase
+			if pattern, patternOK := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); patternOK {
+				spec.SlidingPattern = pattern
+			} else if layers, layersOK, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
+				return Spec{}, layersErr
+			} else if layersOK {
+				if len(layers) != int(spec.BlockCount) {
+					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
+				}
+				spec.SlidingLayers = append([]bool(nil), layers...)
+			}
+		}
 	}
 	if architecture == "cogvlm" {
 		spec.RopeDimensionCount = spec.KeyLength
@@ -2641,6 +2673,16 @@ func (s Spec) validate() error {
 			return errors.New("WavTokenizer metadata is invalid")
 		}
 	}
+	if s.Architecture == "dflash" {
+		if len(s.TargetLayers) == 0 || s.DFlashBlockSize < 2 {
+			return errors.New("DFlash target-layer metadata is invalid")
+		}
+		for _, layer := range s.TargetLayers {
+			if layer < 0 {
+				return errors.New("DFlash target layer is negative")
+			}
+		}
+	}
 	if s.Architecture == "mamba" {
 		switch {
 		case s.FeedForwardLength != 0 || s.HeadCount != 0 || s.HeadCountKV != 0 || s.KeyLength != 0 || s.ValueLength != 0:
@@ -3770,7 +3812,7 @@ func usesSlidingAttention(architecture string) bool {
 	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "gpt-oss" || architecture == "llama4" || architecture == "olmo2" ||
 		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "mimo2" ||
-		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35"
+		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35" || architecture == "dflash"
 }
 
 func usesPostOnlyNorm(architecture string) bool {

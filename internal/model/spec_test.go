@@ -3415,6 +3415,33 @@ func TestReadWavTokenizerDecoderSpec(t *testing.T) {
 	}
 }
 
+func TestReadDFlashSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "dflash"),
+		metadata("dflash.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dflash.context_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("dflash.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("dflash.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("dflash.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dflash.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("dflash.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("dflash.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("dflash.block_size", gguf.ValueTypeUint32, uint32(8)),
+		{
+			Key:   "dflash.target_layers",
+			Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{2, 7}},
+		},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "dflash" || !spec.NonCausalAttention || spec.DFlashBlockSize != 8 ||
+		len(spec.TargetLayers) != 2 || spec.TargetLayers[1] != 7 || spec.RopeDimensionCount != 4 {
+		t.Fatalf("unexpected DFlash spec: %+v", spec)
+	}
+}
+
 func TestReadErnie45MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "ernie4_5-moe"),
@@ -3580,7 +3607,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
 		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant",
-		"deepseek32", "deepseek4", "eagle3", "dflash",
+		"deepseek32", "deepseek4", "eagle3",
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			file := &gguf.File{Metadata: []gguf.Metadata{

@@ -4358,6 +4358,38 @@ func TestReadWeightsWavTokenizerDecoder(t *testing.T) {
 	}
 }
 
+func TestReadWeightsDFlash(t *testing.T) {
+	spec := Spec{
+		Architecture: "dflash", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, TargetLayers: []int32{2, 7},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("fc.weight", 16, 8), tensorInfo("enc.output_norm.weight", 8),
+		tensorInfo("output_norm.weight", 8),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 8), tensorInfo(prefix+"attn_k.weight", 8, 4),
+			tensorInfo(prefix+"attn_v.weight", 8, 4), tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", 4), tensorInfo(prefix+"attn_k_norm.weight", 4),
+			tensorInfo(prefix+"ffn_norm.weight", 8), tensorInfo(prefix+"ffn_gate.weight", 8, 16),
+			tensorInfo(prefix+"ffn_up.weight", 8, 16), tensorInfo(prefix+"ffn_down.weight", 16, 8),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.FeatureProjection == nil || weights.EncoderOutputNorm == nil ||
+		weights.TokenEmbedding.Name != "" || len(weights.Layers) != 2 ||
+		weights.Layers[1].AttentionQNorm == nil || weights.Layers[1].AttentionKNorm == nil {
+		t.Fatalf("unexpected DFlash weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 	spec := Spec{
 		Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,

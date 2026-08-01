@@ -215,6 +215,7 @@ type Weights struct {
 	PerLayerTokenEmbedding  *gguf.TensorInfo
 	PerLayerModelProjection *gguf.TensorInfo
 	PerLayerProjectionNorm  *gguf.TensorInfo
+	FeatureProjection       *gguf.TensorInfo
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
 	WavTokenizer            *WavTokenizerWeights
@@ -261,6 +262,60 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 
 	var result Weights
 	var err error
+	if spec.Architecture == "dflash" {
+		featureWidth := uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength)
+		projection, loadErr := required("fc.weight", featureWidth, uint64(spec.EmbeddingLength))
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		encoderNorm, loadErr := required("enc.output_norm.weight", uint64(spec.EmbeddingLength))
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		if result.OutputNorm, loadErr = required("output_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
+			return Weights{}, loadErr
+		}
+		result.FeatureProjection = &projection
+		result.EncoderOutputNorm = &encoderNorm
+		result.Layers = make([]LayerWeights, spec.BlockCount)
+		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
+		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
+		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+		for block := uint32(0); block < spec.BlockCount; block++ {
+			prefix := fmt.Sprintf("blk.%d.", block)
+			layer := &result.Layers[block]
+			for name, item := range map[string]struct {
+				destination *gguf.TensorInfo
+				shape       []uint64
+			}{
+				"attn_norm.weight":   {&layer.AttentionNorm, []uint64{uint64(spec.EmbeddingLength)}},
+				"attn_q.weight":      {&layer.AttentionQ, []uint64{uint64(spec.EmbeddingLength), queryLength}},
+				"attn_k.weight":      {&layer.AttentionK, []uint64{uint64(spec.EmbeddingLength), keyLength}},
+				"attn_v.weight":      {&layer.AttentionV, []uint64{uint64(spec.EmbeddingLength), valueLength}},
+				"attn_output.weight": {&layer.AttentionOutput, []uint64{queryLength, uint64(spec.EmbeddingLength)}},
+				"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{uint64(spec.EmbeddingLength)}},
+				"ffn_gate.weight":    {&layer.FeedForwardGate, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
+				"ffn_up.weight":      {&layer.FeedForwardUp, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
+				"ffn_down.weight":    {&layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}},
+			} {
+				loaded, itemErr := required(prefix+name, item.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*item.destination = loaded
+			}
+			qNorm, itemErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
+			if itemErr != nil {
+				return Weights{}, itemErr
+			}
+			kNorm, itemErr := required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength))
+			if itemErr != nil {
+				return Weights{}, itemErr
+			}
+			layer.AttentionQNorm, layer.AttentionKNorm = &qNorm, &kNorm
+		}
+		return result, nil
+	}
 	tokenEmbeddingName := "token_embd.weight"
 	if spec.Architecture == "codeshell" {
 		if _, ok := tensors[tokenEmbeddingName]; !ok {

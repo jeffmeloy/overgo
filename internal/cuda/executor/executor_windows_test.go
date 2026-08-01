@@ -7111,6 +7111,73 @@ func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 1e-3)
 }
 
+func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	seed := 3
+	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
+		item := builder.Input(name, dtype.F32, shape)
+		feeds[item] = patternedValue(shape, seed, scale, offset)
+		seed += 2
+		return item
+	}
+	spec := model.Spec{
+		Architecture: "dflash", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+		NonCausalAttention: true, TargetLayers: []int32{1, 3},
+	}
+	features := input("features", tensor.MustShape(8, 2), 0.08, -0.1)
+	projection := input("fc", tensor.MustShape(8, 4), 0.03, -0.1)
+	encoderNorm := input("enc_norm", tensor.MustShape(4), 0.03, 0.9)
+	fused, err := model.BuildDFlashFeatureEncoder(builder, features, projection, encoderNorm, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights := model.LayerGraphWeights{
+		AttentionNorm:   input("attn_norm", tensor.MustShape(4), 0.03, 0.9),
+		AttentionQ:      input("q", tensor.MustShape(4, 4), 0.03, -0.1),
+		AttentionK:      input("k", tensor.MustShape(4, 2), 0.03, -0.1),
+		AttentionV:      input("v", tensor.MustShape(4, 2), 0.03, -0.1),
+		AttentionOutput: input("o", tensor.MustShape(4, 4), 0.03, -0.1),
+		AttentionQNorm:  input("q_norm", tensor.MustShape(2), 0.03, 0.9),
+		AttentionKNorm:  input("k_norm", tensor.MustShape(2), 0.03, 0.9),
+		FeedForwardNorm: input("ffn_norm", tensor.MustShape(4), 0.03, 0.9),
+		FeedForwardGate: input("gate", tensor.MustShape(4, 6), 0.03, -0.1),
+		FeedForwardUp:   input("up", tensor.MustShape(4, 6), 0.03, -0.1),
+		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.03, -0.1),
+	}
+	key, value, err := model.BuildDFlashCacheInjection(builder, fused, spec, weights, []uint32{0, 1}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noise := input("noise", tensor.MustShape(4, 3), 0.08, -0.1)
+	result, err := model.BuildDenseBlockCachedForLayer(builder, noise, spec, weights, []uint32{2, 3, 4}, key, value, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 1e-3)
+	}
+}
+
 func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

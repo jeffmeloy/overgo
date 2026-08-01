@@ -3754,6 +3754,76 @@ func TestBuildMiMo2UsesSinksValueScaleAndSigmoidMoE(t *testing.T) {
 	}
 }
 
+func TestBuildStep35UsesPartialRoPEHeadGateAndLimitedExperts(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "step35", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, SharedExpertFF: 8, ExpertWeightsScale: 1.25,
+		ExpertWeightsNorm: true, ExpertGatingFunc: 2,
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+		LayerKVHeadCounts: []uint32{1, 2}, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+		SlidingWindow: 128, SlidingLayers: []bool{false, true},
+		LayerSwiGLUClamp: []float32{2, 0}, LayerSharedSwiGLUClamp: []float32{3, 0},
+		RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:             builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:             builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionQNorm:         builder.Input("q_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionKNorm:         builder.Input("k_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionOutputGate:    builder.Input("attn_gate", dtype.F32, tensor.MustShape(8, 2)),
+		RopeFactors:            builder.Input("rope_factors", dtype.F32, tensor.MustShape(2)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+		FeedForwardSharedGate:  builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(8, 8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var rope, factorSlices, sigmoid, clamps int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENeoX:
+			if node.Attrs.(tensor.RoPEAttributes).RotaryDimensions == 2 && len(node.Inputs) == 2 {
+				rope++
+			}
+		case tensor.OpFlatSlice:
+			factorSlices++
+		case tensor.OpSigmoid:
+			sigmoid++
+		case tensor.OpClamp:
+			clamps++
+		}
+	}
+	if moe == nil || moe.Attrs.(tensor.MoEAttributes).SwiGLUClamp != 2 ||
+		moe.Attrs.(tensor.MoEAttributes).Routing != tensor.MoERoutingSigmoid ||
+		rope != 2 || factorSlices != 1 || sigmoid != 1 || clamps != 2 {
+		t.Fatalf("unexpected Step3.5 graph: moe=%v rope=%d slices=%d sigmoid=%d clamps=%d", moe != nil, rope, factorSlices, sigmoid, clamps)
+	}
+}
+
 func TestBuildDOTS1MoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

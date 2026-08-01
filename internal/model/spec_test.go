@@ -179,6 +179,58 @@ func TestReadMiMo2SpecTrimsMTPArrays(t *testing.T) {
 	}
 }
 
+func TestReadStep35SpecTrimsMTPArrays(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "step35"),
+		metadata("step35.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("step35.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("step35.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("step35.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("step35.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("step35.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("step35.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("step35.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("step35.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("step35.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("step35.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("step35.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("step35.moe_every_n_layers", gguf.ValueTypeUint32, uint32(1)),
+		{Key: "step35.attention.head_count", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{2, 4, 2},
+		}},
+		{Key: "step35.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 2, 1},
+		}},
+		metadata("step35.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("step35.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("step35.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("step35.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("step35.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		{Key: "step35.attention.sliding_window_pattern", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool, Data: []bool{false, true, false},
+		}},
+		{Key: "step35.swiglu_clamp_exp", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{2, 3, 0},
+		}},
+		{Key: "step35.swiglu_clamp_shexp", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{4, 5, 0},
+		}},
+		metadata("step35.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.BlockCount != 2 || len(spec.LayerHeadCounts) != 2 || len(spec.LayerKVHeadCounts) != 2 ||
+		spec.LayerHeadCount(1) != 4 || spec.LayerKVHeadCount(1) != 2 ||
+		spec.LayerRopeDimensionCount(0) != 2 || spec.LayerRopeDimensionCount(1) != 4 ||
+		spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
+		spec.LayerExpertSwiGLUClamp(1) != 3 || spec.LayerSharedSwiGLUClampLimit(1) != 5 ||
+		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.SharedExpertFF != 8 {
+		t.Fatalf("unexpected Step3.5 spec: %+v", spec)
+	}
+}
+
 func TestReadArcticSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "arctic"),

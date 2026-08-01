@@ -1260,7 +1260,9 @@ func launchNode(
 		if !ok || (len(node.Inputs) != wantInputs && len(node.Inputs) != wantInputs+1) ||
 			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid) ||
 			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU &&
-				attributes.Activation != tensor.MoEActivationGELU) {
+				attributes.Activation != tensor.MoEActivationGELU) || attributes.SwiGLUClamp < 0 ||
+			math.IsNaN(float64(attributes.SwiGLUClamp)) || math.IsInf(float64(attributes.SwiGLUClamp), 0) ||
+			attributes.SwiGLUClamp > 0 && (attributes.Activation != tensor.MoEActivationSiLU || !attributes.Gated) {
 			return errors.New("invalid MoE attributes")
 		}
 		count, err := elementCount32(node.Shape)
@@ -1327,6 +1329,7 @@ func launchNode(
 		scale := attributes.Scale
 		routing := uint32(attributes.Routing)
 		activation := uint32(attributes.Activation)
+		swigluClamp := attributes.SwiGLUClamp
 		var gated uint32
 		if attributes.Gated {
 			gated = 1
@@ -1343,6 +1346,7 @@ func launchNode(
 			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
 			unsafe.Pointer(&gated), unsafe.Pointer(&fusedGateUp), unsafe.Pointer(&activation),
 			unsafe.Pointer(&expertIndexDivisor),
+			unsafe.Pointer(&swigluClamp),
 			unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.moe, count, args)

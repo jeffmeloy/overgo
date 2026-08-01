@@ -752,6 +752,7 @@ extern "C" __global__ void moe_f32(
 		unsigned int fused_gate_up,
 		unsigned int activation,
 		unsigned int expert_index_divisor,
+		float swiglu_clamp,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
@@ -849,9 +850,16 @@ extern "C" __global__ void moe_f32(
 				}
 				activated = gated ? gelu * up_dot : gelu;
 			} else {
-				activated = gated
-					? gate_dot / (1.0f + expf(-gate_dot)) * up_dot
-					: up_dot / (1.0f + expf(-up_dot));
+				if (gated) {
+					float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
+					if (swiglu_clamp > 0.0f) {
+						up_dot = fminf(swiglu_clamp, fmaxf(-swiglu_clamp, up_dot));
+						gate_activation = fminf(swiglu_clamp, gate_activation);
+					}
+					activated = gate_activation * up_dot;
+				} else {
+					activated = up_dot / (1.0f + expf(-up_dot));
+				}
 			}
             const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + inner;
 			expert_output += activated * moe_expert_value(

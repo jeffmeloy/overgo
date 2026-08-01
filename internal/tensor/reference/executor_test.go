@@ -908,6 +908,29 @@ func TestExecuteSigmoidMoEUsesBiasOnlyForSelection(t *testing.T) {
 	}
 }
 
+func TestExecuteLimitedSigmoidMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(1, 1))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, 1))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 1))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 1))
+	output := builder.MoESigmoidLimited(input, router, gate, up, down, nil, 1, true, 1, 1)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:  {Shape: input.Shape, Data: []float32{2}},
+		router: {Shape: router.Shape, Data: []float32{0}},
+		gate:   {Shape: gate.Shape, Data: []float32{1}},
+		up:     {Shape: up.Shape, Data: []float32{2}},
+		down:   {Shape: down.Shape, Data: []float32{1}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if difference := math.Abs(float64(results[output].Data[0] - 1)); difference > 1e-6 {
+		t.Fatalf("limited sigmoid MoE output = %v, want 1", results[output].Data[0])
+	}
+}
+
 func TestExecuteFusedGateUpMoEMatchesSeparate(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1, 1))

@@ -964,7 +964,13 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 					case tensor.MoEActivationSiLU:
 						activation = upDot / (1 + math.Exp(-upDot))
 						if attributes.Gated {
-							activation = gateDot / (1 + math.Exp(-gateDot)) * upDot
+							gateActivation := gateDot / (1 + math.Exp(-gateDot))
+							if attributes.SwiGLUClamp > 0 {
+								limit := float64(attributes.SwiGLUClamp)
+								upDot = math.Max(-limit, math.Min(limit, upDot))
+								gateActivation = math.Min(limit, gateActivation)
+							}
+							activation = gateActivation * upDot
 						}
 					case tensor.MoEActivationReLU:
 						activation = math.Max(upDot, 0)

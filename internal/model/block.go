@@ -1057,6 +1057,7 @@ func BuildDenseBlockCachedForLayer(
 	isHYV3 := spec.Architecture == "hy_v3"
 	isMellum := spec.Architecture == "mellum"
 	isMiMo2 := spec.Architecture == "mimo2"
+	isStep35 := spec.Architecture == "step35"
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
@@ -1084,7 +1085,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isMiMo2 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -1104,6 +1105,11 @@ func BuildDenseBlockCachedForLayer(
 		}
 		if isGLM4MoE {
 			required["feed-forward expert correction bias"] = weights.FeedForwardExpertBias
+			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+			required["feed-forward shared up"] = weights.FeedForwardSharedUp
+			required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		}
+		if isStep35 && spec.SharedExpertFF > 0 {
 			required["feed-forward shared gate"] = weights.FeedForwardSharedGate
 			required["feed-forward shared up"] = weights.FeedForwardSharedUp
 			required["feed-forward shared down"] = weights.FeedForwardSharedDown
@@ -1303,6 +1309,9 @@ func BuildDenseBlockCachedForLayer(
 			attentionGate = builder.Sigmoid(attentionGate)
 		}
 	}
+	if isStep35 && weights.AttentionOutputGate != nil {
+		attentionGate = builder.Sigmoid(builder.MulMat(weights.AttentionOutputGate, normalized))
+	}
 	if spec.Architecture == "falcon" && weights.AttentionNorm2 != nil {
 		if weights.AttentionNorm2Bias == nil {
 			normalized = builder.Multiply(
@@ -1389,6 +1398,15 @@ func BuildDenseBlockCachedForLayer(
 			key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 		}
 	}
+	if isStep35 {
+		if (weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {
+			return DenseBlockResult{}, errors.New("Step3.5 Q/K norm weights are incomplete")
+		}
+		if weights.AttentionQNorm != nil {
+			query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+			key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+		}
+	}
 	if isCommandRQKNorm {
 		query = ApplyNormalization(builder, query, weights.AttentionQNorm, nil, spec)
 		key = ApplyNormalization(builder, key, weights.AttentionKNorm, nil, spec)
@@ -1415,7 +1433,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	rotaryDimensions := spec.KeyLength
 	if spec.RopeDimensionCount > 0 {
-		rotaryDimensions = spec.RopeDimensionCount
+		rotaryDimensions = spec.LayerRopeDimensionCount(layerIndex)
 	}
 	if !spec.UsesRoPE(layerIndex) {
 		// Some dense architectures leave periodic layers
@@ -1532,19 +1550,23 @@ func BuildDenseBlockCachedForLayer(
 		if isOLMo2 && spec.IsSlidingLayer(layerIndex) {
 			frequencyScale = 1
 		}
-		if (isAFMoE || isEXAOneMoE || isMiMo2 || isSmallThinker || spec.Architecture == "plamo3") && spec.IsSlidingLayer(layerIndex) {
+		if (isAFMoE || isEXAOneMoE || isMiMo2 || isStep35 || isSmallThinker || spec.Architecture == "plamo3") && spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
 		}
 		if isMellum && spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
 			frequencyScale = 1
 		}
-		if weights.RopeFactors != nil {
+		ropeFactors := weights.RopeFactors
+		if isStep35 && ropeFactors != nil && ropeFactors.Shape.Dims[0] > uint64(rotaryDimensions/2) {
+			ropeFactors = builder.FlatSlice(ropeFactors, 0, uint64(rotaryDimensions/2))
+		}
+		if ropeFactors != nil {
 			query = builder.RoPENeoXScaledWithFactors(
-				query, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
+				query, positions, rotaryDimensions, frequencyBase, frequencyScale, ropeFactors,
 			)
 			key = builder.RoPENeoXScaledWithFactors(
-				key, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
+				key, positions, rotaryDimensions, frequencyBase, frequencyScale, ropeFactors,
 			)
 		} else {
 			query = builder.RoPENeoXScaled(
@@ -1642,7 +1664,7 @@ func BuildDenseBlockCachedForLayer(
 			)
 		}
 	}
-	if isLaguna && weights.AttentionOutputGate.Shape.Dims[1] == uint64(headCount) {
+	if (isLaguna || isStep35) && attentionGate != nil && weights.AttentionOutputGate.Shape.Dims[1] == uint64(headCount) {
 		attentionGate = builder.Reshape(attentionGate, 1, uint64(headCount), tokens)
 		attention = builder.Multiply(attention, attentionGate)
 	}
@@ -1921,6 +1943,34 @@ func BuildDenseBlockCachedForLayer(
 				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
 				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
 			)
+		} else if isStep35 {
+			limit := spec.LayerExpertSwiGLUClamp(layerIndex)
+			if spec.ExpertGatingFunc == 2 {
+				feedForward = builder.MoESigmoidLimited(
+					normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+					spec.ExpertUsedCount, spec.ExpertWeightsNorm,
+					spec.ExpertWeightsScale, limit,
+				)
+			} else {
+				feedForward = builder.MoESoftmaxLimitedWithSelectionBias(
+					normalized, weights.FeedForwardRouter,
+					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+					spec.ExpertUsedCount, spec.ExpertWeightsNorm,
+					spec.ExpertWeightsScale, limit,
+				)
+			}
+			if spec.SharedExpertFF > 0 {
+				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
+				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
+				shared := builder.MulMat(
+					weights.FeedForwardSharedDown,
+					limitedSwiGLU(builder, sharedGate, sharedUp, spec.LayerSharedSwiGLUClampLimit(layerIndex)),
+				)
+				feedForward = builder.Add(feedForward, shared)
+			}
 		} else if isMiniMaxM2 {
 			if spec.ExpertGatingFunc == 2 {
 				feedForward = builder.MoESigmoid(
@@ -2152,6 +2202,15 @@ func BuildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
+func limitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
+	if limit <= 0 {
+		return builder.SwiGLU(gate, up)
+	}
+	up = builder.Clamp(up, -limit, limit)
+	gate = builder.Clamp(builder.SiLU(gate), -math.MaxFloat32, limit)
+	return builder.Multiply(gate, up)
 }
 
 func hasMRoPESections(sections [4]int32) bool {

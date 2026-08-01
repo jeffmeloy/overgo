@@ -242,6 +242,62 @@ func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsStep35MixedDenseAndMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "step35", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, SharedExpertFF: 8, ExpertWeightsScale: 1.25,
+		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+		LayerKVHeadCounts: []uint32{1, 2}, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("rope_freqs.weight", 2),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		heads := spec.LayerHeadCount(uint32(block))
+		kvHeads := spec.LayerKVHeadCount(uint32(block))
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, uint64(heads)*4),
+			tensorInfo(prefix+"attn_k.weight", 8, uint64(kvHeads)*4),
+			tensorInfo(prefix+"attn_v.weight", 8, uint64(kvHeads)*4),
+			tensorInfo(prefix+"attn_output.weight", uint64(heads)*4, 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8),
+		tensorInfo("blk.1.attn_q_norm.weight", 4),
+		tensorInfo("blk.1.attn_k_norm.weight", 4),
+		tensorInfo("blk.1.attn_gate.weight", 8, 4),
+		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.1.ffn_gate_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.1.exp_probs_b.bias", 4),
+		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 8),
+		tensorInfo("blk.1.ffn_up_shexp.weight", 8, 8),
+		tensorInfo("blk.1.ffn_down_shexp.weight", 8, 8),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dense, moe := weights.Layers[0], weights.Layers[1]
+	if weights.Output == nil || dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+		dense.RopeFactors == nil || moe.RopeFactors == nil ||
+		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil || moe.AttentionOutputGate == nil ||
+		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
+		moe.FeedForwardSharedGate == nil || moe.FeedForwardSharedUp == nil || moe.FeedForwardSharedDown == nil {
+		t.Fatalf("unexpected Step3.5 catalog: dense=%+v moe=%+v", dense, moe)
+	}
+}
+
 func TestReadWeightsDBRX(t *testing.T) {
 	spec := Spec{
 		Architecture: "dbrx", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,

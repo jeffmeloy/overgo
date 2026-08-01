@@ -8,12 +8,12 @@ import (
 
 const (
 	// BundleABIVersion: incompatible launch-contract revision.
-	BundleABIVersion = 12
+	BundleABIVersion = 13
 	// BundleTarget: pinned PTX virtual architecture.
 	BundleTarget = "compute_89"
 
 	VectorAddSHA256 = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	OpsF32SHA256    = "5a971f29d1d86e2347db93f30af424782b7f5b7b57f1d6fed310d2bb8aad86a0"
+	OpsF32SHA256    = "f346749667e34d83844e6c0b73d2e30b0668b87da302db890bef149196de77cb"
 )
 
 // ValidateAssets: reject PTX outside pinned host ABI.

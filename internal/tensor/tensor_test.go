@@ -193,6 +193,34 @@ func TestBuilderSigmoidMoEWithSelectionBias(t *testing.T) {
 	}
 }
 
+func TestBuilderLimitedSigmoidMoE(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, MustShape(2, 3))
+	gate := builder.Input("gate", dtype.F32, MustShape(2, 4, 3))
+	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
+	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
+	output := builder.MoESigmoidLimited(input, router, gate, up, down, nil, 2, true, 1, 3)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(MoEAttributes)
+	if attributes.SwiGLUClamp != 3 || attributes.Routing != MoERoutingSigmoid {
+		t.Fatalf("unexpected limited MoE attributes: %+v", attributes)
+	}
+
+	invalid := NewBuilder()
+	x := invalid.Input("input", dtype.F32, MustShape(2, 1))
+	r := invalid.Input("router", dtype.F32, MustShape(2, 3))
+	g := invalid.Input("gate", dtype.F32, MustShape(2, 4, 3))
+	u := invalid.Input("up", dtype.F32, MustShape(2, 4, 3))
+	d := invalid.Input("down", dtype.F32, MustShape(4, 2, 3))
+	invalid.MoESigmoidLimited(x, r, g, u, d, nil, 2, true, 1, -1)
+	if invalid.Err() == nil {
+		t.Fatal("limited MoE accepted negative clamp")
+	}
+}
+
 func TestBuilderSigmoidMoEWithFusedGateUp(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(2, 1))

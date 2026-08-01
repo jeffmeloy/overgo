@@ -2092,6 +2092,32 @@ models:
       - nextn-mtp-prediction-pending
       - vision-tower-pending
     real_model_validation: pending-fixture
+  step35:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - separate-or-fused-qkv
+      - optional-per-head-qk-rmsnorm
+      - per-layer-query-and-kv-head-counts
+      - per-layer-sliding-or-full-attention
+      - half-width-full-attention-rope
+      - swa-specific-rope-base
+      - shared-rope-factors
+      - optional-sigmoid-head-gate
+      - mixed-dense-and-moe-layers
+      - sigmoid-or-softmax-top-k-routing
+      - optional-selection-correction-bias
+      - optional-selected-weight-normalization
+      - per-layer-limited-swiglu-experts
+      - per-layer-limited-shared-experts
+      - preserved-unexecuted-nextn-mtp-layers
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - nextn-mtp-prediction-pending
+    real_model_validation: pending-fixture
   qwen35moe:
     status: experimental
     execution:

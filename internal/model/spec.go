@@ -78,6 +78,8 @@ type Spec struct {
 	LayerKVHeadCounts      []uint32
 	LayerFeedForward       []uint32
 	SlidingLayers          []bool
+	LayerSwiGLUClamp       []float32
+	LayerSharedSwiGLUClamp []float32
 	XIELUAlphaN            []float32
 	XIELUAlphaP            []float32
 	XIELUBeta              []float32
@@ -163,6 +165,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "minicpm3" &&
 		architecture != "minimax-m2" &&
 		architecture != "mimo2" &&
+		architecture != "step35" &&
 		architecture != "granite" &&
 		architecture != "granitemoe" &&
 		architecture != "glm4" &&
@@ -259,7 +262,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "deci" || architecture == "laguna" || architecture == "openelm" || architecture == "plamo3" {
+	if architecture == "step35" {
+		if spec.LayerHeadCounts, err = requiredLayerUint32Compatible(
+			values, prefix+"attention.head_count", declaredBlockCount,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.HeadCount = firstPositive(spec.LayerHeadCounts)
+	} else if architecture == "deci" || architecture == "laguna" || architecture == "openelm" || architecture == "plamo3" {
 		if spec.LayerHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count", spec.BlockCount,
 		); err != nil {
@@ -281,7 +291,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.HeadCountKV = value
 			}
 		}
-	} else if architecture == "mimo2" {
+	} else if architecture == "mimo2" || architecture == "step35" {
 		if spec.LayerKVHeadCounts, err = requiredLayerUint32Compatible(
 			values, prefix+"attention.head_count_kv", declaredBlockCount,
 		); err != nil {
@@ -902,6 +912,49 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.AttentionValueScale = value
 		}
 	}
+	if architecture == "step35" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("Step3.5 NextN/MTP layer count is invalid")
+			}
+			spec.BlockCount -= nextN
+		}
+		spec.LayerHeadCounts = spec.LayerHeadCounts[:spec.BlockCount]
+		spec.LayerKVHeadCounts = spec.LayerKVHeadCounts[:spec.BlockCount]
+		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.RopeFrequencySWA = spec.RopeFrequencyBase
+		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
+			spec.RopeFrequencySWA = value
+		}
+		if spec.SlidingLayers, err = requiredLayerBoolCompatible(
+			values, prefix+"attention.sliding_window_pattern", declaredBlockCount,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SlidingLayers = spec.SlidingLayers[:spec.BlockCount]
+		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(
+			values, prefix+"swiglu_clamp_exp", declaredBlockCount,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.LayerSharedSwiGLUClamp, err = optionalLayerFloat32(
+			values, prefix+"swiglu_clamp_shexp", declaredBlockCount,
+		); err != nil {
+			return Spec{}, err
+		}
+		if len(spec.LayerSwiGLUClamp) > 0 {
+			spec.LayerSwiGLUClamp = spec.LayerSwiGLUClamp[:spec.BlockCount]
+		}
+		if len(spec.LayerSharedSwiGLUClamp) > 0 {
+			spec.LayerSharedSwiGLUClamp = spec.LayerSharedSwiGLUClamp[:spec.BlockCount]
+		}
+	}
 	if architecture == "exaone4" {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](
@@ -1237,7 +1290,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1281,6 +1334,28 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "mimo2" {
 		spec.ExpertGatingFunc = 2
 		spec.ExpertWeightsNorm = true
+	}
+	if architecture == "step35" {
+		if spec.ExpertFeedForward, err = required[uint32](
+			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF, _ = optional[uint32](
+			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
+		)
+		spec.LeadingDenseBlocks, _ = optional[uint32](
+			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
+		)
+		spec.MoELayerStep = 1
+		if value, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok {
+			spec.MoELayerStep = value
+		}
+		spec.ExpertGatingFunc = 2
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
+			spec.ExpertGatingFunc = value
+		}
+		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
 	if architecture == "glm4-moe" {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
@@ -1873,6 +1948,27 @@ func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
 	return s.FeedForwardLength
 }
 
+func (s Spec) LayerRopeDimensionCount(block uint32) uint32 {
+	if s.Architecture == "step35" && !s.IsSlidingLayer(block) {
+		return s.RopeDimensionCount / 2
+	}
+	return s.RopeDimensionCount
+}
+
+func (s Spec) LayerExpertSwiGLUClamp(block uint32) float32 {
+	if block < uint32(len(s.LayerSwiGLUClamp)) {
+		return s.LayerSwiGLUClamp[block]
+	}
+	return 0
+}
+
+func (s Spec) LayerSharedSwiGLUClampLimit(block uint32) float32 {
+	if block < uint32(len(s.LayerSharedSwiGLUClamp)) {
+		return s.LayerSharedSwiGLUClamp[block]
+	}
+	return 0
+}
+
 func (s Spec) UsesRoPE(block uint32) bool {
 	if s.Architecture == "cohere2moe" {
 		return !s.RopeDisabled && block < s.BlockCount &&
@@ -2088,6 +2184,40 @@ func (s Spec) validate() error {
 			kvHeads := s.LayerKVHeadCount(block)
 			if kvHeads == 0 || s.HeadCount%kvHeads != 0 {
 				return errors.New("MiMo2 layer KV head count is invalid")
+			}
+		}
+	}
+	if s.Architecture == "step35" {
+		switch {
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("Step3.5 expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("Step3.5 expert routing function is unsupported")
+		case len(s.LayerHeadCounts) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
+			return errors.New("Step3.5 layer head metadata is invalid")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%4 != 0:
+			return errors.New("Step3.5 rotary dimension count is invalid")
+		case s.SlidingWindow == 0 || len(s.SlidingLayers) != int(s.BlockCount) || s.RopeFrequencySWA <= 0:
+			return errors.New("Step3.5 sliding-attention metadata is invalid")
+		case len(s.LayerSwiGLUClamp) != 0 && len(s.LayerSwiGLUClamp) != int(s.BlockCount):
+			return errors.New("Step3.5 expert clamp metadata is invalid")
+		case len(s.LayerSharedSwiGLUClamp) != 0 && len(s.LayerSharedSwiGLUClamp) != int(s.BlockCount):
+			return errors.New("Step3.5 shared-expert clamp metadata is invalid")
+		}
+		for block := uint32(0); block < s.BlockCount; block++ {
+			heads := s.LayerHeadCount(block)
+			kvHeads := s.LayerKVHeadCount(block)
+			if heads == 0 || kvHeads == 0 || heads%kvHeads != 0 {
+				return errors.New("Step3.5 layer head count is invalid")
+			}
+			for _, limit := range []float32{
+				s.LayerExpertSwiGLUClamp(block), s.LayerSharedSwiGLUClampLimit(block),
+			} {
+				if limit < 0 || math.IsNaN(float64(limit)) || math.IsInf(float64(limit), 0) {
+					return errors.New("Step3.5 SwiGLU clamp is invalid")
+				}
 			}
 		}
 	}
@@ -2799,7 +2929,7 @@ func usesSlidingAttention(architecture string) bool {
 	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" ||
 		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "mimo2" ||
-		architecture == "plamo3" || architecture == "smallthinker"
+		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35"
 }
 
 func usesPostOnlyNorm(architecture string) bool {
@@ -2861,7 +2991,7 @@ func usesFusedGateUp(architecture string) bool {
 
 func supportsLongRoPE(architecture string) bool {
 	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitemoe" ||
-		architecture == "minicpm3" || architecture == "pangu-embedded" || architecture == "phi3" || architecture == "phimoe"
+		architecture == "minicpm3" || architecture == "pangu-embedded" || architecture == "phi3" || architecture == "phimoe" || architecture == "step35"
 }
 
 func firstPositive(values []uint32) uint32 {
@@ -2965,6 +3095,17 @@ func requiredLayerFloat32(
 	return append([]float32(nil), items...), nil
 }
 
+func optionalLayerFloat32(
+	values map[string]gguf.Value,
+	key string,
+	count uint32,
+) ([]float32, error) {
+	if _, ok := values[key]; !ok {
+		return nil, nil
+	}
+	return requiredLayerFloat32(values, key, count)
+}
+
 func requiredLayerUint32(
 	values map[string]gguf.Value,
 	key string,
@@ -3010,6 +3151,17 @@ func requiredLayerUint32Compatible(
 	if value.Type == gguf.ValueTypeUint32 {
 		return requiredLayerUint32(values, key, count)
 	}
+	if value.Type == gguf.ValueTypeInt32 {
+		scalar, valid := value.Data.(int32)
+		if !valid || scalar < 0 {
+			return nil, fmt.Errorf("metadata %q has an invalid scalar value", key)
+		}
+		result := make([]uint32, count)
+		for index := range result {
+			result[index] = uint32(scalar)
+		}
+		return result, nil
+	}
 	if value.Type != gguf.ValueTypeArray ||
 		(value.ArrayType != gguf.ValueTypeUint32 && value.ArrayType != gguf.ValueTypeInt32) {
 		return nil, fmt.Errorf("metadata %q must be a uint32 or integer array", key)
@@ -3033,6 +3185,81 @@ func requiredLayerUint32Compatible(
 			}
 			result[index] = uint32(item)
 		}
+	}
+	return result, nil
+}
+
+func requiredLayerBoolCompatible(
+	values map[string]gguf.Value,
+	key string,
+	count uint32,
+) ([]bool, error) {
+	value, ok := values[key]
+	if !ok {
+		return nil, fmt.Errorf("required metadata %q is missing", key)
+	}
+	result := make([]bool, count)
+	if value.Type == gguf.ValueTypeBool {
+		scalar, valid := value.Data.(bool)
+		if !valid {
+			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
+		}
+		for index := range result {
+			result[index] = scalar
+		}
+		return result, nil
+	}
+	if value.Type == gguf.ValueTypeUint32 {
+		scalar, valid := value.Data.(uint32)
+		if !valid {
+			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
+		}
+		for index := range result {
+			result[index] = scalar != 0
+		}
+		return result, nil
+	}
+	if value.Type == gguf.ValueTypeInt32 {
+		scalar, valid := value.Data.(int32)
+		if !valid || scalar < 0 {
+			return nil, fmt.Errorf("metadata %q has an invalid scalar value", key)
+		}
+		for index := range result {
+			result[index] = scalar != 0
+		}
+		return result, nil
+	}
+	if value.Type != gguf.ValueTypeArray {
+		return nil, fmt.Errorf("metadata %q must be a bool, uint32, or compatible array", key)
+	}
+	switch value.ArrayType {
+	case gguf.ValueTypeBool:
+		items, valid := value.Data.([]bool)
+		if !valid || len(items) != int(count) {
+			return nil, fmt.Errorf("metadata %q has invalid layer values", key)
+		}
+		copy(result, items)
+	case gguf.ValueTypeUint32:
+		items, valid := value.Data.([]uint32)
+		if !valid || len(items) != int(count) {
+			return nil, fmt.Errorf("metadata %q has invalid layer values", key)
+		}
+		for index, item := range items {
+			result[index] = item != 0
+		}
+	case gguf.ValueTypeInt32:
+		items, valid := value.Data.([]int32)
+		if !valid || len(items) != int(count) {
+			return nil, fmt.Errorf("metadata %q has invalid layer values", key)
+		}
+		for index, item := range items {
+			if item < 0 {
+				return nil, fmt.Errorf("metadata %q has a negative layer value", key)
+			}
+			result[index] = item != 0
+		}
+	default:
+		return nil, fmt.Errorf("metadata %q must use bool or integer layer values", key)
 	}
 	return result, nil
 }

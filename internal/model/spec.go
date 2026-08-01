@@ -1224,10 +1224,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("Step3.5 NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
-		spec.LayerHeadCounts = spec.LayerHeadCounts[:spec.BlockCount]
-		spec.LayerKVHeadCounts = spec.LayerKVHeadCounts[:spec.BlockCount]
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1240,7 +1239,6 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.SlidingLayers = spec.SlidingLayers[:spec.BlockCount]
 		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(
 			values, prefix+"swiglu_clamp_exp", declaredBlockCount,
 		); err != nil {
@@ -1250,12 +1248,6 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"swiglu_clamp_shexp", declaredBlockCount,
 		); err != nil {
 			return Spec{}, err
-		}
-		if len(spec.LayerSwiGLUClamp) > 0 {
-			spec.LayerSwiGLUClamp = spec.LayerSwiGLUClamp[:spec.BlockCount]
-		}
-		if len(spec.LayerSharedSwiGLUClamp) > 0 {
-			spec.LayerSharedSwiGLUClamp = spec.LayerSharedSwiGLUClamp[:spec.BlockCount]
 		}
 	}
 	if architecture == "exaone4" {
@@ -2817,8 +2809,12 @@ func (s Spec) UsesRoPE(block uint32) bool {
 	if s.Architecture == "exaone-moe" {
 		return s.IsSlidingLayer(block)
 	}
+	blockCount := s.BlockCount
+	if s.Architecture == "step35" {
+		blockCount += s.NextNPredictLayers
+	}
 	return !s.RopeDisabled &&
-		(s.BlockCount == 0 || block < s.BlockCount) &&
+		(blockCount == 0 || block < blockCount) &&
 		(s.NoRopeLayerStep == 0 || (block+1)%s.NoRopeLayerStep != 0)
 }
 
@@ -3200,6 +3196,7 @@ func (s Spec) validate() error {
 		}
 	}
 	if s.Architecture == "step35" {
+		layerCount := int(s.BlockCount + s.NextNPredictLayers)
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
@@ -3207,18 +3204,18 @@ func (s Spec) validate() error {
 			return errors.New("Step3.5 expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
 			return errors.New("Step3.5 expert routing function is unsupported")
-		case len(s.LayerHeadCounts) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
+		case len(s.LayerHeadCounts) != layerCount || len(s.LayerKVHeadCounts) != layerCount:
 			return errors.New("Step3.5 layer head metadata is invalid")
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%4 != 0:
 			return errors.New("Step3.5 rotary dimension count is invalid")
-		case s.SlidingWindow == 0 || len(s.SlidingLayers) != int(s.BlockCount) || s.RopeFrequencySWA <= 0:
+		case s.SlidingWindow == 0 || len(s.SlidingLayers) != layerCount || s.RopeFrequencySWA <= 0:
 			return errors.New("Step3.5 sliding-attention metadata is invalid")
-		case len(s.LayerSwiGLUClamp) != 0 && len(s.LayerSwiGLUClamp) != int(s.BlockCount):
+		case len(s.LayerSwiGLUClamp) != 0 && len(s.LayerSwiGLUClamp) != layerCount:
 			return errors.New("Step3.5 expert clamp metadata is invalid")
-		case len(s.LayerSharedSwiGLUClamp) != 0 && len(s.LayerSharedSwiGLUClamp) != int(s.BlockCount):
+		case len(s.LayerSharedSwiGLUClamp) != 0 && len(s.LayerSharedSwiGLUClamp) != layerCount:
 			return errors.New("Step3.5 shared-expert clamp metadata is invalid")
 		}
-		for block := uint32(0); block < s.BlockCount; block++ {
+		for block := uint32(0); block < uint32(layerCount); block++ {
 			heads := s.LayerHeadCount(block)
 			kvHeads := s.LayerKVHeadCount(block)
 			if heads == 0 || kvHeads == 0 || heads%kvHeads != 0 {

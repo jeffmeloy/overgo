@@ -43,6 +43,50 @@ func TestSelectedModelTensorsIncludesQwen35MTP(t *testing.T) {
 	}
 }
 
+func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
+	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
+	pointer := func(name string) *gguf.TensorInfo {
+		item := info(name)
+		return &item
+	}
+	mtp := model.Step35MTPWeights{
+		Layer: model.LayerWeights{
+			AttentionNorm: info("blk.1.attn_norm.weight"),
+			AttentionQ:    info("blk.1.attn_q.weight"),
+		},
+		EHProjection:   info("blk.1.nextn.eh_proj.weight"),
+		EmbeddingNorm:  info("blk.1.nextn.enorm.weight"),
+		HiddenNorm:     info("blk.1.nextn.hnorm.weight"),
+		TokenEmbedding: pointer("blk.1.nextn.embed_tokens.weight"),
+		OutputNorm:     pointer("blk.1.nextn.shared_head_norm.weight"),
+		Output:         pointer("blk.1.nextn.shared_head_head.weight"),
+	}
+	weights := model.Weights{
+		TokenEmbedding: info("token_embd.weight"),
+		Step35MTP:      []model.Step35MTPWeights{mtp},
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		weights.TokenEmbedding, mtp.Layer.AttentionNorm, mtp.Layer.AttentionQ,
+		mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm,
+		*mtp.TokenEmbedding, *mtp.OutputNorm, *mtp.Output,
+	}}
+	selected := selectedModelTensors(file, weights)
+	names := make(map[string]bool, len(selected))
+	for _, info := range selected {
+		names[info.Name] = true
+	}
+	for _, name := range []string{
+		"blk.1.attn_norm.weight", "blk.1.attn_q.weight",
+		"blk.1.nextn.eh_proj.weight", "blk.1.nextn.enorm.weight", "blk.1.nextn.hnorm.weight",
+		"blk.1.nextn.embed_tokens.weight", "blk.1.nextn.shared_head_norm.weight",
+		"blk.1.nextn.shared_head_head.weight",
+	} {
+		if !names[name] {
+			t.Fatalf("Step3.5 MTP tensor %q was not selected", name)
+		}
+	}
+}
+
 func TestGreedyLogitProbability(t *testing.T) {
 	token, probability, err := greedyLogit([]float32{0, 1, 1})
 	if err != nil {

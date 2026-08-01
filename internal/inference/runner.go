@@ -4130,7 +4130,11 @@ func isDSAArchitecture(architecture string) bool {
 
 func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	result := make(map[string]struct{})
-	for _, layer := range weights.Layers {
+	layers := append([]model.LayerWeights(nil), weights.Layers...)
+	for _, mtp := range weights.Step35MTP {
+		layers = append(layers, mtp.Layer)
+	}
+	for _, layer := range layers {
 		for _, info := range []*gguf.TensorInfo{
 			layer.SSMConv1D,
 			layer.SSMQueryConv,
@@ -4149,6 +4153,16 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
 	names := map[string]struct{}{weights.TokenEmbedding.Name: {}}
 	if mtp := weights.Qwen35MTP; mtp != nil {
+		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
+			names[info.Name] = struct{}{}
+		}
+		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.OutputNorm, mtp.Output} {
+			if info != nil {
+				names[info.Name] = struct{}{}
+			}
+		}
+	}
+	for _, mtp := range weights.Step35MTP {
 		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
 			names[info.Name] = struct{}{}
 		}
@@ -4234,7 +4248,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			}
 		}
 	}
-	capacity := len(weights.EncoderLayers) + len(weights.Layers)
+	capacity := len(weights.EncoderLayers) + len(weights.Layers) + len(weights.Step35MTP)
 	if weights.Qwen35MTP != nil {
 		capacity++
 	}
@@ -4243,6 +4257,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	allLayers = append(allLayers, weights.Layers...)
 	if weights.Qwen35MTP != nil {
 		allLayers = append(allLayers, weights.Qwen35MTP.Layer)
+	}
+	for _, mtp := range weights.Step35MTP {
+		allLayers = append(allLayers, mtp.Layer)
 	}
 	for _, layer := range allLayers {
 		infos := []gguf.TensorInfo{

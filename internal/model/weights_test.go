@@ -441,6 +441,58 @@ func TestReadWeightsStep35MixedDenseAndMoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsStep35MTPHeads(t *testing.T) {
+	spec := Spec{
+		Architecture: "step35", BlockCount: 1, NextNPredictLayers: 2,
+		EmbeddingLength: 8, FeedForwardLength: 12, VocabularySize: 32,
+		HeadCount: 2, HeadCountKV: 1,
+		LayerHeadCounts: []uint32{2, 4, 2}, LayerKVHeadCounts: []uint32{1, 2, 1},
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("rope_freqs.weight", 2),
+	}
+	for block := uint32(0); block < 3; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		heads, kvHeads := spec.LayerHeadCount(block), spec.LayerKVHeadCount(block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, uint64(heads)*4),
+			tensorInfo(prefix+"attn_k.weight", 8, uint64(kvHeads)*4),
+			tensorInfo(prefix+"attn_v.weight", 8, uint64(kvHeads)*4),
+			tensorInfo(prefix+"attn_output.weight", uint64(heads)*4, 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 12),
+			tensorInfo(prefix+"ffn_up.weight", 8, 12),
+			tensorInfo(prefix+"ffn_down.weight", 12, 8),
+		)
+		if block > 0 {
+			tensors = append(tensors,
+				tensorInfo(prefix+"nextn.eh_proj.weight", 16, 8),
+				tensorInfo(prefix+"nextn.enorm.weight", 8),
+				tensorInfo(prefix+"nextn.hnorm.weight", 8),
+			)
+		}
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.1.nextn.embed_tokens.weight", 8, 32),
+		tensorInfo("blk.2.nextn.shared_head_norm.weight", 8),
+		tensorInfo("blk.2.nextn.shared_head_head.weight", 8, 32),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(weights.Layers) != 1 || len(weights.Step35MTP) != 2 ||
+		weights.Step35MTP[0].Layer.AttentionQ.Shape[1] != 16 ||
+		weights.Step35MTP[0].TokenEmbedding == nil || weights.Step35MTP[0].OutputNorm != nil ||
+		weights.Step35MTP[1].Layer.AttentionQ.Shape[1] != 8 ||
+		weights.Step35MTP[1].OutputNorm == nil || weights.Step35MTP[1].Output == nil {
+		t.Fatalf("unexpected Step3.5 MTP catalog: %+v", weights.Step35MTP)
+	}
+}
+
 func TestReadWeightsDBRX(t *testing.T) {
 	spec := Spec{
 		Architecture: "dbrx", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,

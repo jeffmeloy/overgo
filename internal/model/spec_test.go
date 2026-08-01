@@ -241,7 +241,7 @@ func TestReadMiMo2SpecTrimsMTPArrays(t *testing.T) {
 	}
 }
 
-func TestReadStep35SpecTrimsMTPArrays(t *testing.T) {
+func TestReadStep35SpecPreservesMTPArrays(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "step35"),
 		metadata("step35.block_count", gguf.ValueTypeUint32, uint32(3)),
@@ -283,11 +283,14 @@ func TestReadStep35SpecTrimsMTPArrays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.BlockCount != 2 || len(spec.LayerHeadCounts) != 2 || len(spec.LayerKVHeadCounts) != 2 ||
+	if spec.BlockCount != 2 || spec.NextNPredictLayers != 1 ||
+		len(spec.LayerHeadCounts) != 3 || len(spec.LayerKVHeadCounts) != 3 ||
 		spec.LayerHeadCount(1) != 4 || spec.LayerKVHeadCount(1) != 2 ||
+		spec.LayerHeadCount(2) != 2 || spec.LayerKVHeadCount(2) != 1 ||
 		spec.LayerRopeDimensionCount(0) != 2 || spec.LayerRopeDimensionCount(1) != 4 ||
-		spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
+		spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) || spec.IsSlidingLayer(2) ||
 		spec.LayerExpertSwiGLUClamp(1) != 3 || spec.LayerSharedSwiGLUClampLimit(1) != 5 ||
+		spec.LayerExpertSwiGLUClamp(2) != 0 || spec.LayerSharedSwiGLUClampLimit(2) != 0 ||
 		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.SharedExpertFF != 8 {
 		t.Fatalf("unexpected Step3.5 spec: %+v", spec)
 	}

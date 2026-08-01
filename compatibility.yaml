@@ -1511,28 +1511,32 @@ models:
     execution:
       - bounded-host
       - f32-preload
+      - native-quantized-projections
     features:
       - per-layer-attention-convolution-schedule
       - qk-rmsnorm-attention
       - optional-sliding-attention
       - gated-channel-wise-short-convolution
+      - centered-non-causal-short-convolution
       - serializable-hybrid-cache
       - swiglu
     limitations:
-      - native-quantized-convolution-kernel-pending
-      - centered-non-causal-convolution-pending
+      - f32-short-convolution-coefficients
+      - even-kernel-centered-convolution-rejected
     real_model_validation: pending-fixture
   lfm2moe:
     status: experimental
     execution:
       - bounded-host
       - f32-preload
+      - native-quantized-projections
       - native-quantized-experts
     features:
       - per-layer-attention-convolution-schedule
       - qk-rmsnorm-attention
       - optional-sliding-attention
       - gated-channel-wise-short-convolution
+      - centered-non-causal-short-convolution
       - optional-leading-dense-swiglu-blocks
       - softmax-or-sigmoid-top-k-routing
       - required-selection-correction-bias
@@ -1541,8 +1545,8 @@ models:
       - packed-swiglu-experts
       - serializable-hybrid-cache
     limitations:
-      - native-quantized-convolution-kernel-pending
-      - centered-non-causal-convolution-pending
+      - f32-short-convolution-coefficients
+      - even-kernel-centered-convolution-rejected
     real_model_validation: pending-fixture
   jais:
     status: experimental

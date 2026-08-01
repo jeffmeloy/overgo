@@ -1159,10 +1159,15 @@ all-position logits.
 
 LFM2 now consumes its per-layer KV-head schedule, uses Q/K-normalized attention
 on transformer layers, and runs gated channel-wise short convolution on
-recurrent layers. Its fixed convolution window participates in host cache
-serialization and prefix-edit operations; bounded-host and F32-preload CUDA
-execution are covered. Native quantized convolution kernels and centered
-non-causal LFM2 convolution remain deferred.
+recurrent layers. Causal execution prepends the serialized convolution state;
+explicit non-causal execution uses the pinned centered window with zero right
+padding and accepts odd kernels that preserve sequence length. Its fixed
+convolution window participates in host cache serialization and prefix-edit
+operations; bounded-host and F32-preload CUDA execution are covered. Native
+quantized input/output projections reuse the generic matmul kernels. Short
+convolution coefficients remain F32 because their kernel-width dimension is
+not GGUF block-quantizable. Even centered kernels are rejected because the
+pinned symmetric padding rule would shorten the sequence.
 
 LFM2-MoE composes that hybrid cache with optional leading dense SwiGLU blocks
 and later normalized softmax or sigmoid top-k routed experts. Selection

@@ -1800,6 +1800,77 @@ func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	}
 }
 
+func TestBuildLFM2CenteredShortConvolutionBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "lfm2", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 1, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RMSNormEpsilon: 1e-6, ShortConvCacheLength: 3, NonCausalAttention: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 3))
+	weights := LayerGraphWeights{
+		AttentionNorm:   builder.Input("operator_norm", dtype.F32, tensor.MustShape(4)),
+		ShortConvInput:  builder.Input("conv_in", dtype.F32, tensor.MustShape(4, 12)),
+		ShortConvKernel: builder.Input("conv_kernel", dtype.F32, tensor.MustShape(3, 4)),
+		ShortConvOutput: builder.Input("conv_out", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+	}
+	state := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 4))
+	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
+	result, err := BuildLFM2BlockCached(
+		builder, input, spec, weights, []uint32{0, 1, 2}, true, state, reserved, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(state.Shape) {
+		t.Fatalf("unexpected centered LFM2 result: %+v", result)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var convolution *tensor.Tensor
+	for _, node := range nodes {
+		if node.Op == tensor.OpSSMConv {
+			convolution = node
+		}
+	}
+	if convolution == nil || !convolution.Inputs[0].Shape.Equal(tensor.MustShape(5, 4)) {
+		t.Fatalf("centered LFM2 convolution input = %v", convolution)
+	}
+}
+
+func TestBuildLFM2CenteredShortConvolutionRejectsEvenKernel(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "lfm2", EmbeddingLength: 4, FeedForwardLength: 6,
+		RMSNormEpsilon: 1e-6, ShortConvCacheLength: 4, NonCausalAttention: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:   builder.Input("operator_norm", dtype.F32, tensor.MustShape(4)),
+		ShortConvInput:  builder.Input("conv_in", dtype.F32, tensor.MustShape(4, 12)),
+		ShortConvKernel: builder.Input("conv_kernel", dtype.F32, tensor.MustShape(4, 4)),
+		ShortConvOutput: builder.Input("conv_out", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+	}
+	_, err := BuildLFM2BlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, true,
+		builder.Input("conv_state", dtype.F32, tensor.MustShape(3, 4)),
+		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), 0,
+	)
+	if err == nil || !strings.Contains(err.Error(), "odd kernel") {
+		t.Fatalf("centered even-kernel error = %v", err)
+	}
+}
+
 func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

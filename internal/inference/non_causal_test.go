@@ -36,3 +36,15 @@ func TestCausalRunnerRejectsNonCausalEntryPoint(t *testing.T) {
 		t.Fatalf("ForwardNonCausal error = %v", err)
 	}
 }
+
+func TestLFM2RunnerAcceptsNonCausalEntryPoint(t *testing.T) {
+	for _, architecture := range []string{"lfm2", "lfm2moe"} {
+		t.Run(architecture, func(t *testing.T) {
+			runner := &Runner{spec: model.Spec{Architecture: architecture}}
+			_, err := runner.ForwardNonCausal(context.Background(), nil)
+			if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
+				t.Fatalf("ForwardNonCausal error = %v", err)
+			}
+		})
+	}
+}

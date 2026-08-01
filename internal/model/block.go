@@ -2840,7 +2840,19 @@ func BuildLFM2BlockCached(
 	b := builder.Reshape(builder.GroupSlice(mixed, 0, embedding, 1, 3*embedding), embedding, tokens)
 	c := builder.Reshape(builder.GroupSlice(mixed, embedding, embedding, 1, 3*embedding), embedding, tokens)
 	x := builder.Reshape(builder.GroupSlice(mixed, 2*embedding, embedding, 1, 3*embedding), embedding, tokens)
-	convInput := builder.Concat(pastKey, builder.Transpose2D(builder.Multiply(b, x)), 0)
+	projected := builder.Transpose2D(builder.Multiply(b, x))
+	convInput := builder.Concat(pastKey, projected, 0)
+	if spec.NonCausalAttention {
+		kernel := uint64(spec.ShortConvCacheLength)
+		if kernel%2 == 0 {
+			return LFM2BlockResult{}, errors.New("LFM2 centered convolution requires an odd kernel")
+		}
+		pad := window / 2
+		left := builder.GroupSlice(pastKey, window-pad, pad, 1, window)
+		left = builder.Reshape(left, pad, embedding)
+		right := builder.Scale(left, 0)
+		convInput = builder.Concat(builder.Concat(left, projected, 0), right, 0)
+	}
 	nextState := builder.GroupSlice(convInput, tokens, window, 1, window)
 	nextState = builder.Reshape(nextState, window, embedding)
 	convolved := builder.SSMConv(convInput, weights.ShortConvKernel)

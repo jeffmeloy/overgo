@@ -1136,7 +1136,7 @@ func (r *Runner) ForwardNonCausal(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if !r.spec.NonCausalAttention {
+	if !r.spec.NonCausalAttention && !isLFM2Architecture(r.spec.Architecture) {
 		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
 	}
 	return r.forwardNonCausalLocked(ctx, tokenIDs)
@@ -1176,7 +1176,7 @@ func (r *Runner) ForwardNonCausalLogits(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if !r.spec.NonCausalAttention {
+	if !r.spec.NonCausalAttention && !isLFM2Architecture(r.spec.Architecture) {
 		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
 	}
 	hidden, err := r.forwardNonCausalLocked(ctx, tokenIDs)
@@ -1231,6 +1231,17 @@ func (r *Runner) forwardNonCausalLocked(
 	activation, err = r.applyTokenEmbeddingNorm(ctx, activation)
 	if err != nil {
 		return reference.Value{}, err
+	}
+	if isLFM2Architecture(r.spec.Architecture) {
+		for layerIndex, layerInfo := range r.weights.Layers {
+			activation, err = r.runLFM2LayerNonCausal(
+				ctx, activation, layerInfo, layerIndex, positions,
+			)
+			if err != nil {
+				return reference.Value{}, fmt.Errorf("inference layer %d: %w", layerIndex, err)
+			}
+		}
+		return r.runOutputNorm(ctx, activation)
 	}
 	if r.hasPreloadedWeights() {
 		return r.forwardDenseLayersNoCachePreloaded(ctx, activation, positions)
@@ -2473,6 +2484,78 @@ func (r *Runner) runLFM2LayerCached(
 	return results[output], LayerCache{Key: results[result.Key], Value: results[result.Value]}, nil
 }
 
+func (r *Runner) runLFM2LayerNonCausal(
+	ctx context.Context,
+	activation reference.Value,
+	info model.LayerWeights,
+	layerIndex int,
+	positions []uint32,
+) (reference.Value, error) {
+	builder := r.newGraphBuilder()
+	input := builder.Input("input", dtype.F32, activation.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var graphWeights model.LayerGraphWeights
+	var err error
+	if r.hasPreloadedWeights() {
+		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
+	} else {
+		var hostLayer model.HostLayer
+		hostLayer, err = model.LoadHostLayer(ctx, r.file, info)
+		if err == nil {
+			var layerFeeds map[*tensor.Tensor]reference.Value
+			graphWeights, layerFeeds, err = hostLayer.GraphInputs(
+				builder, fmt.Sprintf("blk.%d.", layerIndex),
+			)
+			for node, value := range layerFeeds {
+				hostFeeds[node] = value
+			}
+		}
+	}
+	if err != nil {
+		return reference.Value{}, err
+	}
+	var state, reserved *tensor.Tensor
+	if info.Recurrent {
+		stateShape := tensor.MustShape(
+			uint64(r.spec.ShortConvCacheLength-1), uint64(r.spec.EmbeddingLength),
+		)
+		stateElements, _ := stateShape.Elements()
+		stateValue := reference.Value{
+			Shape: stateShape, Data: make([]float32, int(stateElements)),
+		}
+		reservedValue := reference.Value{
+			Shape: tensor.MustShape(1), Data: []float32{0},
+		}
+		state = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, stateShape)
+		reserved = builder.Input(
+			fmt.Sprintf("blk.%d.reserved_state", layerIndex), dtype.F32, reservedValue.Shape,
+		)
+		hostFeeds[state], hostFeeds[reserved] = stateValue, reservedValue
+	}
+	spec := r.spec
+	spec.NonCausalAttention = true
+	result, err := model.BuildLFM2BlockCached(
+		builder, input, spec, graphWeights, positions, info.Recurrent, state, reserved,
+		uint32(layerIndex),
+	)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	var results map[*tensor.Tensor]reference.Value
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(
+			ctx, []*tensor.Tensor{result.Output}, hostFeeds, deviceFeeds,
+		)
+	} else {
+		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{result.Output}, hostFeeds)
+	}
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return results[result.Output], nil
+}
+
 func (r *Runner) runDenseLayerNoCache(
 	ctx context.Context,
 	activation reference.Value,
@@ -3647,6 +3730,10 @@ func addOutputBias(logits, bias []float32) error {
 
 func isQwenGDNArchitecture(architecture string) bool {
 	return architecture == "qwen3next" || architecture == "qwen35" || architecture == "qwen35moe"
+}
+
+func isLFM2Architecture(architecture string) bool {
+	return architecture == "lfm2" || architecture == "lfm2moe"
 }
 
 func isDSAArchitecture(architecture string) bool {

@@ -237,6 +237,80 @@ extern "C" __global__ void relu_f32(
 	}
 }
 
+extern "C" __global__ void conv_1d_same_f32(
+		const float * input,
+		const float * weight,
+		const float * bias,
+		float * output,
+		unsigned int channels_in,
+		unsigned int tokens,
+		unsigned int kernel,
+		unsigned int channels_out,
+		unsigned int depthwise,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel_out = index % channels_out;
+	const unsigned int token = index / channels_out;
+	const int padding = (int) kernel / 2;
+	float sum = bias[channel_out];
+	for (unsigned int tap = 0; tap < kernel; ++tap) {
+		const int source_token = (int) token + (int) tap - padding;
+		if (source_token < 0 || source_token >= (int) tokens) {
+			continue;
+		}
+		if (depthwise) {
+			sum += input[(unsigned int) source_token * channels_in + channel_out] *
+				weight[channel_out * kernel + tap];
+			continue;
+		}
+		for (unsigned int channel_in = 0; channel_in < channels_in; ++channel_in) {
+			const unsigned int weight_offset =
+				(channel_out * channels_in + channel_in) * kernel + tap;
+			sum += input[(unsigned int) source_token * channels_in + channel_in] * weight[weight_offset];
+		}
+	}
+	output[index] = sum;
+}
+
+extern "C" __global__ void group_norm_f32(
+		const float * input,
+		const float * weight,
+		const float * bias,
+		float * output,
+		unsigned int channels,
+		unsigned int tokens,
+		unsigned int groups,
+		float epsilon,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel = index % channels;
+	const unsigned int channels_per_group = channels / groups;
+	const unsigned int first_channel = (channel / channels_per_group) * channels_per_group;
+	const unsigned int values_per_group = channels_per_group * tokens;
+	float mean = 0.0f;
+	for (unsigned int token = 0; token < tokens; ++token) {
+		for (unsigned int item = 0; item < channels_per_group; ++item) {
+			mean += input[token * channels + first_channel + item];
+		}
+	}
+	mean /= (float) values_per_group;
+	float variance = 0.0f;
+	for (unsigned int token = 0; token < tokens; ++token) {
+		for (unsigned int item = 0; item < channels_per_group; ++item) {
+			const float delta = input[token * channels + first_channel + item] - mean;
+			variance += delta * delta;
+		}
+	}
+	const float normalized = (input[index] - mean) * rsqrtf(variance / (float) values_per_group + epsilon);
+	output[index] = normalized * weight[channel] + bias[channel];
+}
+
 extern "C" __global__ void sigmoid_f32(
         const float * input,
         float * output,

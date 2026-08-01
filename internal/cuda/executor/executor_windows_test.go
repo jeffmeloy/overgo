@@ -6990,6 +6990,127 @@ func TestExecutorT5DecoderBlockMatchesReference(t *testing.T) {
 	}
 }
 
+func TestExecutorAudioConvolutionPrimitivesMatchReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 5))
+	denseWeight := builder.Input("dense_weight", dtype.F32, tensor.MustShape(3, 4, 6))
+	denseBias := builder.Input("dense_bias", dtype.F32, tensor.MustShape(1, 6))
+	dense := builder.Conv1DSame(input, denseWeight, denseBias, false)
+	depthWeight := builder.Input("depth_weight", dtype.F32, tensor.MustShape(3, 1, 4))
+	depthBias := builder.Input("depth_bias", dtype.F32, tensor.MustShape(1, 4))
+	depthwise := builder.Conv1DSame(input, depthWeight, depthBias, true)
+	normWeight := builder.Input("norm_weight", dtype.F32, tensor.MustShape(1, 4))
+	normBias := builder.Input("norm_bias", dtype.F32, tensor.MustShape(1, 4))
+	normalized := builder.GroupNorm(input, normWeight, normBias, 2, 1e-5)
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:       patternedValue(input.Shape, 3, 0.1, -0.4),
+		denseWeight: patternedValue(denseWeight.Shape, 5, 0.04, -0.2),
+		denseBias:   patternedValue(denseBias.Shape, 7, 0.03, -0.1),
+		depthWeight: patternedValue(depthWeight.Shape, 11, 0.04, -0.2),
+		depthBias:   patternedValue(depthBias.Shape, 13, 0.03, -0.1),
+		normWeight:  patternedValue(normWeight.Shape, 17, 0.03, 0.9),
+		normBias:    patternedValue(normBias.Shape, 19, 0.02, -0.05),
+	}
+	outputs := []*tensor.Tensor{dense, depthwise, normalized}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 3e-5)
+	}
+}
+
+func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	seed := 3
+	input := func(shape tensor.Shape, scale, offset float32) *tensor.Tensor {
+		item := builder.Input(fmt.Sprintf("wav_%d", seed), dtype.F32, shape)
+		feeds[item] = patternedValue(shape, seed, scale, offset)
+		seed += 2
+		return item
+	}
+	spec := model.Spec{
+		Architecture: "wavtokenizer-dec", EmbeddingLength: 2, OutputEmbeddingLength: 3,
+		PosNetEmbeddingLength: 2, PosNetBlockCount: 6,
+		ConvNextEmbeddingLength: 2, ConvNextBlockCount: 1, FeedForwardLength: 4,
+		GroupNormGroups: 1, GroupNormEpsilon: 1e-5, LayerNormEpsilon: 1e-5,
+	}
+	weights := model.WavTokenizerGraphWeights{
+		InputConv:      input(tensor.MustShape(7, 2, 2), 0.03, -0.1),
+		InputConvBias:  input(tensor.MustShape(1, 2), 0.02, -0.03),
+		PosNet:         make([]model.WavPosNetGraphWeights, 6),
+		TokenNorm:      input(tensor.MustShape(2), 0.03, 0.9),
+		TokenNormBias:  input(tensor.MustShape(2), 0.02, -0.03),
+		ConvNext:       make([]model.WavConvNextGraphWeights, 1),
+		OutputNorm:     input(tensor.MustShape(2), 0.03, 0.9),
+		OutputNormBias: input(tensor.MustShape(2), 0.02, -0.03),
+		Output:         input(tensor.MustShape(2, 3), 0.04, -0.1),
+		OutputBias:     input(tensor.MustShape(3), 0.02, -0.03),
+	}
+	for _, block := range []int{0, 1, 3, 4} {
+		weights.PosNet[block] = model.WavPosNetGraphWeights{
+			Norm1: input(tensor.MustShape(1, 2), 0.03, 0.9), Norm1Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+			Conv1: input(tensor.MustShape(3, 2, 2), 0.03, -0.1), Conv1Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+			Norm2: input(tensor.MustShape(1, 2), 0.03, 0.9), Norm2Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+			Conv2: input(tensor.MustShape(3, 2, 2), 0.03, -0.1), Conv2Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+		}
+	}
+	weights.PosNet[2] = model.WavPosNetGraphWeights{
+		AttentionNorm: input(tensor.MustShape(1, 2), 0.03, 0.9), AttentionNormBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+		AttentionQ: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionQBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+		AttentionK: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionKBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+		AttentionV: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionVBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+		AttentionOutput: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionOutBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+	}
+	weights.PosNet[5] = model.WavPosNetGraphWeights{
+		AttentionNorm:     input(tensor.MustShape(1, 2), 0.03, 0.9),
+		AttentionNormBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+	}
+	weights.ConvNext[0] = model.WavConvNextGraphWeights{
+		Depthwise: input(tensor.MustShape(7, 1, 2), 0.03, -0.1), DepthwiseBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
+		Norm: input(tensor.MustShape(2), 0.03, 0.9), NormBias: input(tensor.MustShape(2), 0.02, -0.03),
+		Pointwise1: input(tensor.MustShape(2, 4), 0.03, -0.1), Pointwise1Bias: input(tensor.MustShape(4), 0.02, -0.03),
+		Pointwise2: input(tensor.MustShape(4, 2), 0.03, -0.1), Pointwise2Bias: input(tensor.MustShape(2), 0.02, -0.03),
+		Gamma: input(tensor.MustShape(2), 0.03, 0.9),
+	}
+	embeddings := input(tensor.MustShape(2, 4), 0.1, -0.2)
+	output, err := model.BuildWavTokenizerDecoder(builder, embeddings, spec, weights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 1e-3)
+}
+
 func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

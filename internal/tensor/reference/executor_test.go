@@ -1402,6 +1402,39 @@ func TestExecuteReLU(t *testing.T) {
 	}
 }
 
+func TestExecuteSameConv1DAndGroupNorm(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 3))
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(3, 2, 1))
+	bias := builder.Input("bias", dtype.F32, tensor.MustShape(1, 1))
+	convolution := builder.Conv1DSame(input, weight, bias, false)
+	normInput := builder.Input("norm_input", dtype.F32, tensor.MustShape(4, 2))
+	normWeight := builder.Input("norm_weight", dtype.F32, tensor.MustShape(1, 4))
+	normBias := builder.Input("norm_bias", dtype.F32, tensor.MustShape(1, 4))
+	normalized := builder.GroupNorm(normInput, normWeight, normBias, 2, 1e-5)
+	feeds := map[*tensor.Tensor]Value{
+		input:      {Shape: input.Shape, Data: []float32{1, 10, 2, 20, 3, 30}},
+		weight:     {Shape: weight.Shape, Data: []float32{1, 1, 1, .1, .1, .1}},
+		bias:       {Shape: bias.Shape, Data: []float32{1}},
+		normInput:  {Shape: normInput.Shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
+		normWeight: {Shape: normWeight.Shape, Data: []float32{1, 1, 1, 1}},
+		normBias:   {Shape: normBias.Shape, Data: make([]float32, 4)},
+	}
+	results, err := Execute([]*tensor.Tensor{convolution, normalized}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(results[convolution].Data, []float32{7, 13, 11}) {
+		t.Fatalf("same Conv1D = %v, want [7 13 11]", results[convolution].Data)
+	}
+	want := []float64{-1.2126768, -0.7276061, -1.2126768, -0.7276061, 0.7276061, 1.2126768, 0.7276061, 1.2126768}
+	for index, value := range results[normalized].Data {
+		if math.Abs(float64(value)-want[index]) > 1e-5 {
+			t.Fatalf("group norm[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
 func TestExecuteGroupedMulMat(t *testing.T) {
 	builder := tensor.NewBuilder()
 	left := builder.Input("left", dtype.F32, tensor.MustShape(2, 2, 2))

@@ -3386,6 +3386,35 @@ func TestReadT5Spec(t *testing.T) {
 	}
 }
 
+func TestReadWavTokenizerDecoderSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "wavtokenizer-dec"),
+		metadata("wavtokenizer-dec.block_count", gguf.ValueTypeUint32, uint32(6)),
+		metadata("wavtokenizer-dec.context_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("wavtokenizer-dec.embedding_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("wavtokenizer-dec.features_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("wavtokenizer-dec.feed_forward_length", gguf.ValueTypeUint32, uint32(24)),
+		metadata("wavtokenizer-dec.posnet.embedding_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("wavtokenizer-dec.posnet.block_count", gguf.ValueTypeUint32, uint32(6)),
+		metadata("wavtokenizer-dec.convnext.embedding_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("wavtokenizer-dec.convnext.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("wavtokenizer-dec.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("wavtokenizer-dec.attention.group_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("wavtokenizer-dec.attention.group_norm_groups", gguf.ValueTypeUint32, uint32(3)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "wavtokenizer-dec" || spec.EmbeddingLength != 8 ||
+		spec.OutputEmbeddingLength != 16 || spec.PosNetEmbeddingLength != 12 ||
+		spec.PosNetBlockCount != 6 || spec.ConvNextBlockCount != 4 ||
+		spec.GroupNormGroups != 3 || !spec.NonCausalAttention || !spec.RopeDisabled ||
+		spec.HeadCount != 1 || spec.HeadCountKV != 1 || spec.KeyLength != 12 || spec.ValueLength != 12 {
+		t.Fatalf("unexpected WavTokenizer decoder spec: %+v", spec)
+	}
+}
+
 func TestReadErnie45MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "ernie4_5-moe"),
@@ -3551,7 +3580,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
 		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant",
-		"deepseek32", "deepseek4", "wavtokenizer-dec", "eagle3", "dflash",
+		"deepseek32", "deepseek4", "eagle3", "dflash",
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			file := &gguf.File{Metadata: []gguf.Metadata{

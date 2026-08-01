@@ -56,6 +56,8 @@ const (
 	OpSparseAttention
 	OpIndexerScore
 	OpReLU
+	OpConv1DSame
+	OpGroupNorm
 )
 
 var opNames = [...]string{
@@ -103,6 +105,8 @@ var opNames = [...]string{
 	"sparse_attention",
 	"indexer_score",
 	"relu",
+	"conv_1d_same",
+	"group_norm",
 }
 
 func (o Op) String() string {
@@ -178,6 +182,15 @@ type AttentionAttributes struct {
 	Window                uint32
 	RelativeBuckets       uint32
 	RelativeBidirectional bool
+}
+
+type Conv1DAttributes struct {
+	Depthwise bool
+}
+
+type GroupNormAttributes struct {
+	Groups  uint32
+	Epsilon float32
 }
 
 type MoEAttributes struct {
@@ -367,6 +380,69 @@ func (b *Builder) GELU(input *Tensor) *Tensor {
 
 func (b *Builder) ReLU(input *Tensor) *Tensor {
 	return b.unary(OpReLU, input, nil)
+}
+
+// Conv1DSame: odd-kernel stride-one convolution.
+func (b *Builder) Conv1DSame(input, weight, bias *Tensor, depthwise bool) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || weight == nil || bias == nil {
+		b.setError(errors.New("same Conv1D input is nil"))
+		return nil
+	}
+	if input.Type != weight.Type || input.Type != bias.Type ||
+		input.Shape.Rank != 2 || weight.Shape.Rank != 3 ||
+		weight.Shape.Dims[0] == 0 || weight.Shape.Dims[0]%2 == 0 {
+		b.setError(errors.New("same Conv1D tensor shape is invalid"))
+		return nil
+	}
+	inputChannels := input.Shape.Dims[0]
+	outputChannels := weight.Shape.Dims[2]
+	if (depthwise && (weight.Shape.Dims[1] != 1 || outputChannels != inputChannels)) ||
+		(!depthwise && weight.Shape.Dims[1] != inputChannels) {
+		b.setError(errors.New("same Conv1D channel shape is incompatible"))
+		return nil
+	}
+	biasOK := bias.Shape.Rank == 1 && bias.Shape.Dims[0] == outputChannels
+	biasOK = biasOK || bias.Shape.Rank == 2 && bias.Shape.Dims[0] == 1 && bias.Shape.Dims[1] == outputChannels
+	if !biasOK {
+		b.setError(errors.New("same Conv1D bias shape is incompatible"))
+		return nil
+	}
+	shape, err := NewShape(outputChannels, input.Shape.Dims[1])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", input.Type, shape, OpConv1DSame, []*Tensor{input, weight, bias}, Conv1DAttributes{Depthwise: depthwise})
+}
+
+// GroupNorm: channel groups across one sequence.
+func (b *Builder) GroupNorm(input, weight, bias *Tensor, groups uint32, epsilon float32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || weight == nil || bias == nil {
+		b.setError(errors.New("group norm input is nil"))
+		return nil
+	}
+	if epsilon <= 0 || groups == 0 || input.Shape.Rank != 2 ||
+		input.Shape.Dims[0]%uint64(groups) != 0 ||
+		input.Type != weight.Type || input.Type != bias.Type {
+		b.setError(errors.New("group norm configuration is invalid"))
+		return nil
+	}
+	channels := input.Shape.Dims[0]
+	weightOK := weight.Shape.Rank == 1 && weight.Shape.Dims[0] == channels
+	weightOK = weightOK || weight.Shape.Rank == 2 && weight.Shape.Dims[0] == 1 && weight.Shape.Dims[1] == channels
+	biasOK := bias.Shape.Rank == 1 && bias.Shape.Dims[0] == channels
+	biasOK = biasOK || bias.Shape.Rank == 2 && bias.Shape.Dims[0] == 1 && bias.Shape.Dims[1] == channels
+	if !weightOK || !biasOK {
+		b.setError(errors.New("group norm affine shape is incompatible"))
+		return nil
+	}
+	return b.add("", input.Type, input.Shape, OpGroupNorm, []*Tensor{input, weight, bias}, GroupNormAttributes{Groups: groups, Epsilon: epsilon})
 }
 
 func (b *Builder) XIELU(input *Tensor, alphaN, alphaP, beta, epsilon float32) *Tensor {

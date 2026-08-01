@@ -4306,6 +4306,58 @@ func TestReadWeightsT5EncoderDecoder(t *testing.T) {
 	}
 }
 
+func TestReadWeightsWavTokenizerDecoder(t *testing.T) {
+	spec := Spec{
+		Architecture: "wavtokenizer-dec", EmbeddingLength: 4, VocabularySize: 8,
+		OutputEmbeddingLength: 3, PosNetEmbeddingLength: 6, PosNetBlockCount: 6,
+		ConvNextEmbeddingLength: 6, ConvNextBlockCount: 2, FeedForwardLength: 10,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 4, 8),
+		tensorInfo("conv1d.weight", 7, 4, 6), tensorInfo("conv1d.bias", 1, 6),
+		tensorInfo("token_embd_norm.weight", 6), tensorInfo("token_embd_norm.bias", 6),
+		tensorInfo("output_norm.weight", 6), tensorInfo("output_norm.bias", 6),
+		tensorInfo("output.weight", 6, 3), tensorInfo("output.bias", 3),
+	}
+	for _, block := range []int{0, 1, 3, 4} {
+		prefix := fmt.Sprintf("posnet.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"norm1.weight", 1, 6), tensorInfo(prefix+"norm1.bias", 1, 6),
+			tensorInfo(prefix+"conv1.weight", 3, 6, 6), tensorInfo(prefix+"conv1.bias", 1, 6),
+			tensorInfo(prefix+"norm2.weight", 1, 6), tensorInfo(prefix+"norm2.bias", 1, 6),
+			tensorInfo(prefix+"conv2.weight", 3, 6, 6), tensorInfo(prefix+"conv2.bias", 1, 6),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("posnet.2.attn_norm.weight", 1, 6), tensorInfo("posnet.2.attn_norm.bias", 1, 6),
+		tensorInfo("posnet.2.attn_q.weight", 1, 6, 6), tensorInfo("posnet.2.attn_q.bias", 1, 6),
+		tensorInfo("posnet.2.attn_k.weight", 1, 6, 6), tensorInfo("posnet.2.attn_k.bias", 1, 6),
+		tensorInfo("posnet.2.attn_v.weight", 1, 6, 6), tensorInfo("posnet.2.attn_v.bias", 1, 6),
+		tensorInfo("posnet.2.attn_output.weight", 1, 6, 6), tensorInfo("posnet.2.attn_output.bias", 1, 6),
+		tensorInfo("posnet.5.attn_norm.weight", 1, 6), tensorInfo("posnet.5.attn_norm.bias", 1, 6),
+	)
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("convnext.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"dw.weight", 7, 1, 6), tensorInfo(prefix+"dw.bias", 1, 6),
+			tensorInfo(prefix+"norm.weight", 6), tensorInfo(prefix+"norm.bias", 6),
+			tensorInfo(prefix+"pw1.weight", 6, 10), tensorInfo(prefix+"pw1.bias", 10),
+			tensorInfo(prefix+"pw2.weight", 10, 6), tensorInfo(prefix+"pw2.bias", 6),
+			tensorInfo(prefix+"gamma.weight", 6),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.WavTokenizer == nil || len(weights.WavTokenizer.PosNet) != 6 ||
+		len(weights.WavTokenizer.ConvNext) != 2 || weights.WavTokenizer.PosNet[2].AttentionQ.Name == "" ||
+		weights.WavTokenizer.PosNet[5].AttentionNorm.Name == "" || weights.Output == nil ||
+		weights.Output.Shape[1] != 3 {
+		t.Fatalf("unexpected WavTokenizer decoder weights: %+v", weights.WavTokenizer)
+	}
+}
+
 func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 	spec := Spec{
 		Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,

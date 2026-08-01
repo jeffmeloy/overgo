@@ -2578,3 +2578,28 @@ models:
     limitations:
       - encoder-only
       - no-cross-attention
+  wavtokenizer-dec:
+    status: experimental
+    types:
+      - F32
+      - F16
+      - BF16
+    execution:
+      - host-f32-staging
+      - f32-preload
+    features:
+      - strict-decoder-catalog
+      - semantic-token-embedding
+      - six-stage-posnet
+      - non-causal-single-head-attention
+      - dense-and-depthwise-same-padding-conv1d
+      - channel-group-normalization
+      - convnext-gelu-projection
+      - audio-feature-frame-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-topology-and-known-answer
+      - full-cuda-decoder-differential
+    limitations:
+      - no-waveform-postprocessor
+      - real-model-fixture-pending

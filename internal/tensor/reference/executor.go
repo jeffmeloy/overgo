@@ -142,6 +142,18 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			}
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpConv1DSame:
+		attributes, ok := node.Attrs.(tensor.Conv1DAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid same Conv1D attributes")
+		}
+		return conv1DSame(node.Shape, inputs[0], inputs[1], inputs[2], attributes.Depthwise)
+	case tensor.OpGroupNorm:
+		attributes, ok := node.Attrs.(tensor.GroupNormAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid group norm attributes")
+		}
+		return groupNorm(node.Shape, inputs[0], inputs[1], inputs[2], attributes.Groups, attributes.Epsilon)
 	case tensor.OpXIELU:
 		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
 		if !ok {
@@ -300,6 +312,70 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	default:
 		return Value{}, fmt.Errorf("unsupported operation %s", node.Op)
 	}
+}
+
+func conv1DSame(shape tensor.Shape, input, weight, bias Value, depthwise bool) (Value, error) {
+	channelsIn := int(input.Shape.Dims[0])
+	tokens := int(input.Shape.Dims[1])
+	kernel := int(weight.Shape.Dims[0])
+	channelsOut := int(weight.Shape.Dims[2])
+	output := make([]float32, channelsOut*tokens)
+	padding := kernel / 2
+	for token := 0; token < tokens; token++ {
+		for channelOut := 0; channelOut < channelsOut; channelOut++ {
+			sum := float64(bias.Data[channelOut])
+			for tap := 0; tap < kernel; tap++ {
+				sourceToken := token + tap - padding
+				if sourceToken < 0 || sourceToken >= tokens {
+					continue
+				}
+				if depthwise {
+					sum += float64(input.Data[sourceToken*channelsIn+channelOut]) *
+						float64(weight.Data[channelOut*kernel+tap])
+					continue
+				}
+				for channelIn := 0; channelIn < channelsIn; channelIn++ {
+					weightOffset := (channelOut*channelsIn+channelIn)*kernel + tap
+					sum += float64(input.Data[sourceToken*channelsIn+channelIn]) * float64(weight.Data[weightOffset])
+				}
+			}
+			output[token*channelsOut+channelOut] = float32(sum)
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func groupNorm(shape tensor.Shape, input, weight, bias Value, groups uint32, epsilon float32) (Value, error) {
+	channels := int(input.Shape.Dims[0])
+	tokens := int(input.Shape.Dims[1])
+	channelsPerGroup := channels / int(groups)
+	valuesPerGroup := channelsPerGroup * tokens
+	output := make([]float32, len(input.Data))
+	for group := 0; group < int(groups); group++ {
+		firstChannel := group * channelsPerGroup
+		var mean float64
+		for token := 0; token < tokens; token++ {
+			for channel := firstChannel; channel < firstChannel+channelsPerGroup; channel++ {
+				mean += float64(input.Data[token*channels+channel])
+			}
+		}
+		mean /= float64(valuesPerGroup)
+		var variance float64
+		for token := 0; token < tokens; token++ {
+			for channel := firstChannel; channel < firstChannel+channelsPerGroup; channel++ {
+				delta := float64(input.Data[token*channels+channel]) - mean
+				variance += delta * delta
+			}
+		}
+		inverse := 1 / math.Sqrt(variance/float64(valuesPerGroup)+float64(epsilon))
+		for token := 0; token < tokens; token++ {
+			for channel := firstChannel; channel < firstChannel+channelsPerGroup; channel++ {
+				offset := token*channels + channel
+				output[offset] = float32((float64(input.Data[offset])-mean)*inverse)*weight.Data[channel] + bias.Data[channel]
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
 }
 
 func float16Round(value float32) float32 {

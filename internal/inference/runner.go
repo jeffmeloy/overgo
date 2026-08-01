@@ -366,6 +366,99 @@ func (r *Runner) deviceInput(
 	return nil, 0, fmt.Errorf("inference: device tensor %q is not preloaded", info.Name)
 }
 
+func (r *Runner) wavTokenizerGraphInputs(
+	ctx context.Context,
+	builder *tensor.Builder,
+) (model.WavTokenizerGraphWeights, map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, error) {
+	var result model.WavTokenizerGraphWeights
+	hostFeeds := make(map[*tensor.Tensor]reference.Value)
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	if r.weights.WavTokenizer == nil {
+		return result, nil, nil, errors.New("inference: WavTokenizer weights are missing")
+	}
+	input := func(info gguf.TensorInfo) (*tensor.Tensor, error) {
+		if r.hasPreloadedWeights() {
+			node, pointer, err := r.deviceInput(builder, info)
+			if err != nil {
+				return nil, err
+			}
+			deviceFeeds[node] = pointer
+			return node, nil
+		}
+		value, err := model.LoadHostTensor(ctx, r.file, info)
+		if err != nil {
+			return nil, err
+		}
+		node := builder.Input(info.Name, dtype.F32, value.Shape)
+		hostFeeds[node] = value
+		return node, nil
+	}
+	assign := func(destination **tensor.Tensor, info gguf.TensorInfo) error {
+		item, err := input(info)
+		if err == nil {
+			*destination = item
+		}
+		return err
+	}
+	info := r.weights.WavTokenizer
+	for _, item := range []struct {
+		destination **tensor.Tensor
+		info        gguf.TensorInfo
+	}{
+		{&result.InputConv, info.InputConv}, {&result.InputConvBias, info.InputConvBias},
+		{&result.TokenNorm, info.TokenNorm}, {&result.TokenNormBias, info.TokenNormBias},
+		{&result.OutputNorm, info.OutputNorm}, {&result.OutputNormBias, info.OutputNormBias},
+		{&result.Output, info.Output}, {&result.OutputBias, info.OutputBias},
+	} {
+		if err := assign(item.destination, item.info); err != nil {
+			return result, nil, nil, err
+		}
+	}
+	result.PosNet = make([]model.WavPosNetGraphWeights, len(info.PosNet))
+	for block := range info.PosNet {
+		source, destination := &info.PosNet[block], &result.PosNet[block]
+		for _, item := range []struct {
+			destination **tensor.Tensor
+			info        gguf.TensorInfo
+		}{
+			{&destination.Norm1, source.Norm1}, {&destination.Norm1Bias, source.Norm1Bias},
+			{&destination.Conv1, source.Conv1}, {&destination.Conv1Bias, source.Conv1Bias},
+			{&destination.Norm2, source.Norm2}, {&destination.Norm2Bias, source.Norm2Bias},
+			{&destination.Conv2, source.Conv2}, {&destination.Conv2Bias, source.Conv2Bias},
+			{&destination.AttentionNorm, source.AttentionNorm}, {&destination.AttentionNormBias, source.AttentionNormBias},
+			{&destination.AttentionQ, source.AttentionQ}, {&destination.AttentionQBias, source.AttentionQBias},
+			{&destination.AttentionK, source.AttentionK}, {&destination.AttentionKBias, source.AttentionKBias},
+			{&destination.AttentionV, source.AttentionV}, {&destination.AttentionVBias, source.AttentionVBias},
+			{&destination.AttentionOutput, source.AttentionOutput}, {&destination.AttentionOutBias, source.AttentionOutBias},
+		} {
+			if item.info.Name != "" {
+				if err := assign(item.destination, item.info); err != nil {
+					return result, nil, nil, err
+				}
+			}
+		}
+	}
+	result.ConvNext = make([]model.WavConvNextGraphWeights, len(info.ConvNext))
+	for block := range info.ConvNext {
+		source, destination := &info.ConvNext[block], &result.ConvNext[block]
+		for _, item := range []struct {
+			destination **tensor.Tensor
+			info        gguf.TensorInfo
+		}{
+			{&destination.Depthwise, source.Depthwise}, {&destination.DepthwiseBias, source.DepthwiseBias},
+			{&destination.Norm, source.Norm}, {&destination.NormBias, source.NormBias},
+			{&destination.Pointwise1, source.Pointwise1}, {&destination.Pointwise1Bias, source.Pointwise1Bias},
+			{&destination.Pointwise2, source.Pointwise2}, {&destination.Pointwise2Bias, source.Pointwise2Bias},
+			{&destination.Gamma, source.Gamma},
+		} {
+			if err := assign(item.destination, item.info); err != nil {
+				return result, nil, nil, err
+			}
+		}
+	}
+	return result, hostFeeds, deviceFeeds, nil
+}
+
 func (r *Runner) applyDeviceOutputNorm(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -951,6 +1044,9 @@ func (r *Runner) forwardLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
+	if r.spec.Architecture == "wavtokenizer-dec" {
+		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
+	}
 	if r.spec.Architecture == "t5encoder" {
 		return r.forwardT5EncoderLocked(ctx, tokenIDs)
 	}
@@ -984,6 +1080,25 @@ func (r *Runner) ForwardNonCausal(
 	return r.forwardNonCausalLocked(ctx, tokenIDs)
 }
 
+// DecodeWavTokenizer: decodes semantic tokens into audio-feature frames.
+func (r *Runner) DecodeWavTokenizer(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (reference.Value, error) {
+	if r == nil {
+		return reference.Value{}, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, errors.New("inference: runner is closed")
+	}
+	if r.spec.Architecture != "wavtokenizer-dec" {
+		return reference.Value{}, errors.New("inference: audio decode requires wavtokenizer-dec architecture")
+	}
+	return r.forwardWavTokenizerLocked(ctx, tokenIDs)
+}
+
 // ForwardNonCausalLogits: evaluates complete bidirectional sequence and
 // returns vocabulary logits for every position in shape [vocabulary, tokens]
 // never creates or mutates decoder cache state
@@ -1013,6 +1128,9 @@ func (r *Runner) forwardNonCausalLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
+	if r.spec.Architecture == "wavtokenizer-dec" {
+		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
+	}
 	if len(tokenIDs) == 0 {
 		return reference.Value{}, errors.New("inference: token sequence is empty")
 	}
@@ -1064,6 +1182,55 @@ func (r *Runner) forwardNonCausalLocked(
 		}
 	}
 	return r.runOutputNorm(ctx, activation)
+}
+
+func (r *Runner) forwardWavTokenizerLocked(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (reference.Value, error) {
+	if len(tokenIDs) == 0 {
+		return reference.Value{}, errors.New("inference: token sequence is empty")
+	}
+	if len(tokenIDs) > int(r.spec.ContextLength) {
+		return reference.Value{}, fmt.Errorf(
+			"inference: token count %d exceeds context length %d",
+			len(tokenIDs), r.spec.ContextLength,
+		)
+	}
+	rows := make([]uint32, len(tokenIDs))
+	for index, id := range tokenIDs {
+		if id < 0 || int(id) >= r.vocab.Len() {
+			return reference.Value{}, fmt.Errorf("inference: token ID %d is out of range", id)
+		}
+		rows[index] = uint32(id)
+	}
+	embeddings, err := r.loadEmbeddings(ctx, rows)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("wavtokenizer.embeddings", dtype.F32, embeddings.Shape)
+	graphWeights, hostFeeds, deviceFeeds, err := r.wavTokenizerGraphInputs(ctx, builder)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	hostFeeds[input] = embeddings
+	output, err := model.BuildWavTokenizerDecoder(builder, input, r.spec, graphWeights)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	var results map[*tensor.Tensor]reference.Value
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(
+			ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds,
+		)
+	} else {
+		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
+	}
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return results[output], nil
 }
 
 func (r *Runner) projectAllLogits(
@@ -3386,6 +3553,32 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	} {
 		if pointer != nil {
 			names[pointer.Name] = struct{}{}
+		}
+	}
+	if wav := weights.WavTokenizer; wav != nil {
+		infos := []gguf.TensorInfo{
+			wav.InputConv, wav.InputConvBias, wav.TokenNorm, wav.TokenNormBias,
+			wav.OutputNorm, wav.OutputNormBias, wav.Output, wav.OutputBias,
+		}
+		for _, layer := range wav.PosNet {
+			infos = append(infos,
+				layer.Norm1, layer.Norm1Bias, layer.Conv1, layer.Conv1Bias,
+				layer.Norm2, layer.Norm2Bias, layer.Conv2, layer.Conv2Bias,
+				layer.AttentionNorm, layer.AttentionNormBias,
+				layer.AttentionQ, layer.AttentionQBias, layer.AttentionK, layer.AttentionKBias,
+				layer.AttentionV, layer.AttentionVBias, layer.AttentionOutput, layer.AttentionOutBias,
+			)
+		}
+		for _, layer := range wav.ConvNext {
+			infos = append(infos,
+				layer.Depthwise, layer.DepthwiseBias, layer.Norm, layer.NormBias,
+				layer.Pointwise1, layer.Pointwise1Bias, layer.Pointwise2, layer.Pointwise2Bias, layer.Gamma,
+			)
+		}
+		for _, info := range infos {
+			if info.Name != "" {
+				names[info.Name] = struct{}{}
+			}
 		}
 	}
 	allLayers := make([]model.LayerWeights, 0, len(weights.EncoderLayers)+len(weights.Layers))

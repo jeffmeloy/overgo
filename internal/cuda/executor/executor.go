@@ -675,6 +675,8 @@ type functionSet struct {
 	xielu             driver.Function
 	reluSquared       driver.Function
 	relu              driver.Function
+	conv1DSame        driver.Function
+	groupNorm         driver.Function
 	sigmoid           driver.Function
 	softplus          driver.Function
 	tanh              driver.Function
@@ -860,6 +862,8 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"xielu_f32", &result.xielu},
 		{"relu_squared_f32", &result.reluSquared},
 		{"relu_f32", &result.relu},
+		{"conv_1d_same_f32", &result.conv1DSame},
+		{"group_norm_f32", &result.groupNorm},
 		{"sigmoid_f32", &result.sigmoid},
 		{"softplus_f32", &result.softplus},
 		{"tanh_f32", &result.tanh},
@@ -1142,6 +1146,54 @@ func launchNode(
 		runtime.KeepAlive(beta)
 		runtime.KeepAlive(epsilon)
 		runtime.KeepAlive(count)
+		return err
+	case tensor.OpConv1DSame:
+		attributes, ok := node.Attrs.(tensor.Conv1DAttributes)
+		if !ok {
+			return errors.New("invalid same Conv1D attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input, weight, bias := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
+		channelsIn := uint32(node.Inputs[0].Shape.Dims[0])
+		tokens := uint32(node.Inputs[0].Shape.Dims[1])
+		kernelWidth := uint32(node.Inputs[1].Shape.Dims[0])
+		channelsOut := uint32(node.Shape.Dims[0])
+		var depthwise uint32
+		if attributes.Depthwise {
+			depthwise = 1
+		}
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&bias), unsafe.Pointer(&output),
+			unsafe.Pointer(&channelsIn), unsafe.Pointer(&tokens), unsafe.Pointer(&kernelWidth),
+			unsafe.Pointer(&channelsOut), unsafe.Pointer(&depthwise), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.conv1DSame, count, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpGroupNorm:
+		attributes, ok := node.Attrs.(tensor.GroupNormAttributes)
+		if !ok {
+			return errors.New("invalid group norm attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input, weight, bias := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
+		channels := uint32(node.Shape.Dims[0])
+		tokens := uint32(node.Shape.Dims[1])
+		groups := attributes.Groups
+		epsilon := attributes.Epsilon
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&bias), unsafe.Pointer(&output),
+			unsafe.Pointer(&channels), unsafe.Pointer(&tokens), unsafe.Pointer(&groups),
+			unsafe.Pointer(&epsilon), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.groupNorm, count, args)
+		runtime.KeepAlive(args)
 		return err
 	case tensor.OpL2Norm:
 		attributes, ok := node.Attrs.(tensor.L2NormAttributes)

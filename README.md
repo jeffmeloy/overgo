@@ -410,6 +410,11 @@ decoder relative buckets, fixed cross-attention K/V, classic ReLU or gated
 GELU FFNs, and model-bound resumable session serialization. The public path is
 `NewT5Session` followed by chunked `DecodeT5`; `SaveT5Session` and
 `LoadT5Session` preserve both encoder output and decoder cache.
+WavTokenizer decoder execution maps semantic token IDs to audio-feature frames
+through the strict upstream tensor catalog, six-stage PosNet, full non-causal
+single-head attention, dense/depthwise same-padding convolutions, GroupNorm,
+and ConvNeXt projection blocks. `DecodeWavTokenizer` is the explicit public
+entry point; `Forward` returns the same feature matrix for this architecture.
 RWKV6 dual token shifts, WKV6 state, affine normalization, time-first mixing,
 per-head group normalization, and squared-ReLU channel mixing are
 synthetic-fixture and CUDA-differential validated.

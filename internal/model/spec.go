@@ -10,89 +10,96 @@ import (
 
 // Spec: contains common transformer metadata needed to construct model
 type Spec struct {
-	Architecture           string
-	Name                   string
-	BlockCount             uint32
-	ContextLength          uint32
-	EmbeddingLength        uint32
-	FeedForwardLength      uint32
-	HeadCount              uint32
-	HeadCountKV            uint32
-	KeyLength              uint32
-	ValueLength            uint32
-	KeyLengthSWA           uint32
-	ValueLengthSWA         uint32
-	RopeFrequencyBase      float32
-	RopeFrequencySWA       float32
-	RopeScalingType        string
-	RopeScalingFactor      float32
-	RopeAttentionFactor    float32
-	RopeYaRNLogMultiplier  float32
-	OriginalContextLength  uint32
-	AttentionScale         float32
-	AttentionTempScale     float32
-	AttentionTempFloor     uint32
-	AttentionTempOffset    float32
-	AttentionValueScale    float32
-	AttentionClamp         float32
-	MaxALiBiBias           float32
-	EmbeddingScale         float32
-	ResidualScale          float32
-	LogitScale             float32
-	AttentionSoftcap       float32
-	FinalLogitSoftcap      float32
-	RMSNormEpsilon         float32
-	LayerNormEpsilon       float32
-	VocabularySize         uint32
-	TokenTypeCount         uint32
-	ExpertCount            uint32
-	ExpertUsedCount        uint32
-	ExpertFeedForward      uint32
-	MoELatentSize          uint32
-	ExpertChunkFeedForward uint32
-	ExpertWeightsScale     float32
-	ExpertGroupScale       float32
-	ExpertsPerGroup        uint32
-	LeadingDenseBlocks     uint32
-	MoELayerStep           uint32
-	SharedExpertFF         uint32
-	SharedExpertCount      uint32
-	ExpertGatingFunc       uint32
-	ExpertWeightsNorm      bool
-	ShortConvCacheLength   uint32
-	QLoRARank              uint32
-	KVLoRARank             uint32
-	QKNormEpsilon          float32
-	SlidingWindow          uint32
-	SlidingPattern         uint32
-	RelativeBuckets        uint32
-	DecoderBlockCount      uint32
-	DecoderStartTokenID    uint32
-	NoRopeLayerStep        uint32
-	HiddenActivation       string
-	Dense2FeatureIn        uint32
-	Dense2FeatureOut       uint32
-	Dense3FeatureIn        uint32
-	Dense3FeatureOut       uint32
-	RopeDisabled           bool
-	ParallelResidual       bool
-	NonCausalAttention     bool
-	SandwichNorm           bool
-	YaRNExtFactor          float32
-	YaRNAttentionFactor    float32
-	YaRNBetaFast           float32
-	YaRNBetaSlow           float32
-	RopeDimensionSWA       uint32
-	LayerHeadCounts        []uint32
-	LayerKVHeadCounts      []uint32
-	LayerFeedForward       []uint32
-	SlidingLayers          []bool
-	LayerSwiGLUClamp       []float32
-	LayerSharedSwiGLUClamp []float32
-	XIELUAlphaN            []float32
-	XIELUAlphaP            []float32
-	XIELUBeta              []float32
-	XIELUEpsilon           []float32
+	Architecture            string
+	Name                    string
+	BlockCount              uint32
+	ContextLength           uint32
+	EmbeddingLength         uint32
+	FeedForwardLength       uint32
+	HeadCount               uint32
+	HeadCountKV             uint32
+	KeyLength               uint32
+	ValueLength             uint32
+	KeyLengthSWA            uint32
+	ValueLengthSWA          uint32
+	RopeFrequencyBase       float32
+	RopeFrequencySWA        float32
+	RopeScalingType         string
+	RopeScalingFactor       float32
+	RopeAttentionFactor     float32
+	RopeYaRNLogMultiplier   float32
+	OriginalContextLength   uint32
+	AttentionScale          float32
+	AttentionTempScale      float32
+	AttentionTempFloor      uint32
+	AttentionTempOffset     float32
+	AttentionValueScale     float32
+	AttentionClamp          float32
+	MaxALiBiBias            float32
+	EmbeddingScale          float32
+	ResidualScale           float32
+	LogitScale              float32
+	AttentionSoftcap        float32
+	FinalLogitSoftcap       float32
+	RMSNormEpsilon          float32
+	LayerNormEpsilon        float32
+	VocabularySize          uint32
+	TokenTypeCount          uint32
+	ExpertCount             uint32
+	ExpertUsedCount         uint32
+	ExpertFeedForward       uint32
+	MoELatentSize           uint32
+	ExpertChunkFeedForward  uint32
+	ExpertWeightsScale      float32
+	ExpertGroupScale        float32
+	ExpertsPerGroup         uint32
+	LeadingDenseBlocks      uint32
+	MoELayerStep            uint32
+	SharedExpertFF          uint32
+	SharedExpertCount       uint32
+	ExpertGatingFunc        uint32
+	ExpertWeightsNorm       bool
+	ShortConvCacheLength    uint32
+	QLoRARank               uint32
+	KVLoRARank              uint32
+	QKNormEpsilon           float32
+	SlidingWindow           uint32
+	SlidingPattern          uint32
+	RelativeBuckets         uint32
+	DecoderBlockCount       uint32
+	DecoderStartTokenID     uint32
+	OutputEmbeddingLength   uint32
+	PosNetEmbeddingLength   uint32
+	PosNetBlockCount        uint32
+	ConvNextEmbeddingLength uint32
+	ConvNextBlockCount      uint32
+	GroupNormGroups         uint32
+	GroupNormEpsilon        float32
+	NoRopeLayerStep         uint32
+	HiddenActivation        string
+	Dense2FeatureIn         uint32
+	Dense2FeatureOut        uint32
+	Dense3FeatureIn         uint32
+	Dense3FeatureOut        uint32
+	RopeDisabled            bool
+	ParallelResidual        bool
+	NonCausalAttention      bool
+	SandwichNorm            bool
+	YaRNExtFactor           float32
+	YaRNAttentionFactor     float32
+	YaRNBetaFast            float32
+	YaRNBetaSlow            float32
+	RopeDimensionSWA        uint32
+	LayerHeadCounts         []uint32
+	LayerKVHeadCounts       []uint32
+	LayerFeedForward        []uint32
+	SlidingLayers           []bool
+	LayerSwiGLUClamp        []float32
+	LayerSharedSwiGLUClamp  []float32
+	XIELUAlphaN             []float32
+	XIELUAlphaP             []float32
+	XIELUBeta               []float32
+	XIELUEpsilon            []float32
 
 	// Qwen3.5 hybrid recurrent-attention metadata
 	RopeDimensionCount    uint32
@@ -280,17 +287,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "falcon-h1" &&
 		architecture != "talkie" &&
 		architecture != "t5" &&
-		architecture != "t5encoder" {
+		architecture != "t5encoder" &&
+		architecture != "wavtokenizer-dec" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" {
+	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" || architecture == "wavtokenizer-dec" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" || architecture == "rwkv7" || architecture == "arwkv7" || architecture == "t5" ||
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" || architecture == "rwkv7" || architecture == "arwkv7" || architecture == "t5" || architecture == "wavtokenizer-dec" ||
 		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		spec.RopeDisabled = true
 	}
@@ -330,6 +338,22 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
+	if architecture == "wavtokenizer-dec" {
+		spec.OutputEmbeddingLength = spec.EmbeddingLength
+		if spec.EmbeddingLength, err = required[uint32](values, prefix+"features_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		for key, destination := range map[string]*uint32{
+			"posnet.embedding_length":   &spec.PosNetEmbeddingLength,
+			"posnet.block_count":        &spec.PosNetBlockCount,
+			"convnext.embedding_length": &spec.ConvNextEmbeddingLength,
+			"convnext.block_count":      &spec.ConvNextBlockCount,
+		} {
+			if *destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32); err != nil {
+				return Spec{}, err
+			}
+		}
+	}
 	if architecture == "gemma4" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		if spec.LayerFeedForward, err = requiredLayerUint32Compatible(
 			values, prefix+"feed_forward_length", spec.BlockCount,
@@ -345,7 +369,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "step35" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
+	if architecture == "wavtokenizer-dec" {
+		spec.HeadCount = 1
+	} else if architecture == "step35" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		if spec.LayerHeadCounts, err = requiredLayerUint32Compatible(
 			values, prefix+"attention.head_count", declaredBlockCount,
 		); err != nil {
@@ -362,7 +388,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "mamba" || architecture == "mamba2" {
+	if architecture == "wavtokenizer-dec" {
+		spec.HeadCountKV = 1
+	} else if architecture == "mamba" || architecture == "mamba2" {
 		spec.HeadCountKV = 0
 	} else if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
@@ -429,8 +457,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
+	if architecture == "wavtokenizer-dec" {
+		if spec.GroupNormEpsilon, err = required[float32](values, prefix+"attention.group_norm_epsilon", gguf.ValueTypeFloat32); err != nil {
+			return Spec{}, err
+		}
+		if spec.GroupNormGroups, err = required[uint32](values, prefix+"attention.group_norm_groups", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+	}
 	spec.KeyLength, _ = optional[uint32](values, prefix+"attention.key_length", gguf.ValueTypeUint32)
 	spec.ValueLength, _ = optional[uint32](values, prefix+"attention.value_length", gguf.ValueTypeUint32)
+	if architecture == "wavtokenizer-dec" {
+		spec.KeyLength = spec.PosNetEmbeddingLength
+		spec.ValueLength = spec.PosNetEmbeddingLength
+	}
 	if isDeepSeek2Family(architecture) || architecture == "glm-dsa" || architecture == "kimi-linear" {
 		if value, ok := optional[uint32](values, prefix+"attention.key_length_mla", gguf.ValueTypeUint32); ok {
 			spec.KeyLength = value
@@ -2519,7 +2559,8 @@ func (s Spec) IsEncoderOnly() bool {
 		s.Architecture == "modern-bert" ||
 		s.Architecture == "neo-bert" || s.Architecture == "nomic-bert" ||
 		s.Architecture == "nomic-bert-moe" ||
-		s.Architecture == "t5encoder"
+		s.Architecture == "t5encoder" ||
+		s.Architecture == "wavtokenizer-dec"
 }
 
 func (s Spec) UsesLayerNorm() bool {
@@ -2537,6 +2578,7 @@ func (s Spec) UsesLayerNorm() bool {
 		s.Architecture == "rwkv6" ||
 		s.Architecture == "rwkv7" ||
 		s.Architecture == "stablelm" ||
+		s.Architecture == "wavtokenizer-dec" ||
 		s.Architecture == "mpt" ||
 		usesSequentialGELU(s.Architecture)
 }
@@ -2590,6 +2632,14 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "t5" && s.DecoderBlockCount == 0 {
 		return errors.New("T5 decoder block count is zero")
+	}
+	if s.Architecture == "wavtokenizer-dec" {
+		if s.OutputEmbeddingLength == 0 || s.PosNetBlockCount != 6 || s.ConvNextBlockCount == 0 ||
+			s.PosNetEmbeddingLength == 0 || s.PosNetEmbeddingLength != s.ConvNextEmbeddingLength ||
+			s.GroupNormGroups == 0 || s.GroupNormEpsilon <= 0 ||
+			s.PosNetEmbeddingLength%s.GroupNormGroups != 0 {
+			return errors.New("WavTokenizer metadata is invalid")
+		}
 	}
 	if s.Architecture == "mamba" {
 		switch {

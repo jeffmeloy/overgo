@@ -168,6 +168,36 @@ type LayerWeights struct {
 	ChannelMixReceptance *gguf.TensorInfo
 }
 
+// WavPosNetWeights: layer-specific PosNet tensors
+type WavPosNetWeights struct {
+	Norm1, Norm1Bias, Conv1, Conv1Bias gguf.TensorInfo
+	Norm2, Norm2Bias, Conv2, Conv2Bias gguf.TensorInfo
+	AttentionNorm, AttentionNormBias   gguf.TensorInfo
+	AttentionQ, AttentionQBias         gguf.TensorInfo
+	AttentionK, AttentionKBias         gguf.TensorInfo
+	AttentionV, AttentionVBias         gguf.TensorInfo
+	AttentionOutput, AttentionOutBias  gguf.TensorInfo
+}
+
+// WavConvNextWeights: ConvNeXt block tensors
+type WavConvNextWeights struct {
+	Depthwise, DepthwiseBias   gguf.TensorInfo
+	Norm, NormBias             gguf.TensorInfo
+	Pointwise1, Pointwise1Bias gguf.TensorInfo
+	Pointwise2, Pointwise2Bias gguf.TensorInfo
+	Gamma                      gguf.TensorInfo
+}
+
+// WavTokenizerWeights: decoder-only audio tensors
+type WavTokenizerWeights struct {
+	InputConv, InputConvBias   gguf.TensorInfo
+	PosNet                     []WavPosNetWeights
+	TokenNorm, TokenNormBias   gguf.TensorInfo
+	ConvNext                   []WavConvNextWeights
+	OutputNorm, OutputNormBias gguf.TensorInfo
+	Output, OutputBias         gguf.TensorInfo
+}
+
 // Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
 	TokenEmbedding          gguf.TensorInfo
@@ -187,6 +217,7 @@ type Weights struct {
 	PerLayerProjectionNorm  *gguf.TensorInfo
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
+	WavTokenizer            *WavTokenizerWeights
 }
 
 // ReadWeights: validates names and shapes without loading tensor bytes
@@ -242,6 +273,126 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		uint64(spec.VocabularySize),
 	); err != nil {
 		return Weights{}, err
+	}
+	if spec.Architecture == "wavtokenizer-dec" {
+		width := uint64(spec.PosNetEmbeddingLength)
+		ffn := uint64(spec.FeedForwardLength)
+		wav := &WavTokenizerWeights{
+			PosNet:   make([]WavPosNetWeights, spec.PosNetBlockCount),
+			ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
+		}
+		load := func(destination *gguf.TensorInfo, name string, shape ...uint64) error {
+			item, loadErr := required(name, shape...)
+			if loadErr == nil {
+				*destination = item
+			}
+			return loadErr
+		}
+		if err = load(&wav.InputConv, "conv1d.weight", 7, uint64(spec.EmbeddingLength), width); err != nil {
+			return Weights{}, err
+		}
+		if err = load(&wav.InputConvBias, "conv1d.bias", 1, width); err != nil {
+			return Weights{}, err
+		}
+		for block := uint32(0); block < spec.PosNetBlockCount; block++ {
+			prefix := fmt.Sprintf("posnet.%d.", block)
+			layer := &wav.PosNet[block]
+			switch block {
+			case 0, 1, 3, 4:
+				for name, item := range map[string]struct {
+					destination *gguf.TensorInfo
+					shape       []uint64
+				}{
+					"norm1.weight": {&layer.Norm1, []uint64{1, width}},
+					"norm1.bias":   {&layer.Norm1Bias, []uint64{1, width}},
+					"conv1.weight": {&layer.Conv1, []uint64{3, width, width}},
+					"conv1.bias":   {&layer.Conv1Bias, []uint64{1, width}},
+					"norm2.weight": {&layer.Norm2, []uint64{1, width}},
+					"norm2.bias":   {&layer.Norm2Bias, []uint64{1, width}},
+					"conv2.weight": {&layer.Conv2, []uint64{3, width, width}},
+					"conv2.bias":   {&layer.Conv2Bias, []uint64{1, width}},
+				} {
+					if err = load(item.destination, prefix+name, item.shape...); err != nil {
+						return Weights{}, err
+					}
+				}
+			case 2:
+				for name, destination := range map[string]*gguf.TensorInfo{
+					"attn_norm.weight": &layer.AttentionNorm,
+					"attn_norm.bias":   &layer.AttentionNormBias,
+					"attn_q.bias":      &layer.AttentionQBias,
+					"attn_k.bias":      &layer.AttentionKBias,
+					"attn_v.bias":      &layer.AttentionVBias,
+					"attn_output.bias": &layer.AttentionOutBias,
+				} {
+					if err = load(destination, prefix+name, 1, width); err != nil {
+						return Weights{}, err
+					}
+				}
+				for name, destination := range map[string]*gguf.TensorInfo{
+					"attn_q.weight":      &layer.AttentionQ,
+					"attn_k.weight":      &layer.AttentionK,
+					"attn_v.weight":      &layer.AttentionV,
+					"attn_output.weight": &layer.AttentionOutput,
+				} {
+					if err = load(destination, prefix+name, 1, width, width); err != nil {
+						return Weights{}, err
+					}
+				}
+			case 5:
+				if err = load(&layer.AttentionNorm, prefix+"attn_norm.weight", 1, width); err != nil {
+					return Weights{}, err
+				}
+				if err = load(&layer.AttentionNormBias, prefix+"attn_norm.bias", 1, width); err != nil {
+					return Weights{}, err
+				}
+			}
+		}
+		if err = load(&wav.TokenNorm, "token_embd_norm.weight", width); err != nil {
+			return Weights{}, err
+		}
+		if err = load(&wav.TokenNormBias, "token_embd_norm.bias", width); err != nil {
+			return Weights{}, err
+		}
+		for block := uint32(0); block < spec.ConvNextBlockCount; block++ {
+			prefix := fmt.Sprintf("convnext.%d.", block)
+			layer := &wav.ConvNext[block]
+			for name, item := range map[string]struct {
+				destination *gguf.TensorInfo
+				shape       []uint64
+			}{
+				"dw.weight":    {&layer.Depthwise, []uint64{7, 1, width}},
+				"dw.bias":      {&layer.DepthwiseBias, []uint64{1, width}},
+				"norm.weight":  {&layer.Norm, []uint64{width}},
+				"norm.bias":    {&layer.NormBias, []uint64{width}},
+				"pw1.weight":   {&layer.Pointwise1, []uint64{width, ffn}},
+				"pw1.bias":     {&layer.Pointwise1Bias, []uint64{ffn}},
+				"pw2.weight":   {&layer.Pointwise2, []uint64{ffn, width}},
+				"pw2.bias":     {&layer.Pointwise2Bias, []uint64{width}},
+				"gamma.weight": {&layer.Gamma, []uint64{width}},
+			} {
+				if err = load(item.destination, prefix+name, item.shape...); err != nil {
+					return Weights{}, err
+				}
+			}
+		}
+		for name, item := range map[string]struct {
+			destination *gguf.TensorInfo
+			shape       []uint64
+		}{
+			"output_norm.weight": {&wav.OutputNorm, []uint64{width}},
+			"output_norm.bias":   {&wav.OutputNormBias, []uint64{width}},
+			"output.weight":      {&wav.Output, []uint64{width, uint64(spec.OutputEmbeddingLength)}},
+			"output.bias":        {&wav.OutputBias, []uint64{uint64(spec.OutputEmbeddingLength)}},
+		} {
+			if err = load(item.destination, name, item.shape...); err != nil {
+				return Weights{}, err
+			}
+		}
+		result.WavTokenizer = wav
+		result.Output = &wav.Output
+		result.OutputBias = &wav.OutputBias
+		return result, nil
 	}
 	if spec.Architecture == "bert" || spec.Architecture == "gpt2" || spec.Architecture == "starcoder" {
 		positionEmbedding, positionErr := required(

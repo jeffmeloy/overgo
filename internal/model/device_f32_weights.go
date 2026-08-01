@@ -209,7 +209,13 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		} else if info.AttentionKVAMQA != nil {
 			required = append(required, info.AttentionQ, *info.AttentionKVAMQA, *info.AttentionKVANorm, *info.AttentionKVB)
 		} else if info.AttentionQ.Name != "" {
-			required = append(required, info.AttentionQ, info.AttentionK, info.AttentionV)
+			required = append(required, info.AttentionQ)
+			if info.AttentionK.Name != "" {
+				required = append(required, info.AttentionK)
+			}
+			if info.AttentionV.Name != "" {
+				required = append(required, info.AttentionV)
+			}
 		}
 	}
 	if info.FeedForwardGate.Name != "" {
@@ -256,8 +262,12 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 			result.AttentionQ = input(info.AttentionQ)
 		} else if info.AttentionQ.Name != "" {
 			result.AttentionQ = input(info.AttentionQ)
-			result.AttentionK = input(info.AttentionK)
-			result.AttentionV = input(info.AttentionV)
+			if info.AttentionK.Name != "" {
+				result.AttentionK = input(info.AttentionK)
+			}
+			if info.AttentionV.Name != "" {
+				result.AttentionV = input(info.AttentionV)
+			}
 		}
 	}
 	if info.FeedForwardGate.Name != "" {
@@ -312,11 +322,16 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardGateBias, &result.FeedForwardGateBias},
 		{info.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
+		{info.FeedForwardPreNorm2, &result.FeedForwardPreNorm2},
+		{info.FeedForwardPostNorm1, &result.FeedForwardPostNorm1},
+		{info.FeedForwardPostNorm2, &result.FeedForwardPostNorm2},
 		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 		{info.FeedForwardRouter, &result.FeedForwardRouter},
+		{info.FeedForwardRouterScale, &result.FeedForwardRouterScale},
+		{info.FeedForwardDownExpertsScale, &result.FeedForwardDownExpertsScale},
 		{info.FeedForwardGateUpExperts, &result.FeedForwardGateUpExperts},
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
@@ -345,6 +360,10 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
+		{info.LayerOutputScale, &result.LayerOutputScale},
+		{info.PerLayerInputGate, &result.PerLayerInputGate},
+		{info.PerLayerProjection, &result.PerLayerProjection},
+		{info.PerLayerPostNorm, &result.PerLayerPostNorm},
 	} {
 		if item.info == nil {
 			continue

@@ -146,6 +146,48 @@ func TestExecutorMoEMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 5e-5)
 }
 
+func TestExecutorMoEExpertScaleMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 2))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 2, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 2, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(2, 2, 2))
+	expertScale := builder.Input("expert_scale", dtype.F32, tensor.MustShape(2))
+	output := builder.MoEGELUWithRouterInput(
+		input, input, router, gate, up, down, expertScale, 1, true, 1,
+	)
+	scaleValue, err := reference.NewValue(expertScale.Shape, []float32{0.5, 1.75})
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:       patternedValue(input.Shape, 3, 0.2, 0),
+		router:      patternedValue(router.Shape, 5, 0.15, 0),
+		gate:        patternedValue(gate.Shape, 7, 0.1, 0),
+		up:          patternedValue(up.Shape, 11, 0.1, 0),
+		down:        patternedValue(down.Shape, 13, 0.1, 0),
+		expertScale: scaleValue,
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 7e-5)
+}
+
 func TestExecutorGroupedMoEMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

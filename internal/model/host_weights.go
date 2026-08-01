@@ -58,11 +58,16 @@ type HostLayer struct {
 	FeedForwardDownBias         *reference.Value
 	FeedForwardPostNorm         *reference.Value
 	FeedForwardPostNormBias     *reference.Value
+	FeedForwardPreNorm2         *reference.Value
+	FeedForwardPostNorm1        *reference.Value
+	FeedForwardPostNorm2        *reference.Value
 	FeedForwardRouter           *reference.Value
+	FeedForwardRouterScale      *reference.Value
 	FeedForwardGateUpExperts    *reference.Value
 	FeedForwardGateExperts      *reference.Value
 	FeedForwardUpExperts        *reference.Value
 	FeedForwardDownExperts      *reference.Value
+	FeedForwardDownExpertsScale *reference.Value
 	FeedForwardGateChunkExperts *reference.Value
 	FeedForwardUpChunkExperts   *reference.Value
 	FeedForwardDownChunkExperts *reference.Value
@@ -72,6 +77,9 @@ type HostLayer struct {
 	FeedForwardSharedDown       *reference.Value
 	FeedForwardSharedRouter     *reference.Value
 	LayerOutputScale            *reference.Value
+	PerLayerInputGate           *reference.Value
+	PerLayerProjection          *reference.Value
+	PerLayerPostNorm            *reference.Value
 	ShortConvKernel             *reference.Value
 	ShortConvInput              *reference.Value
 	ShortConvOutput             *reference.Value
@@ -431,20 +439,22 @@ func LoadHostLayer(
 				info        gguf.TensorInfo
 			}{&result.AttentionQ, info.AttentionQ})
 		} else if info.AttentionQ.Name != "" {
-			items = append(items,
-				struct {
+			items = append(items, struct {
+				destination *reference.Value
+				info        gguf.TensorInfo
+			}{&result.AttentionQ, info.AttentionQ})
+			if info.AttentionK.Name != "" {
+				items = append(items, struct {
 					destination *reference.Value
 					info        gguf.TensorInfo
-				}{&result.AttentionQ, info.AttentionQ},
-				struct {
+				}{&result.AttentionK, info.AttentionK})
+			}
+			if info.AttentionV.Name != "" {
+				items = append(items, struct {
 					destination *reference.Value
 					info        gguf.TensorInfo
-				}{&result.AttentionK, info.AttentionK},
-				struct {
-					destination *reference.Value
-					info        gguf.TensorInfo
-				}{&result.AttentionV, info.AttentionV},
-			)
+				}{&result.AttentionV, info.AttentionV})
+			}
 		}
 		if info.AttentionOutput.Name != "" {
 			items = append(items, struct {
@@ -493,12 +503,17 @@ func LoadHostLayer(
 		{info.FeedForwardDownBias, &result.FeedForwardDownBias},
 		{info.FeedForwardNormBias, &result.FeedForwardNormBias},
 		{info.FeedForwardPostNormBias, &result.FeedForwardPostNormBias},
+		{info.FeedForwardPreNorm2, &result.FeedForwardPreNorm2},
+		{info.FeedForwardPostNorm1, &result.FeedForwardPostNorm1},
+		{info.FeedForwardPostNorm2, &result.FeedForwardPostNorm2},
 		{info.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{info.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{info.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{info.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{info.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 		{info.FeedForwardRouter, &result.FeedForwardRouter},
+		{info.FeedForwardRouterScale, &result.FeedForwardRouterScale},
+		{info.FeedForwardDownExpertsScale, &result.FeedForwardDownExpertsScale},
 		{info.FeedForwardGateUpExperts, &result.FeedForwardGateUpExperts},
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
@@ -512,6 +527,9 @@ func LoadHostLayer(
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{info.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
 		{info.LayerOutputScale, &result.LayerOutputScale},
+		{info.PerLayerInputGate, &result.PerLayerInputGate},
+		{info.PerLayerProjection, &result.PerLayerProjection},
+		{info.PerLayerPostNorm, &result.PerLayerPostNorm},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -643,8 +661,12 @@ func (layer *HostLayer) GraphInputs(
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
 	} else if layer.AttentionQ.Shape.Rank != 0 {
 		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
-		result.AttentionK = input("attn_k.weight", layer.AttentionK)
-		result.AttentionV = input("attn_v.weight", layer.AttentionV)
+		if layer.AttentionK.Shape.Rank != 0 {
+			result.AttentionK = input("attn_k.weight", layer.AttentionK)
+		}
+		if layer.AttentionV.Shape.Rank != 0 {
+			result.AttentionV = input("attn_v.weight", layer.AttentionV)
+		}
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
 	} else {
 		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
@@ -677,12 +699,17 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_up.bias", layer.FeedForwardUpBias, &result.FeedForwardUpBias},
 		{"ffn_down.bias", layer.FeedForwardDownBias, &result.FeedForwardDownBias},
 		{"post_ffw_norm.bias", layer.FeedForwardPostNormBias, &result.FeedForwardPostNormBias},
+		{"pre_ffw_norm_2.weight", layer.FeedForwardPreNorm2, &result.FeedForwardPreNorm2},
+		{"post_ffw_norm_1.weight", layer.FeedForwardPostNorm1, &result.FeedForwardPostNorm1},
+		{"post_ffw_norm_2.weight", layer.FeedForwardPostNorm2, &result.FeedForwardPostNorm2},
 		{"ffn_norm_exps.weight", layer.FeedForwardExpertNorm, &result.FeedForwardExpertNorm},
 		{"ffn_gate.scale", layer.FeedForwardGateScale, &result.FeedForwardGateScale},
 		{"ffn_up.scale", layer.FeedForwardUpScale, &result.FeedForwardUpScale},
 		{"ffn_down.scale", layer.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{"ffn_sub_norm.weight", layer.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 		{"ffn_gate_inp.weight", layer.FeedForwardRouter, &result.FeedForwardRouter},
+		{"ffn_gate_inp.scale", layer.FeedForwardRouterScale, &result.FeedForwardRouterScale},
+		{"ffn_down_exps.scale", layer.FeedForwardDownExpertsScale, &result.FeedForwardDownExpertsScale},
 		{"ffn_gate_up_exps.weight", layer.FeedForwardGateUpExperts, &result.FeedForwardGateUpExperts},
 		{"ffn_gate_exps.weight", layer.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{"ffn_up_exps.weight", layer.FeedForwardUpExperts, &result.FeedForwardUpExperts},
@@ -695,7 +722,10 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_up_shexp.weight", layer.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{"ffn_down_shexp.weight", layer.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{"ffn_gate_inp_shexp.weight", layer.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
-		{"layer_out_scale.weight", layer.LayerOutputScale, &result.LayerOutputScale},
+		{"layer_output_scale.weight", layer.LayerOutputScale, &result.LayerOutputScale},
+		{"per_layer_inp_gate.weight", layer.PerLayerInputGate, &result.PerLayerInputGate},
+		{"per_layer_proj.weight", layer.PerLayerProjection, &result.PerLayerProjection},
+		{"per_layer_post_norm.weight", layer.PerLayerPostNorm, &result.PerLayerPostNorm},
 		{"attn_kv_a_mqa.weight", layer.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{"attn_kv_a_norm.weight", layer.AttentionKVANorm, &result.AttentionKVANorm},
 		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},

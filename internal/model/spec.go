@@ -20,6 +20,8 @@ type Spec struct {
 	HeadCountKV            uint32
 	KeyLength              uint32
 	ValueLength            uint32
+	KeyLengthSWA           uint32
+	ValueLengthSWA         uint32
 	RopeFrequencyBase      float32
 	RopeFrequencySWA       float32
 	RopeScalingType        string
@@ -95,6 +97,8 @@ type Spec struct {
 	SSMGroupCount         uint32
 	FullAttentionInterval uint32
 	DeepstackLayerCount   uint32
+	EmbeddingPerLayer     uint32
+	SharedKVLayers        uint32
 	RecurrentLayers       []bool
 }
 
@@ -217,7 +221,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "refact" &&
 		architecture != "rnd1" &&
 		architecture != "gemma2" &&
-		architecture != "gemma3" &&
+		architecture != "gemma3" && architecture != "gemma4" &&
 		architecture != "falcon" &&
 		architecture != "talkie" &&
 		architecture != "t5encoder" {
@@ -254,7 +258,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "deci" || architecture == "openelm" || architecture == "plamo3" {
+	if architecture == "gemma4" {
+		if spec.LayerFeedForward, err = requiredLayerUint32Compatible(
+			values, prefix+"feed_forward_length", spec.BlockCount,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.FeedForwardLength = firstPositive(spec.LayerFeedForward)
+	} else if architecture == "deci" || architecture == "openelm" || architecture == "plamo3" {
 		if spec.LayerFeedForward, err = requiredLayerUint32(values, prefix+"feed_forward_length", spec.BlockCount); err != nil {
 			return Spec{}, err
 		}
@@ -291,7 +302,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.HeadCountKV = value
 			}
 		}
-	} else if architecture == "mimo2" || architecture == "step35" {
+	} else if architecture == "mimo2" || architecture == "step35" || architecture == "gemma4" {
 		if spec.LayerKVHeadCounts, err = requiredLayerUint32Compatible(
 			values, prefix+"attention.head_count_kv", declaredBlockCount,
 		); err != nil {
@@ -347,6 +358,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		if spec.ValueLength == 0 {
 			spec.ValueLength = headLength
+		}
+	}
+	if architecture == "gemma4" {
+		if spec.KeyLengthSWA, err = required[uint32](values, prefix+"attention.key_length_swa", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if spec.ValueLengthSWA, err = required[uint32](values, prefix+"attention.value_length_swa", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
 		}
 	}
 	if architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" ||
@@ -1335,6 +1354,23 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.ExpertGatingFunc = 2
 		spec.ExpertWeightsNorm = true
 	}
+	if architecture == "gemma4" {
+		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
+			spec.ExpertCount = count
+			if spec.ExpertUsedCount, err = required[uint32](
+				values, prefix+"expert_used_count", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+			if spec.ExpertFeedForward, err = required[uint32](
+				values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+			spec.ExpertWeightsScale = 1
+			spec.ExpertWeightsNorm = true
+		}
+	}
 	if architecture == "step35" {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
@@ -1810,10 +1846,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
-	if architecture == "gemma2" || architecture == "gemma3" ||
+	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4" ||
 		architecture == "olmo2" || architecture == "cohere2" || architecture == "cohere2moe" {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if architecture == "gemma3" {
+		if architecture == "gemma3" || architecture == "gemma4" {
 			spec.RopeFrequencySWA = 10000
 		}
 		if value, ok := optional[float32](
@@ -1841,6 +1877,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if architecture == "gemma3" {
 				spec.SlidingPattern = 6
 			}
+			if architecture == "gemma4" {
+				if spec.SlidingLayers, err = requiredLayerBoolCompatible(
+					values, prefix+"attention.sliding_window_pattern", spec.BlockCount,
+				); err != nil {
+					return Spec{}, err
+				}
+			}
 			if value, ok := optional[uint32](
 				values,
 				prefix+"attention.sliding_window_pattern",
@@ -1862,6 +1905,27 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.NoRopeLayerStep = spec.SlidingPattern
 			}
 		}
+	}
+	if architecture == "gemma4" {
+		if spec.RopeDimensionCount, err = required[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.RopeDimensionSWA, err = required[uint32](
+			values, prefix+"rope.dimension_count_swa", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.EmbeddingPerLayer, err = required[uint32](
+			values, prefix+"embedding_length_per_layer_input", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedKVLayers, _ = optional[uint32](
+			values, prefix+"attention.shared_kv_layers", gguf.ValueTypeUint32,
+		)
+		spec.AttentionScale = 1
 	}
 	spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 	if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
@@ -1948,7 +2012,36 @@ func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
 	return s.FeedForwardLength
 }
 
+func (s Spec) LayerKeyLength(block uint32) uint32 {
+	if s.Architecture == "gemma4" && s.IsSlidingLayer(block) {
+		return s.KeyLengthSWA
+	}
+	return s.KeyLength
+}
+
+func (s Spec) LayerValueLength(block uint32) uint32 {
+	if s.Architecture == "gemma4" && s.IsSlidingLayer(block) {
+		return s.ValueLengthSWA
+	}
+	return s.ValueLength
+}
+
+func (s Spec) LayerHasKV(block uint32) bool {
+	return s.Architecture != "gemma4" || block < s.BlockCount-s.SharedKVLayers
+}
+
+func (s Spec) LayerSharedKVSource(block uint32) uint32 {
+	start := s.BlockCount - s.SharedKVLayers
+	if s.IsSlidingLayer(block) {
+		return start - 2
+	}
+	return start - 1
+}
+
 func (s Spec) LayerRopeDimensionCount(block uint32) uint32 {
+	if s.Architecture == "gemma4" && s.IsSlidingLayer(block) {
+		return s.RopeDimensionSWA
+	}
 	if s.Architecture == "step35" && !s.IsSlidingLayer(block) {
 		return s.RopeDimensionCount / 2
 	}
@@ -2682,6 +2775,31 @@ func (s Spec) validate() error {
 			return errors.New("Gemma 3 sliding attention pattern must be at least 2")
 		}
 	}
+	if s.Architecture == "gemma4" {
+		switch {
+		case s.KeyLength == 0 || s.ValueLength == 0 || s.KeyLength != s.ValueLength ||
+			s.KeyLengthSWA == 0 || s.ValueLengthSWA == 0 || s.KeyLengthSWA != s.ValueLengthSWA:
+			return errors.New("Gemma 4 attention head dimensions are invalid")
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0 ||
+			s.RopeDimensionSWA == 0 || s.RopeDimensionSWA > s.KeyLengthSWA || s.RopeDimensionSWA%2 != 0:
+			return errors.New("Gemma 4 rotary dimensions are invalid")
+		case s.RopeFrequencySWA <= 0 || s.SlidingWindow == 0 || len(s.SlidingLayers) != int(s.BlockCount):
+			return errors.New("Gemma 4 sliding-attention metadata is invalid")
+		case s.SharedKVLayers > 0 && (s.SharedKVLayers >= s.BlockCount || s.BlockCount-s.SharedKVLayers < 2):
+			return errors.New("Gemma 4 shared-KV layer count is invalid")
+		case len(s.LayerFeedForward) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
+			return errors.New("Gemma 4 layer metadata is invalid")
+		case s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0):
+			return errors.New("Gemma 4 expert metadata is invalid")
+		}
+		for block := uint32(0); block < s.BlockCount; block++ {
+			if s.LayerFeedForwardLength(block) == 0 || s.LayerKVHeadCount(block) == 0 ||
+				s.HeadCount%s.LayerKVHeadCount(block) != 0 {
+				return errors.New("Gemma 4 per-layer dimensions are invalid")
+			}
+		}
+	}
 	if s.Architecture == "gemma2" {
 		switch {
 		case s.RopeFrequencySWA <= 0:
@@ -2917,16 +3035,16 @@ func (s Spec) validate() error {
 }
 
 func isGemmaArchitecture(architecture string) bool {
-	return architecture == "gemma" || architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3"
+	return architecture == "gemma" || architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4"
 }
 
 func hasPostNorm(architecture string) bool {
 	return architecture == "afmoe" || architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4" || architecture == "gemma2" ||
-		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
+		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "gemma4" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3") ||
+	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" ||
 		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "mimo2" ||
 		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35"

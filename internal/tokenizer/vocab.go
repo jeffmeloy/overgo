@@ -94,8 +94,8 @@ func Load(file *gguf.File) (*Vocab, error) {
 	if err != nil {
 		return nil, err
 	}
-	if model != "gpt2" && model != "llama" && model != "t5" && model != "bert" {
-		return nil, fmt.Errorf("tokenizer: model %q is unsupported; need bert, gpt2, llama, or t5", model)
+	if model != "gpt2" && model != "gemma4" && model != "llama" && model != "t5" && model != "bert" {
+		return nil, fmt.Errorf("tokenizer: model %q is unsupported; need bert, gemma4, gpt2, llama, or t5", model)
 	}
 	pre, err := optionalScalar[string](values, "tokenizer.ggml.pre", gguf.ValueTypeString, "")
 	if err != nil {
@@ -103,6 +103,9 @@ func Load(file *gguf.File) (*Vocab, error) {
 	}
 	if model == "gpt2" && !supportedPreTokenizer(pre) {
 		return nil, fmt.Errorf("tokenizer: GPT-2 pre-tokenizer %q is unsupported", pre)
+	}
+	if model == "gemma4" {
+		pre = "gemma4"
 	}
 
 	tokenTexts, err := requiredArray[string](values, "tokenizer.ggml.tokens", gguf.ValueTypeString)
@@ -151,7 +154,11 @@ func Load(file *gguf.File) (*Vocab, error) {
 		fimConfigured: true,
 		tokenToID:     make(map[string]TokenID, len(tokenTexts)),
 	}
-	if model == "llama" {
+	if model == "gemma4" {
+		vocab.BOS = NullToken
+		vocab.EOS = NullToken
+		vocab.AddBOS = true
+	} else if model == "llama" {
 		vocab.BOS = 1
 		vocab.EOS = 2
 		vocab.UNK = 0
@@ -212,13 +219,16 @@ func Load(file *gguf.File) (*Vocab, error) {
 		return len(vocab.Tokens[vocab.special[i]].Text) > len(vocab.Tokens[vocab.special[j]].Text)
 	})
 
-	if model == "gpt2" {
+	if model == "gpt2" || model == "gemma4" {
 		merges, mergeErr := requiredArray[string](values, "tokenizer.ggml.merges", gguf.ValueTypeString)
 		if mergeErr != nil {
 			return nil, mergeErr
 		}
 		vocab.mergeRank = make(map[pair]int, len(merges))
 		for rank, merge := range merges {
+			if len(merge) < 3 {
+				return nil, fmt.Errorf("tokenizer: malformed BPE merge at rank %d: %q", rank, merge)
+			}
 			separator := strings.Index(merge[1:], " ")
 			if separator < 0 {
 				return nil, fmt.Errorf("tokenizer: malformed BPE merge at rank %d: %q", rank, merge)
@@ -287,6 +297,9 @@ func Load(file *gguf.File) (*Vocab, error) {
 		vocab.AddBOS,
 	); err != nil {
 		return nil, err
+	}
+	if model == "gemma4" {
+		vocab.AddBOS = true
 	}
 	if vocab.AddEOS, err = optionalScalar[bool](
 		values,
@@ -381,6 +394,7 @@ func (v *Vocab) IsEOG(id TokenID) bool {
 	}
 	switch v.Tokens[id].Text {
 	case "<eos>", "</s>", "<|end_of_text|>", "<|eot_id|>", "<end_of_turn>",
+		"<turn|>", "<|tool_response>",
 		"<|fim_pad|>", "<fim-pad>", "<fim_pad>", "<PAD>", "[PAD]",
 		"<|fim_repo|>", "<|repo_name|>", "<fim-repo>", "<REPO>", "<reponame>",
 		"<|file_sep|>":

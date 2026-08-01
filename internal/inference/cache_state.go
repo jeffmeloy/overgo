@@ -111,12 +111,12 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			continue
 		}
 		keyShape := tensor.MustShape(
-			uint64(r.spec.KeyLength),
+			uint64(r.spec.LayerKeyLength(uint32(index))),
 			uint64(r.spec.LayerKVHeadCount(uint32(index))),
 			uint64(cache.Tokens),
 		)
 		valueShape := tensor.MustShape(
-			uint64(r.spec.ValueLength),
+			uint64(r.spec.LayerValueLength(uint32(index))),
 			uint64(r.spec.LayerKVHeadCount(uint32(index))),
 			uint64(cache.Tokens),
 		)

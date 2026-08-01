@@ -8,7 +8,126 @@ import (
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
+	"llamacpp2go/internal/tensor/reference"
 )
+
+func TestBuildGemma4PerLayerInputs(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "gemma4", BlockCount: 2, EmbeddingLength: 2,
+		EmbeddingPerLayer: 1, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	selected := builder.Input("selected", dtype.F32, tensor.MustShape(2, 1))
+	projection := builder.Input("projection", dtype.F32, tensor.MustShape(2, 2))
+	norm := builder.Input("norm", dtype.F32, tensor.MustShape(1))
+	outputs, err := BuildGemma4PerLayerInputs(builder, input, selected, projection, norm, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := reference.Execute(outputs, map[*tensor.Tensor]reference.Value{
+		input:      {Shape: input.Shape, Data: []float32{3, 4}},
+		selected:   {Shape: selected.Shape, Data: []float32{2, 3}},
+		projection: {Shape: projection.Shape, Data: make([]float32, 4)},
+		norm:       {Shape: norm.Shape, Data: []float32{1}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for layer, want := range []float32{float32(math.Sqrt(2)), 3 / float32(math.Sqrt(2))} {
+		got := results[outputs[layer]]
+		if !got.Shape.Equal(tensor.MustShape(1, 1)) || math.Abs(float64(got.Data[0]-want)) > 1e-6 {
+			t.Fatalf("layer %d = %v %v, want [1 1] %g", layer, got.Shape.Slice(), got.Data, want)
+		}
+	}
+}
+
+func TestBuildGemma4SharedKVMoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "gemma4", BlockCount: 4, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 2, ValueLength: 2, KeyLengthSWA: 2, ValueLengthSWA: 2,
+		RopeDimensionCount: 2, RopeDimensionSWA: 2,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 10000,
+		RMSNormEpsilon: 1e-6, AttentionScale: 1, SlidingWindow: 4,
+		SlidingLayers: []bool{true, false, true, false}, SharedKVLayers: 2,
+		EmbeddingPerLayer: 1, ExpertCount: 2, ExpertUsedCount: 1,
+		ExpertFeedForward: 2, ExpertWeightsScale: 1,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	owned := gemma4BlockInputs(builder, spec, true, false)
+	first, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, owned, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shared := gemma4BlockInputs(builder, spec, false, true)
+	second, err := BuildDenseBlockCachedForLayer(
+		builder, first.Output, spec, shared, []uint32{0, 1}, first.Key, first.Value, 2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Key != first.Key || second.Value != first.Value || !second.Output.Shape.Equal(input.Shape) {
+		t.Fatalf("Gemma 4 shared result shapes = %v/%v/%v", second.Output.Shape.Slice(), second.Key.Shape.Slice(), second.Value.Shape.Slice())
+	}
+	nodes, err := tensor.Topological(second.Output, second.Key, second.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundMoE, foundExpertScale bool
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			foundMoE = true
+			foundExpertScale = node.Attrs.(tensor.MoEAttributes).HasExpertScale
+		}
+	}
+	if !foundMoE || !foundExpertScale {
+		t.Fatal("Gemma 4 graph lacks scaled MoE execution")
+	}
+}
+
+func gemma4BlockInputs(builder *tensor.Builder, spec Spec, hasKV, moe bool) LayerGraphWeights {
+	embedding := uint64(spec.EmbeddingLength)
+	key := uint64(spec.KeyLengthSWA)
+	ff := uint64(spec.FeedForwardLength)
+	weights := LayerGraphWeights{
+		AttentionNorm:       builder.Input("attn_norm", dtype.F32, tensor.MustShape(embedding)),
+		AttentionQ:          builder.Input("attn_q", dtype.F32, tensor.MustShape(embedding, uint64(spec.HeadCount)*key)),
+		AttentionOutput:     builder.Input("attn_output", dtype.F32, tensor.MustShape(uint64(spec.HeadCount)*key, embedding)),
+		AttentionQNorm:      builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(key)),
+		AttentionPostNorm:   builder.Input("post_attention_norm", dtype.F32, tensor.MustShape(embedding)),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(embedding)),
+		FeedForwardGate:     builder.Input("ffn_gate", dtype.F32, tensor.MustShape(embedding, ff)),
+		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(embedding, ff)),
+		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(ff, embedding)),
+		FeedForwardPostNorm: builder.Input("post_ffw_norm", dtype.F32, tensor.MustShape(embedding)),
+		PerLayerInput:       builder.Input("per_layer_input", dtype.F32, tensor.MustShape(1, 2)),
+		PerLayerInputGate:   builder.Input("per_layer_gate", dtype.F32, tensor.MustShape(embedding, 1)),
+		PerLayerProjection:  builder.Input("per_layer_proj", dtype.F32, tensor.MustShape(1, embedding)),
+		PerLayerPostNorm:    builder.Input("per_layer_post_norm", dtype.F32, tensor.MustShape(embedding)),
+	}
+	if hasKV {
+		weights.AttentionK = builder.Input("attn_k", dtype.F32, tensor.MustShape(embedding, key))
+		weights.AttentionKNorm = builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(key))
+	}
+	if moe {
+		experts := uint64(spec.ExpertCount)
+		expertFF := uint64(spec.ExpertFeedForward)
+		weights.FeedForwardRouter = builder.Input("ffn_router", dtype.F32, tensor.MustShape(embedding, experts))
+		weights.FeedForwardRouterScale = builder.Input("ffn_router_scale", dtype.F32, tensor.MustShape(embedding))
+		weights.FeedForwardGateExperts = builder.Input("ffn_gate_exps", dtype.F32, tensor.MustShape(embedding, expertFF, experts))
+		weights.FeedForwardUpExperts = builder.Input("ffn_up_exps", dtype.F32, tensor.MustShape(embedding, expertFF, experts))
+		weights.FeedForwardDownExperts = builder.Input("ffn_down_exps", dtype.F32, tensor.MustShape(expertFF, embedding, experts))
+		weights.FeedForwardDownExpertsScale = builder.Input("ffn_down_exps_scale", dtype.F32, tensor.MustShape(experts))
+		weights.FeedForwardPreNorm2 = builder.Input("pre_ffw_norm_2", dtype.F32, tensor.MustShape(embedding))
+		weights.FeedForwardPostNorm1 = builder.Input("post_ffw_norm_1", dtype.F32, tensor.MustShape(embedding))
+		weights.FeedForwardPostNorm2 = builder.Input("post_ffw_norm_2", dtype.F32, tensor.MustShape(embedding))
+	}
+	return weights
+}
 
 func TestBuildDenseQwen3Block(t *testing.T) {
 	builder := tensor.NewBuilder()

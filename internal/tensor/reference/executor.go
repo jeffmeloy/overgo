@@ -843,7 +843,14 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	if attributes.Gated && !attributes.FusedGateUp {
 		wantInputs = 6
 	}
-	if len(inputs) != wantInputs && len(inputs) != wantInputs+1 {
+	expectedInputs := wantInputs
+	if attributes.HasSelectionBias {
+		expectedInputs++
+	}
+	if attributes.HasExpertScale {
+		expectedInputs++
+	}
+	if len(inputs) != expectedInputs {
 		return Value{}, errors.New("MoE input count is invalid")
 	}
 	input, routerInput, router := inputs[0], inputs[1], inputs[2]
@@ -857,9 +864,16 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	if attributes.FusedGateUp {
 		gate = up
 	}
-	var selectionBias []float32
-	if len(inputs) == wantInputs+1 {
-		selectionBias = inputs[wantInputs].Data
+	var selectionBias, expertScale []float32
+	if attributes.HasSelectionBias {
+		selectionBias = inputs[next+2].Data
+	}
+	if attributes.HasExpertScale {
+		scaleIndex := next + 2
+		if attributes.HasSelectionBias {
+			scaleIndex++
+		}
+		expertScale = inputs[scaleIndex].Data
 	}
 	hidden := int(input.Shape.Dims[0])
 	tokens := int(input.Shape.Dims[1])
@@ -987,6 +1001,9 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 					}
 					downIndex := (expert*hidden+outputChannel)*intermediate + inner
 					expertOutput += activation * float64(down.Data[downIndex])
+				}
+				if expertScale != nil {
+					expertOutput *= float64(expertScale[expert])
 				}
 				routed += weights[slot] * expertOutput
 			}

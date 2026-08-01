@@ -54,11 +54,16 @@ type LayerWeights struct {
 	FeedForwardDownBias         *gguf.TensorInfo
 	FeedForwardPostNorm         *gguf.TensorInfo
 	FeedForwardPostNormBias     *gguf.TensorInfo
+	FeedForwardPreNorm2         *gguf.TensorInfo
+	FeedForwardPostNorm1        *gguf.TensorInfo
+	FeedForwardPostNorm2        *gguf.TensorInfo
 	FeedForwardRouter           *gguf.TensorInfo
+	FeedForwardRouterScale      *gguf.TensorInfo
 	FeedForwardGateUpExperts    *gguf.TensorInfo
 	FeedForwardGateExperts      *gguf.TensorInfo
 	FeedForwardUpExperts        *gguf.TensorInfo
 	FeedForwardDownExperts      *gguf.TensorInfo
+	FeedForwardDownExpertsScale *gguf.TensorInfo
 	FeedForwardGateChunkExperts *gguf.TensorInfo
 	FeedForwardUpChunkExperts   *gguf.TensorInfo
 	FeedForwardDownChunkExperts *gguf.TensorInfo
@@ -68,6 +73,9 @@ type LayerWeights struct {
 	FeedForwardSharedDown       *gguf.TensorInfo
 	FeedForwardSharedRouter     *gguf.TensorInfo
 	LayerOutputScale            *gguf.TensorInfo
+	PerLayerInputGate           *gguf.TensorInfo
+	PerLayerProjection          *gguf.TensorInfo
+	PerLayerPostNorm            *gguf.TensorInfo
 	ShortConvKernel             *gguf.TensorInfo
 	ShortConvInput              *gguf.TensorInfo
 	ShortConvOutput             *gguf.TensorInfo
@@ -95,18 +103,21 @@ type LayerWeights struct {
 
 // Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
-	TokenEmbedding         gguf.TensorInfo
-	TokenTypeEmbedding     *gguf.TensorInfo
-	PositionEmbedding      *gguf.TensorInfo
-	TokenEmbeddingNorm     *gguf.TensorInfo
-	TokenEmbeddingNormBias *gguf.TensorInfo
-	OutputNorm             gguf.TensorInfo
-	OutputNormBias         *gguf.TensorInfo
-	Output                 *gguf.TensorInfo
-	OutputBias             *gguf.TensorInfo
-	Dense2Output           *gguf.TensorInfo
-	Dense3Output           *gguf.TensorInfo
-	Layers                 []LayerWeights
+	TokenEmbedding          gguf.TensorInfo
+	TokenTypeEmbedding      *gguf.TensorInfo
+	PositionEmbedding       *gguf.TensorInfo
+	TokenEmbeddingNorm      *gguf.TensorInfo
+	TokenEmbeddingNormBias  *gguf.TensorInfo
+	OutputNorm              gguf.TensorInfo
+	OutputNormBias          *gguf.TensorInfo
+	Output                  *gguf.TensorInfo
+	OutputBias              *gguf.TensorInfo
+	Dense2Output            *gguf.TensorInfo
+	Dense3Output            *gguf.TensorInfo
+	PerLayerTokenEmbedding  *gguf.TensorInfo
+	PerLayerModelProjection *gguf.TensorInfo
+	PerLayerProjectionNorm  *gguf.TensorInfo
+	Layers                  []LayerWeights
 }
 
 // ReadWeights: validates names and shapes without loading tensor bytes
@@ -379,14 +390,41 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, errors.New("Gemma embedding dense projection widths do not compose")
 		}
 	}
+	if spec.Architecture == "gemma4" && spec.EmbeddingPerLayer > 0 {
+		perLayerTokenEmbedding, itemErr := required(
+			"per_layer_token_embd.weight",
+			uint64(spec.EmbeddingPerLayer)*uint64(spec.BlockCount),
+			uint64(spec.VocabularySize),
+		)
+		if itemErr != nil {
+			return Weights{}, itemErr
+		}
+		perLayerModelProjection, itemErr := required(
+			"per_layer_model_proj.weight",
+			uint64(spec.EmbeddingLength),
+			uint64(spec.EmbeddingPerLayer)*uint64(spec.BlockCount),
+		)
+		if itemErr != nil {
+			return Weights{}, itemErr
+		}
+		perLayerProjectionNorm, itemErr := required(
+			"per_layer_proj_norm.weight", uint64(spec.EmbeddingPerLayer),
+		)
+		if itemErr != nil {
+			return Weights{}, itemErr
+		}
+		result.PerLayerTokenEmbedding = &perLayerTokenEmbedding
+		result.PerLayerModelProjection = &perLayerModelProjection
+		result.PerLayerProjectionNorm = &perLayerProjectionNorm
+	}
 
 	result.Layers = make([]LayerWeights, spec.BlockCount)
 	for block := uint32(0); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
-		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.KeyLength)
-		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.KeyLength)
-		valueLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.ValueLength)
-		attentionOutputLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.ValueLength)
+		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerKeyLength(block))
+		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerKeyLength(block))
+		valueLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerValueLength(block))
+		attentionOutputLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerValueLength(block))
 		biasNames := []string{
 			"attn_q.bias",
 			"attn_k.bias",
@@ -434,7 +472,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		ropeFactors, hasRopeFactors := tensors[prefix+"rope_freqs.weight"]
-		if spec.Architecture == "step35" && !hasRopeFactors {
+		if (spec.Architecture == "step35" || spec.Architecture == "gemma4" && !spec.IsSlidingLayer(block)) && !hasRopeFactors {
 			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
 		}
 		if hasRopeFactors {
@@ -734,6 +772,31 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
+		} else if spec.Architecture == "gemma4" {
+			if layer.AttentionQ, err = required(
+				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
+			); err != nil {
+				return Weights{}, err
+			}
+			if spec.LayerHasKV(block) {
+				if layer.AttentionK, err = required(
+					prefix+"attn_k.weight", uint64(spec.EmbeddingLength), keyLength,
+				); err != nil {
+					return Weights{}, err
+				}
+				if item, ok := tensors[prefix+"attn_v.weight"]; ok {
+					value, valueErr := required(item.Name, uint64(spec.EmbeddingLength), valueLength)
+					if valueErr != nil {
+						return Weights{}, valueErr
+					}
+					layer.AttentionV = value
+				}
+			}
+			if layer.AttentionOutput, err = required(
+				prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength),
+			); err != nil {
+				return Weights{}, err
+			}
 		} else if spec.Architecture == "plm" || spec.Architecture == "minicpm3" {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
 			if spec.Architecture == "minicpm3" {
@@ -866,6 +929,20 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
+		}
+		if spec.Architecture == "gemma4" {
+			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.LayerKeyLength(block)))
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionQNorm = &qNorm
+			if spec.LayerHasKV(block) {
+				kNorm, kNormErr := required(prefix+"attn_k_norm.weight", uint64(spec.LayerKeyLength(block)))
+				if kNormErr != nil {
+					return Weights{}, kNormErr
+				}
+				layer.AttentionKNorm = &kNorm
+			}
 		}
 		if spec.Architecture == "glm4-moe" {
 			qNorm, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
@@ -1186,6 +1263,30 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardPostNormBias = &feedForwardBias
 			}
 		}
+		if spec.Architecture == "gemma4" {
+			if scale, ok := tensors[prefix+"layer_output_scale.weight"]; ok {
+				if scale.Type != dtype.F32 || scale.Dimensions != 1 || scale.Shape[0] != 1 {
+					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", scale.Name, scale.Shape)
+				}
+				layer.LayerOutputScale = &scale
+			}
+			if spec.EmbeddingPerLayer > 0 {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"per_layer_inp_gate.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.EmbeddingPerLayer)}, &layer.PerLayerInputGate},
+					"per_layer_proj.weight":      {[]uint64{uint64(spec.EmbeddingPerLayer), uint64(spec.EmbeddingLength)}, &layer.PerLayerProjection},
+					"per_layer_post_norm.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.PerLayerPostNorm},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+		}
 		feedForwardNormName := "ffn_norm.weight"
 		if spec.Architecture == "dbrx" {
 			feedForwardNormName = "attn_output_norm.weight"
@@ -1234,7 +1335,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		_, tensorSelectedMoE := tensors[prefix+"ffn_gate_inp.weight"]
 		if ((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grovemoe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
-			((spec.Architecture == "mimo2" || spec.Architecture == "step35") && tensorSelectedMoE) ||
+			((spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "gemma4") && tensorSelectedMoE) ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "glm4-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(block)) ||
@@ -1267,7 +1368,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				},
 			}
 			fusedGateUp := false
-			if spec.Architecture == "cohere2moe" || spec.Architecture == "deepseek2-ocr" || spec.Architecture == "hy_v3" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
+			if spec.Architecture == "cohere2moe" || spec.Architecture == "deepseek2-ocr" || spec.Architecture == "gemma4" || spec.Architecture == "hy_v3" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
 				if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
 					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
 						item.Shape[1] != 2*uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
@@ -1293,6 +1394,31 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					return Weights{}, itemErr
 				}
 				*shapeAndDestination.destination = &item
+			}
+			if spec.Architecture == "gemma4" {
+				routerScale, scaleErr := required(prefix+"ffn_gate_inp.scale", uint64(spec.EmbeddingLength))
+				if scaleErr != nil {
+					return Weights{}, scaleErr
+				}
+				layer.FeedForwardRouterScale = &routerScale
+				if _, ok := tensors[prefix+"ffn_down_exps.scale"]; ok {
+					downScale, scaleErr := required(prefix+"ffn_down_exps.scale", uint64(spec.ExpertCount))
+					if scaleErr != nil {
+						return Weights{}, scaleErr
+					}
+					layer.FeedForwardDownExpertsScale = &downScale
+				}
+				for name, destination := range map[string]**gguf.TensorInfo{
+					"pre_ffw_norm_2.weight":  &layer.FeedForwardPreNorm2,
+					"post_ffw_norm_1.weight": &layer.FeedForwardPostNorm1,
+					"post_ffw_norm_2.weight": &layer.FeedForwardPostNorm2,
+				} {
+					item, itemErr := required(prefix+name, uint64(spec.EmbeddingLength))
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*destination = &item
+				}
 			}
 			if spec.Architecture == "grovemoe" {
 				chunkExperts := uint64(spec.ExpertCount / spec.ExpertsPerGroup)
@@ -1670,7 +1796,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					return Weights{}, normErr
 				}
 				layer.FeedForwardExpertNorm = &expertNorm
-			} else {
+			} else if spec.Architecture != "gemma4" {
 				continue
 			}
 		}

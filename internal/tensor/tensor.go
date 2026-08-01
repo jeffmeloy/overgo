@@ -160,6 +160,8 @@ type MoEAttributes struct {
 	Activation         MoEActivation
 	Gated              bool
 	FusedGateUp        bool
+	HasSelectionBias   bool
+	HasExpertScale     bool
 	SwiGLUClamp        float32
 }
 
@@ -444,7 +446,7 @@ func (b *Builder) MoE(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0)
 }
 
@@ -456,7 +458,7 @@ func (b *Builder) MoEGroupedWithRouterInput(
 	scale float32,
 	expertIndexDivisor uint32,
 ) *Tensor {
-	return b.moe(input, routerInput, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+	return b.moe(input, routerInput, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationSiLU, false, expertIndexDivisor, 0)
 }
 
@@ -466,7 +468,7 @@ func (b *Builder) MoEUngated(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, up, down, nil, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, nil, up, down, nil, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0)
 }
 
@@ -477,7 +479,7 @@ func (b *Builder) MoEUngatedWithSelectionBias(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, up, down, selectionBias, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, nil, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0)
 }
 
@@ -488,7 +490,7 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0)
 }
 
@@ -499,7 +501,7 @@ func (b *Builder) MoESoftmaxLimitedWithSelectionBias(
 	normalizeTopKProb bool,
 	scale, swigluClamp float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationSiLU, false, 1, swigluClamp)
 }
 
@@ -510,7 +512,7 @@ func (b *Builder) MoESoftmaxFusedGateUp(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, gateUp, down, selectionBias, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, nil, gateUp, down, selectionBias, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationSiLU, true, 1, 0)
 }
 
@@ -521,7 +523,7 @@ func (b *Builder) MoESigmoid(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSigmoid, MoEActivationSiLU, false, 1, 0)
 }
 
@@ -532,7 +534,7 @@ func (b *Builder) MoESigmoidLimited(
 	normalizeTopKProb bool,
 	scale, swigluClamp float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSigmoid, MoEActivationSiLU, false, 1, swigluClamp)
 }
 
@@ -543,7 +545,7 @@ func (b *Builder) MoESigmoidFusedGateUp(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, gateUp, down, selectionBias, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, nil, gateUp, down, selectionBias, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSigmoid, MoEActivationSiLU, true, 1, 0)
 }
 
@@ -555,7 +557,7 @@ func (b *Builder) MoEReLUWithRouterInput(
 	scale float32,
 	routing MoERouting,
 ) *Tensor {
-	return b.moe(input, routerInput, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+	return b.moe(input, routerInput, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
 		routing, MoEActivationReLU, false, 1, 0)
 }
 
@@ -566,12 +568,34 @@ func (b *Builder) MoEGELU(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, nil, topK, normalizeTopKProb, scale,
+	return b.moe(input, input, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
 		MoERoutingSoftmax, MoEActivationGELU, false, 1, 0)
 }
 
+// MoEGELUWithRouterInput: split router input; GELU/GEGLU experts.
+func (b *Builder) MoEGELUWithRouterInput(
+	input, routerInput, router, gate, up, down, expertScale *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, routerInput, router, gate, up, down, nil, expertScale, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationGELU, false, 1, 0)
+}
+
+// MoEGELUFusedGateUpWithRouterInput: split router input; fused GEGLU experts.
+func (b *Builder) MoEGELUFusedGateUpWithRouterInput(
+	input, routerInput, router, gateUp, down, expertScale *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, routerInput, router, nil, gateUp, down, nil, expertScale, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationGELU, true, 1, 0)
+}
+
 func (b *Builder) moe(
-	input, routerInput, router, gate, up, down, selectionBias *Tensor,
+	input, routerInput, router, gate, up, down, selectionBias, expertScale *Tensor,
 	topK uint32,
 	normalizeTopKProb bool,
 	scale float32,
@@ -667,11 +691,20 @@ func (b *Builder) moe(
 		}
 		inputs = append(inputs, selectionBias)
 	}
+	if expertScale != nil {
+		if expertScale.Type != dtype.F32 || expertScale.Shape.Rank != 1 ||
+			expertScale.Shape.Dims[0] != bankExperts {
+			b.setError(errors.New("MoE expert scale must be rank-1 F32 with one value per expert bank"))
+			return nil
+		}
+		inputs = append(inputs, expertScale)
+	}
 	return b.add("", dtype.F32, input.Shape, OpMoE,
 		inputs, MoEAttributes{
 			Experts: uint32(experts), ExpertIndexDivisor: expertIndexDivisor, TopK: topK,
 			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing,
 			Activation: activation, Gated: gate != nil || fusedGateUp, FusedGateUp: fusedGateUp,
+			HasSelectionBias: selectionBias != nil, HasExpertScale: expertScale != nil,
 			SwiGLUClamp: swigluClamp,
 		})
 }

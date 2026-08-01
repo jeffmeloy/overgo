@@ -4,7 +4,7 @@
 Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1 and DeepSeek2-OCR text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
-dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3 and Gemma Embedding,
+dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3/4 and Gemma Embedding,
 ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE, GPT-2/GPT-NeoX, Granite/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Maincoder, Mellum, MiMo2, MiniCPM/MiniCPM3, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
@@ -385,6 +385,8 @@ GLM4-MoE dense-leading and expert catalogs, text-coordinate MRoPE, norm ordering
 routing, shared experts, and CUDA differentials are likewise synthetic-fixture validated.
 MiMo2 mixed dense/expert layers, per-layer KV heads and sliding selection, attention
 sinks, value scaling, MTP trimming, and CUDA differentials are synthetic-fixture validated.
+Gemma4 full/sliding head widths, shared KV, absent-V fallback, mixed dense/GELU-MoE
+blocks, expert output scales, projected per-layer inputs, and raw BPE are synthetic-fixture validated.
 Set `LLAMACPP2GO_BONSAI_MODEL` to the local Bonsai 27B Q1_0 Qwen3.5 fixture
 to validate real-model native one-bit weights against the pinned CPU oracle.
 Set `LLAMACPP2GO_GEMMA3_MODEL` and `LLAMACPP2GO_UMT5_MODEL` to run the

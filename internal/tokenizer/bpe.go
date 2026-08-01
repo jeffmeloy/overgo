@@ -70,6 +70,9 @@ func (v *Vocab) encodeText(text string) ([]TokenID, error) {
 	if v.Model == "bert" {
 		return v.encodeWPM(text)
 	}
+	if v.Model == "gemma4" {
+		return v.encodeGemma4(text)
+	}
 	var words []string
 	if isDeepSeekLLMPre(v.Pre) {
 		words = preTokenizeDeepSeekLLM(text)
@@ -102,6 +105,52 @@ func (v *Vocab) encodeText(text string) ([]TokenID, error) {
 		}
 	}
 	return output, nil
+}
+
+func (v *Vocab) encodeGemma4(text string) ([]TokenID, error) {
+	text = strings.ReplaceAll(text, " ", "\u2581")
+	words := splitGemma4Newlines(text)
+	output := make([]TokenID, 0, len(words))
+	for _, word := range words {
+		if strings.Trim(word, "\n") == "" {
+			if id, ok := v.tokenToID[word]; ok {
+				output = append(output, id)
+				continue
+			}
+		}
+		for _, piece := range v.applyBPE(word) {
+			if id, ok := v.tokenToID[piece]; ok {
+				output = append(output, id)
+				continue
+			}
+			for _, value := range []byte(piece) {
+				byteToken := fmt.Sprintf("<0x%02X>", value)
+				id, ok := v.tokenToID[byteToken]
+				if !ok {
+					return nil, fmt.Errorf("tokenizer: no token for Gemma 4 BPE piece %q (byte 0x%02X)", piece, value)
+				}
+				output = append(output, id)
+			}
+		}
+	}
+	return output, nil
+}
+
+func splitGemma4Newlines(text string) []string {
+	if text == "" {
+		return nil
+	}
+	result := make([]string, 0, 4)
+	for start := 0; start < len(text); {
+		newline := text[start] == '\n'
+		end := start + 1
+		for end < len(text) && (text[end] == '\n') == newline {
+			end++
+		}
+		result = append(result, text[start:end])
+		start = end
+	}
+	return result
 }
 
 func isQwen35Pre(pre string) bool {
@@ -253,7 +302,7 @@ func (v *Vocab) DecodePiece(id TokenID, includeSpecial bool) (string, error) {
 	case TokenUnused, TokenUndefined:
 		return "", nil
 	default:
-		if v.Model == "llama" || v.Model == "t5" || v.Model == "bert" {
+		if v.Model == "llama" || v.Model == "t5" || v.Model == "bert" || v.Model == "gemma4" {
 			return strings.ReplaceAll(token.Text, "▁", " "), nil
 		}
 		decoded, err := decodeBytes(token.Text)

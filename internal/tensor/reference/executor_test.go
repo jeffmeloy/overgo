@@ -617,6 +617,43 @@ func TestExecuteGELUMoE(t *testing.T) {
 	}
 }
 
+func TestExecuteGELUMoEExpertScale(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(1, 1))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, 1))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 1))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 1))
+	scale := builder.Input("scale", dtype.F32, tensor.MustShape(1))
+	output := builder.MoEGELUWithRouterInput(
+		input, input, router, gate, up, down, scale, 1, true, 1,
+	)
+	makeValue := func(shape tensor.Shape, data []float32) Value {
+		result, err := NewValue(shape, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	feeds := map[*tensor.Tensor]Value{
+		input:  makeValue(input.Shape, []float32{1}),
+		router: makeValue(router.Shape, []float32{0}),
+		gate:   makeValue(gate.Shape, []float32{1}),
+		up:     makeValue(up.Shape, []float32{1}),
+		down:   makeValue(down.Shape, []float32{3}),
+		scale:  makeValue(scale.Shape, []float32{2}),
+	}
+	results, err := Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gelu := moeGELU(1)
+	want := float32(6 * gelu)
+	if got := results[output].Data[0]; math.Abs(float64(got-want)) > 1e-6 {
+		t.Fatalf("scaled GELU MoE = %g, want %g", got, want)
+	}
+}
+
 func TestExecuteRoPEMulti(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))

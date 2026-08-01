@@ -53,11 +53,16 @@ type LayerGraphWeights struct {
 	FeedForwardDownBias         *tensor.Tensor
 	FeedForwardPostNorm         *tensor.Tensor
 	FeedForwardPostNormBias     *tensor.Tensor
+	FeedForwardPreNorm2         *tensor.Tensor
+	FeedForwardPostNorm1        *tensor.Tensor
+	FeedForwardPostNorm2        *tensor.Tensor
 	FeedForwardRouter           *tensor.Tensor
+	FeedForwardRouterScale      *tensor.Tensor
 	FeedForwardGateUpExperts    *tensor.Tensor
 	FeedForwardGateExperts      *tensor.Tensor
 	FeedForwardUpExperts        *tensor.Tensor
 	FeedForwardDownExperts      *tensor.Tensor
+	FeedForwardDownExpertsScale *tensor.Tensor
 	FeedForwardGateChunkExperts *tensor.Tensor
 	FeedForwardUpChunkExperts   *tensor.Tensor
 	FeedForwardDownChunkExperts *tensor.Tensor
@@ -68,6 +73,10 @@ type LayerGraphWeights struct {
 	FeedForwardSharedRouter     *tensor.Tensor
 	LayerOutputScale            *tensor.Tensor
 	EmbeddingSkip               *tensor.Tensor
+	PerLayerInput               *tensor.Tensor
+	PerLayerInputGate           *tensor.Tensor
+	PerLayerProjection          *tensor.Tensor
+	PerLayerPostNorm            *tensor.Tensor
 	ShortConvKernel             *tensor.Tensor
 	ShortConvInput              *tensor.Tensor
 	ShortConvOutput             *tensor.Tensor
@@ -1029,6 +1038,9 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if spec.Architecture == "talkie" {
 		return buildTalkieBlock(builder, input, spec, weights, positions, pastKey, pastValue)
+	}
+	if spec.Architecture == "gemma4" {
+		return buildGemma4BlockCached(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"
@@ -2202,6 +2214,241 @@ func BuildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
+func buildGemma4BlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
+		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Gemma 4 block input shape is invalid")
+	}
+	if (pastKey == nil) != (pastValue == nil) {
+		return DenseBlockResult{}, errors.New("Gemma 4 cache pair is incomplete")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm":         weights.AttentionNorm,
+		"attention query":        weights.AttentionQ,
+		"attention query norm":   weights.AttentionQNorm,
+		"attention output":       weights.AttentionOutput,
+		"attention post norm":    weights.AttentionPostNorm,
+		"feed-forward norm":      weights.FeedForwardNorm,
+		"feed-forward gate":      weights.FeedForwardGate,
+		"feed-forward up":        weights.FeedForwardUp,
+		"feed-forward down":      weights.FeedForwardDown,
+		"feed-forward post norm": weights.FeedForwardPostNorm,
+	}
+	if spec.LayerHasKV(layerIndex) {
+		required["attention key"] = weights.AttentionK
+		required["attention key norm"] = weights.AttentionKNorm
+	} else if pastKey == nil {
+		return DenseBlockResult{}, errors.New("Gemma 4 shared-KV layer has no source cache")
+	}
+	usesExperts := weights.FeedForwardRouter != nil
+	if usesExperts {
+		for name, item := range map[string]*tensor.Tensor{
+			"expert router":           weights.FeedForwardRouter,
+			"expert router scale":     weights.FeedForwardRouterScale,
+			"expert down":             weights.FeedForwardDownExperts,
+			"expert pre norm":         weights.FeedForwardPreNorm2,
+			"dense expert post norm":  weights.FeedForwardPostNorm1,
+			"routed expert post norm": weights.FeedForwardPostNorm2,
+		} {
+			required[name] = item
+		}
+		if weights.FeedForwardGateUpExperts == nil {
+			required["expert gate"] = weights.FeedForwardGateExperts
+			required["expert up"] = weights.FeedForwardUpExperts
+		}
+	}
+	if spec.EmbeddingPerLayer > 0 {
+		for name, item := range map[string]*tensor.Tensor{
+			"per-layer input":      weights.PerLayerInput,
+			"per-layer input gate": weights.PerLayerInputGate,
+			"per-layer projection": weights.PerLayerProjection,
+			"per-layer post norm":  weights.PerLayerPostNorm,
+		} {
+			required[name] = item
+		}
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("Gemma 4 block %s weight is nil", name)
+		}
+	}
+	tokens := input.Shape.Dims[1]
+	headCount := uint64(spec.LayerHeadCount(layerIndex))
+	kvHeadCount := uint64(spec.LayerKVHeadCount(layerIndex))
+	keyLength := uint64(spec.LayerKeyLength(layerIndex))
+	valueLength := uint64(spec.LayerValueLength(layerIndex))
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	query := builder.Reshape(
+		builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens,
+	)
+	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+	frequencyBase := spec.RopeFrequencyBase
+	if spec.IsSlidingLayer(layerIndex) {
+		frequencyBase = spec.RopeFrequencySWA
+	}
+	rotaryDimensions := spec.LayerRopeDimensionCount(layerIndex)
+	if weights.RopeFactors != nil {
+		query = builder.RoPENeoXScaledWithFactors(
+			query, positions, rotaryDimensions, frequencyBase, 1, weights.RopeFactors,
+		)
+	} else {
+		query = builder.RoPENeoXScaled(query, positions, rotaryDimensions, frequencyBase, 1)
+	}
+	cacheKey, cacheValue := pastKey, pastValue
+	queryStart := uint32(0)
+	if spec.LayerHasKV(layerIndex) {
+		key := builder.Reshape(
+			builder.MulMat(weights.AttentionK, normalized), keyLength, kvHeadCount, tokens,
+		)
+		value := key
+		if weights.AttentionV != nil {
+			value = builder.Reshape(
+				builder.MulMat(weights.AttentionV, normalized), valueLength, kvHeadCount, tokens,
+			)
+		}
+		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+		value = builder.RMSNorm(value, spec.RMSNormEpsilon)
+		if weights.RopeFactors != nil {
+			key = builder.RoPENeoXScaledWithFactors(
+				key, positions, rotaryDimensions, frequencyBase, 1, weights.RopeFactors,
+			)
+		} else {
+			key = builder.RoPENeoXScaled(key, positions, rotaryDimensions, frequencyBase, 1)
+		}
+		cacheKey, cacheValue = key, value
+		if pastKey != nil {
+			queryStart = uint32(pastKey.Shape.Dims[2])
+			cacheKey = builder.Concat(pastKey, key, 2)
+			cacheValue = builder.Concat(pastValue, value, 2)
+		}
+	} else {
+		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 ||
+			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
+			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
+			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
+			return DenseBlockResult{}, errors.New("Gemma 4 shared-KV source shape is invalid")
+		}
+		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
+	}
+	var attention *tensor.Tensor
+	if spec.IsSlidingLayer(layerIndex) {
+		attention = builder.AttentionWindowWithOffset(
+			query, cacheKey, cacheValue, spec.AttentionScale, true, queryStart, spec.SlidingWindow,
+		)
+	} else {
+		attention = builder.AttentionWithOffset(
+			query, cacheKey, cacheValue, spec.AttentionScale, true, queryStart,
+		)
+	}
+	attention = builder.Reshape(attention, headCount*valueLength, tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
+	attentionOutput := builder.Add(input, attention)
+	var feedForward *tensor.Tensor
+	if usesExperts {
+		denseInput := builder.WeightedRMSNorm(attentionOutput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+		denseGate := builder.MulMat(weights.FeedForwardGate, denseInput)
+		denseUp := builder.MulMat(weights.FeedForwardUp, denseInput)
+		dense := builder.MulMat(weights.FeedForwardDown, builder.GEGLU(denseGate, denseUp))
+		dense = builder.WeightedRMSNorm(dense, weights.FeedForwardPostNorm1, spec.RMSNormEpsilon)
+		expertInput := builder.WeightedRMSNorm(attentionOutput, weights.FeedForwardPreNorm2, spec.RMSNormEpsilon)
+		routerInput := builder.Scale(builder.RMSNorm(attentionOutput, spec.RMSNormEpsilon), 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
+		routerInput = builder.Multiply(routerInput, weights.FeedForwardRouterScale)
+		if weights.FeedForwardGateUpExperts != nil {
+			feedForward = builder.MoEGELUFusedGateUpWithRouterInput(
+				expertInput, routerInput, weights.FeedForwardRouter,
+				weights.FeedForwardGateUpExperts, weights.FeedForwardDownExperts,
+				weights.FeedForwardDownExpertsScale,
+				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+			)
+		} else {
+			feedForward = builder.MoEGELUWithRouterInput(
+				expertInput, routerInput, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, weights.FeedForwardDownExpertsScale,
+				spec.ExpertUsedCount, true,
+				spec.ExpertWeightsScale,
+			)
+		}
+		feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm2, spec.RMSNormEpsilon)
+		feedForward = builder.Add(dense, feedForward)
+	} else {
+		feedForwardInput := builder.WeightedRMSNorm(attentionOutput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+		gate := builder.MulMat(weights.FeedForwardGate, feedForwardInput)
+		up := builder.MulMat(weights.FeedForwardUp, feedForwardInput)
+		feedForward = builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up))
+	}
+	feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
+	output := builder.Add(attentionOutput, feedForward)
+	if spec.EmbeddingPerLayer > 0 {
+		perLayer := builder.GELU(builder.MulMat(weights.PerLayerInputGate, output))
+		perLayer = builder.Multiply(perLayer, weights.PerLayerInput)
+		perLayer = builder.MulMat(weights.PerLayerProjection, perLayer)
+		perLayer = builder.WeightedRMSNorm(perLayer, weights.PerLayerPostNorm, spec.RMSNormEpsilon)
+		output = builder.Add(output, perLayer)
+	}
+	if weights.LayerOutputScale != nil {
+		output = builder.Multiply(output, weights.LayerOutputScale)
+	}
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
+// BuildGemma4PerLayerInputs: projects token and model embeddings per block.
+func BuildGemma4PerLayerInputs(
+	builder *tensor.Builder,
+	input, tokenEmbedding, modelProjection, projectionNorm *tensor.Tensor,
+	spec Spec,
+) ([]*tensor.Tensor, error) {
+	if builder == nil || input == nil || tokenEmbedding == nil || modelProjection == nil || projectionNorm == nil {
+		return nil, errors.New("Gemma 4 per-layer input is incomplete")
+	}
+	if spec.Architecture != "gemma4" || spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
+		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return nil, errors.New("Gemma 4 per-layer input configuration is invalid")
+	}
+	width := uint64(spec.EmbeddingPerLayer)
+	layers := uint64(spec.BlockCount)
+	tokens := input.Shape.Dims[1]
+	combinedWidth := width * layers
+	if tokenEmbedding.Shape.Rank != 2 || tokenEmbedding.Shape.Dims[0] != combinedWidth ||
+		tokenEmbedding.Shape.Dims[1] != tokens ||
+		modelProjection.Shape.Rank != 2 || modelProjection.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
+		modelProjection.Shape.Dims[1] != combinedWidth ||
+		projectionNorm.Shape.Rank != 1 || projectionNorm.Shape.Dims[0] != width {
+		return nil, errors.New("Gemma 4 per-layer input shape is invalid")
+	}
+	projected := builder.MulMat(modelProjection, input)
+	projected = builder.Scale(projected, 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
+	projected = builder.Reshape(projected, width, layers*tokens)
+	projected = builder.WeightedRMSNorm(projected, projectionNorm, spec.RMSNormEpsilon)
+	selected := builder.Scale(tokenEmbedding, float32(math.Sqrt(float64(width))))
+	selected = builder.Reshape(selected, width, layers*tokens)
+	combined := builder.Scale(builder.Add(projected, selected), 1/float32(math.Sqrt(2)))
+	combined = builder.Reshape(combined, combinedWidth, tokens)
+	result := make([]*tensor.Tensor, spec.BlockCount)
+	for layer := uint64(0); layer < layers; layer++ {
+		result[layer] = builder.Reshape(
+			builder.GroupSlice(combined, layer*width, width, 1, combinedWidth),
+			width, tokens,
+		)
+	}
+	if err := builder.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func limitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {

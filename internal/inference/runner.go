@@ -494,11 +494,15 @@ func (r *Runner) layerDeviceInputs(
 			if result.AttentionQ, err = input(info.AttentionQ); err != nil {
 				return result, nil, err
 			}
-			if result.AttentionK, err = input(info.AttentionK); err != nil {
-				return result, nil, err
+			if info.AttentionK.Name != "" {
+				if result.AttentionK, err = input(info.AttentionK); err != nil {
+					return result, nil, err
+				}
 			}
-			if result.AttentionV, err = input(info.AttentionV); err != nil {
-				return result, nil, err
+			if info.AttentionV.Name != "" {
+				if result.AttentionV, err = input(info.AttentionV); err != nil {
+					return result, nil, err
+				}
 			}
 		}
 		if info.AttentionOutput.Name != "" {
@@ -547,6 +551,7 @@ func (r *Runner) layerDeviceInputs(
 		{info.FeedForwardGateExperts, &result.FeedForwardGateExperts},
 		{info.FeedForwardUpExperts, &result.FeedForwardUpExperts},
 		{info.FeedForwardDownExperts, &result.FeedForwardDownExperts},
+		{info.FeedForwardDownExpertsScale, &result.FeedForwardDownExpertsScale},
 		{info.FeedForwardGateChunkExperts, &result.FeedForwardGateChunkExperts},
 		{info.FeedForwardUpChunkExperts, &result.FeedForwardUpChunkExperts},
 		{info.FeedForwardDownChunkExperts, &result.FeedForwardDownChunkExperts},
@@ -556,6 +561,13 @@ func (r *Runner) layerDeviceInputs(
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{info.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
 		{info.LayerOutputScale, &result.LayerOutputScale},
+		{info.FeedForwardPreNorm2, &result.FeedForwardPreNorm2},
+		{info.FeedForwardPostNorm1, &result.FeedForwardPostNorm1},
+		{info.FeedForwardPostNorm2, &result.FeedForwardPostNorm2},
+		{info.FeedForwardRouterScale, &result.FeedForwardRouterScale},
+		{info.PerLayerInputGate, &result.PerLayerInputGate},
+		{info.PerLayerProjection, &result.PerLayerProjection},
+		{info.PerLayerPostNorm, &result.PerLayerPostNorm},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -1004,6 +1016,10 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		}
 		embeddingSkip = activation
 	}
+	perLayerInputs, err := r.prepareGemma4PerLayerInputs(ctx, activation, rows)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
 	nextCache := &KVCache{
 		Layers:   make([]LayerCache, len(r.weights.Layers)),
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
@@ -1012,12 +1028,21 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	if r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" {
-		return r.forwardDenseLayersPreloaded(ctx, activation, embeddingSkip, positions, cache, nextCache)
+		return r.forwardDenseLayersPreloaded(
+			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
+		)
 	}
 	for layerIndex, layerInfo := range r.weights.Layers {
 		var past *LayerCache
-		if cache != nil {
+		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
+			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
+			past = &nextCache.Layers[source]
+		} else if cache != nil {
 			past = &cache.Layers[layerIndex]
+		}
+		var perLayerInput *reference.Value
+		if len(perLayerInputs) > 0 {
+			perLayerInput = &perLayerInputs[layerIndex]
 		}
 		var layerCache LayerCache
 		activation, layerCache, err = r.runLayerCached(
@@ -1028,6 +1053,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			positions,
 			past,
 			embeddingSkip,
+			perLayerInput,
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
@@ -1091,6 +1117,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	ctx context.Context,
 	activation reference.Value,
 	embeddingSkip reference.Value,
+	perLayerInputs []reference.Value,
 	positions []uint32,
 	cache *KVCache,
 	nextCache *KVCache,
@@ -1110,11 +1137,23 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		if r.spec.Architecture == "talkie" {
 			graphWeights.EmbeddingSkip = input
 		}
+		if len(perLayerInputs) > 0 {
+			perLayer := builder.Input(
+				fmt.Sprintf("blk.%d.per_layer_input", layerIndex),
+				dtype.F32,
+				perLayerInputs[layerIndex].Shape,
+			)
+			hostFeeds[perLayer] = perLayerInputs[layerIndex]
+			graphWeights.PerLayerInput = perLayer
+		}
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
 		var pastKey, pastValue *tensor.Tensor
-		if cache != nil {
+		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
+			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
+			pastKey, pastValue = keys[source], values[source]
+		} else if cache != nil {
 			past := cache.Layers[layerIndex]
 			pastKey = builder.Input(
 				fmt.Sprintf("blk.%d.cache_key", layerIndex),
@@ -1287,6 +1326,7 @@ func (r *Runner) runLayerCached(
 	positions []uint32,
 	past *LayerCache,
 	embeddingSkip reference.Value,
+	perLayerInput *reference.Value,
 ) (reference.Value, LayerCache, error) {
 	if isQwenGDNArchitecture(r.spec.Architecture) {
 		return r.runQwen35LayerCached(
@@ -1330,6 +1370,11 @@ func (r *Runner) runLayerCached(
 		skip := builder.Input("embedding_skip", dtype.F32, embeddingSkip.Shape)
 		hostFeeds[skip] = embeddingSkip
 		graphWeights.EmbeddingSkip = skip
+	}
+	if perLayerInput != nil {
+		perLayer := builder.Input("per_layer_input", dtype.F32, perLayerInput.Shape)
+		hostFeeds[perLayer] = *perLayerInput
+		graphWeights.PerLayerInput = perLayer
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil {
@@ -2200,6 +2245,79 @@ func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.V
 	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
 }
 
+func (r *Runner) prepareGemma4PerLayerInputs(
+	ctx context.Context,
+	activation reference.Value,
+	rows []uint32,
+) ([]reference.Value, error) {
+	if r.spec.Architecture != "gemma4" || r.spec.EmbeddingPerLayer == 0 {
+		return nil, nil
+	}
+	if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
+		r.weights.PerLayerProjectionNorm == nil {
+		return nil, errors.New("inference: Gemma 4 per-layer weights are incomplete")
+	}
+	selected, err := r.loadRows(ctx, *r.weights.PerLayerTokenEmbedding, rows)
+	if err != nil {
+		return nil, fmt.Errorf("inference: load Gemma 4 per-layer embeddings: %w", err)
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("gemma4.per_layer.input", dtype.F32, activation.Shape)
+	selectedInput := builder.Input("gemma4.per_layer.selected", dtype.F32, selected.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{
+		input:         activation,
+		selectedInput: selected,
+	}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var projection, norm *tensor.Tensor
+	if r.hasPreloadedWeights() {
+		var pointer driver.DevicePtr
+		projection, pointer, err = r.deviceInput(builder, *r.weights.PerLayerModelProjection)
+		if err != nil {
+			return nil, err
+		}
+		deviceFeeds[projection] = pointer
+		norm, pointer, err = r.deviceInput(builder, *r.weights.PerLayerProjectionNorm)
+		if err != nil {
+			return nil, err
+		}
+		deviceFeeds[norm] = pointer
+	} else {
+		projectionValue, loadErr := model.LoadHostTensor(ctx, r.file, *r.weights.PerLayerModelProjection)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		normValue, loadErr := model.LoadHostTensor(ctx, r.file, *r.weights.PerLayerProjectionNorm)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		projection = builder.Input("gemma4.per_layer.projection", dtype.F32, projectionValue.Shape)
+		norm = builder.Input("gemma4.per_layer.norm", dtype.F32, normValue.Shape)
+		hostFeeds[projection] = projectionValue
+		hostFeeds[norm] = normValue
+	}
+	outputs, err := model.BuildGemma4PerLayerInputs(
+		builder, input, selectedInput, projection, norm, r.spec,
+	)
+	if err != nil {
+		return nil, err
+	}
+	var results map[*tensor.Tensor]reference.Value
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
+	} else {
+		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
+	}
+	if err != nil {
+		return nil, err
+	}
+	values := make([]reference.Value, len(outputs))
+	for index, output := range outputs {
+		values[index] = results[output]
+	}
+	return values, nil
+}
+
 func (r *Runner) loadRows(
 	ctx context.Context,
 	info gguf.TensorInfo,
@@ -2501,6 +2619,15 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	if weights.Dense3Output != nil {
 		names[weights.Dense3Output.Name] = struct{}{}
 	}
+	for _, pointer := range []*gguf.TensorInfo{
+		weights.PerLayerTokenEmbedding,
+		weights.PerLayerModelProjection,
+		weights.PerLayerProjectionNorm,
+	} {
+		if pointer != nil {
+			names[pointer.Name] = struct{}{}
+		}
+	}
 	for _, layer := range weights.Layers {
 		infos := []gguf.TensorInfo{
 			layer.AttentionNorm,
@@ -2578,6 +2705,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardGateExperts,
 			layer.FeedForwardUpExperts,
 			layer.FeedForwardDownExperts,
+			layer.FeedForwardDownExpertsScale,
 			layer.FeedForwardGateChunkExperts,
 			layer.FeedForwardUpChunkExperts,
 			layer.FeedForwardDownChunkExperts,
@@ -2587,6 +2715,13 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardSharedDown,
 			layer.FeedForwardSharedRouter,
 			layer.LayerOutputScale,
+			layer.FeedForwardPreNorm2,
+			layer.FeedForwardPostNorm1,
+			layer.FeedForwardPostNorm2,
+			layer.FeedForwardRouterScale,
+			layer.PerLayerInputGate,
+			layer.PerLayerProjection,
+			layer.PerLayerPostNorm,
 			layer.AttentionKVAMQA,
 			layer.AttentionKVANorm,
 			layer.AttentionKVB,

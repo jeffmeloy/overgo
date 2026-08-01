@@ -144,6 +144,7 @@ tokenizers:
   algorithms:
     - sentencepiece-bpe
     - gpt2-byte-bpe
+    - gemma4-raw-bpe
     - bert-wordpiece
     - unigram
   pinned_oracle_corpora:
@@ -286,7 +287,7 @@ hardening:
     kernel_sha256: true
     kernel_manifest:
       schema: 2
-      abi_version: 5
+      abi_version: 14
       verifies:
         - source-and-asset-sha256
         - complete-entry-set
@@ -2091,6 +2092,32 @@ models:
     limitations:
       - nextn-mtp-prediction-pending
       - vision-tower-pending
+    real_model_validation: pending-fixture
+  gemma4:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    tokenizers:
+      - gemma4-raw-bpe
+    features:
+      - per-layer-full-or-sliding-head-widths
+      - full-and-sliding-neox-rope
+      - shared-kv-tail-layers
+      - absent-value-projection-key-fallback
+      - attention-and-feed-forward-post-norms
+      - mixed-dense-and-gelu-moe-layers
+      - normalized-softmax-top-k-routing
+      - separate-or-fused-geglu-experts
+      - per-expert-output-scaling
+      - dense-shared-expert-branch
+      - projected-per-layer-token-inputs
+      - optional-layer-output-scaling
+      - final-logit-softcap
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - multimodal-encoder-external
     real_model_validation: pending-fixture
   step35:
     status: experimental

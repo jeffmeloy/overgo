@@ -194,6 +194,8 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 			r.spec.HeadCountKV,
 			r.spec.KeyLength,
 			r.spec.ValueLength,
+			r.spec.KeyLengthSWA,
+			r.spec.ValueLengthSWA,
 			math.Float32bits(r.spec.RopeFrequencyBase),
 			math.Float32bits(r.spec.RMSNormEpsilon),
 			math.Float32bits(r.spec.LayerNormEpsilon),
@@ -205,6 +207,8 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 			r.spec.SSMTimeStepRank,
 			r.spec.SSMGroupCount,
 			r.spec.FullAttentionInterval,
+			r.spec.EmbeddingPerLayer,
+			r.spec.SharedKVLayers,
 		} {
 			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], value)
@@ -224,6 +228,18 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], heads)
 			_, _ = hasher.Write(encoded[:])
+		}
+		for _, width := range r.spec.LayerFeedForward {
+			var encoded [4]byte
+			binary.LittleEndian.PutUint32(encoded[:], width)
+			_, _ = hasher.Write(encoded[:])
+		}
+		for _, sliding := range r.spec.SlidingLayers {
+			if sliding {
+				_, _ = hasher.Write([]byte{1})
+			} else {
+				_, _ = hasher.Write([]byte{0})
+			}
 		}
 		for _, recurrent := range r.spec.RecurrentLayers {
 			if recurrent {

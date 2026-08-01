@@ -153,6 +153,44 @@ func TestLoadEncodeDecodeAndSpecialTokens(t *testing.T) {
 	}
 }
 
+func TestGemma4RawBPEAndNewlines(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "gemma4"),
+		array("tokenizer.ggml.tokens", gguf.ValueTypeString, []string{
+			"<bos>", "\u2581", "h", "i", "\u2581hi", "\n\n", "<0xC3>", "<0xA9>", "<turn|>",
+		}),
+		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, []int32{
+			3, 1, 1, 1, 1, 1, 6, 6, 3,
+		}),
+		array("tokenizer.ggml.merges", gguf.ValueTypeString, []string{
+			"\u2581 h", "\u2581h i",
+		}),
+		scalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(0)),
+		scalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, false),
+	}}
+	vocab, err := Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids, err := vocab.Encode(" hi\n\né", EncodeOptions{AddSpecial: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []TokenID{0, 4, 5, 6, 7}; !reflect.DeepEqual(ids, want) {
+		t.Fatalf("Gemma 4 Encode = %v, want %v", ids, want)
+	}
+	decoded, err := vocab.Decode(ids, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded != " hi\n\né" {
+		t.Fatalf("Gemma 4 Decode = %q", decoded)
+	}
+	if !vocab.IsEOG(8) {
+		t.Fatal("Gemma 4 turn token is not EOG")
+	}
+}
+
 func TestLoadRejectsDuplicateTokens(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "gpt2"),

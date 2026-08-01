@@ -1257,7 +1257,14 @@ func launchNode(
 		if attributes.Gated && !attributes.FusedGateUp {
 			wantInputs = 6
 		}
-		if !ok || (len(node.Inputs) != wantInputs && len(node.Inputs) != wantInputs+1) ||
+		expectedInputs := wantInputs
+		if attributes.HasSelectionBias {
+			expectedInputs++
+		}
+		if attributes.HasExpertScale {
+			expectedInputs++
+		}
+		if !ok || len(node.Inputs) != expectedInputs ||
 			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid) ||
 			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU &&
 				attributes.Activation != tensor.MoEActivationGELU) || attributes.SwiGLUClamp < 0 ||
@@ -1309,8 +1316,14 @@ func launchNode(
 			return fmt.Errorf("MoE expert storage type %s is unsupported", upNode.Type)
 		}
 		var selectionBias driver.DevicePtr
-		if len(node.Inputs) == wantInputs+1 {
-			selectionBias = pointers[node.Inputs[wantInputs]]
+		optionalIndex := wantInputs
+		if attributes.HasSelectionBias {
+			selectionBias = pointers[node.Inputs[optionalIndex]]
+			optionalIndex++
+		}
+		var expertScale driver.DevicePtr
+		if attributes.HasExpertScale {
+			expertScale = pointers[node.Inputs[optionalIndex]]
 		}
 		experts := attributes.Experts
 		expertIndexDivisor := attributes.ExpertIndexDivisor
@@ -1340,7 +1353,8 @@ func launchNode(
 		}
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&input), unsafe.Pointer(&routerInput), unsafe.Pointer(&router), unsafe.Pointer(&gate),
-			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&output),
+			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&expertScale),
+			unsafe.Pointer(&output),
 			unsafe.Pointer(&hidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
 			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
 			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),

@@ -355,6 +355,34 @@ func (r *Runner) forwardDeviceCachedLocked(
 		current = builder.RMSNorm(current, r.spec.RMSNormEpsilon)
 		embeddingSkip = current
 	}
+	var perLayerInputs []*tensor.Tensor
+	if r.spec.Architecture == "gemma4" && r.spec.EmbeddingPerLayer > 0 {
+		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
+			r.weights.PerLayerProjectionNorm == nil {
+			return reference.Value{}, nil, errors.New("inference: Gemma 4 per-layer weights are incomplete")
+		}
+		perLayerTable, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerTokenEmbedding)
+		if inputErr != nil {
+			return reference.Value{}, nil, inputErr
+		}
+		deviceFeeds[perLayerTable] = pointer
+		projection, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerModelProjection)
+		if inputErr != nil {
+			return reference.Value{}, nil, inputErr
+		}
+		deviceFeeds[projection] = pointer
+		norm, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerProjectionNorm)
+		if inputErr != nil {
+			return reference.Value{}, nil, inputErr
+		}
+		deviceFeeds[norm] = pointer
+		perLayerInputs, inputErr = model.BuildGemma4PerLayerInputs(
+			builder, current, builder.GetRows(perLayerTable, rows), projection, norm, r.spec,
+		)
+		if inputErr != nil {
+			return reference.Value{}, nil, inputErr
+		}
+	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
@@ -367,6 +395,9 @@ func (r *Runner) forwardDeviceCachedLocked(
 		}
 		if r.spec.Architecture == "talkie" {
 			graphWeights.EmbeddingSkip = embeddingSkip
+		}
+		if len(perLayerInputs) > 0 {
+			graphWeights.PerLayerInput = perLayerInputs[layerIndex]
 		}
 		if isQwenGDNArchitecture(r.spec.Architecture) {
 			var pastKey, pastValue, convState, ssmState *tensor.Tensor
@@ -447,7 +478,10 @@ func (r *Runner) forwardDeviceCachedLocked(
 			}
 		} else {
 			var pastKey, pastValue *tensor.Tensor
-			if past != nil {
+			if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
+				source := r.spec.LayerSharedKVSource(uint32(layerIndex))
+				pastKey, pastValue = keys[source], values[source]
+			} else if past != nil {
 				pastKey = builder.Input(
 					fmt.Sprintf("blk.%d.cache_key", layerIndex),
 					dtype.F32,

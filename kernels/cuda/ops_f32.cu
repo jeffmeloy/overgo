@@ -738,6 +738,7 @@ extern "C" __global__ void moe_f32(
 		const void * up,
 		const void * down,
 		const float * selection_bias,
+		const float * expert_scale,
         float * output,
         unsigned int hidden,
         unsigned int tokens,
@@ -865,6 +866,7 @@ extern "C" __global__ void moe_f32(
 			expert_output += activated * moe_expert_value(
 				down, down_offset, expert_storage);
         }
+		if (expert_scale) expert_output *= expert_scale[expert];
         result += route * expert_output;
     }
     output[index] = result;

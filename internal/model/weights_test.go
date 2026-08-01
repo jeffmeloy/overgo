@@ -3669,6 +3669,76 @@ func TestReadWeightsPaddleOCR(t *testing.T) {
 	testReadWeightsMRoPETextDecoder(t, "paddleocr")
 }
 
+func TestReadWeightsGemma4SharedKVMoEAndPerLayerInputs(t *testing.T) {
+	spec := Spec{
+		Architecture: "gemma4", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 10, LayerFeedForward: []uint32{10, 11, 12, 13},
+		HeadCount: 2, HeadCountKV: 1, LayerKVHeadCounts: []uint32{1, 1, 1, 1},
+		KeyLength: 4, ValueLength: 4, KeyLengthSWA: 2, ValueLengthSWA: 2,
+		RopeDimensionCount: 4, RopeDimensionSWA: 2, VocabularySize: 32,
+		RMSNormEpsilon: 1e-6, SlidingLayers: []bool{true, false, true, false},
+		SharedKVLayers: 2, EmbeddingPerLayer: 3,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 3, ExpertWeightsScale: 1,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("rope_freqs.weight", 2),
+		tensorInfo("per_layer_token_embd.weight", 12, 32),
+		tensorInfo("per_layer_model_proj.weight", 8, 12),
+		tensorInfo("per_layer_proj_norm.weight", 3),
+	}
+	for block := range uint32(4) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		keyWidth := uint64(spec.LayerKeyLength(block))
+		valueWidth := uint64(spec.LayerValueLength(block))
+		ffWidth := uint64(spec.LayerFeedForwardLength(block))
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 2*keyWidth),
+			tensorInfo(prefix+"attn_q_norm.weight", keyWidth),
+			tensorInfo(prefix+"attn_output.weight", 2*valueWidth, 8),
+			tensorInfo(prefix+"post_attention_norm.weight", 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_gate.weight", 8, ffWidth),
+			tensorInfo(prefix+"ffn_up.weight", 8, ffWidth),
+			tensorInfo(prefix+"ffn_down.weight", ffWidth, 8),
+			tensorInfo(prefix+"post_ffw_norm.weight", 8),
+			tensorInfo(prefix+"per_layer_inp_gate.weight", 8, 3),
+			tensorInfo(prefix+"per_layer_proj.weight", 3, 8),
+			tensorInfo(prefix+"per_layer_post_norm.weight", 8),
+		)
+		if spec.LayerHasKV(block) {
+			tensors = append(tensors,
+				tensorInfo(prefix+"attn_k.weight", 8, keyWidth),
+				tensorInfo(prefix+"attn_k_norm.weight", keyWidth),
+			)
+		}
+		if block == 2 {
+			tensors = append(tensors,
+				tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4),
+				tensorInfo(prefix+"ffn_gate_inp.scale", 8),
+				tensorInfo(prefix+"ffn_gate_up_exps.weight", 8, 6, 4),
+				tensorInfo(prefix+"ffn_down_exps.weight", 3, 8, 4),
+				tensorInfo(prefix+"ffn_down_exps.scale", 4),
+				tensorInfo(prefix+"pre_ffw_norm_2.weight", 8),
+				tensorInfo(prefix+"post_ffw_norm_1.weight", 8),
+				tensorInfo(prefix+"post_ffw_norm_2.weight", 8),
+			)
+		}
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.PerLayerTokenEmbedding == nil || weights.Layers[0].AttentionV.Name != "" ||
+		weights.Layers[2].AttentionK.Name != "" || weights.Layers[2].FeedForwardRouter == nil ||
+		weights.Layers[2].FeedForwardDownExpertsScale == nil ||
+		weights.Layers[3].PerLayerProjection == nil {
+		t.Fatalf("unexpected Gemma 4 catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsQwen2VL(t *testing.T) {
 	testReadWeightsMRoPETextDecoder(t, "qwen2vl")
 }

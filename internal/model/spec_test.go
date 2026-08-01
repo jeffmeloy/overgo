@@ -231,6 +231,51 @@ func TestReadStep35SpecTrimsMTPArrays(t *testing.T) {
 	}
 }
 
+func TestReadGemma4Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gemma4"),
+		metadata("gemma4.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma4.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("gemma4.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		{Key: "gemma4.feed_forward_length", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{6, 6, 12, 12},
+		}},
+		metadata("gemma4.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "gemma4.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 1, 1},
+		}},
+		metadata("gemma4.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma4.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma4.attention.key_length_swa", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4.attention.value_length_swa", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma4.rope.dimension_count_swa", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
+		metadata("gemma4.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(10_000)),
+		metadata("gemma4.attention.sliding_window", gguf.ValueTypeUint32, uint32(512)),
+		{Key: "gemma4.attention.sliding_window_pattern", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool, Data: []bool{true, false, true, false},
+		}},
+		metadata("gemma4.attention.shared_kv_layers", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4.embedding_length_per_layer_input", gguf.ValueTypeUint32, uint32(3)),
+		metadata("gemma4.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("gemma4.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gemma4.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("gemma4.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(3)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gemma4" || spec.LayerFeedForwardLength(3) != 12 ||
+		spec.LayerKeyLength(0) != 2 || spec.LayerKeyLength(1) != 4 ||
+		spec.LayerRopeDimensionCount(0) != 2 || spec.LayerRopeDimensionCount(1) != 4 ||
+		spec.LayerHasKV(2) || spec.LayerSharedKVSource(2) != 0 || spec.LayerSharedKVSource(3) != 1 ||
+		spec.EmbeddingPerLayer != 3 || spec.ExpertCount != 4 || spec.AttentionScale != 1 {
+		t.Fatalf("unexpected Gemma 4 spec: %+v", spec)
+	}
+}
+
 func TestReadArcticSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "arctic"),

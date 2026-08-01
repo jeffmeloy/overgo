@@ -6905,9 +6905,9 @@ $L__BB42_11:
 	.param .u32 rope_multi_f32_param_13
 )
 {
-	.reg .pred 	%p<7>;
+	.reg .pred 	%p<10>;
 	.reg .f32 	%f<25>;
-	.reg .b32 	%r<31>;
+	.reg .b32 	%r<32>;
 	.reg .b64 	%rd<17>;
 
 
@@ -6945,27 +6945,27 @@ $L__BB43_3:
 	div.u32 	%r15, %r1, %r3;
 	div.u32 	%r16, %r15, %r4;
 	rem.u32 	%r17, %r16, %r5;
-	shr.u32 	%r18, %r6, 1;
-	rem.u32 	%r19, %r2, %r18;
-	add.s32 	%r20, %r8, %r7;
-	add.s32 	%r21, %r20, %r9;
-	add.s32 	%r22, %r21, %r10;
-	rem.u32 	%r23, %r19, %r22;
-	setp.lt.u32 	%p3, %r23, %r21;
-	setp.lt.u32 	%p4, %r23, %r20;
-	setp.ge.u32 	%p5, %r23, %r7;
-	selp.u32 	%r24, 1, 0, %p5;
-	selp.b32 	%r25, %r24, 2, %p4;
-	selp.b32 	%r26, %r25, 3, %p3;
-	mad.lo.s32 	%r27, %r15, %r3, %r19;
-	mad.lo.s32 	%r28, %r26, %r5, %r17;
+	add.s32 	%r18, %r8, %r7;
+	add.s32 	%r19, %r18, %r9;
+	add.s32 	%r20, %r19, %r10;
+	shr.u32 	%r21, %r2, 1;
+	rem.u32 	%r22, %r21, %r20;
+	setp.lt.u32 	%p3, %r22, %r19;
+	setp.lt.u32 	%p4, %r22, %r18;
+	setp.ge.u32 	%p5, %r22, %r7;
+	selp.u32 	%r23, 1, 0, %p5;
+	selp.b32 	%r24, %r23, 2, %p4;
+	selp.b32 	%r25, %r24, 3, %p3;
+	and.b32  	%r26, %r2, -2;
+	mad.lo.s32 	%r27, %r15, %r3, %r26;
+	mad.lo.s32 	%r28, %r25, %r5, %r17;
 	cvta.to.global.u64 	%rd10, %rd3;
 	mul.wide.u32 	%rd11, %r28, 4;
 	add.s64 	%rd12, %rd10, %rd11;
 	ld.global.u32 	%r29, [%rd12];
 	cvt.rn.f32.u32 	%f11, %r29;
 	mul.ftz.f32 	%f12, %f11, %f9;
-	cvt.rn.f32.u32 	%f13, %r19;
+	cvt.rn.f32.u32 	%f13, %r21;
 	mul.ftz.f32 	%f14, %f13, 0fC0000000;
 	cvt.rn.f32.u32 	%f15, %r6;
 	div.approx.ftz.f32 	%f16, %f14, %f15;
@@ -6978,12 +6978,16 @@ $L__BB43_3:
 	mul.wide.u32 	%rd13, %r27, 4;
 	add.s64 	%rd14, %rd1, %rd13;
 	ld.global.f32 	%f3, [%rd14];
-	add.s32 	%r30, %r27, %r18;
+	add.s32 	%r30, %r27, 1;
 	mul.wide.u32 	%rd15, %r30, 4;
 	add.s64 	%rd16, %rd1, %rd15;
 	ld.global.f32 	%f4, [%rd16];
-	setp.lt.u32 	%p6, %r2, %r18;
-	@%p6 bra 	$L__BB43_5;
+	and.b32  	%r31, %r2, 1;
+	setp.eq.b32 	%p6, %r31, 1;
+	mov.pred 	%p7, 0;
+	xor.pred  	%p8, %p6, %p7;
+	not.pred 	%p9, %p8;
+	@%p9 bra 	$L__BB43_5;
 	bra.uni 	$L__BB43_4;
 
 $L__BB43_5:

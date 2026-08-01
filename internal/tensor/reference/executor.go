@@ -1194,7 +1194,7 @@ func ropeMulti(
 		sectionPairs += int(section)
 	}
 	if rotary <= 0 || rotary%2 != 0 || rotary > width ||
-		sectionPairs <= 0 || sectionPairs > half {
+		sectionPairs <= 0 {
 		return Value{}, errors.New("invalid rope_multi dimensions")
 	}
 	output := append([]float32(nil), input.Data...)
@@ -1216,10 +1216,11 @@ func ropeMulti(
 					)
 					cosine := float32(math.Cos(theta))
 					sine := float32(math.Sin(theta))
-					x0 := input.Data[offset+pair]
-					x1 := input.Data[offset+pair+half]
-					output[offset+pair] = x0*cosine - x1*sine
-					output[offset+pair+half] = x0*sine + x1*cosine
+					first := offset + pair*2
+					x0 := input.Data[first]
+					x1 := input.Data[first+1]
+					output[first] = x0*cosine - x1*sine
+					output[first+1] = x0*sine + x1*cosine
 				}
 			}
 		}

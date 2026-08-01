@@ -1782,8 +1782,7 @@ func (b *Builder) RoPENormalWithFactors(
 	)
 }
 
-// RoPEMulti: applies llama.cpp's split-half multi-axis rotary layout; Positions
-// temporal, height, width, and extra axes; sections count rotary pairs
+// RoPEMulti: adjacent-pair multi-axis rotation; axes T/H/W/extra.
 func (b *Builder) RoPEMulti(
 	input *Tensor,
 	positions [4][]uint32,
@@ -1825,8 +1824,8 @@ func (b *Builder) RoPEMultiScaled(
 			return nil
 		}
 	}
-	if sectionPairs == 0 || sectionPairs > int64(rotaryDimensions/2) {
-		b.setError(errors.New("rope_multi sections exceed rotary pair count"))
+	if sectionPairs == 0 {
+		b.setError(errors.New("rope_multi sections are empty"))
 		return nil
 	}
 	if frequencyBase <= 0 || frequencyScale <= 0 ||

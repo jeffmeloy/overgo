@@ -69,18 +69,20 @@ func TestApplyEmbeddingOverridesRejectsInvalidInput(t *testing.T) {
 }
 
 func TestMultimodalInputAdmission(t *testing.T) {
-	supported := &Runner{spec: model.Spec{
-		Architecture: "qwen3vl", RopeSections: [4]int32{1, 1, 0, 0},
-	}}
-	_, _, err := supported.ForwardCachedWithMultimodalInputs(
-		context.Background(), nil, nil, MultiAxisPositions{}, nil,
-	)
-	if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
-		t.Fatalf("supported multimodal error = %v", err)
+	for _, architecture := range []string{"qwen3vl", "glm4"} {
+		supported := &Runner{spec: model.Spec{
+			Architecture: architecture, RopeSections: [4]int32{2, 2, 0, 0},
+		}}
+		_, _, err := supported.ForwardCachedWithMultimodalInputs(
+			context.Background(), nil, nil, MultiAxisPositions{}, nil,
+		)
+		if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
+			t.Fatalf("%s multimodal error = %v", architecture, err)
+		}
 	}
 
 	unsupported := &Runner{spec: model.Spec{Architecture: "llama"}}
-	_, _, err = unsupported.ForwardCachedWithMultimodalInputs(
+	_, _, err := unsupported.ForwardCachedWithMultimodalInputs(
 		context.Background(), nil, nil, MultiAxisPositions{}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "does not support") {

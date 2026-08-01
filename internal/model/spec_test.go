@@ -2350,8 +2350,12 @@ func TestReadTextGLM4Spec(t *testing.T) {
 			Data: []int32{16, 24, 24, 0},
 		},
 	}
-	if _, err := ReadSpec(file); err == nil || !strings.Contains(err.Error(), "multimodal RoPE") {
-		t.Fatalf("GLM4 multimodal error = %v", err)
+	spec, err = ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.RopeSections != [4]int32{16, 24, 24, 0} {
+		t.Fatalf("GLM4 MRoPE sections = %v", spec.RopeSections)
 	}
 }
 

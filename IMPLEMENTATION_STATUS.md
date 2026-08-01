@@ -641,9 +641,10 @@
   per-head Q/K RMSNorm, full NeoX RoPE with ordinary or LongRoPE factors,
   metadata attention scaling, ungated xIELU FFNs with scalar-or-per-layer
   parameters, optional attention-output bias, and required untied output.
-- Text-only GLM4 decoders support pre/post RMSNorm, fused or separate QKV with
-  optional bias, partial normal RoPE, fused gate/up SwiGLU, and tied or untied
-  output. Multimodal RoPE sections and NextN/MTP layers are rejected.
+- GLM4 decoders support pre/post RMSNorm, fused or separate QKV with optional
+  bias, partial normal or four-axis multimodal RoPE, projected embedding
+  overrides, fused gate/up SwiGLU, and tied or untied output. NextN/MTP layers
+  are rejected.
 - The real UMT5 XXL encoder passes strict 24-layer T5 metadata and tensor
   catalog validation. Its SentencePiece UGM tokenizer produces
   `[23231, 3914, 332]` for `Hello world!`, exactly matching the pinned

@@ -2663,7 +2663,7 @@ func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
 	output := builder.RoPEMultiScaled(
 		input,
 		positions,
-		[4]int32{2, 1, 1, 0},
+		[4]int32{2, 2, 2, 2},
 		8,
 		1_000_000,
 		0.25,

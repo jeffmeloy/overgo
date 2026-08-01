@@ -666,7 +666,7 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	multi := builder.RoPEMulti(
 		builder.Input("multi", dtype.F32, MustShape(8, 1, 2)),
 		positions,
-		[4]int32{1, 1, 1, 1},
+		[4]int32{2, 2, 2, 2},
 		8,
 		10000,
 	)

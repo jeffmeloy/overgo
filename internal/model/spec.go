@@ -1116,9 +1116,6 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if len(sections) != 4 {
 				return Spec{}, fmt.Errorf("metadata %q has %d values, need 4", prefix+"rope.dimension_sections", len(sections))
 			}
-			if architecture == "glm4" && sections[0] > 0 && sections[1] > 0 {
-				return Spec{}, errors.New("GLM4 multimodal RoPE is not supported")
-			}
 			copy(spec.RopeSections[:], sections)
 		}
 	}
@@ -4029,16 +4026,11 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("GLM4 rotary dimension count is invalid")
 	}
-	if s.Architecture == "glm4moe" {
-		var sectionPairs int64
+	if s.Architecture == "glm4" || s.Architecture == "glm4moe" {
 		for _, section := range s.RopeSections {
 			if section < 0 {
-				return errors.New("GLM4-MoE MRoPE section count is negative")
+				return errors.New("GLM4 MRoPE section count is negative")
 			}
-			sectionPairs += int64(section)
-		}
-		if sectionPairs > int64(s.RopeDimensionCount/2) {
-			return errors.New("GLM4-MoE MRoPE sections exceed rotary pair count")
 		}
 	}
 	if s.Architecture == "glm4moe" &&

@@ -5074,6 +5074,56 @@ func TestBuildDenseGLM4(t *testing.T) {
 	}
 }
 
+func TestBuildDenseGLM4UsesDistinctMRoPEPositions(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "glm4", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeSections:      [4]int32{2, 2, 0, 0},
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ, weights.AttentionK, weights.AttentionV = nil, nil, nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16))
+	weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(16))
+	weights.AttentionPostNorm = builder.Input("post_attention_norm", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardPostNorm = builder.Input("post_ffw_norm", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUp = builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 24))
+	positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
+	result, err := BuildDenseBlockCachedForLayerWithMultiPositions(
+		builder, input, spec, weights, positions, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, node := range nodes {
+		if node.Op != tensor.OpRoPEMulti {
+			continue
+		}
+		count++
+		attributes := node.Attrs.(tensor.RoPEMultiAttributes)
+		if attributes.Sections != spec.RopeSections {
+			t.Fatalf("MRoPE sections = %v, want %v", attributes.Sections, spec.RopeSections)
+		}
+		for axis := range positions {
+			if !slices.Equal(attributes.Positions[axis], positions[axis]) {
+				t.Fatalf("MRoPE axis %d = %v, want %v", axis, attributes.Positions[axis], positions[axis])
+			}
+		}
+	}
+	if count != 2 {
+		t.Fatalf("MRoPE nodes = %d, want 2", count)
+	}
+}
+
 func TestBuildDenseEXAONE4SlidingPattern(t *testing.T) {
 	for _, test := range []struct {
 		layer      uint32

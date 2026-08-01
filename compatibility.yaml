@@ -1833,6 +1833,33 @@ models:
       - optional-tied-output
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  hy_v3:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - fused-or-separate-qkv
+      - per-head-qk-rmsnorm
+      - neox-rope
+      - leading-dense-swiglu-blocks
+      - sigmoid-or-softmax-top-k-routing
+      - optional-selection-correction-bias
+      - optional-selected-weight-normalization
+      - fused-or-separate-swiglu-experts
+      - always-on-shared-expert
+      - multi-head-full-decoder-nextn-mtp
+      - post-output-norm-target-and-draft-hidden-state
+      - per-head-growing-prefix-kv-cache
+      - shared-or-private-mtp-embedding-norm-head
+      - greedy-speculative-accept-rollback
+      - probability-ratio-speculative-acceptance
+      - positive-residual-correction
+      - transactional-draft-target-sampler-state
+      - model-bound-multi-head-mtp-session-state
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   hunyuan-dense:
     status: experimental
     execution:

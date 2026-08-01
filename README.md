@@ -453,6 +453,11 @@ sampler state. `SaveStep35MTPSession`/`LoadStep35MTPSession` preserve all head
 caches, active draft rows, trunk cache, positions, and model binding. Set
 `LLAMACPP2GO_STEP35_MTP_MODEL` to run the optional native-quantized multi-head
 session and coordinator integration test.
+HY-V3 exposes the parallel `NewHYV3MTPSession`/`AdvanceHYV3MTP`, greedy and
+sampled draft/verify, and save/load APIs. It reuses the per-head growing-prefix
+coordinator while retaining HY-V3's distinct post-final-norm target and draft
+hidden states. Set `LLAMACPP2GO_HYV3_MTP_MODEL` to run its optional
+native-quantized session and coordinator integration test.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA
 differentials use synthetic fixtures until a compatible local GGUF is available.
 GLM4-MoE dense-leading and expert catalogs, text-coordinate MRoPE, norm ordering,

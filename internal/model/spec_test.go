@@ -374,6 +374,29 @@ func TestReadDreamSpecIsNonCausal(t *testing.T) {
 	}
 }
 
+func TestReadEuroBERTSpecIsNonCausalNeoX(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "eurobert"),
+		metadata("eurobert.block_count", gguf.ValueTypeUint32, uint32(12)),
+		metadata("eurobert.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("eurobert.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("eurobert.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("eurobert.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("eurobert.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("eurobert.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("eurobert.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("eurobert.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "eurobert" || !spec.NonCausalAttention ||
+		spec.KeyLength != 4 || spec.ValueLength != 4 || usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected EuroBERT spec: %+v", spec)
+	}
+}
+
 func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),

@@ -863,6 +863,42 @@ func TestBuildOLMoEBlockNormalizesFullQKProjections(t *testing.T) {
 	}
 }
 
+func TestBuildEuroBERTBlockUsesNonCausalNeoXAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "eurobert", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQNorm = nil
+	weights.AttentionKNorm = nil
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention *tensor.Tensor
+	var rope int
+	for _, node := range nodes {
+		if node.Op == tensor.OpAttention {
+			attention = node
+		}
+		if node.Op == tensor.OpRoPENeoX {
+			rope++
+		}
+	}
+	if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Causal || rope != 2 {
+		t.Fatalf("unexpected EuroBERT graph: attention=%+v RoPE=%d", attention, rope)
+	}
+}
+
 func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -128,6 +128,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "dots1" &&
 		architecture != "ernie4_5" &&
 		architecture != "ernie4_5-moe" &&
+		architecture != "eurobert" &&
 		architecture != "cohere2" &&
 		architecture != "cohere2moe" &&
 		architecture != "command-r" &&
@@ -191,7 +192,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "dream" || architecture == "llada" || architecture == "llada-moe" || architecture == "rnd1" {
+	if architecture == "dream" || architecture == "eurobert" || architecture == "llada" || architecture == "llada-moe" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "chameleon" {

@@ -90,17 +90,22 @@ type HostLayer struct {
 	AttentionKB                 *reference.Value
 	AttentionVB                 *reference.Value
 
-	AttentionQKV     *reference.Value
-	AttentionQKVBias *reference.Value
-	AttentionGate    *reference.Value
-	SSMConv1D        *reference.Value
-	SSMTimeStep      *reference.Value
-	SSMA             *reference.Value
-	SSMBeta          *reference.Value
-	SSMAlpha         *reference.Value
-	SSMBetaAlpha     *reference.Value
-	SSMNorm          *reference.Value
-	SSMOutput        *reference.Value
+	AttentionQKV      *reference.Value
+	AttentionQKVBias  *reference.Value
+	AttentionGate     *reference.Value
+	SSMConv1D         *reference.Value
+	SSMConv1DBias     *reference.Value
+	SSMInput          *reference.Value
+	SSMX              *reference.Value
+	SSMTimeStepWeight *reference.Value
+	SSMTimeStep       *reference.Value
+	SSMA              *reference.Value
+	SSMD              *reference.Value
+	SSMBeta           *reference.Value
+	SSMAlpha          *reference.Value
+	SSMBetaAlpha      *reference.Value
+	SSMNorm           *reference.Value
+	SSMOutput         *reference.Value
 }
 
 // LoadHostTensor: reads and dequantizes one GGUF tensor
@@ -348,7 +353,13 @@ func LoadHostLayer(
 		if info.ShortConvKernel != nil && (info.ShortConvInput == nil || info.ShortConvOutput == nil) {
 			return HostLayer{}, errors.New("host recurrent convolution catalog is incomplete")
 		}
-		if info.ShortConvKernel == nil &&
+		if info.SSMInput != nil &&
+			(info.SSMConv1D == nil || info.SSMConv1DBias == nil || info.SSMX == nil ||
+				info.SSMTimeStepWeight == nil || info.SSMTimeStep == nil || info.SSMA == nil ||
+				info.SSMD == nil || info.SSMOutput == nil) {
+			return HostLayer{}, errors.New("host Mamba SSM catalog is incomplete")
+		}
+		if info.ShortConvKernel == nil && info.SSMInput == nil &&
 			(info.AttentionQKV == nil || info.SSMConv1D == nil || info.SSMTimeStep == nil ||
 				info.SSMA == nil || info.SSMNorm == nil || info.SSMOutput == nil ||
 				(info.SSMBetaAlpha == nil && (info.SSMBeta == nil || info.SSMAlpha == nil))) {
@@ -372,6 +383,45 @@ func LoadHostLayer(
 					destination **reference.Value
 					info        *gguf.TensorInfo
 				}{&result.ShortConvOutput, info.ShortConvOutput},
+			)
+		} else if info.SSMInput != nil {
+			optionalItems = append(optionalItems,
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMInput, info.SSMInput},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMConv1D, info.SSMConv1D},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMConv1DBias, info.SSMConv1DBias},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMX, info.SSMX},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMTimeStepWeight, info.SSMTimeStepWeight},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMTimeStep, info.SSMTimeStep},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMA, info.SSMA},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMD, info.SSMD},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMOutput, info.SSMOutput},
 			)
 		} else {
 			optionalItems = append(optionalItems,
@@ -632,7 +682,17 @@ func (layer *HostLayer) GraphInputs(
 	if layer.FeedForwardNormBias != nil {
 		result.FeedForwardNormBias = input("ffn_norm.bias", *layer.FeedForwardNormBias)
 	}
-	if layer.AttentionQKV != nil {
+	if layer.SSMInput != nil {
+		result.SSMInput = input("ssm_in.weight", *layer.SSMInput)
+		result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
+		result.SSMConv1DBias = input("ssm_conv1d.bias", *layer.SSMConv1DBias)
+		result.SSMX = input("ssm_x.weight", *layer.SSMX)
+		result.SSMTimeStepWeight = input("ssm_dt.weight", *layer.SSMTimeStepWeight)
+		result.SSMTimeStep = input("ssm_dt.bias", *layer.SSMTimeStep)
+		result.SSMA = input("ssm_a", *layer.SSMA)
+		result.SSMD = input("ssm_d", *layer.SSMD)
+		result.SSMOutput = input("ssm_out.weight", *layer.SSMOutput)
+	} else if layer.AttentionQKV != nil {
 		result.AttentionQKV = input("attn_qkv.weight", *layer.AttentionQKV)
 		if layer.SSMConv1D != nil {
 			if layer.AttentionGate != nil {

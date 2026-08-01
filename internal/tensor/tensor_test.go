@@ -156,6 +156,23 @@ func TestBuilderSSMConv(t *testing.T) {
 	}
 }
 
+func TestBuilderSSMScan(t *testing.T) {
+	builder := NewBuilder()
+	state := builder.Input("state", dtype.F32, MustShape(3, 1, 4, 2))
+	x := builder.Input("x", dtype.F32, MustShape(1, 4, 5, 2))
+	dt := builder.Input("dt", dtype.F32, MustShape(4, 5, 2))
+	a := builder.Input("a", dtype.F32, MustShape(3, 4))
+	beta := builder.Input("beta", dtype.F32, MustShape(3, 2, 5, 2))
+	c := builder.Input("c", dtype.F32, MustShape(3, 2, 5, 2))
+	output := builder.SSMScan(state, x, dt, a, beta, c)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !output.Shape.Equal(MustShape(64)) {
+		t.Fatalf("SSMScan output shape = %v", output.Shape.Slice())
+	}
+}
+
 func TestBuilderRepeatHeads(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(2, 1, 3))

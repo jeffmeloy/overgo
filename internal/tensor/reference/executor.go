@@ -179,6 +179,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return l2Norm(node.Shape, inputs[0], attributes.Epsilon)
 	case tensor.OpSSMConv:
 		return ssmConv(node.Shape, inputs[0], inputs[1])
+	case tensor.OpSSMScan:
+		return ssmScan(node.Shape, inputs)
 	case tensor.OpGatedDeltaNet:
 		return gatedDeltaNet(node.Shape, inputs, node.Attrs.(tensor.GatedDeltaNetAttributes))
 	case tensor.OpMoE:
@@ -439,6 +441,53 @@ func ssmConv(shape tensor.Shape, input, weights Value) (Value, error) {
 					sum += input.Data[inputBase+tap] * weights.Data[weightBase+tap]
 				}
 				output[sequence*tokens*channels+token*channels+channel] = sum
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func ssmScan(shape tensor.Shape, inputs []Value) (Value, error) {
+	if len(inputs) != 6 {
+		return Value{}, errors.New("SSMScan requires six inputs")
+	}
+	state, x, dt, a, beta, c := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5]
+	stateWidth := int(state.Shape.Dims[0])
+	dimension := int(state.Shape.Dims[1])
+	heads := int(state.Shape.Dims[2])
+	sequences := int(state.Shape.Dims[3])
+	tokens := int(x.Shape.Dims[2])
+	groups := int(beta.Shape.Dims[1])
+	if stateWidth <= 0 || dimension <= 0 || heads <= 0 || sequences <= 0 || tokens <= 0 || groups <= 0 || heads%groups != 0 {
+		return Value{}, errors.New("invalid SSMScan dimensions")
+	}
+	attentionElements := dimension * heads * tokens * sequences
+	stateElements := stateWidth * dimension * heads * sequences
+	output := make([]float32, attentionElements+stateElements)
+	copy(output[attentionElements:], state.Data)
+	headsPerGroup := heads / groups
+	for sequence := range sequences {
+		for head := range heads {
+			group := head / headsPerGroup
+			for token := range tokens {
+				delta := dt.Data[head+heads*(token+tokens*sequence)]
+				absolute := math.Abs(float64(delta))
+				delta = float32(math.Max(float64(delta), 0) + math.Log1p(math.Exp(-absolute)))
+				for inner := range dimension {
+					xIndex := inner + dimension*(head+heads*(token+tokens*sequence))
+					xDelta := x.Data[xIndex] * delta
+					var sum float32
+					stateBase := attentionElements + stateWidth*(inner+dimension*(head+heads*sequence))
+					for column := range stateWidth {
+						stateIndex := stateBase + column
+						factor := float32(math.Exp(float64(delta * a.Data[column+stateWidth*head])))
+						bcIndex := column + stateWidth*(group+groups*(token+tokens*sequence))
+						next := output[stateIndex]*factor + beta.Data[bcIndex]*xDelta
+						output[stateIndex] = next
+						sum += next * c.Data[bcIndex]
+					}
+					output[xIndex] = sum
+				}
 			}
 		}
 	}

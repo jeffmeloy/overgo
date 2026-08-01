@@ -30,6 +30,7 @@ const (
 	OpSoftplus
 	OpL2Norm
 	OpSSMConv
+	OpSSMScan
 	OpGatedDeltaNet
 	OpTranspose2D
 	OpGroupSlice
@@ -64,6 +65,7 @@ var opNames = [...]string{
 	"softplus",
 	"l2_norm",
 	"ssm_conv",
+	"ssm_scan",
 	"gated_delta_net",
 	"transpose_2d",
 	"group_slice",
@@ -392,6 +394,48 @@ func (b *Builder) SSMConv(input, weights *Tensor) *Tensor {
 		return nil
 	}
 	return b.add("", dtype.F32, shape, OpSSMConv, []*Tensor{input, weights}, nil)
+}
+
+// SSMScan: selective state update; packed output then final state.
+func (b *Builder) SSMScan(state, x, dt, a, beta, c *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	inputs := []*Tensor{state, x, dt, a, beta, c}
+	for _, input := range inputs {
+		if input == nil || input.Type != dtype.F32 {
+			b.setError(errors.New("SSMScan requires six F32 inputs"))
+			return nil
+		}
+	}
+	if state.Shape.Rank != 4 || x.Shape.Rank != 4 || dt.Shape.Rank != 3 ||
+		a.Shape.Rank != 2 || beta.Shape.Rank != 4 || c.Shape.Rank != 4 {
+		b.setError(errors.New("SSMScan input ranks are invalid"))
+		return nil
+	}
+	stateWidth := state.Shape.Dims[0]
+	dimension := state.Shape.Dims[1]
+	heads := state.Shape.Dims[2]
+	sequences := state.Shape.Dims[3]
+	tokens := x.Shape.Dims[2]
+	groups := beta.Shape.Dims[1]
+	if stateWidth == 0 || dimension == 0 || heads == 0 || sequences == 0 || tokens == 0 || groups == 0 ||
+		x.Shape.Dims[0] != dimension || x.Shape.Dims[1] != heads || x.Shape.Dims[3] != sequences ||
+		dt.Shape.Dims[0] != heads || dt.Shape.Dims[1] != tokens || dt.Shape.Dims[2] != sequences ||
+		a.Shape.Dims[0] != stateWidth || a.Shape.Dims[1] != heads || heads%groups != 0 ||
+		beta.Shape.Dims[0] != stateWidth || beta.Shape.Dims[2] != tokens || beta.Shape.Dims[3] != sequences ||
+		!beta.Shape.Equal(c.Shape) {
+		b.setError(errors.New("SSMScan input shapes are incompatible"))
+		return nil
+	}
+	attentionElements := dimension * heads * tokens * sequences
+	stateElements := stateWidth * dimension * heads * sequences
+	shape, err := NewShape(attentionElements + stateElements)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpSSMScan, inputs, nil)
 }
 
 // GatedDeltaNet: applies llama.cpp's fused K=1 recurrent delta-net update

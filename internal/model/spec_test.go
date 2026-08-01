@@ -3331,12 +3331,39 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "mamba"),
+		metadata("general.architecture", gguf.ValueTypeString, "unsupported-test"),
 	}}
 	_, err := ReadSpec(file)
 	var unsupported *UnsupportedArchitectureError
 	if !errors.As(err, &unsupported) {
 		t.Fatalf("error = %v, want UnsupportedArchitectureError", err)
+	}
+}
+
+func TestReadMambaSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "mamba"),
+		metadata("mamba.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("mamba.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("mamba.embedding_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mamba.feed_forward_length", gguf.ValueTypeUint32, uint32(0)),
+		metadata("mamba.attention.head_count", gguf.ValueTypeUint32, uint32(0)),
+		metadata("mamba.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("mamba.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("mamba.ssm.inner_size", gguf.ValueTypeUint32, uint32(8)),
+		metadata("mamba.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("mamba.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(2)),
+		metadata("mamba.ssm.dt_b_c_rms", gguf.ValueTypeBool, true),
+		metadata("mamba.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "mamba" || !spec.RopeDisabled || spec.HeadCount != 0 || spec.HeadCountKV != 0 ||
+		spec.FeedForwardLength != 0 || spec.SSMConvKernel != 3 || spec.SSMInnerSize != 8 ||
+		spec.SSMStateSize != 2 || spec.SSMTimeStepRank != 2 || spec.SSMGroupCount != 1 || !spec.SSMDtBCNorm {
+		t.Fatalf("unexpected Mamba spec: %+v", spec)
 	}
 }
 

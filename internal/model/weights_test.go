@@ -1890,6 +1890,31 @@ func TestReadWeightsMistral4AbsorbedMLA(t *testing.T) {
 	testReadWeightsDeepSeek2FamilyAbsorbedMLA(t, "mistral4")
 }
 
+func TestReadWeightsMamba(t *testing.T) {
+	spec := Spec{Architecture: "mamba", BlockCount: 1, EmbeddingLength: 4,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 2,
+		VocabularySize: 32}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 4, 32), tensorInfo("output_norm.weight", 4),
+		tensorInfo("blk.0.attn_norm.weight", 4), tensorInfo("blk.0.ssm_in.weight", 4, 16),
+		tensorInfo("blk.0.ssm_conv1d.weight", 3, 8), tensorInfo("blk.0.ssm_conv1d.bias", 8),
+		tensorInfo("blk.0.ssm_x.weight", 8, 6), tensorInfo("blk.0.ssm_dt.weight", 2, 8),
+		tensorInfo("blk.0.ssm_dt.bias", 8), tensorInfo("blk.0.ssm_a", 2, 8),
+		tensorInfo("blk.0.ssm_d", 8), tensorInfo("blk.0.ssm_out.weight", 8, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if !layer.Recurrent || layer.SSMInput == nil || layer.SSMConv1D == nil ||
+		layer.SSMConv1DBias == nil || layer.SSMX == nil || layer.SSMTimeStepWeight == nil ||
+		layer.SSMTimeStep == nil || layer.SSMA == nil || layer.SSMD == nil || layer.SSMOutput == nil ||
+		layer.AttentionQ.Name != "" || layer.FeedForwardNorm.Name != "" {
+		t.Fatalf("unexpected Mamba catalog: %+v", layer)
+	}
+}
+
 func testReadWeightsDeepSeek2FamilyAbsorbedMLA(t *testing.T, architecture string) {
 	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,
 		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,

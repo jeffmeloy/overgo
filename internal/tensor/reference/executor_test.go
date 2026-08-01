@@ -233,6 +233,38 @@ func TestExecuteSSMConv(t *testing.T) {
 	}
 }
 
+func TestExecuteSSMScan(t *testing.T) {
+	builder := tensor.NewBuilder()
+	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 1, 1, 1))
+	x := builder.Input("x", dtype.F32, tensor.MustShape(1, 1, 2, 1))
+	dt := builder.Input("dt", dtype.F32, tensor.MustShape(1, 2, 1))
+	a := builder.Input("a", dtype.F32, tensor.MustShape(2, 1))
+	beta := builder.Input("beta", dtype.F32, tensor.MustShape(2, 1, 2, 1))
+	c := builder.Input("c", dtype.F32, tensor.MustShape(2, 1, 2, 1))
+	output := builder.SSMScan(state, x, dt, a, beta, c)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]Value{}
+	feeds[state], _ = NewValue(state.Shape, []float32{1, 2})
+	feeds[x], _ = NewValue(x.Shape, []float32{2, 3})
+	feeds[dt], _ = NewValue(dt.Shape, []float32{0, 0})
+	feeds[a], _ = NewValue(a.Shape, []float32{0, 0})
+	feeds[beta], _ = NewValue(beta.Shape, []float32{1, 0, 0, 1})
+	feeds[c], _ = NewValue(c.Shape, []float32{1, 1, 2, -1})
+	results, err := Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logTwo := float32(math.Log(2))
+	want := []float32{3 + 2*logTwo, logTwo, 1 + 2*logTwo, 2 + 3*logTwo}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("SSMScan output[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
 func TestExecuteGatedDeltaNet(t *testing.T) {
 	builder := tensor.NewBuilder()
 	q := builder.Input("q", dtype.F32, tensor.MustShape(2, 1, 2, 1))

@@ -297,6 +297,61 @@ extern "C" __global__ void ssm_conv_f32(
     output[index] = sum;
 }
 
+extern "C" __global__ void ssm_scan_f32(
+        const float * input_state,
+        const float * x,
+        const float * dt,
+        const float * a,
+        const float * beta,
+        const float * c,
+        float * output,
+        unsigned int state_width,
+        unsigned int dimension,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int sequences,
+        unsigned int groups) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int count = heads * sequences;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int head = index % heads;
+    const unsigned int sequence = index / heads;
+    const unsigned int group = head / (heads / groups);
+    const unsigned int attention_elements =
+        dimension * heads * tokens * sequences;
+    const unsigned int state_base =
+        attention_elements + index * dimension * state_width;
+    const unsigned int source_state_base =
+        index * dimension * state_width;
+    for (unsigned int i = 0; i < dimension * state_width; ++i) {
+        output[state_base + i] = input_state[source_state_base + i];
+    }
+    for (unsigned int token = 0; token < tokens; ++token) {
+        float delta = dt[head + heads * (token + tokens * sequence)];
+        delta = fmaxf(delta, 0.0f) + log1pf(expf(-fabsf(delta)));
+        for (unsigned int inner = 0; inner < dimension; ++inner) {
+            const unsigned int x_index =
+                inner + dimension * (head + heads * (token + tokens * sequence));
+            const float x_delta = x[x_index] * delta;
+            float sum = 0.0f;
+            for (unsigned int column = 0; column < state_width; ++column) {
+                const unsigned int state_index =
+                    state_base + inner * state_width + column;
+                const unsigned int bc_index = column + state_width *
+                    (group + groups * (token + tokens * sequence));
+                const float next = output[state_index] *
+                    expf(delta * a[column + state_width * head]) +
+                    beta[bc_index] * x_delta;
+                output[state_index] = next;
+                sum += next * c[bc_index];
+            }
+            output[x_index] = sum;
+        }
+    }
+}
+
 extern "C" __global__ void transpose_2d_f32(
         const float * input,
         float * output,

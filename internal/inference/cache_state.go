@@ -81,6 +81,24 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		)
 	}
 	for index, layer := range cache.Layers {
+		if r.spec.Architecture == "mamba" {
+			convShape := tensor.MustShape(
+				uint64(r.spec.SSMConvKernel-1), uint64(r.spec.SSMInnerSize),
+			)
+			ssmShape := tensor.MustShape(
+				uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize),
+			)
+			if !layer.Key.Shape.Equal(convShape) || !layer.Value.Shape.Equal(ssmShape) {
+				return fmt.Errorf("inference: Mamba recurrent cache layer %d shape is invalid", index)
+			}
+			if err := validateStateValue(layer.Key); err != nil {
+				return fmt.Errorf("inference: Mamba recurrent cache layer %d convolution: %w", index, err)
+			}
+			if err := validateStateValue(layer.Value); err != nil {
+				return fmt.Errorf("inference: Mamba recurrent cache layer %d SSM: %w", index, err)
+			}
+			continue
+		}
 		if (r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe") &&
 			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent {
 			convShape := tensor.MustShape(

@@ -99,6 +99,7 @@ type Spec struct {
 	SSMStateSize          uint32
 	SSMTimeStepRank       uint32
 	SSMGroupCount         uint32
+	SSMDtBCNorm           bool
 	FullAttentionInterval uint32
 	DeepstackLayerCount   uint32
 	EmbeddingPerLayer     uint32
@@ -195,6 +196,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "jina-bert-v2" &&
 		architecture != "jina-bert-v3" &&
 		architecture != "maincoder" &&
+		architecture != "mamba" &&
 		architecture != "mellum" &&
 		architecture != "mistral3" &&
 		architecture != "mistral4" &&
@@ -243,6 +245,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "bert" || architecture == "jina-bert-v2" {
+		spec.RopeDisabled = true
+	}
+	if architecture == "mamba" {
 		spec.RopeDisabled = true
 	}
 	if architecture == "chameleon" {
@@ -313,7 +318,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
+	if architecture == "mamba" {
+		spec.HeadCountKV = 0
+	} else if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
 		if architecture == "gptneox" || architecture == "falcon" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
@@ -379,7 +386,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ValueLength = value
 		}
 	}
-	if spec.KeyLength == 0 || spec.ValueLength == 0 {
+	if architecture != "mamba" && (spec.KeyLength == 0 || spec.ValueLength == 0) {
 		if spec.HeadCount == 0 || spec.EmbeddingLength%spec.HeadCount != 0 {
 			return Spec{}, errors.New("embedding length is not divisible by attention head count")
 		}
@@ -1340,6 +1347,21 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
+	if architecture == "mamba" {
+		for key, destination := range map[string]*uint32{
+			"ssm.conv_kernel":    &spec.SSMConvKernel,
+			"ssm.inner_size":     &spec.SSMInnerSize,
+			"ssm.state_size":     &spec.SSMStateSize,
+			"ssm.time_step_rank": &spec.SSMTimeStepRank,
+		} {
+			*destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32)
+			if err != nil {
+				return Spec{}, err
+			}
+		}
+		spec.SSMGroupCount = 1
+		spec.SSMDtBCNorm, _ = optional[bool](values, prefix+"ssm.dt_b_c_rms", gguf.ValueTypeBool)
+	}
 	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
@@ -2285,6 +2307,7 @@ func (s Spec) UsesWeightOnlyLayerNorm() bool {
 }
 
 func (s Spec) validate() error {
+	attentionFree := s.Architecture == "mamba"
 	switch {
 	case s.BlockCount == 0:
 		return errors.New("model block count is zero")
@@ -2292,15 +2315,15 @@ func (s Spec) validate() error {
 		return errors.New("model context length is zero")
 	case s.EmbeddingLength == 0:
 		return errors.New("model embedding length is zero")
-	case s.FeedForwardLength == 0:
+	case !attentionFree && s.FeedForwardLength == 0:
 		return errors.New("model feed-forward length is zero")
-	case s.HeadCount == 0:
+	case !attentionFree && s.HeadCount == 0:
 		return errors.New("model attention head count is zero")
-	case s.HeadCountKV == 0:
+	case !attentionFree && s.HeadCountKV == 0:
 		return errors.New("model KV head count is zero")
-	case s.HeadCount%s.HeadCountKV != 0:
+	case !attentionFree && s.HeadCount%s.HeadCountKV != 0:
 		return errors.New("attention head count is not divisible by KV head count")
-	case s.KeyLength == 0 || s.ValueLength == 0:
+	case !attentionFree && (s.KeyLength == 0 || s.ValueLength == 0):
 		return errors.New("model attention key/value length is zero")
 	case s.Architecture != "t5encoder" && !s.RopeDisabled && s.RopeFrequencyBase <= 0:
 		return errors.New("model RoPE frequency base must be positive")
@@ -2311,6 +2334,14 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "t5encoder" && s.RelativeBuckets == 0 {
 		return errors.New("T5 encoder relative attention bucket count is zero")
+	}
+	if s.Architecture == "mamba" {
+		switch {
+		case s.FeedForwardLength != 0 || s.HeadCount != 0 || s.HeadCountKV != 0 || s.KeyLength != 0 || s.ValueLength != 0:
+			return errors.New("Mamba attention metadata must be zero")
+		case s.SSMConvKernel < 2 || s.SSMInnerSize != 2*s.EmbeddingLength || s.SSMStateSize == 0 || s.SSMTimeStepRank == 0:
+			return errors.New("Mamba SSM metadata is invalid")
+		}
 	}
 	if s.Architecture == "bert" &&
 		(s.TokenTypeCount == 0 || s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength) {

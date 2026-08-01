@@ -188,6 +188,11 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		var recurrent []*gguf.TensorInfo
 		if info.ShortConvKernel != nil {
 			recurrent = []*gguf.TensorInfo{info.ShortConvKernel, info.ShortConvInput, info.ShortConvOutput}
+		} else if info.SSMInput != nil {
+			recurrent = []*gguf.TensorInfo{
+				info.SSMInput, info.SSMConv1D, info.SSMConv1DBias, info.SSMX,
+				info.SSMTimeStepWeight, info.SSMTimeStep, info.SSMA, info.SSMD, info.SSMOutput,
+			}
 		} else {
 			recurrent = []*gguf.TensorInfo{
 				info.AttentionQKV, info.AttentionGate, info.SSMConv1D, info.SSMTimeStep,
@@ -352,9 +357,14 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
 		{info.AttentionQKV, &result.AttentionQKV},
 		{info.AttentionGate, &result.AttentionGate},
+		{info.SSMInput, &result.SSMInput},
 		{info.SSMConv1D, &result.SSMConv1D},
+		{info.SSMConv1DBias, &result.SSMConv1DBias},
+		{info.SSMX, &result.SSMX},
+		{info.SSMTimeStepWeight, &result.SSMTimeStepWeight},
 		{info.SSMTimeStep, &result.SSMTimeStep},
 		{info.SSMA, &result.SSMA},
+		{info.SSMD, &result.SSMD},
 		{info.SSMBeta, &result.SSMBeta},
 		{info.SSMAlpha, &result.SSMAlpha},
 		{info.SSMBetaAlpha, &result.SSMBetaAlpha},

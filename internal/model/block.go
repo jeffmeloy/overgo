@@ -88,17 +88,22 @@ type LayerGraphWeights struct {
 	AttentionKB                 *tensor.Tensor
 	AttentionVB                 *tensor.Tensor
 
-	AttentionQKV     *tensor.Tensor
-	AttentionQKVBias *tensor.Tensor
-	AttentionGate    *tensor.Tensor
-	SSMConv1D        *tensor.Tensor
-	SSMTimeStep      *tensor.Tensor
-	SSMA             *tensor.Tensor
-	SSMBeta          *tensor.Tensor
-	SSMAlpha         *tensor.Tensor
-	SSMBetaAlpha     *tensor.Tensor
-	SSMNorm          *tensor.Tensor
-	SSMOutput        *tensor.Tensor
+	AttentionQKV      *tensor.Tensor
+	AttentionQKVBias  *tensor.Tensor
+	AttentionGate     *tensor.Tensor
+	SSMConv1D         *tensor.Tensor
+	SSMConv1DBias     *tensor.Tensor
+	SSMInput          *tensor.Tensor
+	SSMX              *tensor.Tensor
+	SSMTimeStepWeight *tensor.Tensor
+	SSMTimeStep       *tensor.Tensor
+	SSMA              *tensor.Tensor
+	SSMD              *tensor.Tensor
+	SSMBeta           *tensor.Tensor
+	SSMAlpha          *tensor.Tensor
+	SSMBetaAlpha      *tensor.Tensor
+	SSMNorm           *tensor.Tensor
+	SSMOutput         *tensor.Tensor
 }
 
 // ApplyNormalization: applies architecture's learned pre/post
@@ -735,6 +740,93 @@ type LFM2BlockResult struct {
 	Key       *tensor.Tensor
 	Value     *tensor.Tensor
 	Recurrent bool
+}
+
+func BuildMambaBlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	convState, ssmState *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if builder == nil || input == nil || convState == nil || ssmState == nil {
+		return DenseBlockResult{}, errors.New("Mamba block input/state is nil")
+	}
+	if spec.Architecture != "mamba" || input.Shape.Rank != 2 ||
+		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("Mamba block architecture/input is invalid")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm":       weights.AttentionNorm,
+		"SSM input":            weights.SSMInput,
+		"SSM convolution":      weights.SSMConv1D,
+		"SSM convolution bias": weights.SSMConv1DBias,
+		"SSM X":                weights.SSMX,
+		"SSM time-step weight": weights.SSMTimeStepWeight,
+		"SSM time-step bias":   weights.SSMTimeStep,
+		"SSM A":                weights.SSMA,
+		"SSM D":                weights.SSMD,
+		"SSM output":           weights.SSMOutput,
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("Mamba block %s weight is nil", name)
+		}
+	}
+	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), uint64(spec.SSMInnerSize))
+	ssmShape := tensor.MustShape(uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize))
+	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
+		return DenseBlockResult{}, errors.New("Mamba recurrent cache shape is invalid")
+	}
+	tokens := input.Shape.Dims[1]
+	inner := uint64(spec.SSMInnerSize)
+	stateWidth := uint64(spec.SSMStateSize)
+	rank := uint64(spec.SSMTimeStepRank)
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	xz := builder.MulMat(weights.SSMInput, normalized)
+	x := builder.Reshape(builder.GroupSlice(xz, 0, inner, 1, inner), inner, tokens)
+	z := builder.Reshape(builder.GroupSlice(xz, inner, inner, 1, inner), inner, tokens)
+	convInput := builder.Concat(convState, builder.Transpose2D(x), 0)
+	nextConvState := builder.Reshape(
+		builder.GroupSlice(convInput, tokens, uint64(spec.SSMConvKernel-1), 1, uint64(spec.SSMConvKernel-1)),
+		uint64(spec.SSMConvKernel-1), inner,
+	)
+	x = builder.SiLU(builder.Add(builder.SSMConv(convInput, weights.SSMConv1D), weights.SSMConv1DBias))
+	xdb := builder.MulMat(weights.SSMX, x)
+	dt := builder.Reshape(builder.GroupSlice(xdb, 0, rank, 1, rank), rank, tokens)
+	beta := builder.Reshape(
+		builder.GroupSlice(xdb, rank, stateWidth, 1, stateWidth),
+		stateWidth, 1, tokens, 1,
+	)
+	c := builder.Reshape(
+		builder.GroupSlice(xdb, rank+stateWidth, stateWidth, 1, stateWidth),
+		stateWidth, 1, tokens, 1,
+	)
+	if spec.SSMDtBCNorm {
+		dt = builder.RMSNorm(dt, spec.RMSNormEpsilon)
+		beta = builder.RMSNorm(beta, spec.RMSNormEpsilon)
+		c = builder.RMSNorm(c, spec.RMSNormEpsilon)
+	}
+	dt = builder.Add(builder.MulMat(weights.SSMTimeStepWeight, dt), weights.SSMTimeStep)
+	packed := builder.SSMScan(
+		builder.Reshape(ssmState, stateWidth, 1, inner, 1),
+		builder.Reshape(x, 1, inner, tokens, 1),
+		builder.Reshape(dt, inner, tokens, 1),
+		weights.SSMA,
+		beta,
+		c,
+	)
+	attentionElements := inner * tokens
+	attention := builder.FlatSlice(packed, 0, inner, tokens)
+	nextSSMState := builder.FlatSlice(packed, attentionElements, stateWidth, inner)
+	attention = builder.Add(attention, builder.Multiply(x, weights.SSMD))
+	attention = builder.Multiply(attention, builder.SiLU(z))
+	attention = builder.MulMat(weights.SSMOutput, attention)
+	output := builder.Add(input, attention)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
 }
 
 // BuildPLMBlockCached: PLM MLA block

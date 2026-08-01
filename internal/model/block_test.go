@@ -1847,6 +1847,47 @@ func TestBuildMistral4AbsorbedMLABlock(t *testing.T) {
 	testBuildDeepSeek2FamilyAbsorbedMLABlock(t, "mistral4")
 }
 
+func TestBuildMambaBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{Architecture: "mamba", EmbeddingLength: 4, RMSNormEpsilon: 1e-5,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 2}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:     builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		SSMInput:          builder.Input("in", dtype.F32, tensor.MustShape(4, 16)),
+		SSMConv1D:         builder.Input("conv", dtype.F32, tensor.MustShape(3, 8)),
+		SSMConv1DBias:     builder.Input("conv_bias", dtype.F32, tensor.MustShape(8)),
+		SSMX:              builder.Input("x", dtype.F32, tensor.MustShape(8, 6)),
+		SSMTimeStepWeight: builder.Input("dt", dtype.F32, tensor.MustShape(2, 8)),
+		SSMTimeStep:       builder.Input("dt_bias", dtype.F32, tensor.MustShape(8)),
+		SSMA:              builder.Input("a", dtype.F32, tensor.MustShape(2, 8)),
+		SSMD:              builder.Input("d", dtype.F32, tensor.MustShape(8)),
+		SSMOutput:         builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	result, err := BuildMambaBlockCached(builder, input, spec, weights, convState, ssmState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(convState.Shape) ||
+		!result.Value.Shape.Equal(ssmState.Shape) {
+		t.Fatalf("unexpected Mamba result shapes: output=%v conv=%v ssm=%v", result.Output.Shape, result.Key.Shape, result.Value.Shape)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	convolution, scan := false, false
+	for _, node := range nodes {
+		convolution = convolution || node.Op == tensor.OpSSMConv
+		scan = scan || node.Op == tensor.OpSSMScan
+	}
+	if !convolution || !scan {
+		t.Fatalf("Mamba graph convolution=%v scan=%v", convolution, scan)
+	}
+}
+
 func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string) {
 	builder := tensor.NewBuilder()
 	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,

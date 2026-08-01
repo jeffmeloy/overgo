@@ -678,6 +678,7 @@ type functionSet struct {
 	softplus          driver.Function
 	l2Norm            driver.Function
 	ssmConv           driver.Function
+	ssmScan           driver.Function
 	gatedDeltaNet     driver.Function
 	moe               driver.Function
 	repeatHeads       driver.Function
@@ -850,6 +851,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"softplus_f32", &result.softplus},
 		{"l2_norm_f32", &result.l2Norm},
 		{"ssm_conv_f32", &result.ssmConv},
+		{"ssm_scan_f32", &result.ssmScan},
 		{"gated_delta_net_f32", &result.gatedDeltaNet},
 		{"moe_f32", &result.moe},
 		{"repeat_heads_f32", &result.repeatHeads},
@@ -1172,6 +1174,62 @@ func launchNode(
 		runtime.KeepAlive(channels)
 		runtime.KeepAlive(tokens)
 		runtime.KeepAlive(count)
+		return err
+	case tensor.OpSSMScan:
+		stateWidth, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SSMScan state width")
+		if err != nil {
+			return err
+		}
+		dimension, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "SSMScan head width")
+		if err != nil {
+			return err
+		}
+		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "SSMScan heads")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(node.Inputs[1].Shape.Dims[2], "SSMScan tokens")
+		if err != nil {
+			return err
+		}
+		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "SSMScan sequences")
+		if err != nil {
+			return err
+		}
+		groups, err := uint32Checked(node.Inputs[4].Shape.Dims[1], "SSMScan groups")
+		if err != nil {
+			return err
+		}
+		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
+			return errors.New("SSMScan launch count exceeds uint32")
+		}
+		inputState := pointers[node.Inputs[0]]
+		x := pointers[node.Inputs[1]]
+		dt := pointers[node.Inputs[2]]
+		a := pointers[node.Inputs[3]]
+		beta := pointers[node.Inputs[4]]
+		c := pointers[node.Inputs[5]]
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&inputState), unsafe.Pointer(&x), unsafe.Pointer(&dt),
+			unsafe.Pointer(&a), unsafe.Pointer(&beta), unsafe.Pointer(&c),
+			unsafe.Pointer(&output), unsafe.Pointer(&stateWidth), unsafe.Pointer(&dimension),
+			unsafe.Pointer(&heads), unsafe.Pointer(&tokens), unsafe.Pointer(&sequences),
+			unsafe.Pointer(&groups),
+		}
+		err = launch1D(state, functions.ssmScan, heads*sequences, args)
+		runtime.KeepAlive(inputState)
+		runtime.KeepAlive(x)
+		runtime.KeepAlive(dt)
+		runtime.KeepAlive(a)
+		runtime.KeepAlive(beta)
+		runtime.KeepAlive(c)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(stateWidth)
+		runtime.KeepAlive(dimension)
+		runtime.KeepAlive(heads)
+		runtime.KeepAlive(tokens)
+		runtime.KeepAlive(sequences)
+		runtime.KeepAlive(groups)
 		return err
 	case tensor.OpGatedDeltaNet:
 		attributes := node.Attrs.(tensor.GatedDeltaNetAttributes)

@@ -91,17 +91,22 @@ type LayerWeights struct {
 	VisualFeedForwardUp         *gguf.TensorInfo
 	VisualFeedForwardDown       *gguf.TensorInfo
 
-	AttentionQKV     *gguf.TensorInfo
-	AttentionQKVBias *gguf.TensorInfo
-	AttentionGate    *gguf.TensorInfo
-	SSMConv1D        *gguf.TensorInfo
-	SSMTimeStep      *gguf.TensorInfo
-	SSMA             *gguf.TensorInfo
-	SSMBeta          *gguf.TensorInfo
-	SSMAlpha         *gguf.TensorInfo
-	SSMBetaAlpha     *gguf.TensorInfo
-	SSMNorm          *gguf.TensorInfo
-	SSMOutput        *gguf.TensorInfo
+	AttentionQKV      *gguf.TensorInfo
+	AttentionQKVBias  *gguf.TensorInfo
+	AttentionGate     *gguf.TensorInfo
+	SSMConv1D         *gguf.TensorInfo
+	SSMConv1DBias     *gguf.TensorInfo
+	SSMInput          *gguf.TensorInfo
+	SSMX              *gguf.TensorInfo
+	SSMTimeStepWeight *gguf.TensorInfo
+	SSMTimeStep       *gguf.TensorInfo
+	SSMA              *gguf.TensorInfo
+	SSMD              *gguf.TensorInfo
+	SSMBeta           *gguf.TensorInfo
+	SSMAlpha          *gguf.TensorInfo
+	SSMBetaAlpha      *gguf.TensorInfo
+	SSMNorm           *gguf.TensorInfo
+	SSMOutput         *gguf.TensorInfo
 }
 
 // Weights: validated initial Llama/Qwen3 tensor catalog
@@ -622,6 +627,46 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				uint64(spec.EmbeddingLength),
 			); err != nil {
 				return Weights{}, err
+			}
+		} else if spec.Architecture == "mamba" {
+			layer.Recurrent = true
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"ssm_in.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), 2 * uint64(spec.SSMInnerSize)}, &layer.SSMInput,
+				},
+				"ssm_conv1d.weight": {
+					[]uint64{uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)}, &layer.SSMConv1D,
+				},
+				"ssm_conv1d.bias": {
+					[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMConv1DBias,
+				},
+				"ssm_x.weight": {
+					[]uint64{uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank + 2*spec.SSMStateSize)}, &layer.SSMX,
+				},
+				"ssm_dt.weight": {
+					[]uint64{uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)}, &layer.SSMTimeStepWeight,
+				},
+				"ssm_dt.bias": {
+					[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMTimeStep,
+				},
+				"ssm_a": {
+					[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)}, &layer.SSMA,
+				},
+				"ssm_d": {
+					[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMD,
+				},
+				"ssm_out.weight": {
+					[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput,
+				},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
 			}
 		} else if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
@@ -1312,6 +1357,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					*shapeAndDestination.destination = &item
 				}
 			}
+		}
+		if spec.Architecture == "mamba" {
+			continue
 		}
 		feedForwardNormName := "ffn_norm.weight"
 		if spec.Architecture == "dbrx" {

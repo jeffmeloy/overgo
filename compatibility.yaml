@@ -1014,6 +1014,23 @@ models:
       - shared-swiglu-expert
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  mamba:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - pure-recurrent-no-attention
+      - rms-pre-normalization
+      - split-input-and-gate-projection
+      - cached-channel-ssm-convolution-with-bias
+      - mamba-v1-selective-scan
+      - optional-falconmamba-dt-b-c-rmsnorm
+      - diagonal-d-residual-skip
+      - silu-z-gate
+      - serializable-recurrent-cache
+    real_model_validation: pending-fixture
   starcoder:
     status: experimental
     features:

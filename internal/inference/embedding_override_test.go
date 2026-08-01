@@ -69,7 +69,7 @@ func TestApplyEmbeddingOverridesRejectsInvalidInput(t *testing.T) {
 }
 
 func TestMultimodalInputAdmission(t *testing.T) {
-	for _, architecture := range []string{"qwen3vl", "glm4"} {
+	for _, architecture := range []string{"qwen3vl", "glm4", "hunyuan-dense"} {
 		supported := &Runner{spec: model.Spec{
 			Architecture: architecture, RopeSections: [4]int32{2, 2, 0, 0},
 		}}

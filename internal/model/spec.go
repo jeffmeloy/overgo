@@ -1376,12 +1376,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if len(sections) != 4 {
 				return Spec{}, fmt.Errorf("metadata %q has %d values, need 4", prefix+"rope.dimension_sections", len(sections))
 			}
-			for index, section := range sections {
-				if architecture == "hunyuan-dense" && section != 0 {
-					return Spec{}, errors.New("Hunyuan-Dense multidimensional RoPE is not supported")
-				}
-				spec.RopeSections[index] = section
-			}
+			copy(spec.RopeSections[:], sections)
 		}
 		if alpha, ok := optional[float32](values, prefix+"rope.scaling.alpha", gguf.ValueTypeFloat32); ok && alpha != 0 {
 			if alpha < 0 || spec.KeyLength <= 2 || math.IsNaN(float64(alpha)) || math.IsInf(float64(alpha), 0) {
@@ -4009,16 +4004,11 @@ func (s Spec) validate() error {
 			math.IsNaN(float64(s.RopeFrequencyBase)) || math.IsInf(float64(s.RopeFrequencyBase), 0)) {
 		return fmt.Errorf("%s attention metadata is invalid", s.Architecture)
 	}
-	if s.Architecture == "hunyuan_vl" {
-		var sectionPairs int32
+	if s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan_vl" {
 		for _, section := range s.RopeSections {
 			if section < 0 {
-				return errors.New("Hunyuan-VL MRoPE section count is negative")
+				return errors.New("Hunyuan MRoPE section count is negative")
 			}
-			sectionPairs += section
-		}
-		if sectionPairs > int32(s.RopeDimensionCount/2) {
-			return errors.New("Hunyuan-VL MRoPE sections exceed rotary pair count")
 		}
 	}
 	if (s.Architecture == "glm4" || s.Architecture == "glm4moe") &&

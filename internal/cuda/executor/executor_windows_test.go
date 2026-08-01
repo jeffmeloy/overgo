@@ -5933,7 +5933,7 @@ func TestExecutorChatGLMBlockMatchesReference(t *testing.T) {
 }
 
 func TestExecutorHunyuanDenseBlockMatchesReference(t *testing.T) {
-	testExecutorHunyuanBlockMatchesReference(t, "hunyuan-dense", [4]int32{})
+	testExecutorHunyuanBlockMatchesReference(t, "hunyuan-dense", [4]int32{1, 1, 0, 0})
 }
 
 func TestExecutorHunyuanVLBlockMatchesReference(t *testing.T) {

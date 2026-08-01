@@ -1213,9 +1213,10 @@ FFN residual branches, and dense SwiGLU. Embedding and inverse-logit scaling
 reuse the MiniCPM path; real-model validation remains pending a local fixture.
 
 Hunyuan-Dense now executes optional fused or separate Q/K/V projections,
-XDRoPE-adjusted normal RoPE, post-RoPE per-head Q/K RMSNorm, and dense SwiGLU
-through bounded-host and F32-preload CUDA paths. Text-only zeroed multidimensional
-RoPE sections are accepted; nonzero multimodal sections remain explicit errors.
+XDRoPE-adjusted normal or four-axis multimodal RoPE, post-RoPE per-head Q/K
+RMSNorm, projected embedding overrides, and dense SwiGLU through bounded-host
+and F32-preload CUDA paths. The multimodal runner accepts distinct temporal,
+height, width, and extra coordinates.
 
 Hunyuan-VL now executes the corresponding text decoder with optional fused or
 separate Q/K/V, XDRoPE-adjusted normal or four-axis MRoPE, post-RoPE per-head

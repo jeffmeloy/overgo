@@ -2953,7 +2953,11 @@ func BuildDenseBlockCachedForLayerWithMultiPositions(
 		if spec.RopeSections[0] <= 0 || spec.RopeSections[1] <= 0 {
 			return DenseBlockResult{}, errors.New("GLM4 multi-axis positions require multimodal RoPE sections")
 		}
-	case "hunyuan_vl", "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe":
+	case "hunyuan-dense", "hunyuan_vl":
+		if spec.RopeSections[0] <= 0 || spec.RopeSections[1] <= 0 {
+			return DenseBlockResult{}, errors.New("Hunyuan multi-axis positions require multimodal RoPE sections")
+		}
+	case "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe":
 	default:
 		return DenseBlockResult{}, errors.New("dense block architecture does not support multi-axis positions")
 	}
@@ -3460,7 +3464,7 @@ func buildDenseBlockCachedForLayer(
 	}
 	if !spec.UsesRoPE(layerIndex) {
 		// Periodic position-independent layer.
-	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || ((spec.Architecture == "glm4" || isGLM4MoE) && spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0) || (spec.Architecture == "hunyuan_vl" && hasMRoPESections(spec.RopeSections)) {
+	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || ((spec.Architecture == "glm4" || isGLM4MoE) && spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0) || ((spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl") && spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0) {
 		resolved := [4][]uint32{}
 		if multiPositions == nil {
 			for axis := range resolved {

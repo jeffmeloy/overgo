@@ -3818,7 +3818,9 @@ func supportsMultiAxisPositions(spec model.Spec) bool {
 	switch spec.Architecture {
 	case "glm4", "glm4moe":
 		return spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0
-	case "hunyuan_vl", "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe", "qwen35", "qwen35moe":
+	case "hunyuan-dense", "hunyuan_vl":
+		return spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0
+	case "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe", "qwen35", "qwen35moe":
 		return true
 	default:
 		return false

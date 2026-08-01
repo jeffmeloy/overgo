@@ -655,30 +655,41 @@ func TestBuildHunyuanDenseBlock(t *testing.T) {
 	}
 }
 
-func TestBuildHunyuanVLBlockUsesPostMRoPEQKNorm(t *testing.T) {
-	b := tensor.NewBuilder()
-	s := Spec{Architecture: "hunyuan_vl", EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0}, RopeFrequencyBase: 40000, RMSNormEpsilon: 1e-6}
-	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
-	r, err := BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nodes, err := tensor.Topological(r.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var multiRoPE, postRoPENorm int
-	for _, node := range nodes {
-		if node.Op == tensor.OpRoPEMulti {
-			multiRoPE++
-		}
-		if node.Op == tensor.OpRMSNorm && len(node.Inputs) == 1 && node.Inputs[0].Op == tensor.OpRoPEMulti {
-			postRoPENorm++
-		}
-	}
-	if multiRoPE != 2 || postRoPENorm != 2 {
-		t.Fatalf("Hunyuan-VL graph has MRoPE=%d post-MRoPE norms=%d", multiRoPE, postRoPENorm)
+func TestBuildHunyuanBlocksUsePostMRoPEQKNorm(t *testing.T) {
+	for _, architecture := range []string{"hunyuan-dense", "hunyuan_vl"} {
+		t.Run(architecture, func(t *testing.T) {
+			b := tensor.NewBuilder()
+			s := Spec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0}, RopeFrequencyBase: 40000, RMSNormEpsilon: 1e-6}
+			in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
+			positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
+			r, err := BuildDenseBlockCachedForLayerWithMultiPositions(b, in, s, w, positions, nil, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(r.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var multiRoPE, postRoPENorm int
+			for _, node := range nodes {
+				if node.Op == tensor.OpRoPEMulti {
+					multiRoPE++
+					attributes := node.Attrs.(tensor.RoPEMultiAttributes)
+					for axis := range positions {
+						if !slices.Equal(attributes.Positions[axis], positions[axis]) {
+							t.Fatalf("MRoPE axis %d = %v, want %v", axis, attributes.Positions[axis], positions[axis])
+						}
+					}
+				}
+				if node.Op == tensor.OpRMSNorm && len(node.Inputs) == 1 && node.Inputs[0].Op == tensor.OpRoPEMulti {
+					postRoPENorm++
+				}
+			}
+			if multiRoPE != 2 || postRoPENorm != 2 {
+				t.Fatalf("Hunyuan graph has MRoPE=%d post-MRoPE norms=%d", multiRoPE, postRoPENorm)
+			}
+		})
 	}
 }
 

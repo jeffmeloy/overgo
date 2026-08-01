@@ -1261,10 +1261,14 @@ func TestReadHunyuanDenseSpec(t *testing.T) {
 	file.Metadata = append(file.Metadata, gguf.Metadata{
 		Key: "hunyuan-dense.rope.dimension_sections",
 		Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32,
-			Data: []int32{1, 0, 0, 0}},
+			Data: []int32{1, 1, 0, 0}},
 	})
-	if _, err = ReadSpec(file); err == nil || !strings.Contains(err.Error(), "multidimensional") {
-		t.Fatalf("Hunyuan-Dense multidimensional RoPE error = %v", err)
+	spec, err = ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.RopeSections != [4]int32{1, 1, 0, 0} {
+		t.Fatalf("Hunyuan-Dense MRoPE sections = %v", spec.RopeSections)
 	}
 	file.Metadata[len(file.Metadata)-1].Value.Data = []int32{0, 0, 0}
 	if _, err = ReadSpec(file); err == nil || !strings.Contains(err.Error(), "need 4") {

@@ -5724,6 +5724,130 @@ func TestBuildRWKV6Block(t *testing.T) {
 	}
 }
 
+func TestBuildRWKV7BlockValueResidual(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "rwkv7", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, WKVHeadSize: 4, TokenShiftCount: 2,
+		DecayLoRARank: 3, ICLRLoRARank: 2, ValueMixLoRARank: 3, GateLoRARank: 2,
+		LayerNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := rwkv7GraphWeights(builder, spec, true)
+	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
+	first, err := BuildRWKV7BlockCached(builder, input, spec, weights, shift, state, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Auxiliary == nil || !first.Auxiliary.Shape.Equal(input.Shape) ||
+		!first.Output.Shape.Equal(input.Shape) || !first.Key.Shape.Equal(shift.Shape) || !first.Value.Shape.Equal(state.Shape) {
+		t.Fatalf("unexpected RWKV7 first-layer result: %+v", first)
+	}
+	weights.PerLayerInput = builder.Input("first_value", dtype.F32, input.Shape)
+	second, err := BuildRWKV7BlockCached(builder, input, spec, weights, shift, state, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Auxiliary != nil {
+		t.Fatalf("unexpected RWKV7 later-layer auxiliary: %+v", second.Auxiliary)
+	}
+	nodes, err := tensor.Topological(first.Output, first.Key, first.Value, first.Auxiliary, second.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wkv, sumRows int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRWKV7:
+			wkv++
+		case tensor.OpSumRows:
+			sumRows++
+		}
+	}
+	if wkv != 2 || sumRows != 2 {
+		t.Fatalf("RWKV7 ops: WKV=%d SumRows=%d", wkv, sumRows)
+	}
+}
+
+func TestBuildARWKV7UngatedBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "arwkv7", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, WKVHeadSize: 4, TokenShiftCount: 1,
+		DecayLoRARank: 3, ICLRLoRARank: 2, ValueMixLoRARank: 3,
+		RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := rwkv7GraphWeights(builder, spec, false)
+	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 1))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
+	result, err := BuildRWKV7BlockCached(builder, input, spec, weights, shift, state, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Auxiliary == nil || !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) {
+		t.Fatalf("unexpected ARWKV7 result: %+v", result)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value, result.Auxiliary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range nodes {
+		if node.Op == tensor.OpLayerNorm {
+			t.Fatal("ungated ARWKV7 unexpectedly uses time group normalization")
+		}
+	}
+}
+
+func rwkv7GraphWeights(builder *tensor.Builder, spec Spec, classic bool) LayerGraphWeights {
+	embedding := uint64(spec.EmbeddingLength)
+	lerps := uint64(5)
+	if spec.GateLoRARank > 0 {
+		lerps = 6
+	}
+	weights := LayerGraphWeights{
+		AttentionNorm:     builder.Input("attn_norm", dtype.F32, tensor.MustShape(embedding)),
+		TimeMixW0:         builder.Input("mix_w0", dtype.F32, tensor.MustShape(embedding)),
+		TimeMixW1:         builder.Input("mix_w1", dtype.F32, tensor.MustShape(embedding, uint64(spec.DecayLoRARank))),
+		TimeMixW2:         builder.Input("mix_w2", dtype.F32, tensor.MustShape(uint64(spec.DecayLoRARank), embedding)),
+		TimeMixA0:         builder.Input("mix_a0", dtype.F32, tensor.MustShape(embedding)),
+		TimeMixA1:         builder.Input("mix_a1", dtype.F32, tensor.MustShape(embedding, uint64(spec.ICLRLoRARank))),
+		TimeMixA2:         builder.Input("mix_a2", dtype.F32, tensor.MustShape(uint64(spec.ICLRLoRARank), embedding)),
+		TimeMixV0:         builder.Input("mix_v0", dtype.F32, tensor.MustShape(embedding)),
+		TimeMixV1:         builder.Input("mix_v1", dtype.F32, tensor.MustShape(embedding, uint64(spec.ICLRLoRARank))),
+		TimeMixV2:         builder.Input("mix_v2", dtype.F32, tensor.MustShape(uint64(spec.ICLRLoRARank), embedding)),
+		TimeMixLerpFused:  builder.Input("lerp", dtype.F32, tensor.MustShape(embedding, 1, 1, lerps)),
+		TimeMixKK:         builder.Input("mix_kk", dtype.F32, tensor.MustShape(embedding)),
+		TimeMixKA:         builder.Input("mix_ka", dtype.F32, tensor.MustShape(embedding)),
+		TimeMixRK:         builder.Input("mix_rk", dtype.F32, tensor.MustShape(embedding)),
+		TimeMixKey:        builder.Input("key", dtype.F32, tensor.MustShape(embedding, embedding)),
+		TimeMixValue:      builder.Input("value", dtype.F32, tensor.MustShape(embedding, embedding)),
+		TimeMixReceptance: builder.Input("receptance", dtype.F32, tensor.MustShape(embedding, embedding)),
+		TimeMixOutput:     builder.Input("output", dtype.F32, tensor.MustShape(embedding, embedding)),
+	}
+	if spec.GateLoRARank > 0 {
+		weights.TimeMixG1 = builder.Input("mix_g1", dtype.F32, tensor.MustShape(embedding, uint64(spec.GateLoRARank)))
+		weights.TimeMixG2 = builder.Input("mix_g2", dtype.F32, tensor.MustShape(uint64(spec.GateLoRARank), embedding))
+	}
+	if classic {
+		weights.AttentionNormBias = builder.Input("attn_norm_bias", dtype.F32, tensor.MustShape(embedding))
+		weights.AttentionNorm2 = builder.Input("attn_norm_2", dtype.F32, tensor.MustShape(embedding))
+		weights.AttentionNorm2Bias = builder.Input("attn_norm_2_bias", dtype.F32, tensor.MustShape(embedding))
+		weights.TimeMixLN = builder.Input("mix_ln", dtype.F32, tensor.MustShape(embedding))
+		weights.TimeMixLNBias = builder.Input("mix_ln_bias", dtype.F32, tensor.MustShape(embedding))
+		weights.ChannelMixLerpK = builder.Input("channel_lerp", dtype.F32, tensor.MustShape(embedding, 1, 1))
+		weights.ChannelMixKey = builder.Input("channel_key", dtype.F32, tensor.MustShape(embedding, uint64(spec.FeedForwardLength)))
+		weights.ChannelMixValue = builder.Input("channel_value", dtype.F32, tensor.MustShape(uint64(spec.FeedForwardLength), embedding))
+	} else {
+		weights.FeedForwardNorm = builder.Input("ffn_norm", dtype.F32, tensor.MustShape(embedding))
+		weights.FeedForwardGate = builder.Input("ffn_gate", dtype.F32, tensor.MustShape(embedding, uint64(spec.FeedForwardLength)))
+		weights.FeedForwardUp = builder.Input("ffn_up", dtype.F32, tensor.MustShape(embedding, uint64(spec.FeedForwardLength)))
+		weights.FeedForwardDown = builder.Input("ffn_down", dtype.F32, tensor.MustShape(uint64(spec.FeedForwardLength), embedding))
+	}
+	return weights
+}
+
 func kimiLinearCommonInputs(builder *tensor.Builder, spec Spec, moe bool) LayerGraphWeights {
 	weights := LayerGraphWeights{
 		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),

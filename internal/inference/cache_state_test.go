@@ -173,6 +173,38 @@ func TestRWKV6CacheValidation(t *testing.T) {
 	}
 }
 
+func TestRWKV7CacheValidation(t *testing.T) {
+	for _, test := range []struct {
+		architecture string
+		shiftCount   uint32
+	}{{"rwkv7", 2}, {"arwkv7", 1}} {
+		t.Run(test.architecture, func(t *testing.T) {
+			runner := &Runner{spec: model.Spec{
+				Architecture: test.architecture, BlockCount: 1, EmbeddingLength: 8,
+				HeadCount: 2, WKVHeadSize: 4, TokenShiftCount: test.shiftCount,
+			}}
+			shift, _ := reference.NewValue(tensor.MustShape(8, uint64(test.shiftCount)), make([]float32, 8*test.shiftCount))
+			state, _ := reference.NewValue(tensor.MustShape(4, 4, 2, 1), make([]float32, 32))
+			auxiliary, _ := reference.NewValue(tensor.MustShape(8, 2), make([]float32, 16))
+			cache := &KVCache{Layers: []LayerCache{{Key: shift, Value: state, Auxiliary: &auxiliary}}, Tokens: 2, Position: 2}
+			if err := runner.validateCache(cache); err != nil {
+				t.Fatal(err)
+			}
+			payload, err := runner.SaveCache(cache)
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored, err := runner.LoadCache(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if restored.Layers[0].Auxiliary != nil {
+				t.Fatal("RWKV7 transient value residual was serialized")
+			}
+		})
+	}
+}
+
 func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{

@@ -120,6 +120,18 @@ type HostLayer struct {
 	SSMOutputGateB       *reference.Value
 	TimeMixW1            *reference.Value
 	TimeMixW2            *reference.Value
+	TimeMixW0            *reference.Value
+	TimeMixA0            *reference.Value
+	TimeMixA1            *reference.Value
+	TimeMixA2            *reference.Value
+	TimeMixV0            *reference.Value
+	TimeMixV1            *reference.Value
+	TimeMixV2            *reference.Value
+	TimeMixG1            *reference.Value
+	TimeMixG2            *reference.Value
+	TimeMixKK            *reference.Value
+	TimeMixKA            *reference.Value
+	TimeMixRK            *reference.Value
 	TimeMixLerpX         *reference.Value
 	TimeMixLerpFused     *reference.Value
 	TimeMixLerpW         *reference.Value
@@ -417,6 +429,18 @@ func LoadHostLayer(
 			}{
 				{&result.TimeMixW1, info.TimeMixW1},
 				{&result.TimeMixW2, info.TimeMixW2},
+				{&result.TimeMixW0, info.TimeMixW0},
+				{&result.TimeMixA0, info.TimeMixA0},
+				{&result.TimeMixA1, info.TimeMixA1},
+				{&result.TimeMixA2, info.TimeMixA2},
+				{&result.TimeMixV0, info.TimeMixV0},
+				{&result.TimeMixV1, info.TimeMixV1},
+				{&result.TimeMixV2, info.TimeMixV2},
+				{&result.TimeMixG1, info.TimeMixG1},
+				{&result.TimeMixG2, info.TimeMixG2},
+				{&result.TimeMixKK, info.TimeMixKK},
+				{&result.TimeMixKA, info.TimeMixKA},
+				{&result.TimeMixRK, info.TimeMixRK},
 				{&result.TimeMixLerpX, info.TimeMixLerpX},
 				{&result.TimeMixLerpFused, info.TimeMixLerpFused},
 				{&result.TimeMixLerpW, info.TimeMixLerpW},
@@ -859,6 +883,18 @@ func (layer *HostLayer) GraphInputs(
 		}{
 			{"time_mix_w1.weight", layer.TimeMixW1, &result.TimeMixW1},
 			{"time_mix_w2.weight", layer.TimeMixW2, &result.TimeMixW2},
+			{"time_mix_w0.weight", layer.TimeMixW0, &result.TimeMixW0},
+			{"time_mix_a0.weight", layer.TimeMixA0, &result.TimeMixA0},
+			{"time_mix_a1.weight", layer.TimeMixA1, &result.TimeMixA1},
+			{"time_mix_a2.weight", layer.TimeMixA2, &result.TimeMixA2},
+			{"time_mix_v0.weight", layer.TimeMixV0, &result.TimeMixV0},
+			{"time_mix_v1.weight", layer.TimeMixV1, &result.TimeMixV1},
+			{"time_mix_v2.weight", layer.TimeMixV2, &result.TimeMixV2},
+			{"time_mix_g1.weight", layer.TimeMixG1, &result.TimeMixG1},
+			{"time_mix_g2.weight", layer.TimeMixG2, &result.TimeMixG2},
+			{"time_mix_k_k.weight", layer.TimeMixKK, &result.TimeMixKK},
+			{"time_mix_k_a.weight", layer.TimeMixKA, &result.TimeMixKA},
+			{"time_mix_r_k.weight", layer.TimeMixRK, &result.TimeMixRK},
 			{"time_mix_lerp_x.weight", layer.TimeMixLerpX, &result.TimeMixLerpX},
 			{"time_mix_lerp_fused.weight", layer.TimeMixLerpFused, &result.TimeMixLerpFused},
 			{"time_mix_lerp_w.weight", layer.TimeMixLerpW, &result.TimeMixLerpW},

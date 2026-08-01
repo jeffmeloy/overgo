@@ -602,6 +602,71 @@ extern "C" __global__ void rwkv6_f32(
 	}
 }
 
+extern "C" __global__ void sum_rows_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int rows) {
+	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	float sum = 0.0f;
+	for (unsigned int column = 0; column < width; ++column) {
+		sum += input[row * width + column];
+	}
+	output[row] = sum;
+}
+
+extern "C" __global__ void rwkv7_f32(
+		const float * receptance,
+		const float * decay,
+		const float * key,
+		const float * value,
+		const float * a,
+		const float * b_vector,
+		const float * input_state,
+		float * output,
+		unsigned int width,
+		unsigned int heads,
+		unsigned int tokens,
+		unsigned int sequences) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const unsigned int count = heads * sequences;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int head = index % heads;
+	const unsigned int sequence = index / heads;
+	const unsigned int attention_elements = width * heads * tokens * sequences;
+	const unsigned int state_elements = width * width;
+	float * state = output + attention_elements + index * state_elements;
+	const float * source_state = input_state + index * state_elements;
+	for (unsigned int i = 0; i < state_elements; ++i) {
+		state[i] = source_state[i];
+	}
+	for (unsigned int token = 0; token < tokens; ++token) {
+		const unsigned int vector_base =
+			((sequence * tokens + token) * heads + head) * width;
+		for (unsigned int row = 0; row < width; ++row) {
+			float * state_row = state + row * width;
+			float state_a = 0.0f;
+			for (unsigned int column = 0; column < width; ++column) {
+				state_a += a[vector_base + column] * state_row[column];
+			}
+			float result = 0.0f;
+			for (unsigned int column = 0; column < width; ++column) {
+				const float next = state_row[column] * decay[vector_base + column] +
+					value[vector_base + row] * key[vector_base + column] +
+					state_a * b_vector[vector_base + column];
+				state_row[column] = next;
+				result += next * receptance[vector_base + column];
+			}
+			output[vector_base + row] = result;
+		}
+	}
+}
+
 extern "C" __global__ void rms_norm_f32(
         const float * input,
         float * output,

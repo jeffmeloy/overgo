@@ -361,6 +361,44 @@ func TestExecuteRWKV6(t *testing.T) {
 	}
 }
 
+func TestExecuteSumRowsAndRWKV7(t *testing.T) {
+	builder := tensor.NewBuilder()
+	rows := builder.Input("rows", dtype.F32, tensor.MustShape(3, 2))
+	reduced := builder.SumRows(rows)
+	shape := tensor.MustShape(2, 1, 1, 1)
+	receptance := builder.Input("receptance", dtype.F32, shape)
+	decay := builder.Input("decay", dtype.F32, shape)
+	key := builder.Input("key", dtype.F32, shape)
+	value := builder.Input("value", dtype.F32, shape)
+	a := builder.Input("a", dtype.F32, shape)
+	bVector := builder.Input("b", dtype.F32, shape)
+	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 1, 1))
+	packed := builder.RWKV7(receptance, decay, key, value, a, bVector, state)
+	results, err := Execute([]*tensor.Tensor{reduced, packed}, map[*tensor.Tensor]Value{
+		rows:       {Shape: rows.Shape, Data: []float32{1, 2, 3, 4, 5, 6}},
+		receptance: {Shape: shape, Data: []float32{5, 6}},
+		decay:      {Shape: shape, Data: []float32{0.5, 0.25}},
+		key:        {Shape: shape, Data: []float32{1, 2}},
+		value:      {Shape: shape, Data: []float32{3, 4}},
+		a:          {Shape: shape, Data: []float32{0.1, 0.2}},
+		bVector:    {Shape: shape, Data: []float32{0.3, 0.4}},
+		state:      {Shape: state.Shape, Data: []float32{1, 2, 3, 4}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, want := range []float32{6, 15} {
+		if results[reduced].Data[index] != want {
+			t.Fatalf("SumRows output[%d] = %v, want %v", index, results[reduced].Data[index], want)
+		}
+	}
+	for index, want := range []float32{58.45, 85.79, 3.65, 6.7, 5.83, 9.44} {
+		if math.Abs(float64(results[packed].Data[index]-want)) > 1e-5 {
+			t.Fatalf("RWKV7 output[%d] = %v, want %v", index, results[packed].Data[index], want)
+		}
+	}
+}
+
 func TestExecuteGatedDeltaNetRepeatInterleave(t *testing.T) {
 	builder := tensor.NewBuilder()
 	q := builder.Input("q", dtype.F32, tensor.MustShape(2, 2, 1, 1))

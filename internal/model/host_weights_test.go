@@ -265,6 +265,47 @@ func TestHostLayerGraphInputsPermitRWKV6(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitRWKV7(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	attentionNorm, attentionBias := value(8), value(8)
+	channelNorm, channelBias := value(8), value(8)
+	w0, w1, w2 := value(8), value(8, 3), value(3, 8)
+	a0, a1, a2 := value(8), value(8, 2), value(2, 8)
+	v0, v1, v2 := value(8), value(8, 2), value(2, 8)
+	g1, g2 := value(8, 2), value(2, 8)
+	kk, ka, rk := value(8), value(8), value(8)
+	lerp := value(8, 1, 1, 6)
+	key, val, receptance, output := value(8, 8), value(8, 8), value(8, 8), value(8, 8)
+	mixNorm, mixBias := value(8), value(8)
+	channelLerp, channelKey, channelValue := value(8, 1, 1), value(8, 12), value(12, 8)
+	layer := HostLayer{
+		AttentionNorm: attentionNorm, AttentionNormBias: &attentionBias,
+		AttentionNorm2: &channelNorm, AttentionNorm2Bias: &channelBias,
+		TimeMixW0: &w0, TimeMixW1: &w1, TimeMixW2: &w2,
+		TimeMixA0: &a0, TimeMixA1: &a1, TimeMixA2: &a2,
+		TimeMixV0: &v0, TimeMixV1: &v1, TimeMixV2: &v2,
+		TimeMixG1: &g1, TimeMixG2: &g2, TimeMixKK: &kk, TimeMixKA: &ka, TimeMixRK: &rk,
+		TimeMixLerpFused: &lerp, TimeMixKey: &key, TimeMixValue: &val,
+		TimeMixReceptance: &receptance, TimeMixLN: &mixNorm, TimeMixLNBias: &mixBias,
+		TimeMixOutput: &output, ChannelMixLerpK: &channelLerp,
+		ChannelMixKey: &channelKey, ChannelMixValue: &channelValue,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 28 || graph.TimeMixW0 == nil || graph.TimeMixA2 == nil ||
+		graph.TimeMixV2 == nil || graph.TimeMixG2 == nil || graph.TimeMixRK == nil ||
+		graph.ChannelMixValue == nil {
+		t.Fatalf("unexpected RWKV7 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitMamba2(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

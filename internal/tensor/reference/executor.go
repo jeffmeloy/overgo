@@ -199,6 +199,10 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return gatedLinearAttention(node.Shape, inputs, node.Attrs.(tensor.GatedLinearAttentionAttributes))
 	case tensor.OpRWKV6:
 		return rwkv6(node.Shape, inputs)
+	case tensor.OpSumRows:
+		return sumRows(node.Shape, inputs[0])
+	case tensor.OpRWKV7:
+		return rwkv7(node.Shape, inputs)
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
 		if !ok {
@@ -679,6 +683,66 @@ func rwkv6(shape tensor.Shape, inputs []Value) (Value, error) {
 						output[vectorBase+column] += (previous + kv*firstValue) * receptanceValue
 						output[stateRow+column] = previous*decayValue + kv
 					}
+				}
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func sumRows(shape tensor.Shape, input Value) (Value, error) {
+	width := int(input.Shape.Dims[0])
+	if width <= 0 || len(input.Data)%width != 0 {
+		return Value{}, errors.New("invalid SumRows dimensions")
+	}
+	output := make([]float32, len(input.Data)/width)
+	for row := range output {
+		for column := range width {
+			output[row] += input.Data[row*width+column]
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func rwkv7(shape tensor.Shape, inputs []Value) (Value, error) {
+	if len(inputs) != 7 {
+		return Value{}, errors.New("RWKV7 requires seven inputs")
+	}
+	receptance, decay, key, value := inputs[0], inputs[1], inputs[2], inputs[3]
+	a, bVector, inputState := inputs[4], inputs[5], inputs[6]
+	width := int(key.Shape.Dims[0])
+	heads := int(key.Shape.Dims[1])
+	tokens := int(key.Shape.Dims[2])
+	sequences := int(key.Shape.Dims[3])
+	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
+		return Value{}, errors.New("invalid RWKV7 dimensions")
+	}
+	attentionElements := width * heads * tokens * sequences
+	stateElements := width * width
+	output := make([]float32, attentionElements+stateElements*heads*sequences)
+	for sequence := range sequences {
+		for head := range heads {
+			stateBase := attentionElements + (sequence*heads+head)*stateElements
+			inputStateBase := (sequence*heads + head) * stateElements
+			copy(output[stateBase:stateBase+stateElements], inputState.Data[inputStateBase:inputStateBase+stateElements])
+			for token := range tokens {
+				vectorBase := ((sequence*tokens+token)*heads + head) * width
+				for row := range width {
+					stateRow := stateBase + row*width
+					var stateA float32
+					for column := range width {
+						stateA += a.Data[vectorBase+column] * output[stateRow+column]
+					}
+					var result float32
+					for column := range width {
+						previous := output[stateRow+column]
+						next := previous*decay.Data[vectorBase+column] +
+							value.Data[vectorBase+row]*key.Data[vectorBase+column] +
+							stateA*bVector.Data[vectorBase+column]
+						output[stateRow+column] = next
+						result += next * receptance.Data[vectorBase+column]
+					}
+					output[vectorBase+row] = result
 				}
 			}
 		}

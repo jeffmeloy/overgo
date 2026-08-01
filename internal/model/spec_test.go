@@ -3114,6 +3114,51 @@ func TestReadRWKV6Spec(t *testing.T) {
 	}
 }
 
+func TestReadRWKV7FamilySpec(t *testing.T) {
+	for _, test := range []struct {
+		architecture string
+		shiftCount   uint32
+		gateRank     uint32
+		layerNorm    bool
+	}{{"rwkv7", 2, 2, true}, {"arwkv7", 1, 0, false}} {
+		t.Run(test.architecture, func(t *testing.T) {
+			prefix := test.architecture + "."
+			items := []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, test.architecture),
+				metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(4096)),
+				metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(8)),
+				metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+				metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+				metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"wkv.head_size", gguf.ValueTypeUint32, uint32(4)),
+				metadata(prefix+"attention.decay_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+				metadata(prefix+"attention.iclr_lora_rank", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"attention.value_residual_mix_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+			}
+			if test.layerNorm {
+				items = append(items,
+					metadata(prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+					metadata(prefix+"attention.gate_lora_rank", gguf.ValueTypeUint32, test.gateRank),
+				)
+			} else {
+				items = append(items, metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)))
+			}
+			spec, err := ReadSpec(&gguf.File{Metadata: items})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if spec.Architecture != test.architecture || !spec.RopeDisabled ||
+				spec.WKVHeadSize != 4 || spec.DecayLoRARank != 3 || spec.ICLRLoRARank != 2 ||
+				spec.ValueMixLoRARank != 3 || spec.GateLoRARank != test.gateRank ||
+				spec.TokenShiftCount != test.shiftCount || spec.UsesLayerNorm() != test.layerNorm {
+				t.Fatalf("unexpected %s spec: %+v", test.architecture, spec)
+			}
+		})
+	}
+}
+
 func TestReadQwen3NextSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen3next"),

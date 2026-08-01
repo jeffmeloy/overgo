@@ -3909,6 +3909,71 @@ func TestReadWeightsRWKV6(t *testing.T) {
 	}
 }
 
+func TestReadWeightsRWKV7Family(t *testing.T) {
+	for _, architecture := range []string{"rwkv7", "arwkv7"} {
+		t.Run(architecture, func(t *testing.T) {
+			classic := architecture == "rwkv7"
+			spec := Spec{
+				Architecture: architecture, BlockCount: 1, EmbeddingLength: 8,
+				FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+				WKVHeadSize: 4, DecayLoRARank: 3, ICLRLoRARank: 2,
+				ValueMixLoRARank: 3, VocabularySize: 32,
+			}
+			if classic {
+				spec.GateLoRARank = 2
+			}
+			tensors := []gguf.TensorInfo{
+				tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+				tensorInfo("output.weight", 8, 32), tensorInfo("blk.0.attn_norm.weight", 8),
+				tensorInfo("blk.0.time_mix_w0.weight", 8), tensorInfo("blk.0.time_mix_w1.weight", 8, 3),
+				tensorInfo("blk.0.time_mix_w2.weight", 3, 8), tensorInfo("blk.0.time_mix_a0.weight", 8),
+				tensorInfo("blk.0.time_mix_a1.weight", 8, 2), tensorInfo("blk.0.time_mix_a2.weight", 2, 8),
+				tensorInfo("blk.0.time_mix_v0.weight", 8), tensorInfo("blk.0.time_mix_v1.weight", 8, 2),
+				tensorInfo("blk.0.time_mix_v2.weight", 2, 8),
+				tensorInfo("blk.0.time_mix_k_k.weight", 8), tensorInfo("blk.0.time_mix_k_a.weight", 8),
+				tensorInfo("blk.0.time_mix_r_k.weight", 8), tensorInfo("blk.0.time_mix_key.weight", 8, 8),
+				tensorInfo("blk.0.time_mix_value.weight", 8, 8), tensorInfo("blk.0.time_mix_receptance.weight", 8, 8),
+				tensorInfo("blk.0.time_mix_output.weight", 8, 8),
+			}
+			if classic {
+				tensors = append(tensors,
+					tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
+					tensorInfo("output_norm.bias", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+					tensorInfo("blk.0.time_mix_lerp_fused.weight", 8, 1, 1, 6),
+					tensorInfo("blk.0.time_mix_g1.weight", 8, 2), tensorInfo("blk.0.time_mix_g2.weight", 2, 8),
+					tensorInfo("blk.0.attn_norm_2.weight", 8), tensorInfo("blk.0.attn_norm_2.bias", 8),
+					tensorInfo("blk.0.time_mix_ln.weight", 8), tensorInfo("blk.0.time_mix_ln.bias", 8),
+					tensorInfo("blk.0.channel_mix_lerp_k.weight", 8, 1, 1),
+					tensorInfo("blk.0.channel_mix_key.weight", 8, 12), tensorInfo("blk.0.channel_mix_value.weight", 12, 8),
+				)
+			} else {
+				tensors = append(tensors,
+					tensorInfo("blk.0.time_mix_lerp_fused.weight", 8, 1, 1, 5),
+					tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+					tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8),
+				)
+			}
+			weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			layer := weights.Layers[0]
+			if !layer.Recurrent || layer.TimeMixW0 == nil || layer.TimeMixA2 == nil ||
+				layer.TimeMixV2 == nil || layer.TimeMixKK == nil || layer.TimeMixRK == nil ||
+				layer.TimeMixLerpFused == nil || weights.Output == nil {
+				t.Fatalf("unexpected %s catalog: %+v", architecture, layer)
+			}
+			if classic && (layer.TimeMixG2 == nil || layer.TimeMixLN == nil || layer.ChannelMixKey == nil ||
+				weights.TokenEmbeddingNorm == nil || weights.OutputNormBias == nil) {
+				t.Fatalf("incomplete RWKV7 catalog: %+v", layer)
+			}
+			if !classic && (layer.TimeMixG1 != nil || layer.FeedForwardGate.Name == "" || weights.TokenEmbeddingNorm != nil) {
+				t.Fatalf("incomplete ARWKV7 catalog: %+v", layer)
+			}
+		})
+	}
+}
+
 func TestReadWeightsQwen35MoEAttention(t *testing.T) {
 	spec := Spec{
 		Architecture: "qwen35moe", BlockCount: 1, EmbeddingLength: 8,

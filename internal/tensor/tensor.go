@@ -48,6 +48,8 @@ const (
 	OpExp
 	OpGatedLinearAttention
 	OpRWKV6
+	OpSumRows
+	OpRWKV7
 )
 
 var opNames = [...]string{
@@ -87,6 +89,8 @@ var opNames = [...]string{
 	"exp",
 	"gated_linear_attention",
 	"rwkv6",
+	"sum_rows",
+	"rwkv7",
 }
 
 func (o Op) String() string {
@@ -587,6 +591,59 @@ func (b *Builder) RWKV6(key, value, receptance, first, decay, state *Tensor) *Te
 		return nil
 	}
 	return b.add("", dtype.F32, shape, OpRWKV6, inputs, nil)
+}
+
+// SumRows: first-dimension reduction.
+func (b *Builder) SumRows(input *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Rank == 0 || input.Shape.Dims[0] == 0 {
+		b.setError(errors.New("SumRows requires non-empty F32 input"))
+		return nil
+	}
+	dimensions := input.Shape.Slice()
+	dimensions[0] = 1
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpSumRows, []*Tensor{input}, nil)
+}
+
+// RWKV7: vector-valued decay recurrence; packed output and state.
+func (b *Builder) RWKV7(receptance, decay, key, value, a, bVector, state *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	inputs := []*Tensor{receptance, decay, key, value, a, bVector, state}
+	for _, input := range inputs {
+		if input == nil || input.Type != dtype.F32 {
+			b.setError(errors.New("RWKV7 requires seven F32 inputs"))
+			return nil
+		}
+	}
+	if receptance.Shape.Rank != 4 || !receptance.Shape.Equal(decay.Shape) ||
+		!receptance.Shape.Equal(key.Shape) || !receptance.Shape.Equal(value.Shape) ||
+		!receptance.Shape.Equal(a.Shape) || !receptance.Shape.Equal(bVector.Shape) || state.Shape.Rank != 4 {
+		b.setError(errors.New("RWKV7 input shapes are incompatible"))
+		return nil
+	}
+	width, heads := key.Shape.Dims[0], key.Shape.Dims[1]
+	tokens, sequences := key.Shape.Dims[2], key.Shape.Dims[3]
+	if width == 0 || heads == 0 || tokens == 0 || sequences == 0 ||
+		state.Shape.Dims[0] != width || state.Shape.Dims[1] != width ||
+		state.Shape.Dims[2] != heads || state.Shape.Dims[3] != sequences {
+		b.setError(errors.New("RWKV7 state shape is invalid"))
+		return nil
+	}
+	shape, err := NewShape(width*heads, tokens*sequences+width*sequences)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpRWKV7, inputs, nil)
 }
 
 // MoE: softmax top-k SwiGLU; GGUF expert layouts.

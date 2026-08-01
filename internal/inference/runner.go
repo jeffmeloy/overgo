@@ -76,8 +76,9 @@ type GenerateOptions struct {
 }
 
 type LayerCache struct {
-	Key   reference.Value
-	Value reference.Value
+	Key       reference.Value
+	Value     reference.Value
+	Auxiliary *reference.Value
 }
 
 type KVCache struct {
@@ -480,6 +481,18 @@ func (r *Runner) layerDeviceInputs(
 				{info.ChannelMixKey, &result.ChannelMixKey},
 				{info.ChannelMixValue, &result.ChannelMixValue},
 				{info.ChannelMixReceptance, &result.ChannelMixReceptance},
+				{info.TimeMixW0, &result.TimeMixW0},
+				{info.TimeMixA0, &result.TimeMixA0},
+				{info.TimeMixA1, &result.TimeMixA1},
+				{info.TimeMixA2, &result.TimeMixA2},
+				{info.TimeMixV0, &result.TimeMixV0},
+				{info.TimeMixV1, &result.TimeMixV1},
+				{info.TimeMixV2, &result.TimeMixV2},
+				{info.TimeMixG1, &result.TimeMixG1},
+				{info.TimeMixG2, &result.TimeMixG2},
+				{info.TimeMixKK, &result.TimeMixKK},
+				{info.TimeMixKA, &result.TimeMixKA},
+				{info.TimeMixRK, &result.TimeMixRK},
 			} {
 				recurrent = append(recurrent, item)
 			}
@@ -1231,11 +1244,13 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
 		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
 		r.spec.Architecture != "nemotron_h_moe" && r.spec.Architecture != "kimi-linear" &&
-		r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2" {
+		r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2" &&
+		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
 	}
+	var firstLayerValue *reference.Value
 	for layerIndex, layerInfo := range r.weights.Layers {
 		var past *LayerCache
 		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
@@ -1247,6 +1262,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		var perLayerInput *reference.Value
 		if len(perLayerInputs) > 0 {
 			perLayerInput = &perLayerInputs[layerIndex]
+		}
+		if (r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7") && layerIndex > 0 {
+			perLayerInput = firstLayerValue
 		}
 		var layerCache LayerCache
 		activation, layerCache, err = r.runLayerCached(
@@ -1261,6 +1279,10 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
+		}
+		if layerCache.Auxiliary != nil {
+			firstLayerValue = layerCache.Auxiliary
+			layerCache.Auxiliary = nil
 		}
 		nextCache.Layers[layerIndex] = layerCache
 	}
@@ -1626,6 +1648,19 @@ func (r *Runner) runLayerCached(
 		pastKey = builder.Input(fmt.Sprintf("blk.%d.token_shift", layerIndex), dtype.F32, shiftValue.Shape)
 		pastValue = builder.Input(fmt.Sprintf("blk.%d.wkv_state", layerIndex), dtype.F32, stateValue.Shape)
 		hostFeeds[pastKey], hostFeeds[pastValue] = shiftValue, stateValue
+	} else if r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7" {
+		shiftShape := tensor.MustShape(uint64(r.spec.EmbeddingLength), uint64(r.spec.TokenShiftCount))
+		stateShape := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
+		shiftElements, _ := shiftShape.Elements()
+		stateElements, _ := stateShape.Elements()
+		shiftValue := reference.Value{Shape: shiftShape, Data: make([]float32, int(shiftElements))}
+		stateValue := reference.Value{Shape: stateShape, Data: make([]float32, int(stateElements))}
+		if past != nil {
+			shiftValue, stateValue = past.Key, past.Value
+		}
+		pastKey = builder.Input(fmt.Sprintf("blk.%d.token_shift", layerIndex), dtype.F32, shiftValue.Shape)
+		pastValue = builder.Input(fmt.Sprintf("blk.%d.wkv_state", layerIndex), dtype.F32, stateValue.Shape)
+		hostFeeds[pastKey], hostFeeds[pastValue] = shiftValue, stateValue
 	} else if kimiRecurrent {
 		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), 3*uint64(r.spec.SSMInnerSize))
 		ssmShape := tensor.MustShape(uint64(r.spec.KDAHeadDim), uint64(r.spec.KDAHeadDim), uint64(r.spec.HeadCount), 1)
@@ -1713,6 +1748,9 @@ func (r *Runner) runLayerCached(
 		}
 	}
 	outputs := []*tensor.Tensor{outputTensor, result.Key, result.Value}
+	if result.Auxiliary != nil {
+		outputs = append(outputs, result.Auxiliary)
+	}
 	var results map[*tensor.Tensor]reference.Value
 	if r.hasPreloadedWeights() {
 		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
@@ -1722,10 +1760,15 @@ func (r *Runner) runLayerCached(
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	return results[outputTensor], LayerCache{
+	layerCache := LayerCache{
 		Key:   results[result.Key],
 		Value: results[result.Value],
-	}, nil
+	}
+	if result.Auxiliary != nil {
+		auxiliary := results[result.Auxiliary]
+		layerCache.Auxiliary = &auxiliary
+	}
+	return results[outputTensor], layerCache, nil
 }
 
 func (r *Runner) runLFM2LayerCached(
@@ -2212,7 +2255,8 @@ func (r *Runner) Generate(
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
 		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2" &&
 		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe" &&
-		r.spec.Architecture != "kimi-linear" && r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2"
+		r.spec.Architecture != "kimi-linear" && r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2" &&
+		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -3018,6 +3062,18 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 				layer.ShortConvOutput,
 				layer.TimeMixW1,
 				layer.TimeMixW2,
+				layer.TimeMixW0,
+				layer.TimeMixA0,
+				layer.TimeMixA1,
+				layer.TimeMixA2,
+				layer.TimeMixV0,
+				layer.TimeMixV1,
+				layer.TimeMixV2,
+				layer.TimeMixG1,
+				layer.TimeMixG2,
+				layer.TimeMixKK,
+				layer.TimeMixKA,
+				layer.TimeMixRK,
 				layer.TimeMixLerpX,
 				layer.TimeMixLerpFused,
 				layer.TimeMixLerpW,

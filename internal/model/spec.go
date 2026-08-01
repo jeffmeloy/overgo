@@ -114,6 +114,10 @@ type Spec struct {
 	TimeDecayExtraDim uint32
 	RescaleEvery      uint32
 	TokenShiftCount   uint32
+	DecayLoRARank     uint32
+	ICLRLoRARank      uint32
+	ValueMixLoRARank  uint32
+	GateLoRARank      uint32
 }
 
 // UnsupportedArchitectureError: identifies valid GGUF architecture that
@@ -251,6 +255,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "rnd1" &&
 		architecture != "rwkv6" &&
 		architecture != "rwkv6qwen2" &&
+		architecture != "rwkv7" &&
+		architecture != "arwkv7" &&
 		architecture != "gemma2" &&
 		architecture != "gemma3" && architecture != "gemma4" &&
 		architecture != "falcon" &&
@@ -265,7 +271,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" ||
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" || architecture == "rwkv7" || architecture == "arwkv7" ||
 		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		spec.RopeDisabled = true
 	}
@@ -1422,6 +1428,27 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.TokenShiftCount = value
 		}
 	}
+	if architecture == "rwkv7" || architecture == "arwkv7" {
+		for key, destination := range map[string]*uint32{
+			"wkv.head_size":                          &spec.WKVHeadSize,
+			"attention.decay_lora_rank":              &spec.DecayLoRARank,
+			"attention.iclr_lora_rank":               &spec.ICLRLoRARank,
+			"attention.value_residual_mix_lora_rank": &spec.ValueMixLoRARank,
+		} {
+			*destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32)
+			if err != nil {
+				return Spec{}, err
+			}
+		}
+		spec.GateLoRARank, _ = optional[uint32](values, prefix+"attention.gate_lora_rank", gguf.ValueTypeUint32)
+		spec.TokenShiftCount = 1
+		if architecture == "rwkv7" {
+			spec.TokenShiftCount = 2
+		}
+		if value, ok := optional[uint32](values, prefix+"token_shift_count", gguf.ValueTypeUint32); ok {
+			spec.TokenShiftCount = value
+		}
+	}
 	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
@@ -2419,6 +2446,7 @@ func (s Spec) UsesLayerNorm() bool {
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
 		s.Architecture == "rwkv6" ||
+		s.Architecture == "rwkv7" ||
 		s.Architecture == "stablelm" ||
 		s.Architecture == "mpt" ||
 		usesSequentialGELU(s.Architecture)
@@ -2502,6 +2530,21 @@ func (s Spec) validate() error {
 			return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
 		case s.Architecture == "rwkv6" && s.HeadCountKV != s.HeadCount:
 			return errors.New("rwkv6 KV head count must equal query head count")
+		}
+	}
+	if s.Architecture == "rwkv7" || s.Architecture == "arwkv7" {
+		switch {
+		case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
+			return fmt.Errorf("%s WKV head metadata is invalid", s.Architecture)
+		case s.HeadCountKV != s.HeadCount || s.KeyLength != s.WKVHeadSize || s.ValueLength != s.WKVHeadSize:
+			return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
+		case s.DecayLoRARank == 0 || s.ICLRLoRARank == 0 || s.ValueMixLoRARank == 0:
+			return fmt.Errorf("%s time-mix LoRA metadata is invalid", s.Architecture)
+		case s.Architecture == "rwkv7" && s.GateLoRARank == 0:
+			return errors.New("rwkv7 gate LoRA metadata is invalid")
+		case (s.Architecture == "rwkv7" && s.TokenShiftCount != 2) ||
+			(s.Architecture == "arwkv7" && s.TokenShiftCount != 1):
+			return fmt.Errorf("%s token-shift metadata is invalid", s.Architecture)
 		}
 	}
 	if s.Architecture == "jamba" {

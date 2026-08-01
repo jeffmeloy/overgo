@@ -1954,6 +1954,48 @@ func TestExecutorRWKV6BlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorRWKV7OpsMatchReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(4, 2, 3, 1)
+	receptance := builder.Input("receptance", dtype.F32, shape)
+	decay := builder.Input("decay", dtype.F32, shape)
+	key := builder.Input("key", dtype.F32, shape)
+	value := builder.Input("value", dtype.F32, shape)
+	a := builder.Input("a", dtype.F32, shape)
+	bVector := builder.Input("b", dtype.F32, shape)
+	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
+	packed := builder.RWKV7(receptance, decay, key, value, a, bVector, state)
+	reduced := builder.SumRows(builder.Multiply(key, receptance))
+	feeds := map[*tensor.Tensor]reference.Value{
+		receptance: patternedValue(shape, 3, 0.02, 0.1),
+		decay:      patternedValue(shape, 5, 0.01, 0.8),
+		key:        patternedValue(shape, 7, 0.02, -0.1),
+		value:      patternedValue(shape, 9, 0.02, 0.05),
+		a:          patternedValue(shape, 11, 0.01, 0.02),
+		bVector:    patternedValue(shape, 13, 0.01, -0.03),
+		state:      patternedValue(state.Shape, 15, 0.01, 0.04),
+	}
+	outputs := []*tensor.Tensor{packed, reduced}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[packed].Data, want[packed].Data, 1e-5)
+	compare(t, got[reduced].Data, want[reduced].Data, 1e-6)
+}
+
 func TestExecutorKimiLinearMLABlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 18,
+  "abiVersion": 19,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "b54b638ea1735c2d2cdc54fc322280f7b18830260fd6724dc17b6a4558f6fb25",
+      "sourceSha256": "1ed35a18cf5e78d0300c88f398f10ad3009e7b735e03efe6603215c9552da5d3",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "2c90a9cce6ce1ce3849b4942f5e8290ebfd00ec9e7dc02ca382be5cd100b3626",
+      "assetSha256": "300857b38527d12080a8614ee65e883ef6b5be0beda10058f1a47a2efeb6d8a0",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -70,6 +70,8 @@
         "gated_delta_net_f32",
         "gated_linear_attention_f32",
         "rwkv6_f32",
+        "sum_rows_f32",
+        "rwkv7_f32",
         "rms_norm_f32",
         "layer_norm_f32",
         "softmax_f32",
@@ -312,6 +314,7 @@
           ],
           "functions": [
             "flat_slice_f32",
+            "sum_rows_f32",
             "softmax_f32"
           ]
         },
@@ -372,6 +375,25 @@
           ],
           "functions": [
             "rwkv6_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "rwkv7_f32"
           ]
         },
         {

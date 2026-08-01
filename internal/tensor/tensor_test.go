@@ -549,6 +549,29 @@ func TestBuilderRWKV6(t *testing.T) {
 	}
 }
 
+func TestBuilderSumRowsAndRWKV7(t *testing.T) {
+	builder := NewBuilder()
+	vectors := MustShape(2, 1, 2, 1)
+	receptance := builder.Input("receptance", dtype.F32, vectors)
+	decay := builder.Input("decay", dtype.F32, vectors)
+	key := builder.Input("key", dtype.F32, vectors)
+	value := builder.Input("value", dtype.F32, vectors)
+	a := builder.Input("a", dtype.F32, vectors)
+	bVector := builder.Input("b", dtype.F32, vectors)
+	state := builder.Input("state", dtype.F32, MustShape(2, 2, 1, 1))
+	packed := builder.RWKV7(receptance, decay, key, value, a, bVector, state)
+	reduced := builder.SumRows(value)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !packed.Shape.Equal(MustShape(2, 4)) || packed.Op != OpRWKV7 {
+		t.Fatalf("unexpected RWKV7 output: %+v", packed)
+	}
+	if !reduced.Shape.Equal(MustShape(1, 1, 2, 1)) || reduced.Op != OpSumRows {
+		t.Fatalf("unexpected SumRows output: %+v", reduced)
+	}
+}
+
 func TestBuilderQwen35LayoutOperations(t *testing.T) {
 	builder := NewBuilder()
 	projection := builder.Input("projection", dtype.F32, MustShape(16, 3))

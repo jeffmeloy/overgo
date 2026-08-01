@@ -121,6 +121,18 @@ type LayerWeights struct {
 	SSMOutputGateB       *gguf.TensorInfo
 	TimeMixW1            *gguf.TensorInfo
 	TimeMixW2            *gguf.TensorInfo
+	TimeMixW0            *gguf.TensorInfo
+	TimeMixA0            *gguf.TensorInfo
+	TimeMixA1            *gguf.TensorInfo
+	TimeMixA2            *gguf.TensorInfo
+	TimeMixV0            *gguf.TensorInfo
+	TimeMixV1            *gguf.TensorInfo
+	TimeMixV2            *gguf.TensorInfo
+	TimeMixG1            *gguf.TensorInfo
+	TimeMixG2            *gguf.TensorInfo
+	TimeMixKK            *gguf.TensorInfo
+	TimeMixKA            *gguf.TensorInfo
+	TimeMixRK            *gguf.TensorInfo
 	TimeMixLerpX         *gguf.TensorInfo
 	TimeMixLerpFused     *gguf.TensorInfo
 	TimeMixLerpW         *gguf.TensorInfo
@@ -285,7 +297,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		result.TokenEmbeddingNorm = &tokenNorm
 		result.TokenEmbeddingNormBias = &tokenNormBias
 	}
-	if spec.Architecture == "rwkv6" {
+	if spec.Architecture == "rwkv6" || spec.Architecture == "rwkv7" {
 		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
 		if normErr != nil {
 			return Weights{}, normErr
@@ -396,6 +408,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "kimi-linear" ||
 		spec.Architecture == "rwkv6" ||
 		spec.Architecture == "rwkv6qwen2" ||
+		spec.Architecture == "rwkv7" ||
+		spec.Architecture == "arwkv7" ||
 		spec.Architecture == "mellum" ||
 		spec.Architecture == "jais" ||
 		spec.Architecture == "llada-moe" ||
@@ -846,6 +860,107 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 						return Weights{}, itemErr
 					}
 					*destination = &item
+				}
+			}
+			continue
+		}
+		if spec.Architecture == "rwkv7" || spec.Architecture == "arwkv7" {
+			layer.Recurrent = true
+			embedding := uint64(spec.EmbeddingLength)
+			valueRank := uint64(spec.ValueMixLoRARank)
+			if block == 0 {
+				valueRank = uint64(spec.ICLRLoRARank)
+			}
+			lerpCount := uint64(6)
+			if spec.Architecture == "arwkv7" && spec.GateLoRARank == 0 {
+				lerpCount = 5
+			}
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"time_mix_w0.weight":         {[]uint64{embedding}, &layer.TimeMixW0},
+				"time_mix_w1.weight":         {[]uint64{embedding, uint64(spec.DecayLoRARank)}, &layer.TimeMixW1},
+				"time_mix_w2.weight":         {[]uint64{uint64(spec.DecayLoRARank), embedding}, &layer.TimeMixW2},
+				"time_mix_a0.weight":         {[]uint64{embedding}, &layer.TimeMixA0},
+				"time_mix_a1.weight":         {[]uint64{embedding, uint64(spec.ICLRLoRARank)}, &layer.TimeMixA1},
+				"time_mix_a2.weight":         {[]uint64{uint64(spec.ICLRLoRARank), embedding}, &layer.TimeMixA2},
+				"time_mix_v0.weight":         {[]uint64{embedding}, &layer.TimeMixV0},
+				"time_mix_v1.weight":         {[]uint64{embedding, valueRank}, &layer.TimeMixV1},
+				"time_mix_v2.weight":         {[]uint64{valueRank, embedding}, &layer.TimeMixV2},
+				"time_mix_lerp_fused.weight": {[]uint64{embedding, 1, 1, lerpCount}, &layer.TimeMixLerpFused},
+				"time_mix_k_k.weight":        {[]uint64{embedding}, &layer.TimeMixKK},
+				"time_mix_k_a.weight":        {[]uint64{embedding}, &layer.TimeMixKA},
+				"time_mix_r_k.weight":        {[]uint64{embedding}, &layer.TimeMixRK},
+				"time_mix_key.weight":        {[]uint64{embedding, embedding}, &layer.TimeMixKey},
+				"time_mix_value.weight":      {[]uint64{embedding, embedding}, &layer.TimeMixValue},
+				"time_mix_receptance.weight": {[]uint64{embedding, embedding}, &layer.TimeMixReceptance},
+				"time_mix_output.weight":     {[]uint64{embedding, embedding}, &layer.TimeMixOutput},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
+			if spec.GateLoRARank > 0 {
+				g1, itemErr := required(prefix+"time_mix_g1.weight", embedding, uint64(spec.GateLoRARank))
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				g2, itemErr := required(prefix+"time_mix_g2.weight", uint64(spec.GateLoRARank), embedding)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				layer.TimeMixG1, layer.TimeMixG2 = &g1, &g2
+			}
+			if spec.Architecture == "rwkv7" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"attn_norm_2.weight":        {[]uint64{embedding}, &layer.AttentionNorm2},
+					"attn_norm_2.bias":          {[]uint64{embedding}, &layer.AttentionNorm2Bias},
+					"time_mix_ln.weight":        {[]uint64{embedding}, &layer.TimeMixLN},
+					"time_mix_ln.bias":          {[]uint64{embedding}, &layer.TimeMixLNBias},
+					"channel_mix_lerp_k.weight": {[]uint64{embedding, 1, 1}, &layer.ChannelMixLerpK},
+					"channel_mix_key.weight":    {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.ChannelMixKey},
+					"channel_mix_value.weight":  {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.ChannelMixValue},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			} else {
+				if item, ok := tensors[prefix+"time_mix_ln.weight"]; ok {
+					norm, itemErr := required(item.Name, embedding)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					bias, itemErr := required(prefix+"time_mix_ln.bias", embedding)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					layer.TimeMixLN, layer.TimeMixLNBias = &norm, &bias
+				}
+				if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
+					return Weights{}, err
+				}
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination *gguf.TensorInfo
+				}{
+					"ffn_gate.weight": {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardGate},
+					"ffn_up.weight":   {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardUp},
+					"ffn_down.weight": {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.FeedForwardDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = item
 				}
 			}
 			continue

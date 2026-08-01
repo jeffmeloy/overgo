@@ -119,6 +119,20 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 			continue
 		}
+		if r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7" {
+			wantShift := tensor.MustShape(uint64(r.spec.EmbeddingLength), uint64(r.spec.TokenShiftCount))
+			wantState := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
+			if !layer.Key.Shape.Equal(wantShift) || !layer.Value.Shape.Equal(wantState) {
+				return fmt.Errorf("inference: RWKV7 cache layer %d shape is invalid", index)
+			}
+			if err := validateStateValue(layer.Key); err != nil {
+				return fmt.Errorf("inference: RWKV7 cache layer %d shift: %w", index, err)
+			}
+			if err := validateStateValue(layer.Value); err != nil {
+				return fmt.Errorf("inference: RWKV7 cache layer %d state: %w", index, err)
+			}
+			continue
+		}
 		if kimiRecurrent {
 			convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), 3*uint64(r.spec.SSMInnerSize))
 			ssmShape := tensor.MustShape(uint64(r.spec.KDAHeadDim), uint64(r.spec.KDAHeadDim), uint64(r.spec.HeadCount), 1)

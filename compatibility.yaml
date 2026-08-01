@@ -1116,6 +1116,42 @@ models:
       - optional-periodic-residual-rescale
       - serializable-recurrent-cache
     real_model_validation: pending-fixture
+  rwkv7:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - affine-layer-normalization
+      - dual-cached-token-shifts
+      - vector-decay-wkv7-recurrence
+      - learned-in-context-rate
+      - cross-layer-first-value-residual
+      - normalized-and-corrected-keys
+      - per-head-output-correction
+      - gated-time-mix-with-group-normalization
+      - squared-relu-channel-mix
+      - serializable-recurrent-cache
+    real_model_validation: pending-fixture
+  arwkv7:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - rms-pre-normalization
+      - single-cached-token-shift
+      - vector-decay-wkv7-recurrence
+      - learned-in-context-rate
+      - cross-layer-first-value-residual
+      - normalized-and-corrected-keys
+      - per-head-output-correction
+      - optional-time-gate-and-group-normalization
+      - sequential-swiglu
+      - serializable-recurrent-cache
+    real_model_validation: pending-fixture
   starcoder:
     status: experimental
     features:

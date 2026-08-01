@@ -684,6 +684,8 @@ type functionSet struct {
 	gatedDeltaNet     driver.Function
 	gatedLinearAttn   driver.Function
 	rwkv6             driver.Function
+	sumRows           driver.Function
+	rwkv7             driver.Function
 	moe               driver.Function
 	repeatHeads       driver.Function
 	transpose2D       driver.Function
@@ -861,6 +863,8 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"gated_delta_net_f32", &result.gatedDeltaNet},
 		{"gated_linear_attention_f32", &result.gatedLinearAttn},
 		{"rwkv6_f32", &result.rwkv6},
+		{"sum_rows_f32", &result.sumRows},
+		{"rwkv7_f32", &result.rwkv7},
 		{"moe_f32", &result.moe},
 		{"repeat_heads_f32", &result.repeatHeads},
 		{"transpose_2d_f32", &result.transpose2D},
@@ -1418,6 +1422,72 @@ func launchNode(
 		runtime.KeepAlive(receptance)
 		runtime.KeepAlive(first)
 		runtime.KeepAlive(decay)
+		runtime.KeepAlive(inputState)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(width)
+		runtime.KeepAlive(heads)
+		runtime.KeepAlive(tokens)
+		runtime.KeepAlive(sequences)
+		return err
+	case tensor.OpSumRows:
+		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SumRows width")
+		if err != nil {
+			return err
+		}
+		elements, err := node.Inputs[0].Shape.Elements()
+		if err != nil || elements/uint64(width) > uint64(^uint32(0)) {
+			return errors.New("SumRows row count exceeds uint32")
+		}
+		rows := uint32(elements / uint64(width))
+		input := pointers[node.Inputs[0]]
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width), unsafe.Pointer(&rows),
+		}
+		err = launch1D(state, functions.sumRows, rows, args)
+		runtime.KeepAlive(input)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(width)
+		runtime.KeepAlive(rows)
+		return err
+	case tensor.OpRWKV7:
+		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "RWKV7 width")
+		if err != nil {
+			return err
+		}
+		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "RWKV7 heads")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "RWKV7 tokens")
+		if err != nil {
+			return err
+		}
+		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "RWKV7 sequences")
+		if err != nil {
+			return err
+		}
+		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
+			return errors.New("RWKV7 launch count exceeds uint32")
+		}
+		receptance := pointers[node.Inputs[0]]
+		decay := pointers[node.Inputs[1]]
+		key := pointers[node.Inputs[2]]
+		value := pointers[node.Inputs[3]]
+		a := pointers[node.Inputs[4]]
+		bVector := pointers[node.Inputs[5]]
+		inputState := pointers[node.Inputs[6]]
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&receptance), unsafe.Pointer(&decay), unsafe.Pointer(&key), unsafe.Pointer(&value),
+			unsafe.Pointer(&a), unsafe.Pointer(&bVector), unsafe.Pointer(&inputState), unsafe.Pointer(&output),
+			unsafe.Pointer(&width), unsafe.Pointer(&heads), unsafe.Pointer(&tokens), unsafe.Pointer(&sequences),
+		}
+		err = launch1D(state, functions.rwkv7, heads*sequences, args)
+		runtime.KeepAlive(receptance)
+		runtime.KeepAlive(decay)
+		runtime.KeepAlive(key)
+		runtime.KeepAlive(value)
+		runtime.KeepAlive(a)
+		runtime.KeepAlive(bVector)
 		runtime.KeepAlive(inputState)
 		runtime.KeepAlive(output)
 		runtime.KeepAlive(width)

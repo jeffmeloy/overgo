@@ -3037,6 +3037,7 @@ func buildDenseBlockCachedForLayer(
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
 	isLlama4 := spec.Architecture == "llama4"
+	isMistral3MoE := spec.Architecture == "mistral3" && spec.ExpertCount > 0
 	isGPTOSS := spec.Architecture == "gpt-oss"
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
@@ -3062,7 +3063,7 @@ func buildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isJamba && !isLlama4 && !isGPTOSS && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isJamba && !isLlama4 && !isMistral3MoE && !isGPTOSS && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -3267,6 +3268,9 @@ func buildDenseBlockCachedForLayer(
 		required["attention output gate"] = weights.AttentionOutputGate
 	}
 	if isLlama4 && !spec.UsesRoPE(layerIndex) {
+		required["attention temperature scale"] = weights.AttentionTemperatureScale
+	}
+	if spec.Architecture == "mistral3" && spec.AttentionTempScale != 0 {
 		required["attention temperature scale"] = weights.AttentionTemperatureScale
 	}
 	if spec.Architecture == "stablelm" &&
@@ -3586,6 +3590,9 @@ func buildDenseBlockCachedForLayer(
 		key = builder.RMSNorm(key, spec.RMSNormEpsilon)
 	}
 	if isLlama4 && !spec.UsesRoPE(layerIndex) {
+		query = builder.Multiply(query, weights.AttentionTemperatureScale)
+	}
+	if spec.Architecture == "mistral3" && spec.AttentionTempScale != 0 {
 		query = builder.Multiply(query, weights.AttentionTemperatureScale)
 	}
 	if spec.Architecture == "maincoder" {

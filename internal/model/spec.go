@@ -1319,19 +1319,33 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, errors.New("only the 32-layer Baichuan RoPE variant is supported")
 	}
 	if architecture == "mistral3" {
-		if temperatureScale, ok := optional[float32](
-			values,
-			prefix+"attention.temperature_scale",
-			gguf.ValueTypeFloat32,
-		); ok && temperatureScale != 0 {
-			return Spec{}, errors.New("Mistral 3 attention temperature scaling is not supported")
+		spec.OriginalContextLength = spec.ContextLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
+		); ok {
+			spec.OriginalContextLength = value
 		}
-		if expertCount, ok := optional[uint32](
-			values,
-			prefix+"expert_count",
-			gguf.ValueTypeUint32,
-		); ok && expertCount > 0 {
-			return Spec{}, errors.New("Mistral 3 expert layers are not supported")
+		spec.AttentionTempScale, _ = optional[float32](
+			values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32,
+		)
+		if spec.AttentionTempScale != 0 {
+			spec.AttentionTempFloor = spec.OriginalContextLength
+		}
+		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
+		if spec.ExpertCount > 0 {
+			if spec.ExpertUsedCount, err = required[uint32](
+				values, prefix+"expert_used_count", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+			spec.ExpertFeedForward = spec.FeedForwardLength
+			spec.ExpertWeightsNorm = true
+			spec.ExpertWeightsScale = 1
+			if value, ok := optional[float32](
+				values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
+			); ok && value != 0 {
+				spec.ExpertWeightsScale = value
+			}
 		}
 	}
 	if architecture == "qwen" {
@@ -3669,6 +3683,22 @@ func (s Spec) validate() error {
 		case s.AttentionTempScale != 0 && (s.AttentionTempScale <= 0 || s.AttentionTempFloor == 0 ||
 			math.IsNaN(float64(s.AttentionTempScale)) || math.IsInf(float64(s.AttentionTempScale), 0)):
 			return errors.New("DeepSeek2 attention temperature metadata is invalid")
+		}
+	}
+	if s.Architecture == "mistral3" {
+		switch {
+		case s.AttentionTempScale != 0 &&
+			(s.AttentionTempScale <= 0 || s.AttentionTempFloor == 0 ||
+				math.IsNaN(float64(s.AttentionTempScale)) || math.IsInf(float64(s.AttentionTempScale), 0)):
+			return errors.New("Mistral 3 attention temperature metadata is invalid")
+		case s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.ExpertFeedForward != 0):
+			return errors.New("dense Mistral 3 expert metadata is inconsistent")
+		case s.ExpertCount > 0 &&
+			(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+				s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
+				s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+				math.IsInf(float64(s.ExpertWeightsScale), 0)):
+			return errors.New("Mistral 3 expert metadata is invalid")
 		}
 	}
 	if s.Architecture == "minicpm3" &&

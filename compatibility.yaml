@@ -2217,15 +2217,19 @@ models:
     variants:
       - dense-standard-rope
       - dense-linear-rope
+      - moe-standard-rope
+      - moe-linear-rope
     features:
       - normal-rope
       - metadata-attention-scale
+      - position-dependent-query-temperature
       - swiglu
+      - normalized-softmax-top-k-routing
+      - packed-swiglu-experts
+      - native-quantized-experts
       - tied-output
       - optional-projection-biases
     limitations:
-      - expert-layers-rejected
-      - attention-temperature-scaling-rejected
       - yarn-and-longrope-not-yet-supported
     real_model_validation: pending-fixture
   orion:
@@ -2435,6 +2439,9 @@ models:
       - shared-or-private-mtp-embedding-norm-head
       - standalone-mtp-sidecar-pairing
       - greedy-speculative-accept-rollback
+      - probability-ratio-speculative-acceptance
+      - positive-residual-correction
+      - transactional-draft-target-sampler-state
       - draft-and-target-bound-mtp-session-state
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
@@ -2624,9 +2631,10 @@ models:
       - shared-or-private-mtp-embedding-norm-head
       - standalone-mtp-sidecar-pairing
       - greedy-speculative-accept-rollback
+      - probability-ratio-speculative-acceptance
+      - positive-residual-correction
+      - transactional-draft-target-sampler-state
       - draft-and-target-bound-mtp-session-state
-    limitations:
-      - probabilistic-residual-speculative-sampling-pending
     real_model_validation: pending-fixture
   gemma:
     status: experimental

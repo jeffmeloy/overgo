@@ -2798,6 +2798,41 @@ func TestReadWeightsDenseMistral3(t *testing.T) {
 	}
 }
 
+func TestReadWeightsMistral3MoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "mistral3", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 16,
+		ExpertWeightsScale: 1, ExpertWeightsNorm: true,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4),
+		tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_gate_exps.weight", 8, 16, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 8, 16, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 16, 8, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.FeedForwardRouter == nil || layer.FeedForwardGateExperts == nil ||
+		layer.FeedForwardUpExperts == nil || layer.FeedForwardDownExperts == nil ||
+		layer.FeedForwardGate.Name != "" || layer.FeedForwardUp.Name != "" ||
+		layer.FeedForwardDown.Name != "" {
+		t.Fatalf("unexpected Mistral 3 MoE weights: %+v", layer)
+	}
+}
+
 func TestReadWeightsOrion(t *testing.T) {
 	spec := Spec{
 		Architecture:      "orion",

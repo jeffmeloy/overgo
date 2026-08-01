@@ -2972,14 +2972,42 @@ func TestReadSeedOSSSpec(t *testing.T) {
 	}
 }
 
-func TestReadMistral3RejectsUnsupportedVariants(t *testing.T) {
-	for _, extra := range []gguf.Metadata{
-		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),
+func TestReadMistral3TemperatureAndMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: append(mistral3Metadata(),
+		metadata("mistral3.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(8192)),
 		metadata("mistral3.attention.temperature_scale", gguf.ValueTypeFloat32, float32(0.1)),
-	} {
-		file := &gguf.File{Metadata: append(mistral3Metadata(), extra)}
+		metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("mistral3.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+	)}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.AttentionTempScale != 0.1 || spec.AttentionTempFloor != 8192 ||
+		spec.OriginalContextLength != 8192 || spec.ExpertCount != 8 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != spec.FeedForwardLength ||
+		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1 {
+		t.Fatalf("unexpected Mistral 3 variant spec: %+v", spec)
+	}
+}
+
+func TestReadMistral3RejectsInvalidVariants(t *testing.T) {
+	tests := [][]gguf.Metadata{
+		{
+			metadata("mistral3.attention.temperature_scale", gguf.ValueTypeFloat32, float32(-0.1)),
+		},
+		{
+			metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		},
+		{
+			metadata("mistral3.expert_count", gguf.ValueTypeUint32, uint32(8)),
+			metadata("mistral3.expert_used_count", gguf.ValueTypeUint32, uint32(9)),
+		},
+	}
+	for index, extra := range tests {
+		file := &gguf.File{Metadata: append(mistral3Metadata(), extra...)}
 		if _, err := ReadSpec(file); err == nil {
-			t.Fatalf("Mistral 3 variant metadata %q was accepted", extra.Key)
+			t.Fatalf("invalid Mistral 3 variant %d was accepted", index)
 		}
 	}
 }

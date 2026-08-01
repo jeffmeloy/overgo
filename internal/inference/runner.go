@@ -2676,7 +2676,8 @@ func addAttentionTemperatureInput(
 ) error {
 	llama4Temperature := spec.Architecture == "llama4" && !spec.UsesRoPE(layer)
 	deepSeek2Temperature := (spec.Architecture == "deepseek2" || spec.Architecture == "mistral4") && spec.AttentionTempScale != 0
-	if !llama4Temperature && !deepSeek2Temperature {
+	mistral3Temperature := spec.Architecture == "mistral3" && spec.AttentionTempScale != 0
+	if !llama4Temperature && !deepSeek2Temperature && !mistral3Temperature {
 		return nil
 	}
 	if builder == nil || weights == nil || spec.AttentionTempFloor == 0 {

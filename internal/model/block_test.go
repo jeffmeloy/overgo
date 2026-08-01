@@ -6921,6 +6921,51 @@ func TestBuildLlama4AttentionAndMoE(t *testing.T) {
 	}
 }
 
+func TestBuildMistral3TemperatureMoEBlock(t *testing.T) {
+	spec := Spec{
+		Architecture: "mistral3", EmbeddingLength: 8, FeedForwardLength: 6,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+		AttentionTempScale: 0.1, AttentionTempFloor: 8,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1, ExpertWeightsNorm: true,
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionTemperatureScale = builder.Input("temperature", dtype.F32, tensor.MustShape(1, 1, 2))
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{8, 9}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var temperature bool
+	var moe tensor.MoEAttributes
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range nodes {
+		if node.Op == tensor.OpMultiply && len(node.Inputs) == 2 &&
+			(node.Inputs[0] == weights.AttentionTemperatureScale ||
+				node.Inputs[1] == weights.AttentionTemperatureScale) {
+			temperature = true
+		}
+		if node.Op == tensor.OpMoE {
+			moe = node.Attrs.(tensor.MoEAttributes)
+		}
+	}
+	if !temperature || moe.Experts != 4 || moe.TopK != 2 || !moe.NormalizeTopKProb ||
+		moe.Routing != tensor.MoERoutingSoftmax || moe.Activation != tensor.MoEActivationSiLU {
+		t.Fatalf("Mistral 3 graph temperature=%v MoE=%+v", temperature, moe)
+	}
+}
+
 func TestBuildGPTOSSBiasedMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

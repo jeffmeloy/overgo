@@ -645,7 +645,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -712,7 +712,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" || spec.Architecture == "hunyuan-moe" ||
+		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" || spec.Architecture == "hunyuan-moe" ||
 			spec.Architecture == "maincoder" ||
 			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
 			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
@@ -965,8 +965,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
+		_, tensorSelectedMoE := tensors[prefix+"ffn_gate_inp.weight"]
 		if (spec.Architecture == "llama" && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			spec.Architecture == "granitemoe" ||
+			(spec.Architecture == "hy_v3" && tensorSelectedMoE) ||
 			(spec.Architecture == "cohere2moe" && block >= spec.LeadingDenseBlocks) ||
 			spec.IsInterleavedMoELayer(block) ||
 			(spec.Architecture == "dots1" && block >= spec.LeadingDenseBlocks) ||
@@ -994,7 +996,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				},
 			}
 			fusedGateUp := false
-			if spec.Architecture == "cohere2moe" {
+			if spec.Architecture == "cohere2moe" || spec.Architecture == "hy_v3" {
 				if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
 					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
 						item.Shape[1] != 2*uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
@@ -1118,6 +1120,32 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if spec.Architecture == "cohere2moe" && spec.SharedExpertFF > 0 {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "hy_v3" {
+				bias, ok := tensors[prefix+"exp_probs_b"]
+				if !ok {
+					bias, ok = tensors[prefix+"exp_probs_b.bias"]
+				}
+				if ok {
+					if bias.Type != dtype.F32 || bias.Dimensions != 1 || bias.Shape[0] != uint64(spec.ExpertCount) {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", bias.Name, bias.Shape)
+					}
+					layer.FeedForwardExpertBias = &bias
+				}
 				for name, shapeAndDestination := range map[string]struct {
 					shape       []uint64
 					destination **gguf.TensorInfo

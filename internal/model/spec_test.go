@@ -1155,6 +1155,37 @@ func TestReadCohere2MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadHYV3SpecTrimsNextNLayers(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "hy_v3"),
+		metadata("hy_v3.block_count", gguf.ValueTypeUint32, uint32(5)),
+		metadata("hy_v3.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("hy_v3.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("hy_v3.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("hy_v3.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("hy_v3.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hy_v3.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("hy_v3.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("hy_v3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("hy_v3.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("hy_v3.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("hy_v3.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hy_v3.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("hy_v3.expert_weights_norm", gguf.ValueTypeBool, true),
+		metadata("hy_v3.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "hy_v3" || spec.BlockCount != 4 || spec.RMSNormEpsilon != 1e-5 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != 2 ||
+		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
+		spec.RopeDimensionCount != 4 || usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected HY-V3 spec: %+v", spec)
+	}
+}
+
 func TestReadCommandRSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "command-r"),

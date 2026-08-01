@@ -2323,6 +2323,67 @@ func TestBuildCohere2MoEBlockFusedExpertsAndSharedBranch(t *testing.T) {
 	}
 }
 
+func TestBuildHYV3MoEBlockFusedExpertsAndPreRoPEQKNorm(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "hy_v3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertGatingFunc: 2, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
+		SharedExpertFF: 6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:            builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:             builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionQNorm:           builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionKNorm:           builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionOutput:          builder.Input("attn_output", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:          builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:        builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateUpExperts: builder.Input("gate_up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
+		FeedForwardDownExperts:   builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:    builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+		FeedForwardSharedGate:    builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedUp:      builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedDown:    builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var rope, preNormRoPE, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENeoX:
+			rope++
+			if node.Inputs[0].Op == tensor.OpMultiply && node.Inputs[0].Inputs[0].Op == tensor.OpRMSNorm {
+				preNormRoPE++
+			}
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if moe == nil || !moe.Attrs.(tensor.MoEAttributes).FusedGateUp ||
+		moe.Attrs.(tensor.MoEAttributes).Routing != tensor.MoERoutingSigmoid ||
+		!moe.Attrs.(tensor.MoEAttributes).NormalizeTopKProb ||
+		moe.Attrs.(tensor.MoEAttributes).Scale != 1.25 || len(moe.Inputs) != 6 ||
+		rope != 2 || preNormRoPE != 2 || silu != 1 {
+		t.Fatalf("unexpected HY-V3 graph: MoE=%+v RoPE=%d pre-norm=%d SiLU=%d", moe, rope, preNormRoPE, silu)
+	}
+}
+
 func TestBuildErnie45MoEBlockUsesBiasedUngatedExpertsAndSharedBranch(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

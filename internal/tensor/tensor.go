@@ -457,6 +457,17 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 		MoERoutingSoftmax, MoEActivationSiLU, false)
 }
 
+// MoESoftmaxFusedGateUp: softmax top-k; fused expert gate/up storage.
+func (b *Builder) MoESoftmaxFusedGateUp(
+	input, router, gateUp, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, input, router, nil, gateUp, down, selectionBias, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationSiLU, true)
+}
+
 // MoESigmoid: sigmoid routes; optional selection bias.
 func (b *Builder) MoESigmoid(
 	input, router, gate, up, down, selectionBias *Tensor,

@@ -155,6 +155,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "grok" &&
 		architecture != "hunyuan-dense" &&
 		architecture != "hunyuan-moe" &&
+		architecture != "hy_v3" &&
 		architecture != "maincoder" &&
 		architecture != "mellum" &&
 		architecture != "mistral3" &&
@@ -1045,7 +1046,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1104,6 +1105,29 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.SharedExpertFF = value
 			}
 		}
+	}
+	if architecture == "hy_v3" {
+		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("HY-V3 NextN/MTP layer count is invalid")
+			}
+			spec.BlockCount -= nextN
+		}
+		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.SharedExpertFF = spec.ExpertFeedForward
+		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
+			spec.SharedExpertFF = value
+		}
+		spec.ExpertGatingFunc = 2
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
+			spec.ExpertGatingFunc = value
+		}
+		if value, ok := optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool); ok {
+			spec.ExpertWeightsNorm = value
+		}
+		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if architecture == "ernie4_5-moe" {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
@@ -1791,6 +1815,21 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("Hunyuan-MoE metadata is invalid")
+	}
+	if s.Architecture == "hy_v3" {
+		switch {
+		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
+			return errors.New("HY-V3 expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("HY-V3 expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("HY-V3 expert weight scale is invalid")
+		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
+			s.RopeDimensionCount%2 != 0:
+			return errors.New("HY-V3 rotary/head dimensions are invalid")
+		}
 	}
 	if s.Architecture == "smallthinker" {
 		switch {

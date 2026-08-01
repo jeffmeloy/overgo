@@ -2045,6 +2045,57 @@ func TestReadWeightsCohere2MoEDensePrefixAndFusedExperts(t *testing.T) {
 	}
 }
 
+func TestReadWeightsHYV3DetectsDenseAndFusedMoELayers(t *testing.T) {
+	spec := Spec{
+		Architecture: "hy_v3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		VocabularySize: 32, RMSNormEpsilon: 1e-5,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertFF: 6, ExpertGatingFunc: 2,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 16),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_q_norm.weight", 4), tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.ffn_norm.weight", 8),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8),
+		tensorInfo("blk.1.attn_norm.weight", 8),
+		tensorInfo("blk.1.attn_q.weight", 8, 8),
+		tensorInfo("blk.1.attn_k.weight", 8, 4),
+		tensorInfo("blk.1.attn_v.weight", 8, 4),
+		tensorInfo("blk.1.attn_output.weight", 8, 8),
+		tensorInfo("blk.1.attn_q_norm.weight", 4), tensorInfo("blk.1.attn_k_norm.weight", 4),
+		tensorInfo("blk.1.ffn_norm.weight", 8),
+		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.1.exp_probs_b", 4),
+		tensorInfo("blk.1.ffn_gate_up_exps.weight", 8, 12, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 6),
+		tensorInfo("blk.1.ffn_up_shexp.weight", 8, 6),
+		tensorInfo("blk.1.ffn_down_shexp.weight", 6, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dense, moe := weights.Layers[0], weights.Layers[1]
+	if dense.AttentionQKV == nil || dense.AttentionQNorm == nil || dense.AttentionKNorm == nil ||
+		dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+		moe.AttentionQ.Name == "" || moe.AttentionQNorm == nil || moe.AttentionKNorm == nil ||
+		moe.FeedForwardGateUpExperts == nil || moe.FeedForwardGateExperts != nil ||
+		moe.FeedForwardUpExperts != nil || moe.FeedForwardDownExperts == nil ||
+		moe.FeedForwardExpertBias == nil || moe.FeedForwardSharedGate == nil ||
+		moe.FeedForwardSharedUp == nil || moe.FeedForwardSharedDown == nil {
+		t.Fatalf("unexpected HY-V3 catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsCommandR64UsesPerHeadQKNorms(t *testing.T) {
 	spec := Spec{
 		Architecture: "command-r", BlockCount: 64, EmbeddingLength: 8,

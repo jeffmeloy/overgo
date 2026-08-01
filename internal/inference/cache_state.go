@@ -5,22 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
 
 const (
-	cacheStateMagic       = "L2GKV002"
+	cacheStateMagic       = "L2GKV003"
+	cacheStateV2Magic     = "L2GKV002"
 	legacyCacheStateMagic = "L2GKV001"
 	cacheStateHeaderSize  = 20
 	legacyCacheHeaderSize = 16
 	maxCacheStateLayers   = 4096
+	maxLayerCacheStates   = 16
+	maxCacheStateName     = 64
 )
 
-// SaveCache: serializes attention KV or hybrid recurrent state after validating
-// against loaded model; Recurrent layers store their convolution and
-// delta-net states in LayerCache.Key and LayerCache.Value
+// SaveCache: validated named cache state.
 func (r *Runner) SaveCache(cache *KVCache) ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -31,8 +33,7 @@ func (r *Runner) SaveCache(cache *KVCache) ([]byte, error) {
 	return marshalCache(cache)
 }
 
-// LoadCache: parses untrusted state with bounds checks and validates every
-// tensor against loaded model before returning it
+// LoadCache: bounded parse; model-shape validation.
 func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
@@ -81,6 +82,14 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		)
 	}
 	for index, layer := range cache.Layers {
+		if len(layer.States) > maxLayerCacheStates-2 {
+			return fmt.Errorf("inference: KV cache layer %d state count exceeds limit", index)
+		}
+		for name, state := range layer.States {
+			if err := validateLayerState(name, state, cache.Tokens); err != nil {
+				return fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
+			}
+		}
 		jambaRecurrent := r.spec.Architecture == "jamba" && index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent
 		graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && index < len(r.weights.Layers) &&
@@ -290,11 +299,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	return nil
 }
 
-// RemoveCacheRange: discards one contiguous range of active attention KV
-// entries while retaining absolute token positions; Hybrid recurrent layers
-// copied without modification because their fixed-size state summarizes
-// entire history; input cache and all of its backing slices remain
-// independently usable
+// RemoveCacheRange: active-range delete; absolute position retained.
 func (r *Runner) RemoveCacheRange(
 	cache *KVCache,
 	start, discard uint32,
@@ -327,10 +332,15 @@ func (r *Runner) RemoveCacheRange(
 	}
 	for index, layer := range cache.Layers {
 		recurrent := index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
+		states, err := editLayerStates(layer.States, cache.Tokens, start, discard)
+		if err != nil {
+			return nil, fmt.Errorf("inference: remove cache layer %d named states: %w", index, err)
+		}
 		if recurrent {
 			result.Layers[index] = LayerCache{
-				Key:   cloneStateValue(layer.Key),
-				Value: cloneStateValue(layer.Value),
+				Key:    cloneStateValue(layer.Key),
+				Value:  cloneStateValue(layer.Value),
+				States: states,
 			}
 			continue
 		}
@@ -352,13 +362,12 @@ func (r *Runner) RemoveCacheRange(
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d value range: %w", index, err)
 		}
-		result.Layers[index] = LayerCache{Key: key, Value: value}
+		result.Layers[index] = LayerCache{Key: key, Value: value, States: states}
 	}
 	return result, nil
 }
 
-// ShiftCache: discards prefix of active attention KV entries while retaining
-// absolute token positions
+// ShiftCache: prefix delete; absolute position retained.
 func (r *Runner) ShiftCache(cache *KVCache, discard uint32) (*KVCache, error) {
 	return r.RemoveCacheRange(cache, 0, discard)
 }
@@ -447,8 +456,7 @@ func effectiveKeepTokens(requested, promptTokens int, contextLength uint32) uint
 	if keep < 0 || keep > promptTokens {
 		keep = promptTokens
 	}
-	// Match upstream server's safety margin so keep-all request still
-	// leaves room for shifted suffix and subsequent decode tokens
+	// Upstream-compatible four-token safety margin.
 	maximum := max(0, int(contextLength)-4)
 	keep = min(keep, maximum)
 	return uint32(keep)
@@ -459,8 +467,7 @@ func effectiveCachePosition(cache *KVCache) uint32 {
 		return 0
 	}
 	if cache.Position == 0 {
-		// Position was added in cache-state v2; Treat zero on existing,
-		// non-empty in-memory cache as original append-only representation
+		// v1/in-memory zero: append-only position.
 		return cache.Tokens
 	}
 	return cache.Position
@@ -481,11 +488,50 @@ func cloneCache(cache *KVCache) *KVCache {
 	}
 	for index, layer := range cache.Layers {
 		result.Layers[index] = LayerCache{
-			Key:   cloneStateValue(layer.Key),
-			Value: cloneStateValue(layer.Value),
+			Key:    cloneStateValue(layer.Key),
+			Value:  cloneStateValue(layer.Value),
+			States: cloneLayerStates(layer.States),
 		}
 	}
 	return result
+}
+
+func cloneLayerStates(states map[string]LayerState) map[string]LayerState {
+	if states == nil {
+		return nil
+	}
+	result := make(map[string]LayerState, len(states))
+	for name, state := range states {
+		state.Value = cloneStateValue(state.Value)
+		result[name] = state
+	}
+	return result
+}
+
+func editLayerStates(
+	states map[string]LayerState,
+	tokens, start, discard uint32,
+) (map[string]LayerState, error) {
+	if states == nil {
+		return nil, nil
+	}
+	result := make(map[string]LayerState, len(states))
+	for name, state := range states {
+		switch state.Mode {
+		case CacheStateFixed:
+			state.Value = cloneStateValue(state.Value)
+		case CacheStateToken:
+			value, err := removeAttentionRange(state.Value, tokens, start, discard)
+			if err != nil {
+				return nil, fmt.Errorf("state %q: %w", name, err)
+			}
+			state.Value = value
+		default:
+			return nil, fmt.Errorf("state %q has invalid mode %d", name, state.Mode)
+		}
+		result[name] = state
+	}
+	return result, nil
 }
 
 func removeAttentionRange(
@@ -524,16 +570,31 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 		return nil, errors.New("inference: KV cache layer count exceeds state limit")
 	}
 	total := uint64(cacheStateHeaderSize)
-	for _, layer := range cache.Layers {
-		for _, value := range []reference.Value{layer.Key, layer.Value} {
-			if err := validateStateValue(value); err != nil {
-				return nil, err
+	for index, layer := range cache.Layers {
+		if len(layer.States) > maxLayerCacheStates-2 {
+			return nil, fmt.Errorf("inference: KV cache layer %d state count exceeds limit", index)
+		}
+		if total > math.MaxUint64-4 {
+			return nil, errors.New("inference: KV cache state size overflows")
+		}
+		total += 4
+		records := cacheLayerRecords(layer)
+		for _, record := range records {
+			if record.mode != 0 {
+				if err := validateLayerState(record.name, LayerState{
+					Mode: record.mode, Value: record.value,
+				}, cache.Tokens); err != nil {
+					return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, record.name, err)
+				}
+			} else if err := validateStateValue(record.value); err != nil {
+				return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, record.name, err)
 			}
-			bytes := uint64(len(value.Data)) * 4
-			if total > math.MaxUint64-(44+bytes) {
+			bytes := uint64(len(record.value.Data)) * 4
+			recordSize := uint64(8+len(record.name)) + 44 + bytes
+			if total > math.MaxUint64-recordSize {
 				return nil, errors.New("inference: KV cache state size overflows")
 			}
-			total += 44 + bytes
+			total += recordSize
 		}
 	}
 	if total > uint64(maxIntValue()) {
@@ -546,22 +607,59 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 	binary.LittleEndian.PutUint32(output[16:], uint32(len(cache.Layers)))
 	offset := cacheStateHeaderSize
 	for _, layer := range cache.Layers {
-		for _, value := range []reference.Value{layer.Key, layer.Value} {
-			binary.LittleEndian.PutUint32(output[offset:], uint32(value.Shape.Rank))
+		records := cacheLayerRecords(layer)
+		binary.LittleEndian.PutUint32(output[offset:], uint32(len(records)))
+		offset += 4
+		for _, record := range records {
+			binary.LittleEndian.PutUint32(output[offset:], uint32(len(record.name)))
 			offset += 4
-			for _, dimension := range value.Shape.Dims {
-				binary.LittleEndian.PutUint64(output[offset:], dimension)
-				offset += 8
-			}
-			binary.LittleEndian.PutUint64(output[offset:], uint64(len(value.Data)))
-			offset += 8
-			for _, item := range value.Data {
-				binary.LittleEndian.PutUint32(output[offset:], math.Float32bits(item))
-				offset += 4
-			}
+			copy(output[offset:], record.name)
+			offset += len(record.name)
+			binary.LittleEndian.PutUint32(output[offset:], uint32(record.mode))
+			offset += 4
+			writeCacheValue(output, &offset, record.value)
 		}
 	}
 	return output, nil
+}
+
+type cacheLayerRecord struct {
+	name  string
+	mode  CacheStateMode
+	value reference.Value
+}
+
+func cacheLayerRecords(layer LayerCache) []cacheLayerRecord {
+	records := make([]cacheLayerRecord, 0, 2+len(layer.States))
+	records = append(records,
+		cacheLayerRecord{name: "key", value: layer.Key},
+		cacheLayerRecord{name: "value", value: layer.Value},
+	)
+	names := make([]string, 0, len(layer.States))
+	for name := range layer.States {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		state := layer.States[name]
+		records = append(records, cacheLayerRecord{name: name, mode: state.Mode, value: state.Value})
+	}
+	return records
+}
+
+func writeCacheValue(output []byte, offset *int, value reference.Value) {
+	binary.LittleEndian.PutUint32(output[*offset:], uint32(value.Shape.Rank))
+	*offset += 4
+	for _, dimension := range value.Shape.Dims {
+		binary.LittleEndian.PutUint64(output[*offset:], dimension)
+		*offset += 8
+	}
+	binary.LittleEndian.PutUint64(output[*offset:], uint64(len(value.Data)))
+	*offset += 8
+	for _, item := range value.Data {
+		binary.LittleEndian.PutUint32(output[*offset:], math.Float32bits(item))
+		*offset += 4
+	}
 }
 
 func unmarshalCache(data []byte) (*KVCache, error) {
@@ -569,14 +667,14 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		return nil, errors.New("inference: KV cache state is truncated")
 	}
 	magic := string(data[:8])
-	if magic != cacheStateMagic && magic != legacyCacheStateMagic {
+	if magic != cacheStateMagic && magic != cacheStateV2Magic && magic != legacyCacheStateMagic {
 		return nil, errors.New("inference: KV cache state has invalid magic or version")
 	}
 	tokens := binary.LittleEndian.Uint32(data[8:])
 	position := tokens
 	headerSize := legacyCacheHeaderSize
 	var layers uint32
-	if magic == cacheStateMagic {
+	if magic == cacheStateMagic || magic == cacheStateV2Magic {
 		if len(data) < cacheStateHeaderSize {
 			return nil, errors.New("inference: KV cache state is truncated")
 		}
@@ -634,20 +732,122 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		return reference.Value{Shape: shape, Data: values}, nil
 	}
 	for index := range result.Layers {
-		key, err := readValue()
-		if err != nil {
-			return nil, fmt.Errorf("inference: KV cache layer %d key: %w", index, err)
+		if magic != cacheStateMagic {
+			key, err := readValue()
+			if err != nil {
+				return nil, fmt.Errorf("inference: KV cache layer %d key: %w", index, err)
+			}
+			value, err := readValue()
+			if err != nil {
+				return nil, fmt.Errorf("inference: KV cache layer %d value: %w", index, err)
+			}
+			result.Layers[index] = LayerCache{Key: key, Value: value}
+			continue
 		}
-		value, err := readValue()
-		if err != nil {
-			return nil, fmt.Errorf("inference: KV cache layer %d value: %w", index, err)
+		if len(data)-offset < 4 {
+			return nil, fmt.Errorf("inference: KV cache layer %d state count is truncated", index)
 		}
-		result.Layers[index] = LayerCache{Key: key, Value: value}
+		stateCount := binary.LittleEndian.Uint32(data[offset:])
+		offset += 4
+		if stateCount < 2 || stateCount > maxLayerCacheStates {
+			return nil, fmt.Errorf("inference: KV cache layer %d state count %d is invalid", index, stateCount)
+		}
+		seen := make(map[string]struct{}, int(stateCount))
+		layer := LayerCache{}
+		for stateIndex := uint32(0); stateIndex < stateCount; stateIndex++ {
+			if len(data)-offset < 4 {
+				return nil, fmt.Errorf("inference: KV cache layer %d state name is truncated", index)
+			}
+			nameLength := binary.LittleEndian.Uint32(data[offset:])
+			offset += 4
+			if nameLength == 0 || nameLength > maxCacheStateName || uint64(nameLength) > uint64(len(data)-offset) {
+				return nil, fmt.Errorf("inference: KV cache layer %d state name length %d is invalid", index, nameLength)
+			}
+			name := string(data[offset : offset+int(nameLength)])
+			offset += int(nameLength)
+			if !validCacheStateName(name) {
+				return nil, fmt.Errorf("inference: KV cache layer %d state name %q is invalid", index, name)
+			}
+			if _, duplicate := seen[name]; duplicate {
+				return nil, fmt.Errorf("inference: KV cache layer %d state name %q is duplicated", index, name)
+			}
+			seen[name] = struct{}{}
+			if len(data)-offset < 4 {
+				return nil, fmt.Errorf("inference: KV cache layer %d state %q mode is truncated", index, name)
+			}
+			mode := CacheStateMode(binary.LittleEndian.Uint32(data[offset:]))
+			offset += 4
+			value, err := readValue()
+			if err != nil {
+				return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
+			}
+			switch name {
+			case "key":
+				if mode != 0 {
+					return nil, fmt.Errorf("inference: KV cache layer %d key mode %d is invalid", index, mode)
+				}
+				layer.Key = value
+			case "value":
+				if mode != 0 {
+					return nil, fmt.Errorf("inference: KV cache layer %d value mode %d is invalid", index, mode)
+				}
+				layer.Value = value
+			default:
+				state := LayerState{Mode: mode, Value: value}
+				if err := validateLayerState(name, state, tokens); err != nil {
+					return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
+				}
+				if layer.States == nil {
+					layer.States = make(map[string]LayerState)
+				}
+				layer.States[name] = state
+			}
+		}
+		if _, found := seen["key"]; !found {
+			return nil, fmt.Errorf("inference: KV cache layer %d key state is missing", index)
+		}
+		if _, found := seen["value"]; !found {
+			return nil, fmt.Errorf("inference: KV cache layer %d value state is missing", index)
+		}
+		result.Layers[index] = layer
 	}
 	if offset != len(data) {
 		return nil, errors.New("inference: KV cache state has trailing data")
 	}
 	return result, nil
+}
+
+func validateLayerState(name string, state LayerState, tokens uint32) error {
+	if !validCacheStateName(name) || name == "key" || name == "value" {
+		return errors.New("invalid name")
+	}
+	if state.Mode != CacheStateFixed && state.Mode != CacheStateToken {
+		return fmt.Errorf("invalid mode %d", state.Mode)
+	}
+	if err := validateStateValue(state.Value); err != nil {
+		return err
+	}
+	if state.Mode == CacheStateToken &&
+		(state.Value.Shape.Rank != 3 || state.Value.Shape.Dims[2] != uint64(tokens)) {
+		return fmt.Errorf("token-aligned shape %v does not contain %d tokens", state.Value.Shape.Slice(), tokens)
+	}
+	return nil
+}
+
+func validCacheStateName(name string) bool {
+	if len(name) == 0 || len(name) > maxCacheStateName {
+		return false
+	}
+	for index := range len(name) {
+		character := name[index]
+		if (character >= 'a' && character <= 'z') ||
+			(character >= '0' && character <= '9') ||
+			character == '_' || character == '-' || character == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func validateStateValue(value reference.Value) error {

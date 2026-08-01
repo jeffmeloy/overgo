@@ -76,9 +76,26 @@ type GenerateOptions struct {
 }
 
 type LayerCache struct {
-	Key       reference.Value
-	Value     reference.Value
+	Key   reference.Value
+	Value reference.Value
+	// States: persistent architecture-specific tensors.
+	States map[string]LayerState
+	// Auxiliary: transient forward-pass state.
 	Auxiliary *reference.Value
+}
+
+// CacheStateMode: range-edit behavior.
+type CacheStateMode uint32
+
+const (
+	CacheStateFixed CacheStateMode = 1
+	CacheStateToken CacheStateMode = 2
+)
+
+// LayerState: named persistent tensor.
+type LayerState struct {
+	Mode  CacheStateMode
+	Value reference.Value
 }
 
 type KVCache struct {

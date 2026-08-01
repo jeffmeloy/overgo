@@ -2,6 +2,7 @@ package inference
 
 import (
 	"encoding/binary"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -24,6 +25,105 @@ func TestKVCacheStateRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded, cache) {
 		t.Fatalf("loaded cache = %+v, want %+v", loaded, cache)
+	}
+}
+
+func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
+	runner := cacheTestRunner()
+	cache := cacheTestValue(t)
+	tokenState, err := reference.NewValue(
+		tensor.MustShape(1, 1, 2), []float32{11, 12},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixedState, err := reference.NewValue(
+		tensor.MustShape(2), []float32{21, 22},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache.Layers[0].States = map[string]LayerState{
+		"indexer_key": {Mode: CacheStateToken, Value: tokenState},
+		"conv_state":  {Mode: CacheStateFixed, Value: fixedState},
+	}
+	payload, err := runner.SaveCache(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := runner.LoadCache(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(restored, cache) {
+		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
+	}
+
+	reordered := cacheTestValue(t)
+	reordered.Layers[0].States = map[string]LayerState{
+		"conv_state":  {Mode: CacheStateFixed, Value: fixedState},
+		"indexer_key": {Mode: CacheStateToken, Value: tokenState},
+	}
+	reorderedPayload, err := runner.SaveCache(reordered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(reorderedPayload, payload) {
+		t.Fatal("named cache serialization depends on map insertion order")
+	}
+
+	trimmed, err := runner.RemoveCacheRange(restored, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := trimmed.Layers[0].States["indexer_key"].Value.Data; !reflect.DeepEqual(got, []float32{12}) {
+		t.Fatalf("trimmed token state = %v, want [12]", got)
+	}
+	if got := trimmed.Layers[0].States["conv_state"].Value.Data; !reflect.DeepEqual(got, []float32{21, 22}) {
+		t.Fatalf("fixed state = %v, want [21 22]", got)
+	}
+	trimmed.Layers[0].States["conv_state"].Value.Data[0] = 99
+	if restored.Layers[0].States["conv_state"].Value.Data[0] != 21 {
+		t.Fatal("edited fixed state aliases source cache")
+	}
+}
+
+func TestKVCacheNamedStateValidation(t *testing.T) {
+	fixed, err := reference.NewValue(tensor.MustShape(1), []float32{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := reference.NewValue(tensor.MustShape(1, 1, 1), []float32{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name  string
+		state map[string]LayerState
+	}{
+		{"reserved name", map[string]LayerState{"key": {Mode: CacheStateFixed, Value: fixed}}},
+		{"invalid name", map[string]LayerState{"Bad Name": {Mode: CacheStateFixed, Value: fixed}}},
+		{"invalid mode", map[string]LayerState{"state": {Mode: 99, Value: fixed}}},
+		{"wrong token extent", map[string]LayerState{"state": {Mode: CacheStateToken, Value: token}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cache := cacheTestValue(t)
+			cache.Layers[0].States = test.state
+			if _, err := cacheTestRunner().SaveCache(cache); err == nil {
+				t.Fatal("invalid named state was accepted")
+			}
+		})
+	}
+	cache := cacheTestValue(t)
+	cache.Layers[0].States = make(map[string]LayerState)
+	for index := 0; index < maxLayerCacheStates-1; index++ {
+		cache.Layers[0].States[fmt.Sprintf("state_%d", index)] = LayerState{
+			Mode: CacheStateFixed, Value: fixed,
+		}
+	}
+	if _, err := cacheTestRunner().SaveCache(cache); err == nil {
+		t.Fatal("excessive named state count was accepted")
 	}
 }
 
@@ -268,25 +368,22 @@ func TestDeciSentinelCacheValidationAndRangeRemoval(t *testing.T) {
 
 func TestKVCacheStateLoadsLegacyVersion(t *testing.T) {
 	runner := cacheTestRunner()
-	current, err := runner.SaveCache(cacheTestValue(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacy := make([]byte, legacyCacheHeaderSize+len(current)-cacheStateHeaderSize)
-	copy(legacy, legacyCacheStateMagic)
-	copy(legacy[8:12], current[8:12])
-	copy(legacy[12:16], current[16:20])
-	copy(legacy[16:], current[20:])
-	loaded, err := runner.LoadCache(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loaded.Position != loaded.Tokens {
-		t.Fatalf(
-			"legacy next position = %d, want token count %d",
-			loaded.Position,
-			loaded.Tokens,
-		)
+	cache := cacheTestValue(t)
+	cache.Position = 7
+	for _, magic := range []string{legacyCacheStateMagic, cacheStateV2Magic} {
+		t.Run(magic, func(t *testing.T) {
+			loaded, err := runner.LoadCache(legacyCachePayload(cache, magic))
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantPosition := cache.Position
+			if magic == legacyCacheStateMagic {
+				wantPosition = cache.Tokens
+			}
+			if loaded.Position != wantPosition {
+				t.Fatalf("legacy next position = %d, want %d", loaded.Position, wantPosition)
+			}
+		})
 	}
 }
 
@@ -661,4 +758,32 @@ func cacheTestValue(t testing.TB) *KVCache {
 		Tokens:   2,
 		Position: 2,
 	}
+}
+
+func legacyCachePayload(cache *KVCache, magic string) []byte {
+	headerSize := legacyCacheHeaderSize
+	if magic == cacheStateV2Magic {
+		headerSize = cacheStateHeaderSize
+	}
+	total := headerSize
+	for _, layer := range cache.Layers {
+		for _, value := range []reference.Value{layer.Key, layer.Value} {
+			total += 44 + 4*len(value.Data)
+		}
+	}
+	result := make([]byte, total)
+	copy(result, magic)
+	binary.LittleEndian.PutUint32(result[8:], cache.Tokens)
+	if magic == cacheStateV2Magic {
+		binary.LittleEndian.PutUint32(result[12:], effectiveCachePosition(cache))
+		binary.LittleEndian.PutUint32(result[16:], uint32(len(cache.Layers)))
+	} else {
+		binary.LittleEndian.PutUint32(result[12:], uint32(len(cache.Layers)))
+	}
+	offset := headerSize
+	for _, layer := range cache.Layers {
+		writeCacheValue(result, &offset, layer.Key)
+		writeCacheValue(result, &offset, layer.Value)
+	}
+	return result
 }

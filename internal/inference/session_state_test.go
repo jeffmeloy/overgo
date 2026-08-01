@@ -18,6 +18,9 @@ func TestSessionStateRoundTripRestoresSampler(t *testing.T) {
 		TokenIDs: []tokenizer.TokenID{1, 2, 3},
 		Cache:    cacheTestValue(t),
 	}
+	session.Cache.Layers[0].States = map[string]LayerState{
+		"indexer_key": {Mode: CacheStateToken, Value: cloneStateValue(session.Cache.Layers[0].Key)},
+	}
 	config := sampling.Config{Temperature: 0.8, TopK: 3, Seed: 91}
 	source, err := sampling.New(config)
 	if err != nil {

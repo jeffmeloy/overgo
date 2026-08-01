@@ -107,6 +107,13 @@ type Spec struct {
 	EmbeddingPerLayer     uint32
 	SharedKVLayers        uint32
 	RecurrentLayers       []bool
+
+	// RWKV recurrent metadata
+	WKVHeadSize       uint32
+	TimeMixExtraDim   uint32
+	TimeDecayExtraDim uint32
+	RescaleEvery      uint32
+	TokenShiftCount   uint32
 }
 
 // UnsupportedArchitectureError: identifies valid GGUF architecture that
@@ -242,6 +249,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "kimi-linear" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
+		architecture != "rwkv6qwen2" &&
 		architecture != "gemma2" &&
 		architecture != "gemma3" && architecture != "gemma4" &&
 		architecture != "falcon" &&
@@ -256,7 +264,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" ||
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6qwen2" ||
 		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		spec.RopeDisabled = true
 	}
@@ -1393,6 +1401,23 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.SSMTimeStepRank = spec.HeadCount
 		spec.SSMGroupCount = spec.HeadCount
 	}
+	if architecture == "rwkv6qwen2" {
+		for key, destination := range map[string]*uint32{
+			"wkv.head_size":        &spec.WKVHeadSize,
+			"time_mix_extra_dim":   &spec.TimeMixExtraDim,
+			"time_decay_extra_dim": &spec.TimeDecayExtraDim,
+		} {
+			*destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32)
+			if err != nil {
+				return Spec{}, err
+			}
+		}
+		spec.RescaleEvery, _ = optional[uint32](values, prefix+"rescale_every_n_layers", gguf.ValueTypeUint32)
+		spec.TokenShiftCount = 1
+		if value, ok := optional[uint32](values, prefix+"token_shift_count", gguf.ValueTypeUint32); ok {
+			spec.TokenShiftCount = value
+		}
+	}
 	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
@@ -2458,6 +2483,16 @@ func (s Spec) validate() error {
 			s.SSMInnerSize%s.SSMTimeStepRank != 0 || s.SSMInnerSize%s.SSMGroupCount != 0 ||
 			s.SSMTimeStepRank%s.SSMGroupCount != 0:
 			return errors.New("Mamba2 SSM metadata is invalid")
+		}
+	}
+	if s.Architecture == "rwkv6qwen2" {
+		switch {
+		case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
+			return errors.New("RWKV6-Qwen2 WKV head metadata is invalid")
+		case s.TimeMixExtraDim == 0 || s.TimeDecayExtraDim == 0 || s.TokenShiftCount != 1:
+			return errors.New("RWKV6-Qwen2 time-mix metadata is invalid")
+		case s.KeyLength != s.WKVHeadSize || s.ValueLength != s.WKVHeadSize:
+			return errors.New("RWKV6-Qwen2 head dimensions are invalid")
 		}
 	}
 	if s.Architecture == "jamba" {

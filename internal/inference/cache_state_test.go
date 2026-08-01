@@ -147,6 +147,19 @@ func TestKimiLinearHybridCacheValidation(t *testing.T) {
 	}
 }
 
+func TestRWKV6Qwen2CacheValidation(t *testing.T) {
+	runner := &Runner{spec: model.Spec{
+		Architecture: "rwkv6qwen2", BlockCount: 1, EmbeddingLength: 8,
+		HeadCount: 2, WKVHeadSize: 4,
+	}}
+	shift, _ := reference.NewValue(tensor.MustShape(8), make([]float32, 8))
+	state, _ := reference.NewValue(tensor.MustShape(4, 4, 2, 1), make([]float32, 32))
+	cache := &KVCache{Layers: []LayerCache{{Key: shift, Value: state}}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{

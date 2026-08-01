@@ -248,6 +248,26 @@ extern "C" __global__ void softplus_f32(
     }
 }
 
+extern "C" __global__ void tanh_f32(
+		const float * input,
+		float * output,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index < count) {
+		output[index] = tanhf(input[index]);
+	}
+}
+
+extern "C" __global__ void exp_f32(
+		const float * input,
+		float * output,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index < count) {
+		output[index] = expf(input[index]);
+	}
+}
+
 extern "C" __global__ void l2_norm_f32(
         const float * input,
         float * output,
@@ -481,6 +501,56 @@ extern "C" __global__ void gated_delta_net_f32(
             output[value_base + row] = dot * scale;
         }
     }
+}
+
+extern "C" __global__ void gated_linear_attention_f32(
+		const float * key,
+		const float * value,
+		const float * receptance,
+		const float * decay,
+		const float * input_state,
+		float * output,
+		unsigned int width,
+		unsigned int key_heads,
+		unsigned int heads,
+		unsigned int tokens,
+		unsigned int sequences,
+		float scale) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const unsigned int count = heads * sequences;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int head = index % heads;
+	const unsigned int key_head = head / (heads / key_heads);
+	const unsigned int sequence = index / heads;
+	const unsigned int attention_elements = width * heads * tokens * sequences;
+	const unsigned int state_elements = width * width;
+	float * state = output + attention_elements + index * state_elements;
+	const float * source_state = input_state + index * state_elements;
+	for (unsigned int i = 0; i < state_elements; ++i) {
+		state[i] = source_state[i];
+	}
+	for (unsigned int token = 0; token < tokens; ++token) {
+		const unsigned int vector_base =
+			((sequence * tokens + token) * heads + head) * width;
+		const unsigned int key_base =
+			((sequence * tokens + token) * key_heads + key_head) * width;
+		for (unsigned int row = 0; row < width; ++row) {
+			float sum = 0.0f;
+			float * state_row = state + row * width;
+			for (unsigned int column = 0; column < width; ++column) {
+				const unsigned int vector_index = vector_base + column;
+				const float effective_key = key[key_base + column] *
+					(1.0f - decay[vector_index]);
+				const float next = state_row[column] * decay[vector_index] +
+					effective_key * value[key_base + row];
+				state_row[column] = next;
+				sum += receptance[vector_index] * next;
+			}
+			output[vector_base + row] = sum * scale;
+		}
+	}
 }
 
 extern "C" __global__ void rms_norm_f32(

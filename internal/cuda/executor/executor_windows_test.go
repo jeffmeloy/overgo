@@ -1795,6 +1795,79 @@ func TestExecutorKimiLinearKDABlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorRWKV6Qwen2BlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "rwkv6qwen2", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, WKVHeadSize: 4, TimeMixExtraDim: 3,
+		TimeDecayExtraDim: 2, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:     builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		TimeMixW1:         builder.Input("mix_w1", dtype.F32, tensor.MustShape(8, 15)),
+		TimeMixW2:         builder.Input("mix_w2", dtype.F32, tensor.MustShape(3, 8, 5)),
+		TimeMixLerpX:      builder.Input("lerp_x", dtype.F32, tensor.MustShape(8, 1, 1)),
+		TimeMixLerpFused:  builder.Input("lerp", dtype.F32, tensor.MustShape(8, 1, 1, 5)),
+		TimeMixDecay:      builder.Input("decay", dtype.F32, tensor.MustShape(8)),
+		TimeMixDecayW1:    builder.Input("decay_w1", dtype.F32, tensor.MustShape(8, 2)),
+		TimeMixDecayW2:    builder.Input("decay_w2", dtype.F32, tensor.MustShape(2, 8)),
+		TimeMixKey:        builder.Input("key", dtype.F32, tensor.MustShape(8, 4)),
+		TimeMixValue:      builder.Input("value", dtype.F32, tensor.MustShape(8, 4)),
+		TimeMixReceptance: builder.Input("receptance", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixGate:       builder.Input("gate", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixOutput:     builder.Input("output", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:   builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:   builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:     builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:   builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
+	result, err := model.BuildRWKV6Qwen2BlockCached(builder, input, spec, weights, shift, state, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                    patternedValue(input.Shape, 3, 0.05, -0.02),
+		weights.AttentionNorm:    patternedValue(weights.AttentionNorm.Shape, 5, 0.02, 1),
+		weights.TimeMixLerpX:     patternedValue(weights.TimeMixLerpX.Shape, 7, 0.01, 0.2),
+		weights.TimeMixLerpFused: patternedValue(weights.TimeMixLerpFused.Shape, 9, 0.01, 0.1),
+		weights.TimeMixDecay:     patternedValue(weights.TimeMixDecay.Shape, 11, 0.02, -1),
+		weights.FeedForwardNorm:  patternedValue(weights.FeedForwardNorm.Shape, 13, 0.02, 1),
+		shift:                    patternedValue(shift.Shape, 15, 0.02, 0),
+		state:                    patternedValue(state.Shape, 17, 0.01, 0),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.TimeMixW1, weights.TimeMixW2, weights.TimeMixDecayW1, weights.TimeMixDecayW2,
+		weights.TimeMixKey, weights.TimeMixValue, weights.TimeMixReceptance,
+		weights.TimeMixGate, weights.TimeMixOutput,
+		weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+19, 0.02, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorKimiLinearMLABlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

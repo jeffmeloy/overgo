@@ -5605,6 +5605,62 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 	})
 }
 
+func TestBuildRWKV6Qwen2Block(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "rwkv6qwen2", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, WKVHeadSize: 4, TimeMixExtraDim: 3,
+		TimeDecayExtraDim: 2, RMSNormEpsilon: 1e-6, RescaleEvery: 1,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:     builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		TimeMixW1:         builder.Input("mix_w1", dtype.F32, tensor.MustShape(8, 15)),
+		TimeMixW2:         builder.Input("mix_w2", dtype.F32, tensor.MustShape(3, 8, 5)),
+		TimeMixLerpX:      builder.Input("lerp_x", dtype.F32, tensor.MustShape(8, 1, 1)),
+		TimeMixLerpFused:  builder.Input("lerp", dtype.F32, tensor.MustShape(8, 1, 1, 5)),
+		TimeMixDecay:      builder.Input("decay", dtype.F32, tensor.MustShape(8)),
+		TimeMixDecayW1:    builder.Input("decay_w1", dtype.F32, tensor.MustShape(8, 2)),
+		TimeMixDecayW2:    builder.Input("decay_w2", dtype.F32, tensor.MustShape(2, 8)),
+		TimeMixKey:        builder.Input("key", dtype.F32, tensor.MustShape(8, 4)),
+		TimeMixValue:      builder.Input("value", dtype.F32, tensor.MustShape(8, 4)),
+		TimeMixReceptance: builder.Input("receptance", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixGate:       builder.Input("gate", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixOutput:     builder.Input("output", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:   builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:   builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:     builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:   builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
+	result, err := BuildRWKV6Qwen2BlockCached(builder, input, spec, weights, shift, state, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) || !result.Value.Shape.Equal(state.Shape) {
+		t.Fatalf("unexpected RWKV6-Qwen2 result: %+v", result)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gla, tanh, exponential int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpGatedLinearAttention:
+			gla++
+		case tensor.OpTanh:
+			tanh++
+		case tensor.OpExp:
+			exponential++
+		}
+	}
+	if gla != 1 || tanh != 2 || exponential != 2 {
+		t.Fatalf("RWKV6-Qwen2 ops: GLA=%d tanh=%d exp=%d", gla, tanh, exponential)
+	}
+}
+
 func kimiLinearCommonInputs(builder *tensor.Builder, spec Spec, moe bool) LayerGraphWeights {
 	weights := LayerGraphWeights{
 		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),

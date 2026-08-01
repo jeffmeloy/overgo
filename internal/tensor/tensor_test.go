@@ -514,6 +514,23 @@ func TestBuilderGatedDeltaNet(t *testing.T) {
 	}
 }
 
+func TestBuilderGatedLinearAttention(t *testing.T) {
+	builder := NewBuilder()
+	vectors := MustShape(2, 1, 3, 1)
+	key := builder.Input("key", dtype.F32, vectors)
+	value := builder.Input("value", dtype.F32, vectors)
+	receptance := builder.Input("receptance", dtype.F32, vectors)
+	decay := builder.Input("decay", dtype.F32, vectors)
+	state := builder.Input("state", dtype.F32, MustShape(2, 2, 1, 1))
+	output := builder.GatedLinearAttention(key, value, receptance, decay, state, 0.5)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !output.Shape.Equal(MustShape(2, 5)) || output.Op != OpGatedLinearAttention {
+		t.Fatalf("unexpected GatedLinearAttention output: %+v", output)
+	}
+}
+
 func TestBuilderQwen35LayoutOperations(t *testing.T) {
 	builder := NewBuilder()
 	projection := builder.Input("projection", dtype.F32, MustShape(16, 3))

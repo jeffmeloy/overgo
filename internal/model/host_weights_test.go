@@ -202,6 +202,35 @@ func TestHostLayerGraphInputsPermitKimiKDA(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitRWKV6Qwen2(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	w1, w2 := value(8, 15), value(3, 8, 5)
+	lerpX, lerp := value(8, 1, 1), value(8, 1, 1, 5)
+	decay, decayW1, decayW2 := value(8), value(8, 2), value(2, 8)
+	key, val, receptance := value(8, 4), value(8, 4), value(8, 8)
+	gate, output := value(8, 8), value(8, 8)
+	layer := HostLayer{
+		AttentionNorm: value(8), FeedForwardNorm: value(8),
+		FeedForwardGate: value(8, 12), FeedForwardUp: value(8, 12), FeedForwardDown: value(12, 8),
+		TimeMixW1: &w1, TimeMixW2: &w2, TimeMixLerpX: &lerpX, TimeMixLerpFused: &lerp,
+		TimeMixDecay: &decay, TimeMixDecayW1: &decayW1, TimeMixDecayW2: &decayW2,
+		TimeMixKey: &key, TimeMixValue: &val, TimeMixReceptance: &receptance,
+		TimeMixGate: &gate, TimeMixOutput: &output,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 17 || graph.TimeMixW1 == nil || graph.TimeMixLerpFused == nil || graph.TimeMixOutput == nil {
+		t.Fatalf("unexpected RWKV6-Qwen2 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitMamba2(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

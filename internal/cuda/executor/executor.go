@@ -676,10 +676,13 @@ type functionSet struct {
 	reluSquared       driver.Function
 	sigmoid           driver.Function
 	softplus          driver.Function
+	tanh              driver.Function
+	exp               driver.Function
 	l2Norm            driver.Function
 	ssmConv           driver.Function
 	ssmScan           driver.Function
 	gatedDeltaNet     driver.Function
+	gatedLinearAttn   driver.Function
 	moe               driver.Function
 	repeatHeads       driver.Function
 	transpose2D       driver.Function
@@ -849,10 +852,13 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"relu_squared_f32", &result.reluSquared},
 		{"sigmoid_f32", &result.sigmoid},
 		{"softplus_f32", &result.softplus},
+		{"tanh_f32", &result.tanh},
+		{"exp_f32", &result.exp},
 		{"l2_norm_f32", &result.l2Norm},
 		{"ssm_conv_f32", &result.ssmConv},
 		{"ssm_scan_f32", &result.ssmScan},
 		{"gated_delta_net_f32", &result.gatedDeltaNet},
+		{"gated_linear_attention_f32", &result.gatedLinearAttn},
 		{"moe_f32", &result.moe},
 		{"repeat_heads_f32", &result.repeatHeads},
 		{"transpose_2d_f32", &result.transpose2D},
@@ -1055,7 +1061,7 @@ func launchNode(
 		runtime.KeepAlive(maximum)
 		runtime.KeepAlive(count)
 		return err
-	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus:
+	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
@@ -1075,6 +1081,10 @@ func launchNode(
 			function = functions.sigmoid
 		} else if node.Op == tensor.OpSoftplus {
 			function = functions.softplus
+		} else if node.Op == tensor.OpTanh {
+			function = functions.tanh
+		} else if node.Op == tensor.OpExp {
+			function = functions.exp
 		}
 		err = launch1D(state, function, count, args)
 		runtime.KeepAlive(input)
@@ -1313,6 +1323,60 @@ func launchNode(
 		runtime.KeepAlive(sequences)
 		runtime.KeepAlive(gateWidth)
 		runtime.KeepAlive(repeatInterleave)
+		return err
+	case tensor.OpGatedLinearAttention:
+		attributes, ok := node.Attrs.(tensor.GatedLinearAttentionAttributes)
+		if !ok {
+			return errors.New("invalid GatedLinearAttention attributes")
+		}
+		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "GatedLinearAttention width")
+		if err != nil {
+			return err
+		}
+		keyHeads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "GatedLinearAttention key heads")
+		if err != nil {
+			return err
+		}
+		heads, err := uint32Checked(node.Inputs[2].Shape.Dims[1], "GatedLinearAttention heads")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "GatedLinearAttention tokens")
+		if err != nil {
+			return err
+		}
+		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "GatedLinearAttention sequences")
+		if err != nil {
+			return err
+		}
+		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
+			return errors.New("GatedLinearAttention launch count exceeds uint32")
+		}
+		key := pointers[node.Inputs[0]]
+		value := pointers[node.Inputs[1]]
+		receptance := pointers[node.Inputs[2]]
+		decay := pointers[node.Inputs[3]]
+		inputState := pointers[node.Inputs[4]]
+		scale := attributes.Scale
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&key), unsafe.Pointer(&value), unsafe.Pointer(&receptance),
+			unsafe.Pointer(&decay), unsafe.Pointer(&inputState), unsafe.Pointer(&output),
+			unsafe.Pointer(&width), unsafe.Pointer(&keyHeads), unsafe.Pointer(&heads), unsafe.Pointer(&tokens),
+			unsafe.Pointer(&sequences), unsafe.Pointer(&scale),
+		}
+		err = launch1D(state, functions.gatedLinearAttn, heads*sequences, args)
+		runtime.KeepAlive(key)
+		runtime.KeepAlive(value)
+		runtime.KeepAlive(receptance)
+		runtime.KeepAlive(decay)
+		runtime.KeepAlive(inputState)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(width)
+		runtime.KeepAlive(keyHeads)
+		runtime.KeepAlive(heads)
+		runtime.KeepAlive(tokens)
+		runtime.KeepAlive(sequences)
+		runtime.KeepAlive(scale)
 		return err
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
@@ -2338,7 +2402,7 @@ func launchNode(
 		return err
 	case tensor.OpConcat:
 		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
-		if !ok || (attributes.Axis != 0 && attributes.Axis != 2) {
+		if !ok || (attributes.Axis != 0 && attributes.Axis != uint32(node.Shape.Rank-1)) {
 			return errors.New("invalid concat attributes")
 		}
 		count, err := elementCount32(node.Shape)

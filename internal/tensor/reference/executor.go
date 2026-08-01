@@ -171,6 +171,18 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = float32(math.Max(float64(value), 0) + math.Log1p(math.Exp(-absolute)))
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpTanh:
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			output[i] = float32(math.Tanh(float64(value)))
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpExp:
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			output[i] = float32(math.Exp(float64(value)))
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpL2Norm:
 		attributes, ok := node.Attrs.(tensor.L2NormAttributes)
 		if !ok {
@@ -183,6 +195,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return ssmScan(node.Shape, inputs)
 	case tensor.OpGatedDeltaNet:
 		return gatedDeltaNet(node.Shape, inputs, node.Attrs.(tensor.GatedDeltaNetAttributes))
+	case tensor.OpGatedLinearAttention:
+		return gatedLinearAttention(node.Shape, inputs, node.Attrs.(tensor.GatedLinearAttentionAttributes))
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
 		if !ok {
@@ -573,6 +587,54 @@ func gatedDeltaNet(
 						dot += output[stateRow+column] * q.Data[queryBase+column]
 					}
 					output[attentionBase+row] = dot * scale
+				}
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func gatedLinearAttention(
+	shape tensor.Shape,
+	inputs []Value,
+	attributes tensor.GatedLinearAttentionAttributes,
+) (Value, error) {
+	if len(inputs) != 5 {
+		return Value{}, errors.New("GatedLinearAttention requires five inputs")
+	}
+	key, value, receptance, decay, inputState := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+	width := int(key.Shape.Dims[0])
+	keyHeads := int(key.Shape.Dims[1])
+	heads := int(receptance.Shape.Dims[1])
+	tokens := int(key.Shape.Dims[2])
+	sequences := int(key.Shape.Dims[3])
+	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
+		return Value{}, errors.New("invalid GatedLinearAttention dimensions")
+	}
+	attentionElements := width * heads * tokens * sequences
+	stateElements := width * width
+	output := make([]float32, attentionElements+stateElements*heads*sequences)
+	for sequence := range sequences {
+		for head := range heads {
+			keyHead := head / (heads / keyHeads)
+			stateBase := attentionElements + (sequence*heads+head)*stateElements
+			inputStateBase := (sequence*heads + head) * stateElements
+			copy(output[stateBase:stateBase+stateElements], inputState.Data[inputStateBase:inputStateBase+stateElements])
+			for token := range tokens {
+				vectorBase := ((sequence*tokens+token)*heads + head) * width
+				keyBase := ((sequence*tokens+token)*keyHeads + keyHead) * width
+				for row := range width {
+					stateRow := stateBase + row*width
+					var sum float32
+					for column := range width {
+						vectorIndex := vectorBase + column
+						effectiveKey := key.Data[keyBase+column] * (1 - decay.Data[vectorIndex])
+						next := output[stateRow+column]*decay.Data[vectorIndex] +
+							effectiveKey*value.Data[keyBase+row]
+						output[stateRow+column] = next
+						sum += receptance.Data[vectorIndex] * next
+					}
+					output[vectorBase+row] = sum * attributes.Scale
 				}
 			}
 		}
@@ -1321,7 +1383,7 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 		}
 		return Value{Shape: shape, Data: output}, nil
 	}
-	if axis != 2 {
+	if axis != uint32(left.Shape.Rank-1) {
 		return Value{}, errors.New("unsupported concat axis")
 	}
 	output := make([]float32, 0, len(left.Data)+len(right.Data))

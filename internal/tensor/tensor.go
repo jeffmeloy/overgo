@@ -44,6 +44,9 @@ const (
 	OpRepeatHeads
 	OpClamp
 	OpGroupedMulMat
+	OpTanh
+	OpExp
+	OpGatedLinearAttention
 )
 
 var opNames = [...]string{
@@ -79,6 +82,9 @@ var opNames = [...]string{
 	"repeat_heads",
 	"clamp",
 	"grouped_mul_mat",
+	"tanh",
+	"exp",
+	"gated_linear_attention",
 }
 
 func (o Op) String() string {
@@ -174,6 +180,10 @@ type MoEAttributes struct {
 
 type GatedDeltaNetAttributes struct {
 	RepeatInterleave bool
+}
+
+type GatedLinearAttentionAttributes struct {
+	Scale float32
 }
 
 type MoERouting uint32
@@ -346,6 +356,14 @@ func (b *Builder) Softplus(input *Tensor) *Tensor {
 	return b.unary(OpSoftplus, input, nil)
 }
 
+func (b *Builder) Tanh(input *Tensor) *Tensor {
+	return b.unary(OpTanh, input, nil)
+}
+
+func (b *Builder) Exp(input *Tensor) *Tensor {
+	return b.unary(OpExp, input, nil)
+}
+
 func (b *Builder) L2Norm(input *Tensor, epsilon float32) *Tensor {
 	if epsilon < 0 || math.IsNaN(float64(epsilon)) {
 		b.setError(errors.New("L2Norm epsilon must be non-negative"))
@@ -496,6 +514,43 @@ func (b *Builder) gatedDeltaNet(
 		"", dtype.F32, shape, OpGatedDeltaNet, inputs,
 		GatedDeltaNetAttributes{RepeatInterleave: repeatInterleave},
 	)
+}
+
+// GatedLinearAttention: QRWKV linear attention; packed output and state.
+func (b *Builder) GatedLinearAttention(key, value, receptance, decay, state *Tensor, scale float32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	inputs := []*Tensor{key, value, receptance, decay, state}
+	for _, input := range inputs {
+		if input == nil || input.Type != dtype.F32 {
+			b.setError(errors.New("GatedLinearAttention requires five F32 inputs"))
+			return nil
+		}
+	}
+	if key.Shape.Rank != 4 || value.Shape.Rank != 4 || receptance.Shape.Rank != 4 ||
+		decay.Shape.Rank != 4 || state.Shape.Rank != 4 || !key.Shape.Equal(value.Shape) {
+		b.setError(errors.New("GatedLinearAttention input shapes are incompatible"))
+		return nil
+	}
+	width, heads := receptance.Shape.Dims[0], receptance.Shape.Dims[1]
+	tokens, sequences := receptance.Shape.Dims[2], receptance.Shape.Dims[3]
+	if width == 0 || heads == 0 || tokens == 0 || sequences == 0 ||
+		key.Shape.Dims[0] != width || key.Shape.Dims[1] == 0 || heads%key.Shape.Dims[1] != 0 ||
+		key.Shape.Dims[2] != tokens || key.Shape.Dims[3] != sequences ||
+		!receptance.Shape.Equal(decay.Shape) ||
+		state.Shape.Dims[0] != width || state.Shape.Dims[1] != width ||
+		state.Shape.Dims[2] != heads || state.Shape.Dims[3] != sequences ||
+		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		b.setError(errors.New("GatedLinearAttention state or scale is invalid"))
+		return nil
+	}
+	shape, err := NewShape(width*heads, tokens*sequences+width*sequences)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpGatedLinearAttention, inputs, GatedLinearAttentionAttributes{Scale: scale})
 }
 
 // MoE: softmax top-k SwiGLU; GGUF expert layouts.
@@ -1627,8 +1682,7 @@ func (b *Builder) attentionWithWindow(
 	)
 }
 
-// Concat: joins rank-2/3 tensors along dimension zero, or rank-3 tensors along
-// token dimension
+// Concat: joins rank-2/3 tensors along dimension zero or the outer dimension.
 func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 	if b.err != nil {
 		return nil
@@ -1643,8 +1697,8 @@ func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 	}
 	if left.Shape.Rank != right.Shape.Rank ||
 		(left.Shape.Rank != 2 && left.Shape.Rank != 3) ||
-		(axis != 0 && (axis != 2 || left.Shape.Rank != 3)) {
-		b.setError(errors.New("concat supports rank-2/3 axis 0 and rank-3 axis 2"))
+		(axis != 0 && ((left.Shape.Rank == 2 && axis != 1) || (left.Shape.Rank == 3 && axis != 2))) {
+		b.setError(errors.New("concat supports dimension zero or the outer dimension"))
 		return nil
 	}
 	dimensions := left.Shape.Slice()

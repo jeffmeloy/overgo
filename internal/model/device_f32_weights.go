@@ -186,7 +186,14 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	}
 	if info.Recurrent {
 		var recurrent []*gguf.TensorInfo
-		if info.ShortConvKernel != nil {
+		if info.TimeMixW1 != nil {
+			recurrent = []*gguf.TensorInfo{
+				info.TimeMixW1, info.TimeMixW2, info.TimeMixLerpX, info.TimeMixLerpFused,
+				info.TimeMixDecay, info.TimeMixDecayW1, info.TimeMixDecayW2,
+				info.TimeMixKey, info.TimeMixValue, info.TimeMixReceptance,
+				info.TimeMixGate, info.TimeMixOutput,
+			}
+		} else if info.ShortConvKernel != nil {
 			recurrent = []*gguf.TensorInfo{info.ShortConvKernel, info.ShortConvInput, info.ShortConvOutput}
 		} else if info.SSMInput != nil {
 			recurrent = []*gguf.TensorInfo{
@@ -398,6 +405,18 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.PerLayerInputGate, &result.PerLayerInputGate},
 		{info.PerLayerProjection, &result.PerLayerProjection},
 		{info.PerLayerPostNorm, &result.PerLayerPostNorm},
+		{info.TimeMixW1, &result.TimeMixW1},
+		{info.TimeMixW2, &result.TimeMixW2},
+		{info.TimeMixLerpX, &result.TimeMixLerpX},
+		{info.TimeMixLerpFused, &result.TimeMixLerpFused},
+		{info.TimeMixDecay, &result.TimeMixDecay},
+		{info.TimeMixDecayW1, &result.TimeMixDecayW1},
+		{info.TimeMixDecayW2, &result.TimeMixDecayW2},
+		{info.TimeMixKey, &result.TimeMixKey},
+		{info.TimeMixValue, &result.TimeMixValue},
+		{info.TimeMixReceptance, &result.TimeMixReceptance},
+		{info.TimeMixGate, &result.TimeMixGate},
+		{info.TimeMixOutput, &result.TimeMixOutput},
 	} {
 		if item.info == nil {
 			continue

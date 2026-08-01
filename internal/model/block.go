@@ -116,6 +116,18 @@ type LayerGraphWeights struct {
 	SSMForgetB        *tensor.Tensor
 	SSMOutputGateA    *tensor.Tensor
 	SSMOutputGateB    *tensor.Tensor
+	TimeMixW1         *tensor.Tensor
+	TimeMixW2         *tensor.Tensor
+	TimeMixLerpX      *tensor.Tensor
+	TimeMixLerpFused  *tensor.Tensor
+	TimeMixDecay      *tensor.Tensor
+	TimeMixDecayW1    *tensor.Tensor
+	TimeMixDecayW2    *tensor.Tensor
+	TimeMixKey        *tensor.Tensor
+	TimeMixValue      *tensor.Tensor
+	TimeMixReceptance *tensor.Tensor
+	TimeMixGate       *tensor.Tensor
+	TimeMixOutput     *tensor.Tensor
 }
 
 // ApplyNormalization: applies architecture's learned pre/post
@@ -139,7 +151,7 @@ func ApplyNormalization(
 		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
 	}
 	normalized := builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
-	if spec.Architecture == "phimoe" && bias != nil {
+	if (spec.Architecture == "phimoe" || spec.Architecture == "rwkv6qwen2") && bias != nil {
 		return builder.Add(normalized, bias)
 	}
 	return normalized
@@ -1571,6 +1583,119 @@ func BuildMLABlockCachedForLayer(
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
+// BuildRWKV6Qwen2BlockCached: RMS/SwiGLU QRWKV recurrent block.
+func BuildRWKV6Qwen2BlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	pastShift, pastState *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "rwkv6qwen2" || builder == nil || input == nil || pastShift == nil || pastState == nil {
+		return DenseBlockResult{}, errors.New("RWKV6-Qwen2 block input/state is invalid")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm": weights.AttentionNorm, "time-mix W1": weights.TimeMixW1,
+		"time-mix W2": weights.TimeMixW2, "time-mix lerp X": weights.TimeMixLerpX,
+		"time-mix fused lerp": weights.TimeMixLerpFused, "time decay": weights.TimeMixDecay,
+		"time decay W1": weights.TimeMixDecayW1, "time decay W2": weights.TimeMixDecayW2,
+		"time key": weights.TimeMixKey, "time value": weights.TimeMixValue,
+		"time receptance": weights.TimeMixReceptance, "time gate": weights.TimeMixGate,
+		"time output": weights.TimeMixOutput, "feed-forward norm": weights.FeedForwardNorm,
+		"feed-forward gate": weights.FeedForwardGate, "feed-forward up": weights.FeedForwardUp,
+		"feed-forward down": weights.FeedForwardDown,
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("RWKV6-Qwen2 %s weight is nil", name)
+		}
+	}
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) || input.Shape.Dims[1] == 0 {
+		return DenseBlockResult{}, errors.New("RWKV6-Qwen2 input shape is invalid")
+	}
+	embedding := uint64(spec.EmbeddingLength)
+	width := uint64(spec.WKVHeadSize)
+	heads := embedding / width
+	tokens := input.Shape.Dims[1]
+	if !pastShift.Shape.Equal(tensor.MustShape(embedding)) ||
+		!pastState.Shape.Equal(tensor.MustShape(width, width, heads, 1)) {
+		return DenseBlockResult{}, errors.New("RWKV6-Qwen2 cache shape is invalid")
+	}
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	xPrev := builder.Reshape(pastShift, embedding, 1)
+	if tokens > 1 {
+		xPrev = builder.Concat(xPrev, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
+	}
+	nextShift := builder.FlatSlice(normalized, embedding*(tokens-1), embedding)
+	sx := builder.Add(xPrev, builder.Scale(normalized, -1))
+	base := builder.Add(normalized, builder.Multiply(sx, builder.Reshape(weights.TimeMixLerpX, embedding, 1)))
+	adjustments := builder.GroupedMulMat(
+		weights.TimeMixW2,
+		builder.Reshape(
+			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
+			uint64(spec.TimeMixExtraDim), 5, tokens,
+		),
+	)
+	adjustments = builder.Reshape(adjustments, embedding*5, tokens)
+	lerps := builder.Reshape(weights.TimeMixLerpFused, embedding*5, 1)
+	mixed := make([]*tensor.Tensor, 5)
+	for index := uint64(0); index < 5; index++ {
+		adjustment := builder.Reshape(
+			builder.GroupSlice(adjustments, index*embedding, embedding, 1, embedding*5),
+			embedding, tokens,
+		)
+		lerp := builder.Reshape(
+			builder.GroupSlice(lerps, index*embedding, embedding, 1, embedding*5),
+			embedding,
+		)
+		mixed[index] = builder.Add(normalized, builder.Multiply(sx, builder.Add(adjustment, lerp)))
+	}
+	xw, xk, xv, xr, xg := mixed[0], mixed[1], mixed[2], mixed[3], mixed[4]
+	key := builder.MulMat(weights.TimeMixKey, xk)
+	value := builder.MulMat(weights.TimeMixValue, xv)
+	receptance := builder.MulMat(weights.TimeMixReceptance, xr)
+	if weights.AttentionKBias != nil {
+		key = builder.Add(key, weights.AttentionKBias)
+	}
+	if weights.AttentionVBias != nil {
+		value = builder.Add(value, weights.AttentionVBias)
+	}
+	if weights.AttentionQBias != nil {
+		receptance = builder.Add(receptance, weights.AttentionQBias)
+	}
+	gate := builder.Sigmoid(builder.MulMat(weights.TimeMixGate, xg))
+	decay := builder.MulMat(weights.TimeMixDecayW2, builder.Tanh(builder.MulMat(weights.TimeMixDecayW1, xw)))
+	decay = builder.Exp(builder.Scale(builder.Exp(builder.Add(decay, weights.TimeMixDecay)), -1))
+	kvHeads := uint64(spec.HeadCountKV)
+	key = builder.Reshape(key, width, kvHeads, tokens, 1)
+	value = builder.Reshape(value, width, kvHeads, tokens, 1)
+	receptance = builder.Reshape(receptance, width, heads, tokens, 1)
+	decay = builder.Reshape(decay, width, heads, tokens, 1)
+	packed := builder.GatedLinearAttention(
+		key, value, receptance, decay, pastState,
+		1/float32(math.Sqrt(float64(width))),
+	)
+	attentionElements := embedding * tokens
+	attention := builder.FlatSlice(packed, 0, embedding, tokens)
+	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
+	attention = builder.MulMat(weights.TimeMixOutput, builder.Multiply(attention, gate))
+	residual := builder.Add(input, attention)
+	ffnInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	feedForward := builder.MulMat(
+		weights.FeedForwardDown,
+		builder.SwiGLU(builder.MulMat(weights.FeedForwardGate, ffnInput), builder.MulMat(weights.FeedForwardUp, ffnInput)),
+	)
+	output := builder.Add(residual, feedForward)
+	if spec.RescaleEvery > 0 && (layerIndex+1)%spec.RescaleEvery == 0 {
+		output = builder.Scale(output, 0.5)
+	}
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState}, nil
+}
+
 // BuildKimiLinearBlockCached: KDA or no-RoPE MLA block.
 func BuildKimiLinearBlockCached(
 	builder *tensor.Builder,
@@ -1893,6 +2018,9 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if spec.Architecture == "gemma4" {
 		return buildGemma4BlockCached(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
+	}
+	if spec.Architecture == "rwkv6qwen2" {
+		return BuildRWKV6Qwen2BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"

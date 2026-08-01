@@ -3815,6 +3815,47 @@ func TestReadWeightsKimiLinearHybrid(t *testing.T) {
 	}
 }
 
+func TestReadWeightsRWKV6Qwen2(t *testing.T) {
+	spec := Spec{
+		Architecture: "rwkv6qwen2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		WKVHeadSize: 4, TimeMixExtraDim: 3, TimeDecayExtraDim: 2,
+		VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output_norm.bias", 8), tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.time_mix_w1.weight", 8, 15),
+		tensorInfo("blk.0.time_mix_w2.weight", 3, 8, 5),
+		tensorInfo("blk.0.time_mix_lerp_x.weight", 8, 1, 1),
+		tensorInfo("blk.0.time_mix_lerp_fused.weight", 8, 1, 1, 5),
+		tensorInfo("blk.0.time_mix_decay.weight", 8),
+		tensorInfo("blk.0.time_mix_decay_w1.weight", 8, 2),
+		tensorInfo("blk.0.time_mix_decay_w2.weight", 2, 8),
+		tensorInfo("blk.0.time_mix_key.weight", 8, 4),
+		tensorInfo("blk.0.time_mix_value.weight", 8, 4),
+		tensorInfo("blk.0.time_mix_receptance.weight", 8, 8),
+		tensorInfo("blk.0.time_mix_gate.weight", 8, 8),
+		tensorInfo("blk.0.time_mix_output.weight", 8, 8),
+		tensorInfo("blk.0.time_mix_key.bias", 4),
+		tensorInfo("blk.0.time_mix_value.bias", 4),
+		tensorInfo("blk.0.time_mix_receptance.bias", 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8),
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if !layer.Recurrent || layer.TimeMixW1 == nil || layer.TimeMixOutput == nil ||
+		layer.AttentionQBias == nil || layer.AttentionKBias == nil || layer.AttentionVBias == nil ||
+		weights.OutputNormBias == nil || weights.Output == nil {
+		t.Fatalf("unexpected RWKV6-Qwen2 catalog: %+v", layer)
+	}
+}
+
 func TestReadWeightsQwen35MoEAttention(t *testing.T) {
 	spec := Spec{
 		Architecture: "qwen35moe", BlockCount: 1, EmbeddingLength: 8,

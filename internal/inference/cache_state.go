@@ -91,6 +91,14 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
 		kimiRecurrent := r.spec.Architecture == "kimi-linear" && index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent
+		if r.spec.Architecture == "rwkv6qwen2" {
+			wantShift := tensor.MustShape(uint64(r.spec.EmbeddingLength))
+			wantState := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
+			if !layer.Key.Shape.Equal(wantShift) || !layer.Value.Shape.Equal(wantState) {
+				return fmt.Errorf("inference: RWKV6-Qwen2 cache layer %d shape is invalid", index)
+			}
+			continue
+		}
 		if kimiRecurrent {
 			convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), 3*uint64(r.spec.SSMInnerSize))
 			ssmShape := tensor.MustShape(uint64(r.spec.KDAHeadDim), uint64(r.spec.KDAHeadDim), uint64(r.spec.HeadCount), 1)

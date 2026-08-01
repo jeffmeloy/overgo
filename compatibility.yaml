@@ -1081,6 +1081,23 @@ models:
       - grouped-learned-output-rmsnorm
       - serializable-recurrent-cache
     real_model_validation: pending-fixture
+  rwkv6qwen2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - rms-pre-normalization
+      - cached-normalized-token-shift
+      - five-way-low-rank-time-mix
+      - optional-time-projection-biases
+      - grouped-kv-gated-linear-attention
+      - sigmoid-output-gate
+      - sequential-swiglu
+      - optional-periodic-residual-rescale
+      - serializable-recurrent-cache
+    real_model_validation: pending-fixture
   starcoder:
     status: experimental
     features:

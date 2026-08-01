@@ -303,6 +303,34 @@ func TestExecuteGatedDeltaNet(t *testing.T) {
 	}
 }
 
+func TestExecuteGatedLinearAttention(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(2, 1, 2, 1)
+	key := builder.Input("key", dtype.F32, shape)
+	value := builder.Input("value", dtype.F32, shape)
+	receptance := builder.Input("receptance", dtype.F32, shape)
+	decay := builder.Input("decay", dtype.F32, shape)
+	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 1, 1))
+	output := builder.GatedLinearAttention(key, value, receptance, decay, state, 1)
+	feeds := map[*tensor.Tensor]Value{
+		key:        {Shape: shape, Data: []float32{1, 2, 2, 1}},
+		value:      {Shape: shape, Data: []float32{3, 4, 1, 2}},
+		receptance: {Shape: shape, Data: []float32{5, 6, 1, 1}},
+		decay:      {Shape: shape, Data: []float32{0.5, 0.25, 0.5, 0.5}},
+		state:      {Shape: state.Shape, Data: make([]float32, 4)},
+	}
+	results, err := Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{34.5, 46, 4.5, 7, 1.75, 2.75, 3, 4}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("GatedLinearAttention output[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
 func TestExecuteGatedDeltaNetRepeatInterleave(t *testing.T) {
 	builder := tensor.NewBuilder()
 	q := builder.Input("q", dtype.F32, tensor.MustShape(2, 2, 1, 1))

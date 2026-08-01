@@ -3056,6 +3056,35 @@ func TestReadKimiLinearSpec(t *testing.T) {
 	}
 }
 
+func TestReadRWKV6Qwen2Spec(t *testing.T) {
+	prefix := "rwkv6qwen2."
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "rwkv6qwen2"),
+		metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata(prefix+"wkv.head_size", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"time_mix_extra_dim", gguf.ValueTypeUint32, uint32(3)),
+		metadata(prefix+"time_decay_extra_dim", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"rescale_every_n_layers", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"token_shift_count", gguf.ValueTypeUint32, uint32(1)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "rwkv6qwen2" || !spec.RopeDisabled || spec.WKVHeadSize != 4 ||
+		spec.TimeMixExtraDim != 3 || spec.TimeDecayExtraDim != 2 || spec.RescaleEvery != 2 ||
+		spec.TokenShiftCount != 1 || spec.KeyLength != 4 || spec.ValueLength != 4 {
+		t.Fatalf("unexpected RWKV6-Qwen2 spec: %+v", spec)
+	}
+}
+
 func TestReadQwen3NextSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen3next"),

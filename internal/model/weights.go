@@ -119,6 +119,18 @@ type LayerWeights struct {
 	SSMForgetB        *gguf.TensorInfo
 	SSMOutputGateA    *gguf.TensorInfo
 	SSMOutputGateB    *gguf.TensorInfo
+	TimeMixW1         *gguf.TensorInfo
+	TimeMixW2         *gguf.TensorInfo
+	TimeMixLerpX      *gguf.TensorInfo
+	TimeMixLerpFused  *gguf.TensorInfo
+	TimeMixDecay      *gguf.TensorInfo
+	TimeMixDecayW1    *gguf.TensorInfo
+	TimeMixDecayW2    *gguf.TensorInfo
+	TimeMixKey        *gguf.TensorInfo
+	TimeMixValue      *gguf.TensorInfo
+	TimeMixReceptance *gguf.TensorInfo
+	TimeMixGate       *gguf.TensorInfo
+	TimeMixOutput     *gguf.TensorInfo
 }
 
 // Weights: validated initial Llama/Qwen3 tensor catalog
@@ -280,6 +292,15 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.OutputNormBias = &outputNormBias
 	}
+	if spec.Architecture == "rwkv6qwen2" {
+		if item, ok := tensors["output_norm.bias"]; ok {
+			validated, biasErr := required(item.Name, uint64(spec.EmbeddingLength))
+			if biasErr != nil {
+				return Weights{}, biasErr
+			}
+			result.OutputNormBias = &validated
+		}
+	}
 	if spec.Architecture == "t5encoder" {
 		result.Layers = make([]LayerWeights, spec.BlockCount)
 		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
@@ -348,6 +369,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "mimo2" ||
 		spec.Architecture == "step35" ||
 		spec.Architecture == "kimi-linear" ||
+		spec.Architecture == "rwkv6qwen2" ||
 		spec.Architecture == "mellum" ||
 		spec.Architecture == "jais" ||
 		spec.Architecture == "llada-moe" ||
@@ -743,6 +765,68 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					*shapeAndDestination.destination = &item
 				}
+			}
+			continue
+		}
+		if spec.Architecture == "rwkv6qwen2" {
+			layer.Recurrent = true
+			embedding := uint64(spec.EmbeddingLength)
+			keyValue := uint64(spec.HeadCountKV) * uint64(spec.WKVHeadSize)
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"time_mix_w1.weight":         {[]uint64{embedding, uint64(spec.TimeMixExtraDim) * 5}, &layer.TimeMixW1},
+				"time_mix_w2.weight":         {[]uint64{uint64(spec.TimeMixExtraDim), embedding, 5}, &layer.TimeMixW2},
+				"time_mix_lerp_x.weight":     {[]uint64{embedding, 1, 1}, &layer.TimeMixLerpX},
+				"time_mix_lerp_fused.weight": {[]uint64{embedding, 1, 1, 5}, &layer.TimeMixLerpFused},
+				"time_mix_decay.weight":      {[]uint64{embedding}, &layer.TimeMixDecay},
+				"time_mix_decay_w1.weight":   {[]uint64{embedding, uint64(spec.TimeDecayExtraDim)}, &layer.TimeMixDecayW1},
+				"time_mix_decay_w2.weight":   {[]uint64{uint64(spec.TimeDecayExtraDim), embedding}, &layer.TimeMixDecayW2},
+				"time_mix_key.weight":        {[]uint64{embedding, keyValue}, &layer.TimeMixKey},
+				"time_mix_value.weight":      {[]uint64{embedding, keyValue}, &layer.TimeMixValue},
+				"time_mix_receptance.weight": {[]uint64{embedding, embedding}, &layer.TimeMixReceptance},
+				"time_mix_gate.weight":       {[]uint64{embedding, embedding}, &layer.TimeMixGate},
+				"time_mix_output.weight":     {[]uint64{embedding, embedding}, &layer.TimeMixOutput},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
+			for name, widthAndDestination := range map[string]struct {
+				width       uint64
+				destination **gguf.TensorInfo
+			}{
+				"time_mix_key.bias":        {keyValue, &layer.AttentionKBias},
+				"time_mix_value.bias":      {keyValue, &layer.AttentionVBias},
+				"time_mix_receptance.bias": {embedding, &layer.AttentionQBias},
+			} {
+				if item, ok := tensors[prefix+name]; ok {
+					validated, itemErr := required(item.Name, widthAndDestination.width)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*widthAndDestination.destination = &validated
+				}
+			}
+			if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
+				return Weights{}, err
+			}
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination *gguf.TensorInfo
+			}{
+				"ffn_gate.weight": {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardGate},
+				"ffn_up.weight":   {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardUp},
+				"ffn_down.weight": {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.FeedForwardDown},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = item
 			}
 			continue
 		}

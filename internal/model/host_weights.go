@@ -118,6 +118,18 @@ type HostLayer struct {
 	SSMForgetB        *reference.Value
 	SSMOutputGateA    *reference.Value
 	SSMOutputGateB    *reference.Value
+	TimeMixW1         *reference.Value
+	TimeMixW2         *reference.Value
+	TimeMixLerpX      *reference.Value
+	TimeMixLerpFused  *reference.Value
+	TimeMixDecay      *reference.Value
+	TimeMixDecayW1    *reference.Value
+	TimeMixDecayW2    *reference.Value
+	TimeMixKey        *reference.Value
+	TimeMixValue      *reference.Value
+	TimeMixReceptance *reference.Value
+	TimeMixGate       *reference.Value
+	TimeMixOutput     *reference.Value
 }
 
 // LoadHostTensor: reads and dequantizes one GGUF tensor
@@ -363,6 +375,7 @@ func LoadHostLayer(
 	}
 	if info.Recurrent {
 		kimi := info.SSMQueryConv != nil
+		rwkv := info.TimeMixW1 != nil
 		if info.ShortConvKernel != nil && (info.ShortConvInput == nil || info.ShortConvOutput == nil) {
 			return HostLayer{}, errors.New("host recurrent convolution catalog is incomplete")
 		}
@@ -374,7 +387,7 @@ func LoadHostLayer(
 				(info.SSMX == nil && info.SSMNorm == nil)) {
 			return HostLayer{}, errors.New("host Mamba SSM catalog is incomplete")
 		}
-		if !kimi && info.ShortConvKernel == nil && info.SSMInput == nil &&
+		if !kimi && !rwkv && info.ShortConvKernel == nil && info.SSMInput == nil &&
 			(info.AttentionQKV == nil || info.SSMConv1D == nil || info.SSMTimeStep == nil ||
 				info.SSMA == nil || info.SSMNorm == nil || info.SSMOutput == nil ||
 				(info.SSMBetaAlpha == nil && (info.SSMBeta == nil || info.SSMAlpha == nil))) {
@@ -384,7 +397,30 @@ func LoadHostLayer(
 			destination **reference.Value
 			info        *gguf.TensorInfo
 		}{}
-		if kimi {
+		if rwkv {
+			for _, item := range []struct {
+				destination **reference.Value
+				info        *gguf.TensorInfo
+			}{
+				{&result.TimeMixW1, info.TimeMixW1},
+				{&result.TimeMixW2, info.TimeMixW2},
+				{&result.TimeMixLerpX, info.TimeMixLerpX},
+				{&result.TimeMixLerpFused, info.TimeMixLerpFused},
+				{&result.TimeMixDecay, info.TimeMixDecay},
+				{&result.TimeMixDecayW1, info.TimeMixDecayW1},
+				{&result.TimeMixDecayW2, info.TimeMixDecayW2},
+				{&result.TimeMixKey, info.TimeMixKey},
+				{&result.TimeMixValue, info.TimeMixValue},
+				{&result.TimeMixReceptance, info.TimeMixReceptance},
+				{&result.TimeMixGate, info.TimeMixGate},
+				{&result.TimeMixOutput, info.TimeMixOutput},
+			} {
+				optionalItems = append(optionalItems, struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{item.destination, item.info})
+			}
+		} else if kimi {
 			items = append(items,
 				struct {
 					destination *reference.Value
@@ -789,7 +825,28 @@ func (layer *HostLayer) GraphInputs(
 	if layer.FeedForwardNormBias != nil {
 		result.FeedForwardNormBias = input("ffn_norm.bias", *layer.FeedForwardNormBias)
 	}
-	if layer.SSMInput != nil {
+	if layer.TimeMixW1 != nil {
+		for _, item := range []struct {
+			name        string
+			value       *reference.Value
+			destination **tensor.Tensor
+		}{
+			{"time_mix_w1.weight", layer.TimeMixW1, &result.TimeMixW1},
+			{"time_mix_w2.weight", layer.TimeMixW2, &result.TimeMixW2},
+			{"time_mix_lerp_x.weight", layer.TimeMixLerpX, &result.TimeMixLerpX},
+			{"time_mix_lerp_fused.weight", layer.TimeMixLerpFused, &result.TimeMixLerpFused},
+			{"time_mix_decay.weight", layer.TimeMixDecay, &result.TimeMixDecay},
+			{"time_mix_decay_w1.weight", layer.TimeMixDecayW1, &result.TimeMixDecayW1},
+			{"time_mix_decay_w2.weight", layer.TimeMixDecayW2, &result.TimeMixDecayW2},
+			{"time_mix_key.weight", layer.TimeMixKey, &result.TimeMixKey},
+			{"time_mix_value.weight", layer.TimeMixValue, &result.TimeMixValue},
+			{"time_mix_receptance.weight", layer.TimeMixReceptance, &result.TimeMixReceptance},
+			{"time_mix_gate.weight", layer.TimeMixGate, &result.TimeMixGate},
+			{"time_mix_output.weight", layer.TimeMixOutput, &result.TimeMixOutput},
+		} {
+			*item.destination = input(item.name, *item.value)
+		}
+	} else if layer.SSMInput != nil {
 		result.SSMInput = input("ssm_in.weight", *layer.SSMInput)
 		result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
 		if layer.SSMConv1DBias != nil {

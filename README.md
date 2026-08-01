@@ -2,7 +2,7 @@
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
 Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
-through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
+through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM text/projected-visual decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4 and Gemma Embedding,
 ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE multimodal-coordinate decoding, GPT-2/GPT-NeoX, Granite/GraniteMoE with projected vision deepstack injection, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
@@ -69,6 +69,7 @@ go run ./cmd/block-check -tokens 4 <model.gguf>
 go run ./cmd/generate -n 1 <model.gguf> "Hello"
 go run ./cmd/generate -native-quant -n 16 <supported-model.gguf> "Hello"
 go run ./cmd/generate -native-quant -context-shift -n 8192 <supported-model.gguf> "Hello"
+go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -image <image.png> -n 16 <qwen35.gguf> "Describe this image."
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -eps 0.001 <dream.gguf> "Hello"
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -block-length 32 <llada.gguf> "Hello"
 go run ./cmd/perplexity -native-quant <supported-model.gguf> "evaluation text"
@@ -143,6 +144,11 @@ four MRoPE coordinate arrays, and GGML-order deepstack tensors:
   "deepstack_embeddings": [{"shape": [2, 2], "data": [0.1, 0.2, 0.3, 0.4]}]
 }
 ```
+
+For Qwen3.5 image input, `-mmproj <qwen3vl-mmproj.gguf>` and `-image <path>`
+run the native Qwen3-VL patch encoder/merger, render the vision chat turn, and
+construct its compressed four-axis MRoPE positions. `-image-thinking=false`
+selects the non-thinking template branch.
 
 The native `/completion` route accepts the same object as `projected_inputs`
 for a single prompt and completion. Token-only prompt caching and

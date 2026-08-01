@@ -114,6 +114,9 @@ func run() error {
 	mirostatEta := flag.Float64("mirostat-eta", 0.1, "Mirostat learning rate")
 	seed := flag.Int64("seed", 0, "sampling RNG seed")
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
+	projectorPath := flag.String("mmproj", "", "Qwen3-VL multimodal projector GGUF")
+	imagePath := flag.String("image", "", "image input for Qwen3-VL generation")
+	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	flag.Parse()
 	if flag.NArg() != 2 {
 		return errors.New("usage: generate [options] <model.gguf> <prompt>")
@@ -277,11 +280,30 @@ func run() error {
 		KeepTokens:    *keepTokens,
 		DiscardTokens: *discardTokens,
 	}
+	if (*projectorPath == "") != (*imagePath == "") {
+		return errors.New("generate: -mmproj and -image must be used together")
+	}
+	if *projectedInputsFile != "" && *projectorPath != "" {
+		return errors.New("generate: -projected-inputs and -mmproj are mutually exclusive")
+	}
 	if *projectedInputsFile != "" {
 		projected, projectedErr := readProjectedInputs(*projectedInputsFile)
 		if projectedErr != nil {
 			return projectedErr
 		}
+		options.ProjectedInputs = &projected
+	}
+	if *projectorPath != "" {
+		if runner.Spec().Architecture == "t5" {
+			return errors.New("generate: image projection is unavailable for T5")
+		}
+		promptIDs, projected, projectedErr := qwen3VLProjectedPrompt(
+			context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
+		)
+		if projectedErr != nil {
+			return projectedErr
+		}
+		options.PromptTokenIDs = promptIDs
 		options.ProjectedInputs = &projected
 	}
 	var ids []tokenizer.TokenID

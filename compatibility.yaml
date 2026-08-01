@@ -2502,6 +2502,10 @@ models:
       - text-generation-position-input
       - caller-supplied-four-axis-positions
       - projected-embedding-overrides
+      - qwen3vl-merger-image-projector
+      - merged-patch-image-preprocessing
+      - qwen35-image-chat-template
+      - compressed-image-grid-mrope
       - gated-full-attention
       - fused-gated-delta-net
       - recurrent-convolution-state
@@ -2519,6 +2523,7 @@ models:
       - draft-and-target-bound-mtp-session-state
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
+    multimodal_validated_fixture: Qwen3.5-4B-F16.gguf
   qwen3next:
     status: experimental
     execution:

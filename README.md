@@ -415,6 +415,9 @@ target vocabulary/shape profile. `DraftQwen35MTPGreedy` and
 `VerifyQwen35MTPGreedy` build bounded probability-filtered proposals, verify
 the prefix without committing a rejected suffix, and resynchronize target
 hidden state at the accepted boundary.
+`DraftQwen35MTPSampled` and `VerifyQwen35MTPSampled` add stochastic verification
+with full post-filter draft distributions, probability-ratio acceptance,
+positive-residual correction, and transactional draft/target sampler state.
 `SaveQwen35MTPSession`/`LoadQwen35MTPSession` preserve the target trunk cache,
 independent MTP KV, pending hidden row, and absolute positions in a bounded
 payload fingerprint-bound to both draft and target models.

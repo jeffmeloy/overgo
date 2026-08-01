@@ -449,6 +449,15 @@ func (s *Sampler) SampleWithHistoryProbabilities(
 	return result, nil
 }
 
+// AcceptToken: grammar-only external token commit.
+func (s *Sampler) AcceptToken(token int) error {
+	if s == nil {
+		return errors.New("sampler is nil")
+	}
+	_, err := s.acceptGrammar(token)
+	return err
+}
+
 func (s *Sampler) recordGreedyProbability(token int) {
 	if s.probabilityLimit <= 0 {
 		return

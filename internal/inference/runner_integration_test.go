@@ -731,6 +731,51 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 		verification.Session.TrunkCache.Position != verification.Session.Position {
 		t.Fatalf("unexpected Qwen3.5 MTP verification: draft=%+v result=%+v", draft, verification)
 	}
+	draftSampler, err := sampling.New(sampling.Config{
+		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetSampler, err := sampling.New(sampling.Config{
+		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSamplerBefore, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampledDraft, err := runner.DraftQwen35MTPSampled(
+		ctx, coordinatorSession, draftSampler, []tokenizer.TokenID{0}, 2, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSamplerAfter, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
+		t.Fatal("Qwen3.5 sampled drafting changed caller sampler state")
+	}
+	sampledVerification, err := runner.VerifyQwen35MTPSampled(
+		ctx, runner, sampledDraft, draftSampler, targetSampler,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sampledVerification.Accepted < 0 ||
+		sampledVerification.Accepted > len(sampledDraft.Tokens) ||
+		sampledVerification.Session.Position !=
+			coordinatorSession.Position+uint32(sampledVerification.Accepted)+1 ||
+		sampledVerification.Session.TrunkCache.Position != sampledVerification.Session.Position {
+		t.Fatalf(
+			"unexpected sampled Qwen3.5 MTP verification: draft=%+v result=%+v",
+			sampledDraft, sampledVerification,
+		)
+	}
 }
 
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {

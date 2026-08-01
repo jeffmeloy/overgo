@@ -289,7 +289,16 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 		}
 		copy(r.modelSignature[:], hasher.Sum(nil))
 	})
-	return r.modelSignature, r.modelSignatureErr
+	if r.modelSignatureErr != nil || len(r.loraAdapters) == 0 {
+		return r.modelSignature, r.modelSignatureErr
+	}
+	hasher := sha256.New()
+	_, _ = hasher.Write(r.modelSignature[:])
+	loraSignature := r.currentLoRASignature()
+	_, _ = hasher.Write(loraSignature[:])
+	var result [32]byte
+	copy(result[:], hasher.Sum(nil))
+	return result, nil
 }
 
 func writeFingerprintString(hasher hash.Hash, value string) {

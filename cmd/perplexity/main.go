@@ -23,6 +23,14 @@ func run() error {
 	preload := flag.Bool("preload", false, "dequantize all model weights once into CUDA memory")
 	nativeQ8 := flag.Bool("native-q8", false, "preload Q8_0 weights without dequantizing them")
 	nativeQuant := flag.Bool("native-quant", false, "preload supported quantized weights without dequantizing them")
+	var loraPaths []string
+	flag.Func("lora", "load GGUF LoRA adapter at scale 1; repeatable", func(value string) error {
+		if value == "" {
+			return errors.New("LoRA path is empty")
+		}
+		loraPaths = append(loraPaths, value)
+		return nil
+	})
 	textFile := flag.String("file", "", "read evaluation text from this UTF-8 file")
 	includeScores := flag.Bool("token-scores", false, "include per-token negative log-likelihoods")
 	contextSize := flag.Int(
@@ -47,10 +55,15 @@ func run() error {
 		}
 		text = flag.Arg(1)
 	}
+	loraAdapters := make([]inference.LoRAConfig, len(loraPaths))
+	for index, path := range loraPaths {
+		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: 1}
+	}
 	runner, err := inference.OpenWithOptions(flag.Arg(0), inference.OpenOptions{
 		DeviceOrdinal:           *deviceOrdinal,
 		PreloadDeviceWeights:    *preload,
 		PreloadQuantizedWeights: *nativeQ8 || *nativeQuant,
+		LoRAAdapters:            loraAdapters,
 	})
 	if err != nil {
 		return err

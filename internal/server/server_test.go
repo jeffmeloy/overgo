@@ -51,10 +51,27 @@ type fakeGenerator struct {
 	chatOptions     inference.ChatFormatOptions
 	grammarParallel bool
 	tokenDelay      time.Duration
+	lora            []inference.LoRAScale
+	loraConfigured  bool
 }
 
 type failingMemoryGenerator struct {
 	*fakeGenerator
+}
+
+type fakeLoRAGenerator struct {
+	*fakeGenerator
+	adapters  []inference.LoRAAdapterInfo
+	requested []inference.LoRAScale
+}
+
+func (f *fakeLoRAGenerator) LoRAAdapters() []inference.LoRAAdapterInfo {
+	return append([]inference.LoRAAdapterInfo(nil), f.adapters...)
+}
+
+func (f *fakeLoRAGenerator) SetLoRAScales(scales []inference.LoRAScale) error {
+	f.requested = append([]inference.LoRAScale(nil), scales...)
+	return nil
 }
 
 type signalingRecorder struct {
@@ -89,6 +106,8 @@ func (f *fakeGenerator) Generate(
 	f.keepTokens = options.KeepTokens
 	f.discardTokens = options.DiscardTokens
 	f.minCacheReuse = options.MinCacheReuse
+	f.lora = append([]inference.LoRAScale(nil), options.LoRA...)
+	f.loraConfigured = options.LoRAConfigured
 	f.mu.Unlock()
 	if f.started != nil {
 		f.mu.Lock()
@@ -659,6 +678,55 @@ func TestLoraAdaptersEmptyControlPlane(t *testing.T) {
 	)
 	if enable.Code != http.StatusNotImplemented {
 		t.Fatalf("POST adapter status/body = %d %s", enable.Code, enable.Body.String())
+	}
+}
+
+func TestLoraAdaptersLoadedControlPlane(t *testing.T) {
+	generator := &fakeLoRAGenerator{
+		fakeGenerator: &fakeGenerator{},
+		adapters:      []inference.LoRAAdapterInfo{{ID: 0, Path: "adapter.gguf", Scale: 1}},
+	}
+	handler := newTestHandler(t, generator)
+	get := httptest.NewRecorder()
+	handler.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/lora-adapters", nil))
+	if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), `"path":"adapter.gguf"`) {
+		t.Fatalf("GET status/body = %d %s", get.Code, get.Body.String())
+	}
+	post := httptest.NewRecorder()
+	handler.ServeHTTP(post, httptest.NewRequest(
+		http.MethodPost, "/lora-adapters", strings.NewReader(`[{"id":0,"scale":0.25}]`),
+	))
+	if post.Code != http.StatusOK || len(generator.requested) != 1 || generator.requested[0].Scale != 0.25 {
+		t.Fatalf("POST status/body/request = %d %s %v", post.Code, post.Body.String(), generator.requested)
+	}
+}
+
+func TestNativeCompletionPerRequestLoRA(t *testing.T) {
+	generator := &fakeLoRAGenerator{
+		fakeGenerator: &fakeGenerator{},
+		adapters:      []inference.LoRAAdapterInfo{{ID: 0, Path: "adapter.gguf", Scale: 1}},
+	}
+	handler := newTestHandler(t, generator)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(
+		http.MethodPost,
+		"/completion",
+		strings.NewReader(`{"prompt":"hello","n_predict":1,"lora":[{"id":0,"scale":0.25}]}`),
+	))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status/body = %d %s", response.Code, response.Body.String())
+	}
+	if !generator.loraConfigured || len(generator.lora) != 1 || generator.lora[0].Scale != 0.25 {
+		t.Fatalf("request LoRA = configured:%t values:%v", generator.loraConfigured, generator.lora)
+	}
+	invalid := httptest.NewRecorder()
+	handler.ServeHTTP(invalid, httptest.NewRequest(
+		http.MethodPost,
+		"/completion",
+		strings.NewReader(`{"prompt":"hello","n_predict":1,"lora":[{"id":1,"scale":1}]}`),
+	))
+	if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), "not loaded") {
+		t.Fatalf("invalid status/body = %d %s", invalid.Code, invalid.Body.String())
 	}
 }
 

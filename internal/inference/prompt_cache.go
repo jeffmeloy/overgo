@@ -19,8 +19,10 @@ func (r *Runner) selectPromptCache(
 	var selected *cachedPrompt
 	selectedIndex := -1
 	best := 0
+	signature := r.currentLoRASignature()
 	for index, candidate := range r.promptCaches {
 		if candidate == nil ||
+			candidate.LoRASignature != signature ||
 			(device && candidate.Device == nil) ||
 			(!device && candidate.Cache == nil) {
 			continue
@@ -65,7 +67,7 @@ func (r *Runner) storePromptCache(
 		if candidate == nil {
 			continue
 		}
-		if slices.Equal(candidate.Tokens, next.Tokens) {
+		if candidate.LoRASignature == next.LoRASignature && slices.Equal(candidate.Tokens, next.Tokens) {
 			release = append(release, candidate)
 			continue
 		}

@@ -26,6 +26,7 @@ type options struct {
 	Preload      bool
 	NativeQuant  bool
 	ContextShift bool
+	LoRA         []string
 }
 
 type runMetrics struct {
@@ -95,6 +96,13 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.Preload, "preload", false, "preload dequantized weights on CUDA")
 	flags.BoolVar(&result.NativeQuant, "native-quant", false, "preload supported quantized weights")
 	flags.BoolVar(&result.ContextShift, "context-shift", false, "enable rolling context shift")
+	flags.Func("lora", "load GGUF LoRA adapter at scale 1; repeatable", func(value string) error {
+		if value == "" {
+			return errors.New("LoRA path is empty")
+		}
+		result.LoRA = append(result.LoRA, value)
+		return nil
+	})
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -140,10 +148,15 @@ func run(args []string) error {
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
 	loadStarted := time.Now()
+	loraAdapters := make([]inference.LoRAConfig, len(options.LoRA))
+	for index, path := range options.LoRA {
+		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: 1}
+	}
 	runner, err := inference.OpenWithOptions(options.Model, inference.OpenOptions{
 		DeviceOrdinal:           options.Device,
 		PreloadDeviceWeights:    options.Preload,
 		PreloadQuantizedWeights: options.NativeQuant,
+		LoRAAdapters:            loraAdapters,
 	})
 	if err != nil {
 		return err

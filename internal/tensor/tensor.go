@@ -63,6 +63,7 @@ const (
 	OpDeepSeek4HCPost
 	OpDeepSeek4HCHead
 	OpDeepSeek4Attention
+	OpLoRAMerge
 )
 
 var opNames = [...]string{
@@ -117,6 +118,7 @@ var opNames = [...]string{
 	"deepseek4_hc_post",
 	"deepseek4_hc_head",
 	"deepseek4_attention",
+	"lora_merge",
 }
 
 func (o Op) String() string {
@@ -326,11 +328,32 @@ type Tensor struct {
 	Attrs  any
 }
 
-// Builder: constructs and validates tensor graph
+// EmbeddedInputAttributes: immutable graph-owned F32 feed.
+type EmbeddedInputAttributes struct {
+	Data []float32
+}
+
+// LoRADefinition: one named adapter projection.
+type LoRADefinition struct {
+	AName, BName   string
+	AShape, BShape Shape
+	AData, BData   []float32
+	Scale          float32
+	Embedding      bool
+}
+
+// LoRAMergeAttributes: one adapter scale.
+type LoRAMergeAttributes struct {
+	Scale float32
+}
+
+// Builder: graph constructor and validator.
 type Builder struct {
-	nextID uint64
-	nodes  []*Tensor
-	err    error
+	nextID     uint64
+	nodes      []*Tensor
+	err        error
+	loras      map[string][]LoRADefinition
+	loraInputs map[string]*Tensor
 }
 
 func NewBuilder() *Builder {
@@ -354,6 +377,92 @@ func (b *Builder) Input(name string, dataType dtype.Type, shape Shape) *Tensor {
 		return nil
 	}
 	return b.add(name, dataType, shape, OpInput, nil, nil)
+}
+
+// SetLoRA: installs exact base-tensor adapter bindings.
+func (b *Builder) SetLoRA(bindings map[string][]LoRADefinition) {
+	if b.err != nil || len(bindings) == 0 {
+		return
+	}
+	b.loras = make(map[string][]LoRADefinition, len(bindings))
+	b.loraInputs = make(map[string]*Tensor)
+	for base, definitions := range bindings {
+		if base == "" {
+			b.setError(errors.New("LoRA base tensor name is empty"))
+			return
+		}
+		for _, definition := range definitions {
+			if definition.AName == "" || definition.BName == "" ||
+				definition.AName == definition.BName ||
+				math.IsNaN(float64(definition.Scale)) || math.IsInf(float64(definition.Scale), 0) {
+				b.setError(fmt.Errorf("LoRA binding for %q is invalid", base))
+				return
+			}
+			for name, value := range map[string]struct {
+				shape Shape
+				data  []float32
+			}{
+				definition.AName: {definition.AShape, definition.AData},
+				definition.BName: {definition.BShape, definition.BData},
+			} {
+				elements, err := value.shape.Elements()
+				if err != nil || elements != uint64(len(value.data)) {
+					b.setError(fmt.Errorf("LoRA tensor %q data shape is invalid", name))
+					return
+				}
+			}
+			b.loras[base] = append(b.loras[base], definition)
+		}
+	}
+}
+
+func (b *Builder) loraInput(name string, shape Shape, data []float32) *Tensor {
+	if input := b.loraInputs[name]; input != nil {
+		if !input.Shape.Equal(shape) {
+			b.setError(fmt.Errorf("LoRA input %q has conflicting shapes", name))
+			return nil
+		}
+		return input
+	}
+	input := b.add(name, dtype.F32, shape, OpInput, nil, EmbeddedInputAttributes{Data: data})
+	b.loraInputs[name] = input
+	return input
+}
+
+func (b *Builder) mergeLoRAWeight(base *Tensor) *Tensor {
+	if b.err != nil || base == nil || base.Name == "" {
+		return base
+	}
+	result := base
+	for _, definition := range b.loras[base.Name] {
+		if definition.Scale == 0 || definition.Embedding {
+			continue
+		}
+		if result.Type != dtype.F32 || result.Shape.Rank < 2 || result.Shape.Rank > 3 {
+			b.setError(fmt.Errorf("LoRA weight merge for %q requires rank-2/3 F32 base", base.Name))
+			return nil
+		}
+		a := b.loraInput(definition.AName, definition.AShape, definition.AData)
+		c := b.loraInput(definition.BName, definition.BShape, definition.BData)
+		if a.Shape.Rank != base.Shape.Rank || c.Shape.Rank != base.Shape.Rank ||
+			a.Shape.Dims[0] != base.Shape.Dims[0] || c.Shape.Dims[1] != base.Shape.Dims[1] ||
+			a.Shape.Dims[1] != c.Shape.Dims[0] {
+			b.setError(fmt.Errorf("LoRA weight merge for %q has incompatible pair", base.Name))
+			return nil
+		}
+		if base.Shape.Rank == 3 &&
+			(a.Shape.Dims[2] != base.Shape.Dims[2] || c.Shape.Dims[2] != base.Shape.Dims[2]) {
+			b.setError(fmt.Errorf("LoRA weight merge for %q has incompatible groups", base.Name))
+			return nil
+		}
+		if math.IsNaN(float64(definition.Scale)) || math.IsInf(float64(definition.Scale), 0) {
+			b.setError(fmt.Errorf("LoRA weight merge for %q has invalid scale", base.Name))
+			return nil
+		}
+		result = b.add("", dtype.F32, base.Shape, OpLoRAMerge,
+			[]*Tensor{result, a, c}, LoRAMergeAttributes{Scale: definition.Scale})
+	}
+	return result
 }
 
 func (b *Builder) Add(left, right *Tensor) *Tensor {
@@ -1184,6 +1293,13 @@ func (b *Builder) moeWithSelected(
 		b.setError(errors.New("MoE input is nil"))
 		return nil
 	}
+	router = b.mergeLoRAWeight(router)
+	gate = b.mergeLoRAWeight(gate)
+	up = b.mergeLoRAWeight(up)
+	down = b.mergeLoRAWeight(down)
+	if b.err != nil {
+		return nil
+	}
 	if input.Type != dtype.F32 || routerInput.Type != dtype.F32 || router.Type != dtype.F32 {
 		b.setError(errors.New("MoE inputs and router must be F32"))
 		return nil
@@ -1344,6 +1460,23 @@ func (b *Builder) GEGLU(gate, up *Tensor) *Tensor {
 // MulMat: follows ggml semantics; Left has shape [K,M], right has shape [K,N],
 // and result has shape [M,N]
 func (b *Builder) MulMat(left, right *Tensor) *Tensor {
+	result := b.mulMat(left, right)
+	if result == nil || left == nil || left.Name == "" {
+		return result
+	}
+	for _, definition := range b.loras[left.Name] {
+		if definition.Scale == 0 || definition.Embedding {
+			continue
+		}
+		a := b.loraInput(definition.AName, definition.AShape, definition.AData)
+		c := b.loraInput(definition.BName, definition.BShape, definition.BData)
+		delta := b.mulMat(c, b.mulMat(a, right))
+		result = b.Add(result, b.Scale(delta, definition.Scale))
+	}
+	return result
+}
+
+func (b *Builder) mulMat(left, right *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
 	}
@@ -1380,6 +1513,23 @@ func (b *Builder) MulMat(left, right *Tensor) *Tensor {
 
 // GroupedMulMat: per-group ggml matmul; [K,M,G] x [K,G,N] -> [M,G,N]
 func (b *Builder) GroupedMulMat(left, right *Tensor) *Tensor {
+	result := b.groupedMulMat(left, right)
+	if result == nil || left == nil || left.Name == "" {
+		return result
+	}
+	for _, definition := range b.loras[left.Name] {
+		if definition.Scale == 0 || definition.Embedding {
+			continue
+		}
+		a := b.loraInput(definition.AName, definition.AShape, definition.AData)
+		c := b.loraInput(definition.BName, definition.BShape, definition.BData)
+		delta := b.groupedMulMat(c, b.groupedMulMat(a, right))
+		result = b.Add(result, b.Scale(delta, definition.Scale))
+	}
+	return result
+}
+
+func (b *Builder) groupedMulMat(left, right *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
 	}
@@ -1409,6 +1559,23 @@ func (b *Builder) GroupedMulMat(left, right *Tensor) *Tensor {
 // GetRows gathers vocabulary rows from rank-2 table in ggml layout;
 // table shape is [embedding, rows] and result is [embedding, len(rows)]
 func (b *Builder) GetRows(table *Tensor, rows []uint32) *Tensor {
+	result := b.getRows(table, rows)
+	if result == nil || table == nil || table.Name == "" {
+		return result
+	}
+	for _, definition := range b.loras[table.Name] {
+		if definition.Scale == 0 || !definition.Embedding {
+			continue
+		}
+		a := b.loraInput(definition.AName, definition.AShape, definition.AData)
+		c := b.loraInput(definition.BName, definition.BShape, definition.BData)
+		delta := b.mulMat(c, b.getRows(a, rows))
+		result = b.Add(result, b.Scale(delta, definition.Scale))
+	}
+	return result
+}
+
+func (b *Builder) getRows(table *Tensor, rows []uint32) *Tensor {
 	if b.err != nil {
 		return nil
 	}

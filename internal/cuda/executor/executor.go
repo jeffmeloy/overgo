@@ -523,6 +523,12 @@ func execute(
 		}
 		value, ok := feeds[node]
 		if !ok {
+			if embedded, embeddedOK := node.Attrs.(tensor.EmbeddedInputAttributes); embeddedOK {
+				value = reference.Value{Shape: node.Shape, Data: embedded.Data}
+				ok = true
+			}
+		}
+		if !ok {
 			return nil, fmt.Errorf("missing feed for input %q", node.Name)
 		}
 		if !value.Shape.Equal(node.Shape) {
@@ -695,6 +701,7 @@ type functionSet struct {
 	indexerScore      driver.Function
 	rwkv7             driver.Function
 	moe               driver.Function
+	loraMerge         driver.Function
 	repeatHeads       driver.Function
 	transpose2D       driver.Function
 	groupSlice        driver.Function
@@ -882,6 +889,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"indexer_score_f32", &result.indexerScore},
 		{"rwkv7_f32", &result.rwkv7},
 		{"moe_f32", &result.moe},
+		{"lora_merge_f32", &result.loraMerge},
 		{"repeat_heads_f32", &result.repeatHeads},
 		{"transpose_2d_f32", &result.transpose2D},
 		{"group_slice_f32", &result.groupSlice},
@@ -974,6 +982,44 @@ func launchNode(
 	case tensor.OpDeepSeek4HCInit, tensor.OpDeepSeek4HCPre, tensor.OpDeepSeek4HCPost,
 		tensor.OpDeepSeek4HCHead, tensor.OpDeepSeek4Attention:
 		return launchReferenceNode(state, node, pointers)
+	case tensor.OpLoRAMerge:
+		attributes, ok := node.Attrs.(tensor.LoRAMergeAttributes)
+		if !ok || len(node.Inputs) != 3 {
+			return errors.New("invalid LoRA merge attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		inner, err := uint32Checked(node.Shape.Dims[0], "LoRA merge inner width")
+		if err != nil {
+			return err
+		}
+		rows, err := uint32Checked(node.Shape.Dims[1], "LoRA merge row count")
+		if err != nil {
+			return err
+		}
+		rank, err := uint32Checked(node.Inputs[1].Shape.Dims[1], "LoRA merge rank")
+		if err != nil {
+			return err
+		}
+		groups := uint32(1)
+		if node.Shape.Rank == 3 {
+			groups, err = uint32Checked(node.Shape.Dims[2], "LoRA merge group count")
+			if err != nil {
+				return err
+			}
+		}
+		base, a, b := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
+		scale := attributes.Scale
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&base), unsafe.Pointer(&a), unsafe.Pointer(&b), unsafe.Pointer(&output),
+			unsafe.Pointer(&inner), unsafe.Pointer(&rows), unsafe.Pointer(&rank), unsafe.Pointer(&groups),
+			unsafe.Pointer(&scale), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.loraMerge, count, args)
+		runtime.KeepAlive(args)
+		return err
 	case tensor.OpAdd, tensor.OpMultiply:
 		count, err := elementCount32(node.Shape)
 		if err != nil {

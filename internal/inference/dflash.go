@@ -159,7 +159,7 @@ func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Valu
 	if r.spec.Architecture != "dflash" || r.weights.FeatureProjection == nil || r.weights.EncoderOutputNorm == nil {
 		return reference.Value{}, errors.New("inference: DFlash feature encoder is unavailable")
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("dflash.features", dtype.F32, features.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: features}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -277,7 +277,7 @@ func (r *Runner) injectDFlashLayer(
 	layerIndex int,
 	past *LayerCache,
 ) (LayerCache, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("dflash.fused", dtype.F32, fused.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: fused}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)

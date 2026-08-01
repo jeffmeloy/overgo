@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 23,
+  "abiVersion": 24,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "2d9b7c23100c6b111538ac9d7b6a80f3ba1fbddf62e9168208afdb413c4798e4",
+      "sourceSha256": "98b5c3504553ea5bbcd24a396adeda959059c5678c6fea29c9cea36eb0de9af3",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "13d36051a69bd4e6d4edd2fb8ff35870dc3a79ee2e3e5b7290b218f4194c4c62",
+      "assetSha256": "3391288098fe74edbf73d4074a28cfc40e36ad3e5380b17ec4942f857cadf22a",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -84,6 +84,7 @@
         "layer_norm_f32",
         "softmax_f32",
         "mul_mat_f32",
+        "lora_merge_f32",
         "moe_f32",
         "repeat_heads_f32",
         "get_rows_f32",
@@ -520,6 +521,23 @@
             "mul_mat_iq1_s_f32",
             "mul_mat_iq1_m_f32",
             "mul_mat_q6_K_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32"
+          ],
+          "functions": [
+            "lora_merge_f32"
           ]
         },
         {

@@ -300,7 +300,7 @@ func (r *Runner) forwardDeviceCachedLocked(
 		rows[index] = uint32(id)
 		positions[index] = nextPosition + uint32(index)
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
 	if err != nil {
 		return reference.Value{}, nil, err

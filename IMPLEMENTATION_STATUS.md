@@ -266,9 +266,10 @@
   context as OpenAI chat. Assistant `tool_use` and user `tool_result` history,
   single/parallel call constraints, buffered tool blocks, call-complete
   streaming `input_json_delta` blocks, and tool-aware counting are supported.
-- Authenticated `/lora-adapters` exposes a truthful empty adapter list for this
-  no-LoRA runtime. Empty disable-all POST requests succeed with the pinned
-  envelope; non-empty activation is rejected explicitly.
+- Repeatable startup LoRA paths load validated GGUF adapter pairs. Authenticated
+  `/lora-adapters` reports loaded IDs, paths, and scales; POST atomically
+  replaces global scales, with omitted adapters disabled. Scale changes clear
+  retained prompt caches and alter serialized-session fingerprints.
 - Native authenticated `POST /completion` and `/completions` reuse the same
   bounded sampler and generation core while exposing llama.cpp's `n_predict`,
   `n_cmpl`, raw-token, stop-type/word, generation-settings, prompt/token
@@ -684,8 +685,12 @@
 - Text-only Anthropic generation, streaming, counting, tool use/results, and
   tool-aware Jinja contexts are supported. Thinking blocks, images, and
   token-incremental tool-input deltas remain pending.
-- LoRA model loading, tensor application, and per-request/global scaling remain
-  pending; the control-plane endpoint does not claim adapters are loaded.
+- LoRA loading, alpha/rank scaling, graph-wide tensor application, global
+  control-plane scaling, prompt-cache invalidation, and session binding are
+  implemented. Native per-request overrides restore global scales and isolate
+  retained prompt caches by adapter signature. A single enabled aLoRA uses the
+  last invocation-token match as its activation boundary; unmatched requests
+  disable it and multiple simultaneous aLoRAs are rejected.
 - Native completion supports strings, exact/mixed token sequences, bounded
   batches of either, and opt-in reuse from the best retained prefix meeting
   `n_cache_reuse`. It reports cached/evaluated token counts and
@@ -695,8 +700,9 @@
   reuse their longest common prefix through host or zero-copy device suffix
   rollback; recurrent models retain exact-prefix-only reuse. A configurable
   bounded LRU retains independent host or CUDA prompt states. Multimodal prompt
-  objects and per-request LoRA are rejected explicitly rather
-  than silently approximated. Positive `n_probs`
+  objects are rejected explicitly rather than silently approximated.
+  Per-request LoRA arrays replace scales for one generation without mutating
+  global control-plane state. Positive `n_probs`
   reports selected and top-N raw-logit softmax log probabilities with token
   pieces and byte arrays in buffered and SSE responses.
   `post_sampling_probs` instead reports normalized `prob`/`top_probs` from the
@@ -744,27 +750,25 @@ path with metadata-selected full-indexer layers and graph-resident top-k reuse i
 following shared-indexer layers. Reference and CUDA block oracles cover both
 schedules; real-model validation awaits local GGUF fixtures.
 
-### Deferred: DFlash target/draft orchestration
+### Implemented: DFlash paired-target drafting
 
-Pinned DFlash has separate encoder and decoder modes. The encoder fuses hidden
-states extracted from configured target-model layers. The decoder switches
-between prompt and generation graphs, consumes target token embeddings and
-output projection, and participates in speculative verification with a second
-model context. The current runner owns one model, one embedding table, one
-hidden stream, and one cache. Adding DFlash requires a target/draft coordinator,
-cross-model tensor ownership, extracted-hidden-state inputs, and speculative
-accept/rollback semantics; a standalone decoder graph would be incomplete.
+DFlash extracts configured pre-layer hidden states from a distinct target
+runner, projects and normalizes the concatenated features, and injects the
+resulting per-layer K/V rows into a serializable draft cache. Paired decoding
+uses target token embeddings and output projection with the pinned non-causal
+noise-block mask. Prefix synchronization, bounded draft blocks, reference
+oracles, and CUDA pipeline parity are covered. Speculative accept/rollback
+policy remains a caller concern, matching the existing Eagle3 coordinator
+boundary.
 
-### Deferred: WavTokenizer decoder graph
+### Implemented: WavTokenizer audio-feature decoder
 
-Pinned WavTokenizer is a non-causal audio-feature decoder, not a token-logit
-decoder. Its PosNet and ConvNeXt stages require same-padded dense and depthwise
-1-D convolution, group normalization, transposes, convolutional attention,
-GELU pointwise blocks, and an output width unrelated to vocabulary size. The
-adaptive repository provides CPU group-normalization and causal audio-conv
-references, but not the required same-padding/depthwise tensor and CUDA ops or
-a llama.cpp-compatible audio-output runner contract. Those references can seed
-the math tranche after the output API and tensor catalog are designed.
+WavTokenizer maps semantic token IDs to audio-feature frames through the pinned
+same-padded dense/depthwise convolutions, group normalization, PosNet residual
+and attention blocks, ConvNeXt GELU blocks, affine normalization, and output
+projection. The dedicated `DecodeWavTokenizer` API exposes the non-logit output
+contract. Strict weight validation, reference graph tests, and CUDA parity are
+covered.
 
 ### Implemented: DeepSeek 4 compressed sparse/hyper-connection graph
 
@@ -794,16 +798,25 @@ invented weights. Adding them requires an explicit weighted quantization API
 and a compatible importance-matrix input format; all values-only reference
 layouts continue independently.
 
-### Deferred: LoRA graph-wide projection application and oracle
+### Implemented: LoRA graph-wide projection application
 
-Pinned LoRA application is graph-time
-`base*x + adapter_scale*B*(A*x)` for every adapted projection, including
-embeddings and output. The current streamed, preloaded-F32, and
-native-quantized paths expose only base tensors and would each need adapter
-graph inputs plus cache/session topology binding. Destructively merging deltas
-into quantized weights would change rounding and prevent per-request scaling.
-No local LoRA GGUF adapter is available for a differential oracle, so
-loading/application remains deferred while independent work continues.
+Pinned GGUF adapters validate type, architecture, paired suffixes, base-tensor
+existence, regular/grouped matrix shapes, flipped token-embedding shapes,
+alpha, and optional aLoRA invocation metadata. Graph execution computes
+`base*x + scale*B*(A*x)` without destructive weight merging. Exact tensor-name
+binding covers dense projections, grouped expert banks, token embeddings, and
+output projections in streamed, F32-preloaded, and native-quantized paths.
+Multiple adapters add in stable ID order. Global scale replacement clears
+prompt caches and contributes adapter content plus scales to session
+fingerprints. Native request-local scales restore global state and segregate
+prompt caches by adapter signature. Synthetic GGUF loader failures, reference
+projection/embedding/grouped/fused-MoE oracles, server lifecycle tests, and
+CUDA parity are covered. A local real-model adapter differential remains an
+independent fixture follow-up. Fused MoE uses a native CUDA graph node to form
+ephemeral adapted expert weights. This preserves exact request-local scaling
+and quantized-base safety, but adds a full expert-bank merge pass per graph;
+direct low-rank deltas inside the fused MoE kernel remain a performance-only
+optimization.
 
 ### Deferred: Go vet cannot prove CUDA C-string pointer provenance
 
@@ -834,12 +847,12 @@ binary contract. Deterministic concurrency/contention tests remain enabled;
 race instrumentation is deferred until Go supports it for the no-cgo Windows
 target or a suitable alternative is integrated.
 
-### Deferred: CUDA 12.9 with Visual Studio 2026
+### Supported constraint: CUDA 12.9 compiler selection
 
-`nvcc` 12.9 rejects the installed Visual Studio 2026 compiler, including with
-`-allow-unsupported-compiler`. Kernel compilation uses the installed Visual
-Studio 2019 Build Tools until CUDA 13.2 or a supported newer toolkit is
-installed. Runtime execution is unaffected.
+CUDA 12.9 kernel builds pass through the installed Visual Studio 2019 Build
+Tools compiler selected by `scripts/build-kernels.ps1`. Visual Studio 2026 is
+not a CUDA 12.9 host compiler and is intentionally bypassed. Runtime and kernel
+verification pass under this supported pairing.
 
 ### Deferred: local ternary Q2_0 fixture layout mismatch
 
@@ -848,13 +861,6 @@ block, while the pinned llama.cpp commit defines Q2_0 as an 18-byte block. The
 reader rejects the resulting non-contiguous offsets. Do not add a heuristic
 layout variant without a metadata/version discriminator. Other tested F32,
 BF16, Q8_0, Q6_K, IQ4_XS, and Q1_0 models parse successfully.
-
-### Deferred: Go race detector under no-cgo builds
-
-The Go race detector requires cgo on Windows, while the product build requires
-`CGO_ENABLED=0`. Normal unit and CUDA integration tests remain no-cgo. A
-separate cgo-enabled diagnostic test job can be added later without changing
-release binaries.
 
 ### Deferred: real Llama end-to-end fixture
 
@@ -891,14 +897,15 @@ model inventory has neither family. WordPiece work proceeded against the
 available BERT fixture. RWKV/PLaMo2 tokenization remains deferred rather than
 claiming an unverified port; independent compatibility work continues.
 
-### Deferred: remaining fused-QKV decoder families
+### Implemented: pinned fused-QKV decoder families
 
-Contiguous fused QKV projection and bias loading/slicing is shared by the
-dense host, preloaded-device, and cache execution paths and is enabled for
-Phi-2, GPT-NeoX, and Falcon. Remaining fused-QKV families stay
-architecture-gated until their distinct position encoding, residual topology,
-normalization, and tensor-layout rules are implemented and tested; the
-presence of `attn_qkv` alone is not treated as proof of compatibility.
+Contiguous fused QKV projection and bias loading/slicing is shared by the dense
+host, preloaded-device, and cache execution paths for every pinned executable
+architecture that declares the layout, including Phi-2, GPT-NeoX, Falcon,
+BERT, and NeoBERT. Architecture gates retain each family's position encoding,
+residual topology, normalization, and tensor-layout rules. GPT-J remains at the
+separate pinned-oracle boundary because the pinned source defines no loader or
+graph for it.
 
 BERT now adds optional sentence-A token-type row 0 and learned absolute-position
 rows before affine embedding LayerNorm. Its bidirectional no-cache encoder uses

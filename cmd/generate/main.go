@@ -60,6 +60,14 @@ func run() error {
 	preload := flag.Bool("preload", false, "dequantize all model weights once into CUDA memory")
 	nativeQ8 := flag.Bool("native-q8", false, "preload Q8_0 weights without dequantizing them")
 	nativeQuant := flag.Bool("native-quant", false, "preload supported quantized weights without dequantizing them")
+	var loraPaths []string
+	flag.Func("lora", "load GGUF LoRA adapter at scale 1; repeatable", func(value string) error {
+		if strings.TrimSpace(value) == "" {
+			return errors.New("LoRA path is empty")
+		}
+		loraPaths = append(loraPaths, value)
+		return nil
+	})
 	temperature := flag.Float64("temp", 0, "sampling temperature; zero is greedy")
 	dynatempRange := flag.Float64("dynatemp-range", 0, "dynamic temperature range; zero disables")
 	dynatempExponent := flag.Float64("dynatemp-exp", 1, "entropy-to-temperature exponent")
@@ -109,10 +117,15 @@ func run() error {
 	if flag.NArg() != 2 {
 		return errors.New("usage: generate [options] <model.gguf> <prompt>")
 	}
+	loraAdapters := make([]inference.LoRAConfig, len(loraPaths))
+	for index, path := range loraPaths {
+		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: 1}
+	}
 	runner, err := inference.OpenWithOptions(flag.Arg(0), inference.OpenOptions{
 		DeviceOrdinal:           *deviceOrdinal,
 		PreloadDeviceWeights:    *preload,
 		PreloadQuantizedWeights: *nativeQ8 || *nativeQuant,
+		LoRAAdapters:            loraAdapters,
 	})
 	if err != nil {
 		return err

@@ -195,7 +195,7 @@ func (r *Runner) projectEmbeddingVectorsDevice(
 		}
 		data = append(data, vector...)
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	inputShape := tensor.MustShape(uint64(width), uint64(len(vectors)))
 	input := builder.Input("embedding_projection.input", dtype.F32, inputShape)
 	weight, pointer, err := r.deviceInput(builder, projection)

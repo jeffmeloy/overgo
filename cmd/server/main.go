@@ -31,6 +31,15 @@ func run() error {
 	preload := flag.Bool("preload", false, "dequantize all model weights once into CUDA memory")
 	nativeQ8 := flag.Bool("native-q8", false, "preload Q8_0 weights without dequantizing them")
 	nativeQuant := flag.Bool("native-quant", false, "preload supported quantized weights without dequantizing them")
+	var loraPaths []string
+	flag.Func("lora", "load GGUF LoRA adapter at global scale 1; repeatable", func(value string) error {
+		if strings.TrimSpace(value) == "" {
+			return errors.New("LoRA path is empty")
+		}
+		loraPaths = append(loraPaths, value)
+		return nil
+	})
+	loraDisabled := flag.Bool("lora-init-without-apply", false, "load adapters with global scale 0")
 	maxTokens := flag.Int("max-tokens", 4096, "maximum max_tokens accepted per request")
 	contextShift := flag.Bool(
 		"context-shift",
@@ -68,11 +77,20 @@ func run() error {
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
 	}
+	loraAdapters := make([]inference.LoRAConfig, len(loraPaths))
+	for index, path := range loraPaths {
+		scale := float32(1)
+		if *loraDisabled {
+			scale = 0
+		}
+		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: scale}
+	}
 	runner, err := inference.OpenWithOptions(flag.Arg(0), inference.OpenOptions{
 		DeviceOrdinal:           *deviceOrdinal,
 		PreloadDeviceWeights:    *preload,
 		PreloadQuantizedWeights: *nativeQ8 || *nativeQuant,
 		PromptCacheEntries:      *promptCacheEntries,
+		LoRAAdapters:            loraAdapters,
 	})
 	if err != nil {
 		return err

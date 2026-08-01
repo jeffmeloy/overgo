@@ -39,7 +39,7 @@ func (r *Runner) FuseEagle3Features(ctx context.Context, features reference.Valu
 	if r.closed || r.spec.Architecture != "eagle3" || r.weights.FeatureProjection == nil {
 		return reference.Value{}, errors.New("inference: Eagle3 feature encoder is unavailable")
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("eagle3.features", dtype.F32, features.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: features}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -178,7 +178,7 @@ func (r *Runner) stepEagle3(
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	tokenInput := builder.Input("eagle3.token", dtype.F32, tokenEmbedding.Shape)
 	featureInput := builder.Input("eagle3.feature", dtype.F32, feature.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{tokenInput: tokenEmbedding, featureInput: feature}

@@ -1592,6 +1592,120 @@ func TestExecuteGroupedMulMat(t *testing.T) {
 	}
 }
 
+func TestExecuteLoRAProjectionAndEmbedding(t *testing.T) {
+	builder := tensor.NewBuilder()
+	builder.SetLoRA(map[string][]tensor.LoRADefinition{
+		"projection": {{
+			AName: "adapter.projection.lora_a", BName: "adapter.projection.lora_b",
+			AShape: tensor.MustShape(2, 1), BShape: tensor.MustShape(1, 2),
+			AData: []float32{2, 3}, BData: []float32{4, 5}, Scale: 0.5,
+		}},
+		"token_embd.weight": {{
+			AName: "adapter.token.lora_a", BName: "adapter.token.lora_b",
+			AShape: tensor.MustShape(1, 3), BShape: tensor.MustShape(1, 2),
+			AData: []float32{7, 11, 13}, BData: []float32{2, 3}, Scale: 0.25, Embedding: true,
+		}},
+	})
+	projection := builder.Input("projection", dtype.F32, tensor.MustShape(2, 2))
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	table := builder.Input("token_embd.weight", dtype.F32, tensor.MustShape(2, 3))
+	projected := builder.MulMat(projection, input)
+	embedded := builder.GetRows(table, []uint32{1})
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	results, err := Execute(
+		[]*tensor.Tensor{projected, embedded},
+		map[*tensor.Tensor]Value{
+			projection: {Shape: projection.Shape, Data: []float32{1, 0, 0, 1}},
+			input:      {Shape: input.Shape, Data: []float32{1, 2}},
+			table:      {Shape: table.Shape, Data: []float32{1, 2, 3, 4, 5, 6}},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := results[projected].Data, []float32{17, 22}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("projection = %v, want %v", got, want)
+	}
+	if got, want := results[embedded].Data, []float32{8.5, 12.25}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("embedding = %v, want %v", got, want)
+	}
+}
+
+func TestExecuteGroupedLoRAProjection(t *testing.T) {
+	builder := tensor.NewBuilder()
+	builder.SetLoRA(map[string][]tensor.LoRADefinition{
+		"experts": {{
+			AName: "adapter.experts.lora_a", BName: "adapter.experts.lora_b",
+			AShape: tensor.MustShape(2, 1, 2), BShape: tensor.MustShape(1, 1, 2),
+			AData: []float32{1, 1, 2, 0}, BData: []float32{3, 4}, Scale: 0.5,
+		}},
+	})
+	experts := builder.Input("experts", dtype.F32, tensor.MustShape(2, 1, 2))
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 2, 1))
+	output := builder.GroupedMulMat(experts, input)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		experts: {Shape: experts.Shape, Data: []float32{1, 0, 0, 1}},
+		input:   {Shape: input.Shape, Data: []float32{2, 3, 4, 5}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := results[output].Data, []float32{9.5, 21}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("grouped output = %v, want %v", got, want)
+	}
+}
+
+func TestExecuteLoRAFusedMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	builder.SetLoRA(map[string][]tensor.LoRADefinition{
+		"up": {
+			{
+				AName: "adapter.0.up.lora_a", BName: "adapter.0.up.lora_b",
+				AShape: tensor.MustShape(2, 1, 1), BShape: tensor.MustShape(1, 1, 1),
+				AData: []float32{1, 1}, BData: []float32{2}, Scale: 1,
+			},
+			{
+				AName: "adapter.1.up.lora_a", BName: "adapter.1.up.lora_b",
+				AShape: tensor.MustShape(2, 1, 1), BShape: tensor.MustShape(1, 1, 1),
+				AData: []float32{1, 0}, BData: []float32{1}, Scale: 1,
+			},
+		},
+	})
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 1))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
+	output := builder.MoE(input, router, gate, up, down, 1, false, 1)
+	feeds := map[*tensor.Tensor]Value{
+		input:  {Shape: input.Shape, Data: []float32{1, 2}},
+		router: {Shape: router.Shape, Data: []float32{0, 0}},
+		gate:   {Shape: gate.Shape, Data: []float32{1, 0}},
+		up:     {Shape: up.Shape, Data: []float32{0, 0}},
+		down:   {Shape: down.Shape, Data: []float32{1, 2}},
+	}
+	results, err := Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activated := float32(7 / (1 + math.Exp(-1)))
+	want := []float32{activated, 2 * activated}
+	for index, got := range results[output].Data {
+		if math.Abs(float64(got-want[index])) > 1e-5 {
+			t.Fatalf("MoE output = %v, want %v", results[output].Data, want)
+		}
+	}
+	merged := false
+	for _, node := range builder.Nodes() {
+		merged = merged || node.Op == tensor.OpLoRAMerge
+	}
+	if !merged {
+		t.Fatal("fused MoE omitted LoRA merge")
+	}
+}
+
 func TestExecuteIndexerScore(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 2))

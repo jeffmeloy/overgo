@@ -94,7 +94,7 @@ func (r *Runner) runGemma3nActiveLayer(
 	positions []uint32,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	inputNode := builder.Input("gemma3n.input", dtype.F32, input.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{inputNode: input}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -127,7 +127,7 @@ func (r *Runner) runGemma3nActiveLayer(
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	builder = tensor.NewBuilder()
+	builder = r.newGraphBuilder()
 	residualNode := builder.Input("gemma3n.residual", dtype.F32, results[stage.Residual].Shape)
 	activatedNode := builder.Input("gemma3n.ffn_activated", dtype.F32, activated.Shape)
 	hostFeeds = map[*tensor.Tensor]reference.Value{

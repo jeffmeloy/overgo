@@ -306,9 +306,20 @@ counting share the GGUF Jinja formatter used by OpenAI chat.
 `/v1/messages/count_tokens` accepts the same string or multipart text
 system/message forms. Anthropic thinking and image blocks remain rejected
 until their template/runtime semantics are available.
-Authenticated `GET /lora-adapters` truthfully reports an empty loaded-adapter
-list. `POST /lora-adapters` accepts the empty disable-all list and rejects
-non-empty activation because LoRA tensor execution is not implemented.
+Repeatable `--lora <adapter.gguf>` loads pinned-format LoRA adapters for the
+server, generator, perplexity, embedding, and benchmark commands. Server
+adapters start at scale 1 unless `--lora-init-without-apply` is set.
+Authenticated `GET /lora-adapters` reports `{id,path,scale}` entries;
+`POST /lora-adapters` atomically replaces global scales and disables omitted
+adapters. Alpha/rank scaling applies graph-wide to dense projections, grouped
+expert banks, token embeddings, and output projections across streamed,
+F32-preloaded, and native-quantized model paths. Native completion `lora`
+arrays override scales for one serialized generation and restore global state;
+prompt caches are isolated by adapter content and scale. A single enabled
+aLoRA activates at the last matching invocation-token sequence; prompt state
+before that sequence is evaluated with scale zero. Fused-MoE execution forms
+ephemeral adapted expert weights on device; this preserves request-local
+scales but adds a full expert-bank merge pass per graph.
 llama.cpp-compatible `POST /apply-template` returns
 the selected native chat prompt without inference. Authenticated
 `POST /tokenize` accepts text or a flat mixed token/string sequence, defaults

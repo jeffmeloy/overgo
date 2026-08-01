@@ -239,7 +239,7 @@ func (r *Runner) logitsBatch(
 		}
 		return r.finalizeLogits(result), nil
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	table, pointer, err := r.deviceInput(builder, outputInfo)
 	if err != nil {
 		return nil, err

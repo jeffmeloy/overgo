@@ -73,6 +73,8 @@ type GenerateOptions struct {
 	// retained prompt is reused
 	MinCacheReuse     int
 	OnPromptEvaluated func(PromptEvaluation)
+	LoRA              []LoRAScale
+	LoRAConfigured    bool
 }
 
 type LayerCache struct {
@@ -137,6 +139,7 @@ type Runner struct {
 	deviceWeights *model.DeviceF32Weights
 	rawWeights    *model.DeviceWeights
 	outputBias    []float32
+	loraAdapters  []loadedLoRA
 
 	mu                  sync.Mutex
 	closed              bool
@@ -148,10 +151,11 @@ type Runner struct {
 }
 
 type cachedPrompt struct {
-	Tokens []tokenizer.TokenID
-	Hidden reference.Value
-	Cache  *KVCache
-	Device *deviceKVCache
+	Tokens        []tokenizer.TokenID
+	Hidden        reference.Value
+	Cache         *KVCache
+	Device        *deviceKVCache
+	LoRASignature [32]byte
 }
 
 type OpenOptions struct {
@@ -161,6 +165,7 @@ type OpenOptions struct {
 	// PromptCacheEntries: bounds independently reusable prompt states
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
+	LoRAAdapters       []LoRAConfig
 }
 
 func Open(path string, deviceOrdinal int) (*Runner, error) {
@@ -198,6 +203,19 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	if err != nil {
 		return fail(err)
 	}
+	loraAdapters := make([]loadedLoRA, len(options.LoRAAdapters))
+	for index, configured := range options.LoRAAdapters {
+		if math.IsNaN(float64(configured.Scale)) || math.IsInf(float64(configured.Scale), 0) {
+			return fail(fmt.Errorf("inference: LoRA adapter %d scale is invalid", index))
+		}
+		adapter, loadErr := model.LoadLoRA(context.Background(), configured.Path, file, spec)
+		if loadErr != nil {
+			return fail(fmt.Errorf("inference: load LoRA adapter %d: %w", index, loadErr))
+		}
+		loraAdapters[index] = loadedLoRA{
+			adapter: adapter, scale: configured.Scale, signature: loRAStaticSignature(adapter),
+		}
+	}
 	var outputBias []float32
 	if weights.OutputBias != nil {
 		value, loadErr := model.LoadHostTensor(
@@ -233,10 +251,17 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		selected := selectedModelTensors(file, weights)
 		f32Tensors := selected
 		if options.PreloadQuantizedWeights {
+			adaptedTensors := make(map[string]struct{})
+			for _, loaded := range loraAdapters {
+				for name := range loaded.adapter.Weights {
+					adaptedTensors[name] = struct{}{}
+				}
+			}
 			f32Tensors = make([]gguf.TensorInfo, 0, len(selected))
 			var quantized []gguf.TensorInfo
 			for _, info := range selected {
-				if info.Type == dtype.Q4_0 ||
+				_, adapted := adaptedTensors[info.Name]
+				if !adapted && (info.Type == dtype.Q4_0 ||
 					info.Type == dtype.Q4_1 ||
 					info.Type == dtype.Q5_0 ||
 					info.Type == dtype.Q5_1 ||
@@ -262,7 +287,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 					info.Type == dtype.IQ4NL ||
 					info.Type == dtype.IQ4XS ||
 					info.Type == dtype.MXFP4 ||
-					info.Type == dtype.NVFP4 {
+					info.Type == dtype.NVFP4) {
 					quantized = append(quantized, info)
 				} else {
 					f32Tensors = append(f32Tensors, info)
@@ -307,6 +332,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		deviceWeights:       deviceWeights,
 		rawWeights:          rawWeights,
 		outputBias:          outputBias,
+		loraAdapters:        loraAdapters,
 		promptCacheCapacity: promptCacheCapacity,
 	}, nil
 }
@@ -1244,7 +1270,7 @@ func (r *Runner) forwardWavTokenizerLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("wavtokenizer.embeddings", dtype.F32, embeddings.Shape)
 	graphWeights, hostFeeds, deviceFeeds, err := r.wavTokenizerGraphInputs(ctx, builder)
 	if err != nil {
@@ -1301,7 +1327,7 @@ func (r *Runner) projectAllLogits(
 		}
 		return result, nil
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("non_causal.hidden", dtype.F32, hidden.Shape)
 	table, pointer, err := r.deviceInput(builder, outputInfo)
 	if err != nil {
@@ -1750,7 +1776,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	cache *KVCache,
 	nextCache *KVCache,
 ) (reference.Value, *KVCache, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("model.input", dtype.F32, activation.Shape)
 	current := input
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
@@ -1846,7 +1872,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	activation reference.Value,
 	positions []uint32,
 ) (reference.Value, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("model.input", dtype.F32, activation.Shape)
 	current := input
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
@@ -1903,7 +1929,7 @@ func (r *Runner) runT5EncoderLayer(
 	info model.LayerWeights,
 	layerIndex int,
 ) (reference.Value, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -1959,7 +1985,7 @@ func (r *Runner) runT5DecoderLayer(
 	layerIndex int,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -2039,7 +2065,7 @@ func (r *Runner) runT5EncoderOutputNorm(
 	if r.weights.EncoderOutputNorm == nil {
 		return reference.Value{}, errors.New("inference: T5 encoder output norm is missing")
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("enc.output_norm.input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	var (
@@ -2102,7 +2128,7 @@ func (r *Runner) runLayerCached(
 	if r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe" {
 		return r.runLFM2LayerCached(ctx, activation, info, layerIndex, positions, past)
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -2376,7 +2402,7 @@ func (r *Runner) runLFM2LayerCached(
 	positions []uint32,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -2454,7 +2480,7 @@ func (r *Runner) runDenseLayerNoCache(
 	layerIndex int,
 	positions []uint32,
 ) (reference.Value, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
@@ -2529,7 +2555,7 @@ func (r *Runner) runQwen35LayerCached(
 	positions []uint32,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -2656,7 +2682,7 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 		return activation, nil
 	}
 	if r.spec.UsesUnweightedLayerNorm() {
-		builder := tensor.NewBuilder()
+		builder := r.newGraphBuilder()
 		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
 		output := builder.LayerNorm(input, r.spec.LayerNormEpsilon)
 		feeds := map[*tensor.Tensor]reference.Value{input: activation}
@@ -2680,7 +2706,7 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 		return r.runUnweightedRMSNorm(ctx, activation)
 	}
 	if r.hasPreloadedWeights() {
-		builder := tensor.NewBuilder()
+		builder := r.newGraphBuilder()
 		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
 		weightInput, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
 		if err != nil {
@@ -2714,7 +2740,7 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 	if err != nil {
 		return reference.Value{}, err
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
 	weightInput := builder.Input("output_norm.weight", dtype.F32, weight.Shape)
 	feeds := map[*tensor.Tensor]reference.Value{
@@ -2745,7 +2771,7 @@ func (r *Runner) runUnweightedRMSNorm(
 	ctx context.Context,
 	activation reference.Value,
 ) (reference.Value, error) {
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("rms_norm.input", dtype.F32, activation.Shape)
 	output := builder.RMSNorm(input, r.spec.RMSNormEpsilon)
 	feeds := map[*tensor.Tensor]reference.Value{input: activation}
@@ -2828,9 +2854,38 @@ func (r *Runner) Generate(
 	if r.closed {
 		return nil, "", errors.New("inference: runner is closed")
 	}
+	if options.LoRAConfigured {
+		next, err := validatedLoRAScales(len(r.loraAdapters), options.LoRA)
+		if err != nil {
+			return nil, "", err
+		}
+		previous := make([]float32, len(r.loraAdapters))
+		for index := range r.loraAdapters {
+			previous[index] = r.loraAdapters[index].scale
+			r.loraAdapters[index].scale = next[index]
+		}
+		defer func() {
+			for index := range r.loraAdapters {
+				r.loraAdapters[index].scale = previous[index]
+			}
+		}()
+	}
 	ids, err := r.promptTokenIDs(prompt, options)
 	if err != nil {
 		return nil, "", err
+	}
+	aloraID, aloraStart, err := r.activeALoRA(ids)
+	if err != nil {
+		return nil, "", err
+	}
+	var aloraScale float32
+	if aloraID >= 0 {
+		aloraScale = r.loraAdapters[aloraID].scale
+		defer func() { r.loraAdapters[aloraID].scale = aloraScale }()
+		options.CachePrompt = false
+		if aloraStart < 0 {
+			r.loraAdapters[aloraID].scale = 0
+		}
 	}
 	keepTokens := effectiveKeepTokens(
 		options.KeepTokens,
@@ -2845,7 +2900,7 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
-	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
+	useDeviceCache := aloraID < 0 && r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "gemma3n" &&
 		r.spec.Architecture != "plm" &&
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
@@ -2949,6 +3004,15 @@ func (r *Runner) Generate(
 					deviceCache = nextDevice
 				}
 			}
+		} else if aloraID >= 0 && aloraStart >= 0 {
+			r.loraAdapters[aloraID].scale = 0
+			if aloraStart > 0 {
+				_, cache, err = r.forwardCachedLocked(ctx, ids[:aloraStart], nil)
+			}
+			r.loraAdapters[aloraID].scale = aloraScale
+			if err == nil {
+				hidden, cache, err = r.forwardCachedLocked(ctx, ids[aloraStart:], cache)
+			}
 		} else if options.CachePrompt {
 			selectedPromptCache, cached = r.selectPromptCache(
 				ids,
@@ -2988,10 +3052,11 @@ func (r *Runner) Generate(
 		}
 		if options.CachePrompt {
 			nextPromptCache := &cachedPrompt{
-				Tokens: append([]tokenizer.TokenID(nil), ids...),
-				Hidden: hidden,
-				Cache:  cache,
-				Device: deviceCache,
+				Tokens:        append([]tokenizer.TokenID(nil), ids...),
+				Hidden:        hidden,
+				Cache:         cache,
+				Device:        deviceCache,
+				LoRASignature: r.currentLoRASignature(),
 			}
 			if storeErr := r.storePromptCache(
 				ctx,
@@ -3251,7 +3316,7 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	if err != nil {
 		return nil, fmt.Errorf("inference: load Gemma per-layer embeddings: %w", err)
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("gemma4.per_layer.input", dtype.F32, activation.Shape)
 	selectedInput := builder.Input("gemma4.per_layer.selected", dtype.F32, selected.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{
@@ -3314,9 +3379,13 @@ func (r *Runner) loadRows(
 	rows []uint32,
 ) (reference.Value, error) {
 	if !r.hasPreloadedWeights() {
-		return model.LoadHostRows(ctx, r.file, info, rows)
+		value, err := model.LoadHostRows(ctx, r.file, info, rows)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		return r.applyLoRAEmbeddingRows(info.Name, rows, value)
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	table, pointer, err := r.deviceInput(builder, info)
 	if err != nil {
 		return reference.Value{}, err
@@ -3399,7 +3468,7 @@ func (r *Runner) applyTokenEmbeddingNorm(
 	if r.weights.TokenEmbeddingNorm == nil {
 		return activation, nil
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	input := builder.Input("token_embd_norm.input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -3471,13 +3540,16 @@ func (r *Runner) logits(
 		if err != nil {
 			return nil, err
 		}
+		if err := r.applyLoRALogits(outputInfo.Name, hidden, logits); err != nil {
+			return nil, err
+		}
 		if err := addOutputBias(logits, r.outputBias); err != nil {
 			return nil, err
 		}
 		scaleLogits(logits, r.spec.OutputLogitMultiplier())
 		return r.finalizeLogits(logits), nil
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	table, pointer, err := r.deviceInput(builder, outputInfo)
 	if err != nil {
 		return nil, err

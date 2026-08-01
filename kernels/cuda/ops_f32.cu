@@ -1290,6 +1290,31 @@ __device__ float moe_expert_value(
         size_t index,
         unsigned int storage);
 
+extern "C" __global__ void lora_merge_f32(
+		const float * base,
+		const float * a,
+		const float * b,
+		float * output,
+		unsigned int inner,
+		unsigned int rows,
+		unsigned int rank,
+		unsigned int groups,
+		float scale,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) return;
+	const unsigned int column = index % inner;
+	const unsigned int row = (index / inner) % rows;
+	const unsigned int group = index / (inner * rows);
+	float delta = 0.0f;
+	for (unsigned int component = 0; component < rank; ++component) {
+		const size_t a_index = ((size_t) group * rank + component) * inner + column;
+		const size_t b_index = ((size_t) group * rows + row) * rank + component;
+		delta += a[a_index] * b[b_index];
+	}
+	output[index] = base[index] + scale * delta;
+}
+
 extern "C" __global__ void moe_f32(
         const float * input,
 		const float * router_input,

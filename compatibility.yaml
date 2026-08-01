@@ -616,12 +616,41 @@ server:
       - images
       - tool-aware-jinja-context
   lora_adapters:
-    discovery: empty-loaded-list
-    disable_all_post: true
+    startup:
+      flag: --lora
+      repeatable: true
+      default_scale: 1
+      disable_initial_apply_flag: --lora-init-without-apply
+    discovery: loaded-id-path-scale-list
+    global_scale_post: replace-all
+    omitted_adapter: disabled
+    application:
+      formula: base*x+scale*B*(A*x)
+      alpha_over_rank: true
+      multiple_adapters: additive
+      projections:
+        - dense-mulmat
+        - grouped-expert-mulmat
+        - token-embedding-rows
+        - output-logits
+      weight_modes:
+        - streamed
+        - preloaded-f32
+        - native-quantized
+    lifecycle:
+      prompt-cache-invalidation: scale-change
+      per-request-scale-restore: true
+      per-request-prompt-cache-isolation: adapter-signature
+      session-fingerprint: adapter-content-and-scale
+    alora:
+      activation: last-invocation-token-sequence
+      pre-invocation-scale: 0
+      unmatched-request-scale: 0
+      maximum-simultaneous-enabled: 1
+      prompt-cache-retention: disabled-for-split-evaluation
     limitations:
-      - adapter-loading
-      - tensor-application
-      - nonzero-scaling
+      - real-model-differential-fixture
+      - fused-moe-ephemeral-full-weight-merge
   props:
     method: GET
     mutable: false
@@ -739,7 +768,6 @@ server:
       split_prompt_decode_timings: true
     limitations:
       - multimodal-prompt-objects
-      - per-request-lora
   openai_completion:
     route: /v1/completions
     prompt_shapes:

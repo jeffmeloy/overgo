@@ -41,6 +41,12 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 		if node.Op == tensor.OpInput {
 			value, ok := feeds[node]
 			if !ok {
+				if embedded, embeddedOK := node.Attrs.(tensor.EmbeddedInputAttributes); embeddedOK {
+					value = Value{Shape: node.Shape, Data: embedded.Data}
+					ok = true
+				}
+			}
+			if !ok {
 				return nil, fmt.Errorf("missing feed for input %q", node.Name)
 			}
 			if !value.Shape.Equal(node.Shape) {
@@ -257,6 +263,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid MoE attributes")
 		}
 		return moe(node.Shape, inputs, attributes)
+	case tensor.OpLoRAMerge:
+		attributes, ok := node.Attrs.(tensor.LoRAMergeAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid LoRA merge attributes")
+		}
+		return loraMerge(node.Shape, inputs, attributes)
 	case tensor.OpRepeatHeads:
 		attributes, ok := node.Attrs.(tensor.RepeatHeadsAttributes)
 		if !ok || attributes.Heads == 0 {
@@ -330,6 +342,37 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	default:
 		return Value{}, fmt.Errorf("unsupported operation %s", node.Op)
 	}
+}
+
+func loraMerge(shape tensor.Shape, inputs []Value, attributes tensor.LoRAMergeAttributes) (Value, error) {
+	if len(inputs) != 3 || math.IsNaN(float64(attributes.Scale)) || math.IsInf(float64(attributes.Scale), 0) {
+		return Value{}, errors.New("LoRA merge input count is invalid")
+	}
+	base := inputs[0]
+	output := append([]float32(nil), base.Data...)
+	k, m, groups := int(shape.Dims[0]), int(shape.Dims[1]), 1
+	if shape.Rank == 3 {
+		groups = int(shape.Dims[2])
+	}
+	a, b := inputs[1], inputs[2]
+	rank := int(a.Shape.Dims[1])
+	if k <= 0 || m <= 0 || rank <= 0 || len(a.Data) != k*rank*groups || len(b.Data) != rank*m*groups {
+		return Value{}, errors.New("LoRA merge pair shape is invalid")
+	}
+	for group := 0; group < groups; group++ {
+		for row := 0; row < m; row++ {
+			for column := 0; column < k; column++ {
+				var delta float64
+				for inner := 0; inner < rank; inner++ {
+					aIndex := (group*rank+inner)*k + column
+					bIndex := (group*m+row)*rank + inner
+					delta += float64(a.Data[aIndex]) * float64(b.Data[bIndex])
+				}
+				output[(group*m+row)*k+column] += attributes.Scale * float32(delta)
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
 }
 
 func conv1DSame(shape tensor.Shape, input, weight, bias Value, depthwise bool) (Value, error) {

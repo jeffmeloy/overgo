@@ -144,6 +144,11 @@ type ModelPropertiesAPI interface {
 	ModelProperties() inference.ModelProperties
 }
 
+type LoRAControlAPI interface {
+	LoRAAdapters() []inference.LoRAAdapterInfo
+	SetLoRAScales([]inference.LoRAScale) error
+}
+
 type DeviceMemoryAPI interface {
 	DeviceMemoryStats(context.Context) (driver.MemoryStats, error)
 }
@@ -795,15 +800,16 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
+		if controller, ok := h.generator.(LoRAControlAPI); ok {
+			writeJSON(response, http.StatusOK, controller.LoRAAdapters())
+			return
+		}
 		writeJSON(response, http.StatusOK, []any{})
 	case http.MethodPost:
 		request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
 		decoder := json.NewDecoder(request.Body)
 		decoder.DisallowUnknownFields()
-		var adapters []struct {
-			ID    int     `json:"id"`
-			Scale float32 `json:"scale"`
-		}
+		var adapters []inference.LoRAScale
 		if err := decoder.Decode(&adapters); err != nil {
 			writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
 			return
@@ -812,7 +818,8 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 			return
 		}
-		if len(adapters) != 0 {
+		controller, ok := h.generator.(LoRAControlAPI)
+		if !ok && len(adapters) != 0 {
 			writeError(
 				response,
 				http.StatusNotImplemented,
@@ -820,6 +827,12 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 				"LoRA adapter loading and execution are unavailable",
 			)
 			return
+		}
+		if ok {
+			if err := controller.SetLoRAScales(adapters); err != nil {
+				writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+				return
+			}
 		}
 		writeJSON(response, http.StatusOK, map[string]bool{"success": true})
 	default:
@@ -2119,6 +2132,11 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	lora, loraConfigured, err := h.parseRequestLoRA(body.LoRA)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
 	if err := prepareStructuredOutput(
 		&body.samplingParameters,
 		body.JSONSchema,
@@ -2205,6 +2223,8 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 			body.NIndent,
 			body.NProbs,
 			body.PostSamplingProbs,
+			lora,
+			loraConfigured,
 		)
 		return
 	}
@@ -2238,6 +2258,8 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 				body.NDiscard,
 				body.CachePrompt != nil && *body.CachePrompt,
 				body.NCacheReuse,
+				lora,
+				loraConfigured,
 			)
 			if generationErr != nil {
 				writeGenerationError(response, generationErr)
@@ -2442,8 +2464,6 @@ func validateNativeCompletionOptions(body nativeCompletionRequest) error {
 			len(body.GrammarTriggerPatterns) > 0 ||
 			len(body.GrammarTriggerTokens) > 0):
 		return errors.New("json_schema cannot be combined with grammar options")
-	case len(body.LoRA) != 0 && string(body.LoRA) != "null":
-		return errors.New("per-request lora is not supported")
 	default:
 		for index, path := range body.ResponseFields {
 			if len(path) > 256 {
@@ -2455,6 +2475,45 @@ func validateNativeCompletionOptions(body nativeCompletionRequest) error {
 		}
 		return nil
 	}
+}
+
+func (h *Handler) parseRequestLoRA(raw json.RawMessage) ([]inference.LoRAScale, bool, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, false, nil
+	}
+	controller, ok := h.generator.(LoRAControlAPI)
+	if !ok {
+		return nil, false, errors.New("per-request lora is unavailable")
+	}
+	decoder := json.NewDecoder(strings.NewReader(trimmed))
+	decoder.DisallowUnknownFields()
+	var requested []inference.LoRAScale
+	if err := decoder.Decode(&requested); err != nil {
+		return nil, false, fmt.Errorf("invalid lora: %w", err)
+	}
+	if err := requireEOF(decoder); err != nil {
+		return nil, false, err
+	}
+	loaded := controller.LoRAAdapters()
+	valid := make(map[int]struct{}, len(loaded))
+	for _, adapter := range loaded {
+		valid[adapter.ID] = struct{}{}
+	}
+	seen := make(map[int]struct{}, len(requested))
+	for _, adapter := range requested {
+		if _, exists := valid[adapter.ID]; !exists {
+			return nil, false, fmt.Errorf("lora adapter ID %d is not loaded", adapter.ID)
+		}
+		if _, duplicate := seen[adapter.ID]; duplicate {
+			return nil, false, fmt.Errorf("lora adapter ID %d is duplicated", adapter.ID)
+		}
+		if math.IsNaN(float64(adapter.Scale)) || math.IsInf(float64(adapter.Scale), 0) {
+			return nil, false, fmt.Errorf("lora adapter ID %d scale is invalid", adapter.ID)
+		}
+		seen[adapter.ID] = struct{}{}
+	}
+	return requested, true, nil
 }
 
 func nativeJSONSchemaConfigured(value json.RawMessage) bool {
@@ -2656,6 +2715,8 @@ func (h *Handler) runNativeCompletion(
 	nDiscard int,
 	cachePrompt bool,
 	minCacheReuse int,
+	lora []inference.LoRAScale,
+	loraConfigured bool,
 ) (nativeCompletionResponse, error) {
 	started := time.Now()
 	var output strings.Builder
@@ -2696,6 +2757,8 @@ func (h *Handler) runNativeCompletion(
 			PromptTokenIDs: prompt.TokenIDs,
 			CachePrompt:    cachePrompt,
 			MinCacheReuse:  minCacheReuse,
+			LoRA:           lora,
+			LoRAConfigured: loraConfigured,
 			PostSamplingProbabilities: func() int {
 				if postSamplingProbabilities {
 					return nProbs
@@ -3112,6 +3175,8 @@ func (h *Handler) streamNativeCompletion(
 	nIndent int,
 	nProbs int,
 	postSamplingProbabilities bool,
+	lora []inference.LoRAScale,
+	loraConfigured bool,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -3176,6 +3241,8 @@ func (h *Handler) streamNativeCompletion(
 				nDiscard,
 				cachePrompt,
 				minCacheReuse,
+				lora,
+				loraConfigured,
 			)
 			if err != nil {
 				_ = stream.write(errorEnvelope("generation_error", err.Error()))

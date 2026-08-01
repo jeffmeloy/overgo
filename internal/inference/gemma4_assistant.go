@@ -86,7 +86,7 @@ func (r *Runner) AdvanceGemma4Assistant(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	builder := tensor.NewBuilder()
+	builder := r.newGraphBuilder()
 	tokenInput := builder.Input("gemma4_assistant.target_token", dtype.F32, targetEmbedding.Shape)
 	hiddenInput := builder.Input("gemma4_assistant.target_hidden", dtype.F32, session.PendingHidden.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{

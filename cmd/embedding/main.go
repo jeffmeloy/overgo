@@ -32,16 +32,29 @@ func run() error {
 	pooling := flags.String("pooling", "mean", "pooling: mean, last, or none")
 	normalize := flags.Int("normalize", -1, "embedding normalization: -1 none, 0 max-absolute, or p-norm")
 	dimensions := flags.Int("dimensions", 0, "limit emitted embedding dimensions (0 = all)")
+	var loraPaths []string
+	flags.Func("lora", "load GGUF LoRA adapter at scale 1; repeatable", func(value string) error {
+		if value == "" {
+			return errors.New("LoRA path is empty")
+		}
+		loraPaths = append(loraPaths, value)
+		return nil
+	})
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	if *modelPath == "" {
 		return errors.New("-model is required")
 	}
+	loraAdapters := make([]inference.LoRAConfig, len(loraPaths))
+	for index, path := range loraPaths {
+		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: 1}
+	}
 	runner, err := inference.OpenWithOptions(*modelPath, inference.OpenOptions{
 		DeviceOrdinal:           *device,
 		PreloadDeviceWeights:    *preloadF32,
 		PreloadQuantizedWeights: *nativeQuant,
+		LoRAAdapters:            loraAdapters,
 	})
 	if err != nil {
 		return err

@@ -30,6 +30,74 @@ func TestAllZeroFloat32(t *testing.T) {
 	}
 }
 
+func TestExecutorLoRAMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	builder.SetLoRA(map[string][]tensor.LoRADefinition{
+		"projection": {{
+			AName: "adapter.projection.lora_a", BName: "adapter.projection.lora_b",
+			AShape: tensor.MustShape(2, 1), BShape: tensor.MustShape(1, 2),
+			AData: []float32{2, 3}, BData: []float32{4, 5}, Scale: 0.5,
+		}},
+		"token_embd.weight": {{
+			AName: "adapter.token.lora_a", BName: "adapter.token.lora_b",
+			AShape: tensor.MustShape(1, 3), BShape: tensor.MustShape(1, 2),
+			AData: []float32{7, 11, 13}, BData: []float32{2, 3}, Scale: 0.25, Embedding: true,
+		}},
+		"up": {
+			{
+				AName: "adapter.0.up.lora_a", BName: "adapter.0.up.lora_b",
+				AShape: tensor.MustShape(2, 1, 1), BShape: tensor.MustShape(1, 1, 1),
+				AData: []float32{1, 1}, BData: []float32{2}, Scale: 1,
+			},
+			{
+				AName: "adapter.1.up.lora_a", BName: "adapter.1.up.lora_b",
+				AShape: tensor.MustShape(2, 1, 1), BShape: tensor.MustShape(1, 1, 1),
+				AData: []float32{1, 0}, BData: []float32{1}, Scale: 1,
+			},
+		},
+	})
+	projection := builder.Input("projection", dtype.F32, tensor.MustShape(2, 2))
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	table := builder.Input("token_embd.weight", dtype.F32, tensor.MustShape(2, 3))
+	outputs := []*tensor.Tensor{
+		builder.MulMat(projection, input),
+		builder.GetRows(table, []uint32{1}),
+	}
+	moeRouter := builder.Input("router", dtype.F32, tensor.MustShape(2, 1))
+	moeGate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
+	moeUp := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
+	moeDown := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
+	outputs = append(outputs, builder.MoE(input, moeRouter, moeGate, moeUp, moeDown, 1, false, 1))
+	feeds := map[*tensor.Tensor]reference.Value{
+		projection: {Shape: projection.Shape, Data: []float32{1, 0, 0, 1}},
+		input:      {Shape: input.Shape, Data: []float32{1, 2}},
+		table:      {Shape: table.Shape, Data: []float32{1, 2, 3, 4, 5, 6}},
+		moeRouter:  {Shape: moeRouter.Shape, Data: []float32{0, 0}},
+		moeGate:    {Shape: moeGate.Shape, Data: []float32{1, 0}},
+		moeUp:      {Shape: moeUp.Shape, Data: []float32{0, 0}},
+		moeDown:    {Shape: moeDown.Shape, Data: []float32{1, 2}},
+	}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 1e-5)
+	}
+}
+
 func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

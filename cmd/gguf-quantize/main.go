@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/quant"
 	"llamacpp2go/internal/tensor/dtype"
 )
 
@@ -18,11 +19,12 @@ func main() {
 		false,
 		"convert eligible one-dimensional tensors as well as matrices",
 	)
+	imatrixPath := flag.String("imatrix", "", "pinned GGUF or legacy importance matrix")
 	flag.Parse()
 	if flag.NArg() != 3 {
 		fmt.Fprintln(
 			os.Stderr,
-			"usage: gguf-quantize [-all] input.gguf output.gguf type",
+			"usage: gguf-quantize [-all] [-imatrix file] input.gguf output.gguf type",
 		)
 		os.Exit(2)
 	}
@@ -31,7 +33,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	report, err := quantizeModel(flag.Arg(0), flag.Arg(1), target, *all)
+	report, err := quantizeModel(flag.Arg(0), flag.Arg(1), target, *all, *imatrixPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -49,6 +51,7 @@ func quantizeModel(
 	inputPath, outputPath string,
 	target dtype.Type,
 	all bool,
+	imatrixPath string,
 ) (gguf.QuantizeReport, error) {
 	inputAbsolute, err := filepath.Abs(inputPath)
 	if err != nil {
@@ -71,6 +74,27 @@ func quantizeModel(
 		)
 	}
 	defer source.Close()
+	options := gguf.QuantizeOptions{}
+	imatrixPath = strings.TrimSpace(imatrixPath)
+	if quant.RequiresImportance(target) && imatrixPath == "" {
+		return gguf.QuantizeReport{}, fmt.Errorf("gguf-quantize: %s requires -imatrix", target)
+	}
+	if imatrixPath != "" && !quant.RequiresImportance(target) {
+		return gguf.QuantizeReport{}, fmt.Errorf("gguf-quantize: -imatrix is unsupported for %s", target)
+	}
+	if imatrixPath != "" {
+		matrix, loadErr := gguf.LoadImportanceMatrix(imatrixPath)
+		if loadErr != nil {
+			return gguf.QuantizeReport{}, fmt.Errorf("gguf-quantize: load imatrix: %w", loadErr)
+		}
+		options.Importance = matrix.Entries
+		options.ImportanceFile = imatrixPath
+		options.ImportanceDatasets = matrix.Datasets
+		options.ImportanceChunkCount = matrix.ChunkCount
+	}
+	if all {
+		options.ShouldQuantize = eligibleTensor
+	}
 
 	destination, err := os.OpenFile(
 		outputAbsolute,
@@ -90,10 +114,6 @@ func quantizeModel(
 			_ = os.Remove(outputAbsolute)
 		}
 	}()
-	options := gguf.QuantizeOptions{}
-	if all {
-		options.ShouldQuantize = eligibleTensor
-	}
 	report, err := source.QuantizeTo(destination, target, options)
 	if err != nil {
 		return report, fmt.Errorf("gguf-quantize: write output: %w", err)
@@ -147,6 +167,10 @@ func parseQuantizationType(value string) (dtype.Type, error) {
 		"iq4_nl":  dtype.IQ4NL,
 		"iq4_xs":  dtype.IQ4XS,
 		"iq2_s":   dtype.IQ2S,
+		"iq2_xxs": dtype.IQ2XXS,
+		"iq2_xs":  dtype.IQ2XS,
+		"iq1_s":   dtype.IQ1S,
+		"iq1_m":   dtype.IQ1M,
 		"iq3_xxs": dtype.IQ3XXS,
 		"iq3_s":   dtype.IQ3S,
 	}
@@ -154,7 +178,7 @@ func parseQuantizationType(value string) (dtype.Type, error) {
 		return dataType, nil
 	}
 	return 0, fmt.Errorf(
-		"gguf-quantize: unsupported type %q (use f32, f16, bf16, q1_0, q2_0, q4_0, q4_1, q5_0, q5_1, q8_0, q2_k, q3_k, q4_k, q5_k, q6_k, tq1_0, tq2_0, iq2_s, iq3_xxs, iq3_s, iq4_nl, iq4_xs, mxfp4, or nvfp4)",
+		"gguf-quantize: unsupported type %q (use f32, f16, bf16, q1_0, q2_0, q4_0, q4_1, q5_0, q5_1, q8_0, q2_k, q3_k, q4_k, q5_k, q6_k, tq1_0, tq2_0, iq1_s, iq1_m, iq2_xxs, iq2_xs, iq2_s, iq3_xxs, iq3_s, iq4_nl, iq4_xs, mxfp4, or nvfp4)",
 		value,
 	)
 }

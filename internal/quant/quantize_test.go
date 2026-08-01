@@ -85,6 +85,33 @@ func TestQuantizeMatchesPinnedGGMLReference(t *testing.T) {
 	}
 }
 
+func TestQuantizeWeightedMatchesPinnedGGMLHashes(t *testing.T) {
+	values := quantizeOracleValues(256)
+	weights := make([]float32, len(values))
+	for index := range weights {
+		weights[index] = 0.25 + float32((index*29)%37)/11
+	}
+	for _, test := range []struct {
+		dataType dtype.Type
+		wantHash string
+	}{
+		{dtype.IQ2XXS, "2ed52c0109f6a017e95e9d17f65cabde3db251b8e261a90ae698a056a29bc25c"},
+		{dtype.IQ2XS, "46cf4456f536442a4f919b5a35a056462aa89b5ff387f5b1a7df1fa277b98e42"},
+		{dtype.IQ1S, "99c2478dab6e056c02b459562c0f0c4462662c7f2761d2d51322c24d1c2b070c"},
+		{dtype.IQ1M, "c4b106d3d0afb73bc8a07960a220946c8c4f44a87039074d8be9dc6a510dc6db"},
+	} {
+		t.Run(test.dataType.String(), func(t *testing.T) {
+			output, err := QuantizeWeighted(test.dataType, values, weights)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := hashHex(output); got != test.wantHash {
+				t.Fatalf("SHA256 = %s, want %s", got, test.wantHash)
+			}
+		})
+	}
+}
+
 func TestQuantizeScalarStorage(t *testing.T) {
 	values := []float32{-2.5, 0, 1.25, float32(math.Inf(1))}
 	f32, err := Quantize(dtype.F32, values)
@@ -131,7 +158,15 @@ func TestQuantizeErrors(t *testing.T) {
 		t.Fatal("expected non-finite input error")
 	}
 	if _, err := Quantize(dtype.IQ2XXS, make([]float32, 256)); err == nil {
-		t.Fatal("expected unsupported encoder error")
+		t.Fatal("expected missing importance error")
+	}
+	if _, err := QuantizeWeighted(dtype.IQ2XXS, make([]float32, 256), make([]float32, 255)); err == nil {
+		t.Fatal("expected importance length error")
+	}
+	weights := make([]float32, 256)
+	weights[7] = -1
+	if _, err := QuantizeWeighted(dtype.IQ2XXS, make([]float32, 256), weights); err == nil {
+		t.Fatal("expected negative importance error")
 	}
 }
 

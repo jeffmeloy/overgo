@@ -10,9 +10,28 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
-// Quantize: converts F32 values into deterministic pinned GGML storage
-// layout; initial encoder set covers common classic block formats
+// Quantize: deterministic pinned GGML storage conversion.
 func Quantize(dataType dtype.Type, values []float32) ([]byte, error) {
+	return quantize(dataType, values, nil)
+}
+
+// QuantizeWeighted: importance-weighted pinned GGML storage conversion.
+func QuantizeWeighted(dataType dtype.Type, values, weights []float32) ([]byte, error) {
+	if !RequiresImportance(dataType) {
+		return nil, fmt.Errorf("weighted quantization to %s is not implemented", dataType)
+	}
+	if len(weights) != len(values) {
+		return nil, fmt.Errorf("importance count %d differs from element count %d", len(weights), len(values))
+	}
+	for index, weight := range weights {
+		if !finiteFloat32(weight) || weight < 0 {
+			return nil, fmt.Errorf("importance weight %d is invalid", index)
+		}
+	}
+	return quantize(dataType, values, weights)
+}
+
+func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 	traits, ok := dataType.Traits()
 	if !ok {
 		return nil, fmt.Errorf("unknown tensor type %d", dataType)
@@ -105,6 +124,20 @@ func Quantize(dataType dtype.Type, values []float32) ([]byte, error) {
 		if err := quantizeIQ2S(values, output); err != nil {
 			return nil, err
 		}
+	case dtype.IQ2XXS, dtype.IQ2XS:
+		if weights == nil {
+			return nil, fmt.Errorf("quantization to %s requires importance weights", dataType)
+		}
+		if err := quantizeIQ2Weighted(dataType, values, weights, output); err != nil {
+			return nil, err
+		}
+	case dtype.IQ1S, dtype.IQ1M:
+		if weights == nil {
+			return nil, fmt.Errorf("quantization to %s requires importance weights", dataType)
+		}
+		if err := quantizeIQ1Weighted(dataType, values, weights, output); err != nil {
+			return nil, err
+		}
 	case dtype.IQ3XXS, dtype.IQ3S:
 		if err := quantizeIQ3(dataType, values, output); err != nil {
 			return nil, err
@@ -115,7 +148,7 @@ func Quantize(dataType dtype.Type, values []float32) ([]byte, error) {
 	return output, nil
 }
 
-// CanQuantize: reports whether Quantize implements destination layout
+// CanQuantize: supported destination check.
 func CanQuantize(dataType dtype.Type) bool {
 	switch dataType {
 	case dtype.F32,
@@ -141,9 +174,23 @@ func CanQuantize(dataType dtype.Type) bool {
 		dtype.NVFP4,
 		dtype.IQ4NL,
 		dtype.IQ4XS,
+		dtype.IQ2XXS,
+		dtype.IQ2XS,
 		dtype.IQ2S,
+		dtype.IQ1S,
+		dtype.IQ1M,
 		dtype.IQ3XXS,
 		dtype.IQ3S:
+		return true
+	default:
+		return false
+	}
+}
+
+// RequiresImportance: destination requires explicit element weights.
+func RequiresImportance(dataType dtype.Type) bool {
+	switch dataType {
+	case dtype.IQ2XXS, dtype.IQ2XS, dtype.IQ1S, dtype.IQ1M:
 		return true
 	default:
 		return false
@@ -2086,8 +2133,7 @@ func roundFloat32(value float32) float32 {
 	return float32(math.Round(float64(value)))
 }
 
-// Float32ToFloat16: converts IEEE 754 binary32 value to binary16 using
-// round-to-nearest, ties-to-even
+// Float32ToFloat16: binary16 round-to-nearest-even.
 func Float32ToFloat16(value float32) uint16 {
 	bits32 := math.Float32bits(value)
 	sign := uint16(bits32>>16) & 0x8000

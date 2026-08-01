@@ -173,7 +173,109 @@ func TestQuantizeToStreamsRequantization(t *testing.T) {
 	assertTensorData(t, output, "large.weight", DTypeQ5_1, want)
 }
 
-func TestQuantizeToRejectsUnsupportedOrForcedMisalignedTargets(t *testing.T) {
+func TestQuantizeToMapsExpertImportanceAndWritesProvenance(t *testing.T) {
+	const name = "blk.0.ffn_up_exps.weight"
+	values := quantizeFixtureValues(256 * 2 * 2)
+	importance := make([]float32, 256*2)
+	for index := range importance {
+		importance[index] = 0.25 + float32((index*17)%29)/9
+	}
+	var encoded bytes.Buffer
+	if err := Write(
+		&encoded,
+		[]Metadata{{
+			Key:   "quantize.imatrix.file",
+			Value: Value{Type: ValueTypeString, Data: "stale.dat"},
+		}},
+		[]TensorData{{
+			Name:  name,
+			Shape: []uint64{256, 2, 2},
+			Type:  DTypeF32,
+			Data:  bytes.NewReader(float32Bytes(values)),
+		}},
+		WriteOptions{},
+	); err != nil {
+		t.Fatal(err)
+	}
+	source, err := Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outputData bytes.Buffer
+	report, err := source.QuantizeTo(&outputData, DTypeIQ2XXS, QuantizeOptions{
+		Importance:           map[string][]float32{name: importance},
+		ImportanceFile:       "fixture-imatrix.gguf",
+		ImportanceDatasets:   []string{"fixture", "ignored"},
+		ImportanceChunkCount: 7,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Converted != 1 || report.Preserved != 0 {
+		t.Fatalf("report = %#v", report)
+	}
+	output, err := Parse(bytes.NewReader(outputData.Bytes()), uint64(outputData.Len()), DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	expanded := make([]float32, len(values))
+	for row := 0; row < 4; row++ {
+		expert := row / 2
+		copy(expanded[row*256:(row+1)*256], importance[expert*256:(expert+1)*256])
+	}
+	want, err := quant.QuantizeWeighted(DTypeIQ2XXS, values, expanded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertTensorData(t, output, name, DTypeIQ2XXS, want)
+	for key, expected := range map[string]any{
+		"quantize.imatrix.file":          "fixture-imatrix.gguf",
+		"quantize.imatrix.dataset":       "fixture",
+		"quantize.imatrix.entries_count": int64(1),
+		"quantize.imatrix.chunks_count":  int64(7),
+	} {
+		value, ok := output.MetadataValue(key)
+		if !ok || value.Data != expected {
+			t.Fatalf("%s = %#v, present=%v", key, value, ok)
+		}
+	}
+}
+
+func TestQuantizeToRequiresImportanceExceptOptionalWeights(t *testing.T) {
+	for _, name := range []string{"blk.0.attn_q.weight", "token_embd.weight", "output.weight"} {
+		t.Run(name, func(t *testing.T) {
+			values := quantizeFixtureValues(256)
+			var encoded bytes.Buffer
+			if err := Write(&encoded, nil, []TensorData{{
+				Name: name, Shape: []uint64{256, 1}, Type: DTypeF32,
+				Data: bytes.NewReader(float32Bytes(values)),
+			}}, WriteOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			source, err := Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var output bytes.Buffer
+			report, err := source.QuantizeTo(&output, DTypeIQ1S, QuantizeOptions{})
+			optional := optionalImportanceTensor(name)
+			if !optional {
+				if err == nil || !strings.Contains(err.Error(), "requires importance") {
+					t.Fatalf("error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Converted != 0 || report.Preserved != 1 {
+				t.Fatalf("report = %#v", report)
+			}
+		})
+	}
+}
+
+func TestQuantizeToRejectsForcedMisalignedTarget(t *testing.T) {
 	values := quantizeFixtureValues(62)
 	var encoded bytes.Buffer
 	if err := Write(
@@ -196,13 +298,6 @@ func TestQuantizeToRejectsUnsupportedOrForcedMisalignedTargets(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if _, err := source.QuantizeTo(
-		&bytes.Buffer{},
-		DTypeIQ2XXS,
-		QuantizeOptions{},
-	); err == nil || !strings.Contains(err.Error(), "not implemented") {
-		t.Fatalf("unsupported target error = %v", err)
 	}
 	if _, err := source.QuantizeTo(
 		&bytes.Buffer{},

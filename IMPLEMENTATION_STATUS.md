@@ -123,9 +123,10 @@
   and file-error exit states.
 - The pure-Go model quantizer streams source blocks through the complete host
   dequantizer into pinned-layout Q1_0, Q2_0, Q2_K-Q6_K, Q4_0/Q4_1,
-  Q5_0/Q5_1, Q8_0, TQ1_0/TQ2_0, IQ2_S, IQ3_XXS/IQ3_S,
-  IQ4_NL/IQ4_XS, or MXFP4/NVFP4 encoders, with F32/F16/BF16 destinations as
-  well. All 23 packed encoders, including internal Q8_1 and Q8_K layouts,
+  Q5_0/Q5_1, Q8_0, TQ1_0/TQ2_0, IQ1_S/IQ1_M,
+  IQ2_XXS/IQ2_XS/IQ2_S, IQ3_XXS/IQ3_S, IQ4_NL/IQ4_XS, or MXFP4/NVFP4
+  encoders, with F32/F16/BF16 destinations as well. All 27 packed encoders,
+  including internal Q8_1 and Q8_K layouts,
   byte-match exported reference routines from the pinned
   `ggml-base.dll`; multi-chunk requantization, "mostly" matrix selection,
   metadata rewriting, split input, exclusive output creation, and upstream
@@ -787,16 +788,17 @@ local GGUF fixture. Prefix shifts and suffix trims remain available;
 non-contiguous middle-range cache deletion is rejected because compressed
 block positions cannot be preserved exactly.
 
-### Deferred: importance-matrix-only IQ encoders
+### Implemented: importance-weighted IQ encoders
 
-The pinned IQ1_S, IQ1_M, IQ2_XXS, and IQ2_XS row quantizers do not expose
-values-only reference encoders. Their production paths require per-element
-importance weights and, for the IQ2 variants, assert when those weights are
-absent. The current `Quantize` and `gguf-quantize` contracts accept only tensor
-values, so these four destinations are rejected rather than silently using
-invented weights. Adding them requires an explicit weighted quantization API
-and a compatible importance-matrix input format; all values-only reference
-layouts continue independently.
+IQ1_S, IQ1_M, IQ2_XXS, and IQ2_XS expose an explicit weighted quantization
+API and byte-match the pinned GGML routines. `gguf-quantize -imatrix` reads the
+pinned GGUF and legacy binary formats, normalizes per-expert sums and counts,
+maps expert-specific column weights across tensor rows, and writes the pinned
+file, dataset, entry-count, and chunk-count provenance keys. Missing importance
+for a selected matrix is an error; token embeddings and output projections are
+preserved when their optional entries are absent. Loader, expert mapping,
+metadata, CLI lifecycle, deterministic hashes, and Windows DLL differential
+coverage are checked in.
 
 ### Implemented: LoRA graph-wide projection application
 

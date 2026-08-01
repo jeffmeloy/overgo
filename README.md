@@ -91,14 +91,15 @@ and manifest-check exit semantics.
 `gguf-quantize` converts matrix tensors in bounded blocks through F32 and
 preserves one-dimensional tensors by default. Its Q1_0, Q2_0, Q2_K-Q6_K,
 Q8_K, Q4_0/Q4_1, Q5_0/Q5_1, Q8_0/Q8_1, TQ1_0/TQ2_0,
-IQ2_S/IQ3_XXS/IQ3_S/IQ4_NL/IQ4_XS, and MXFP4/NVFP4 encoders byte-match the
-pinned llama.cpp reference routines; F32, F16, and BF16 outputs are also
-supported. Q8_1 and Q8_K are internal dot-product layouts, while the other
-listed packed model layouts are available as CLI destinations. The tool
-updates GGUF quantization metadata, accepts split input, never overwrites an
-existing output, and offers `-all` for compatible one-dimensional tensors.
-IQ1_S/IQ1_M and IQ2_XXS/IQ2_XS encoding require an importance matrix in the
-pinned implementation and are not exposed by the values-only quantizer API.
+IQ1_S/IQ1_M, IQ2_XXS/IQ2_XS/IQ2_S, IQ3_XXS/IQ3_S, IQ4_NL/IQ4_XS, and
+MXFP4/NVFP4 encoders byte-match the pinned llama.cpp reference routines; F32,
+F16, and BF16 outputs are also supported. Q8_1 and Q8_K are internal
+dot-product layouts, while the other listed packed model layouts are available
+as CLI destinations. IQ1_S/IQ1_M and IQ2_XXS/IQ2_XS use `-imatrix` with pinned
+GGUF or legacy importance matrices, including per-expert normalization and
+llama.cpp-compatible provenance metadata. The tool updates GGUF quantization
+metadata, accepts split input, never overwrites an existing output, and offers
+`-all` for compatible one-dimensional tensors.
 
 Generation modes are:
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"llamacpp2go/internal/quant"
 	"llamacpp2go/internal/tensor/dtype"
@@ -12,15 +13,17 @@ import (
 
 const quantizationVersion = 2
 
-// QuantizeOptions: controls model-level tensor selection and serialization
-// By default, matrix tensors are converted and one-dimensional tensors are
-// preserved, matching llama.cpp's "mostly" quantization convention
+// QuantizeOptions: model quantization controls.
 type QuantizeOptions struct {
 	WriteOptions
-	ShouldQuantize func(TensorInfo) bool
+	ShouldQuantize       func(TensorInfo) bool
+	Importance           map[string][]float32
+	ImportanceFile       string
+	ImportanceDatasets   []string
+	ImportanceChunkCount uint32
 }
 
-// QuantizeReport: describes logical conversion selected before writing
+// QuantizeReport: conversion totals.
 type QuantizeReport struct {
 	Converted   int
 	Preserved   int
@@ -28,8 +31,7 @@ type QuantizeReport struct {
 	OutputBytes uint64
 }
 
-// QuantizeTo: streams logical GGUF model into canonical single-file GGUF
-// while converting selected tensors through F32 in bounded blocks
+// QuantizeTo: bounded model quantization.
 func (f *File) QuantizeTo(
 	destination io.Writer,
 	target DType,
@@ -56,7 +58,7 @@ func (f *File) QuantizeTo(
 		writeOptions.Alignment = f.Alignment
 	}
 
-	metadata, err := quantizedMetadata(f.Metadata, target)
+	metadata, err := quantizedMetadata(f.Metadata, target, options)
 	if err != nil {
 		return QuantizeReport{}, err
 	}
@@ -71,8 +73,20 @@ func (f *File) QuantizeTo(
 		if options.ShouldQuantize != nil {
 			selected = options.ShouldQuantize(tensor)
 		}
+		converted := false
 		if selected && tensor.Type != target {
-			if tensor.Shape[0]%targetTraits.BlockSize != 0 {
+			var importance []float32
+			if quant.RequiresImportance(target) {
+				importance = options.Importance[tensor.Name]
+				if len(importance) == 0 {
+					if optionalImportanceTensor(tensor.Name) {
+						selected = false
+					} else {
+						return report, fmt.Errorf("tensor %q requires importance weights for %s", tensor.Name, target)
+					}
+				}
+			}
+			if selected && tensor.Shape[0]%targetTraits.BlockSize != 0 {
 				return report, fmt.Errorf(
 					"tensor %q row size %d is not divisible by %s block size %d",
 					tensor.Name,
@@ -81,11 +95,16 @@ func (f *File) QuantizeTo(
 					targetTraits.BlockSize,
 				)
 			}
-			reader, err = newQuantizingReader(f, tensor, target)
-			if err != nil {
-				return report, err
+			if selected {
+				reader, err = newQuantizingReader(f, tensor, target, importance)
+				if err != nil {
+					return report, err
+				}
+				outputType = target
+				converted = true
 			}
-			outputType = target
+		}
+		if converted {
 			report.Converted++
 		} else {
 			report.Preserved++
@@ -113,6 +132,10 @@ func (f *File) QuantizeTo(
 	return report, nil
 }
 
+func optionalImportanceTensor(name string) bool {
+	return strings.HasSuffix(name, "token_embd.weight") || strings.HasSuffix(name, "output.weight")
+}
+
 func defaultQuantizeTensor(tensor TensorInfo, targetBlockSize uint64) bool {
 	if tensor.Dimensions < 2 || tensor.Shape[0]%targetBlockSize != 0 {
 		return false
@@ -129,17 +152,20 @@ func defaultQuantizeTensor(tensor TensorInfo, targetBlockSize uint64) bool {
 	}
 }
 
-func quantizedMetadata(metadata []Metadata, target DType) ([]Metadata, error) {
+func quantizedMetadata(metadata []Metadata, target DType, options QuantizeOptions) ([]Metadata, error) {
 	fileType, ok := quantizedFileType(target)
 	if !ok {
 		return nil, fmt.Errorf("no GGUF file type mapping for %s", target)
 	}
-	result := make([]Metadata, 0, len(metadata)+2)
+	result := make([]Metadata, 0, len(metadata)+6)
 	fileTypeFound := false
 	versionFound := false
 	for _, item := range metadata {
 		switch item.Key {
 		case "split.no", "split.count", "split.tensors.count":
+			continue
+		case "quantize.imatrix.file", "quantize.imatrix.dataset",
+			"quantize.imatrix.entries_count", "quantize.imatrix.chunks_count":
 			continue
 		case "general.file_type":
 			item.Value = Value{Type: ValueTypeUint32, Data: fileType}
@@ -167,6 +193,34 @@ func quantizedMetadata(metadata []Metadata, target DType) ([]Metadata, error) {
 				Data: uint32(quantizationVersion),
 			},
 		})
+	}
+	if options.ImportanceFile != "" {
+		result = append(result, Metadata{
+			Key:   "quantize.imatrix.file",
+			Value: Value{Type: ValueTypeString, Data: options.ImportanceFile},
+		})
+		if len(options.ImportanceDatasets) != 0 {
+			result = append(result, Metadata{
+				Key:   "quantize.imatrix.dataset",
+				Value: Value{Type: ValueTypeString, Data: options.ImportanceDatasets[0]},
+			})
+		}
+		result = append(result, Metadata{
+			Key: "quantize.imatrix.entries_count",
+			Value: Value{
+				Type: ValueTypeInt64,
+				Data: int64(len(options.Importance)),
+			},
+		})
+		if options.ImportanceChunkCount != 0 {
+			result = append(result, Metadata{
+				Key: "quantize.imatrix.chunks_count",
+				Value: Value{
+					Type: ValueTypeInt64,
+					Data: int64(options.ImportanceChunkCount),
+				},
+			})
+		}
 	}
 	return result, nil
 }
@@ -203,6 +257,14 @@ func quantizedFileType(target DType) (uint32, bool) {
 		return 25, true
 	case dtype.IQ2S:
 		return 28, true
+	case dtype.IQ2XXS:
+		return 19, true
+	case dtype.IQ2XS:
+		return 20, true
+	case dtype.IQ1S:
+		return 24, true
+	case dtype.IQ1M:
+		return 31, true
 	case dtype.IQ3XXS:
 		return 23, true
 	case dtype.IQ3S:
@@ -272,6 +334,10 @@ type quantizingReader struct {
 	elementsRemaining uint64
 	sourceOffset      uint64
 	chunkElements     uint64
+	totalElements     uint64
+	rowWidth          uint64
+	rowsPerGroup      uint64
+	importance        []float32
 	buffer            []byte
 	bufferOffset      int
 }
@@ -280,6 +346,7 @@ func newQuantizingReader(
 	file *File,
 	tensor TensorInfo,
 	target DType,
+	importance []float32,
 ) (*quantizingReader, error) {
 	sourceTraits, ok := tensor.Type.Traits()
 	if !ok {
@@ -308,10 +375,35 @@ func newQuantizingReader(
 			baseElements,
 		)
 	}
+	rowWidth := tensor.Shape[0]
+	if rowWidth == 0 || rowWidth%baseElements != 0 {
+		return nil, fmt.Errorf("tensor %q row width is not conversion-block aligned", tensor.Name)
+	}
 	const targetChunkElements = uint64(256 << 10)
-	chunkElements := baseElements
-	if baseElements < targetChunkElements {
-		chunkElements *= targetChunkElements / baseElements
+	chunkRows := targetChunkElements / rowWidth
+	if chunkRows == 0 {
+		chunkRows = 1
+	}
+	chunkElements := chunkRows * rowWidth
+	rowsPerGroup := uint64(1)
+	if tensor.Dimensions > 1 {
+		rowsPerGroup = tensor.Shape[1]
+	}
+	groups := uint64(1)
+	if tensor.Dimensions > 2 {
+		groups = tensor.Shape[2]
+	}
+	if tensor.Dimensions > 3 && tensor.Shape[3] != 1 && len(importance) != 0 {
+		return nil, fmt.Errorf("tensor %q rank-4 importance mapping is unsupported", tensor.Name)
+	}
+	if len(importance) != 0 && (groups != 0 && rowWidth > math.MaxUint64/groups) {
+		return nil, fmt.Errorf("tensor %q importance count overflows uint64", tensor.Name)
+	}
+	if len(importance) != 0 && uint64(len(importance)) != rowWidth*groups {
+		return nil, fmt.Errorf(
+			"tensor %q importance count %d differs from expected %d",
+			tensor.Name, len(importance), rowWidth*groups,
+		)
 	}
 	return &quantizingReader{
 		file:              file,
@@ -321,6 +413,10 @@ func newQuantizingReader(
 		targetTraits:      targetTraits,
 		elementsRemaining: elements,
 		chunkElements:     chunkElements,
+		totalElements:     elements,
+		rowWidth:          rowWidth,
+		rowsPerGroup:      rowsPerGroup,
+		importance:        importance,
 	}, nil
 }
 
@@ -356,7 +452,20 @@ func (r *quantizingReader) fill() error {
 	if err != nil {
 		return fmt.Errorf("dequantize tensor %q: %w", r.tensor.Name, err)
 	}
-	r.buffer, err = quant.Quantize(r.target, values)
+	if len(r.importance) != 0 {
+		weights := make([]float32, len(values))
+		firstElement := r.totalElements - r.elementsRemaining
+		firstRow := firstElement / r.rowWidth
+		for index := range values {
+			row := firstRow + uint64(index)/r.rowWidth
+			column := uint64(index) % r.rowWidth
+			group := row / r.rowsPerGroup
+			weights[index] = r.importance[group*r.rowWidth+column]
+		}
+		r.buffer, err = quant.QuantizeWeighted(r.target, values, weights)
+	} else {
+		r.buffer, err = quant.Quantize(r.target, values)
+	}
 	if err != nil {
 		return fmt.Errorf("quantize tensor %q: %w", r.tensor.Name, err)
 	}

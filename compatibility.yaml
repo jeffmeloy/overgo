@@ -67,6 +67,10 @@ gguf:
         - Q6_K
         - TQ1_0
         - TQ2_0
+        - IQ1_S
+        - IQ1_M
+        - IQ2_XXS
+        - IQ2_XS
         - IQ2_S
         - IQ3_XXS
         - IQ3_S
@@ -91,6 +95,10 @@ gguf:
         - Q8_K
         - TQ1_0
         - TQ2_0
+        - IQ1_S
+        - IQ1_M
+        - IQ2_XXS
+        - IQ2_XS
         - IQ2_S
         - IQ3_XXS
         - IQ3_S
@@ -98,11 +106,17 @@ gguf:
         - IQ4_XS
         - MXFP4
         - NVFP4
-      weighted_encoder_limitations:
-        - IQ1_S
-        - IQ1_M
-        - IQ2_XXS
-        - IQ2_XS
+      importance_matrix:
+        required_destinations:
+          - IQ1_S
+          - IQ1_M
+          - IQ2_XXS
+          - IQ2_XS
+        formats:
+          - pinned-gguf
+          - legacy-binary
+        per_expert_normalization: true
+        provenance_metadata: true
     overwrite_existing_output: false
   f32_compatibility_conversion:
     - F32

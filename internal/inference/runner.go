@@ -107,6 +107,12 @@ type KVCache struct {
 	Position uint32
 }
 
+// T5Session: encoder state plus decoder cache.
+type T5Session struct {
+	Encoder reference.Value
+	Cache   *KVCache
+}
+
 // EmbeddingOverride: replaces one token-embedding column before learned
 // positions, model-specific embedding scaling, and embedding normalization are
 // applied; TokenIndex is local to token chunk passed to Forward call
@@ -843,6 +849,23 @@ func (r *Runner) layerDeviceInputs(
 			return result, nil, err
 		}
 	}
+	for _, item := range []struct {
+		info        *gguf.TensorInfo
+		destination **tensor.Tensor
+	}{
+		{info.CrossAttentionNorm, &result.CrossAttentionNorm},
+		{info.CrossAttentionQ, &result.CrossAttentionQ},
+		{info.CrossAttentionK, &result.CrossAttentionK},
+		{info.CrossAttentionV, &result.CrossAttentionV},
+		{info.CrossAttentionOutput, &result.CrossAttentionOutput},
+	} {
+		if item.info == nil {
+			continue
+		}
+		if *item.destination, err = input(*item.info); err != nil {
+			return result, nil, err
+		}
+	}
 	if info.RopeFactors != nil {
 		if result.RopeFactors, err = input(*info.RopeFactors); err != nil {
 			return result, nil, err
@@ -930,6 +953,9 @@ func (r *Runner) forwardLocked(
 ) (reference.Value, error) {
 	if r.spec.Architecture == "t5encoder" {
 		return r.forwardT5EncoderLocked(ctx, tokenIDs)
+	}
+	if r.spec.Architecture == "t5" {
+		return reference.Value{}, errors.New("inference: T5 requires NewT5Session and DecodeT5")
 	}
 	if r.spec.NonCausalAttention {
 		return r.forwardNonCausalLocked(ctx, tokenIDs)
@@ -1133,13 +1159,126 @@ func (r *Runner) forwardT5EncoderLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	for layerIndex, layerInfo := range r.weights.Layers {
+	layers := r.weights.Layers
+	if r.spec.Architecture == "t5" {
+		layers = r.weights.EncoderLayers
+	}
+	for layerIndex, layerInfo := range layers {
 		activation, err = r.runT5EncoderLayer(ctx, activation, layerInfo, layerIndex)
 		if err != nil {
 			return reference.Value{}, fmt.Errorf("inference encoder layer %d: %w", layerIndex, err)
 		}
 	}
+	if r.spec.Architecture == "t5" {
+		return r.runT5EncoderOutputNorm(ctx, activation)
+	}
 	return r.runOutputNorm(ctx, activation)
+}
+
+// NewT5Session: encodes one source sequence.
+func (r *Runner) NewT5Session(ctx context.Context, sourceIDs []tokenizer.TokenID) (*T5Session, error) {
+	if r == nil {
+		return nil, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil, errors.New("inference: runner is closed")
+	}
+	if r.spec.Architecture != "t5" {
+		return nil, errors.New("inference: T5 session requires T5 architecture")
+	}
+	encoder, err := r.forwardT5EncoderLocked(ctx, sourceIDs)
+	if err != nil {
+		return nil, err
+	}
+	return &T5Session{Encoder: encoder}, nil
+}
+
+// DecodeT5: appends decoder tokens and returns all chunk logits.
+func (r *Runner) DecodeT5(
+	ctx context.Context,
+	session *T5Session,
+	decoderIDs []tokenizer.TokenID,
+) (reference.Value, *T5Session, error) {
+	if r == nil {
+		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, nil, errors.New("inference: runner is closed")
+	}
+	if r.spec.Architecture != "t5" {
+		return reference.Value{}, nil, errors.New("inference: T5 decode requires T5 architecture")
+	}
+	return r.decodeT5Locked(ctx, session, decoderIDs)
+}
+
+func (r *Runner) decodeT5Locked(
+	ctx context.Context,
+	session *T5Session,
+	decoderIDs []tokenizer.TokenID,
+) (reference.Value, *T5Session, error) {
+	if session == nil {
+		return reference.Value{}, nil, errors.New("inference: T5 session is nil")
+	}
+	if session.Encoder.Shape.Rank != 2 ||
+		session.Encoder.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
+		session.Encoder.Shape.Dims[1] == 0 {
+		return reference.Value{}, nil, errors.New("inference: T5 encoder state shape is incompatible")
+	}
+	if len(decoderIDs) == 0 {
+		return reference.Value{}, nil, errors.New("inference: T5 decoder token sequence is empty")
+	}
+	var pastTokens, nextPosition uint32
+	if session.Cache != nil {
+		if err := r.validateT5Cache(session.Cache, session.Encoder.Shape.Dims[1]); err != nil {
+			return reference.Value{}, nil, err
+		}
+		pastTokens = session.Cache.Tokens
+		nextPosition = effectiveCachePosition(session.Cache)
+	}
+	if uint64(pastTokens)+uint64(len(decoderIDs)) > uint64(r.spec.ContextLength) {
+		return reference.Value{}, nil, errors.New("inference: T5 decoder sequence exceeds context length")
+	}
+	rows := make([]uint32, len(decoderIDs))
+	for index, id := range decoderIDs {
+		if id < 0 || int(id) >= r.vocab.Len() {
+			return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", id)
+		}
+		rows[index] = uint32(id)
+	}
+	activation, err := r.loadEmbeddings(ctx, rows)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	nextCache := &KVCache{
+		Layers:   make([]LayerCache, len(r.weights.Layers)),
+		Tokens:   pastTokens + uint32(len(decoderIDs)),
+		Position: nextPosition + uint32(len(decoderIDs)),
+	}
+	for layerIndex, layerInfo := range r.weights.Layers {
+		var past *LayerCache
+		if session.Cache != nil {
+			past = &session.Cache.Layers[layerIndex]
+		}
+		activation, nextCache.Layers[layerIndex], err = r.runT5DecoderLayer(
+			ctx, activation, session.Encoder, layerInfo, layerIndex, past,
+		)
+		if err != nil {
+			return reference.Value{}, nil, fmt.Errorf("inference decoder layer %d: %w", layerIndex, err)
+		}
+	}
+	activation, err = r.runOutputNorm(ctx, activation)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	logits, err := r.projectAllLogits(ctx, activation)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	return logits, &T5Session{Encoder: session.Encoder, Cache: nextCache}, nil
 }
 
 // ForwardCached: evaluates prompt chunk and returns host KV/recurrent cache
@@ -1159,6 +1298,9 @@ func (r *Runner) ForwardCached(
 	}
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
+	}
+	if r.spec.Architecture == "t5" {
+		return reference.Value{}, nil, errors.New("inference: use DecodeT5 for T5 caching")
 	}
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
 }
@@ -1588,6 +1730,132 @@ func (r *Runner) runT5EncoderLayer(
 			hostFeeds,
 			deviceFeeds,
 		)
+	} else {
+		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
+	}
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return results[output], nil
+}
+
+func (r *Runner) runT5DecoderLayer(
+	ctx context.Context,
+	activation, encoder reference.Value,
+	info model.LayerWeights,
+	layerIndex int,
+	past *LayerCache,
+) (reference.Value, LayerCache, error) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, activation.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var encoderInput *tensor.Tensor
+	var pastSelfKey, pastSelfValue, pastCrossKey, pastCrossValue *tensor.Tensor
+	if past == nil {
+		encoderInput = builder.Input("encoder", dtype.F32, encoder.Shape)
+		hostFeeds[encoderInput] = encoder
+	} else {
+		pastSelfKey = builder.Input("past_self_key", dtype.F32, past.Key.Shape)
+		pastSelfValue = builder.Input("past_self_value", dtype.F32, past.Value.Shape)
+		hostFeeds[pastSelfKey], hostFeeds[pastSelfValue] = past.Key, past.Value
+		crossKey, hasKey := past.States["cross_key"]
+		crossValue, hasValue := past.States["cross_value"]
+		if !hasKey || !hasValue {
+			return reference.Value{}, LayerCache{}, errors.New("T5 decoder cross cache is missing")
+		}
+		pastCrossKey = builder.Input("past_cross_key", dtype.F32, crossKey.Value.Shape)
+		pastCrossValue = builder.Input("past_cross_value", dtype.F32, crossValue.Value.Shape)
+		hostFeeds[pastCrossKey], hostFeeds[pastCrossValue] = crossKey.Value, crossValue.Value
+	}
+	var graphWeights model.LayerGraphWeights
+	if r.hasPreloadedWeights() {
+		var err error
+		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
+		if err != nil {
+			return reference.Value{}, LayerCache{}, err
+		}
+	} else {
+		hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
+		if err != nil {
+			return reference.Value{}, LayerCache{}, err
+		}
+		var layerFeeds map[*tensor.Tensor]reference.Value
+		graphWeights, layerFeeds, err = hostLayer.GraphInputs(builder, fmt.Sprintf("dec.blk.%d.", layerIndex))
+		if err != nil {
+			return reference.Value{}, LayerCache{}, err
+		}
+		for node, value := range layerFeeds {
+			hostFeeds[node] = value
+		}
+	}
+	result, err := model.BuildT5DecoderBlockCached(
+		builder, input, encoderInput, r.spec, graphWeights,
+		pastSelfKey, pastSelfValue, pastCrossKey, pastCrossValue,
+	)
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	for _, state := range result.FixedStates {
+		outputs = append(outputs, state)
+	}
+	var results map[*tensor.Tensor]reference.Value
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
+	} else {
+		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
+	}
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
+	}
+	layerCache := LayerCache{
+		Key: results[result.Key], Value: results[result.Value],
+		States: make(map[string]LayerState, len(result.FixedStates)),
+	}
+	for name, state := range result.FixedStates {
+		layerCache.States[name] = LayerState{Mode: CacheStateFixed, Value: results[state]}
+	}
+	return results[result.Output], layerCache, nil
+}
+
+func (r *Runner) runT5EncoderOutputNorm(
+	ctx context.Context,
+	activation reference.Value,
+) (reference.Value, error) {
+	if r.weights.EncoderOutputNorm == nil {
+		return reference.Value{}, errors.New("inference: T5 encoder output norm is missing")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("enc.output_norm.input", dtype.F32, activation.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
+	var (
+		weight      *tensor.Tensor
+		deviceFeeds map[*tensor.Tensor]driver.DevicePtr
+		err         error
+	)
+	if r.hasPreloadedWeights() {
+		var pointer driver.DevicePtr
+		weight, pointer, err = r.deviceInput(builder, *r.weights.EncoderOutputNorm)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		deviceFeeds = map[*tensor.Tensor]driver.DevicePtr{weight: pointer}
+	} else {
+		value, loadErr := model.LoadHostTensor(ctx, r.file, *r.weights.EncoderOutputNorm)
+		if loadErr != nil {
+			return reference.Value{}, loadErr
+		}
+		weight = builder.Input("enc.output_norm.weight", dtype.F32, value.Shape)
+		hostFeeds[weight] = value
+	}
+	output := builder.WeightedRMSNorm(input, weight, r.spec.RMSNormEpsilon)
+	if err := builder.Err(); err != nil {
+		return reference.Value{}, err
+	}
+	var results map[*tensor.Tensor]reference.Value
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
 	} else {
 		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
 	}
@@ -3093,6 +3361,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	if weights.OutputNorm.Name != "" {
 		names[weights.OutputNorm.Name] = struct{}{}
 	}
+	if weights.EncoderOutputNorm != nil {
+		names[weights.EncoderOutputNorm.Name] = struct{}{}
+	}
 	if weights.OutputNormBias != nil {
 		names[weights.OutputNormBias.Name] = struct{}{}
 	}
@@ -3117,7 +3388,10 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			names[pointer.Name] = struct{}{}
 		}
 	}
-	for _, layer := range weights.Layers {
+	allLayers := make([]model.LayerWeights, 0, len(weights.EncoderLayers)+len(weights.Layers))
+	allLayers = append(allLayers, weights.EncoderLayers...)
+	allLayers = append(allLayers, weights.Layers...)
+	for _, layer := range allLayers {
 		infos := []gguf.TensorInfo{
 			layer.AttentionNorm,
 			layer.FeedForwardNorm,
@@ -3274,6 +3548,11 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.AttentionKVB,
 			layer.AttentionKB,
 			layer.AttentionVB,
+			layer.CrossAttentionNorm,
+			layer.CrossAttentionQ,
+			layer.CrossAttentionK,
+			layer.CrossAttentionV,
+			layer.CrossAttentionOutput,
 			layer.IndexerKNorm,
 			layer.IndexerKNormBias,
 			layer.IndexerProjection,

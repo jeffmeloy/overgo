@@ -674,6 +674,7 @@ type functionSet struct {
 	gelu              driver.Function
 	xielu             driver.Function
 	reluSquared       driver.Function
+	relu              driver.Function
 	sigmoid           driver.Function
 	softplus          driver.Function
 	tanh              driver.Function
@@ -858,6 +859,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"gelu_f32", &result.gelu},
 		{"xielu_f32", &result.xielu},
 		{"relu_squared_f32", &result.reluSquared},
+		{"relu_f32", &result.relu},
 		{"sigmoid_f32", &result.sigmoid},
 		{"softplus_f32", &result.softplus},
 		{"tanh_f32", &result.tanh},
@@ -1077,7 +1079,7 @@ func launchNode(
 		runtime.KeepAlive(maximum)
 		runtime.KeepAlive(count)
 		return err
-	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
+	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
@@ -1091,6 +1093,8 @@ func launchNode(
 		function := functions.silu
 		if node.Op == tensor.OpGELU {
 			function = functions.gelu
+		} else if node.Op == tensor.OpReLU {
+			function = functions.relu
 		} else if node.Op == tensor.OpReLUSquared {
 			function = functions.reluSquared
 		} else if node.Op == tensor.OpSigmoid {
@@ -2623,6 +2627,10 @@ func launchNode(
 			relativeBias = pointers[node.Inputs[3]]
 		}
 		relativeBuckets := attributes.RelativeBuckets
+		var relativeBidirectional uint32
+		if attributes.RelativeBidirectional {
+			relativeBidirectional = 1
+		}
 		scale := attributes.Scale
 		softcap := attributes.Softcap
 		maxALiBiBias := attributes.MaxALiBiBias
@@ -2659,6 +2667,7 @@ func launchNode(
 			unsafe.Pointer(&window),
 			unsafe.Pointer(&symmetricWindow),
 			unsafe.Pointer(&relativeBuckets),
+			unsafe.Pointer(&relativeBidirectional),
 			unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.attention, count, args)
@@ -2682,6 +2691,7 @@ func launchNode(
 		runtime.KeepAlive(window)
 		runtime.KeepAlive(symmetricWindow)
 		runtime.KeepAlive(relativeBuckets)
+		runtime.KeepAlive(relativeBidirectional)
 		runtime.KeepAlive(count)
 		return err
 	case tensor.OpConcat:

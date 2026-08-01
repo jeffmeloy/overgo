@@ -491,6 +491,24 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		}
 		result.AttentionRelativeBias = input(*info.AttentionRelativeBias)
 	}
+	for _, item := range []struct {
+		info        *gguf.TensorInfo
+		destination **tensor.Tensor
+	}{
+		{info.CrossAttentionNorm, &result.CrossAttentionNorm},
+		{info.CrossAttentionQ, &result.CrossAttentionQ},
+		{info.CrossAttentionK, &result.CrossAttentionK},
+		{info.CrossAttentionV, &result.CrossAttentionV},
+		{info.CrossAttentionOutput, &result.CrossAttentionOutput},
+	} {
+		if item.info == nil {
+			continue
+		}
+		if _, ok := w.Lookup(item.info.Name); !ok {
+			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", item.info.Name)
+		}
+		*item.destination = input(*item.info)
+	}
 	if info.RopeFactors != nil {
 		if _, ok := w.Lookup(info.RopeFactors.Name); !ok {
 			return LayerGraphWeights{}, nil, fmt.Errorf("F32 device tensor %q is not loaded", info.RopeFactors.Name)

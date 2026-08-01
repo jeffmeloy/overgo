@@ -1377,6 +1377,31 @@ func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	}
 }
 
+func TestT5DecoderRelativeBucketUsesAbsoluteQueryPosition(t *testing.T) {
+	if got := relativePositionBucket(4, 0, 32, false); got != 4 {
+		t.Fatalf("past decoder bucket = %d, want 4", got)
+	}
+	if got := relativePositionBucket(4, 5, 32, false); got != 0 {
+		t.Fatalf("future decoder bucket = %d, want 0", got)
+	}
+}
+
+func TestExecuteReLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4))
+	output := builder.ReLU(input)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input: {Shape: input.Shape, Data: []float32{-2, 0, 1.5, 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{0, 0, 1.5, 3}
+	if !reflect.DeepEqual(results[output].Data, want) {
+		t.Fatalf("ReLU = %v, want %v", results[output].Data, want)
+	}
+}
+
 func TestExecuteGroupedMulMat(t *testing.T) {
 	builder := tensor.NewBuilder()
 	left := builder.Input("left", dtype.F32, tensor.MustShape(2, 2, 2))

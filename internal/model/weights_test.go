@@ -4256,6 +4256,56 @@ func TestReadWeightsT5Encoder(t *testing.T) {
 	}
 }
 
+func TestReadWeightsT5EncoderDecoder(t *testing.T) {
+	spec := Spec{
+		Architecture: "t5", BlockCount: 2, DecoderBlockCount: 2,
+		EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		VocabularySize: 32, RelativeBuckets: 4,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("enc.output_norm.weight", 8),
+		tensorInfo("dec.output_norm.weight", 8),
+	}
+	for block := 0; block < 2; block++ {
+		for _, prefix := range []string{fmt.Sprintf("enc.blk.%d.", block), fmt.Sprintf("dec.blk.%d.", block)} {
+			tensors = append(tensors,
+				tensorInfo(prefix+"attn_norm.weight", 8),
+				tensorInfo(prefix+"attn_q.weight", 8, 8),
+				tensorInfo(prefix+"attn_k.weight", 8, 8),
+				tensorInfo(prefix+"attn_v.weight", 8, 8),
+				tensorInfo(prefix+"attn_o.weight", 8, 8),
+				tensorInfo(prefix+"ffn_norm.weight", 8),
+				tensorInfo(prefix+"ffn_up.weight", 8, 16),
+				tensorInfo(prefix+"ffn_down.weight", 16, 8),
+			)
+			if block == 0 {
+				tensors = append(tensors, tensorInfo(prefix+"attn_rel_b.weight", 2, 4))
+			}
+		}
+		prefix := fmt.Sprintf("dec.blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"cross_attn_norm.weight", 8),
+			tensorInfo(prefix+"cross_attn_q.weight", 8, 8),
+			tensorInfo(prefix+"cross_attn_k.weight", 8, 8),
+			tensorInfo(prefix+"cross_attn_v.weight", 8, 8),
+			tensorInfo(prefix+"cross_attn_o.weight", 8, 8),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(weights.EncoderLayers) != 2 || len(weights.Layers) != 2 ||
+		weights.EncoderOutputNorm == nil || weights.Layers[0].CrossAttentionQ == nil ||
+		weights.EncoderLayers[1].AttentionRelativeBias == nil ||
+		weights.Layers[1].AttentionRelativeBias == nil ||
+		weights.Layers[0].FeedForwardGate.Name != "" {
+		t.Fatalf("unexpected T5 weights: %+v", weights)
+	}
+}
+
 func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 	spec := Spec{
 		Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,

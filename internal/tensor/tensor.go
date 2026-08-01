@@ -55,6 +55,7 @@ const (
 	OpGatherLast
 	OpSparseAttention
 	OpIndexerScore
+	OpReLU
 )
 
 var opNames = [...]string{
@@ -101,6 +102,7 @@ var opNames = [...]string{
 	"gather_last",
 	"sparse_attention",
 	"indexer_score",
+	"relu",
 }
 
 func (o Op) String() string {
@@ -165,16 +167,17 @@ type RoPEMultiAttributes struct {
 }
 
 type AttentionAttributes struct {
-	Scale           float32
-	Softcap         float32
-	MaxALiBiBias    float32
-	Causal          bool
-	HasSinks        bool
-	SymmetricWindow bool
-	ChunkedWindow   bool
-	QueryStart      uint32
-	Window          uint32
-	RelativeBuckets uint32
+	Scale                 float32
+	Softcap               float32
+	MaxALiBiBias          float32
+	Causal                bool
+	HasSinks              bool
+	SymmetricWindow       bool
+	ChunkedWindow         bool
+	QueryStart            uint32
+	Window                uint32
+	RelativeBuckets       uint32
+	RelativeBidirectional bool
 }
 
 type MoEAttributes struct {
@@ -360,6 +363,10 @@ func (b *Builder) SiLU(input *Tensor) *Tensor {
 
 func (b *Builder) GELU(input *Tensor) *Tensor {
 	return b.unary(OpGELU, input, nil)
+}
+
+func (b *Builder) ReLU(input *Tensor) *Tensor {
+	return b.unary(OpReLU, input, nil)
 }
 
 func (b *Builder) XIELU(input *Tensor, alphaN, alphaP, beta, epsilon float32) *Tensor {
@@ -1756,7 +1763,32 @@ func (b *Builder) AttentionWithRelativeBias(
 	query, key, value, bias *Tensor,
 	scale float32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, bias, nil, scale, 0, 0, false, false, 0, 0)
+	return b.attentionWithRelativeBias(query, key, value, bias, scale, false, 0, true)
+}
+
+// AttentionWithRelativeBiasAndOffset: causal T5 decoder attention.
+func (b *Builder) AttentionWithRelativeBiasAndOffset(
+	query, key, value, bias *Tensor,
+	scale float32,
+	queryStart uint32,
+) *Tensor {
+	return b.attentionWithRelativeBias(query, key, value, bias, scale, true, queryStart, false)
+}
+
+func (b *Builder) attentionWithRelativeBias(
+	query, key, value, bias *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+	bidirectional bool,
+) *Tensor {
+	result := b.attentionWithWindow(query, key, value, bias, nil, scale, 0, 0, causal, false, queryStart, 0)
+	if result != nil {
+		attributes := result.Attrs.(AttentionAttributes)
+		attributes.RelativeBidirectional = bidirectional
+		result.Attrs = attributes
+	}
+	return result
 }
 
 func (b *Builder) AttentionWindowWithOffset(
@@ -1913,8 +1945,8 @@ func (b *Builder) attentionWithWindow(
 			b.setError(errors.New("attention cannot combine learned relative bias and ALiBi"))
 			return nil
 		}
-		if causal || queryStart != 0 || window != 0 {
-			b.setError(errors.New("relative-bias attention must be full and bidirectional"))
+		if window != 0 {
+			b.setError(errors.New("relative-bias attention cannot use a window"))
 			return nil
 		}
 		if bias.Type != query.Type || bias.Shape.Rank != 2 ||

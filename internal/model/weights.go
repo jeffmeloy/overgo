@@ -36,6 +36,11 @@ type LayerWeights struct {
 	AttentionPostNorm           *gguf.TensorInfo
 	AttentionPostNormBias       *gguf.TensorInfo
 	AttentionRelativeBias       *gguf.TensorInfo
+	CrossAttentionNorm          *gguf.TensorInfo
+	CrossAttentionQ             *gguf.TensorInfo
+	CrossAttentionK             *gguf.TensorInfo
+	CrossAttentionV             *gguf.TensorInfo
+	CrossAttentionOutput        *gguf.TensorInfo
 	AttentionOutputGate         *gguf.TensorInfo
 	AttentionSinks              *gguf.TensorInfo
 	RopeFactors                 *gguf.TensorInfo
@@ -171,6 +176,7 @@ type Weights struct {
 	TokenEmbeddingNorm      *gguf.TensorInfo
 	TokenEmbeddingNormBias  *gguf.TensorInfo
 	OutputNorm              gguf.TensorInfo
+	EncoderOutputNorm       *gguf.TensorInfo
 	OutputNormBias          *gguf.TensorInfo
 	Output                  *gguf.TensorInfo
 	OutputBias              *gguf.TensorInfo
@@ -180,6 +186,7 @@ type Weights struct {
 	PerLayerModelProjection *gguf.TensorInfo
 	PerLayerProjectionNorm  *gguf.TensorInfo
 	Layers                  []LayerWeights
+	EncoderLayers           []LayerWeights
 }
 
 // ReadWeights: validates names and shapes without loading tensor bytes
@@ -317,6 +324,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	outputNormName := "output_norm.weight"
 	if spec.Architecture == "t5encoder" {
 		outputNormName = "enc.output_norm.weight"
+	} else if spec.Architecture == "t5" {
+		outputNormName = "dec.output_norm.weight"
 	} else if spec.Architecture == "neo-bert" {
 		outputNormName = "enc.output_norm.weight"
 	} else if spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe" {
@@ -388,6 +397,128 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			if layer.FeedForwardDown, err = required(prefix+"ffn_down.weight", uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
+		}
+		return result, nil
+	}
+	if spec.Architecture == "t5" {
+		encoderNorm, normErr := required("enc.output_norm.weight", uint64(spec.EmbeddingLength))
+		if normErr != nil {
+			return Weights{}, normErr
+		}
+		result.EncoderOutputNorm = &encoderNorm
+		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
+		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
+		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+		attentionOutputLength := uint64(spec.HeadCount) * uint64(spec.ValueLength)
+		loadFFN := func(prefix string, layer *LayerWeights) error {
+			var loadErr error
+			if layer.FeedForwardNorm, loadErr = required(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
+				return loadErr
+			}
+			if item, ok := tensors[prefix+"ffn_gate.weight"]; ok {
+				gate, gateErr := required(item.Name, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength))
+				if gateErr != nil {
+					return gateErr
+				}
+				layer.FeedForwardGate = gate
+			}
+			if layer.FeedForwardUp, loadErr = required(prefix+"ffn_up.weight", uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); loadErr != nil {
+				return loadErr
+			}
+			if layer.FeedForwardDown, loadErr = required(prefix+"ffn_down.weight", uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)); loadErr != nil {
+				return loadErr
+			}
+			return nil
+		}
+		loadAttention := func(prefix string, layer *LayerWeights) error {
+			var loadErr error
+			if layer.AttentionNorm, loadErr = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
+				return loadErr
+			}
+			if layer.AttentionQ, loadErr = required(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); loadErr != nil {
+				return loadErr
+			}
+			if layer.AttentionK, loadErr = required(prefix+"attn_k.weight", uint64(spec.EmbeddingLength), keyLength); loadErr != nil {
+				return loadErr
+			}
+			if layer.AttentionV, loadErr = required(prefix+"attn_v.weight", uint64(spec.EmbeddingLength), valueLength); loadErr != nil {
+				return loadErr
+			}
+			if layer.AttentionOutput, loadErr = required(prefix+"attn_o.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); loadErr != nil {
+				return loadErr
+			}
+			return nil
+		}
+		result.EncoderLayers = make([]LayerWeights, spec.BlockCount)
+		var encoderRelativeBias *gguf.TensorInfo
+		for block := uint32(0); block < spec.BlockCount; block++ {
+			prefix := fmt.Sprintf("enc.blk.%d.", block)
+			layer := &result.EncoderLayers[block]
+			if loadErr := loadAttention(prefix, layer); loadErr != nil {
+				return Weights{}, loadErr
+			}
+			if loadErr := loadFFN(prefix, layer); loadErr != nil {
+				return Weights{}, loadErr
+			}
+			if item, ok := tensors[prefix+"attn_rel_b.weight"]; ok {
+				bias, biasErr := required(item.Name, uint64(spec.HeadCount), uint64(spec.RelativeBuckets))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				layer.AttentionRelativeBias = &bias
+				encoderRelativeBias = &bias
+			} else if block == 0 {
+				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_rel_b.weight")
+			} else {
+				layer.AttentionRelativeBias = encoderRelativeBias
+			}
+		}
+		result.Layers = make([]LayerWeights, spec.DecoderBlockCount)
+		var decoderRelativeBias *gguf.TensorInfo
+		for block := uint32(0); block < spec.DecoderBlockCount; block++ {
+			prefix := fmt.Sprintf("dec.blk.%d.", block)
+			layer := &result.Layers[block]
+			if loadErr := loadAttention(prefix, layer); loadErr != nil {
+				return Weights{}, loadErr
+			}
+			if loadErr := loadFFN(prefix, layer); loadErr != nil {
+				return Weights{}, loadErr
+			}
+			if item, ok := tensors[prefix+"attn_rel_b.weight"]; ok {
+				bias, biasErr := required(item.Name, uint64(spec.HeadCount), uint64(spec.RelativeBuckets))
+				if biasErr != nil {
+					return Weights{}, biasErr
+				}
+				layer.AttentionRelativeBias = &bias
+				decoderRelativeBias = &bias
+			} else if block == 0 {
+				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_rel_b.weight")
+			} else {
+				layer.AttentionRelativeBias = decoderRelativeBias
+			}
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"cross_attn_norm.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.CrossAttentionNorm},
+				"cross_attn_q.weight":    {[]uint64{uint64(spec.EmbeddingLength), queryLength}, &layer.CrossAttentionQ},
+				"cross_attn_k.weight":    {[]uint64{uint64(spec.EmbeddingLength), keyLength}, &layer.CrossAttentionK},
+				"cross_attn_v.weight":    {[]uint64{uint64(spec.EmbeddingLength), valueLength}, &layer.CrossAttentionV},
+				"cross_attn_o.weight":    {[]uint64{attentionOutputLength, uint64(spec.EmbeddingLength)}, &layer.CrossAttentionOutput},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
+		}
+		if output, ok := tensors["output.weight"]; ok {
+			validated, outputErr := required(output.Name, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize))
+			if outputErr != nil {
+				return Weights{}, outputErr
+			}
+			result.Output = &validated
 		}
 		return result, nil
 	}

@@ -6059,6 +6059,59 @@ func TestBuildT5EncoderBlock(t *testing.T) {
 	}
 }
 
+func TestBuildT5DecoderBlockCached(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "t5", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RMSNormEpsilon: 1e-6, RelativeBuckets: 4,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	encoder := builder.Input("encoder", dtype.F32, tensor.MustShape(8, 3))
+	weights := LayerGraphWeights{
+		AttentionNorm:         builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:            builder.Input("attn_q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:            builder.Input("attn_k", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionV:            builder.Input("attn_v", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionOutput:       builder.Input("attn_o", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionRelativeBias: builder.Input("attn_rel_b", dtype.F32, tensor.MustShape(2, 4)),
+		CrossAttentionNorm:    builder.Input("cross_norm", dtype.F32, tensor.MustShape(8)),
+		CrossAttentionQ:       builder.Input("cross_q", dtype.F32, tensor.MustShape(8, 8)),
+		CrossAttentionK:       builder.Input("cross_k", dtype.F32, tensor.MustShape(8, 8)),
+		CrossAttentionV:       builder.Input("cross_v", dtype.F32, tensor.MustShape(8, 8)),
+		CrossAttentionOutput:  builder.Input("cross_o", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:       builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
+		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+	}
+	result, err := BuildT5DecoderBlockCached(builder, input, encoder, spec, weights, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) ||
+		!result.Key.Shape.Equal(tensor.MustShape(4, 2, 2)) ||
+		!result.FixedStates["cross_key"].Shape.Equal(tensor.MustShape(4, 2, 3)) {
+		t.Fatalf("unexpected T5 decoder result: %+v", result)
+	}
+	var causalRelative, crossAttention, relu bool
+	order, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range order {
+		if node.Op == tensor.OpAttention {
+			attributes := node.Attrs.(tensor.AttentionAttributes)
+			causalRelative = causalRelative || attributes.Causal &&
+				attributes.RelativeBuckets == 4 && !attributes.RelativeBidirectional
+			crossAttention = crossAttention || !attributes.Causal && attributes.RelativeBuckets == 0
+		}
+		relu = relu || node.Op == tensor.OpReLU
+	}
+	if !causalRelative || !crossAttention || !relu {
+		t.Fatalf("T5 decoder graph causal-relative/cross/ReLU = %t/%t/%t", causalRelative, crossAttention, relu)
+	}
+}
+
 func TestBuildQwen35RecurrentBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := qwen35TestSpec()

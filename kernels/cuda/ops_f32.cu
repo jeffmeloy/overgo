@@ -227,6 +227,16 @@ extern "C" __global__ void relu_squared_f32(
     }
 }
 
+extern "C" __global__ void relu_f32(
+		const float * input,
+		float * output,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index < count) {
+		output[index] = fmaxf(input[index], 0.0f);
+	}
+}
+
 extern "C" __global__ void sigmoid_f32(
         const float * input,
         float * output,
@@ -1410,9 +1420,10 @@ extern "C" __global__ void attention_f32(
         unsigned int causal,
         unsigned int query_start,
         unsigned int window,
-        unsigned int symmetric_window,
-        unsigned int relative_buckets,
-        unsigned int count) {
+		unsigned int symmetric_window,
+		unsigned int relative_buckets,
+		unsigned int relative_bidirectional,
+		unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) {
         return;
@@ -1471,19 +1482,25 @@ extern "C" __global__ void attention_f32(
 			score -= (float) (distance < 0 ? -distance : distance) * alibi_slope;
 		}
         if (relative_bias != nullptr) {
-            const unsigned int half = relative_buckets / 2;
-            const unsigned int max_exact = half / 2;
-            int distance = (int) key_token - (int) query_token;
-            unsigned int bucket = distance > 0 ? half : 0;
-            distance = distance < 0 ? -distance : distance;
+			unsigned int buckets = relative_buckets;
+			int distance = (int) key_token - ((int) query_start + (int) query_token);
+			unsigned int bucket = 0;
+			if (relative_bidirectional) {
+				buckets /= 2;
+				bucket = distance > 0 ? buckets : 0;
+			} else if (distance > 0) {
+				distance = 0;
+			}
+			const unsigned int max_exact = buckets / 2;
+			distance = distance < 0 ? -distance : distance;
             if ((unsigned int) distance < max_exact) {
                 bucket += (unsigned int) distance;
             } else {
                 unsigned int large = max_exact + (unsigned int) floorf(
                     logf((float) distance / (float) max_exact) *
-                    (float) (half - max_exact) /
-                    logf(128.0f / (float) max_exact));
-                bucket += large < half ? large : half - 1;
+					(float) (buckets - max_exact) /
+					logf(128.0f / (float) max_exact));
+				bucket += large < buckets ? large : buckets - 1;
             }
             score += relative_bias[bucket * query_heads + query_head];
         }
@@ -1509,19 +1526,25 @@ extern "C" __global__ void attention_f32(
 			score -= (float) (distance < 0 ? -distance : distance) * alibi_slope;
 		}
         if (relative_bias != nullptr) {
-            const unsigned int half = relative_buckets / 2;
-            const unsigned int max_exact = half / 2;
-            int distance = (int) key_token - (int) query_token;
-            unsigned int bucket = distance > 0 ? half : 0;
-            distance = distance < 0 ? -distance : distance;
+			unsigned int buckets = relative_buckets;
+			int distance = (int) key_token - ((int) query_start + (int) query_token);
+			unsigned int bucket = 0;
+			if (relative_bidirectional) {
+				buckets /= 2;
+				bucket = distance > 0 ? buckets : 0;
+			} else if (distance > 0) {
+				distance = 0;
+			}
+			const unsigned int max_exact = buckets / 2;
+			distance = distance < 0 ? -distance : distance;
             if ((unsigned int) distance < max_exact) {
                 bucket += (unsigned int) distance;
             } else {
                 unsigned int large = max_exact + (unsigned int) floorf(
                     logf((float) distance / (float) max_exact) *
-                    (float) (half - max_exact) /
-                    logf(128.0f / (float) max_exact));
-                bucket += large < half ? large : half - 1;
+					(float) (buckets - max_exact) /
+					logf(128.0f / (float) max_exact));
+				bucket += large < buckets ? large : buckets - 1;
             }
             score += relative_bias[bucket * query_heads + query_head];
         }

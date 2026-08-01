@@ -15,9 +15,9 @@
 | CUDA driver loading | Complete | Direct `nvcuda.dll` calls, device inventory validated |
 | CUDA execution | In progress | Persistent resources, cuBLAS F32, native quantized embedding/matmul/routed-expert decode, fused Qwen3-Next/Qwen3.5 recurrent kernels, and correctness-first routed MoE validated on RTX 4090 |
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
-| Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, grouped/batched matmul, clamp, RMSNorm/affine LayerNorm, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, scaled multi-axis RoPE, ALiBi, causal and symmetric sliding/softcapped/gated GQA with per-head sink logits, bidirectional T5 relative-position attention, gated linear attention and WKV6/WKV7 recurrence, legacy and absorbed MLA decomposition, softmax/sigmoid top-k routed gated or ungated SiLU/ReLU/GELU MoE with separate or fused gate/up expert storage, split router inputs, grouped expert-bank indices, correction bias, and per-expert output scales, GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, Mamba selective scan, fused gated delta net, reference/CUDA executors, and arena planner |
+| Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, grouped/batched matmul, clamp, RMSNorm/affine LayerNorm, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, scaled multi-axis RoPE, ALiBi, causal and symmetric sliding/softcapped/gated GQA with per-head sink logits, bidirectional and causal cached T5 relative-position attention, gated linear attention and WKV6/WKV7 recurrence, legacy and absorbed MLA decomposition, softmax/sigmoid top-k routed gated or ungated SiLU/ReLU/GELU MoE with separate or fused gate/up expert storage, split router inputs, grouped expert-bank indices, correction bias, and per-expert output scales, ReLU/GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, Mamba selective scan, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek2-OCR, ERNIE 4.5-MoE, Gemma4, GLM4-MoE, Granite Hybrid/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3, Jamba, Kimi Linear KDA/no-RoPE MLA, Mamba v1/v2, Falcon-H1 parallel attention/Mamba2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniMax-M2, Mistral 4, PLaMo2, SmallThinker, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM token-input decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, T5 encoder, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek2-OCR, ERNIE 4.5-MoE, Gemma4, GLM4-MoE, Granite Hybrid/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3, Jamba, Kimi Linear KDA/no-RoPE MLA, Mamba v1/v2, Falcon-H1 parallel attention/Mamba2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniMax-M2, Mistral 4, PLaMo2, SmallThinker, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, text-only hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, T5 encoder-decoder sessions, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM token-input decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, compatible MPT, dense Mistral 3, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Seven tokenizer corpora match 326 upstream cases; Gemma4 raw UTF-8 BPE, BERT WordPiece, and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, and JSON-Schema HTTP APIs |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -632,6 +632,12 @@
   RMSE `0.0012743`, and a `0.17%` norm delta versus pinned llama.cpp CPU
   execution. The oracle command must specify `--attention non-causal`; its
   default for this fixture is causal.
+- Full T5 encoder-decoder catalogs execute through a persistent `T5Session`.
+  Decoder self K/V grows by token; encoder-derived cross K/V remains fixed in
+  named cache state. Classic T5 ReLU and Flan gated-GELU FFNs, causal absolute-
+  offset relative buckets, bounded-host/F32-preload paths, model-bound session
+  serialization, corruption checks, cache validation, and complete CUDA block
+  differentials pass. Real decoder-model validation remains pending a fixture.
 
 ## Current runtime limitations
 
@@ -720,9 +726,10 @@
   API currently supplies the same sequential position to every MRoPE axis.
   Image/video input plumbing, MTP heads, rollback snapshots, and
   multi-sequence recurrent batching remain pending.
-- T5 support currently covers encoder-only models and embeddings. T5 decoder,
-  encoder-decoder cross-attention, padding masks for multi-sequence batches,
-  and token generation remain pending.
+- T5 single-sequence encoder-decoder sessions are supported. Padding masks for
+  padded multi-sequence batches and a high-level text-generation convenience
+  wrapper remain pending; callers can generate incrementally with `DecodeT5`.
+  Decoder relative buckets currently prohibit cache range editing/context shift.
 
 ## Blockers
 
@@ -749,16 +756,6 @@ model context. The current runner owns one model, one embedding table, one
 hidden stream, and one cache. Adding DFlash requires a target/draft coordinator,
 cross-model tensor ownership, extracted-hidden-state inputs, and speculative
 accept/rollback semantics; a standalone decoder graph would be incomplete.
-
-### Deferred: T5 encoder-decoder execution
-
-Pinned T5 decoding requires the encoder hidden sequence as a persistent input,
-decoder self-attention K/V, separate cross-attention K/V derived from encoder
-output, decoder relative-position buckets, and padding masks. The current T5
-path returns encoder hidden states only, while generation owns a decoder-only
-two-tensor cache and has no encoder-output session contract. Adaptive media
-cross-attention supplies useful dense attention formulas but no T5 GGUF catalog,
-relative-bucket masking, dual cache lifetime, or resumable encoder-decoder API.
 
 ### Deferred: WavTokenizer decoder graph
 

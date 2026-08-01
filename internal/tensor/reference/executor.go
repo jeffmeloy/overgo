@@ -134,6 +134,14 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = float16Round(gelu)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpReLU:
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			if value > 0 {
+				output[i] = value
+			}
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpXIELU:
 		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
 		if !ok {
@@ -1624,9 +1632,10 @@ func attention(
 				}
 				if bias != nil {
 					bucket := relativePositionBucket(
-						queryToken,
+						int(attributes.QueryStart)+queryToken,
 						keyToken,
 						int(attributes.RelativeBuckets),
+						attributes.RelativeBidirectional,
 					)
 					score += float64(bias.Data[bucket*queryHeads+queryHead])
 				}
@@ -1662,26 +1671,31 @@ func attention(
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func relativePositionBucket(query, key, buckets int) int {
-	half := buckets / 2
-	maxExact := half / 2
+func relativePositionBucket(query, key, buckets int, bidirectional bool) int {
 	relative := key - query
 	bucket := 0
-	if relative > 0 {
-		bucket += half
+	if bidirectional {
+		half := buckets / 2
+		if relative > 0 {
+			bucket += half
+		}
+		buckets = half
+	} else if relative > 0 {
+		relative = 0
 	}
 	if relative < 0 {
 		relative = -relative
 	}
+	maxExact := buckets / 2
 	if relative < maxExact {
 		return bucket + relative
 	}
 	large := maxExact + int(math.Floor(
 		math.Log(float64(relative)/float64(maxExact))*
-			float64(half-maxExact)/math.Log(128.0/float64(maxExact)),
+			float64(buckets-maxExact)/math.Log(128.0/float64(maxExact)),
 	))
-	if large >= half {
-		large = half - 1
+	if large >= buckets {
+		large = buckets - 1
 	}
 	return bucket + large
 }

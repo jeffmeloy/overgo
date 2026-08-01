@@ -71,6 +71,9 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		)
 	}
 	expectedLayers := int(r.spec.BlockCount)
+	if r.spec.Architecture == "t5" {
+		expectedLayers = int(r.spec.DecoderBlockCount)
+	}
 	if expectedLayers == 0 {
 		expectedLayers = len(r.weights.Layers)
 	}
@@ -110,6 +113,24 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			if !hasConv || conv.Mode != CacheStateFixed || !conv.Value.Shape.Equal(convShape) ||
 				!hasSSM || ssm.Mode != CacheStateFixed || !ssm.Value.Shape.Equal(ssmShape) {
 				return fmt.Errorf("inference: Falcon-H1 cache layer %d recurrent state is invalid", index)
+			}
+		}
+		if r.spec.Architecture == "t5" {
+			crossKey, hasKey := layer.States["cross_key"]
+			crossValue, hasValue := layer.States["cross_value"]
+			keyShapeOK := hasKey && crossKey.Mode == CacheStateFixed &&
+				crossKey.Value.Shape.Rank == 3 &&
+				crossKey.Value.Shape.Dims[0] == uint64(r.spec.KeyLength) &&
+				crossKey.Value.Shape.Dims[1] == uint64(r.spec.HeadCountKV) &&
+				crossKey.Value.Shape.Dims[2] > 0
+			valueShapeOK := hasValue && crossValue.Mode == CacheStateFixed &&
+				crossValue.Value.Shape.Rank == 3 &&
+				crossValue.Value.Shape.Dims[0] == uint64(r.spec.ValueLength) &&
+				crossValue.Value.Shape.Dims[1] == uint64(r.spec.HeadCountKV) &&
+				crossValue.Value.Shape.Dims[2] > 0
+			if !keyShapeOK || !valueShapeOK ||
+				crossKey.Value.Shape.Dims[2] != crossValue.Value.Shape.Dims[2] {
+				return fmt.Errorf("inference: T5 cache layer %d cross-attention state is invalid", index)
 			}
 		}
 		jambaRecurrent := r.spec.Architecture == "jamba" && index < len(r.weights.Layers) &&
@@ -321,6 +342,21 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	return nil
 }
 
+func (r *Runner) validateT5Cache(cache *KVCache, encoderTokens uint64) error {
+	if err := r.validateCache(cache); err != nil {
+		return err
+	}
+	for index, layer := range cache.Layers {
+		if layer.States["cross_key"].Value.Shape.Dims[2] != encoderTokens {
+			return fmt.Errorf(
+				"inference: T5 cache layer %d encoder length %d, need %d",
+				index, layer.States["cross_key"].Value.Shape.Dims[2], encoderTokens,
+			)
+		}
+	}
+	return nil
+}
+
 // RemoveCacheRange: active-range delete; absolute position retained.
 func (r *Runner) RemoveCacheRange(
 	cache *KVCache,
@@ -331,6 +367,9 @@ func (r *Runner) RemoveCacheRange(
 	}
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
+	}
+	if r.spec.Architecture == "t5" {
+		return nil, errors.New("inference: T5 relative-bias cache editing is unsupported")
 	}
 	if discard == 0 {
 		return cloneCache(cache), nil

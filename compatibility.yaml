@@ -2525,6 +2525,34 @@ models:
     validation:
       - perplexity-relative-delta-below-0.5-percent
       - greedy-token-id-exact
+  t5:
+    status: experimental
+    types:
+      - F32
+      - Q5_K
+      - Q6_K
+    tokenizers:
+      - sentencepiece-ugm
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-k-quant
+    features:
+      - strict-encoder-decoder-catalog
+      - bidirectional-encoder-attention
+      - causal-decoder-relative-position-buckets
+      - fixed-cross-attention-cache
+      - relu-and-gated-gelu-ffn
+      - resumable-model-bound-session
+    validation:
+      - synthetic-topology
+      - cache-and-session-round-trip
+      - cuda-block-differential
+    limitations:
+      - no-padded-multisequence-mask
+      - no-high-level-generation-wrapper
+      - no-relative-bias-cache-editing
+      - real-decoder-fixture-pending
   t5encoder:
     status: experimental
     types:

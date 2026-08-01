@@ -178,6 +178,39 @@ func TestFalconH1CacheValidation(t *testing.T) {
 	}
 }
 
+func TestT5CacheValidation(t *testing.T) {
+	runner := &Runner{spec: model.Spec{
+		Architecture: "t5", DecoderBlockCount: 1, ContextLength: 16,
+		KeyLength: 2, ValueLength: 3, HeadCountKV: 1,
+	}}
+	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
+	crossKey, _ := reference.NewValue(tensor.MustShape(2, 1, 4), make([]float32, 8))
+	crossValue, _ := reference.NewValue(tensor.MustShape(3, 1, 4), make([]float32, 12))
+	cache := &KVCache{Layers: []LayerCache{{
+		Key: key, Value: value,
+		States: map[string]LayerState{
+			"cross_key":   {Mode: CacheStateFixed, Value: crossKey},
+			"cross_value": {Mode: CacheStateFixed, Value: crossValue},
+		},
+	}}, Tokens: 2, Position: 2}
+	if err := runner.validateT5Cache(cache, 4); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.validateT5Cache(cache, 3); err == nil {
+		t.Fatal("mismatched T5 encoder extent was accepted")
+	}
+	if _, err := runner.ShiftCache(cache, 1); err == nil {
+		t.Fatal("T5 relative-bias cache edit was accepted")
+	}
+	state := cache.Layers[0].States["cross_key"]
+	state.Mode = CacheStateToken
+	cache.Layers[0].States["cross_key"] = state
+	if err := runner.validateCache(cache); err == nil {
+		t.Fatal("token-aligned T5 cross cache was accepted")
+	}
+}
+
 func TestJambaHybridCacheValidation(t *testing.T) {
 	runner := &Runner{
 		spec: model.Spec{Architecture: "jamba", BlockCount: 2, SSMConvKernel: 3,

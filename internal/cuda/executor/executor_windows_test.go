@@ -6888,6 +6888,8 @@ func TestExecutorT5RelativeBiasAttentionMatchesReference(t *testing.T) {
 	value := builder.Input("value", dtype.F32, tensor.MustShape(3, 2, 4))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2, 32))
 	output := builder.AttentionWithRelativeBias(query, key, value, bias, 1)
+	causal := builder.AttentionWithRelativeBiasAndOffset(query, key, value, bias, 1, 0)
+	relu := builder.ReLU(value)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -6897,7 +6899,8 @@ func TestExecutorT5RelativeBiasAttentionMatchesReference(t *testing.T) {
 		value: patternedValue(value.Shape, 7, 0.1, 0),
 		bias:  patternedValue(bias.Shape, 11, 0.04, -0.2),
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	outputs := []*tensor.Tensor{output, causal, relu}
+	want, err := reference.Execute(outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -6906,11 +6909,85 @@ func TestExecutorT5RelativeBiasAttentionMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 3e-5)
+	for _, item := range outputs {
+		compare(t, got[item].Data, want[item].Data, 3e-5)
+	}
+}
+
+func TestExecutorT5DecoderBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "t5", EmbeddingLength: 4, FeedForwardLength: 6,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 2, ValueLength: 2,
+		RMSNormEpsilon: 1e-5, RelativeBuckets: 4,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	encoder := builder.Input("encoder", dtype.F32, tensor.MustShape(4, 3))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:         builder.Input("attn_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionQ:            builder.Input("attn_q", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionK:            builder.Input("attn_k", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionV:            builder.Input("attn_v", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionOutput:       builder.Input("attn_o", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionRelativeBias: builder.Input("attn_rel_b", dtype.F32, tensor.MustShape(2, 4)),
+		CrossAttentionNorm:    builder.Input("cross_norm", dtype.F32, tensor.MustShape(4)),
+		CrossAttentionQ:       builder.Input("cross_q", dtype.F32, tensor.MustShape(4, 4)),
+		CrossAttentionK:       builder.Input("cross_k", dtype.F32, tensor.MustShape(4, 4)),
+		CrossAttentionV:       builder.Input("cross_v", dtype.F32, tensor.MustShape(4, 4)),
+		CrossAttentionOutput:  builder.Input("cross_o", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardNorm:       builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+	}
+	result, err := model.BuildT5DecoderBlockCached(builder, input, encoder, spec, weights, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                         patternedValue(input.Shape, 3, 0.1, -0.2),
+		encoder:                       patternedValue(encoder.Shape, 5, 0.08, -0.1),
+		weights.AttentionNorm:         patternedValue(weights.AttentionNorm.Shape, 7, 0.03, 0.9),
+		weights.AttentionQ:            patternedValue(weights.AttentionQ.Shape, 11, 0.04, -0.2),
+		weights.AttentionK:            patternedValue(weights.AttentionK.Shape, 13, 0.04, -0.2),
+		weights.AttentionV:            patternedValue(weights.AttentionV.Shape, 17, 0.04, -0.2),
+		weights.AttentionOutput:       patternedValue(weights.AttentionOutput.Shape, 19, 0.04, -0.2),
+		weights.AttentionRelativeBias: patternedValue(weights.AttentionRelativeBias.Shape, 23, 0.03, -0.1),
+		weights.CrossAttentionNorm:    patternedValue(weights.CrossAttentionNorm.Shape, 29, 0.03, 0.9),
+		weights.CrossAttentionQ:       patternedValue(weights.CrossAttentionQ.Shape, 31, 0.04, -0.2),
+		weights.CrossAttentionK:       patternedValue(weights.CrossAttentionK.Shape, 37, 0.04, -0.2),
+		weights.CrossAttentionV:       patternedValue(weights.CrossAttentionV.Shape, 41, 0.04, -0.2),
+		weights.CrossAttentionOutput:  patternedValue(weights.CrossAttentionOutput.Shape, 43, 0.04, -0.2),
+		weights.FeedForwardNorm:       patternedValue(weights.FeedForwardNorm.Shape, 47, 0.03, 0.9),
+		weights.FeedForwardUp:         patternedValue(weights.FeedForwardUp.Shape, 53, 0.04, -0.2),
+		weights.FeedForwardDown:       patternedValue(weights.FeedForwardDown.Shape, 59, 0.04, -0.2),
+	}
+	outputs := []*tensor.Tensor{
+		result.Output, result.Key, result.Value,
+		result.FixedStates["cross_key"], result.FixedStates["cross_value"],
+	}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 8e-4)
+	}
 }
 
 func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {

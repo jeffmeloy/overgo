@@ -66,6 +66,8 @@ type Spec struct {
 	SlidingWindow          uint32
 	SlidingPattern         uint32
 	RelativeBuckets        uint32
+	DecoderBlockCount      uint32
+	DecoderStartTokenID    uint32
 	NoRopeLayerStep        uint32
 	HiddenActivation       string
 	Dense2FeatureIn        uint32
@@ -277,6 +279,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "falcon" &&
 		architecture != "falcon-h1" &&
 		architecture != "talkie" &&
+		architecture != "t5" &&
 		architecture != "t5encoder" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
@@ -287,7 +290,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" || architecture == "rwkv7" || architecture == "arwkv7" ||
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" || architecture == "rwkv7" || architecture == "arwkv7" || architecture == "t5" ||
 		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		spec.RopeDisabled = true
 	}
@@ -361,7 +364,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if architecture == "mamba" || architecture == "mamba2" {
 		spec.HeadCountKV = 0
-	} else if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
+	} else if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
 		if architecture == "gptneox" || architecture == "falcon" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
@@ -1322,13 +1325,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, errors.New("OLMo attention QKV clamping is not supported")
 		}
 	}
-	if architecture == "t5encoder" {
+	if architecture == "t5" || architecture == "t5encoder" {
 		if spec.RelativeBuckets, err = required[uint32](
 			values,
 			prefix+"attention.relative_buckets_count",
 			gguf.ValueTypeUint32,
 		); err != nil {
 			return Spec{}, err
+		}
+		if architecture == "t5" {
+			spec.DecoderBlockCount = spec.BlockCount
+			if value, ok := optional[uint32](values, prefix+"decoder_block_count", gguf.ValueTypeUint32); ok {
+				spec.DecoderBlockCount = value
+			}
+			spec.DecoderStartTokenID, _ = optional[uint32](values, prefix+"decoder_start_token_id", gguf.ValueTypeUint32)
 		}
 	}
 	if architecture == "qwen3next" || architecture == "qwen35" || architecture == "qwen35moe" {
@@ -2575,8 +2585,11 @@ func (s Spec) validate() error {
 	case !s.UsesLayerNorm() && !s.UsesWeightOnlyLayerNorm() && !s.UsesUnweightedLayerNorm() && s.RMSNormEpsilon <= 0:
 		return errors.New("model RMSNorm epsilon must be positive")
 	}
-	if s.Architecture == "t5encoder" && s.RelativeBuckets == 0 {
+	if (s.Architecture == "t5" || s.Architecture == "t5encoder") && s.RelativeBuckets == 0 {
 		return errors.New("T5 encoder relative attention bucket count is zero")
+	}
+	if s.Architecture == "t5" && s.DecoderBlockCount == 0 {
+		return errors.New("T5 decoder block count is zero")
 	}
 	if s.Architecture == "mamba" {
 		switch {

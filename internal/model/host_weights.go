@@ -40,6 +40,11 @@ type HostLayer struct {
 	AttentionPostNorm           *reference.Value
 	AttentionPostNormBias       *reference.Value
 	AttentionRelativeBias       *reference.Value
+	CrossAttentionNorm          *reference.Value
+	CrossAttentionQ             *reference.Value
+	CrossAttentionK             *reference.Value
+	CrossAttentionV             *reference.Value
+	CrossAttentionOutput        *reference.Value
 	AttentionOutputGate         *reference.Value
 	AttentionSinks              *reference.Value
 	RopeFactors                 *reference.Value
@@ -846,6 +851,25 @@ func LoadHostLayer(
 		}
 		result.AttentionRelativeBias = &value
 	}
+	for _, item := range []struct {
+		info        *gguf.TensorInfo
+		destination **reference.Value
+	}{
+		{info.CrossAttentionNorm, &result.CrossAttentionNorm},
+		{info.CrossAttentionQ, &result.CrossAttentionQ},
+		{info.CrossAttentionK, &result.CrossAttentionK},
+		{info.CrossAttentionV, &result.CrossAttentionV},
+		{info.CrossAttentionOutput, &result.CrossAttentionOutput},
+	} {
+		if item.info == nil {
+			continue
+		}
+		value, err := LoadHostTensor(ctx, file, *item.info)
+		if err != nil {
+			return HostLayer{}, err
+		}
+		*item.destination = &value
+	}
 	if info.RopeFactors != nil {
 		value, err := LoadHostTensor(ctx, file, *info.RopeFactors)
 		if err != nil {
@@ -1142,6 +1166,21 @@ func (layer *HostLayer) GraphInputs(
 	}
 	if layer.AttentionRelativeBias != nil {
 		result.AttentionRelativeBias = input("attn_rel_b.weight", *layer.AttentionRelativeBias)
+	}
+	for _, item := range []struct {
+		name        string
+		value       *reference.Value
+		destination **tensor.Tensor
+	}{
+		{"cross_attn_norm.weight", layer.CrossAttentionNorm, &result.CrossAttentionNorm},
+		{"cross_attn_q.weight", layer.CrossAttentionQ, &result.CrossAttentionQ},
+		{"cross_attn_k.weight", layer.CrossAttentionK, &result.CrossAttentionK},
+		{"cross_attn_v.weight", layer.CrossAttentionV, &result.CrossAttentionV},
+		{"cross_attn_o.weight", layer.CrossAttentionOutput, &result.CrossAttentionOutput},
+	} {
+		if item.value != nil {
+			*item.destination = input(item.name, *item.value)
+		}
 	}
 	if layer.RopeFactors != nil {
 		result.RopeFactors = input("rope_freqs.weight", *layer.RopeFactors)

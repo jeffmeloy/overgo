@@ -3361,6 +3361,31 @@ func TestReadT5EncoderSpec(t *testing.T) {
 	}
 }
 
+func TestReadT5Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "t5"),
+		metadata("t5.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("t5.decoder_block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("t5.decoder_start_token_id", gguf.ValueTypeUint32, uint32(7)),
+		metadata("t5.context_length", gguf.ValueTypeUint32, uint32(512)),
+		metadata("t5.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("t5.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("t5.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("t5.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("t5.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("t5.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("t5.attention.relative_buckets_count", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.DecoderBlockCount != 3 || spec.DecoderStartTokenID != 7 ||
+		spec.HeadCountKV != 2 || spec.RopeFrequencyBase != 0 {
+		t.Fatalf("unexpected T5 spec: %+v", spec)
+	}
+}
+
 func TestReadErnie45MoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "ernie4_5-moe"),
@@ -3526,7 +3551,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
 		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant",
-		"deepseek32", "deepseek4", "t5", "wavtokenizer-dec", "eagle3", "dflash",
+		"deepseek32", "deepseek4", "wavtokenizer-dec", "eagle3", "dflash",
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			file := &gguf.File{Metadata: []gguf.Metadata{

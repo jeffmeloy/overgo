@@ -9,7 +9,7 @@ ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/Neo
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniCPM/MiniCPM3, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, PaddleOCR and Qwen2-VL/Qwen3-VL text-coordinate decoders, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,
-RND1 non-causal MoE, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5/UMT5
+RND1 non-causal MoE, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5 encoder-decoder models and UMT5
 encoders, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3
 per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output
 projection biases and Gemma attention/final-logit softcapping are honored in
@@ -405,6 +405,11 @@ Mamba2 grouped B/C state, scalar-per-head A/D, grouped output RMSNorm, and
 expanded convolution state are likewise synthetic-fixture and CUDA-differential validated.
 Falcon-H1 parallel GQA/Mamba2 mixing, NeoX RoPE, projection biases, and mixed
 token/fixed cache state are synthetic-fixture and CUDA-differential validated.
+T5 encoder-decoder execution includes bidirectional encoder attention, causal
+decoder relative buckets, fixed cross-attention K/V, classic ReLU or gated
+GELU FFNs, and model-bound resumable session serialization. The public path is
+`NewT5Session` followed by chunked `DecodeT5`; `SaveT5Session` and
+`LoadT5Session` preserve both encoder output and decoder cache.
 RWKV6 dual token shifts, WKV6 state, affine normalization, time-first mixing,
 per-head group normalization, and squared-ReLU channel mixing are
 synthetic-fixture and CUDA-differential validated.

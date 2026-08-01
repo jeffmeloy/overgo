@@ -187,6 +187,7 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 		writeFingerprintString(hasher, r.spec.Name)
 		for _, value := range []uint32{
 			r.spec.BlockCount,
+			r.spec.DecoderBlockCount,
 			r.spec.ContextLength,
 			r.spec.EmbeddingLength,
 			r.spec.FeedForwardLength,
@@ -209,6 +210,8 @@ func (r *Runner) sessionModelSignature() ([32]byte, error) {
 			r.spec.FullAttentionInterval,
 			r.spec.EmbeddingPerLayer,
 			r.spec.SharedKVLayers,
+			r.spec.RelativeBuckets,
+			r.spec.DecoderStartTokenID,
 		} {
 			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], value)

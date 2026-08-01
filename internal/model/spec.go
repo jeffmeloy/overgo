@@ -175,6 +175,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "openelm" &&
 		architecture != "orion" &&
 		architecture != "paddleocr" &&
+		architecture != "pangu-embedded" &&
 		architecture != "phi2" &&
 		architecture != "phi3" &&
 		architecture != "phimoe" &&
@@ -641,6 +642,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if value, ok := optional[float32](
 			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
 		); ok {
+			spec.RopeAttentionFactor = value
+		}
+	}
+	if architecture == "pangu-embedded" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		spec.OriginalContextLength = spec.ContextLength
+		if value, ok := optional[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32); ok {
+			spec.OriginalContextLength = value
+		}
+		spec.RopeAttentionFactor = 1
+		if value, ok := optional[float32](values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32); ok {
 			spec.RopeAttentionFactor = value
 		}
 	}
@@ -2344,6 +2359,13 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return errors.New("Phi-3 RoPE metadata is invalid")
 	}
+	if s.Architecture == "pangu-embedded" &&
+		(s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0 ||
+			s.KeyLength != s.ValueLength || s.OriginalContextLength == 0 ||
+			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
+			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
+		return errors.New("Pangu Embedded RoPE metadata is invalid")
+	}
 	if s.Architecture == "apertus" {
 		if s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0 ||
 			s.OriginalContextLength == 0 || s.RopeAttentionFactor <= 0 ||
@@ -2519,7 +2541,7 @@ func usesFusedGateUp(architecture string) bool {
 
 func supportsLongRoPE(architecture string) bool {
 	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitemoe" ||
-		architecture == "minicpm3" || architecture == "phi3" || architecture == "phimoe"
+		architecture == "minicpm3" || architecture == "pangu-embedded" || architecture == "phi3" || architecture == "phimoe"
 }
 
 func firstPositive(values []uint32) uint32 {

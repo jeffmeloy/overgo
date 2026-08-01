@@ -2369,6 +2369,35 @@ func TestReadLlamaEmbedSpecUsesBidirectionalLlamaExecution(t *testing.T) {
 	}
 }
 
+func TestReadPanguEmbeddedSpecUsesCausalNeoXLongRoPE(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "pangu-embedded"),
+		metadata("pangu-embedded.block_count", gguf.ValueTypeUint32, uint32(26)),
+		metadata("pangu-embedded.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("pangu-embedded.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("pangu-embedded.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("pangu-embedded.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("pangu-embedded.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("pangu-embedded.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("pangu-embedded.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("pangu-embedded.rope.scaling.type", gguf.ValueTypeString, "longrope"),
+		metadata("pangu-embedded.rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("pangu-embedded.rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("pangu-embedded.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("pangu-embedded.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "pangu-embedded" || spec.NonCausalAttention || spec.IsEncoderOnly() ||
+		usesNormalRoPE(spec.Architecture) || !supportsLongRoPE(spec.Architecture) ||
+		spec.RopeDimensionCount != 4 || spec.OriginalContextLength != 2048 ||
+		spec.RopeAttentionFactor != 1.25 {
+		t.Fatalf("unexpected Pangu Embedded spec: %+v", spec)
+	}
+}
+
 func TestReadSpecAcceptsLinearRoPEScaling(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

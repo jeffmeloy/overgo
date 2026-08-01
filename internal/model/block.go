@@ -885,6 +885,9 @@ func BuildDenseBlockCachedForLayer(
 	if isPhiMoE {
 		required["attention output bias"] = weights.AttentionOutputBias
 	}
+	if spec.Architecture == "pangu-embedded" {
+		required["attention output bias"] = weights.AttentionOutputBias
+	}
 	if isLaguna || isAFMoE {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm

@@ -727,6 +727,65 @@ func TestReadWeightsLlamaEmbedDenseAndMoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsPanguEmbeddedRequiresOutputBiasAndSelectsLongRoPE(t *testing.T) {
+	spec := Spec{
+		Architecture: "pangu-embedded", BlockCount: 1, ContextLength: 4096,
+		OriginalContextLength: 2048, EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeScalingType: "longrope", VocabularySize: 32,
+		RMSNormEpsilon: 1e-6,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
+		tensorInfo("blk.0.rope_factors_long.weight", 2), tensorInfo("blk.0.rope_factors_short.weight", 2),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output != nil || weights.OutputNorm.Name != "output_norm.weight" ||
+		layer.AttentionOutputBias == nil || layer.RopeFactors == nil ||
+		layer.RopeFactors.Name != "blk.0.rope_factors_long.weight" {
+		t.Fatalf("unexpected Pangu Embedded catalog: %+v", weights)
+	}
+
+	withoutBias := make([]gguf.TensorInfo, 0, len(file.Tensors)-1)
+	for _, item := range file.Tensors {
+		if item.Name != "blk.0.attn_output.bias" {
+			withoutBias = append(withoutBias, item)
+		}
+	}
+	if _, err := ReadWeights(&gguf.File{Tensors: withoutBias}, spec); err == nil ||
+		!strings.Contains(err.Error(), "attn_output.bias") {
+		t.Fatalf("missing Pangu Embedded output bias error = %v", err)
+	}
+
+	fusedTensors := make([]gguf.TensorInfo, 0, len(file.Tensors))
+	for _, item := range file.Tensors {
+		if item.Name != "blk.0.attn_q.weight" && item.Name != "blk.0.attn_k.weight" && item.Name != "blk.0.attn_v.weight" {
+			fusedTensors = append(fusedTensors, item)
+		}
+	}
+	fusedTensors = append(fusedTensors,
+		tensorInfo("blk.0.attn_qkv.weight", 8, 16),
+		tensorInfo("blk.0.attn_qkv.bias", 16),
+	)
+	fused, err := ReadWeights(&gguf.File{Tensors: fusedTensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fused.Layers[0].AttentionQKV == nil || fused.Layers[0].AttentionQKVBias == nil ||
+		fused.Layers[0].AttentionQ.Name != "" {
+		t.Fatalf("unexpected fused Pangu Embedded catalog: %+v", fused.Layers[0])
+	}
+}
+
 func TestReadWeightsEuroBERTFusedQKVWithoutOutput(t *testing.T) {
 	spec := Spec{
 		Architecture: "eurobert", BlockCount: 1, EmbeddingLength: 8,

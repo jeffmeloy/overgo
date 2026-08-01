@@ -761,10 +761,10 @@
   per-pair factors. Remaining model-specific attention variants are rejected.
 - The Qwen3.5 graph supports true multi-axis positions, but the text generation
   and MTP APIs currently supply the same sequential position to every MRoPE
-  axis. `Generate` and the `generate -projected-inputs` JSON path accept
-  caller-projected soft tokens, explicit four-axis prompt positions, and
-  deepstack streams. Image/video encoder plumbing, probabilistic residual-distribution
-  speculative sampling, and multi-sequence recurrent batching remain pending.
+  axis. `Generate`, `generate -projected-inputs`, and single-prompt native
+  `/completion` requests accept caller-projected soft tokens, explicit
+  four-axis prompt positions, and deepstack streams. Image/video encoder
+  plumbing and multi-sequence recurrent batching remain pending.
 - T5 single-sequence encoder-decoder sessions are supported. `GenerateT5`
   supplies high-level sampling, stop callbacks/sequences, LoRA selection, and
   context shifting; callers can also generate incrementally with `DecodeT5`.

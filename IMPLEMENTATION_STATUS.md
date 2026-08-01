@@ -712,10 +712,13 @@
   arrays, tool schemas, assistant calls/results, and the implemented
   system/user/assistant/tool role families. Buffered and complete-call SSE
   OpenAI function calls plus tool-aware token counting are supported;
-  images/audio/files remain pending.
-- Text-only OpenAI Responses generation, streaming, token counting, and
-  function tools/history are supported. Continuation IDs, hosted/custom
-  tools, reasoning items, multimodal/file inputs, and token-incremental
+  single-turn projected image/audio generation is supported. Media history,
+  multiple media, remote images, files, tools with media, and multimodal token
+  counting remain pending.
+- OpenAI Responses generation, streaming, token counting, function
+  tools/history, and single-turn projected base64 image input are supported.
+  Continuation IDs, hosted/custom tools, reasoning items, media history,
+  multiple media, remote images, audio/file inputs, and token-incremental
   function-argument deltas remain pending.
 - Text-only Anthropic generation, streaming, counting, tool use/results, and
   tool-aware Jinja contexts are supported. Thinking blocks, images, and
@@ -734,8 +737,9 @@
   both in generation settings and slot state. Pure-attention prompt caches
   reuse their longest common prefix through host or zero-copy device suffix
   rollback; recurrent models retain exact-prefix-only reuse. A configurable
-  bounded LRU retains independent host or CUDA prompt states. Multimodal prompt
-  objects are rejected explicitly rather than silently approximated.
+  bounded LRU retains independent host or CUDA prompt states. Single-media
+  multimodal prompt objects project images or WAV audio after slot admission;
+  multiple media remain rejected explicitly.
   Per-request LoRA arrays replace scales for one generation without mutating
   global control-plane state. Positive `n_probs`
   reports selected and top-N raw-logit softmax log probabilities with token

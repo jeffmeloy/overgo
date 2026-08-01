@@ -1644,6 +1644,30 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	multiPositions *MultiAxisPositions,
 	deepstackInputs []reference.Value,
 ) (reference.Value, *KVCache, error) {
+	return r.forwardCachedWithEmbeddingOverridesModeLocked(
+		ctx, tokenIDs, cache, overrides, multiPositions, deepstackInputs, true,
+	)
+}
+
+func (r *Runner) forwardCachedPreOutputNormLocked(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	cache *KVCache,
+) (reference.Value, *KVCache, error) {
+	return r.forwardCachedWithEmbeddingOverridesModeLocked(
+		ctx, tokenIDs, cache, nil, nil, nil, false,
+	)
+}
+
+func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	cache *KVCache,
+	overrides []EmbeddingOverride,
+	multiPositions *MultiAxisPositions,
+	deepstackInputs []reference.Value,
+	applyOutputNorm bool,
+) (reference.Value, *KVCache, error) {
 	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
 		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP-only model requires a paired target session")
 	}
@@ -1797,7 +1821,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
-			deepstackBase, deepstackInputs, cache, nextCache, visualMode,
+			deepstackBase, deepstackInputs, cache, nextCache, visualMode, applyOutputNorm,
 		)
 	}
 	var firstLayerValue, previousTopK *reference.Value
@@ -1858,7 +1882,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		}
 		nextCache.Layers[layerIndex] = layerCache
 	}
-	if !r.hasPreloadedWeights() {
+	if !r.hasPreloadedWeights() && applyOutputNorm {
 		activation, err = r.runOutputNorm(ctx, activation)
 		if err != nil {
 			return reference.Value{}, nil, err
@@ -2022,6 +2046,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	cache *KVCache,
 	nextCache *KVCache,
 	visualMode bool,
+	applyOutputNorm bool,
 ) (reference.Value, *KVCache, error) {
 	builder := r.newGraphBuilder()
 	input := builder.Input("model.input", dtype.F32, activation.Shape)
@@ -2112,9 +2137,12 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		keys[layerIndex] = result.Key
 		values[layerIndex] = result.Value
 	}
-	current, err := r.applyDeviceOutputNorm(builder, current, deviceFeeds)
-	if err != nil {
-		return reference.Value{}, nil, err
+	if applyOutputNorm {
+		normalized, normErr := r.applyDeviceOutputNorm(builder, current, deviceFeeds)
+		if normErr != nil {
+			return reference.Value{}, nil, normErr
+		}
+		current = normalized
 	}
 	if err := builder.Err(); err != nil {
 		return reference.Value{}, nil, err

@@ -3261,7 +3261,7 @@ func TestReadModernBERTSpecUsesDenseFirstSymmetricWindows(t *testing.T) {
 		metadata("modern-bert.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
 		metadata("modern-bert.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(3)),
 		metadata("modern-bert.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-		metadata("modern-bert.hidden_act", gguf.ValueTypeString, "silu"),
+		metadata("modern-bert.hidden_activation", gguf.ValueTypeString, "swish"),
 		metadata("modern-bert.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
 	spec, err := ReadSpec(file)
@@ -3270,7 +3270,7 @@ func TestReadModernBERTSpecUsesDenseFirstSymmetricWindows(t *testing.T) {
 	}
 	if spec.Architecture != "modern-bert" || !spec.NonCausalAttention || !spec.IsEncoderOnly() ||
 		!spec.UsesWeightOnlyLayerNorm() || spec.HeadCountKV != 2 || spec.RopeDimensionCount != 4 ||
-		spec.HiddenActivation != "silu" || spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
+		spec.HiddenActivation != "swiglu" || spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
 		!spec.IsSlidingLayer(2) || spec.IsSlidingLayer(3) {
 		t.Fatalf("unexpected ModernBERT spec: %+v", spec)
 	}

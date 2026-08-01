@@ -1463,6 +1463,11 @@ func (b *Builder) GEGLU(gate, up *Tensor) *Tensor {
 	return b.Multiply(b.GELU(gate), up)
 }
 
+// ReGLU: ReLU(gate) * up
+func (b *Builder) ReGLU(gate, up *Tensor) *Tensor {
+	return b.Multiply(b.ReLU(gate), up)
+}
+
 // MulMat: follows ggml semantics; Left has shape [K,M], right has shape [K,N],
 // and result has shape [M,N]
 func (b *Builder) MulMat(left, right *Tensor) *Tensor {

@@ -1040,12 +1040,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.SlidingPattern = value
 			}
 		}
-		spec.HiddenActivation = "gelu"
-		if value, ok := optional[string](values, prefix+"hidden_act", gguf.ValueTypeString); ok {
-			spec.HiddenActivation = value
-		}
-		if spec.HiddenActivation != "gelu" && spec.HiddenActivation != "silu" {
-			return Spec{}, fmt.Errorf("ModernBERT hidden activation %q is unsupported", spec.HiddenActivation)
+		spec.HiddenActivation = "geglu"
+		if value, ok := optional[string](values, prefix+"hidden_activation", gguf.ValueTypeString); ok {
+			switch value {
+			case "gelu", "geglu":
+				spec.HiddenActivation = "geglu"
+			case "silu", "swish", "swiglu":
+				spec.HiddenActivation = "swiglu"
+			case "reglu":
+				spec.HiddenActivation = "reglu"
+			default:
+				return Spec{}, fmt.Errorf("ModernBERT hidden activation %q is unsupported", value)
+			}
 		}
 	}
 	if architecture == "gemma-embedding" {

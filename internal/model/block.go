@@ -473,9 +473,12 @@ func buildModernBERTBlock(
 		builder.GroupSlice(fused, feedForwardWidth, feedForwardWidth, 1, 2*feedForwardWidth),
 		feedForwardWidth, tokens,
 	)
-	if spec.HiddenActivation == "silu" {
+	switch spec.HiddenActivation {
+	case "swiglu":
 		fused = builder.SwiGLU(gate, up)
-	} else {
+	case "reglu":
+		fused = builder.ReGLU(gate, up)
+	default:
 		fused = builder.GEGLU(gate, up)
 	}
 	output := builder.Add(residual, builder.MulMat(weights.FeedForwardDown, fused))

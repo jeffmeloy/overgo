@@ -5599,9 +5599,11 @@ func TestBuildModernBERTBlocksUseDenseFirstSymmetricWindows(t *testing.T) {
 		layer      uint32
 		activation string
 		wantWindow bool
+		wantOp     tensor.Op
 	}{
-		{name: "first GEGLU", layer: 0, activation: "gelu"},
-		{name: "local SwiGLU", layer: 1, activation: "silu", wantWindow: true},
+		{name: "first GEGLU", layer: 0, activation: "geglu", wantOp: tensor.OpGELU},
+		{name: "local SwiGLU", layer: 1, activation: "swiglu", wantWindow: true, wantOp: tensor.OpSiLU},
+		{name: "local ReGLU", layer: 2, activation: "reglu", wantWindow: true, wantOp: tensor.OpReLU},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			builder := tensor.NewBuilder()
@@ -5633,7 +5635,7 @@ func TestBuildModernBERTBlocksUseDenseFirstSymmetricWindows(t *testing.T) {
 				t.Fatal(err)
 			}
 			var attention *tensor.Tensor
-			var layerNorm, neoX, gelu, silu int
+			var layerNorm, neoX, gelu, silu, relu int
 			var ropeBase float32
 			for _, node := range nodes {
 				switch node.Op {
@@ -5648,14 +5650,21 @@ func TestBuildModernBERTBlocksUseDenseFirstSymmetricWindows(t *testing.T) {
 					gelu++
 				case tensor.OpSiLU:
 					silu++
+				case tensor.OpReLU:
+					relu++
 				}
+			}
+			wantNorms := 1
+			if test.layer > 0 {
+				wantNorms = 2
 			}
 			if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Causal ||
 				attention.Attrs.(tensor.AttentionAttributes).SymmetricWindow != test.wantWindow ||
-				neoX != 2 || layerNorm != int(test.layer)+1 ||
-				(test.activation == "gelu" && (gelu != 1 || silu != 0)) ||
-				(test.activation == "silu" && (silu != 1 || gelu != 0)) {
-				t.Fatalf("unexpected ModernBERT graph: attention=%v norms=%d NeoX=%d GELU=%d SiLU=%d", attention, layerNorm, neoX, gelu, silu)
+				neoX != 2 || layerNorm != wantNorms ||
+				(test.wantOp == tensor.OpGELU && (gelu != 1 || silu != 0 || relu != 0)) ||
+				(test.wantOp == tensor.OpSiLU && (silu != 1 || gelu != 0 || relu != 0)) ||
+				(test.wantOp == tensor.OpReLU && (relu != 1 || gelu != 0 || silu != 0)) {
+				t.Fatalf("unexpected ModernBERT graph: attention=%v norms=%d NeoX=%d GELU=%d SiLU=%d ReLU=%d", attention, layerNorm, neoX, gelu, silu, relu)
 			}
 			wantBase := float32(10000)
 			if test.wantWindow {

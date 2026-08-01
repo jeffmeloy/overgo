@@ -2409,6 +2409,69 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 	}
 }
 
+func TestBuildDeepSeek32FullIndexer(t *testing.T) {
+	spec := Spec{Architecture: "deepseek32", BlockCount: 62, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 6, ValueLength: 4,
+		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 16,
+		YaRNExtFactor: 1, YaRNAttentionFactor: 1, YaRNBetaFast: 32, YaRNBetaSlow: 1,
+		RMSNormEpsilon: 1e-5, LayerNormEpsilon: 1e-6, LeadingDenseBlocks: 62,
+		IndexerHeadCount: 2, IndexerKeyLength: 8, IndexerTopK: 2,
+		IndexerFullLayers: make([]bool, 62)}
+	for index := range spec.IndexerFullLayers {
+		spec.IndexerFullLayers[index] = true
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:      builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:         builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionQNorm:     builder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionQB:        builder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
+		AttentionKVAMQA:    builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm:   builder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKB:        builder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
+		AttentionVB:        builder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
+		AttentionOutput:    builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:    builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:    builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:      builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:    builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+		IndexerKNorm:       builder.Input("indexer_norm", dtype.F32, tensor.MustShape(8)),
+		IndexerKNormBias:   builder.Input("indexer_norm_bias", dtype.F32, tensor.MustShape(8)),
+		IndexerProjection:  builder.Input("indexer_proj", dtype.F32, tensor.MustShape(8, 2)),
+		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
+		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
+	}
+	result, err := BuildDSABlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output, result.States["indexer_key"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var neoX, affineLayerNorm, sparse int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRoPENeoX:
+			neoX++
+		case tensor.OpLayerNorm:
+			attributes := node.Attrs.(tensor.LayerNormAttributes)
+			if attributes.Epsilon == 1e-6 {
+				affineLayerNorm++
+			}
+		case tensor.OpSparseAttention:
+			sparse++
+		}
+	}
+	if result.Auxiliary != nil || neoX != 2 || affineLayerNorm != 1 || sparse != 1 {
+		t.Fatalf("DeepSeek 3.2 ops: NeoX=%d affine-LN=%d sparse=%d", neoX, affineLayerNorm, sparse)
+	}
+}
+
 func TestBuildChameleonSandwichBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

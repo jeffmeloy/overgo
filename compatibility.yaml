@@ -989,6 +989,57 @@ models:
       - shared-swiglu-expert
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  deepseek32:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - required-query-lora
+      - compressed-kv-rmsnorm
+      - absorbed-mla
+      - normal-yarn-main-attention
+      - per-layer-lightning-indexer
+      - affine-indexer-key-layernorm-1e-6
+      - neox-yarn-indexer-rope
+      - fwht-indexer-mixing
+      - relu-weighted-history-scoring
+      - top-k-sparse-causal-attention
+      - per-layer-serializable-indexer-key-cache
+      - dense-leading-swiglu
+      - softmax-or-sigmoid-routed-experts
+      - optional-selection-correction-bias
+      - fused-or-separate-expert-gate-up
+      - shared-swiglu-expert
+      - tied-or-untied-output
+      - nextn-mtp-tensors-preserved-unexecuted
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
+  glm-dsa:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - compressed-kv-rmsnorm
+      - absorbed-mla
+      - normal-yarn-rope
+      - metadata-selected-full-indexer-layers
+      - shared-top-k-indexer-schedule
+      - affine-indexer-key-layernorm
+      - fwht-indexer-mixing
+      - relu-weighted-history-scoring
+      - top-k-sparse-causal-attention
+      - serializable-indexer-key-cache
+      - dense-leading-swiglu
+      - softmax-or-sigmoid-routed-experts
+      - optional-selection-correction-bias
+      - fused-or-separate-expert-gate-up
+      - shared-swiglu-expert
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   mistral4:
     status: experimental
     execution:

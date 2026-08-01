@@ -135,6 +135,47 @@ func TestMistral4AbsorbedCacheValidation(t *testing.T) {
 	testDeepSeek2FamilyAbsorbedCacheValidation(t, "mistral4")
 }
 
+func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
+	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
+	runner := &Runner{
+		spec: model.Spec{
+			Architecture: "deepseek32", BlockCount: 1, ContextLength: 16,
+			HeadCount: 2, HeadCountKV: 1, KVLoRARank: 3, RopeDimensionCount: 2,
+			IndexerKeyLength: 4, IndexerFullLayers: []bool{true},
+		},
+		weights: model.Weights{Layers: []model.LayerWeights{{AttentionKB: &attentionKB}}},
+	}
+	key, _ := reference.NewValue(tensor.MustShape(5, 1, 2), make([]float32, 10))
+	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
+	indexerKey, _ := reference.NewValue(tensor.MustShape(4, 1, 2), []float32{
+		1, 2, 3, 4, 5, 6, 7, 8,
+	})
+	cache := &KVCache{
+		Layers: []LayerCache{{
+			Key: key, Value: value,
+			States: map[string]LayerState{
+				"indexer_key": {Mode: CacheStateToken, Value: indexerKey},
+			},
+		}},
+		Tokens: 2, Position: 2,
+	}
+	payload, err := runner.SaveCache(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := runner.LoadCache(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(restored, cache) {
+		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
+	}
+	delete(cache.Layers[0].States, "indexer_key")
+	if err := runner.validateCache(cache); err == nil {
+		t.Fatal("DeepSeek 3.2 cache without indexer state was accepted")
+	}
+}
+
 func TestMambaCacheValidation(t *testing.T) {
 	runner := &Runner{spec: model.Spec{Architecture: "mamba", BlockCount: 1,
 		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2}}

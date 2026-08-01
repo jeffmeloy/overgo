@@ -1685,8 +1685,24 @@ func BuildMLABlockCachedForLayer(
 	return buildMLABlockCachedForLayer(builder, input, spec, weights, positions, pastKey, pastValue, nil, nil, layerIndex)
 }
 
-// BuildGLMDSABlockCached: sparse MLA plus indexer state.
+// BuildGLMDSABlockCached: GLM-DSA compatibility wrapper.
 func BuildGLMDSABlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	return BuildDSABlockCached(
+		builder, input, spec, weights, positions,
+		pastKey, pastValue, pastIndexerKey, previousTopK, layerIndex,
+	)
+}
+
+// BuildDSABlockCached: sparse MLA plus indexer state.
+func BuildDSABlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -1715,7 +1731,8 @@ func buildMLABlockCachedForLayer(
 	}
 	isMiniCPM3 := spec.Architecture == "minicpm3"
 	isDeepSeek2 := isDeepSeek2Family(spec.Architecture)
-	isGLMDSA := spec.Architecture == "glm-dsa"
+	isDSA := isDSAArchitecture(spec.Architecture)
+	isDeepSeek32 := spec.Architecture == "deepseek32"
 	isKimi := spec.Architecture == "kimi-linear"
 	required := map[string]*tensor.Tensor{
 		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
@@ -1728,11 +1745,11 @@ func buildMLABlockCachedForLayer(
 		required["attention K-B"] = weights.AttentionKB
 		required["attention V-B"] = weights.AttentionVB
 	}
-	if isMiniCPM3 || ((isDeepSeek2 || isGLMDSA || isKimi) && spec.QLoRARank > 0) {
+	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
 		required["attention Q-B"] = weights.AttentionQB
 		required["attention Q-A norm"] = weights.AttentionQNorm
 	}
-	if (isDeepSeek2 || isGLMDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
+	if (isDeepSeek2 || isDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
 		if weights.FeedForwardGateUpExperts == nil {
@@ -1752,14 +1769,14 @@ func buildMLABlockCachedForLayer(
 	if isMiniCPM3 {
 		required["feed-forward gate"] = weights.FeedForwardGate
 	}
-	if isGLMDSA && spec.LayerHasFullIndexer(layerIndex) {
+	if isDSA && spec.LayerHasFullIndexer(layerIndex) {
 		for name, item := range map[string]*tensor.Tensor{
 			"indexer K norm": weights.IndexerKNorm, "indexer K norm bias": weights.IndexerKNormBias,
 			"indexer projection": weights.IndexerProjection, "indexer K": weights.IndexerAttentionK,
 			"indexer Q-B": weights.IndexerAttentionQB,
 		} {
 			if item == nil {
-				return DenseBlockResult{}, fmt.Errorf("GLM-DSA %s weight is nil", name)
+				return DenseBlockResult{}, fmt.Errorf("DSA %s weight is nil", name)
 			}
 		}
 	}
@@ -1783,11 +1800,11 @@ func buildMLABlockCachedForLayer(
 	valueWidth := uint64(spec.ValueLength)
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
-	if isMiniCPM3 || ((isDeepSeek2 || isGLMDSA || isKimi) && spec.QLoRARank > 0) {
+	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
 		queryMixed = builder.WeightedRMSNorm(queryMixed, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	}
 	queryRank := queryMixed
-	if isMiniCPM3 || ((isDeepSeek2 || isGLMDSA || isKimi) && spec.QLoRARank > 0) {
+	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
 		queryMixed = builder.MulMat(weights.AttentionQB, queryMixed)
 	}
 	qNoPE := builder.GroupSlice(queryMixed, 0, nopeWidth, heads, keyWidth)
@@ -1808,7 +1825,7 @@ func buildMLABlockCachedForLayer(
 	}
 	if isKimi {
 		// Kimi: no RoPE.
-	} else if (isDeepSeek2 || isGLMDSA) && spec.RopeScalingType == "yarn" {
+	} else if (isDeepSeek2 || isDSA) && spec.RopeScalingType == "yarn" {
 		qPE = builder.RoPENormalYaRN(qPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
 			spec.YaRNBetaFast, spec.YaRNBetaSlow)
@@ -1835,7 +1852,7 @@ func buildMLABlockCachedForLayer(
 		kPE = builder.Scale(kPE, spec.RopeAttentionFactor)
 	}
 	var indexerKey, topK *tensor.Tensor
-	if isGLMDSA {
+	if isDSA {
 		if spec.LayerHasFullIndexer(layerIndex) {
 			indexerWidth := uint64(spec.IndexerKeyLength)
 			indexerHeads := uint64(spec.IndexerHeadCount)
@@ -1843,22 +1860,38 @@ func buildMLABlockCachedForLayer(
 			indexerQPE := builder.GroupSlice(indexerQuery, 0, ropeWidth, indexerHeads, indexerWidth)
 			indexerQNoPE := builder.GroupSlice(indexerQuery, ropeWidth, indexerWidth-ropeWidth, indexerHeads, indexerWidth)
 			if spec.RopeScalingType == "yarn" {
-				indexerQPE = builder.RoPENormalYaRN(indexerQPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-					spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-					spec.YaRNBetaFast, spec.YaRNBetaSlow)
+				if isDeepSeek32 {
+					indexerQPE = builder.RoPENeoXYaRN(indexerQPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
+						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
+						spec.YaRNBetaFast, spec.YaRNBetaSlow)
+				} else {
+					indexerQPE = builder.RoPENormalYaRN(indexerQPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
+						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
+						spec.YaRNBetaFast, spec.YaRNBetaSlow)
+				}
 			} else {
 				indexerQPE = builder.RoPENormalScaled(indexerQPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
 			}
 			indexerQuery = builder.FWHT(builder.Concat(indexerQPE, indexerQNoPE, 0))
 
 			indexerKey = builder.MulMat(weights.IndexerAttentionK, normalized)
-			indexerKey = builder.AffineLayerNorm(indexerKey, weights.IndexerKNorm, weights.IndexerKNormBias, spec.RMSNormEpsilon)
+			indexerEpsilon := spec.RMSNormEpsilon
+			if isDeepSeek32 {
+				indexerEpsilon = spec.LayerNormEpsilon
+			}
+			indexerKey = builder.AffineLayerNorm(indexerKey, weights.IndexerKNorm, weights.IndexerKNormBias, indexerEpsilon)
 			indexerKPE := builder.GroupSlice(indexerKey, 0, ropeWidth, 1, indexerWidth)
 			indexerKNoPE := builder.GroupSlice(indexerKey, ropeWidth, indexerWidth-ropeWidth, 1, indexerWidth)
 			if spec.RopeScalingType == "yarn" {
-				indexerKPE = builder.RoPENormalYaRN(indexerKPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-					spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-					spec.YaRNBetaFast, spec.YaRNBetaSlow)
+				if isDeepSeek32 {
+					indexerKPE = builder.RoPENeoXYaRN(indexerKPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
+						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
+						spec.YaRNBetaFast, spec.YaRNBetaSlow)
+				} else {
+					indexerKPE = builder.RoPENormalYaRN(indexerKPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
+						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
+						spec.YaRNBetaFast, spec.YaRNBetaSlow)
+				}
 			} else {
 				indexerKPE = builder.RoPENormalScaled(indexerKPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
 			}
@@ -1876,7 +1909,7 @@ func buildMLABlockCachedForLayer(
 			topK = builder.TopK(scores, selected)
 		} else {
 			if previousTopK == nil {
-				return DenseBlockResult{}, errors.New("GLM-DSA shared indexer has no previous top-k")
+				return DenseBlockResult{}, errors.New("DSA shared indexer has no previous top-k")
 			}
 			topK = previousTopK
 		}
@@ -1908,14 +1941,14 @@ func buildMLABlockCachedForLayer(
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-	if (isDeepSeek2 || isGLMDSA) && spec.RopeScalingType == "yarn" {
+	if (isDeepSeek2 || isDSA) && spec.RopeScalingType == "yarn" {
 		logScale := float32(math.Log(float64(1 / frequencyScale)))
 		originalFactor := spec.YaRNAttentionFactor * (1 + 0.1*logScale)
 		magnitude := originalFactor * (1 + 0.1*spec.RopeYaRNLogMultiplier*logScale)
 		attentionScale *= magnitude * magnitude
 	}
 	var attention *tensor.Tensor
-	if isGLMDSA {
+	if isDSA {
 		attention = builder.SparseAttentionWithOffset(query, cacheKey, cacheValue, topK, attentionScale, true, queryStart)
 	} else {
 		attention = builder.AttentionWithOffset(query, cacheKey, cacheValue, attentionScale, true, queryStart)
@@ -1934,7 +1967,11 @@ func buildMLABlockCachedForLayer(
 	if indexerKey != nil {
 		states = map[string]*tensor.Tensor{"indexer_key": indexerKey}
 	}
-	if (isDeepSeek2 || isGLMDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
+	auxiliary := topK
+	if isDeepSeek32 {
+		auxiliary = nil
+	}
+	if (isDeepSeek2 || isDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
 		var feedForward *tensor.Tensor
 		if weights.FeedForwardGateUpExperts != nil {
 			if spec.ExpertGatingFunc == 2 {
@@ -1966,11 +2003,11 @@ func buildMLABlockCachedForLayer(
 		if err := builder.Err(); err != nil {
 			return DenseBlockResult{}, err
 		}
-		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue, Auxiliary: topK, States: states}, nil
+		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue, Auxiliary: auxiliary, States: states}, nil
 	}
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	activated := builder.ReLUSquared(up)
-	if isMiniCPM3 || isDeepSeek2 || isGLMDSA || isKimi {
+	if isMiniCPM3 || isDeepSeek2 || isDSA || isKimi {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)
 		activated = builder.SwiGLU(gate, up)
 	}
@@ -1982,7 +2019,7 @@ func buildMLABlockCachedForLayer(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue, Auxiliary: topK, States: states}, nil
+	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue, Auxiliary: auxiliary, States: states}, nil
 }
 
 // BuildRWKV6Qwen2BlockCached: RMS/SwiGLU QRWKV recurrent block.

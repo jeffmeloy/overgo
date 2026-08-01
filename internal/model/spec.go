@@ -150,7 +150,11 @@ type UnsupportedArchitectureError struct {
 }
 
 func isDeepSeek2Family(architecture string) bool {
-	return architecture == "deepseek2" || architecture == "mistral4"
+	return architecture == "deepseek2" || architecture == "deepseek32" || architecture == "mistral4"
+}
+
+func isDSAArchitecture(architecture string) bool {
+	return architecture == "deepseek32" || architecture == "glm-dsa"
 }
 
 func isMLAArchitecture(architecture string) bool {
@@ -158,9 +162,9 @@ func isMLAArchitecture(architecture string) bool {
 		isDeepSeek2Family(architecture) || architecture == "glm-dsa"
 }
 
-// LayerHasFullIndexer: GLM-DSA full-indexer predicate.
+// LayerHasFullIndexer: DSA full-indexer predicate.
 func (s Spec) LayerHasFullIndexer(layer uint32) bool {
-	return s.Architecture == "glm-dsa" && int(layer) < len(s.IndexerFullLayers) && s.IndexerFullLayers[layer]
+	return isDSAArchitecture(s.Architecture) && int(layer) < len(s.IndexerFullLayers) && s.IndexerFullLayers[layer]
 }
 
 func (e *UnsupportedArchitectureError) Error() string {
@@ -198,6 +202,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "dream" &&
 		architecture != "deepseek" &&
 		architecture != "deepseek2" &&
+		architecture != "deepseek32" &&
 		architecture != "deepseek2-ocr" &&
 		architecture != "glm-dsa" &&
 		architecture != "deci" &&
@@ -344,6 +349,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	declaredBlockCount := spec.BlockCount
+	if architecture == "deepseek32" {
+		spec.LayerNormEpsilon = 1e-6
+		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
+			if nextN >= spec.BlockCount {
+				return Spec{}, errors.New("DeepSeek 3.2 NextN/MTP layer count is invalid")
+			}
+			spec.BlockCount -= nextN
+		}
+	}
 	if spec.ContextLength, err = required[uint32](values, prefix+"context_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
@@ -1739,7 +1753,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if isDeepSeek2Family(architecture) || architecture == "glm-dsa" {
-		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
+		if architecture == "deepseek32" {
+			if spec.ExpertCount, err = required[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); err != nil {
+				return Spec{}, err
+			}
+		} else {
+			spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
+		}
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1757,7 +1777,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if architecture == "glm-dsa" {
 			spec.ExpertGatingFunc = 2
 		}
-		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
+		if architecture == "deepseek32" {
+			if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
+				return Spec{}, err
+			}
+		} else if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
 			spec.ExpertGatingFunc = value
 		} else if (spec.BlockCount == 47 || spec.BlockCount == 48) && spec.VocabularySize == 154880 {
 			spec.ExpertGatingFunc = 2
@@ -2290,7 +2314,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
 		}
 	}
-	if architecture == "glm-dsa" {
+	if isDSAArchitecture(architecture) {
 		sections, hasSections, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32)
 		if sectionsErr != nil {
 			return Spec{}, sectionsErr
@@ -2312,7 +2336,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 		spec.IndexerFullLayers = make([]bool, spec.BlockCount)
-		if spec.ContextLength < 1048576 {
+		if architecture == "deepseek32" || spec.ContextLength < 1048576 {
 			for index := range spec.IndexerFullLayers {
 				spec.IndexerFullLayers[index] = true
 			}
@@ -3416,33 +3440,42 @@ func (s Spec) validate() error {
 			((isDeepSeek2Family(s.Architecture) || s.Architecture == "glm-dsa" || s.Architecture == "kimi-linear") && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
 	}
-	if s.Architecture == "glm-dsa" {
+	if isDSAArchitecture(s.Architecture) {
 		switch {
 		case s.QLoRARank == 0:
-			return errors.New("GLM-DSA query LoRA rank is missing")
+			return errors.New("DSA query LoRA rank is missing")
 		case s.IndexerHeadCount == 0 || s.IndexerKeyLength == 0 || s.IndexerTopK == 0 ||
 			s.IndexerTopK > s.ContextLength || s.IndexerKeyLength < s.RopeDimensionCount ||
 			s.IndexerKeyLength&(s.IndexerKeyLength-1) != 0:
-			return errors.New("GLM-DSA indexer metadata is invalid")
+			return errors.New("DSA indexer metadata is invalid")
 		case len(s.IndexerFullLayers) != int(s.BlockCount) || !s.IndexerFullLayers[0]:
-			return errors.New("GLM-DSA indexer schedule is invalid")
+			return errors.New("DSA indexer schedule is invalid")
+		case s.Architecture == "deepseek32" && (s.BlockCount != 62 || s.LayerNormEpsilon != 1e-6):
+			return errors.New("DeepSeek 3.2 layer metadata is invalid")
 		}
 		var sectionPairs int32
 		for _, section := range s.RopeSections {
 			if section < 0 {
-				return errors.New("GLM-DSA RoPE section is negative")
+				return errors.New("DSA RoPE section is negative")
 			}
 			sectionPairs += section
 		}
 		if sectionPairs > int32(s.RopeDimensionCount/2) {
-			return errors.New("GLM-DSA RoPE sections are invalid")
+			return errors.New("DSA RoPE sections are invalid")
 		}
 		seenFull := false
 		for _, full := range s.IndexerFullLayers {
 			if full {
 				seenFull = true
 			} else if !seenFull {
-				return errors.New("GLM-DSA shared indexer precedes every full indexer")
+				return errors.New("DSA shared indexer precedes every full indexer")
+			}
+		}
+		if s.Architecture == "deepseek32" {
+			for _, full := range s.IndexerFullLayers {
+				if !full {
+					return errors.New("DeepSeek 3.2 requires a full indexer in every layer")
+				}
 			}
 		}
 	}

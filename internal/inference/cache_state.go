@@ -93,15 +93,15 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
 			}
 		}
-		if r.spec.Architecture == "glm-dsa" {
+		if isDSAArchitecture(r.spec.Architecture) {
 			state, present := layer.States["indexer_key"]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
 				if !present || state.Mode != CacheStateToken || !state.Value.Shape.Equal(want) {
-					return fmt.Errorf("inference: GLM-DSA cache layer %d indexer shape is invalid", index)
+					return fmt.Errorf("inference: DSA cache layer %d indexer shape is invalid", index)
 				}
 			} else if present {
-				return fmt.Errorf("inference: GLM-DSA shared layer %d has indexer state", index)
+				return fmt.Errorf("inference: DSA shared layer %d has indexer state", index)
 			}
 		}
 		if r.spec.Architecture == "falcon-h1" {
@@ -267,7 +267,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		keyWidth := uint64(r.spec.LayerKeyLength(uint32(index)))
 		valueWidth := uint64(r.spec.LayerValueLength(uint32(index)))
 		kvHeads := uint64(r.spec.LayerKVHeadCount(uint32(index)))
-		if r.spec.Architecture == "deepseek2" || r.spec.Architecture == "mistral4" || r.spec.Architecture == "glm-dsa" || r.spec.Architecture == "kimi-linear" {
+		if r.spec.Architecture == "deepseek2" || r.spec.Architecture == "deepseek32" || r.spec.Architecture == "mistral4" || r.spec.Architecture == "glm-dsa" || r.spec.Architecture == "kimi-linear" {
 			kvHeads = uint64(r.spec.HeadCount)
 			if index < len(r.weights.Layers) && r.weights.Layers[index].AttentionKB != nil {
 				keyWidth = uint64(r.spec.KVLoRARank + r.spec.RopeDimensionCount)

@@ -1613,7 +1613,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
-		r.spec.Architecture != "glm-dsa" && r.spec.Architecture != "falcon-h1" &&
+		!isDSAArchitecture(r.spec.Architecture) && r.spec.Architecture != "falcon-h1" &&
 		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
 		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
@@ -1640,7 +1640,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		if (r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7") && layerIndex > 0 {
 			perLayerInput = firstLayerValue
 		}
-		if r.spec.Architecture == "glm-dsa" && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
+		if isDSAArchitecture(r.spec.Architecture) && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
 			perLayerInput = previousTopK
 		}
 		var layerCache LayerCache
@@ -2263,8 +2263,8 @@ func (r *Runner) runLayerCached(
 		result, err = model.BuildMLABlockCachedForLayer(
 			builder, input, r.spec, graphWeights, positions, pastKey, pastValue, uint32(layerIndex),
 		)
-	} else if r.spec.Architecture == "glm-dsa" {
-		result, err = model.BuildGLMDSABlockCached(
+	} else if isDSAArchitecture(r.spec.Architecture) {
+		result, err = model.BuildDSABlockCached(
 			builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
 			pastIndexerKey, graphWeights.PerLayerInput, uint32(layerIndex),
 		)
@@ -2810,7 +2810,7 @@ func (r *Runner) Generate(
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "gemma3n" &&
 		r.spec.Architecture != "plm" &&
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
-		r.spec.Architecture != "mistral4" && r.spec.Architecture != "glm-dsa" && r.spec.Architecture != "falcon-h1" && r.spec.Architecture != "mamba" &&
+		r.spec.Architecture != "mistral4" && !isDSAArchitecture(r.spec.Architecture) && r.spec.Architecture != "falcon-h1" && r.spec.Architecture != "mamba" &&
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
 		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2" &&
 		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe" &&
@@ -3536,6 +3536,10 @@ func addOutputBias(logits, bias []float32) error {
 
 func isQwenGDNArchitecture(architecture string) bool {
 	return architecture == "qwen3next" || architecture == "qwen35" || architecture == "qwen35moe"
+}
+
+func isDSAArchitecture(architecture string) bool {
+	return architecture == "deepseek32" || architecture == "glm-dsa"
 }
 
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {

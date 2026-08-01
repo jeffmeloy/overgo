@@ -37,6 +37,17 @@ func TestReusablePromptPrefix(t *testing.T) {
 	}
 }
 
+func TestHasRecurrentCache(t *testing.T) {
+	runner := &Runner{weights: model.Weights{Layers: []model.LayerWeights{{}, {Recurrent: true}}}}
+	if !runner.hasRecurrentCache() {
+		t.Fatal("recurrent cache was not detected")
+	}
+	runner.weights.Layers[1].Recurrent = false
+	if runner.hasRecurrentCache() {
+		t.Fatal("dense cache was classified as recurrent")
+	}
+}
+
 func TestMultiplePromptCacheSelectionAndEviction(t *testing.T) {
 	first := &cachedPrompt{
 		Tokens: []tokenizer.TokenID{1, 2},

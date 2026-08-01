@@ -249,6 +249,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "kimi-linear" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
+		architecture != "rwkv6" &&
 		architecture != "rwkv6qwen2" &&
 		architecture != "gemma2" &&
 		architecture != "gemma3" && architecture != "gemma4" &&
@@ -264,7 +265,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6qwen2" ||
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" ||
 		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		spec.RopeDisabled = true
 	}
@@ -1401,7 +1402,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.SSMTimeStepRank = spec.HeadCount
 		spec.SSMGroupCount = spec.HeadCount
 	}
-	if architecture == "rwkv6qwen2" {
+	if architecture == "rwkv6" || architecture == "rwkv6qwen2" {
 		for key, destination := range map[string]*uint32{
 			"wkv.head_size":        &spec.WKVHeadSize,
 			"time_mix_extra_dim":   &spec.TimeMixExtraDim,
@@ -1414,6 +1415,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.RescaleEvery, _ = optional[uint32](values, prefix+"rescale_every_n_layers", gguf.ValueTypeUint32)
 		spec.TokenShiftCount = 1
+		if architecture == "rwkv6" {
+			spec.TokenShiftCount = 2
+		}
 		if value, ok := optional[uint32](values, prefix+"token_shift_count", gguf.ValueTypeUint32); ok {
 			spec.TokenShiftCount = value
 		}
@@ -2414,6 +2418,7 @@ func (s Spec) UsesLayerNorm() bool {
 		s.Architecture == "nomic-bert-moe" ||
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
+		s.Architecture == "rwkv6" ||
 		s.Architecture == "stablelm" ||
 		s.Architecture == "mpt" ||
 		usesSequentialGELU(s.Architecture)
@@ -2485,14 +2490,18 @@ func (s Spec) validate() error {
 			return errors.New("Mamba2 SSM metadata is invalid")
 		}
 	}
-	if s.Architecture == "rwkv6qwen2" {
+	if s.Architecture == "rwkv6" || s.Architecture == "rwkv6qwen2" {
 		switch {
 		case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
-			return errors.New("RWKV6-Qwen2 WKV head metadata is invalid")
-		case s.TimeMixExtraDim == 0 || s.TimeDecayExtraDim == 0 || s.TokenShiftCount != 1:
-			return errors.New("RWKV6-Qwen2 time-mix metadata is invalid")
+			return fmt.Errorf("%s WKV head metadata is invalid", s.Architecture)
+		case s.TimeMixExtraDim == 0 || s.TimeDecayExtraDim == 0 ||
+			(s.Architecture == "rwkv6" && s.TokenShiftCount != 2) ||
+			(s.Architecture == "rwkv6qwen2" && s.TokenShiftCount != 1):
+			return fmt.Errorf("%s time-mix metadata is invalid", s.Architecture)
 		case s.KeyLength != s.WKVHeadSize || s.ValueLength != s.WKVHeadSize:
-			return errors.New("RWKV6-Qwen2 head dimensions are invalid")
+			return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
+		case s.Architecture == "rwkv6" && s.HeadCountKV != s.HeadCount:
+			return errors.New("rwkv6 KV head count must equal query head count")
 		}
 	}
 	if s.Architecture == "jamba" {

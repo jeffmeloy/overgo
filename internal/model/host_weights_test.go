@@ -231,6 +231,40 @@ func TestHostLayerGraphInputsPermitRWKV6Qwen2(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitRWKV6(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	attentionNorm, attentionBias := value(8), value(8)
+	channelNorm, channelBias := value(8), value(8)
+	w1, w2, lerpX, lerp := value(8, 15), value(3, 8, 5), value(8, 1, 1), value(8, 1, 1, 5)
+	first, decay, decayW1, decayW2 := value(4, 2), value(8), value(8, 2), value(2, 8)
+	key, val, receptance, gate := value(8, 8), value(8, 8), value(8, 8), value(8, 8)
+	mixNorm, mixBias, output := value(8), value(8), value(8, 8)
+	channelLerpK, channelLerpR := value(8, 1, 1), value(8, 1, 1)
+	channelKey, channelValue, channelReceptance := value(8, 12), value(12, 8), value(8, 8)
+	layer := HostLayer{
+		AttentionNorm: attentionNorm, AttentionNormBias: &attentionBias,
+		AttentionNorm2: &channelNorm, AttentionNorm2Bias: &channelBias,
+		TimeMixW1: &w1, TimeMixW2: &w2, TimeMixLerpX: &lerpX, TimeMixLerpFused: &lerp,
+		TimeMixFirst: &first, TimeMixDecay: &decay, TimeMixDecayW1: &decayW1, TimeMixDecayW2: &decayW2,
+		TimeMixKey: &key, TimeMixValue: &val, TimeMixReceptance: &receptance, TimeMixGate: &gate,
+		TimeMixLN: &mixNorm, TimeMixLNBias: &mixBias, TimeMixOutput: &output,
+		ChannelMixLerpK: &channelLerpK, ChannelMixLerpR: &channelLerpR,
+		ChannelMixKey: &channelKey, ChannelMixValue: &channelValue, ChannelMixReceptance: &channelReceptance,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 24 || graph.TimeMixFirst == nil || graph.TimeMixLN == nil || graph.ChannelMixReceptance == nil {
+		t.Fatalf("unexpected RWKV6 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitMamba2(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

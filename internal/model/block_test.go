@@ -5661,6 +5661,69 @@ func TestBuildRWKV6Qwen2Block(t *testing.T) {
 	}
 }
 
+func TestBuildRWKV6Block(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "rwkv6", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, WKVHeadSize: 4, TimeMixExtraDim: 3,
+		TimeDecayExtraDim: 2, LayerNormEpsilon: 1e-5, RescaleEvery: 1,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:        builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionNormBias:    builder.Input("attn_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2:       builder.Input("attn_norm_2", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2Bias:   builder.Input("attn_norm_2_bias", dtype.F32, tensor.MustShape(8)),
+		TimeMixW1:            builder.Input("mix_w1", dtype.F32, tensor.MustShape(8, 15)),
+		TimeMixW2:            builder.Input("mix_w2", dtype.F32, tensor.MustShape(3, 8, 5)),
+		TimeMixLerpX:         builder.Input("lerp_x", dtype.F32, tensor.MustShape(8, 1, 1)),
+		TimeMixLerpFused:     builder.Input("lerp", dtype.F32, tensor.MustShape(8, 1, 1, 5)),
+		TimeMixFirst:         builder.Input("first", dtype.F32, tensor.MustShape(4, 2)),
+		TimeMixDecay:         builder.Input("decay", dtype.F32, tensor.MustShape(8)),
+		TimeMixDecayW1:       builder.Input("decay_w1", dtype.F32, tensor.MustShape(8, 2)),
+		TimeMixDecayW2:       builder.Input("decay_w2", dtype.F32, tensor.MustShape(2, 8)),
+		TimeMixKey:           builder.Input("key", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixValue:         builder.Input("value", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixReceptance:    builder.Input("receptance", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixGate:          builder.Input("gate", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixLN:            builder.Input("mix_ln", dtype.F32, tensor.MustShape(8)),
+		TimeMixLNBias:        builder.Input("mix_ln_bias", dtype.F32, tensor.MustShape(8)),
+		TimeMixOutput:        builder.Input("output", dtype.F32, tensor.MustShape(8, 8)),
+		ChannelMixLerpK:      builder.Input("channel_lerp_k", dtype.F32, tensor.MustShape(8, 1, 1)),
+		ChannelMixLerpR:      builder.Input("channel_lerp_r", dtype.F32, tensor.MustShape(8, 1, 1)),
+		ChannelMixKey:        builder.Input("channel_key", dtype.F32, tensor.MustShape(8, 12)),
+		ChannelMixValue:      builder.Input("channel_value", dtype.F32, tensor.MustShape(12, 8)),
+		ChannelMixReceptance: builder.Input("channel_receptance", dtype.F32, tensor.MustShape(8, 8)),
+	}
+	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
+	result, err := BuildRWKV6BlockCached(builder, input, spec, weights, shift, state, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) || !result.Value.Shape.Equal(state.Shape) {
+		t.Fatalf("unexpected RWKV6 result: %+v", result)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wkv, layerNorm, reluSquared int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRWKV6:
+			wkv++
+		case tensor.OpLayerNorm:
+			layerNorm++
+		case tensor.OpReLUSquared:
+			reluSquared++
+		}
+	}
+	if wkv != 1 || layerNorm != 3 || reluSquared != 1 {
+		t.Fatalf("RWKV6 ops: WKV=%d LayerNorm=%d ReLU2=%d", wkv, layerNorm, reluSquared)
+	}
+}
+
 func kimiLinearCommonInputs(builder *tensor.Builder, spec Spec, moe bool) LayerGraphWeights {
 	weights := LayerGraphWeights{
 		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),

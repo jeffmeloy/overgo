@@ -463,6 +463,26 @@ func (r *Runner) layerDeviceInputs(
 					destination **tensor.Tensor
 				}{info.TimeMixOutput, &result.TimeMixOutput},
 			)
+			for _, item := range []struct {
+				info        *gguf.TensorInfo
+				destination **tensor.Tensor
+			}{
+				{info.TimeMixLerpW, &result.TimeMixLerpW},
+				{info.TimeMixLerpK, &result.TimeMixLerpK},
+				{info.TimeMixLerpV, &result.TimeMixLerpV},
+				{info.TimeMixLerpR, &result.TimeMixLerpR},
+				{info.TimeMixLerpG, &result.TimeMixLerpG},
+				{info.TimeMixFirst, &result.TimeMixFirst},
+				{info.TimeMixLN, &result.TimeMixLN},
+				{info.TimeMixLNBias, &result.TimeMixLNBias},
+				{info.ChannelMixLerpK, &result.ChannelMixLerpK},
+				{info.ChannelMixLerpR, &result.ChannelMixLerpR},
+				{info.ChannelMixKey, &result.ChannelMixKey},
+				{info.ChannelMixValue, &result.ChannelMixValue},
+				{info.ChannelMixReceptance, &result.ChannelMixReceptance},
+			} {
+				recurrent = append(recurrent, item)
+			}
 		} else if info.SSMQueryConv != nil {
 			for _, item := range []struct {
 				info        gguf.TensorInfo
@@ -1211,7 +1231,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
 		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
 		r.spec.Architecture != "nemotron_h_moe" && r.spec.Architecture != "kimi-linear" &&
-		r.spec.Architecture != "rwkv6qwen2" {
+		r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
@@ -1580,7 +1600,20 @@ func (r *Runner) runLayerCached(
 		layerIndex < len(r.weights.Layers) && r.weights.Layers[layerIndex].Recurrent
 	kimiRecurrent := r.spec.Architecture == "kimi-linear" && layerIndex < len(r.weights.Layers) &&
 		r.weights.Layers[layerIndex].Recurrent
-	if r.spec.Architecture == "rwkv6qwen2" {
+	if r.spec.Architecture == "rwkv6" {
+		shiftShape := tensor.MustShape(uint64(r.spec.EmbeddingLength), 2)
+		stateShape := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
+		shiftElements, _ := shiftShape.Elements()
+		stateElements, _ := stateShape.Elements()
+		shiftValue := reference.Value{Shape: shiftShape, Data: make([]float32, int(shiftElements))}
+		stateValue := reference.Value{Shape: stateShape, Data: make([]float32, int(stateElements))}
+		if past != nil {
+			shiftValue, stateValue = past.Key, past.Value
+		}
+		pastKey = builder.Input(fmt.Sprintf("blk.%d.token_shift", layerIndex), dtype.F32, shiftValue.Shape)
+		pastValue = builder.Input(fmt.Sprintf("blk.%d.wkv_state", layerIndex), dtype.F32, stateValue.Shape)
+		hostFeeds[pastKey], hostFeeds[pastValue] = shiftValue, stateValue
+	} else if r.spec.Architecture == "rwkv6qwen2" {
 		shiftShape := tensor.MustShape(uint64(r.spec.EmbeddingLength))
 		stateShape := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
 		shiftElements, _ := shiftShape.Elements()
@@ -2179,7 +2212,7 @@ func (r *Runner) Generate(
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
 		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2" &&
 		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe" &&
-		r.spec.Architecture != "kimi-linear" && r.spec.Architecture != "rwkv6qwen2"
+		r.spec.Architecture != "kimi-linear" && r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -2210,7 +2243,7 @@ func (r *Runner) Generate(
 				}
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
-					isQwenGDNArchitecture(r.spec.Architecture) {
+					r.hasRecurrentCache() {
 					cached = 0
 				}
 				if cached > 0 {
@@ -2285,7 +2318,7 @@ func (r *Runner) Generate(
 			} else {
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
-					isQwenGDNArchitecture(r.spec.Architecture) {
+					r.hasRecurrentCache() {
 					cached = 0
 				}
 				if cached > 0 {
@@ -2490,6 +2523,18 @@ func reusablePromptPrefix(cached, requested []tokenizer.TokenID, minimum int) in
 		return 0
 	}
 	return common
+}
+
+func (r *Runner) hasRecurrentCache() bool {
+	if r == nil {
+		return false
+	}
+	for _, layer := range r.weights.Layers {
+		if layer.Recurrent {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runner) promptTokenIDs(prompt string, options GenerateOptions) ([]tokenizer.TokenID, error) {
@@ -2975,6 +3020,12 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 				layer.TimeMixW2,
 				layer.TimeMixLerpX,
 				layer.TimeMixLerpFused,
+				layer.TimeMixLerpW,
+				layer.TimeMixLerpK,
+				layer.TimeMixLerpV,
+				layer.TimeMixLerpR,
+				layer.TimeMixLerpG,
+				layer.TimeMixFirst,
 				layer.TimeMixDecay,
 				layer.TimeMixDecayW1,
 				layer.TimeMixDecayW2,
@@ -2982,7 +3033,14 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 				layer.TimeMixValue,
 				layer.TimeMixReceptance,
 				layer.TimeMixGate,
+				layer.TimeMixLN,
+				layer.TimeMixLNBias,
 				layer.TimeMixOutput,
+				layer.ChannelMixLerpK,
+				layer.ChannelMixLerpR,
+				layer.ChannelMixKey,
+				layer.ChannelMixValue,
+				layer.ChannelMixReceptance,
 			} {
 				if pointer != nil {
 					infos = append(infos, *pointer)

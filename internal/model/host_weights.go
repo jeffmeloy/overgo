@@ -92,44 +92,57 @@ type HostLayer struct {
 	AttentionKB                 *reference.Value
 	AttentionVB                 *reference.Value
 
-	AttentionQKV      *reference.Value
-	AttentionQKVBias  *reference.Value
-	AttentionGate     *reference.Value
-	SSMConv1D         *reference.Value
-	SSMConv1DBias     *reference.Value
-	SSMInput          *reference.Value
-	SSMX              *reference.Value
-	SSMTimeStepWeight *reference.Value
-	SSMTimeStep       *reference.Value
-	SSMTimeStepNorm   *reference.Value
-	SSMA              *reference.Value
-	SSMD              *reference.Value
-	SSMBNorm          *reference.Value
-	SSMCNorm          *reference.Value
-	SSMBeta           *reference.Value
-	SSMAlpha          *reference.Value
-	SSMBetaAlpha      *reference.Value
-	SSMNorm           *reference.Value
-	SSMOutput         *reference.Value
-	SSMQueryConv      *reference.Value
-	SSMKeyConv        *reference.Value
-	SSMValueConv      *reference.Value
-	SSMForgetA        *reference.Value
-	SSMForgetB        *reference.Value
-	SSMOutputGateA    *reference.Value
-	SSMOutputGateB    *reference.Value
-	TimeMixW1         *reference.Value
-	TimeMixW2         *reference.Value
-	TimeMixLerpX      *reference.Value
-	TimeMixLerpFused  *reference.Value
-	TimeMixDecay      *reference.Value
-	TimeMixDecayW1    *reference.Value
-	TimeMixDecayW2    *reference.Value
-	TimeMixKey        *reference.Value
-	TimeMixValue      *reference.Value
-	TimeMixReceptance *reference.Value
-	TimeMixGate       *reference.Value
-	TimeMixOutput     *reference.Value
+	AttentionQKV         *reference.Value
+	AttentionQKVBias     *reference.Value
+	AttentionGate        *reference.Value
+	SSMConv1D            *reference.Value
+	SSMConv1DBias        *reference.Value
+	SSMInput             *reference.Value
+	SSMX                 *reference.Value
+	SSMTimeStepWeight    *reference.Value
+	SSMTimeStep          *reference.Value
+	SSMTimeStepNorm      *reference.Value
+	SSMA                 *reference.Value
+	SSMD                 *reference.Value
+	SSMBNorm             *reference.Value
+	SSMCNorm             *reference.Value
+	SSMBeta              *reference.Value
+	SSMAlpha             *reference.Value
+	SSMBetaAlpha         *reference.Value
+	SSMNorm              *reference.Value
+	SSMOutput            *reference.Value
+	SSMQueryConv         *reference.Value
+	SSMKeyConv           *reference.Value
+	SSMValueConv         *reference.Value
+	SSMForgetA           *reference.Value
+	SSMForgetB           *reference.Value
+	SSMOutputGateA       *reference.Value
+	SSMOutputGateB       *reference.Value
+	TimeMixW1            *reference.Value
+	TimeMixW2            *reference.Value
+	TimeMixLerpX         *reference.Value
+	TimeMixLerpFused     *reference.Value
+	TimeMixLerpW         *reference.Value
+	TimeMixLerpK         *reference.Value
+	TimeMixLerpV         *reference.Value
+	TimeMixLerpR         *reference.Value
+	TimeMixLerpG         *reference.Value
+	TimeMixFirst         *reference.Value
+	TimeMixDecay         *reference.Value
+	TimeMixDecayW1       *reference.Value
+	TimeMixDecayW2       *reference.Value
+	TimeMixKey           *reference.Value
+	TimeMixValue         *reference.Value
+	TimeMixReceptance    *reference.Value
+	TimeMixGate          *reference.Value
+	TimeMixLN            *reference.Value
+	TimeMixLNBias        *reference.Value
+	TimeMixOutput        *reference.Value
+	ChannelMixLerpK      *reference.Value
+	ChannelMixLerpR      *reference.Value
+	ChannelMixKey        *reference.Value
+	ChannelMixValue      *reference.Value
+	ChannelMixReceptance *reference.Value
 }
 
 // LoadHostTensor: reads and dequantizes one GGUF tensor
@@ -406,6 +419,12 @@ func LoadHostLayer(
 				{&result.TimeMixW2, info.TimeMixW2},
 				{&result.TimeMixLerpX, info.TimeMixLerpX},
 				{&result.TimeMixLerpFused, info.TimeMixLerpFused},
+				{&result.TimeMixLerpW, info.TimeMixLerpW},
+				{&result.TimeMixLerpK, info.TimeMixLerpK},
+				{&result.TimeMixLerpV, info.TimeMixLerpV},
+				{&result.TimeMixLerpR, info.TimeMixLerpR},
+				{&result.TimeMixLerpG, info.TimeMixLerpG},
+				{&result.TimeMixFirst, info.TimeMixFirst},
 				{&result.TimeMixDecay, info.TimeMixDecay},
 				{&result.TimeMixDecayW1, info.TimeMixDecayW1},
 				{&result.TimeMixDecayW2, info.TimeMixDecayW2},
@@ -413,7 +432,14 @@ func LoadHostLayer(
 				{&result.TimeMixValue, info.TimeMixValue},
 				{&result.TimeMixReceptance, info.TimeMixReceptance},
 				{&result.TimeMixGate, info.TimeMixGate},
+				{&result.TimeMixLN, info.TimeMixLN},
+				{&result.TimeMixLNBias, info.TimeMixLNBias},
 				{&result.TimeMixOutput, info.TimeMixOutput},
+				{&result.ChannelMixLerpK, info.ChannelMixLerpK},
+				{&result.ChannelMixLerpR, info.ChannelMixLerpR},
+				{&result.ChannelMixKey, info.ChannelMixKey},
+				{&result.ChannelMixValue, info.ChannelMixValue},
+				{&result.ChannelMixReceptance, info.ChannelMixReceptance},
 			} {
 				optionalItems = append(optionalItems, struct {
 					destination **reference.Value
@@ -835,6 +861,12 @@ func (layer *HostLayer) GraphInputs(
 			{"time_mix_w2.weight", layer.TimeMixW2, &result.TimeMixW2},
 			{"time_mix_lerp_x.weight", layer.TimeMixLerpX, &result.TimeMixLerpX},
 			{"time_mix_lerp_fused.weight", layer.TimeMixLerpFused, &result.TimeMixLerpFused},
+			{"time_mix_lerp_w.weight", layer.TimeMixLerpW, &result.TimeMixLerpW},
+			{"time_mix_lerp_k.weight", layer.TimeMixLerpK, &result.TimeMixLerpK},
+			{"time_mix_lerp_v.weight", layer.TimeMixLerpV, &result.TimeMixLerpV},
+			{"time_mix_lerp_r.weight", layer.TimeMixLerpR, &result.TimeMixLerpR},
+			{"time_mix_lerp_g.weight", layer.TimeMixLerpG, &result.TimeMixLerpG},
+			{"time_mix_first.weight", layer.TimeMixFirst, &result.TimeMixFirst},
 			{"time_mix_decay.weight", layer.TimeMixDecay, &result.TimeMixDecay},
 			{"time_mix_decay_w1.weight", layer.TimeMixDecayW1, &result.TimeMixDecayW1},
 			{"time_mix_decay_w2.weight", layer.TimeMixDecayW2, &result.TimeMixDecayW2},
@@ -842,8 +874,18 @@ func (layer *HostLayer) GraphInputs(
 			{"time_mix_value.weight", layer.TimeMixValue, &result.TimeMixValue},
 			{"time_mix_receptance.weight", layer.TimeMixReceptance, &result.TimeMixReceptance},
 			{"time_mix_gate.weight", layer.TimeMixGate, &result.TimeMixGate},
+			{"time_mix_ln.weight", layer.TimeMixLN, &result.TimeMixLN},
+			{"time_mix_ln.bias", layer.TimeMixLNBias, &result.TimeMixLNBias},
 			{"time_mix_output.weight", layer.TimeMixOutput, &result.TimeMixOutput},
+			{"channel_mix_lerp_k.weight", layer.ChannelMixLerpK, &result.ChannelMixLerpK},
+			{"channel_mix_lerp_r.weight", layer.ChannelMixLerpR, &result.ChannelMixLerpR},
+			{"channel_mix_key.weight", layer.ChannelMixKey, &result.ChannelMixKey},
+			{"channel_mix_value.weight", layer.ChannelMixValue, &result.ChannelMixValue},
+			{"channel_mix_receptance.weight", layer.ChannelMixReceptance, &result.ChannelMixReceptance},
 		} {
+			if item.value == nil {
+				continue
+			}
 			*item.destination = input(item.name, *item.value)
 		}
 	} else if layer.SSMInput != nil {

@@ -553,6 +553,55 @@ extern "C" __global__ void gated_linear_attention_f32(
 	}
 }
 
+extern "C" __global__ void rwkv6_f32(
+		const float * key,
+		const float * value,
+		const float * receptance,
+		const float * first,
+		const float * decay,
+		const float * input_state,
+		float * output,
+		unsigned int width,
+		unsigned int heads,
+		unsigned int tokens,
+		unsigned int sequences) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const unsigned int count = heads * sequences;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int head = index % heads;
+	const unsigned int sequence = index / heads;
+	const unsigned int attention_elements = width * heads * tokens * sequences;
+	const unsigned int state_elements = width * width;
+	float * state = output + attention_elements + index * state_elements;
+	const float * source_state = input_state + index * state_elements;
+	for (unsigned int i = 0; i < state_elements; ++i) {
+		state[i] = source_state[i];
+	}
+	for (unsigned int token = 0; token < tokens; ++token) {
+		const unsigned int vector_base =
+			((sequence * tokens + token) * heads + head) * width;
+		for (unsigned int column = 0; column < width; ++column) {
+			output[vector_base + column] = 0.0f;
+		}
+		for (unsigned int row = 0; row < width; ++row) {
+			float * state_row = state + row * width;
+			const float key_value = key[vector_base + row];
+			const float receptance_value = receptance[vector_base + row];
+			const float first_value = first[head * width + row];
+			const float decay_value = decay[vector_base + row];
+			for (unsigned int column = 0; column < width; ++column) {
+				const float kv = key_value * value[vector_base + column];
+				const float previous = state_row[column];
+				output[vector_base + column] +=
+					(previous + kv * first_value) * receptance_value;
+				state_row[column] = previous * decay_value + kv;
+			}
+		}
+	}
+}
+
 extern "C" __global__ void rms_norm_f32(
         const float * input,
         float * output,

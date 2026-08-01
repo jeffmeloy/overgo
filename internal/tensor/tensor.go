@@ -47,6 +47,7 @@ const (
 	OpTanh
 	OpExp
 	OpGatedLinearAttention
+	OpRWKV6
 )
 
 var opNames = [...]string{
@@ -85,6 +86,7 @@ var opNames = [...]string{
 	"tanh",
 	"exp",
 	"gated_linear_attention",
+	"rwkv6",
 }
 
 func (o Op) String() string {
@@ -551,6 +553,40 @@ func (b *Builder) GatedLinearAttention(key, value, receptance, decay, state *Ten
 		return nil
 	}
 	return b.add("", dtype.F32, shape, OpGatedLinearAttention, inputs, GatedLinearAttentionAttributes{Scale: scale})
+}
+
+// RWKV6: classic WKV6 recurrence; packed output and state.
+func (b *Builder) RWKV6(key, value, receptance, first, decay, state *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	inputs := []*Tensor{key, value, receptance, first, decay, state}
+	for _, input := range inputs {
+		if input == nil || input.Type != dtype.F32 {
+			b.setError(errors.New("RWKV6 requires six F32 inputs"))
+			return nil
+		}
+	}
+	if key.Shape.Rank != 4 || !key.Shape.Equal(value.Shape) || !key.Shape.Equal(receptance.Shape) ||
+		!key.Shape.Equal(decay.Shape) || first.Shape.Rank != 2 || state.Shape.Rank != 4 {
+		b.setError(errors.New("RWKV6 input shapes are incompatible"))
+		return nil
+	}
+	width, heads := key.Shape.Dims[0], key.Shape.Dims[1]
+	tokens, sequences := key.Shape.Dims[2], key.Shape.Dims[3]
+	if width == 0 || heads == 0 || tokens == 0 || sequences == 0 ||
+		first.Shape.Dims[0] != width || first.Shape.Dims[1] != heads ||
+		state.Shape.Dims[0] != width || state.Shape.Dims[1] != width ||
+		state.Shape.Dims[2] != heads || state.Shape.Dims[3] != sequences {
+		b.setError(errors.New("RWKV6 state or time-first shape is invalid"))
+		return nil
+	}
+	shape, err := NewShape(width*heads, tokens*sequences+width*sequences)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpRWKV6, inputs, nil)
 }
 
 // MoE: softmax top-k SwiGLU; GGUF expert layouts.

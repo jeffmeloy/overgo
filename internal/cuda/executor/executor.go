@@ -683,6 +683,7 @@ type functionSet struct {
 	ssmScan           driver.Function
 	gatedDeltaNet     driver.Function
 	gatedLinearAttn   driver.Function
+	rwkv6             driver.Function
 	moe               driver.Function
 	repeatHeads       driver.Function
 	transpose2D       driver.Function
@@ -859,6 +860,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"ssm_scan_f32", &result.ssmScan},
 		{"gated_delta_net_f32", &result.gatedDeltaNet},
 		{"gated_linear_attention_f32", &result.gatedLinearAttn},
+		{"rwkv6_f32", &result.rwkv6},
 		{"moe_f32", &result.moe},
 		{"repeat_heads_f32", &result.repeatHeads},
 		{"transpose_2d_f32", &result.transpose2D},
@@ -1377,6 +1379,51 @@ func launchNode(
 		runtime.KeepAlive(tokens)
 		runtime.KeepAlive(sequences)
 		runtime.KeepAlive(scale)
+		return err
+	case tensor.OpRWKV6:
+		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "RWKV6 width")
+		if err != nil {
+			return err
+		}
+		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "RWKV6 heads")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "RWKV6 tokens")
+		if err != nil {
+			return err
+		}
+		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "RWKV6 sequences")
+		if err != nil {
+			return err
+		}
+		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
+			return errors.New("RWKV6 launch count exceeds uint32")
+		}
+		key := pointers[node.Inputs[0]]
+		value := pointers[node.Inputs[1]]
+		receptance := pointers[node.Inputs[2]]
+		first := pointers[node.Inputs[3]]
+		decay := pointers[node.Inputs[4]]
+		inputState := pointers[node.Inputs[5]]
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&key), unsafe.Pointer(&value), unsafe.Pointer(&receptance),
+			unsafe.Pointer(&first), unsafe.Pointer(&decay), unsafe.Pointer(&inputState),
+			unsafe.Pointer(&output), unsafe.Pointer(&width), unsafe.Pointer(&heads),
+			unsafe.Pointer(&tokens), unsafe.Pointer(&sequences),
+		}
+		err = launch1D(state, functions.rwkv6, heads*sequences, args)
+		runtime.KeepAlive(key)
+		runtime.KeepAlive(value)
+		runtime.KeepAlive(receptance)
+		runtime.KeepAlive(first)
+		runtime.KeepAlive(decay)
+		runtime.KeepAlive(inputState)
+		runtime.KeepAlive(output)
+		runtime.KeepAlive(width)
+		runtime.KeepAlive(heads)
+		runtime.KeepAlive(tokens)
+		runtime.KeepAlive(sequences)
 		return err
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)

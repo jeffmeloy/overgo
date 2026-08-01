@@ -91,11 +91,31 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
 		kimiRecurrent := r.spec.Architecture == "kimi-linear" && index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent
+		if r.spec.Architecture == "rwkv6" {
+			wantShift := tensor.MustShape(uint64(r.spec.EmbeddingLength), 2)
+			wantState := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
+			if !layer.Key.Shape.Equal(wantShift) || !layer.Value.Shape.Equal(wantState) {
+				return fmt.Errorf("inference: RWKV6 cache layer %d shape is invalid", index)
+			}
+			if err := validateStateValue(layer.Key); err != nil {
+				return fmt.Errorf("inference: RWKV6 cache layer %d shift: %w", index, err)
+			}
+			if err := validateStateValue(layer.Value); err != nil {
+				return fmt.Errorf("inference: RWKV6 cache layer %d state: %w", index, err)
+			}
+			continue
+		}
 		if r.spec.Architecture == "rwkv6qwen2" {
 			wantShift := tensor.MustShape(uint64(r.spec.EmbeddingLength))
 			wantState := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
 			if !layer.Key.Shape.Equal(wantShift) || !layer.Value.Shape.Equal(wantState) {
 				return fmt.Errorf("inference: RWKV6-Qwen2 cache layer %d shape is invalid", index)
+			}
+			if err := validateStateValue(layer.Key); err != nil {
+				return fmt.Errorf("inference: RWKV6-Qwen2 cache layer %d shift: %w", index, err)
+			}
+			if err := validateStateValue(layer.Value); err != nil {
+				return fmt.Errorf("inference: RWKV6-Qwen2 cache layer %d state: %w", index, err)
 			}
 			continue
 		}

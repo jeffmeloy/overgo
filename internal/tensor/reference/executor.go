@@ -197,6 +197,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return gatedDeltaNet(node.Shape, inputs, node.Attrs.(tensor.GatedDeltaNetAttributes))
 	case tensor.OpGatedLinearAttention:
 		return gatedLinearAttention(node.Shape, inputs, node.Attrs.(tensor.GatedLinearAttentionAttributes))
+	case tensor.OpRWKV6:
+		return rwkv6(node.Shape, inputs)
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
 		if !ok {
@@ -635,6 +637,48 @@ func gatedLinearAttention(
 						sum += receptance.Data[vectorIndex] * next
 					}
 					output[vectorBase+row] = sum * attributes.Scale
+				}
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func rwkv6(shape tensor.Shape, inputs []Value) (Value, error) {
+	if len(inputs) != 6 {
+		return Value{}, errors.New("RWKV6 requires six inputs")
+	}
+	key, value, receptance := inputs[0], inputs[1], inputs[2]
+	first, decay, inputState := inputs[3], inputs[4], inputs[5]
+	width := int(key.Shape.Dims[0])
+	heads := int(key.Shape.Dims[1])
+	tokens := int(key.Shape.Dims[2])
+	sequences := int(key.Shape.Dims[3])
+	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
+		return Value{}, errors.New("invalid RWKV6 dimensions")
+	}
+	attentionElements := width * heads * tokens * sequences
+	stateElements := width * width
+	output := make([]float32, attentionElements+stateElements*heads*sequences)
+	for sequence := range sequences {
+		for head := range heads {
+			stateBase := attentionElements + (sequence*heads+head)*stateElements
+			inputStateBase := (sequence*heads + head) * stateElements
+			copy(output[stateBase:stateBase+stateElements], inputState.Data[inputStateBase:inputStateBase+stateElements])
+			for token := range tokens {
+				vectorBase := ((sequence*tokens+token)*heads + head) * width
+				for row := range width {
+					stateRow := stateBase + row*width
+					keyValue := key.Data[vectorBase+row]
+					receptanceValue := receptance.Data[vectorBase+row]
+					firstValue := first.Data[head*width+row]
+					decayValue := decay.Data[vectorBase+row]
+					for column := range width {
+						kv := keyValue * value.Data[vectorBase+column]
+						previous := output[stateRow+column]
+						output[vectorBase+column] += (previous + kv*firstValue) * receptanceValue
+						output[stateRow+column] = previous*decayValue + kv
+					}
 				}
 			}
 		}

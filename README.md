@@ -6,7 +6,7 @@ through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE,
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3/4 and Gemma Embedding,
 ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE, GPT-2/GPT-NeoX, Granite/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
-InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6-Qwen2, Mellum, MiMo2, MiniCPM/MiniCPM3, compatible MPT,
+InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2, Mellum, MiMo2, MiniCPM/MiniCPM3, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, PaddleOCR and Qwen2-VL/Qwen3-VL text-coordinate decoders, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,
 RND1 non-causal MoE, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5/UMT5
@@ -242,7 +242,7 @@ prompt states in a bounded LRU. The server defaults to one entry and exposes
 `-prompt-cache-entries`; Go callers use `OpenOptions.PromptCacheEntries`.
 Single-entry pure-attention caches reuse the longest common token prefix,
 including suffix rollback and divergent continuations. Multiple device entries
-remain independent, while hybrid recurrent models reuse only exact
+remain independent, while recurrent models reuse only exact
 cached-prefix extensions because their summarized state cannot be reversed
 safely.
 `POST /infill` accepts required mixed token/string `input_prefix` and
@@ -400,6 +400,9 @@ Mamba v1 convolution state, selective-scan state, optional FalconMamba dt/B/C
 RMSNorm, D skip, and SiLU gate are synthetic-fixture and CUDA-differential validated.
 Mamba2 grouped B/C state, scalar-per-head A/D, grouped output RMSNorm, and
 expanded convolution state are likewise synthetic-fixture and CUDA-differential validated.
+RWKV6 dual token shifts, WKV6 state, affine normalization, time-first mixing,
+per-head group normalization, and squared-ReLU channel mixing are
+synthetic-fixture and CUDA-differential validated.
 RWKV6-Qwen2 five-way low-rank token mixing, grouped-KV gated linear attention,
 cached normalized token shift and WKV state, optional projection biases, and
 periodic residual rescaling are synthetic-fixture and CUDA-differential validated.

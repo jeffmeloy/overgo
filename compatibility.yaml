@@ -1098,6 +1098,24 @@ models:
       - optional-periodic-residual-rescale
       - serializable-recurrent-cache
     real_model_validation: pending-fixture
+  rwkv6:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - affine-layer-normalization
+      - dual-cached-token-shifts
+      - five-way-low-rank-time-mix
+      - fused-or-separate-time-mix-lerps
+      - time-first-wkv6-recurrence
+      - per-head-group-normalization
+      - silu-output-gate
+      - squared-relu-channel-mix
+      - optional-periodic-residual-rescale
+      - serializable-recurrent-cache
+    real_model_validation: pending-fixture
   starcoder:
     status: experimental
     features:

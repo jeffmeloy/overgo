@@ -3856,6 +3856,59 @@ func TestReadWeightsRWKV6Qwen2(t *testing.T) {
 	}
 }
 
+func TestReadWeightsRWKV6(t *testing.T) {
+	spec := Spec{
+		Architecture: "rwkv6", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+		WKVHeadSize: 4, TimeMixExtraDim: 3, TimeDecayExtraDim: 2,
+		VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_embd_norm.weight", 8),
+		tensorInfo("token_embd_norm.bias", 8), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output_norm.bias", 8), tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+		tensorInfo("blk.0.attn_norm_2.weight", 8), tensorInfo("blk.0.attn_norm_2.bias", 8),
+		tensorInfo("blk.0.time_mix_w1.weight", 8, 15), tensorInfo("blk.0.time_mix_w2.weight", 3, 8, 5),
+		tensorInfo("blk.0.time_mix_lerp_x.weight", 8, 1, 1), tensorInfo("blk.0.time_mix_lerp_fused.weight", 8, 1, 1, 5),
+		tensorInfo("blk.0.time_mix_first.weight", 4, 2), tensorInfo("blk.0.time_mix_decay.weight", 8),
+		tensorInfo("blk.0.time_mix_decay_w1.weight", 8, 2), tensorInfo("blk.0.time_mix_decay_w2.weight", 2, 8),
+		tensorInfo("blk.0.time_mix_key.weight", 8, 8), tensorInfo("blk.0.time_mix_value.weight", 8, 8),
+		tensorInfo("blk.0.time_mix_receptance.weight", 8, 8), tensorInfo("blk.0.time_mix_gate.weight", 8, 8),
+		tensorInfo("blk.0.time_mix_ln.weight", 8), tensorInfo("blk.0.time_mix_ln.bias", 8),
+		tensorInfo("blk.0.time_mix_output.weight", 8, 8), tensorInfo("blk.0.channel_mix_lerp_k.weight", 8, 1, 1),
+		tensorInfo("blk.0.channel_mix_lerp_r.weight", 8, 1, 1), tensorInfo("blk.0.channel_mix_key.weight", 8, 12),
+		tensorInfo("blk.0.channel_mix_value.weight", 12, 8), tensorInfo("blk.0.channel_mix_receptance.weight", 8, 8),
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if !layer.Recurrent || layer.TimeMixFirst == nil || layer.TimeMixLN == nil ||
+		layer.ChannelMixKey == nil || layer.AttentionNorm2Bias == nil ||
+		weights.TokenEmbeddingNorm == nil || weights.TokenEmbeddingNormBias == nil ||
+		weights.OutputNormBias == nil || weights.Output == nil {
+		t.Fatalf("unexpected RWKV6 catalog: %+v", layer)
+	}
+	legacy := make([]gguf.TensorInfo, 0, len(tensors)+4)
+	for _, item := range tensors {
+		if item.Name != "blk.0.time_mix_lerp_fused.weight" {
+			legacy = append(legacy, item)
+		}
+	}
+	for _, suffix := range []string{"w", "k", "v", "r", "g"} {
+		legacy = append(legacy, tensorInfo("blk.0.time_mix_lerp_"+suffix+".weight", 8, 1, 1))
+	}
+	legacyWeights, err := ReadWeights(&gguf.File{Tensors: legacy}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyWeights.Layers[0].TimeMixLerpFused != nil || legacyWeights.Layers[0].TimeMixLerpW == nil {
+		t.Fatalf("unexpected legacy RWKV6 lerp catalog: %+v", legacyWeights.Layers[0])
+	}
+}
+
 func TestReadWeightsQwen35MoEAttention(t *testing.T) {
 	spec := Spec{
 		Architecture: "qwen35moe", BlockCount: 1, EmbeddingLength: 8,

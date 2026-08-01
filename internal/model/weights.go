@@ -93,44 +93,57 @@ type LayerWeights struct {
 	VisualFeedForwardUp         *gguf.TensorInfo
 	VisualFeedForwardDown       *gguf.TensorInfo
 
-	AttentionQKV      *gguf.TensorInfo
-	AttentionQKVBias  *gguf.TensorInfo
-	AttentionGate     *gguf.TensorInfo
-	SSMConv1D         *gguf.TensorInfo
-	SSMConv1DBias     *gguf.TensorInfo
-	SSMInput          *gguf.TensorInfo
-	SSMX              *gguf.TensorInfo
-	SSMTimeStepWeight *gguf.TensorInfo
-	SSMTimeStep       *gguf.TensorInfo
-	SSMTimeStepNorm   *gguf.TensorInfo
-	SSMA              *gguf.TensorInfo
-	SSMD              *gguf.TensorInfo
-	SSMBNorm          *gguf.TensorInfo
-	SSMCNorm          *gguf.TensorInfo
-	SSMBeta           *gguf.TensorInfo
-	SSMAlpha          *gguf.TensorInfo
-	SSMBetaAlpha      *gguf.TensorInfo
-	SSMNorm           *gguf.TensorInfo
-	SSMOutput         *gguf.TensorInfo
-	SSMQueryConv      *gguf.TensorInfo
-	SSMKeyConv        *gguf.TensorInfo
-	SSMValueConv      *gguf.TensorInfo
-	SSMForgetA        *gguf.TensorInfo
-	SSMForgetB        *gguf.TensorInfo
-	SSMOutputGateA    *gguf.TensorInfo
-	SSMOutputGateB    *gguf.TensorInfo
-	TimeMixW1         *gguf.TensorInfo
-	TimeMixW2         *gguf.TensorInfo
-	TimeMixLerpX      *gguf.TensorInfo
-	TimeMixLerpFused  *gguf.TensorInfo
-	TimeMixDecay      *gguf.TensorInfo
-	TimeMixDecayW1    *gguf.TensorInfo
-	TimeMixDecayW2    *gguf.TensorInfo
-	TimeMixKey        *gguf.TensorInfo
-	TimeMixValue      *gguf.TensorInfo
-	TimeMixReceptance *gguf.TensorInfo
-	TimeMixGate       *gguf.TensorInfo
-	TimeMixOutput     *gguf.TensorInfo
+	AttentionQKV         *gguf.TensorInfo
+	AttentionQKVBias     *gguf.TensorInfo
+	AttentionGate        *gguf.TensorInfo
+	SSMConv1D            *gguf.TensorInfo
+	SSMConv1DBias        *gguf.TensorInfo
+	SSMInput             *gguf.TensorInfo
+	SSMX                 *gguf.TensorInfo
+	SSMTimeStepWeight    *gguf.TensorInfo
+	SSMTimeStep          *gguf.TensorInfo
+	SSMTimeStepNorm      *gguf.TensorInfo
+	SSMA                 *gguf.TensorInfo
+	SSMD                 *gguf.TensorInfo
+	SSMBNorm             *gguf.TensorInfo
+	SSMCNorm             *gguf.TensorInfo
+	SSMBeta              *gguf.TensorInfo
+	SSMAlpha             *gguf.TensorInfo
+	SSMBetaAlpha         *gguf.TensorInfo
+	SSMNorm              *gguf.TensorInfo
+	SSMOutput            *gguf.TensorInfo
+	SSMQueryConv         *gguf.TensorInfo
+	SSMKeyConv           *gguf.TensorInfo
+	SSMValueConv         *gguf.TensorInfo
+	SSMForgetA           *gguf.TensorInfo
+	SSMForgetB           *gguf.TensorInfo
+	SSMOutputGateA       *gguf.TensorInfo
+	SSMOutputGateB       *gguf.TensorInfo
+	TimeMixW1            *gguf.TensorInfo
+	TimeMixW2            *gguf.TensorInfo
+	TimeMixLerpX         *gguf.TensorInfo
+	TimeMixLerpFused     *gguf.TensorInfo
+	TimeMixLerpW         *gguf.TensorInfo
+	TimeMixLerpK         *gguf.TensorInfo
+	TimeMixLerpV         *gguf.TensorInfo
+	TimeMixLerpR         *gguf.TensorInfo
+	TimeMixLerpG         *gguf.TensorInfo
+	TimeMixFirst         *gguf.TensorInfo
+	TimeMixDecay         *gguf.TensorInfo
+	TimeMixDecayW1       *gguf.TensorInfo
+	TimeMixDecayW2       *gguf.TensorInfo
+	TimeMixKey           *gguf.TensorInfo
+	TimeMixValue         *gguf.TensorInfo
+	TimeMixReceptance    *gguf.TensorInfo
+	TimeMixGate          *gguf.TensorInfo
+	TimeMixLN            *gguf.TensorInfo
+	TimeMixLNBias        *gguf.TensorInfo
+	TimeMixOutput        *gguf.TensorInfo
+	ChannelMixLerpK      *gguf.TensorInfo
+	ChannelMixLerpR      *gguf.TensorInfo
+	ChannelMixKey        *gguf.TensorInfo
+	ChannelMixValue      *gguf.TensorInfo
+	ChannelMixReceptance *gguf.TensorInfo
 }
 
 // Weights: validated initial Llama/Qwen3 tensor catalog
@@ -272,6 +285,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		result.TokenEmbeddingNorm = &tokenNorm
 		result.TokenEmbeddingNormBias = &tokenNormBias
 	}
+	if spec.Architecture == "rwkv6" {
+		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
+		if normErr != nil {
+			return Weights{}, normErr
+		}
+		tokenNormBias, normErr := required("token_embd_norm.bias", uint64(spec.EmbeddingLength))
+		if normErr != nil {
+			return Weights{}, normErr
+		}
+		result.TokenEmbeddingNorm = &tokenNorm
+		result.TokenEmbeddingNormBias = &tokenNormBias
+	}
 	outputNormName := "output_norm.weight"
 	if spec.Architecture == "t5encoder" {
 		outputNormName = "enc.output_norm.weight"
@@ -369,6 +394,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "mimo2" ||
 		spec.Architecture == "step35" ||
 		spec.Architecture == "kimi-linear" ||
+		spec.Architecture == "rwkv6" ||
 		spec.Architecture == "rwkv6qwen2" ||
 		spec.Architecture == "mellum" ||
 		spec.Architecture == "jais" ||
@@ -764,6 +790,62 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 						return Weights{}, itemErr
 					}
 					*shapeAndDestination.destination = &item
+				}
+			}
+			continue
+		}
+		if spec.Architecture == "rwkv6" {
+			layer.Recurrent = true
+			embedding := uint64(spec.EmbeddingLength)
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"attn_norm_2.weight":            {[]uint64{embedding}, &layer.AttentionNorm2},
+				"attn_norm_2.bias":              {[]uint64{embedding}, &layer.AttentionNorm2Bias},
+				"time_mix_w1.weight":            {[]uint64{embedding, uint64(spec.TimeMixExtraDim) * 5}, &layer.TimeMixW1},
+				"time_mix_w2.weight":            {[]uint64{uint64(spec.TimeMixExtraDim), embedding, 5}, &layer.TimeMixW2},
+				"time_mix_lerp_x.weight":        {[]uint64{embedding, 1, 1}, &layer.TimeMixLerpX},
+				"time_mix_first.weight":         {[]uint64{uint64(spec.WKVHeadSize), uint64(spec.HeadCount)}, &layer.TimeMixFirst},
+				"time_mix_decay.weight":         {[]uint64{embedding}, &layer.TimeMixDecay},
+				"time_mix_decay_w1.weight":      {[]uint64{embedding, uint64(spec.TimeDecayExtraDim)}, &layer.TimeMixDecayW1},
+				"time_mix_decay_w2.weight":      {[]uint64{uint64(spec.TimeDecayExtraDim), embedding}, &layer.TimeMixDecayW2},
+				"time_mix_key.weight":           {[]uint64{embedding, embedding}, &layer.TimeMixKey},
+				"time_mix_value.weight":         {[]uint64{embedding, embedding}, &layer.TimeMixValue},
+				"time_mix_receptance.weight":    {[]uint64{embedding, embedding}, &layer.TimeMixReceptance},
+				"time_mix_gate.weight":          {[]uint64{embedding, embedding}, &layer.TimeMixGate},
+				"time_mix_ln.weight":            {[]uint64{embedding}, &layer.TimeMixLN},
+				"time_mix_ln.bias":              {[]uint64{embedding}, &layer.TimeMixLNBias},
+				"time_mix_output.weight":        {[]uint64{embedding, embedding}, &layer.TimeMixOutput},
+				"channel_mix_lerp_k.weight":     {[]uint64{embedding, 1, 1}, &layer.ChannelMixLerpK},
+				"channel_mix_lerp_r.weight":     {[]uint64{embedding, 1, 1}, &layer.ChannelMixLerpR},
+				"channel_mix_key.weight":        {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.ChannelMixKey},
+				"channel_mix_value.weight":      {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.ChannelMixValue},
+				"channel_mix_receptance.weight": {[]uint64{embedding, embedding}, &layer.ChannelMixReceptance},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
+			if item, ok := tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
+				validated, itemErr := required(item.Name, embedding, 1, 1, 5)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				layer.TimeMixLerpFused = &validated
+			} else {
+				for suffix, destination := range map[string]**gguf.TensorInfo{
+					"w": &layer.TimeMixLerpW, "k": &layer.TimeMixLerpK,
+					"v": &layer.TimeMixLerpV, "r": &layer.TimeMixLerpR,
+					"g": &layer.TimeMixLerpG,
+				} {
+					item, itemErr := required(prefix+"time_mix_lerp_"+suffix+".weight", embedding, 1, 1)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*destination = &item
 				}
 			}
 			continue

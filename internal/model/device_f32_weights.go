@@ -189,9 +189,13 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		if info.TimeMixW1 != nil {
 			recurrent = []*gguf.TensorInfo{
 				info.TimeMixW1, info.TimeMixW2, info.TimeMixLerpX, info.TimeMixLerpFused,
+				info.TimeMixLerpW, info.TimeMixLerpK, info.TimeMixLerpV, info.TimeMixLerpR, info.TimeMixLerpG,
+				info.TimeMixFirst,
 				info.TimeMixDecay, info.TimeMixDecayW1, info.TimeMixDecayW2,
 				info.TimeMixKey, info.TimeMixValue, info.TimeMixReceptance,
-				info.TimeMixGate, info.TimeMixOutput,
+				info.TimeMixGate, info.TimeMixLN, info.TimeMixLNBias, info.TimeMixOutput,
+				info.ChannelMixLerpK, info.ChannelMixLerpR, info.ChannelMixKey,
+				info.ChannelMixValue, info.ChannelMixReceptance,
 			}
 		} else if info.ShortConvKernel != nil {
 			recurrent = []*gguf.TensorInfo{info.ShortConvKernel, info.ShortConvInput, info.ShortConvOutput}
@@ -219,7 +223,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		}
 		for _, item := range recurrent {
 			if item == nil {
-				return LayerGraphWeights{}, nil, errors.New("F32 device recurrent layer catalog is incomplete")
+				continue
 			}
 			required = append(required, *item)
 		}
@@ -409,6 +413,12 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.TimeMixW2, &result.TimeMixW2},
 		{info.TimeMixLerpX, &result.TimeMixLerpX},
 		{info.TimeMixLerpFused, &result.TimeMixLerpFused},
+		{info.TimeMixLerpW, &result.TimeMixLerpW},
+		{info.TimeMixLerpK, &result.TimeMixLerpK},
+		{info.TimeMixLerpV, &result.TimeMixLerpV},
+		{info.TimeMixLerpR, &result.TimeMixLerpR},
+		{info.TimeMixLerpG, &result.TimeMixLerpG},
+		{info.TimeMixFirst, &result.TimeMixFirst},
 		{info.TimeMixDecay, &result.TimeMixDecay},
 		{info.TimeMixDecayW1, &result.TimeMixDecayW1},
 		{info.TimeMixDecayW2, &result.TimeMixDecayW2},
@@ -416,7 +426,14 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.TimeMixValue, &result.TimeMixValue},
 		{info.TimeMixReceptance, &result.TimeMixReceptance},
 		{info.TimeMixGate, &result.TimeMixGate},
+		{info.TimeMixLN, &result.TimeMixLN},
+		{info.TimeMixLNBias, &result.TimeMixLNBias},
 		{info.TimeMixOutput, &result.TimeMixOutput},
+		{info.ChannelMixLerpK, &result.ChannelMixLerpK},
+		{info.ChannelMixLerpR, &result.ChannelMixLerpR},
+		{info.ChannelMixKey, &result.ChannelMixKey},
+		{info.ChannelMixValue, &result.ChannelMixValue},
+		{info.ChannelMixReceptance, &result.ChannelMixReceptance},
 	} {
 		if item.info == nil {
 			continue

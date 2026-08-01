@@ -1868,6 +1868,92 @@ func TestExecutorRWKV6Qwen2BlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorRWKV6BlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "rwkv6", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, WKVHeadSize: 4, TimeMixExtraDim: 3,
+		TimeDecayExtraDim: 2, LayerNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:        builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionNormBias:    builder.Input("attn_norm_bias", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2:       builder.Input("attn_norm_2", dtype.F32, tensor.MustShape(8)),
+		AttentionNorm2Bias:   builder.Input("attn_norm_2_bias", dtype.F32, tensor.MustShape(8)),
+		TimeMixW1:            builder.Input("mix_w1", dtype.F32, tensor.MustShape(8, 15)),
+		TimeMixW2:            builder.Input("mix_w2", dtype.F32, tensor.MustShape(3, 8, 5)),
+		TimeMixLerpX:         builder.Input("lerp_x", dtype.F32, tensor.MustShape(8, 1, 1)),
+		TimeMixLerpFused:     builder.Input("lerp", dtype.F32, tensor.MustShape(8, 1, 1, 5)),
+		TimeMixFirst:         builder.Input("first", dtype.F32, tensor.MustShape(4, 2)),
+		TimeMixDecay:         builder.Input("decay", dtype.F32, tensor.MustShape(8)),
+		TimeMixDecayW1:       builder.Input("decay_w1", dtype.F32, tensor.MustShape(8, 2)),
+		TimeMixDecayW2:       builder.Input("decay_w2", dtype.F32, tensor.MustShape(2, 8)),
+		TimeMixKey:           builder.Input("key", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixValue:         builder.Input("value", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixReceptance:    builder.Input("receptance", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixGate:          builder.Input("gate", dtype.F32, tensor.MustShape(8, 8)),
+		TimeMixLN:            builder.Input("mix_ln", dtype.F32, tensor.MustShape(8)),
+		TimeMixLNBias:        builder.Input("mix_ln_bias", dtype.F32, tensor.MustShape(8)),
+		TimeMixOutput:        builder.Input("output", dtype.F32, tensor.MustShape(8, 8)),
+		ChannelMixLerpK:      builder.Input("channel_lerp_k", dtype.F32, tensor.MustShape(8, 1, 1)),
+		ChannelMixLerpR:      builder.Input("channel_lerp_r", dtype.F32, tensor.MustShape(8, 1, 1)),
+		ChannelMixKey:        builder.Input("channel_key", dtype.F32, tensor.MustShape(8, 12)),
+		ChannelMixValue:      builder.Input("channel_value", dtype.F32, tensor.MustShape(12, 8)),
+		ChannelMixReceptance: builder.Input("channel_receptance", dtype.F32, tensor.MustShape(8, 8)),
+	}
+	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
+	result, err := model.BuildRWKV6BlockCached(builder, input, spec, weights, shift, state, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                      patternedValue(input.Shape, 3, 0.05, -0.02),
+		weights.AttentionNorm:      patternedValue(weights.AttentionNorm.Shape, 5, 0.02, 1),
+		weights.AttentionNormBias:  patternedValue(weights.AttentionNormBias.Shape, 7, 0.01, 0),
+		weights.AttentionNorm2:     patternedValue(weights.AttentionNorm2.Shape, 9, 0.02, 1),
+		weights.AttentionNorm2Bias: patternedValue(weights.AttentionNorm2Bias.Shape, 11, 0.01, 0),
+		weights.TimeMixLerpX:       patternedValue(weights.TimeMixLerpX.Shape, 13, 0.01, 0.2),
+		weights.TimeMixLerpFused:   patternedValue(weights.TimeMixLerpFused.Shape, 15, 0.01, 0.1),
+		weights.TimeMixFirst:       patternedValue(weights.TimeMixFirst.Shape, 17, 0.01, 0.2),
+		weights.TimeMixDecay:       patternedValue(weights.TimeMixDecay.Shape, 19, 0.02, -1),
+		weights.TimeMixLN:          patternedValue(weights.TimeMixLN.Shape, 21, 0.02, 1),
+		weights.TimeMixLNBias:      patternedValue(weights.TimeMixLNBias.Shape, 23, 0.01, 0),
+		weights.ChannelMixLerpK:    patternedValue(weights.ChannelMixLerpK.Shape, 25, 0.01, 0.2),
+		weights.ChannelMixLerpR:    patternedValue(weights.ChannelMixLerpR.Shape, 27, 0.01, 0.2),
+		shift:                      patternedValue(shift.Shape, 29, 0.02, 0),
+		state:                      patternedValue(state.Shape, 31, 0.01, 0),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.TimeMixW1, weights.TimeMixW2, weights.TimeMixDecayW1, weights.TimeMixDecayW2,
+		weights.TimeMixKey, weights.TimeMixValue, weights.TimeMixReceptance, weights.TimeMixGate,
+		weights.TimeMixOutput, weights.ChannelMixKey, weights.ChannelMixValue, weights.ChannelMixReceptance,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+33, 0.02, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 1e-3)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorKimiLinearMLABlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

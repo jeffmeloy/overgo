@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 17,
+  "abiVersion": 18,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "b3c963eb5e99729eb1687e42ef71664db0cbbc3f86143a655688eb64fac55cb5",
+      "sourceSha256": "b54b638ea1735c2d2cdc54fc322280f7b18830260fd6724dc17b6a4558f6fb25",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "ea4c4bc9de4712da68d5f6c6bdbeed77fb2cdca47556fcdfe0f4ee9564b9a9ba",
+      "assetSha256": "2c90a9cce6ce1ce3849b4942f5e8290ebfd00ec9e7dc02ca382be5cd100b3626",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -69,6 +69,7 @@
         "flat_slice_f32",
         "gated_delta_net_f32",
         "gated_linear_attention_f32",
+        "rwkv6_f32",
         "rms_norm_f32",
         "layer_norm_f32",
         "softmax_f32",
@@ -353,6 +354,24 @@
           ],
           "functions": [
             "gated_linear_attention_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "rwkv6_f32"
           ]
         },
         {

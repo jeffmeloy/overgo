@@ -225,6 +225,17 @@ type WavTokenizerWeights struct {
 	Output, OutputBias         gguf.TensorInfo
 }
 
+// Qwen35MTPWeights: one pinned dense NextN block.
+type Qwen35MTPWeights struct {
+	Layer          LayerWeights
+	EHProjection   gguf.TensorInfo
+	EmbeddingNorm  gguf.TensorInfo
+	HiddenNorm     gguf.TensorInfo
+	TokenEmbedding *gguf.TensorInfo
+	OutputNorm     *gguf.TensorInfo
+	Output         *gguf.TensorInfo
+}
+
 // Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
 	TokenEmbedding          gguf.TensorInfo
@@ -250,6 +261,7 @@ type Weights struct {
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
 	WavTokenizer            *WavTokenizerWeights
+	Qwen35MTP               *Qwen35MTPWeights
 }
 
 // ReadWeights: validates names and shapes without loading tensor bytes
@@ -3589,6 +3601,66 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				*shapeAndDestination.destination = &item
 			}
 		}
+	}
+	if spec.NextNPredictLayers == 1 && (spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe") {
+		prefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
+		mtp := &Qwen35MTPWeights{}
+		mtp.Layer.Recurrent = false
+		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
+		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
+		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+		for name, item := range map[string]struct {
+			destination *gguf.TensorInfo
+			shape       []uint64
+		}{
+			"attn_norm.weight":           {&mtp.Layer.AttentionNorm, []uint64{uint64(spec.EmbeddingLength)}},
+			"post_attention_norm.weight": {&mtp.Layer.FeedForwardNorm, []uint64{uint64(spec.EmbeddingLength)}},
+			"attn_q.weight":              {&mtp.Layer.AttentionQ, []uint64{uint64(spec.EmbeddingLength), 2 * queryLength}},
+			"attn_k.weight":              {&mtp.Layer.AttentionK, []uint64{uint64(spec.EmbeddingLength), keyLength}},
+			"attn_v.weight":              {&mtp.Layer.AttentionV, []uint64{uint64(spec.EmbeddingLength), valueLength}},
+			"attn_output.weight":         {&mtp.Layer.AttentionOutput, []uint64{queryLength, uint64(spec.EmbeddingLength)}},
+			"ffn_gate.weight":            {&mtp.Layer.FeedForwardGate, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
+			"ffn_up.weight":              {&mtp.Layer.FeedForwardUp, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
+			"ffn_down.weight":            {&mtp.Layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}},
+			"nextn.eh_proj.weight":       {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
+			"nextn.enorm.weight":         {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
+			"nextn.hnorm.weight":         {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
+		} {
+			loaded, loadErr := required(prefix+name, item.shape...)
+			if loadErr != nil {
+				return Weights{}, loadErr
+			}
+			*item.destination = loaded
+		}
+		for name, destination := range map[string]**gguf.TensorInfo{
+			"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
+			"nextn.shared_head_norm.weight": &mtp.OutputNorm,
+			"nextn.shared_head_head.weight": &mtp.Output,
+		} {
+			item, ok := tensors[prefix+name]
+			if !ok {
+				continue
+			}
+			shape := []uint64{uint64(spec.EmbeddingLength)}
+			if name != "nextn.shared_head_norm.weight" {
+				shape = append(shape, uint64(spec.VocabularySize))
+			}
+			validated, loadErr := required(item.Name, shape...)
+			if loadErr != nil {
+				return Weights{}, loadErr
+			}
+			*destination = &validated
+		}
+		qNorm, loadErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		kNorm, loadErr := required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength))
+		if loadErr != nil {
+			return Weights{}, loadErr
+		}
+		mtp.Layer.AttentionQNorm, mtp.Layer.AttentionKNorm = &qNorm, &kNorm
+		result.Qwen35MTP = mtp
 	}
 	return result, nil
 }

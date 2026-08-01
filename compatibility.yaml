@@ -2430,6 +2430,9 @@ models:
       - serializable-hybrid-cache
       - retained-device-hybrid-cache
       - stream-ordered-zero-state-initialization
+      - pinned-single-dense-nextn-block
+      - stateful-mtp-kv-and-hidden-session
+      - shared-or-private-mtp-embedding-norm-head
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
   qwen3next:
@@ -2613,8 +2616,11 @@ models:
       - separate-or-fused-swiglu-experts
       - sigmoid-gated-shared-expert
       - serializable-hybrid-cache
+      - pinned-single-dense-nextn-block
+      - stateful-mtp-kv-and-hidden-session
+      - shared-or-private-mtp-embedding-norm-head
     limitations:
-      - nextn-mtp-prediction-pending
+      - high-level-speculative-accept-reject-coordinator-pending
     real_model_validation: pending-fixture
   gemma:
     status: experimental

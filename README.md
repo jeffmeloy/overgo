@@ -406,6 +406,12 @@ fused delta-net state, serialization, and resumed generation. Qwen3.5-MoE
 catalog, graph, and CUDA differential tests use synthetic fixtures until a
 compatible local GGUF is available. Qwen3-Next optimized and legacy recurrent
 catalogs plus both hybrid block types are likewise validated synthetically.
+Qwen3.5 files declaring the pinned single NextN layer expose
+`NewQwen35MTPSession`/`AdvanceQwen35MTP`; the catalog, normalized token/hidden
+fusion, dense gated-attention draft block, private/shared embedding and head
+fallbacks, independent KV/hidden state, and CPU/CUDA execution are synthetic-fixture validated.
+Set `LLAMACPP2GO_QWEN35_MTP_MODEL` to a bundled trunk-plus-MTP fixture to run
+the optional two-step native-quantized session integration test.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA
 differentials use synthetic fixtures until a compatible local GGUF is available.
 GLM4-MoE dense-leading and expert catalogs, text-coordinate MRoPE, norm ordering,

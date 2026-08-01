@@ -681,6 +681,41 @@ ws ::= [ \t\n\r]*
 	}
 }
 
+func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_QWEN35_MTP_MODEL")
+	if modelPath == "" {
+		t.Skip("LLAMACPP2GO_QWEN35_MTP_MODEL is not set")
+	}
+	runner, err := OpenWithOptions(modelPath, OpenOptions{
+		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	ctx := context.Background()
+	session, err := runner.NewQwen35MTPSession(ctx, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logits, next, err := runner.AdvanceQwen35MTP(ctx, 0, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logits.Shape.Dims[0] != uint64(runner.spec.VocabularySize) ||
+		next.Position != session.Position+1 || next.Layer.Key.Shape.Dims[2] != 1 ||
+		session.Layer.Key.Shape.Rank != 0 {
+		t.Fatalf("unexpected Qwen3.5 MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
+	}
+	_, third, err := runner.AdvanceQwen35MTP(ctx, 0, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.Position != next.Position+1 || third.Layer.Key.Shape.Dims[2] != 2 {
+		t.Fatalf("Qwen3.5 MTP cache did not advance: %+v", third)
+	}
+}
+
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_BONSAI_MODEL")
 	if modelPath == "" {

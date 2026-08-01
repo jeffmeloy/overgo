@@ -3206,7 +3206,8 @@ func TestReadGemmaSpec(t *testing.T) {
 func TestReadQwen35Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen35"),
-		metadata("qwen35.block_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("qwen35.block_count", gguf.ValueTypeUint32, uint32(33)),
+		metadata("qwen35.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
 		metadata("qwen35.context_length", gguf.ValueTypeUint32, uint32(262144)),
 		metadata("qwen35.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
 		metadata("qwen35.feed_forward_length", gguf.ValueTypeUint32, uint32(12288)),
@@ -3235,7 +3236,7 @@ func TestReadQwen35Spec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "qwen35" || spec.SSMStateSize != 128 ||
+	if spec.Architecture != "qwen35" || spec.BlockCount != 32 || spec.NextNPredictLayers != 1 || spec.SSMStateSize != 128 ||
 		spec.FullAttentionInterval != 4 ||
 		spec.RopeSections != [4]int32{11, 11, 10, 0} ||
 		!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(3) {
@@ -3468,7 +3469,8 @@ func TestReadQwen35MoESpec(t *testing.T) {
 func TestReadQwen35ExplicitRecurrentLayers(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen35"),
-		metadata("qwen35.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen35.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("qwen35.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
 		metadata("qwen35.context_length", gguf.ValueTypeUint32, uint32(1024)),
 		metadata("qwen35.embedding_length", gguf.ValueTypeUint32, uint32(8)),
 		metadata("qwen35.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
@@ -3495,7 +3497,7 @@ func TestReadQwen35ExplicitRecurrentLayers(t *testing.T) {
 			Key: "qwen35.attention.recurrent_layers",
 			Value: gguf.Value{
 				Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool,
-				Data: []bool{false, true},
+				Data: []bool{false, true, false},
 			},
 		},
 	}}
@@ -3503,7 +3505,8 @@ func TestReadQwen35ExplicitRecurrentLayers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.IsRecurrentLayer(0) || !spec.IsRecurrentLayer(1) {
+	if spec.BlockCount != 2 || spec.NextNPredictLayers != 1 ||
+		spec.IsRecurrentLayer(0) || !spec.IsRecurrentLayer(1) {
 		t.Fatalf("explicit recurrent layers were not preserved: %v", spec.RecurrentLayers)
 	}
 }

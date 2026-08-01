@@ -76,6 +76,7 @@ type Spec struct {
 	GroupNormGroups         uint32
 	GroupNormEpsilon        float32
 	DFlashBlockSize         uint32
+	NextNPredictLayers      uint32
 	TargetLayers            []int32
 	TargetHiddenSize        uint32
 	NormBeforeResidual      bool
@@ -358,6 +359,17 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, err
 	}
 	declaredBlockCount := spec.BlockCount
+	if architecture == "qwen35" || architecture == "qwen35moe" {
+		spec.NextNPredictLayers, _ = optional[uint32](
+			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
+		)
+		if spec.NextNPredictLayers > 0 {
+			if spec.NextNPredictLayers != 1 || spec.NextNPredictLayers >= spec.BlockCount {
+				return Spec{}, errors.New("Qwen3.5 NextN/MTP layer count is invalid")
+			}
+			spec.BlockCount -= spec.NextNPredictLayers
+		}
+	}
 	if architecture == "deepseek32" {
 		spec.LayerNormEpsilon = 1e-6
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
@@ -1542,15 +1554,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); recurrentErr != nil {
 			return Spec{}, recurrentErr
 		} else if ok {
-			if len(recurrent) != int(spec.BlockCount) {
+			if len(recurrent) != int(spec.BlockCount) && len(recurrent) != int(declaredBlockCount) {
 				return Spec{}, fmt.Errorf(
-					"metadata %q has %d values, need %d",
+					"metadata %q has %d values, need %d or %d",
 					prefix+"attention.recurrent_layers",
 					len(recurrent),
 					spec.BlockCount,
+					declaredBlockCount,
 				)
 			}
-			spec.RecurrentLayers = append([]bool(nil), recurrent...)
+			spec.RecurrentLayers = append([]bool(nil), recurrent[:spec.BlockCount]...)
 		}
 	}
 	if architecture == "kimi-linear" {

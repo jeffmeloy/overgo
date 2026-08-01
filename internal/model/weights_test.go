@@ -3940,6 +3940,53 @@ func TestReadWeightsQwen35Hybrid(t *testing.T) {
 	}
 }
 
+func TestReadWeightsQwen35MTP(t *testing.T) {
+	spec := Spec{
+		Architecture: "qwen35", BlockCount: 1, NextNPredictLayers: 1,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2,
+		SSMTimeStepRank: 4, SSMGroupCount: 2, FullAttentionInterval: 1,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+	}
+	for block := range uint32(2) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"post_attention_norm.weight", 8),
+			tensorInfo(prefix+"attn_q.weight", 8, 16),
+			tensorInfo(prefix+"attn_k.weight", 8, 4),
+			tensorInfo(prefix+"attn_v.weight", 8, 4),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"attn_q_norm.weight", 4),
+			tensorInfo(prefix+"attn_k_norm.weight", 4),
+			tensorInfo(prefix+"ffn_gate.weight", 8, 16),
+			tensorInfo(prefix+"ffn_up.weight", 8, 16),
+			tensorInfo(prefix+"ffn_down.weight", 16, 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.1.nextn.eh_proj.weight", 16, 8),
+		tensorInfo("blk.1.nextn.enorm.weight", 8),
+		tensorInfo("blk.1.nextn.hnorm.weight", 8),
+		tensorInfo("blk.1.nextn.embed_tokens.weight", 8, 32),
+		tensorInfo("blk.1.nextn.shared_head_norm.weight", 8),
+		tensorInfo("blk.1.nextn.shared_head_head.weight", 8, 32),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mtp := weights.Qwen35MTP
+	if len(weights.Layers) != 1 || mtp == nil || mtp.Layer.Recurrent ||
+		mtp.Layer.AttentionQNorm == nil || mtp.EHProjection.Name == "" ||
+		mtp.TokenEmbedding == nil || mtp.OutputNorm == nil || mtp.Output == nil {
+		t.Fatalf("unexpected Qwen3.5 MTP catalog: %+v", mtp)
+	}
+}
+
 func TestReadWeightsKimiLinearHybrid(t *testing.T) {
 	spec := Spec{
 		Architecture: "kimi-linear", BlockCount: 2, EmbeddingLength: 8,

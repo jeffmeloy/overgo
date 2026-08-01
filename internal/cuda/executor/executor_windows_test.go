@@ -2103,6 +2103,72 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 	}
 }
 
+func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := qwen35ExecutorSpec()
+	spec.Architecture = "qwen35moe"
+	spec.NextNPredictLayers = 1
+	dense := spec
+	dense.Architecture = "qwen35"
+	token := builder.Input("mtp_token", dtype.F32, tensor.MustShape(8, 1))
+	hidden := builder.Input("mtp_hidden", dtype.F32, tensor.MustShape(8, 1))
+	embeddingNorm := builder.Input("mtp_enorm", dtype.F32, tensor.MustShape(8))
+	hiddenNorm := builder.Input("mtp_hnorm", dtype.F32, tensor.MustShape(8))
+	projection := builder.Input("mtp_eh", dtype.F32, tensor.MustShape(16, 8))
+	weights, feeds := qwen35ExecutorWeights(builder, dense, false)
+	for node, value := range map[*tensor.Tensor]reference.Value{
+		token:         patternedValue(token.Shape, 7, 0.03, -0.04),
+		hidden:        patternedValue(hidden.Shape, 11, 0.04, 0.02),
+		embeddingNorm: patternedValue(embeddingNorm.Shape, 5, 0.02, 0.8),
+		hiddenNorm:    patternedValue(hiddenNorm.Shape, 3, 0.02, 0.9),
+		projection:    patternedValue(projection.Shape, 17, 0.015, -0.05),
+	} {
+		feeds[node] = value
+	}
+	current, err := model.BuildQwen35MTPInput(
+		builder, token, hidden, embeddingNorm, hiddenNorm, projection, spec,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := model.BuildQwen35MTPBlockCached(
+		builder, current, spec, weights, []uint32{19}, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputNorm := builder.Input("mtp_output_norm", dtype.F32, tensor.MustShape(8))
+	head := builder.Input("mtp_head", dtype.F32, tensor.MustShape(8, 17))
+	feeds[outputNorm] = patternedValue(outputNorm.Shape, 5, 0.02, 0.85)
+	feeds[head] = patternedValue(head.Shape, 23, 0.01, -0.03)
+	logits, nextHidden, err := model.BuildQwen35MTPOutputs(
+		builder, block.Output, outputNorm, head, spec,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := []*tensor.Tensor{logits, nextHidden, block.Key, block.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 4e-5)
+	}
+}
+
 func TestExecutorKimiLinearKDABlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

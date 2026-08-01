@@ -8,23 +8,116 @@ import (
 	"math"
 	"strings"
 
+	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tokenizer"
 )
 
 const Qwen3VLImagePad = "<|image_pad|>"
 const Qwen3VLVideoPad = "<|video_pad|>"
 
-type Qwen3VLTokenizer interface {
+type ImageTokenizer interface {
 	TokenizeText(string, bool, bool) ([]tokenizer.TokenID, error)
 }
 
-type Qwen3VLPrompt struct {
+type Qwen3VLTokenizer = ImageTokenizer
+
+type MultimodalPrompt struct {
 	TokenIDs              []tokenizer.TokenID
 	Embeddings            []float32
 	EmbeddingWidth        int
 	ImageStart            int
 	EmbeddingTokenIndices []uint32
 	MultiAxisPositions    [4][]uint32
+}
+
+type Qwen3VLPrompt = MultimodalPrompt
+type Gemma4Prompt = MultimodalPrompt
+
+type ImageProjector interface {
+	BuildImagePrompt(context.Context, ImageTokenizer, image.Image, string, string, bool) (MultimodalPrompt, error)
+	Close() error
+}
+
+func OpenImageProjector(path string) (ImageProjector, error) {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	projectorType := ""
+	for _, key := range []string{"clip.projector_type", "clip.vision.projector_type"} {
+		if value, ok := file.MetadataValue(key); ok && value.Type == gguf.ValueTypeString {
+			projectorType, _ = value.Data.(string)
+			if projectorType != "" {
+				break
+			}
+		}
+	}
+	_ = file.Close()
+	switch projectorType {
+	case qwen3VLProjectorType:
+		return OpenQwen3VL(path)
+	case gemma4UVProjectorType:
+		return OpenGemma4(path)
+	default:
+		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
+	}
+}
+
+func (r *Qwen3VLRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	thinking bool,
+) (MultimodalPrompt, error) {
+	return r.BuildQwen35ImagePrompt(ctx, tokenizer, source, beforeImage, afterImage, thinking)
+}
+
+func (r *Gemma4Runner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if strings.TrimSpace(beforeImage) != "" {
+		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires the image before user text")
+	}
+	output, err := r.EncodeImage(ctx, source)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	imageTokens := int(output.Embeddings.Shape.Dims[1])
+	text := Gemma4ImagePromptText(afterImage, imageTokens)
+	ids, err := tokenizer.TokenizeText(text, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 image prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText("<|image|>", false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 image placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 image placeholder maps to %d tokens", len(padIDs))
+	}
+	imageStart, err := contiguousTokenRun(ids, padIDs[0], imageTokens)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 image prompt: %w", err)
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: output.Embeddings.Data,
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), ImageStart: imageStart,
+		EmbeddingTokenIndices: sequentialTokenIndices(imageStart, imageTokens),
+	}, nil
+}
+
+func Gemma4ImagePromptText(question string, imageTokens int) string {
+	return "<bos><|turn>user\n<|image>" + strings.Repeat("<|image|>", imageTokens) +
+		"<image|>" + strings.TrimSpace(question) +
+		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
 }
 
 func (r *Qwen3VLRunner) BuildQwen35ImagePrompt(

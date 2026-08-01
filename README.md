@@ -146,10 +146,13 @@ four MRoPE coordinate arrays, and GGML-order deepstack tensors:
 }
 ```
 
-For Qwen3.5 image input, `-mmproj <qwen3vl-mmproj.gguf>` and `-image <path>`
-run the native Qwen3-VL patch encoder/merger, render the vision chat turn, and
-construct its compressed four-axis MRoPE positions. `-image-thinking=false`
-selects the non-thinking template branch.
+For image input, `-mmproj <projector.gguf>` and `-image <path>` select the
+projector family from GGUF metadata. Qwen3.5 runs the native Qwen3-VL patch
+encoder/merger, renders the vision chat turn, and constructs compressed
+four-axis MRoPE positions. `-image-thinking=false` selects its non-thinking
+template branch. Gemma 4 unified runs the merged 48-pixel patch projector,
+factorized learned positions, a 280-token image budget, and unscaled soft-token
+scatter required by its decoder.
 Repeatable `-video-frame` inputs run temporal-pair preprocessing and the same
 projector, emit timestamped video chunks, and construct compressed MRoPE grids
 per chunk. Odd frame counts repeat the final frame.

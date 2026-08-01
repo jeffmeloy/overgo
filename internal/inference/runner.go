@@ -1740,6 +1740,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
+	embeddingScaleApplied := false
 	var deepstackBase reference.Value
 	graniteDeepstack := r.spec.Architecture == "granite" && len(r.spec.DeepstackMapping) > 0
 	if graniteDeepstack {
@@ -1758,6 +1759,11 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
 			return reference.Value{}, nil, err
 		}
+	} else if r.spec.Architecture == "gemma4" && len(overrides) > 0 {
+		if err := applyGemma4RawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
+			return reference.Value{}, nil, err
+		}
+		embeddingScaleApplied = true
 	} else if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -1765,7 +1771,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if scale := r.spec.InputEmbeddingScale(); !graniteDeepstack && scale != 1 {
+	if scale := r.spec.InputEmbeddingScale(); !graniteDeepstack && !embeddingScaleApplied && scale != 1 {
 		for index := range activation.Data {
 			activation.Data[index] *= scale
 		}
@@ -1894,6 +1900,18 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		}
 	}
 	return activation, nextCache, nil
+}
+
+func applyGemma4RawEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride, scale float32) error {
+	if activation == nil {
+		return errors.New("inference: embedding activation is nil")
+	}
+	if scale != 1 {
+		for index := range activation.Data {
+			activation.Data[index] *= scale
+		}
+	}
+	return applyEmbeddingOverrides(activation, overrides)
 }
 
 func applyEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride) error {

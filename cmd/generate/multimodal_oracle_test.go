@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	_ "image/png"
 	"os"
 	"slices"
 	"testing"
@@ -66,6 +67,72 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 	}
 	if !slices.Equal(prompt.TokenIDs, golden.InputIDs) {
 		t.Fatalf("video prompt IDs differ: got %d, want %d", len(prompt.TokenIDs), len(golden.InputIDs))
+	}
+	ids, projected, err := projectedInputsForPrompt(runner, prompt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampler, err := sampling.New(sampling.Config{Temperature: 0, TopK: 1, TopP: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, _, err := runner.Generate(context.Background(), "", inference.GenerateOptions{
+		MaxNewTokens: 1, Sampler: sampler, PromptTokenIDs: ids, ProjectedInputs: &projected,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(generated) != len(ids)+1 || len(golden.GeneratedTokenIDs) == 0 || generated[len(ids)] != golden.GeneratedTokenIDs[0] {
+		t.Fatalf("first generated token = %v, want %v", generated[len(ids):], golden.GeneratedTokenIDs[:1])
+	}
+}
+
+func TestGemma4ImageEndToEndOracle(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_GEMMA4_MODEL")
+	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
+	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_IMAGE")
+	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_GOLDEN")
+	if modelPath == "" || projectorPath == "" || imagePath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_GEMMA4_MODEL, LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_IMAGE, and LLAMACPP2GO_GEMMA4_GOLDEN")
+	}
+	var golden struct {
+		InputIDs          []tokenizer.TokenID `json:"input_ids"`
+		GeneratedTokenIDs []tokenizer.TokenID `json:"generated_token_ids"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := inference.OpenWithOptions(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	vision, err := projector.OpenImageProjector(projectorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vision.Close()
+	file, err := os.Open(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _, err := image.Decode(file)
+	_ = file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompt, err := vision.BuildImagePrompt(
+		context.Background(), runner, input, "", "What color dominates this image? One word.", false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(prompt.TokenIDs, golden.InputIDs) {
+		t.Fatalf("image prompt IDs differ: got %d, want %d", len(prompt.TokenIDs), len(golden.InputIDs))
 	}
 	ids, projected, err := projectedInputsForPrompt(runner, prompt)
 	if err != nil {

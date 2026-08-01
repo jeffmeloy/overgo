@@ -181,6 +181,17 @@ type Qwen3VLProjector interface {
 	) (projector.Qwen3VLPrompt, error)
 }
 
+type ImageProjector interface {
+	BuildImagePrompt(
+		context.Context,
+		projector.ImageTokenizer,
+		image.Image,
+		string,
+		string,
+		bool,
+	) (projector.MultimodalPrompt, error)
+}
+
 type Config struct {
 	ModelID            string
 	MaxTokens          int
@@ -195,6 +206,7 @@ type Config struct {
 	InfillBatchSize    int
 	SPMInfill          bool
 	Qwen3VLProjector   Qwen3VLProjector
+	ImageProjector     ImageProjector
 }
 
 type slotRuntimeStats struct {
@@ -2548,7 +2560,7 @@ func (h *Handler) parseNativePrompts(raw json.RawMessage) ([]nativePrompt, error
 }
 
 func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt, error) {
-	if h.config.Qwen3VLProjector == nil {
+	if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil {
 		return nativePrompt{}, errors.New("multimodal data provided, but the server has no multimodal projector")
 	}
 	var document struct {
@@ -2564,7 +2576,7 @@ func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt
 		return nativePrompt{}, errors.New("prompt_string must not be empty")
 	}
 	if len(document.MultimodalData) != 1 {
-		return nativePrompt{}, errors.New("Qwen3.5 multimodal prompt requires exactly one image")
+		return nativePrompt{}, errors.New("multimodal prompt requires exactly one image")
 	}
 	const marker = "<__media__>"
 	if strings.Count(document.PromptString, marker) != 1 {
@@ -2614,9 +2626,16 @@ func (h *Handler) projectNativeImagePrompt(
 	if err != nil {
 		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: multimodal_data is not a supported image")
 	}
-	projected, err := h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
-		ctx, tokenizerAPI, input, prompt.BeforeImage, prompt.AfterImage, true,
-	)
+	var projected projector.MultimodalPrompt
+	if h.config.ImageProjector != nil {
+		projected, err = h.config.ImageProjector.BuildImagePrompt(
+			ctx, tokenizerAPI, input, prompt.BeforeImage, prompt.AfterImage, true,
+		)
+	} else {
+		projected, err = h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
+			ctx, tokenizerAPI, input, prompt.BeforeImage, prompt.AfterImage, true,
+		)
+	}
 	if err != nil {
 		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: project image: %w", err)
 	}
@@ -2642,13 +2661,18 @@ func (h *Handler) projectNativeImagePrompt(
 			Embedding:  projected.Embeddings[start : start+projected.EmbeddingWidth],
 		}
 	}
-	positions := inference.MultiAxisPositions(projected.MultiAxisPositions)
 	prompt.TokenIDs = projected.TokenIDs
 	prompt.Image = nil
-	return prompt, inference.ProjectedInputs{
-		EmbeddingOverrides: overrides,
-		MultiAxisPositions: &positions,
-	}, nil
+	inputs := inference.ProjectedInputs{EmbeddingOverrides: overrides}
+	hasMultiAxis := false
+	for _, axis := range projected.MultiAxisPositions {
+		hasMultiAxis = hasMultiAxis || len(axis) > 0
+	}
+	if hasMultiAxis {
+		positions := inference.MultiAxisPositions(projected.MultiAxisPositions)
+		inputs.MultiAxisPositions = &positions
+	}
+	return prompt, inputs, nil
 }
 
 func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {

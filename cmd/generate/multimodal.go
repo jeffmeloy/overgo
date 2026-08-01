@@ -15,13 +15,13 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
-func qwen3VLProjectedPrompt(
+func imageProjectedPrompt(
 	ctx context.Context,
 	runner *inference.Runner,
 	projectorPath, imagePath, question string,
 	thinking bool,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenQwen3VL(projectorPath)
+	vision, err := projector.OpenImageProjector(projectorPath)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}
@@ -35,7 +35,7 @@ func qwen3VLProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: decode image: %w", err)
 	}
-	prompt, err := vision.BuildQwen35ImagePrompt(ctx, runner, input, "", question, thinking)
+	prompt, err := vision.BuildImagePrompt(ctx, runner, input, "", question, thinking)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode image: %w", err)
 	}
@@ -77,7 +77,7 @@ func qwen3VLProjectedVideoPrompt(
 
 func projectedInputsForPrompt(
 	runner *inference.Runner,
-	prompt projector.Qwen3VLPrompt,
+	prompt projector.MultimodalPrompt,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
 	if prompt.EmbeddingWidth != int(runner.Spec().EmbeddingLength) {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf(
@@ -97,9 +97,14 @@ func projectedInputsForPrompt(
 			Embedding:  prompt.Embeddings[start : start+prompt.EmbeddingWidth],
 		}
 	}
-	positions := inference.MultiAxisPositions(prompt.MultiAxisPositions)
-	return prompt.TokenIDs, inference.ProjectedInputs{
-		EmbeddingOverrides: overrides,
-		MultiAxisPositions: &positions,
-	}, nil
+	projected := inference.ProjectedInputs{EmbeddingOverrides: overrides}
+	hasMultiAxis := false
+	for _, axis := range prompt.MultiAxisPositions {
+		hasMultiAxis = hasMultiAxis || len(axis) > 0
+	}
+	if hasMultiAxis {
+		positions := inference.MultiAxisPositions(prompt.MultiAxisPositions)
+		projected.MultiAxisPositions = &positions
+	}
+	return prompt.TokenIDs, projected, nil
 }

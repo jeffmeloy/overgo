@@ -1,0 +1,305 @@
+package projector
+
+import (
+	"context"
+	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
+	"math"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/tokenizer"
+)
+
+func TestGemma4RunnerTinyFixture(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenGemma4(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
+	for y := 0; y < 3; y++ {
+		for x := 0; x < 3; x++ {
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: 255})
+		}
+	}
+	output, err := runner.EncodeImage(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := output.GridH * output.GridW
+	if rows <= 0 || rows > 280 || !output.Embeddings.Shape.Equal(mustShape(2, uint64(rows))) {
+		t.Fatalf("output = grid %dx%d shape %v", output.GridH, output.GridW, output.Embeddings.Shape)
+	}
+	for index, value := range output.Embeddings.Data {
+		if value != 0 {
+			t.Fatalf("output[%d] = %g", index, value)
+		}
+	}
+}
+
+func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
+	spec := Gemma4Spec{
+		TeacherPatch: 1, PoolKernel: 2, ModelPatch: 2, PatchWidth: 12,
+		Hidden: 2, PositionCount: 8, MaxImageTokens: 4,
+		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), G: 20, B: 40, A: 255})
+		}
+	}
+	processed, err := PreprocessGemma4Image(input, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if processed.GridH != 2 || processed.GridW != 2 || len(processed.PixelValues) != 48 {
+		t.Fatalf("processed = grid %dx%d values %d", processed.GridH, processed.GridW, len(processed.PixelValues))
+	}
+	want := []float32{0, 20.0 / 255, 40.0 / 255, 1.0 / 255, 20.0 / 255, 40.0 / 255}
+	for index, value := range want {
+		if processed.PixelValues[index] != value {
+			t.Fatalf("pixel[%d] = %g, want %g", index, processed.PixelValues[index], value)
+		}
+	}
+	wantPositions := []int{0, 0, 1, 0, 0, 1, 1, 1}
+	for index, value := range wantPositions {
+		if processed.Positions[index] != value {
+			t.Fatalf("position[%d] = %d, want %d", index, processed.Positions[index], value)
+		}
+	}
+}
+
+func TestGemma4RealFixture(t *testing.T) {
+	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
+	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_IMAGE")
+	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_GOLDEN")
+	if projectorPath == "" || imagePath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_IMAGE, and LLAMACPP2GO_GEMMA4_GOLDEN")
+	}
+	type probeRecord struct {
+		Shape      []int     `json:"shape"`
+		ProbeIndex []int     `json:"probe_index"`
+		ProbeValue []float32 `json:"probe_value"`
+		L2         float64   `json:"l2"`
+	}
+	var golden struct {
+		ImageHW                   []int `json:"image_hw"`
+		NumImagePlaceholderTokens int   `json:"num_image_placeholder_tokens"`
+		Preprocess                struct {
+			PixelValues probeRecord `json:"pixel_values"`
+			Positions   [][]int     `json:"image_position_ids"`
+		} `json:"preprocess"`
+		ProjectorIntermediates struct {
+			EmbeddingProjection probeRecord `json:"embedding_projection"`
+		} `json:"projector_intermediates"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := png.Decode(file)
+	_ = file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenGemma4(projectorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	processed, err := PreprocessGemma4Image(input, runner.Spec())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(golden.ImageHW) != 2 || processed.GridH != golden.ImageHW[0]/runner.Spec().ModelPatch ||
+		processed.GridW != golden.ImageHW[1]/runner.Spec().ModelPatch {
+		t.Fatalf("grid = %dx%d for image %v", processed.GridH, processed.GridW, golden.ImageHW)
+	}
+	if len(processed.PixelValues) != golden.Preprocess.PixelValues.Shape[1]*golden.Preprocess.PixelValues.Shape[2] {
+		t.Fatalf("pixel values = %d, want shape %v", len(processed.PixelValues), golden.Preprocess.PixelValues.Shape)
+	}
+	compareProbes(t, "Gemma 4 pixel values", processed.PixelValues, golden.Preprocess.PixelValues, 1e-6)
+	if len(golden.Preprocess.Positions) != len(processed.Positions)/2 {
+		t.Fatalf("positions = %d, want %d", len(processed.Positions)/2, len(golden.Preprocess.Positions))
+	}
+	for row, position := range golden.Preprocess.Positions {
+		if len(position) != 2 || processed.Positions[row*2] != position[0] || processed.Positions[row*2+1] != position[1] {
+			t.Fatalf("position %d = %v, want %v", row, processed.Positions[row*2:row*2+2], position)
+		}
+	}
+	if os.Getenv("LLAMACPP2GO_GEMMA4_PROJECTOR_FULL") == "" {
+		return
+	}
+	output, err := runner.EncodeImage(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.Embeddings.Shape.Equal(mustShape(uint64(runner.Spec().Hidden), uint64(golden.NumImagePlaceholderTokens))) {
+		t.Fatalf("embedding shape = %v", output.Embeddings.Shape)
+	}
+	compareProbes(t, "Gemma 4 embeddings", output.Embeddings.Data, golden.ProjectorIntermediates.EmbeddingProjection, 0.08)
+	var sumSquares float64
+	for _, value := range output.Embeddings.Data {
+		sumSquares += float64(value) * float64(value)
+	}
+	l2 := math.Sqrt(sumSquares)
+	if relative := math.Abs(l2-golden.ProjectorIntermediates.EmbeddingProjection.L2) / golden.ProjectorIntermediates.EmbeddingProjection.L2; relative > 0.02 {
+		t.Fatalf("embedding L2 = %g, want %g (relative %g)", l2, golden.ProjectorIntermediates.EmbeddingProjection.L2, relative)
+	}
+}
+
+func TestGemma4RealPromptTokens(t *testing.T) {
+	vocabPath := os.Getenv("LLAMACPP2GO_GEMMA4_VOCAB")
+	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_GOLDEN")
+	if vocabPath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_GEMMA4_VOCAB and LLAMACPP2GO_GEMMA4_GOLDEN")
+	}
+	var golden struct {
+		InputIDs                  []tokenizer.TokenID `json:"input_ids"`
+		NumImagePlaceholderTokens int                 `json:"num_image_placeholder_tokens"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	file, err := gguf.Open(vocabPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	vocab, err := tokenizer.Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := Gemma4ImagePromptText("What color dominates this image? One word.", golden.NumImagePlaceholderTokens)
+	ids, err := vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != len(golden.InputIDs) {
+		t.Fatalf("prompt tokens = %d, want %d", len(ids), len(golden.InputIDs))
+	}
+	for index, id := range ids {
+		if id != golden.InputIDs[index] {
+			t.Fatalf("prompt token %d = %d, want %d", index, id, golden.InputIDs[index])
+		}
+	}
+}
+
+func TestGemma4RealResizeFixture(t *testing.T) {
+	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
+	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_RESIZE_IMAGE")
+	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_RESIZE_GOLDEN")
+	if projectorPath == "" || imagePath == "" || goldenPath == "" {
+		t.Skip("set LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_RESIZE_IMAGE, and LLAMACPP2GO_GEMMA4_RESIZE_GOLDEN")
+	}
+	type probeRecord struct {
+		ProbeIndex []int     `json:"probe_index"`
+		ProbeValue []float32 `json:"probe_value"`
+	}
+	var golden struct {
+		ResizeOutHW []int       `json:"resize_out_hw"`
+		NumSoft     int         `json:"num_soft_tokens"`
+		PixelValues probeRecord `json:"pixel_values"`
+		Positions   [][]int     `json:"image_position_ids"`
+	}
+	data, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := png.Decode(file)
+	_ = file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenGemma4(projectorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	processed, err := PreprocessGemma4Image(input, runner.Spec())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(golden.ResizeOutHW) != 2 || processed.GridH*runner.Spec().ModelPatch != golden.ResizeOutHW[0] ||
+		processed.GridW*runner.Spec().ModelPatch != golden.ResizeOutHW[1] || processed.GridH*processed.GridW != golden.NumSoft {
+		t.Fatalf("resize = %dx%d grid %dx%d, want %v and %d tokens",
+			processed.GridW*runner.Spec().ModelPatch, processed.GridH*runner.Spec().ModelPatch,
+			processed.GridW, processed.GridH, golden.ResizeOutHW, golden.NumSoft)
+	}
+	for probe, offset := range golden.PixelValues.ProbeIndex {
+		if offset >= len(processed.PixelValues) {
+			continue
+		}
+		if delta := float32(math.Abs(float64(processed.PixelValues[offset] - golden.PixelValues.ProbeValue[probe]))); delta > 2.0/255 {
+			t.Fatalf("resized pixel[%d] = %g, want %g", offset, processed.PixelValues[offset], golden.PixelValues.ProbeValue[probe])
+		}
+	}
+	for row := 0; row < golden.NumSoft; row++ {
+		position := golden.Positions[row]
+		if len(position) != 2 || processed.Positions[row*2] != position[0] || processed.Positions[row*2+1] != position[1] {
+			t.Fatalf("resized position %d = %v, want %v", row, processed.Positions[row*2:row*2+2], position)
+		}
+	}
+}
+
+func tinyGemma4Metadata() []gguf.Metadata {
+	return []gguf.Metadata{
+		{Key: "general.architecture", Value: gguf.Value{Type: gguf.ValueTypeString, Data: "clip"}},
+		{Key: "clip.vision.projector_type", Value: gguf.Value{Type: gguf.ValueTypeString, Data: gemma4UVProjectorType}},
+		{Key: "clip.has_vision_encoder", Value: gguf.Value{Type: gguf.ValueTypeBool, Data: true}},
+		{Key: "clip.vision.patch_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
+		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
+		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
+	}
+}
+
+func tinyGemma4Tensors() []gguf.TensorData {
+	return []gguf.TensorData{
+		f32Tensor("v.patch_embd.weight", []uint64{3, 2}, nil),
+		f32Tensor("v.patch_embd.bias", []uint64{2}, nil),
+		f32Tensor("v.patch_norm.1.weight", []uint64{3}, []float32{1, 1, 1}),
+		f32Tensor("v.patch_norm.1.bias", []uint64{3}, nil),
+		f32Tensor("v.patch_norm.2.weight", []uint64{2}, []float32{1, 1}),
+		f32Tensor("v.patch_norm.2.bias", []uint64{2}, nil),
+		f32Tensor("v.position_embd.weight", []uint64{2, 32, 2}, nil),
+		f32Tensor("v.patch_norm.3.weight", []uint64{2}, []float32{1, 1}),
+		f32Tensor("v.patch_norm.3.bias", []uint64{2}, nil),
+		f32Tensor("mm.input_projection.weight", []uint64{2, 2}, nil),
+	}
+}

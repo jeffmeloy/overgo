@@ -84,6 +84,16 @@ func (f *fakeQwen3VLProjector) BuildQwen35ImagePrompt(
 	}, nil
 }
 
+func (f *fakeQwen3VLProjector) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer projector.ImageTokenizer,
+	input image.Image,
+	before, after string,
+	thinking bool,
+) (projector.MultimodalPrompt, error) {
+	return f.BuildQwen35ImagePrompt(ctx, tokenizer, input, before, after, thinking)
+}
+
 type failingMemoryGenerator struct {
 	*fakeGenerator
 }
@@ -1362,13 +1372,13 @@ func TestNativeCompletionProjectedInputs(t *testing.T) {
 	}
 }
 
-func TestNativeCompletionQwen3VLMultimodalPrompt(t *testing.T) {
+func TestNativeCompletionImageProjectorMultimodalPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
 		ModelID: "test-model", MaxTokens: 8,
 		DefaultTemperature: 1, DefaultTopP: 1,
-		Qwen3VLProjector: vision,
+		ImageProjector: vision,
 	}, generator)
 	if err != nil {
 		t.Fatal(err)

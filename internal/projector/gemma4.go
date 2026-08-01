@@ -1,0 +1,394 @@
+package projector
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"image"
+	"math"
+
+	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/reference"
+)
+
+const gemma4UVProjectorType = "gemma4uv"
+
+type Gemma4Spec struct {
+	TeacherPatch     int
+	PoolKernel       int
+	ModelPatch       int
+	PatchWidth       int
+	Hidden           int
+	PositionCount    int
+	MaxImageTokens   int
+	LayerNormEpsilon float32
+	RMSNormEpsilon   float32
+}
+
+type Gemma4Image struct {
+	PixelValues []float32
+	Positions   []int
+	GridH       int
+	GridW       int
+}
+
+type Gemma4Output struct {
+	Embeddings reference.Value
+	GridH      int
+	GridW      int
+}
+
+type Gemma4Runner struct {
+	file *gguf.File
+	spec Gemma4Spec
+}
+
+func OpenGemma4(path string) (*Gemma4Runner, error) {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	fail := func(openErr error) (*Gemma4Runner, error) {
+		_ = file.Close()
+		return nil, openErr
+	}
+	spec, err := ReadGemma4Spec(file)
+	if err != nil {
+		return fail(err)
+	}
+	if err := validateGemma4Catalog(file, spec); err != nil {
+		return fail(err)
+	}
+	return &Gemma4Runner{file: file, spec: spec}, nil
+}
+
+func (r *Gemma4Runner) Close() error {
+	if r == nil || r.file == nil {
+		return nil
+	}
+	file := r.file
+	r.file = nil
+	return file.Close()
+}
+
+func (r *Gemma4Runner) Spec() Gemma4Spec {
+	if r == nil {
+		return Gemma4Spec{}
+	}
+	return r.spec
+}
+
+func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
+	if file == nil {
+		return Gemma4Spec{}, errors.New("projector: GGUF file is nil")
+	}
+	architecture, err := metadataString(file, "general.architecture")
+	if err != nil {
+		return Gemma4Spec{}, err
+	}
+	if architecture != "clip" {
+		return Gemma4Spec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
+	}
+	projectorType, err := metadataString(file, "clip.vision.projector_type")
+	if err != nil {
+		return Gemma4Spec{}, err
+	}
+	if projectorType != gemma4UVProjectorType {
+		return Gemma4Spec{}, fmt.Errorf("projector: type %q is not %s", projectorType, gemma4UVProjectorType)
+	}
+	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
+	if err != nil {
+		return Gemma4Spec{}, err
+	}
+	if !hasVision {
+		return Gemma4Spec{}, errors.New("projector: vision encoder is disabled")
+	}
+	teacherPatch, err := metadataUint32(file, "clip.vision.patch_size")
+	if err != nil {
+		return Gemma4Spec{}, err
+	}
+	hidden, err := metadataUint32(file, "clip.vision.projection_dim")
+	if err != nil {
+		return Gemma4Spec{}, err
+	}
+	rmsEpsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
+	if err != nil {
+		return Gemma4Spec{}, err
+	}
+	patch, ok := file.Tensor("v.patch_embd.weight")
+	if !ok || patch.Dimensions != 2 {
+		return Gemma4Spec{}, errors.New("projector: Gemma 4 patch tensor is unavailable or invalid")
+	}
+	position, ok := file.Tensor("v.position_embd.weight")
+	if !ok || position.Dimensions != 3 {
+		return Gemma4Spec{}, errors.New("projector: Gemma 4 position tensor is unavailable or invalid")
+	}
+	maxNativeInt := uint64(^uint(0) >> 1)
+	if uint64(teacherPatch) > maxNativeInt || uint64(hidden) > maxNativeInt ||
+		patch.Shape[0] > maxNativeInt || position.Shape[1] > maxNativeInt {
+		return Gemma4Spec{}, errors.New("projector: Gemma 4 dimensions exceed native limits")
+	}
+	patchWidth := int(patch.Shape[0])
+	modelPatchSquared := patchWidth / 3
+	modelPatch := int(math.Sqrt(float64(modelPatchSquared)))
+	if modelPatch*modelPatch*3 != patchWidth || int(teacherPatch) == 0 || modelPatch%int(teacherPatch) != 0 {
+		return Gemma4Spec{}, fmt.Errorf("projector: invalid Gemma 4 patch width %d", patchWidth)
+	}
+	spec := Gemma4Spec{
+		TeacherPatch: int(teacherPatch), PoolKernel: modelPatch / int(teacherPatch),
+		ModelPatch: modelPatch, PatchWidth: patchWidth, Hidden: int(hidden),
+		PositionCount: int(position.Shape[1]), MaxImageTokens: 280,
+		LayerNormEpsilon: 1e-5, RMSNormEpsilon: rmsEpsilon,
+	}
+	if err := spec.validate(); err != nil {
+		return Gemma4Spec{}, err
+	}
+	return spec, nil
+}
+
+func (s Gemma4Spec) validate() error {
+	if s.TeacherPatch <= 0 || s.PoolKernel <= 0 || s.ModelPatch != s.TeacherPatch*s.PoolKernel ||
+		s.PatchWidth != s.ModelPatch*s.ModelPatch*3 || s.Hidden <= 0 || s.PositionCount <= 0 ||
+		s.MaxImageTokens <= 0 || s.LayerNormEpsilon <= 0 || s.RMSNormEpsilon <= 0 {
+		return fmt.Errorf("projector: invalid Gemma 4 metadata: %+v", s)
+	}
+	return nil
+}
+
+func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) error {
+	required := map[string][]uint64{
+		"v.patch_embd.weight":        {uint64(spec.PatchWidth), uint64(spec.Hidden)},
+		"v.patch_embd.bias":          {uint64(spec.Hidden)},
+		"v.patch_norm.1.weight":      {uint64(spec.PatchWidth)},
+		"v.patch_norm.1.bias":        {uint64(spec.PatchWidth)},
+		"v.patch_norm.2.weight":      {uint64(spec.Hidden)},
+		"v.patch_norm.2.bias":        {uint64(spec.Hidden)},
+		"v.position_embd.weight":     {uint64(spec.Hidden), uint64(spec.PositionCount), 2},
+		"v.patch_norm.3.weight":      {uint64(spec.Hidden)},
+		"v.patch_norm.3.bias":        {uint64(spec.Hidden)},
+		"mm.input_projection.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
+	}
+	for name, shape := range required {
+		info, ok := file.Tensor(name)
+		if !ok {
+			return fmt.Errorf("projector: missing tensor %q", name)
+		}
+		if int(info.Dimensions) != len(shape) {
+			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
+		}
+		for dimension, want := range shape {
+			if info.Shape[dimension] != want {
+				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
+			}
+		}
+	}
+	return nil
+}
+
+func PreprocessGemma4Image(source image.Image, spec Gemma4Spec) (Gemma4Image, error) {
+	if source == nil {
+		return Gemma4Image{}, errors.New("projector: image is nil")
+	}
+	if err := spec.validate(); err != nil {
+		return Gemma4Image{}, err
+	}
+	bounds := source.Bounds()
+	height, width := bounds.Dy(), bounds.Dx()
+	resizedH, resizedW, err := gemma4ResizeTarget(height, width, spec)
+	if err != nil {
+		return Gemma4Image{}, err
+	}
+	resized := source
+	if resizedH != height || resizedW != width {
+		resized = resizeImageBicubic(source, resizedW, resizedH)
+	}
+	resizedBounds := resized.Bounds()
+	gridH, gridW := resizedH/spec.ModelPatch, resizedW/spec.ModelPatch
+	rows := gridH * gridW
+	pixels := make([]float32, rows*spec.PatchWidth)
+	positions := make([]int, rows*2)
+	for gridY := 0; gridY < gridH; gridY++ {
+		for gridX := 0; gridX < gridW; gridX++ {
+			row := gridY*gridW + gridX
+			positions[row*2], positions[row*2+1] = gridX, gridY
+			destination := pixels[row*spec.PatchWidth:]
+			for y := 0; y < spec.ModelPatch; y++ {
+				for x := 0; x < spec.ModelPatch; x++ {
+					r, g, b, _ := resized.At(resizedBounds.Min.X+gridX*spec.ModelPatch+x, resizedBounds.Min.Y+gridY*spec.ModelPatch+y).RGBA()
+					base := (y*spec.ModelPatch + x) * 3
+					destination[base] = float32(r>>8) / 255
+					destination[base+1] = float32(g>>8) / 255
+					destination[base+2] = float32(b>>8) / 255
+				}
+			}
+		}
+	}
+	return Gemma4Image{PixelValues: pixels, Positions: positions, GridH: gridH, GridW: gridW}, nil
+}
+
+func gemma4ResizeTarget(height, width int, spec Gemma4Spec) (int, int, error) {
+	if height <= 0 || width <= 0 {
+		return 0, 0, fmt.Errorf("projector: invalid image geometry %dx%d", width, height)
+	}
+	maxPatches := spec.MaxImageTokens * spec.PoolKernel * spec.PoolKernel
+	targetPixels := float64(maxPatches * spec.TeacherPatch * spec.TeacherPatch)
+	factor := math.Sqrt(targetPixels / float64(height*width))
+	resizedH := int(math.Floor(factor*float64(height)/float64(spec.ModelPatch))) * spec.ModelPatch
+	resizedW := int(math.Floor(factor*float64(width)/float64(spec.ModelPatch))) * spec.ModelPatch
+	if resizedH == 0 && resizedW == 0 {
+		return 0, 0, fmt.Errorf("projector: image %dx%d rounds to zero", width, height)
+	}
+	maxSide := spec.MaxImageTokens * spec.ModelPatch
+	if resizedH == 0 {
+		resizedH = spec.ModelPatch
+		resizedW = min((width/height)*spec.ModelPatch, maxSide)
+	} else if resizedW == 0 {
+		resizedW = spec.ModelPatch
+		resizedH = min((height/width)*spec.ModelPatch, maxSide)
+	}
+	if resizedH*resizedW > maxPatches*spec.TeacherPatch*spec.TeacherPatch {
+		return 0, 0, errors.New("projector: Gemma 4 image exceeds token budget")
+	}
+	return resizedH, resizedW, nil
+}
+
+func (r *Gemma4Runner) EncodeImage(ctx context.Context, source image.Image) (Gemma4Output, error) {
+	if r == nil || r.file == nil {
+		return Gemma4Output{}, errors.New("projector: runner is closed")
+	}
+	input, err := PreprocessGemma4Image(source, r.spec)
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	return r.encode(ctx, input)
+}
+
+func (r *Gemma4Runner) encode(ctx context.Context, input Gemma4Image) (Gemma4Output, error) {
+	rows := input.GridH * input.GridW
+	if len(input.PixelValues) != rows*r.spec.PatchWidth || len(input.Positions) != rows*2 {
+		return Gemma4Output{}, errors.New("projector: Gemma 4 input shape is inconsistent")
+	}
+	pixels := make([]float32, len(input.PixelValues))
+	patchArea := r.spec.ModelPatch * r.spec.ModelPatch
+	for row := 0; row < rows; row++ {
+		source := input.PixelValues[row*r.spec.PatchWidth:]
+		destination := pixels[row*r.spec.PatchWidth:]
+		for pixel := 0; pixel < patchArea; pixel++ {
+			for channel := 0; channel < 3; channel++ {
+				destination[channel*patchArea+pixel] = source[pixel*3+channel]
+			}
+		}
+	}
+	bf16RoundSlice(pixels)
+	ln1Weight, ln1Bias, err := r.loadPair(ctx, "v.patch_norm.1.weight", "v.patch_norm.1.bias")
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	ln1 := make([]float32, len(pixels))
+	layerNorm(ln1, pixels, ln1Weight.Data, ln1Bias.Data, rows, r.spec.PatchWidth, r.spec.LayerNormEpsilon)
+	bf16RoundSlice(ln1)
+	patchWeight, patchBias, err := r.loadPair(ctx, "v.patch_embd.weight", "v.patch_embd.bias")
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	hidden := linear(ln1, patchWeight.Data, patchBias.Data, rows, r.spec.PatchWidth, r.spec.Hidden)
+	bf16RoundSlice(hidden)
+	ln2Weight, ln2Bias, err := r.loadPair(ctx, "v.patch_norm.2.weight", "v.patch_norm.2.bias")
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	ln2 := make([]float32, len(hidden))
+	layerNorm(ln2, hidden, ln2Weight.Data, ln2Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
+	bf16RoundSlice(ln2)
+	position, err := r.load(ctx, "v.position_embd.weight")
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	for row := 0; row < rows; row++ {
+		x, y := input.Positions[row*2], input.Positions[row*2+1]
+		if x < 0 || y < 0 || x >= r.spec.PositionCount || y >= r.spec.PositionCount {
+			return Gemma4Output{}, fmt.Errorf("projector: position %d,%d exceeds table", x, y)
+		}
+		for channel := 0; channel < r.spec.Hidden; channel++ {
+			xValue := position.Data[x*r.spec.Hidden+channel]
+			yValue := position.Data[(r.spec.PositionCount+y)*r.spec.Hidden+channel]
+			pos := bf16Round(xValue + yValue)
+			ln2[row*r.spec.Hidden+channel] = bf16Round(ln2[row*r.spec.Hidden+channel] + pos)
+		}
+	}
+	ln3Weight, ln3Bias, err := r.loadPair(ctx, "v.patch_norm.3.weight", "v.patch_norm.3.bias")
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	posNorm := make([]float32, len(ln2))
+	layerNorm(posNorm, ln2, ln3Weight.Data, ln3Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
+	bf16RoundSlice(posNorm)
+	preProjection := make([]float32, len(posNorm))
+	rmsNormNoWeight(preProjection, posNorm, rows, r.spec.Hidden, r.spec.RMSNormEpsilon)
+	bf16RoundSlice(preProjection)
+	projection, err := r.load(ctx, "mm.input_projection.weight")
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	embeddings := linear(preProjection, projection.Data, nil, rows, r.spec.Hidden, r.spec.Hidden)
+	bf16RoundSlice(embeddings)
+	value, err := reference.NewValue(tensor.MustShape(uint64(r.spec.Hidden), uint64(rows)), embeddings)
+	if err != nil {
+		return Gemma4Output{}, err
+	}
+	return Gemma4Output{
+		Embeddings: value,
+		GridH:      input.GridH, GridW: input.GridW,
+	}, nil
+}
+
+func (r *Gemma4Runner) load(ctx context.Context, name string) (reference.Value, error) {
+	info, ok := r.file.Tensor(name)
+	if !ok {
+		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
+	}
+	return model.LoadHostTensor(ctx, r.file, info)
+}
+
+func (r *Gemma4Runner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
+	a, err := r.load(ctx, first)
+	if err != nil {
+		return reference.Value{}, reference.Value{}, err
+	}
+	b, err := r.load(ctx, second)
+	return a, b, err
+}
+
+func rmsNormNoWeight(output, input []float32, rows, width int, epsilon float32) {
+	parallelRows(rows, func(start, end int) {
+		for row := start; row < end; row++ {
+			source := input[row*width : (row+1)*width]
+			destination := output[row*width : (row+1)*width]
+			sumSquares := 0.0
+			for _, value := range source {
+				sumSquares += float64(value) * float64(value)
+			}
+			inverse := 1 / math.Sqrt(sumSquares/float64(width)+float64(epsilon))
+			for channel, value := range source {
+				destination[channel] = float32(float64(value) * inverse)
+			}
+		}
+	})
+}
+
+func bf16Round(value float32) float32 {
+	raw := math.Float32bits(value)
+	if raw&0x7f800000 == 0x7f800000 {
+		return value
+	}
+	raw += 0x7fff + ((raw >> 16) & 1)
+	return math.Float32frombits(raw & 0xffff0000)
+}
+
+func bf16RoundSlice(values []float32) {
+	for index, value := range values {
+		values[index] = bf16Round(value)
+	}
+}

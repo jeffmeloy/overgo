@@ -114,8 +114,8 @@ func run() error {
 	mirostatEta := flag.Float64("mirostat-eta", 0.1, "Mirostat learning rate")
 	seed := flag.Int64("seed", 0, "sampling RNG seed")
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
-	projectorPath := flag.String("mmproj", "", "Qwen3-VL multimodal projector GGUF")
-	imagePath := flag.String("image", "", "image input for Qwen3-VL generation")
+	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
+	imagePath := flag.String("image", "", "image input for multimodal generation")
 	videoFrames := stringListFlag{}
 	flag.Var(&videoFrames, "video-frame", "ordered Qwen3-VL video frame; repeatable")
 	videoFPS := flag.Float64("video-fps", 24, "source FPS for Qwen3-VL video timestamps")
@@ -314,7 +314,7 @@ func run() error {
 		var projected inference.ProjectedInputs
 		var projectedErr error
 		if *imagePath != "" {
-			promptIDs, projected, projectedErr = qwen3VLProjectedPrompt(
+			promptIDs, projected, projectedErr = imageProjectedPrompt(
 				context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
 			)
 		} else {

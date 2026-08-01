@@ -850,6 +850,19 @@ func BuildDenseBlockCachedForLayer(
 	if !spec.UsesRoPE(layerIndex) {
 		// Some dense architectures leave periodic layers
 		// position-independent
+	} else if spec.Architecture == "paddleocr" {
+		var multiPositions [4][]uint32
+		for axis := range multiPositions {
+			multiPositions[axis] = positions
+		}
+		query = builder.RoPEMulti(
+			query, multiPositions, spec.RopeSections,
+			rotaryDimensions, spec.RopeFrequencyBase,
+		)
+		key = builder.RoPEMulti(
+			key, multiPositions, spec.RopeSections,
+			rotaryDimensions, spec.RopeFrequencyBase,
+		)
 	} else if isLaguna {
 		if spec.IsSlidingLayer(layerIndex) {
 			query = builder.RoPENeoX(

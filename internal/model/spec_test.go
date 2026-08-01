@@ -2321,6 +2321,33 @@ func TestReadErnie45MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadPaddleOCRSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "paddleocr"),
+		metadata("paddleocr.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("paddleocr.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("paddleocr.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("paddleocr.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("paddleocr.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("paddleocr.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("paddleocr.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("paddleocr.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("paddleocr.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("paddleocr.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		{Key: "paddleocr.rope.dimension_sections", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
+		}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.RopeDimensionCount != 4 || spec.RopeSections != [4]int32{1, 1, 0, 0} ||
+		usesNormalRoPE(spec.Architecture) || !spec.UsesRoPE(1) {
+		t.Fatalf("unexpected PaddleOCR spec: %+v", spec)
+	}
+}
+
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "mamba"),

@@ -2381,6 +2381,49 @@ func TestBuildErnie45MoEBlockUsesBiasedUngatedExpertsAndSharedBranch(t *testing.
 	}
 }
 
+func TestBuildPaddleOCRBlockUsesMRoPEAndOutputBias(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "paddleocr", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionQ = nil
+	weights.AttentionK = nil
+	weights.AttentionV = nil
+	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16))
+	weights.AttentionOutputBias = builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(8))
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var multiRoPE, outputBias int
+	for _, node := range nodes {
+		if node.Op == tensor.OpRoPEMulti {
+			multiRoPE++
+			attributes := node.Attrs.(tensor.RoPEMultiAttributes)
+			if attributes.Sections != spec.RopeSections {
+				t.Fatalf("unexpected PaddleOCR MRoPE: %+v", attributes)
+			}
+		}
+		if node.Op == tensor.OpAdd && len(node.Inputs) == 2 && node.Inputs[1].Name == "attn_output_bias" {
+			outputBias++
+		}
+	}
+	if multiRoPE != 2 || outputBias != 1 {
+		t.Fatalf("PaddleOCR graph has MRoPE=%d output-bias=%d", multiRoPE, outputBias)
+	}
+}
+
 func TestBuildDenseCommandR64UsesParallelResidualAndQKNorms(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -8,7 +8,7 @@ dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream a
 ERNIE 4.5/ERNIE 4.5-MoE, GLM4, GPT-2/GPT-NeoX, Granite/GraniteMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Maincoder, Mellum, MiniCPM/MiniCPM3, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
-Orion, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 3/PLM MLA, dense Refact,
+Orion, PaddleOCR text-coordinate decoders, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 3/PLM MLA, dense Refact,
 RND1 non-causal MoE, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5/UMT5
 encoders, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3
 per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output

@@ -289,8 +289,18 @@ func TestT5CacheValidation(t *testing.T) {
 	if err := runner.validateT5Cache(cache, 3); err == nil {
 		t.Fatal("mismatched T5 encoder extent was accepted")
 	}
-	if _, err := runner.ShiftCache(cache, 1); err == nil {
-		t.Fatal("T5 relative-bias cache edit was accepted")
+	shifted, err := runner.ShiftCache(cache, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shifted.Tokens != 1 || shifted.Position != 1 ||
+		!shifted.Layers[0].Key.Shape.Equal(tensor.MustShape(2, 1, 1)) ||
+		!shifted.Layers[0].Value.Shape.Equal(tensor.MustShape(3, 1, 1)) {
+		t.Fatalf("shifted T5 cache = %+v", shifted)
+	}
+	if !shifted.Layers[0].States["cross_key"].Value.Shape.Equal(crossKey.Shape) ||
+		!shifted.Layers[0].States["cross_value"].Value.Shape.Equal(crossValue.Shape) {
+		t.Fatalf("shifted T5 cross cache changed: %+v", shifted.Layers[0].States)
 	}
 	state := cache.Layers[0].States["cross_key"]
 	state.Mode = CacheStateToken

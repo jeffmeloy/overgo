@@ -764,7 +764,8 @@
 - T5 single-sequence encoder-decoder sessions are supported. Padding masks for
   padded multi-sequence batches and a high-level text-generation convenience
   wrapper remain pending; callers can generate incrementally with `DecodeT5`.
-  Decoder relative buckets currently prohibit cache range editing/context shift.
+  Decoder relative buckets support active-range cache deletion; fixed encoder
+  cross-attention K/V remains unchanged while self-attention rows compact.
 
 ## Blockers
 

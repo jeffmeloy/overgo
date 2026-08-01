@@ -397,9 +397,6 @@ func (r *Runner) RemoveCacheRange(
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
 	}
-	if r.spec.Architecture == "t5" {
-		return nil, errors.New("inference: T5 relative-bias cache editing is unsupported")
-	}
 	if discard == 0 {
 		return cloneCache(cache), nil
 	}
@@ -422,6 +419,10 @@ func (r *Runner) RemoveCacheRange(
 		Layers:   make([]LayerCache, len(cache.Layers)),
 		Tokens:   remaining,
 		Position: effectiveCachePosition(cache),
+	}
+	if r.spec.Architecture == "t5" {
+		// T5 relative positions: translation-invariant; compact rows.
+		result.Position = remaining
 	}
 	for index, layer := range cache.Layers {
 		recurrent := index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent

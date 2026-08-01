@@ -2831,6 +2831,7 @@ models:
       - bidirectional-encoder-attention
       - causal-decoder-relative-position-buckets
       - fixed-cross-attention-cache
+      - active-range-self-cache-editing
       - relu-and-gated-gelu-ffn
       - resumable-model-bound-session
     validation:
@@ -2840,7 +2841,6 @@ models:
     limitations:
       - no-padded-multisequence-mask
       - no-high-level-generation-wrapper
-      - no-relative-bias-cache-editing
       - real-decoder-fixture-pending
   t5encoder:
     status: experimental

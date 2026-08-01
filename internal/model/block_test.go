@@ -1214,6 +1214,49 @@ func TestBuildJinaBERTV3BlockUsesNeoXRoPEAndGELU(t *testing.T) {
 	}
 }
 
+func TestBuildNomicBERTMoEBlockUsesGateFreeGELUExperts(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "nomic-bert-moe", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 16, ExpertWeightsScale: 1,
+		MoELayerStep: 2, RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, BlockCount: 2,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := LayerGraphWeights{
+		AttentionQKV:            builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionOutput:         builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionPostNorm:       builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionPostNormBias:   builder.Input("attn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:       builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardUpExperts:    builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 16, 4)),
+		FeedForwardDownExperts:  builder.Input("down_exps", dtype.F32, tensor.MustShape(16, 8, 4)),
+		FeedForwardPostNorm:     builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardPostNormBias: builder.Input("ffn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe, rope int
+	for _, node := range nodes {
+		if node.Op == tensor.OpMoE {
+			moe++
+		}
+		if node.Op == tensor.OpRoPENeoX {
+			rope++
+		}
+	}
+	if moe != 1 || rope != 2 {
+		t.Fatalf("NomicBERT-MoE graph MoE/RoPE = %d/%d", moe, rope)
+	}
+}
+
 func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

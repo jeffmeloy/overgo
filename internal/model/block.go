@@ -115,8 +115,9 @@ func buildBERTEncoderBlock(
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" {
+	if spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" && spec.Architecture != "nomic-bert-moe" {
 		return DenseBlockResult{}, errors.New("BERT-family block requires a supported encoder architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -132,10 +133,17 @@ func buildBERTEncoderBlock(
 		"attention output":            weights.AttentionOutput,
 		"attention post norm":         weights.AttentionPostNorm,
 		"attention post norm bias":    weights.AttentionPostNormBias,
-		"feed-forward up":             weights.FeedForwardUp,
-		"feed-forward down":           weights.FeedForwardDown,
 		"feed-forward post norm":      weights.FeedForwardPostNorm,
 		"feed-forward post norm bias": weights.FeedForwardPostNormBias,
+	}
+	usesExperts := spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(layerIndex)
+	if usesExperts {
+		required["feed-forward router"] = weights.FeedForwardRouter
+		required["feed-forward expert up"] = weights.FeedForwardUpExperts
+		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+	} else {
+		required["feed-forward up"] = weights.FeedForwardUp
+		required["feed-forward down"] = weights.FeedForwardDown
 	}
 	for name, item := range required {
 		if item == nil {
@@ -187,7 +195,7 @@ func buildBERTEncoderBlock(
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
-	if spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" {
+	if spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
@@ -223,31 +231,41 @@ func buildBERTEncoderBlock(
 			weights.AttentionNorm2, weights.AttentionNorm2Bias, spec,
 		)
 	}
-	feedForward := builder.MulMat(weights.FeedForwardUp, attention)
-	if weights.FeedForwardUpBias != nil {
-		feedForward = builder.Add(feedForward, weights.FeedForwardUpBias)
+	var feedForward *tensor.Tensor
+	if usesExperts {
+		feedForward = builder.MoEGELU(
+			attention, weights.FeedForwardRouter, nil, weights.FeedForwardUpExperts,
+			weights.FeedForwardDownExperts, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+		)
+	} else {
+		feedForward = builder.MulMat(weights.FeedForwardUp, attention)
+		if weights.FeedForwardUpBias != nil {
+			feedForward = builder.Add(feedForward, weights.FeedForwardUpBias)
+		}
 	}
-	if spec.Architecture == "jina-bert-v2" {
-		width := uint64(spec.FeedForwardLength)
-		if weights.FeedForwardGate != nil {
+	if !usesExperts {
+		if spec.Architecture == "jina-bert-v2" {
+			width := uint64(spec.FeedForwardLength)
+			if weights.FeedForwardGate != nil {
+				gate := builder.MulMat(weights.FeedForwardGate, attention)
+				feedForward = builder.GEGLU(gate, feedForward)
+			} else if weights.FeedForwardUp.Shape.Dims[1] == 2*width {
+				gate := builder.Reshape(builder.GroupSlice(feedForward, 0, width, 1, 2*width), width, tokens)
+				up := builder.Reshape(builder.GroupSlice(feedForward, width, width, 1, 2*width), width, tokens)
+				feedForward = builder.GEGLU(gate, up)
+			} else {
+				feedForward = builder.GELU(feedForward)
+			}
+		} else if spec.Architecture == "nomic-bert" {
 			gate := builder.MulMat(weights.FeedForwardGate, attention)
-			feedForward = builder.GEGLU(gate, feedForward)
-		} else if weights.FeedForwardUp.Shape.Dims[1] == 2*width {
-			gate := builder.Reshape(builder.GroupSlice(feedForward, 0, width, 1, 2*width), width, tokens)
-			up := builder.Reshape(builder.GroupSlice(feedForward, width, width, 1, 2*width), width, tokens)
-			feedForward = builder.GEGLU(gate, up)
+			feedForward = builder.SwiGLU(gate, feedForward)
 		} else {
 			feedForward = builder.GELU(feedForward)
 		}
-	} else if spec.Architecture == "nomic-bert" {
-		gate := builder.MulMat(weights.FeedForwardGate, attention)
-		feedForward = builder.SwiGLU(gate, feedForward)
-	} else {
-		feedForward = builder.GELU(feedForward)
-	}
-	feedForward = builder.MulMat(weights.FeedForwardDown, feedForward)
-	if weights.FeedForwardDownBias != nil {
-		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+		feedForward = builder.MulMat(weights.FeedForwardDown, feedForward)
+		if weights.FeedForwardDownBias != nil {
+			feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+		}
 	}
 	output := builder.AffineLayerNorm(
 		builder.Add(attention, feedForward), weights.FeedForwardPostNorm,
@@ -657,8 +675,8 @@ func BuildDenseBlockCachedForLayer(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" {
-		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue)
+	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
+		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"

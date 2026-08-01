@@ -169,6 +169,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "nemotron" &&
 		architecture != "neo-bert" &&
 		architecture != "nomic-bert" &&
+		architecture != "nomic-bert-moe" &&
 		architecture != "olmo" &&
 		architecture != "olmoe" &&
 		architecture != "openelm" &&
@@ -199,7 +200,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "rnd1" {
+	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "bert" || architecture == "jina-bert-v2" {
@@ -246,10 +247,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
+	if architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
-		if architecture == "gptneox" || architecture == "falcon" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
 			if value, ok := optional[uint32](
 				values,
 				prefix+"attention.head_count_kv",
@@ -314,7 +315,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		// architectures use ALiBi or learned absolute rows instead of RoPE
 		spec.RopeDisabled = true
 	} else if !spec.RopeDisabled && architecture != "t5encoder" {
-		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" || architecture == "jina-bert-v3" || architecture == "neo-bert" || architecture == "nomic-bert" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" || architecture == "jina-bert-v3" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](
 				values,
@@ -1059,7 +1060,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1080,6 +1081,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ExpertFeedForward = value
 		}
 		if architecture == "arctic" {
+			spec.ExpertFeedForward = spec.FeedForwardLength
+		}
+		if architecture == "nomic-bert-moe" {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
 		spec.ExpertWeightsScale = 1
@@ -1185,6 +1189,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > 0 {
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
+		}
+	}
+	if architecture == "nomic-bert-moe" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if spec.MoELayerStep, err = required[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
 		}
 	}
 	if architecture == "ernie4_5-moe" {
@@ -1567,7 +1580,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.VocabularySize = uint32(tokens.Count())
 	}
-	if architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" {
+	if architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
 		if spec.TokenTypeCount, err = required[uint32](values, "tokenizer.ggml.token_type_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1591,9 +1604,11 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 }
 
 func (s Spec) IsInterleavedMoELayer(block uint32) bool {
-	return s.Architecture == "ernie4_5-moe" && block < s.BlockCount &&
-		block >= s.LeadingDenseBlocks && s.MoELayerStep > 0 &&
-		(block+1)%s.MoELayerStep == 0
+	if s.Architecture == "nomic-bert-moe" {
+		return block < s.BlockCount && s.MoELayerStep > 1 && block%s.MoELayerStep == 1
+	}
+	return s.Architecture == "ernie4_5-moe" && block < s.BlockCount && block >= s.LeadingDenseBlocks &&
+		s.MoELayerStep > 0 && (block+1)%s.MoELayerStep == 0
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
@@ -1680,6 +1695,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 func (s Spec) IsEncoderOnly() bool {
 	return s.Architecture == "bert" || s.Architecture == "eurobert" || s.Architecture == "jina-bert-v2" || s.Architecture == "jina-bert-v3" ||
 		s.Architecture == "neo-bert" || s.Architecture == "nomic-bert" ||
+		s.Architecture == "nomic-bert-moe" ||
 		s.Architecture == "t5encoder"
 }
 
@@ -1692,6 +1708,7 @@ func (s Spec) UsesLayerNorm() bool {
 		s.Architecture == "jina-bert-v3" ||
 		s.Architecture == "nemotron" ||
 		s.Architecture == "nomic-bert" ||
+		s.Architecture == "nomic-bert-moe" ||
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
 		s.Architecture == "stablelm" ||
@@ -1765,6 +1782,12 @@ func (s Spec) validate() error {
 			s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0 ||
 			s.KeyLength != s.ValueLength) {
 		return errors.New("NomicBERT metadata is invalid")
+	}
+	if s.Architecture == "nomic-bert-moe" &&
+		(s.TokenTypeCount == 0 || s.MoELayerStep < 2 || s.RopeDimensionCount == 0 ||
+			s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0 ||
+			s.KeyLength != s.ValueLength) {
+		return errors.New("NomicBERT-MoE metadata is invalid")
 	}
 	if s.Architecture == "qwen35" {
 		switch {
@@ -2428,7 +2451,7 @@ func isGemmaArchitecture(architecture string) bool {
 }
 
 func hasPostNorm(architecture string) bool {
-	return architecture == "afmoe" || architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "exaone4" || architecture == "gemma2" ||
+	return architecture == "afmoe" || architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4" || architecture == "gemma2" ||
 		architecture == "gemma3" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
 }
 
@@ -2440,7 +2463,7 @@ func usesSlidingAttention(architecture string) bool {
 }
 
 func usesPostOnlyNorm(architecture string) bool {
-	return architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "exaone4"
+	return architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4"
 }
 
 func usesNormalRoPE(architecture string) bool {
@@ -2508,7 +2531,7 @@ func firstPositive(values []uint32) uint32 {
 }
 
 func usesGELU(architecture string) bool {
-	return architecture == "bert" || architecture == "falcon" || architecture == "jina-bert-v3" || architecture == "mpt" || usesSequentialGELU(architecture)
+	return architecture == "bert" || architecture == "falcon" || architecture == "jina-bert-v3" || architecture == "nomic-bert-moe" || architecture == "mpt" || usesSequentialGELU(architecture)
 }
 
 func usesSquaredReLU(architecture string) bool {

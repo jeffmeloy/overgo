@@ -535,6 +535,34 @@ func TestReadJinaBERTV3SpecUsesBidirectionalNeoXRoPE(t *testing.T) {
 	}
 }
 
+func TestReadNomicBERTMoESpecUsesInterleavedExperts(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "nomic-bert-moe"),
+		metadata("nomic-bert-moe.block_count", gguf.ValueTypeUint32, uint32(12)),
+		metadata("nomic-bert-moe.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("nomic-bert-moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("nomic-bert-moe.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("nomic-bert-moe.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("nomic-bert-moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nomic-bert-moe.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("nomic-bert-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nomic-bert-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nomic-bert-moe.moe_every_n_layers", gguf.ValueTypeUint32, uint32(2)),
+		metadata("tokenizer.ggml.token_type_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !spec.NonCausalAttention || !spec.IsEncoderOnly() || spec.ExpertCount != 4 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 16 || spec.MoELayerStep != 2 ||
+		spec.IsInterleavedMoELayer(0) || !spec.IsInterleavedMoELayer(1) ||
+		spec.IsInterleavedMoELayer(2) || !spec.IsInterleavedMoELayer(3) ||
+		spec.RopeDimensionCount != 4 || spec.RopeFrequencyBase != 10000 {
+		t.Fatalf("unexpected NomicBERT-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),

@@ -41,6 +41,31 @@ func (r *Runner) selectPromptCache(
 	return selected, best
 }
 
+func (r *Runner) selectT5SourceCache(
+	requested []tokenizer.TokenID,
+	minimum int,
+) (*cachedPrompt, int) {
+	if len(requested) < minimum {
+		return nil, 0
+	}
+	signature := r.currentLoRASignature()
+	for index, candidate := range r.promptCaches {
+		if candidate == nil ||
+			candidate.LoRASignature != signature ||
+			candidate.Cache != nil ||
+			candidate.Hidden.Shape.Rank != 2 ||
+			!slices.Equal(candidate.Tokens, requested) {
+			continue
+		}
+		if index > 0 {
+			copy(r.promptCaches[1:index+1], r.promptCaches[:index])
+			r.promptCaches[0] = candidate
+		}
+		return candidate, len(requested)
+	}
+	return nil, 0
+}
+
 func (r *Runner) ownsDevicePromptCache(cache *deviceKVCache) bool {
 	if cache == nil {
 		return false

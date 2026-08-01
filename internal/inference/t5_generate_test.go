@@ -23,9 +23,9 @@ func TestGenerateT5Admission(t *testing.T) {
 	if _, _, _, err := runner.GenerateT5(context.Background(), "", GenerateOptions{MaxNewTokens: -1}); err == nil {
 		t.Fatal("negative token limit was accepted")
 	}
-	if _, _, _, err := runner.GenerateT5(context.Background(), "", GenerateOptions{CachePrompt: true}); err == nil ||
-		!strings.Contains(err.Error(), "source prompt caching") {
-		t.Fatalf("prompt-cache error = %v", err)
+	if _, _, _, err := runner.GenerateT5(context.Background(), "", GenerateOptions{MinCacheReuse: -1}); err == nil ||
+		!strings.Contains(err.Error(), "minimum cache reuse") {
+		t.Fatalf("minimum-cache error = %v", err)
 	}
 	if _, _, err := runner.Generate(context.Background(), "", GenerateOptions{MaxNewTokens: -1}); err == nil ||
 		!strings.Contains(err.Error(), "max new tokens") {

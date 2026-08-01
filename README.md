@@ -505,7 +505,8 @@ GELU FFNs, and model-bound resumable session serialization. The public path is
 `GenerateT5` for complete source-to-text sampling, or `NewT5Session` followed
 by chunked `DecodeT5`; `SaveT5Session` and `LoadT5Session` preserve both
 encoder output and decoder cache. Active-range edits compact decoder self K/V
-without changing fixed cross-attention state. The `generate` CLI selects this
+without changing fixed cross-attention state. Exact source-token matches reuse
+cached non-causal encoder output; prefix-only matches are re-encoded. The `generate` CLI selects this
 source-to-text path automatically for T5 models. Generic `Generate` dispatches
 to the same coordinator and retains its combined input/output token contract,
 covering completion-compatible HTTP routes and usage accounting as well.

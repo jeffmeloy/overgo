@@ -2909,6 +2909,7 @@ models:
       - completion-server-dispatch
       - relu-and-gated-gelu-ffn
       - resumable-model-bound-session
+      - exact-source-encoder-prompt-cache
     validation:
       - synthetic-topology
       - cache-and-session-round-trip

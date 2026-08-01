@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"llamacpp2go/internal/sampling"
+	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -37,9 +38,6 @@ func (r *Runner) GenerateT5(
 	}
 	if options.PostSamplingProbabilities < 0 {
 		return nil, "", nil, errors.New("inference: post-sampling probability count is negative")
-	}
-	if options.CachePrompt || options.MinCacheReuse > 0 {
-		return nil, "", nil, errors.New("inference: T5 source prompt caching is unsupported")
 	}
 	if err := validateStopSequences(options.StopSequences); err != nil {
 		return nil, "", nil, err
@@ -83,13 +81,32 @@ func (r *Runner) GenerateT5(
 	}
 
 	promptStarted := time.Now()
-	encoder, err := r.forwardT5EncoderLocked(ctx, sourceIDs)
-	if err != nil {
-		return nil, "", nil, err
+	var encoder reference.Value
+	cached := 0
+	if options.CachePrompt {
+		if selected, reused := r.selectT5SourceCache(sourceIDs, options.MinCacheReuse); selected != nil {
+			encoder = selected.Hidden
+			cached = reused
+		}
+	}
+	if cached == 0 {
+		encoder, err = r.forwardT5EncoderLocked(ctx, sourceIDs)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		if options.CachePrompt {
+			if err := r.storePromptCache(ctx, &cachedPrompt{
+				Tokens:        append([]tokenizer.TokenID(nil), sourceIDs...),
+				Hidden:        encoder,
+				LoRASignature: r.currentLoRASignature(),
+			}); err != nil {
+				return nil, "", nil, err
+			}
+		}
 	}
 	if options.OnPromptEvaluated != nil {
 		options.OnPromptEvaluated(PromptEvaluation{
-			Tokens: len(sourceIDs), Duration: time.Since(promptStarted),
+			Tokens: len(sourceIDs), Cached: cached, Duration: time.Since(promptStarted),
 		})
 	}
 	session := &T5Session{Encoder: encoder}

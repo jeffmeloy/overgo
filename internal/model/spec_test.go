@@ -3470,13 +3470,20 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 }
 
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "unsupported-test"),
-	}}
-	_, err := ReadSpec(file)
-	var unsupported *UnsupportedArchitectureError
-	if !errors.As(err, &unsupported) {
-		t.Fatalf("error = %v, want UnsupportedArchitectureError", err)
+	for _, architecture := range []string{
+		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant", "falcon-h1",
+		"deepseek32", "deepseek4", "glm-dsa", "t5", "wavtokenizer-dec", "eagle3", "dflash",
+	} {
+		t.Run(architecture, func(t *testing.T) {
+			file := &gguf.File{Metadata: []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, architecture),
+			}}
+			_, err := ReadSpec(file)
+			var unsupported *UnsupportedArchitectureError
+			if !errors.As(err, &unsupported) || unsupported.Architecture != architecture {
+				t.Fatalf("error = %v, want UnsupportedArchitectureError for %q", err, architecture)
+			}
+		})
 	}
 }
 

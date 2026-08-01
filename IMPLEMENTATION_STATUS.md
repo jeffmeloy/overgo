@@ -726,15 +726,50 @@
 
 ## Blockers
 
-### Deferred: DeepSeek 3.2 sparse DSA attention
+### Deferred: DeepSeek 3.2 and GLM-DSA sparse attention
 
-Pinned DeepSeek 3.2 adds a learned indexer above MLA: affine key
+Pinned DeepSeek 3.2 and GLM-DSA add a learned indexer above MLA: affine key
 normalization, projected indexer keys, NeoX RoPE, Hadamard mixing, a separate
 persistent indexer-key cache, ReLU history scores, learned head reduction, and
 top-k sparse attention over selected cache rows. The current attention ABI has
 one K/V cache and dense causal score evaluation; it lacks the second cache,
 Hadamard op, top-k index production, sparse row gather, and sparse attention
-mask semantics. Reusing ordinary absorbed MLA would produce the wrong graph.
+mask semantics. GLM-DSA also reuses each full-indexer layer's top-k indices in
+following shared-indexer layers. The adaptive repository's device top-k selects
+vocabulary logits and cannot emit graph-resident history indices or sparse MLA
+rows. Reusing ordinary absorbed MLA would produce the wrong graph.
+
+### Deferred: DFlash target/draft orchestration
+
+Pinned DFlash has separate encoder and decoder modes. The encoder fuses hidden
+states extracted from configured target-model layers. The decoder switches
+between prompt and generation graphs, consumes target token embeddings and
+output projection, and participates in speculative verification with a second
+model context. The current runner owns one model, one embedding table, one
+hidden stream, and one cache. Adding DFlash requires a target/draft coordinator,
+cross-model tensor ownership, extracted-hidden-state inputs, and speculative
+accept/rollback semantics; a standalone decoder graph would be incomplete.
+
+### Deferred: T5 encoder-decoder execution
+
+Pinned T5 decoding requires the encoder hidden sequence as a persistent input,
+decoder self-attention K/V, separate cross-attention K/V derived from encoder
+output, decoder relative-position buckets, and padding masks. The current T5
+path returns encoder hidden states only, while generation owns a decoder-only
+two-tensor cache and has no encoder-output session contract. Adaptive media
+cross-attention supplies useful dense attention formulas but no T5 GGUF catalog,
+relative-bucket masking, dual cache lifetime, or resumable encoder-decoder API.
+
+### Deferred: WavTokenizer decoder graph
+
+Pinned WavTokenizer is a non-causal audio-feature decoder, not a token-logit
+decoder. Its PosNet and ConvNeXt stages require same-padded dense and depthwise
+1-D convolution, group normalization, transposes, convolutional attention,
+GELU pointwise blocks, and an output width unrelated to vocabulary size. The
+adaptive repository provides CPU group-normalization and causal audio-conv
+references, but not the required same-padding/depthwise tensor and CUDA ops or
+a llama.cpp-compatible audio-output runner contract. Those references can seed
+the math tranche after the output API and tensor catalog are designed.
 
 ### Deferred: DeepSeek 4 compressed sparse/hyper-connection graph
 

@@ -182,6 +182,66 @@ func TestReadWeightsGLM4MoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
+	spec := Spec{
+		Architecture: "mimo2", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1, HeadCount: 2,
+		HeadCountKV: 1, LayerKVHeadCounts: []uint32{1, 1},
+		KeyLength: 4, ValueLength: 3, VocabularySize: 32,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_qkv.weight", 8, 15),
+			tensorInfo(prefix+"attn_output.weight", 6, 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.0.attn_sinks.weight", 2),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8),
+		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.1.ffn_gate_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.1.exp_probs_b.bias", 4),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dense, moe := weights.Layers[0], weights.Layers[1]
+	if weights.Output == nil || dense.AttentionQKV == nil || dense.AttentionSinks == nil ||
+		dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+		moe.AttentionQKV == nil || moe.AttentionSinks != nil || moe.FeedForwardRouter == nil ||
+		moe.FeedForwardExpertBias == nil || moe.FeedForwardGateExperts == nil ||
+		moe.FeedForwardUp.Name != "" {
+		t.Fatalf("unexpected MiMo2 catalog: dense=%+v moe=%+v", dense, moe)
+	}
+	withoutBias := make([]gguf.TensorInfo, 0, len(tensors)-1)
+	for _, item := range tensors {
+		if item.Name != "blk.1.exp_probs_b.bias" {
+			withoutBias = append(withoutBias, item)
+		}
+	}
+	weights, err = ReadWeights(&gguf.File{Tensors: withoutBias}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[1].FeedForwardExpertBias != nil {
+		t.Fatal("MiMo2 optional expert correction bias remained present")
+	}
+}
+
 func TestReadWeightsDBRX(t *testing.T) {
 	spec := Spec{
 		Architecture: "dbrx", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,

@@ -3692,6 +3692,68 @@ func TestBuildGLM4MoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildMiMo2UsesSinksValueScaleAndSigmoidMoE(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "mimo2", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+		ExpertGatingFunc: 2, HeadCount: 2, HeadCountKV: 1,
+		LayerKVHeadCounts: []uint32{1, 1}, KeyLength: 4, ValueLength: 3,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+		SlidingWindow: 128, SlidingLayers: []bool{false, true},
+		AttentionValueScale: 0.5, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:           builder.Input("qkv", dtype.F32, tensor.MustShape(8, 15)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(6, 8)),
+		AttentionSinks:         builder.Input("sinks", dtype.F32, tensor.MustShape(2)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention, moe *tensor.Tensor
+	var valueScale, swaRope int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attention = node
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpScale:
+			if node.Attrs.(tensor.ScaleAttributes).Value == 0.5 {
+				valueScale++
+			}
+		case tensor.OpRoPENeoX:
+			if node.Attrs.(tensor.RoPEAttributes).FrequencyBase == 20000 {
+				swaRope++
+			}
+		}
+	}
+	if attention == nil || !attention.Attrs.(tensor.AttentionAttributes).HasSinks ||
+		attention.Attrs.(tensor.AttentionAttributes).Window != 128 || attention.Inputs[3] != weights.AttentionSinks ||
+		moe == nil || moe.Attrs.(tensor.MoEAttributes).Routing != tensor.MoERoutingSigmoid ||
+		!moe.Attrs.(tensor.MoEAttributes).NormalizeTopKProb || len(moe.Inputs) != 7 ||
+		valueScale != 1 || swaRope != 2 {
+		t.Fatalf("unexpected MiMo2 graph: attention=%v moe=%v value_scale=%d swa_rope=%d", attention != nil, moe != nil, valueScale, swaRope)
+	}
+}
+
 func TestBuildDOTS1MoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

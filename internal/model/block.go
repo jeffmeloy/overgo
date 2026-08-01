@@ -36,6 +36,7 @@ type LayerGraphWeights struct {
 	AttentionPostNormBias       *tensor.Tensor
 	AttentionRelativeBias       *tensor.Tensor
 	AttentionOutputGate         *tensor.Tensor
+	AttentionSinks              *tensor.Tensor
 	RopeFactors                 *tensor.Tensor
 	FeedForwardNorm             *tensor.Tensor
 	FeedForwardNormBias         *tensor.Tensor
@@ -1055,6 +1056,7 @@ func BuildDenseBlockCachedForLayer(
 	isHunyuan := isHunyuanMoE || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl"
 	isHYV3 := spec.Architecture == "hy_v3"
 	isMellum := spec.Architecture == "mellum"
+	isMiMo2 := spec.Architecture == "mimo2"
 	isSmallThinker := spec.Architecture == "smallthinker"
 	isMiniMaxM2 := spec.Architecture == "minimax-m2"
 	isLFM2MoE := spec.Architecture == "lfm2moe"
@@ -1082,7 +1084,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isMiMo2 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -1530,7 +1532,7 @@ func BuildDenseBlockCachedForLayer(
 		if isOLMo2 && spec.IsSlidingLayer(layerIndex) {
 			frequencyScale = 1
 		}
-		if (isAFMoE || isEXAOneMoE || isSmallThinker || spec.Architecture == "plamo3") && spec.IsSlidingLayer(layerIndex) {
+		if (isAFMoE || isEXAOneMoE || isMiMo2 || isSmallThinker || spec.Architecture == "plamo3") && spec.IsSlidingLayer(layerIndex) {
 			frequencyBase = spec.RopeFrequencySWA
 		}
 		if isMellum && spec.IsSlidingLayer(layerIndex) {
@@ -1603,7 +1605,12 @@ func BuildDenseBlockCachedForLayer(
 	}
 	var attention *tensor.Tensor
 	if spec.IsSlidingLayer(layerIndex) {
-		if spec.AttentionSoftcap > 0 {
+		if isMiMo2 && weights.AttentionSinks != nil {
+			attention = builder.AttentionWindowWithSinksWithOffset(
+				query, cacheKey, cacheValue, weights.AttentionSinks, attentionScale,
+				true, queryStart, spec.SlidingWindow,
+			)
+		} else if spec.AttentionSoftcap > 0 {
 			attention = builder.AttentionWindowSoftcappedWithOffset(
 				query, cacheKey, cacheValue, attentionScale, spec.AttentionSoftcap,
 				true, queryStart, spec.SlidingWindow,
@@ -1615,7 +1622,11 @@ func BuildDenseBlockCachedForLayer(
 		}
 	} else {
 		causal := !spec.NonCausalAttention
-		if spec.MaxALiBiBias > 0 {
+		if isMiMo2 && weights.AttentionSinks != nil {
+			attention = builder.AttentionWithSinksWithOffset(
+				query, cacheKey, cacheValue, weights.AttentionSinks, attentionScale, causal, queryStart,
+			)
+		} else if spec.MaxALiBiBias > 0 {
 			attention = builder.AttentionALiBiWithOffset(
 				query, cacheKey, cacheValue, attentionScale, spec.MaxALiBiBias,
 				causal, queryStart,
@@ -1648,6 +1659,9 @@ func BuildDenseBlockCachedForLayer(
 		)
 	}
 	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if isMiMo2 && spec.AttentionValueScale != 0 {
+		attention = builder.Scale(attention, spec.AttentionValueScale)
+	}
 	if weights.AttentionOutputScale != nil {
 		attention = builder.Multiply(attention, weights.AttentionOutputScale)
 	}
@@ -1899,6 +1913,13 @@ func BuildDenseBlockCachedForLayer(
 				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
 				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
 				spec.ExpertWeightsScale, routing,
+			)
+		} else if isMiMo2 {
+			feedForward = builder.MoESigmoid(
+				normalized, weights.FeedForwardRouter,
+				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
+				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
 			)
 		} else if isMiniMaxM2 {
 			if spec.ExpertGatingFunc == 2 {

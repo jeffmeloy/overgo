@@ -2041,7 +2041,10 @@ func launchNode(
 		key := pointers[keyNode]
 		value := pointers[valueNode]
 		var relativeBias driver.DevicePtr
-		if len(node.Inputs) == 4 {
+		var sinks driver.DevicePtr
+		if len(node.Inputs) == 4 && attributes.HasSinks {
+			sinks = pointers[node.Inputs[3]]
+		} else if len(node.Inputs) == 4 {
 			relativeBias = pointers[node.Inputs[3]]
 		}
 		relativeBuckets := attributes.RelativeBuckets
@@ -2063,6 +2066,7 @@ func launchNode(
 			unsafe.Pointer(&key),
 			unsafe.Pointer(&value),
 			unsafe.Pointer(&relativeBias),
+			unsafe.Pointer(&sinks),
 			unsafe.Pointer(&output),
 			unsafe.Pointer(&keyWidth),
 			unsafe.Pointer(&valueWidth),
@@ -2085,6 +2089,7 @@ func launchNode(
 		runtime.KeepAlive(key)
 		runtime.KeepAlive(value)
 		runtime.KeepAlive(relativeBias)
+		runtime.KeepAlive(sinks)
 		runtime.KeepAlive(output)
 		runtime.KeepAlive(keyWidth)
 		runtime.KeepAlive(valueWidth)

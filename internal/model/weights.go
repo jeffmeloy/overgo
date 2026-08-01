@@ -37,6 +37,7 @@ type LayerWeights struct {
 	AttentionPostNormBias       *gguf.TensorInfo
 	AttentionRelativeBias       *gguf.TensorInfo
 	AttentionOutputGate         *gguf.TensorInfo
+	AttentionSinks              *gguf.TensorInfo
 	RopeFactors                 *gguf.TensorInfo
 	FeedForwardNorm             gguf.TensorInfo
 	FeedForwardNormBias         *gguf.TensorInfo
@@ -313,6 +314,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "dbrx" ||
 		spec.Architecture == "dots1" ||
 		spec.Architecture == "minimax-m2" ||
+		spec.Architecture == "mimo2" ||
 		spec.Architecture == "mellum" ||
 		spec.Architecture == "jais" ||
 		spec.Architecture == "llada-moe" ||
@@ -774,7 +776,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "glm4-moe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "glm4-moe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "mimo2" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "cogvlm" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "modern-bert" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -869,6 +871,15 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				layer.AttentionQNorm = &qNorm
 				layer.AttentionKNorm = &kNorm
+			}
+		}
+		if spec.Architecture == "mimo2" {
+			if sinks, ok := tensors[prefix+"attn_sinks.weight"]; ok {
+				if sinks.Type != dtype.F32 || sinks.Dimensions != 1 ||
+					sinks.Shape[0] != uint64(spec.LayerHeadCount(block)) {
+					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", sinks.Name, sinks.Shape)
+				}
+				layer.AttentionSinks = &sinks
 			}
 		}
 		if spec.Architecture == "laguna" || spec.Architecture == "afmoe" {
@@ -1192,6 +1203,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		_, tensorSelectedMoE := tensors[prefix+"ffn_gate_inp.weight"]
 		if ((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grovemoe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
+			(spec.Architecture == "mimo2" && tensorSelectedMoE) ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "glm4-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(block)) ||
@@ -1559,6 +1571,15 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
 				}
 				layer.FeedForwardExpertBias = &bias
+			}
+			if spec.Architecture == "mimo2" {
+				if bias, ok := tensors[prefix+"exp_probs_b.bias"]; ok {
+					if bias.Type != dtype.F32 || bias.Dimensions != 1 ||
+						bias.Shape[0] != uint64(spec.ExpertCount) {
+						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", bias.Name, bias.Shape)
+					}
+					layer.FeedForwardExpertBias = &bias
+				}
 			}
 			if spec.Architecture == "phimoe" && layer.AttentionOutputBias == nil {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")

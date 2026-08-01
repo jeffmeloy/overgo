@@ -2028,6 +2028,107 @@ func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 3e-5)
 }
 
+func TestExecutorAttentionSinksMatchReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 3))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(4, 1, 3))
+	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(2))
+	output := builder.AttentionWindowWithSinksWithOffset(query, key, value, sinks, 0.5, true, 1, 2)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		query: patternedValue(query.Shape, 53, 0.4, 0),
+		key:   patternedValue(key.Shape, 59, 0.3, 0),
+		value: patternedValue(value.Shape, 61, 0.2, 0),
+		sinks: {Shape: sinks.Shape, Data: []float32{0.5, -0.75}},
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 3e-5)
+}
+
+func TestExecutorMiMo2BlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "mimo2", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+		ExpertGatingFunc: 2, HeadCount: 2, HeadCountKV: 1,
+		LayerKVHeadCounts: []uint32{1, 1}, KeyLength: 4, ValueLength: 3,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+		SlidingWindow: 128, SlidingLayers: []bool{false, true},
+		AttentionValueScale: 0.5, RMSNormEpsilon: 1e-5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:           builder.Input("qkv", dtype.F32, tensor.MustShape(8, 15)),
+		AttentionOutput:        builder.Input("attn_out", dtype.F32, tensor.MustShape(6, 8)),
+		AttentionSinks:         builder.Input("sinks", dtype.F32, tensor.MustShape(2)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                         patternedValue(input.Shape, 3, 0.2, 0),
+		weights.AttentionNorm:         patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 1),
+		weights.AttentionSinks:        {Shape: weights.AttentionSinks.Shape, Data: []float32{0.5, -0.75}},
+		weights.FeedForwardNorm:       patternedValue(weights.FeedForwardNorm.Shape, 7, 0.03, 1),
+		weights.FeedForwardExpertBias: {Shape: weights.FeedForwardExpertBias.Shape, Data: []float32{0.1, -0.2, 0.3, -0.1}},
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQKV, weights.AttentionOutput, weights.FeedForwardRouter,
+		weights.FeedForwardGateExperts, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.07, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorEuroBERTBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

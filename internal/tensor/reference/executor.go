@@ -240,11 +240,15 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		if !ok {
 			return Value{}, errors.New("invalid attention attributes")
 		}
-		var bias *Value
+		var bias, sinks *Value
 		if len(inputs) == 4 {
-			bias = &inputs[3]
+			if attributes.HasSinks {
+				sinks = &inputs[3]
+			} else {
+				bias = &inputs[3]
+			}
 		}
-		return attention(node.Shape, inputs[0], inputs[1], inputs[2], bias, attributes)
+		return attention(node.Shape, inputs[0], inputs[1], inputs[2], bias, sinks, attributes)
 	case tensor.OpConcat:
 		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
 		if !ok {
@@ -1001,7 +1005,7 @@ func moeGELU(value float64) float64 {
 func attention(
 	shape tensor.Shape,
 	query, key, value Value,
-	bias *Value,
+	bias, sinks *Value,
 	attributes tensor.AttentionAttributes,
 ) (Value, error) {
 	keyWidth := int(query.Shape.Dims[0])
@@ -1054,6 +1058,9 @@ func attention(
 				}
 			}
 			maximum := math.Inf(-1)
+			if sinks != nil {
+				maximum = float64(sinks.Data[queryHead])
+			}
 			queryOffset := (queryToken*queryHeads + queryHead) * keyWidth
 			for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
 				keyOffset := (keyToken*keyValueHeads + keyValueHead) * keyWidth
@@ -1084,6 +1091,9 @@ func attention(
 				}
 			}
 			var sum float64
+			if sinks != nil {
+				sum = math.Exp(float64(sinks.Data[queryHead]) - maximum)
+			}
 			for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
 				probability := math.Exp(scores[keyToken] - maximum)
 				scores[keyToken] = probability

@@ -301,6 +301,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		{info.AttentionOutputScale, &result.AttentionOutputScale},
 		{info.AttentionSubNorm, &result.AttentionSubNorm},
 		{info.AttentionOutputGate, &result.AttentionOutputGate},
+		{info.AttentionSinks, &result.AttentionSinks},
 		{info.AttentionQKVBias, &result.AttentionQKVBias},
 		{info.AttentionQNormBias, &result.AttentionQNormBias},
 		{info.AttentionKNormBias, &result.AttentionKNormBias},

@@ -41,6 +41,7 @@ type HostLayer struct {
 	AttentionPostNormBias       *reference.Value
 	AttentionRelativeBias       *reference.Value
 	AttentionOutputGate         *reference.Value
+	AttentionSinks              *reference.Value
 	RopeFactors                 *reference.Value
 	FeedForwardNorm             reference.Value
 	FeedForwardNormBias         *reference.Value
@@ -475,6 +476,7 @@ func LoadHostLayer(
 		{info.AttentionOutputScale, &result.AttentionOutputScale},
 		{info.AttentionSubNorm, &result.AttentionSubNorm},
 		{info.AttentionOutputGate, &result.AttentionOutputGate},
+		{info.AttentionSinks, &result.AttentionSinks},
 		{info.AttentionNormBias, &result.AttentionNormBias},
 		{info.AttentionNorm2, &result.AttentionNorm2},
 		{info.AttentionNorm2Bias, &result.AttentionNorm2Bias},
@@ -662,6 +664,7 @@ func (layer *HostLayer) GraphInputs(
 		{"attn_output.scale", layer.AttentionOutputScale, &result.AttentionOutputScale},
 		{"attn_sub_norm.weight", layer.AttentionSubNorm, &result.AttentionSubNorm},
 		{"attn_gate.weight", layer.AttentionOutputGate, &result.AttentionOutputGate},
+		{"attn_sinks.weight", layer.AttentionSinks, &result.AttentionSinks},
 		{"attn_qkv.bias", layer.AttentionQKVBias, &result.AttentionQKVBias},
 		{"attn_q_norm.bias", layer.AttentionQNormBias, &result.AttentionQNormBias},
 		{"attn_k_norm.bias", layer.AttentionKNormBias, &result.AttentionKNormBias},

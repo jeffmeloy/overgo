@@ -38,6 +38,33 @@ func TestBuilderRejectsShapeMismatch(t *testing.T) {
 	}
 }
 
+func TestBuilderAttentionSinks(t *testing.T) {
+	builder := NewBuilder()
+	query := builder.Input("query", dtype.F32, MustShape(2, 2, 1))
+	key := builder.Input("key", dtype.F32, MustShape(2, 1, 1))
+	value := builder.Input("value", dtype.F32, MustShape(2, 1, 1))
+	sinks := builder.Input("sinks", dtype.F32, MustShape(2))
+	output := builder.AttentionWithSinksWithOffset(query, key, value, sinks, 1, true, 0)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(AttentionAttributes)
+	if !attributes.HasSinks || len(output.Inputs) != 4 || output.Inputs[3] != sinks {
+		t.Fatalf("unexpected sink attention: %+v", attributes)
+	}
+
+	invalid := NewBuilder()
+	invalid.AttentionWithSinksWithOffset(
+		invalid.Input("query", dtype.F32, MustShape(2, 2, 1)),
+		invalid.Input("key", dtype.F32, MustShape(2, 1, 1)),
+		invalid.Input("value", dtype.F32, MustShape(2, 1, 1)),
+		invalid.Input("sinks", dtype.F32, MustShape(1)), 1, true, 0,
+	)
+	if invalid.Err() == nil || !strings.Contains(invalid.Err().Error(), "[query heads]") {
+		t.Fatalf("error = %v", invalid.Err())
+	}
+}
+
 func TestBuilderBroadcastWeightedNormAndSwiGLU(t *testing.T) {
 	builder := NewBuilder()
 	activation := builder.Input("activation", dtype.F32, MustShape(4, 3))

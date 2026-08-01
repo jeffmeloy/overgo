@@ -843,6 +843,27 @@ func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	}
 }
 
+func TestExecuteAttentionSinksAddHiddenLogit(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
+	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
+	output := builder.AttentionWithSinksWithOffset(query, key, value, sinks, 1, false, 0)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: query.Shape, Data: []float32{0}},
+		key:   {Shape: key.Shape, Data: []float32{0, 0}},
+		value: {Shape: value.Shape, Data: []float32{2, 4}},
+		sinks: {Shape: sinks.Shape, Data: []float32{float32(math.Log(2))}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if difference := math.Abs(float64(results[output].Data[0] - 1.5)); difference > 1e-6 {
+		t.Fatalf("sink attention = %v, want 1.5", results[output].Data[0])
+	}
+}
+
 func TestExecuteRepeatHeads(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1, 2))

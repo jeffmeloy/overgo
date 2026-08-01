@@ -143,6 +143,7 @@ type AttentionAttributes struct {
 	Softcap         float32
 	MaxALiBiBias    float32
 	Causal          bool
+	HasSinks        bool
 	SymmetricWindow bool
 	QueryStart      uint32
 	Window          uint32
@@ -1178,7 +1179,16 @@ func (b *Builder) AttentionWithOffset(
 	causal bool,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, nil, scale, 0, 0, causal, false, queryStart, 0)
+	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, causal, false, queryStart, 0)
+}
+
+func (b *Builder) AttentionWithSinksWithOffset(
+	query, key, value, sinks *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+) *Tensor {
+	return b.attentionWithWindow(query, key, value, nil, sinks, scale, 0, 0, causal, false, queryStart, 0)
 }
 
 // AttentionALiBiWithOffset: applies llama.cpp-compatible head slopes to
@@ -1190,7 +1200,7 @@ func (b *Builder) AttentionALiBiWithOffset(
 	queryStart uint32,
 ) *Tensor {
 	return b.attentionWithWindow(
-		query, key, value, nil, scale, 0, maxBias, causal, false, queryStart, 0,
+		query, key, value, nil, nil, scale, 0, maxBias, causal, false, queryStart, 0,
 	)
 }
 
@@ -1203,7 +1213,7 @@ func (b *Builder) AttentionSoftcappedWithOffset(
 	queryStart uint32,
 ) *Tensor {
 	return b.attentionWithWindow(
-		query, key, value, nil, scale, softcap, 0, causal, false, queryStart, 0,
+		query, key, value, nil, nil, scale, softcap, 0, causal, false, queryStart, 0,
 	)
 }
 
@@ -1213,7 +1223,7 @@ func (b *Builder) AttentionWithRelativeBias(
 	query, key, value, bias *Tensor,
 	scale float32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, bias, scale, 0, 0, false, false, 0, 0)
+	return b.attentionWithWindow(query, key, value, bias, nil, scale, 0, 0, false, false, 0, 0)
 }
 
 func (b *Builder) AttentionWindowWithOffset(
@@ -1227,7 +1237,21 @@ func (b *Builder) AttentionWindowWithOffset(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, scale, 0, 0, causal, false, queryStart, window)
+	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, causal, false, queryStart, window)
+}
+
+func (b *Builder) AttentionWindowWithSinksWithOffset(
+	query, key, value, sinks *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+	window uint32,
+) *Tensor {
+	if window == 0 {
+		b.setError(errors.New("attention window must be positive"))
+		return nil
+	}
+	return b.attentionWithWindow(query, key, value, nil, sinks, scale, 0, 0, causal, false, queryStart, window)
 }
 
 func (b *Builder) AttentionWindowSoftcappedWithOffset(
@@ -1243,7 +1267,7 @@ func (b *Builder) AttentionWindowSoftcappedWithOffset(
 		return nil
 	}
 	return b.attentionWithWindow(
-		query, key, value, nil, scale, softcap, 0, causal, false, queryStart, window,
+		query, key, value, nil, nil, scale, softcap, 0, causal, false, queryStart, window,
 	)
 }
 
@@ -1256,11 +1280,11 @@ func (b *Builder) AttentionSymmetricWindow(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, scale, 0, 0, false, true, 0, window)
+	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, false, true, 0, window)
 }
 
 func (b *Builder) attentionWithWindow(
-	query, key, value, bias *Tensor,
+	query, key, value, bias, sinks *Tensor,
 	scale float32,
 	softcap float32,
 	maxALiBiBias float32,
@@ -1347,6 +1371,17 @@ func (b *Builder) attentionWithWindow(
 		}
 		relativeBuckets = uint32(bias.Shape.Dims[1])
 	}
+	if sinks != nil {
+		if bias != nil {
+			b.setError(errors.New("attention cannot combine learned relative bias and sinks"))
+			return nil
+		}
+		if sinks.Type != query.Type || sinks.Shape.Rank != 1 ||
+			sinks.Shape.Dims[0] != query.Shape.Dims[1] {
+			b.setError(errors.New("attention sinks must have shape [query heads]"))
+			return nil
+		}
+	}
 	shape, err := NewShape(value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2])
 	if err != nil {
 		b.setError(err)
@@ -1355,6 +1390,8 @@ func (b *Builder) attentionWithWindow(
 	inputs := []*Tensor{query, key, value}
 	if bias != nil {
 		inputs = append(inputs, bias)
+	} else if sinks != nil {
+		inputs = append(inputs, sinks)
 	}
 	return b.add(
 		"",
@@ -1364,6 +1401,7 @@ func (b *Builder) attentionWithWindow(
 		inputs,
 		AttentionAttributes{
 			Scale: scale, Softcap: softcap, MaxALiBiBias: maxALiBiBias, Causal: causal,
+			HasSinks:        sinks != nil,
 			SymmetricWindow: symmetricWindow,
 			QueryStart:      queryStart, Window: window,
 			RelativeBuckets: relativeBuckets,

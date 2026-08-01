@@ -2068,6 +2068,30 @@ models:
       - nextn-mtp-prediction-pending
       - multimodal-coordinate-input-pending
     real_model_validation: pending-fixture
+  mimo2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - fused-or-separate-qkv
+      - per-layer-kv-head-counts
+      - per-layer-sliding-or-full-attention
+      - per-head-attention-sink-logits
+      - neox-partial-rope
+      - swa-specific-rope-base
+      - post-projection-attention-value-scale
+      - mixed-dense-and-sigmoid-moe-layers
+      - selection-correction-bias
+      - normalized-selected-expert-weights
+      - packed-swiglu-experts
+      - preserved-unexecuted-nextn-mtp-layers
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - nextn-mtp-prediction-pending
+      - vision-tower-pending
+    real_model_validation: pending-fixture
   qwen35moe:
     status: experimental
     execution:

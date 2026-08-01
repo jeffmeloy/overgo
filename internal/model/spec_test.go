@@ -138,6 +138,47 @@ func TestReadGLM4MoESpec(t *testing.T) {
 	}
 }
 
+func TestReadMiMo2SpecTrimsMTPArrays(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "mimo2"),
+		metadata("mimo2.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mimo2.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
+		metadata("mimo2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("mimo2.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("mimo2.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("mimo2.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("mimo2.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mimo2.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("mimo2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "mimo2.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 2, 1, 1},
+		}},
+		metadata("mimo2.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mimo2.attention.value_length", gguf.ValueTypeUint32, uint32(3)),
+		metadata("mimo2.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("mimo2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("mimo2.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("mimo2.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		{Key: "mimo2.attention.sliding_window_pattern", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 0, 1, 1},
+		}},
+		metadata("mimo2.attention.value_scale", gguf.ValueTypeFloat32, float32(0.5)),
+		metadata("mimo2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "mimo2" || spec.BlockCount != 3 ||
+		len(spec.LayerKVHeadCounts) != 3 || spec.LayerKVHeadCount(1) != 2 ||
+		len(spec.SlidingLayers) != 3 || !spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
+		!spec.IsSlidingLayer(2) || spec.AttentionValueScale != 0.5 ||
+		spec.RopeDimensionCount != 4 || spec.RopeFrequencySWA != 20000 ||
+		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm {
+		t.Fatalf("unexpected MiMo2 spec: %+v", spec)
+	}
+}
+
 func TestReadArcticSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "arctic"),

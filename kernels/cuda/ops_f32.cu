@@ -881,6 +881,7 @@ extern "C" __global__ void attention_f32(
         const float * key,
         const float * value,
         const float * relative_bias,
+		const float * sinks,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -936,6 +937,9 @@ extern "C" __global__ void attention_f32(
 	}
 
     float maximum = -3.402823466e+38F;
+	if (sinks != nullptr) {
+		maximum = sinks[query_head];
+	}
     for (unsigned int key_token = key_first; key_token < key_limit; ++key_token) {
         const unsigned int key_offset =
             (key_token * key_value_heads + key_value_head) * key_width;
@@ -972,7 +976,7 @@ extern "C" __global__ void attention_f32(
         maximum = fmaxf(maximum, score);
     }
 
-    float sum = 0.0f;
+	float sum = sinks != nullptr ? expf(sinks[query_head] - maximum) : 0.0f;
     float weighted = 0.0f;
     for (unsigned int key_token = key_first; key_token < key_limit; ++key_token) {
         const unsigned int key_offset =

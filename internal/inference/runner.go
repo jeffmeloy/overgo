@@ -1097,7 +1097,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
 		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
-		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" {
+		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
+		r.spec.Architecture != "plamo2" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
@@ -1460,7 +1461,9 @@ func (r *Runner) runLayerCached(
 		r.weights.Layers[layerIndex].Recurrent
 	graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && layerIndex < len(r.weights.Layers) &&
 		r.weights.Layers[layerIndex].Recurrent
-	if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent {
+	plamo2Recurrent := r.spec.Architecture == "plamo2" && layerIndex < len(r.weights.Layers) &&
+		r.weights.Layers[layerIndex].Recurrent
+	if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent {
 		convWidth := uint64(r.spec.SSMInnerSize)
 		if r.spec.Architecture == "mamba2" || graniteHybridRecurrent {
 			convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
@@ -1495,6 +1498,8 @@ func (r *Runner) runLayerCached(
 		result, err = model.BuildJambaRecurrentBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
 	} else if graniteHybridRecurrent {
 		result, err = model.BuildGraniteHybridRecurrentBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
+	} else if plamo2Recurrent {
+		result, err = model.BuildPLaMo2RecurrentBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
 	} else if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" ||
 		r.spec.Architecture == "deepseek2" || r.spec.Architecture == "mistral4" {
 		result, err = model.BuildMLABlockCachedForLayer(
@@ -2020,7 +2025,7 @@ func (r *Runner) Generate(
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
 		r.spec.Architecture != "mistral4" && r.spec.Architecture != "mamba" &&
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
-		r.spec.Architecture != "granitehybrid"
+		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {

@@ -1979,6 +1979,84 @@ func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildPLaMo2HybridBlocks(t *testing.T) {
+	spec := Spec{Architecture: "plamo2", BlockCount: 2, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		LayerKVHeadCounts: []uint32{0, 1}, RecurrentLayers: []bool{true, false},
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5, AttentionScale: 1 / float32(math.Sqrt(2)),
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	recurrentWeights := LayerGraphWeights{
+		AttentionNorm:       builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		AttentionPostNorm:   builder.Input("post_norm", dtype.F32, tensor.MustShape(4)),
+		SSMInput:            builder.Input("in", dtype.F32, tensor.MustShape(4, 16)),
+		SSMConv1D:           builder.Input("conv", dtype.F32, tensor.MustShape(3, 8)),
+		SSMX:                builder.Input("x", dtype.F32, tensor.MustShape(8, 68)),
+		SSMTimeStepWeight:   builder.Input("dt", dtype.F32, tensor.MustShape(64, 4)),
+		SSMTimeStep:         builder.Input("dt_bias", dtype.F32, tensor.MustShape(4)),
+		SSMTimeStepNorm:     builder.Input("dt_norm", dtype.F32, tensor.MustShape(64)),
+		SSMA:                builder.Input("a", dtype.F32, tensor.MustShape(4)),
+		SSMD:                builder.Input("d", dtype.F32, tensor.MustShape(4)),
+		SSMBNorm:            builder.Input("b_norm", dtype.F32, tensor.MustShape(2)),
+		SSMCNorm:            builder.Input("c_norm", dtype.F32, tensor.MustShape(2)),
+		SSMOutput:           builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 12)),
+		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+		FeedForwardPostNorm: builder.Input("ffn_post", dtype.F32, tensor.MustShape(4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	recurrent, err := BuildPLaMo2RecurrentBlockCached(builder, input, spec, recurrentWeights, convState, ssmState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(recurrent.Output, recurrent.Key, recurrent.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	convolution, scan := false, false
+	for _, node := range nodes {
+		convolution = convolution || node.Op == tensor.OpSSMConv
+		scan = scan || node.Op == tensor.OpSSMScan
+	}
+	if !convolution || !scan || !recurrent.Key.Shape.Equal(convState.Shape) || !recurrent.Value.Shape.Equal(ssmState.Shape) {
+		t.Fatalf("PLaMo2 recurrent graph convolution=%v scan=%v", convolution, scan)
+	}
+
+	builder = tensor.NewBuilder()
+	input = builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	attentionWeights := LayerGraphWeights{
+		AttentionNorm:       builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		AttentionQKV:        builder.Input("qkv", dtype.F32, tensor.MustShape(4, 8)),
+		AttentionQNorm:      builder.Input("q_norm", dtype.F32, tensor.MustShape(2, 2)),
+		AttentionKNorm:      builder.Input("k_norm", dtype.F32, tensor.MustShape(2, 1)),
+		AttentionOutput:     builder.Input("attn_out", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionPostNorm:   builder.Input("post_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 12)),
+		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+		FeedForwardPostNorm: builder.Input("ffn_post", dtype.F32, tensor.MustShape(4)),
+	}
+	attention, err := BuildDenseBlockCachedForLayer(builder, input, spec, attentionWeights, []uint32{0, 1}, nil, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err = tensor.Topological(attention.Output, attention.Key, attention.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attentionOp, rope := false, false
+	for _, node := range nodes {
+		attentionOp = attentionOp || node.Op == tensor.OpAttention
+		rope = rope || node.Op == tensor.OpRoPENormal
+	}
+	if !attentionOp || !rope {
+		t.Fatalf("PLaMo2 attention graph attention=%v rope=%v", attentionOp, rope)
+	}
+}
+
 func TestBuildJambaAttentionMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{Architecture: "jamba", BlockCount: 2, EmbeddingLength: 4,

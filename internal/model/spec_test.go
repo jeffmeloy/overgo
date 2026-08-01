@@ -3466,6 +3466,40 @@ func TestReadGraniteHybridSpec(t *testing.T) {
 	}
 }
 
+func TestReadPLaMo2Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "plamo2"),
+		metadata("plamo2.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo2.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("plamo2.embedding_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("plamo2.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("plamo2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "plamo2.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{0, 1},
+		}},
+		metadata("plamo2.attention.key_length", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo2.attention.value_length", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("plamo2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("plamo2.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("plamo2.ssm.inner_size", gguf.ValueTypeUint32, uint32(8)),
+		metadata("plamo2.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo2.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(4)),
+		metadata("plamo2.ssm.group_count", gguf.ValueTypeUint32, uint32(0)),
+		metadata("plamo2.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "plamo2" || !spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(1) ||
+		spec.LayerKVHeadCount(1) != 1 || spec.SSMInnerSize != 8 || spec.SSMStateSize != 2 ||
+		spec.SSMTimeStepRank != 4 || spec.SSMGroupCount != 0 ||
+		math.Abs(float64(spec.AttentionScale)-1/math.Sqrt(2)) > 1e-6 || !usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected PLaMo2 spec: %+v", spec)
+	}
+}
+
 func TestReadTalkieSpecUsesUnweightedRMSNormAndDirectLogitScale(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "talkie"),

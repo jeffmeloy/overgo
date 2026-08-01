@@ -1673,6 +1673,23 @@ models:
       - swiglu
       - untied-output-projection
     real_model_validation: pending-fixture
+  plamo2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - metadata-selected-attention-and-mamba-layers
+      - interleaved-per-head-z-x-projection
+      - learned-b-c-dt-rmsnorm
+      - grouped-head-selective-scan
+      - fused-qkv-and-per-head-qk-rmsnorm
+      - normal-rope
+      - mixer-and-ffn-postnorms
+      - fused-gate-up-swiglu
+      - serializable-hybrid-cache
+    real_model_validation: pending-fixture
   plamo3:
     status: experimental
     execution:

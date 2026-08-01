@@ -219,6 +219,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "phi3" &&
 		architecture != "phimoe" &&
 		architecture != "plamo" &&
+		architecture != "plamo2" &&
 		architecture != "plamo3" &&
 		architecture != "plm" &&
 		architecture != "qwen" &&
@@ -349,7 +350,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
-	} else if architecture == "lfm2" || architecture == "lfm2moe" || architecture == "jamba" || architecture == "granitehybrid" {
+	} else if architecture == "lfm2" || architecture == "lfm2moe" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" {
 		counts, countErr := requiredArray[uint32](
 			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
 		)
@@ -363,7 +364,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			)
 		}
 		spec.RecurrentLayers = make([]bool, len(counts))
-		if architecture == "jamba" || architecture == "granitehybrid" {
+		if architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" {
 			spec.LayerKVHeadCounts = append([]uint32(nil), counts...)
 		}
 		for index, count := range counts {
@@ -1353,7 +1354,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" {
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1371,6 +1372,9 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		} else if spec.SSMGroupCount, err = required[uint32](values, prefix+"ssm.group_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
+	}
+	if architecture == "plamo2" {
+		spec.AttentionScale = float32(1 / math.Sqrt(float64(spec.ValueLength)))
 	}
 	if architecture == "granitehybrid" {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
@@ -2408,6 +2412,16 @@ func (s Spec) validate() error {
 			return errors.New("dense Granite Hybrid expert metadata is inconsistent")
 		}
 	}
+	if s.Architecture == "plamo2" {
+		switch {
+		case s.SSMConvKernel < 2 || s.SSMInnerSize == 0 || s.SSMStateSize == 0 ||
+			s.SSMTimeStepRank == 0 || s.SSMGroupCount != 0 ||
+			s.SSMInnerSize%s.SSMTimeStepRank != 0:
+			return errors.New("PLaMo2 SSM metadata is invalid")
+		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
+			return errors.New("PLaMo2 layer schedule is invalid")
+		}
+	}
 	if s.Architecture == "bert" &&
 		(s.TokenTypeCount == 0 || s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength) {
 		return errors.New("BERT metadata is invalid")
@@ -3341,7 +3355,7 @@ func isGemmaArchitecture(architecture string) bool {
 
 func hasPostNorm(architecture string) bool {
 	return architecture == "afmoe" || architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4" || architecture == "gemma2" ||
-		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "gemma4" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
+		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "gemma4" || architecture == "glm4" || architecture == "grok" || architecture == "plamo2" || architecture == "plamo3"
 }
 
 func usesSlidingAttention(architecture string) bool {
@@ -3385,6 +3399,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "maincoder" ||
 		architecture == "neo-bert" ||
 		architecture == "mistral3" ||
+		architecture == "plamo2" ||
 		architecture == "smollm3" ||
 		architecture == "xverse"
 }
@@ -3406,7 +3421,7 @@ func usesGateFreeFFN(architecture string) bool {
 }
 
 func usesFusedGateUp(architecture string) bool {
-	return architecture == "chatglm" || architecture == "glm4" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "phi3" || architecture == "plamo3"
+	return architecture == "chatglm" || architecture == "glm4" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "phi3" || architecture == "plamo2" || architecture == "plamo3"
 }
 
 func supportsLongRoPE(architecture string) bool {

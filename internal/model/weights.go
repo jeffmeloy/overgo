@@ -656,6 +656,34 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
+		} else if spec.Architecture == "plamo2" && spec.IsRecurrentLayer(block) {
+			layer.Recurrent = true
+			dtDimension := uint64(64)
+			if candidate := uint64(spec.EmbeddingLength / 16); candidate > dtDimension {
+				dtDimension = candidate
+			}
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"ssm_in.weight":      {[]uint64{uint64(spec.EmbeddingLength), 2 * uint64(spec.SSMInnerSize)}, &layer.SSMInput},
+				"ssm_conv1d.weight":  {[]uint64{uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)}, &layer.SSMConv1D},
+				"ssm_x.weight":       {[]uint64{uint64(spec.SSMInnerSize), dtDimension + 2*uint64(spec.SSMStateSize)}, &layer.SSMX},
+				"ssm_dt.weight":      {[]uint64{dtDimension, uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStepWeight},
+				"ssm_dt.bias":        {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep},
+				"ssm_a":              {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMA},
+				"ssm_d":              {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMD},
+				"ssm_out.weight":     {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
+				"ssm_dt_norm.weight": {[]uint64{dtDimension}, &layer.SSMTimeStepNorm},
+				"ssm_b_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMBNorm},
+				"ssm_c_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMCNorm},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
 		} else if spec.Architecture == "mamba" {
 			layer.Recurrent = true
 			for name, shapeAndDestination := range map[string]struct {
@@ -983,7 +1011,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo2" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
 				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "cogvlm" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "modern-bert" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
@@ -1246,6 +1274,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				uint64(spec.KeyLength),
 				uint64(spec.HeadCountKV),
 			)
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionQNorm = &qNorm
+			layer.AttentionKNorm = &kNorm
+		}
+		if spec.Architecture == "plamo2" && !layer.Recurrent {
+			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCount))
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			kNorm, normErr := required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCountKV))
 			if normErr != nil {
 				return Weights{}, normErr
 			}

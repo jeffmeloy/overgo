@@ -1082,6 +1082,106 @@ func BuildGraniteHybridRecurrentBlockCached(
 	return result, nil
 }
 
+func BuildPLaMo2RecurrentBlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	convState, ssmState *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if builder == nil || input == nil || convState == nil || ssmState == nil {
+		return DenseBlockResult{}, errors.New("PLaMo2 block input/state is nil")
+	}
+	if spec.Architecture != "plamo2" || input.Shape.Rank != 2 ||
+		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("PLaMo2 block architecture/input is invalid")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm":         weights.AttentionNorm,
+		"attention post norm":    weights.AttentionPostNorm,
+		"SSM input":              weights.SSMInput,
+		"SSM convolution":        weights.SSMConv1D,
+		"SSM X":                  weights.SSMX,
+		"SSM time-step weight":   weights.SSMTimeStepWeight,
+		"SSM time-step bias":     weights.SSMTimeStep,
+		"SSM time-step norm":     weights.SSMTimeStepNorm,
+		"SSM A":                  weights.SSMA,
+		"SSM D":                  weights.SSMD,
+		"SSM B norm":             weights.SSMBNorm,
+		"SSM C norm":             weights.SSMCNorm,
+		"SSM output":             weights.SSMOutput,
+		"feed-forward norm":      weights.FeedForwardNorm,
+		"feed-forward up":        weights.FeedForwardUp,
+		"feed-forward down":      weights.FeedForwardDown,
+		"feed-forward post norm": weights.FeedForwardPostNorm,
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("PLaMo2 block %s weight is nil", name)
+		}
+	}
+	inner := uint64(spec.SSMInnerSize)
+	stateWidth := uint64(spec.SSMStateSize)
+	heads := uint64(spec.SSMTimeStepRank)
+	headWidth := inner / heads
+	dtWidth := uint64(64)
+	if candidate := uint64(spec.EmbeddingLength / 16); candidate > dtWidth {
+		dtWidth = candidate
+	}
+	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), inner)
+	ssmShape := tensor.MustShape(stateWidth, inner)
+	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
+		return DenseBlockResult{}, errors.New("PLaMo2 recurrent cache shape is invalid")
+	}
+	tokens := input.Shape.Dims[1]
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	zx := builder.MulMat(weights.SSMInput, normalized)
+	z := builder.Reshape(builder.GroupSlice(zx, 0, headWidth, heads, 2*headWidth), headWidth, heads, tokens, 1)
+	x := builder.Reshape(builder.GroupSlice(zx, headWidth, headWidth, heads, 2*headWidth), inner, tokens)
+	convInput := builder.Concat(convState, builder.Transpose2D(x), 0)
+	nextConvState := builder.Reshape(
+		builder.GroupSlice(convInput, tokens, uint64(spec.SSMConvKernel-1), 1, uint64(spec.SSMConvKernel-1)),
+		uint64(spec.SSMConvKernel-1), inner,
+	)
+	x = builder.SiLU(builder.SSMConv(convInput, weights.SSMConv1D))
+	bcdt := builder.MulMat(weights.SSMX, x)
+	beta := builder.Reshape(builder.GroupSlice(bcdt, 0, stateWidth, 1, stateWidth), stateWidth, 1, tokens, 1)
+	c := builder.Reshape(builder.GroupSlice(bcdt, stateWidth, stateWidth, 1, stateWidth), stateWidth, 1, tokens, 1)
+	dt := builder.Reshape(builder.GroupSlice(bcdt, 2*stateWidth, dtWidth, 1, dtWidth), dtWidth, tokens)
+	beta = builder.WeightedRMSNorm(beta, weights.SSMBNorm, spec.RMSNormEpsilon)
+	c = builder.WeightedRMSNorm(c, weights.SSMCNorm, spec.RMSNormEpsilon)
+	dt = builder.WeightedRMSNorm(dt, weights.SSMTimeStepNorm, spec.RMSNormEpsilon)
+	dt = builder.Add(builder.MulMat(weights.SSMTimeStepWeight, dt), weights.SSMTimeStep)
+	x = builder.Reshape(x, headWidth, heads, tokens, 1)
+	packed := builder.SSMScan(
+		builder.Reshape(ssmState, stateWidth, headWidth, heads, 1),
+		x,
+		builder.Reshape(dt, heads, tokens, 1),
+		builder.Reshape(weights.SSMA, 1, heads),
+		beta,
+		c,
+	)
+	attentionElements := inner * tokens
+	mixer := builder.FlatSlice(packed, 0, headWidth, heads, tokens, 1)
+	nextSSMState := builder.FlatSlice(packed, attentionElements, stateWidth, inner)
+	mixer = builder.Add(mixer, builder.Multiply(x, builder.Reshape(weights.SSMD, 1, heads)))
+	mixer = builder.Multiply(mixer, builder.SiLU(z))
+	mixer = builder.MulMat(weights.SSMOutput, builder.Reshape(mixer, inner, tokens))
+	mixer = builder.WeightedRMSNorm(mixer, weights.AttentionPostNorm, spec.RMSNormEpsilon)
+	residual := builder.Add(input, mixer)
+	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	fused := builder.MulMat(weights.FeedForwardUp, normalized)
+	gate := builder.Reshape(builder.GroupSlice(fused, 0, uint64(spec.FeedForwardLength), 1, 2*uint64(spec.FeedForwardLength)), uint64(spec.FeedForwardLength), tokens)
+	up := builder.Reshape(builder.GroupSlice(fused, uint64(spec.FeedForwardLength), uint64(spec.FeedForwardLength), 1, 2*uint64(spec.FeedForwardLength)), uint64(spec.FeedForwardLength), tokens)
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
+	output := builder.Add(residual, feedForward)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
+}
+
 // BuildPLMBlockCached: PLM MLA block
 func BuildPLMBlockCached(
 	builder *tensor.Builder,
@@ -1712,7 +1812,7 @@ func BuildDenseBlockCachedForLayer(
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
-	if spec.Architecture == "plamo3" {
+	if spec.Architecture == "plamo2" || spec.Architecture == "plamo3" {
 		required["attention Q norm"] = weights.AttentionQNorm
 		required["attention K norm"] = weights.AttentionKNorm
 	}
@@ -1863,7 +1963,7 @@ func BuildDenseBlockCachedForLayer(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isGroveMoE || isHYV3 || isLLaDAMoE || isMellum || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
+	if spec.Architecture == "apertus" || isAFMoE || isBailingMoE2 || isDOTS1 || spec.Architecture == "exaone4" || isEXAOneMoE || isGroveMoE || isHYV3 || isLLaDAMoE || isMellum || spec.Architecture == "openelm" || spec.Architecture == "plamo2" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || isLaguna || spec.Architecture == "lfm2" || isLFM2MoE || spec.Architecture == "gemma3" {
 		if weights.AttentionQNorm == nil || weights.AttentionKNorm == nil {
 			return DenseBlockResult{}, errors.New("dense block architecture requires Q/K norm weights")
 		}

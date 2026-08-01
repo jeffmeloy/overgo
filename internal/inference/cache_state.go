@@ -85,7 +85,9 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			r.weights.Layers[index].Recurrent
 		graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent
-		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent {
+		plamo2Recurrent := r.spec.Architecture == "plamo2" && index < len(r.weights.Layers) &&
+			r.weights.Layers[index].Recurrent
+		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent {
 			convWidth := uint64(r.spec.SSMInnerSize)
 			if r.spec.Architecture == "mamba2" || graniteHybridRecurrent {
 				convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)

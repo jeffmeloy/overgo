@@ -2016,6 +2016,44 @@ func TestReadWeightsGraniteHybrid(t *testing.T) {
 	}
 }
 
+func TestReadWeightsPLaMo2(t *testing.T) {
+	spec := Spec{Architecture: "plamo2", BlockCount: 2, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		LayerKVHeadCounts: []uint32{0, 1}, RecurrentLayers: []bool{true, false},
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4,
+		SSMGroupCount: 0, VocabularySize: 32}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 4, 32), tensorInfo("output_norm.weight", 4),
+		tensorInfo("blk.0.attn_norm.weight", 4), tensorInfo("blk.0.ssm_in.weight", 4, 16),
+		tensorInfo("blk.0.ssm_conv1d.weight", 3, 8), tensorInfo("blk.0.ssm_x.weight", 8, 68),
+		tensorInfo("blk.0.ssm_dt.weight", 64, 4), tensorInfo("blk.0.ssm_dt.bias", 4),
+		tensorInfo("blk.0.ssm_a", 4), tensorInfo("blk.0.ssm_d", 4),
+		tensorInfo("blk.0.ssm_out.weight", 8, 4), tensorInfo("blk.0.ssm_dt_norm.weight", 64),
+		tensorInfo("blk.0.ssm_b_norm.weight", 2), tensorInfo("blk.0.ssm_c_norm.weight", 2),
+		tensorInfo("blk.0.post_attention_norm.weight", 4), tensorInfo("blk.0.ffn_norm.weight", 4),
+		tensorInfo("blk.0.ffn_up.weight", 4, 12), tensorInfo("blk.0.ffn_down.weight", 6, 4),
+		tensorInfo("blk.0.post_ffw_norm.weight", 4),
+		tensorInfo("blk.1.attn_norm.weight", 4), tensorInfo("blk.1.attn_qkv.weight", 4, 8),
+		tensorInfo("blk.1.attn_q_norm.weight", 2, 2), tensorInfo("blk.1.attn_k_norm.weight", 2, 1),
+		tensorInfo("blk.1.attn_output.weight", 4, 4), tensorInfo("blk.1.post_attention_norm.weight", 4),
+		tensorInfo("blk.1.ffn_norm.weight", 4), tensorInfo("blk.1.ffn_up.weight", 4, 12),
+		tensorInfo("blk.1.ffn_down.weight", 6, 4), tensorInfo("blk.1.post_ffw_norm.weight", 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recurrent, attention := weights.Layers[0], weights.Layers[1]
+	if !recurrent.Recurrent || recurrent.SSMInput == nil || recurrent.SSMConv1DBias != nil ||
+		recurrent.SSMX == nil || recurrent.SSMTimeStepNorm == nil || recurrent.SSMBNorm == nil ||
+		recurrent.SSMCNorm == nil || recurrent.AttentionPostNorm == nil || recurrent.FeedForwardPostNorm == nil ||
+		recurrent.FeedForwardGate.Name != "" || recurrent.FeedForwardUp.Shape[1] != 12 ||
+		attention.Recurrent || attention.AttentionQKV == nil || attention.AttentionQNorm == nil ||
+		attention.AttentionKNorm == nil || attention.FeedForwardUp.Shape[1] != 12 {
+		t.Fatalf("unexpected PLaMo2 catalog: %+v", weights.Layers)
+	}
+}
+
 func testReadWeightsDeepSeek2FamilyAbsorbedMLA(t *testing.T, architecture string) {
 	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,
 		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,

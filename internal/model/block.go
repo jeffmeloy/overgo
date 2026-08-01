@@ -3518,7 +3518,9 @@ func buildDenseBlockCachedForLayer(
 			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
 			spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
 		)
-	} else if spec.Architecture == "mistral3" && spec.RopeScalingType == "yarn" {
+	} else if (spec.Architecture == "llama" || spec.Architecture == "llama-embed" ||
+		spec.Architecture == "minicpm" || spec.Architecture == "mistral3") &&
+		spec.RopeScalingType == "yarn" {
 		frequencyScale := float32(1) / spec.RopeScalingFactor
 		if weights.RopeFactors != nil {
 			query = builder.RoPENormalYaRNWithFactors(

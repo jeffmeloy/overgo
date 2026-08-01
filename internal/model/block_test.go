@@ -2872,45 +2872,49 @@ func TestBuildNormalRoPELongRoPEUsesFactorsAndAttentionScale(t *testing.T) {
 	}
 }
 
-func TestBuildMistral3YaRNUsesNormalRoPEAndFactors(t *testing.T) {
-	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "mistral3", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
-		RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 16,
-		YaRNExtFactor: 1, YaRNAttentionFactor: 0.9, YaRNBetaFast: 16, YaRNBetaSlow: 2,
-		RMSNormEpsilon: 1e-6,
-	}
-	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	weights := denseBlockInputs(builder, spec)
-	weights.AttentionQNorm = nil
-	weights.AttentionKNorm = nil
-	weights.RopeFactors = builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 17})
-	if err != nil {
-		t.Fatal(err)
-	}
-	nodes, err := tensor.Topological(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var ropeCount int
-	for _, node := range nodes {
-		if node.Op != tensor.OpRoPENormal {
-			continue
-		}
-		ropeCount++
-		attributes := node.Attrs.(tensor.RoPEAttributes)
-		if len(node.Inputs) != 2 || node.Inputs[1] != weights.RopeFactors ||
-			attributes.OriginalContext != 16 || attributes.FrequencyScale != 0.25 ||
-			attributes.ExtFactor != 1 || attributes.AttentionFactor != 0.9 ||
-			attributes.BetaFast != 16 || attributes.BetaSlow != 2 {
-			t.Fatalf("unexpected Mistral 3 YaRN node: inputs=%v attrs=%+v", node.Inputs, attributes)
-		}
-	}
-	if ropeCount != 2 {
-		t.Fatalf("Mistral 3 YaRN RoPE count = %d, want 2", ropeCount)
+func TestBuildNormalRoPEYaRNUsesFactors(t *testing.T) {
+	for _, architecture := range []string{"llama", "llama-embed", "minicpm", "mistral3"} {
+		t.Run(architecture, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
+				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+				RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+				RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 16,
+				YaRNExtFactor: 1, YaRNAttentionFactor: 0.9, YaRNBetaFast: 16, YaRNBetaSlow: 2,
+				RMSNormEpsilon: 1e-6,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := denseBlockInputs(builder, spec)
+			weights.AttentionQNorm = nil
+			weights.AttentionKNorm = nil
+			weights.RopeFactors = builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
+			output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 17})
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ropeCount int
+			for _, node := range nodes {
+				if node.Op != tensor.OpRoPENormal {
+					continue
+				}
+				ropeCount++
+				attributes := node.Attrs.(tensor.RoPEAttributes)
+				if len(node.Inputs) != 2 || node.Inputs[1] != weights.RopeFactors ||
+					attributes.OriginalContext != 16 || attributes.FrequencyScale != 0.25 ||
+					attributes.ExtFactor != 1 || attributes.AttentionFactor != 0.9 ||
+					attributes.BetaFast != 16 || attributes.BetaSlow != 2 {
+					t.Fatalf("unexpected %s YaRN node: inputs=%v attrs=%+v", architecture, node.Inputs, attributes)
+				}
+			}
+			if ropeCount != 2 {
+				t.Fatalf("%s YaRN RoPE count = %d, want 2", architecture, ropeCount)
+			}
+		})
 	}
 }
 

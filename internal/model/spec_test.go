@@ -3110,6 +3110,39 @@ func TestReadMistral3YaRNSpec(t *testing.T) {
 	}
 }
 
+func TestReadNormalRoPEYaRNSpecs(t *testing.T) {
+	for _, architecture := range []string{"llama", "llama-embed", "minicpm"} {
+		t.Run(architecture, func(t *testing.T) {
+			prefix := architecture + "."
+			file := &gguf.File{Metadata: []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, architecture),
+				metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(1)),
+				metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(8192)),
+				metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(8)),
+				metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+				metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+				metadata(prefix+"rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+				metadata(prefix+"rope.scaling.type", gguf.ValueTypeString, "yarn"),
+				metadata(prefix+"rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+				metadata(prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(4096)),
+				metadata(prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1.2)),
+				metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+			}}
+			spec, err := ReadSpec(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if spec.RopeScalingType != "yarn" || spec.RopeScalingFactor != 4 ||
+				spec.OriginalContextLength != 4096 || spec.YaRNExtFactor != 1 ||
+				spec.YaRNAttentionFactor != 1.2 || spec.YaRNBetaFast != 32 ||
+				spec.YaRNBetaSlow != 1 {
+				t.Fatalf("unexpected %s YaRN spec: %+v", architecture, spec)
+			}
+		})
+	}
+}
+
 func TestReadSpecDerivesHeadLength(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

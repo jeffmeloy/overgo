@@ -622,7 +622,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" || architecture == "qwen35moe" ||
 				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
-				if (!isDeepSeek2Family(architecture) && architecture != "deepseek4" && architecture != "glm-dsa" && architecture != "laguna" && architecture != "grok" && architecture != "mellum" && architecture != "mistral3") || scalingType != "yarn" {
+				if (!isDeepSeek2Family(architecture) && architecture != "deepseek4" && architecture != "glm-dsa" && architecture != "laguna" && architecture != "grok" && architecture != "mellum" && architecture != "llama" && architecture != "llama-embed" && architecture != "minicpm" && architecture != "mistral3") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
 						"model architecture %q uses unsupported RoPE scaling type %q",
 						architecture,
@@ -2648,6 +2648,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RopeAttentionFactor = value
 		}
 	}
+	if spec.RopeScalingType == "yarn" &&
+		(architecture == "llama" || architecture == "llama-embed" || architecture == "minicpm") {
+		rawAttentionFactor := float32(1)
+		if value, ok := optional[float32](
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
+		); ok {
+			rawAttentionFactor = value
+		}
+		spec.YaRNAttentionFactor = rawAttentionFactor
+	}
 	spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 	if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
 		if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
@@ -3459,6 +3469,19 @@ func (s Spec) validate() error {
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return fmt.Errorf("%s LongRoPE metadata is invalid", s.Architecture)
 	}
+	if s.RopeScalingType == "yarn" &&
+		(s.Architecture == "llama" || s.Architecture == "llama-embed" ||
+			s.Architecture == "minicpm" || s.Architecture == "mistral3") &&
+		(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 ||
+			s.YaRNExtFactor < 0 || s.YaRNAttentionFactor <= 0 ||
+			s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
+			math.IsNaN(float64(s.RopeScalingFactor)) || math.IsInf(float64(s.RopeScalingFactor), 0) ||
+			math.IsNaN(float64(s.YaRNExtFactor)) || math.IsInf(float64(s.YaRNExtFactor), 0) ||
+			math.IsNaN(float64(s.YaRNAttentionFactor)) || math.IsInf(float64(s.YaRNAttentionFactor), 0) ||
+			math.IsNaN(float64(s.YaRNBetaFast)) || math.IsInf(float64(s.YaRNBetaFast), 0) ||
+			math.IsNaN(float64(s.YaRNBetaSlow)) || math.IsInf(float64(s.YaRNBetaSlow), 0)) {
+		return fmt.Errorf("%s YaRN metadata is invalid", s.Architecture)
+	}
 	if s.Architecture == "llama4" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
@@ -3766,15 +3789,7 @@ func (s Spec) validate() error {
 				math.IsInf(float64(s.ExpertWeightsScale), 0)):
 			return errors.New("Mistral 3 expert metadata is invalid")
 		case s.RopeScalingType == "yarn" &&
-			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 ||
-				s.YaRNExtFactor < 0 || s.YaRNAttentionFactor <= 0 ||
-				s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
-				math.IsNaN(float64(s.RopeScalingFactor)) || math.IsInf(float64(s.RopeScalingFactor), 0) ||
-				math.IsNaN(float64(s.YaRNExtFactor)) || math.IsInf(float64(s.YaRNExtFactor), 0) ||
-				math.IsNaN(float64(s.YaRNAttentionFactor)) || math.IsInf(float64(s.YaRNAttentionFactor), 0) ||
-				math.IsNaN(float64(s.YaRNBetaFast)) || math.IsInf(float64(s.YaRNBetaFast), 0) ||
-				math.IsNaN(float64(s.YaRNBetaSlow)) || math.IsInf(float64(s.YaRNBetaSlow), 0) ||
-				math.IsNaN(float64(s.RopeYaRNLogMultiplier)) || math.IsInf(float64(s.RopeYaRNLogMultiplier), 0)):
+			(math.IsNaN(float64(s.RopeYaRNLogMultiplier)) || math.IsInf(float64(s.RopeYaRNLogMultiplier), 0)):
 			return errors.New("Mistral 3 YaRN metadata is invalid")
 		}
 	}

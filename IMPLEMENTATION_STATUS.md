@@ -426,7 +426,8 @@
   `rope_freqs.weight` tensors apply one validated divisor per rotary pair on
   both the CPU reference and CUDA paths, including streamed, preloaded-F32,
   and native-quantized execution. LongRoPE short/long factors are selected
-  from configured versus original context; YaRN remains rejected. Metadata-driven
+  from configured versus original context. YaRN supports interpolation,
+  extrapolation, magnitude scaling, and optional per-pair factors. Metadata-driven
   linear scaling is applied to Llama normal RoPE and Qwen/Gemma NeoX RoPE and
   composes with per-pair factors.
 - Dense attention Q/K/V/output and feed-forward gate/up/down projection biases
@@ -540,7 +541,8 @@
 - MiniCPM dense decoders support their backward-compatible and metadata-
   overridden embedding, residual-branch, and inverse-logit scales across host
   and retained-device inference. Standard and linear-scaled normal RoPE are
-  supported, including context-selected LongRoPE factors and attention scaling. Real-model validation is pending
+  supported, including context-selected LongRoPE factors and attention scaling,
+  plus normal-layout YaRN with optional per-pair factors. Real-model validation is pending
   a local fixture.
 - Granite and GraniteMoE decoders support metadata-driven embedding,
   residual-branch, attention, and inverse-logit scales, optional no-RoPE mode,
@@ -753,8 +755,8 @@
   counts and truthfully reports no pending token in the synchronous runtime.
 - Llama execution covers dense and metadata-selected MoE models with optional
   projection biases, ordinary or converted Llama 3 per-pair frequency factors,
-  and context-selected LongRoPE factors. YaRN and remaining model-specific
-  attention variants are rejected.
+  context-selected LongRoPE factors, and normal-layout YaRN with optional
+  per-pair factors. Remaining model-specific attention variants are rejected.
 - The Qwen3.5 graph supports true multi-axis positions, but the text generation
   and MTP APIs currently supply the same sequential position to every MRoPE
   axis. Image/video encoder plumbing, probabilistic residual-distribution

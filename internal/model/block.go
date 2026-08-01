@@ -116,17 +116,17 @@ func buildBERTEncoderBlock(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "bert" {
-		return DenseBlockResult{}, errors.New("BERT block requires bert architecture")
+	if spec.Architecture != "bert" && spec.Architecture != "nomic-bert" {
+		return DenseBlockResult{}, errors.New("BERT-family block requires bert or nomic-bert architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("BERT block input shape is incompatible")
+		return DenseBlockResult{}, errors.New("BERT-family block input shape is incompatible")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("BERT block position count is incompatible")
+		return DenseBlockResult{}, errors.New("BERT-family block position count is incompatible")
 	}
 	if pastKey != nil || pastValue != nil {
-		return DenseBlockResult{}, errors.New("BERT block does not support a KV cache")
+		return DenseBlockResult{}, errors.New("BERT-family block does not support a KV cache")
 	}
 	required := map[string]*tensor.Tensor{
 		"attention output":            weights.AttentionOutput,
@@ -139,8 +139,11 @@ func buildBERTEncoderBlock(
 	}
 	for name, item := range required {
 		if item == nil {
-			return DenseBlockResult{}, fmt.Errorf("BERT block %s weight is nil", name)
+			return DenseBlockResult{}, fmt.Errorf("BERT-family block %s weight is nil", name)
 		}
+	}
+	if spec.Architecture == "nomic-bert" && weights.FeedForwardGate == nil {
+		return DenseBlockResult{}, errors.New("NomicBERT block feed-forward gate weight is nil")
 	}
 	tokens := uint64(len(positions))
 	queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
@@ -158,7 +161,7 @@ func buildBERTEncoderBlock(
 		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
 	} else {
 		if weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil {
-			return DenseBlockResult{}, errors.New("BERT block Q/K/V weights are incomplete")
+			return DenseBlockResult{}, errors.New("BERT-family block Q/K/V weights are incomplete")
 		}
 		query = builder.MulMat(weights.AttentionQ, input)
 		key = builder.MulMat(weights.AttentionK, input)
@@ -176,6 +179,18 @@ func buildBERTEncoderBlock(
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
+	if spec.Architecture == "nomic-bert" {
+		frequencyScale := float32(1)
+		if spec.RopeScalingType == "linear" {
+			frequencyScale = 1 / spec.RopeScalingFactor
+		}
+		query = builder.RoPENeoXScaled(
+			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
+		)
+		key = builder.RoPENeoXScaled(
+			key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
+		)
+	}
 	attention := builder.Attention(query, key, value, float32(1/math.Sqrt(float64(spec.KeyLength))), false)
 	attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
@@ -190,7 +205,12 @@ func buildBERTEncoderBlock(
 	if weights.FeedForwardUpBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardUpBias)
 	}
-	feedForward = builder.GELU(feedForward)
+	if spec.Architecture == "nomic-bert" {
+		gate := builder.MulMat(weights.FeedForwardGate, attention)
+		feedForward = builder.SwiGLU(gate, feedForward)
+	} else {
+		feedForward = builder.GELU(feedForward)
+	}
 	feedForward = builder.MulMat(weights.FeedForwardDown, feedForward)
 	if weights.FeedForwardDownBias != nil {
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
@@ -603,7 +623,7 @@ func BuildDenseBlockCachedForLayer(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.Architecture == "bert" {
+	if spec.Architecture == "bert" || spec.Architecture == "nomic-bert" {
 		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"

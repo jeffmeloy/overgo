@@ -443,6 +443,49 @@ func TestReadNeoBERTSpecIsNonCausalNormalRoPE(t *testing.T) {
 	}
 }
 
+func TestReadNomicBERTSpecIsNonCausalNeoXRoPE(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "nomic-bert"),
+		metadata("nomic-bert.block_count", gguf.ValueTypeUint32, uint32(12)),
+		metadata("nomic-bert.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("nomic-bert.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("nomic-bert.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("nomic-bert.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("nomic-bert.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nomic-bert.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("tokenizer.ggml.token_type_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "nomic-bert" || !spec.NonCausalAttention || !spec.IsEncoderOnly() ||
+		spec.HeadCountKV != 2 || spec.KeyLength != 4 || spec.ValueLength != 4 ||
+		spec.RopeDimensionCount != 4 || spec.RopeFrequencyBase != 10000 ||
+		spec.TokenTypeCount != 2 || !spec.UsesLayerNorm() ||
+		usesNormalRoPE(spec.Architecture) || !usesPostOnlyNorm(spec.Architecture) {
+		t.Fatalf("unexpected NomicBERT spec: %+v", spec)
+	}
+}
+
+func TestReadNomicBERTSpecRejectsMoECadence(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "nomic-bert"),
+		metadata("nomic-bert.block_count", gguf.ValueTypeUint32, uint32(12)),
+		metadata("nomic-bert.context_length", gguf.ValueTypeUint32, uint32(8192)),
+		metadata("nomic-bert.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("nomic-bert.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("nomic-bert.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("nomic-bert.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nomic-bert.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("nomic-bert.moe_every_n_layers", gguf.ValueTypeUint32, uint32(2)),
+		metadata("tokenizer.ggml.token_type_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	if _, err := ReadSpec(file); err == nil {
+		t.Fatal("expected NomicBERT MoE cadence rejection")
+	}
+}
+
 func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),

@@ -166,6 +166,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "mpt" &&
 		architecture != "nemotron" &&
 		architecture != "neo-bert" &&
+		architecture != "nomic-bert" &&
 		architecture != "olmo" &&
 		architecture != "olmoe" &&
 		architecture != "openelm" &&
@@ -196,7 +197,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "llada" || architecture == "llada-moe" || architecture == "neo-bert" || architecture == "rnd1" {
+	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "llada" || architecture == "llada-moe" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "bert" {
@@ -243,10 +244,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "bert" || architecture == "neo-bert" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
+	if architecture == "bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
-		if architecture == "gptneox" || architecture == "falcon" || architecture == "mpt" || architecture == "neo-bert" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" {
 			if value, ok := optional[uint32](
 				values,
 				prefix+"attention.head_count_kv",
@@ -311,7 +312,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		// architectures use ALiBi or learned absolute rows instead of RoPE
 		spec.RopeDisabled = true
 	} else if architecture != "bert" && architecture != "t5encoder" {
-		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" || architecture == "neo-bert" {
+		if architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" || architecture == "neo-bert" || architecture == "nomic-bert" {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](
 				values,
@@ -1161,6 +1162,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "neo-bert" {
 		spec.RopeDimensionCount = spec.KeyLength
 	}
+	if architecture == "nomic-bert" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
+			spec.RopeDimensionCount = value
+		}
+		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > 0 {
+			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
+		}
+	}
 	if architecture == "ernie4_5-moe" {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -1541,7 +1551,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.VocabularySize = uint32(tokens.Count())
 	}
-	if architecture == "bert" {
+	if architecture == "bert" || architecture == "nomic-bert" {
 		if spec.TokenTypeCount, err = required[uint32](values, "tokenizer.ggml.token_type_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1653,7 +1663,8 @@ func (s Spec) OutputLogitMultiplier() float32 {
 
 func (s Spec) IsEncoderOnly() bool {
 	return s.Architecture == "bert" || s.Architecture == "eurobert" ||
-		s.Architecture == "neo-bert" || s.Architecture == "t5encoder"
+		s.Architecture == "neo-bert" || s.Architecture == "nomic-bert" ||
+		s.Architecture == "t5encoder"
 }
 
 func (s Spec) UsesLayerNorm() bool {
@@ -1662,6 +1673,7 @@ func (s Spec) UsesLayerNorm() bool {
 		s.Architecture == "falcon" ||
 		s.Architecture == "jais" ||
 		s.Architecture == "nemotron" ||
+		s.Architecture == "nomic-bert" ||
 		s.Architecture == "jais2" ||
 		s.Architecture == "orion" ||
 		s.Architecture == "stablelm" ||
@@ -1719,6 +1731,12 @@ func (s Spec) validate() error {
 		(s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("NeoBERT attention metadata is invalid")
+	}
+	if s.Architecture == "nomic-bert" &&
+		(s.TokenTypeCount == 0 || s.RopeDimensionCount == 0 ||
+			s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0 ||
+			s.KeyLength != s.ValueLength) {
+		return errors.New("NomicBERT metadata is invalid")
 	}
 	if s.Architecture == "qwen35" {
 		switch {
@@ -2382,7 +2400,7 @@ func isGemmaArchitecture(architecture string) bool {
 }
 
 func hasPostNorm(architecture string) bool {
-	return architecture == "afmoe" || architecture == "bert" || architecture == "exaone4" || architecture == "gemma2" ||
+	return architecture == "afmoe" || architecture == "bert" || architecture == "nomic-bert" || architecture == "exaone4" || architecture == "gemma2" ||
 		architecture == "gemma3" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
 }
 
@@ -2394,7 +2412,7 @@ func usesSlidingAttention(architecture string) bool {
 }
 
 func usesPostOnlyNorm(architecture string) bool {
-	return architecture == "bert" || architecture == "exaone4"
+	return architecture == "bert" || architecture == "nomic-bert" || architecture == "exaone4"
 }
 
 func usesNormalRoPE(architecture string) bool {

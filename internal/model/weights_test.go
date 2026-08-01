@@ -768,6 +768,41 @@ func TestReadWeightsNeoBERTFusedQKVAndSwiGLU(t *testing.T) {
 	}
 }
 
+func TestReadWeightsNomicBERTPostNormSwiGLU(t *testing.T) {
+	spec := Spec{
+		Architecture: "nomic-bert", BlockCount: 1, ContextLength: 8192,
+		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, TokenTypeCount: 2,
+		LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDimensionCount: 4,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_types.weight", 8, 2),
+		tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 24), tensorInfo("blk.0.attn_qkv.bias", 24),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_output.bias", 8),
+		tensorInfo("blk.0.attn_output_norm.weight", 8), tensorInfo("blk.0.attn_output_norm.bias", 8),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 16), tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.bias", 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
+		tensorInfo("blk.0.ffn_down.bias", 8), tensorInfo("blk.0.layer_output_norm.weight", 8),
+		tensorInfo("blk.0.layer_output_norm.bias", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.OutputNorm.Name != "" || weights.Output != nil || weights.PositionEmbedding != nil ||
+		weights.TokenTypeEmbedding == nil || weights.TokenEmbeddingNorm == nil ||
+		weights.TokenEmbeddingNormBias == nil || layer.AttentionQKV == nil ||
+		layer.AttentionQKVBias == nil || layer.AttentionNorm.Name != "" ||
+		layer.AttentionPostNorm == nil || layer.AttentionPostNormBias == nil ||
+		layer.FeedForwardNorm.Name != "" || layer.FeedForwardGate.Name == "" ||
+		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil ||
+		layer.FeedForwardPostNorm == nil || layer.FeedForwardPostNormBias == nil {
+		t.Fatalf("unexpected NomicBERT catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsRND1(t *testing.T) {
 	spec := Spec{
 		Architecture: "rnd1", BlockCount: 1, EmbeddingLength: 8,

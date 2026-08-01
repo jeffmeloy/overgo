@@ -347,7 +347,7 @@ func (r *Runner) applyDeviceOutputNorm(
 	input *tensor.Tensor,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (*tensor.Tensor, error) {
-	if r.spec.Architecture == "bert" {
+	if r.spec.Architecture == "bert" || r.spec.Architecture == "nomic-bert" {
 		return input, nil
 	}
 	if r.spec.UsesUnweightedLayerNorm() {
@@ -1603,7 +1603,7 @@ func (r *Runner) runQwen35LayerCached(
 }
 
 func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) (reference.Value, error) {
-	if r.spec.Architecture == "bert" {
+	if r.spec.Architecture == "bert" || r.spec.Architecture == "nomic-bert" {
 		return activation, nil
 	}
 	if r.spec.UsesUnweightedLayerNorm() {

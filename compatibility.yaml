@@ -738,6 +738,14 @@ server:
         - embedding-overrides
         - four-axis-positions
         - deepstack-embeddings
+    multimodal_prompt:
+      shape: prompt-string-plus-multimodal-data
+      media_marker: <__media__>
+      images_per_request: 1
+      encodings:
+        - raw-base64
+        - data-image-base64-uri
+      projection_after_slot_admission: true
     streaming:
       partial-token-events: true
       final-metadata-event: true
@@ -827,7 +835,7 @@ server:
       reports_cached_and_evaluated_tokens: true
       split_prompt_decode_timings: true
     limitations:
-      - multimodal-prompt-objects
+      - multimodal-multi-image-prompts
   openai_completion:
     route: /v1/completions
     prompt_shapes:

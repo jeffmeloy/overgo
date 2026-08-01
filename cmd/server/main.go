@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/projector"
 	llamaserver "llamacpp2go/internal/server"
 )
 
@@ -73,6 +74,7 @@ func run() error {
 		"",
 		"read the /v1 bearer token from this file (or LLAMACPP2GO_API_KEY)",
 	)
+	projectorPath := flag.String("mmproj", "", "Qwen3-VL multimodal projector GGUF")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
@@ -96,6 +98,14 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
+	var vision *projector.Qwen3VLRunner
+	if *projectorPath != "" {
+		vision, err = projector.OpenQwen3VL(*projectorPath)
+		if err != nil {
+			return fmt.Errorf("open multimodal projector: %w", err)
+		}
+		defer vision.Close()
+	}
 	apiKey := strings.TrimSpace(os.Getenv("LLAMACPP2GO_API_KEY"))
 	if *apiKeyFile != "" {
 		data, readErr := os.ReadFile(*apiKeyFile)
@@ -120,6 +130,7 @@ func run() error {
 		RequestTimeout:     *requestTimeout,
 		InfillBatchSize:    *infillBatchSize,
 		SPMInfill:          *spmInfill,
+		Qwen3VLProjector:   vision,
 	}, runner)
 	if err != nil {
 		return err

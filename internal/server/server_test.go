@@ -1,12 +1,16 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +22,7 @@ import (
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -54,6 +59,29 @@ type fakeGenerator struct {
 	lora            []inference.LoRAScale
 	loraConfigured  bool
 	projectedInputs *inference.ProjectedInputs
+}
+
+type fakeQwen3VLProjector struct {
+	before string
+	after  string
+}
+
+func (f *fakeQwen3VLProjector) BuildQwen35ImagePrompt(
+	_ context.Context,
+	_ projector.Qwen3VLTokenizer,
+	_ image.Image,
+	before, after string,
+	_ bool,
+) (projector.Qwen3VLPrompt, error) {
+	f.before, f.after = before, after
+	positions := [4][]uint32{
+		{0, 1, 1, 2}, {0, 1, 1, 2}, {0, 1, 2, 2}, {0, 0, 0, 2},
+	}
+	return projector.Qwen3VLPrompt{
+		TokenIDs:   []tokenizer.TokenID{1, 2, 2, 3},
+		Embeddings: make([]float32, 2*2560), EmbeddingWidth: 2560,
+		ImageStart: 1, MultiAxisPositions: positions,
+	}, nil
 }
 
 type failingMemoryGenerator struct {
@@ -1331,6 +1359,71 @@ func TestNativeCompletionProjectedInputs(t *testing.T) {
 	}
 	if result.GenerationSettings["projected_inputs"] != true {
 		t.Fatalf("generation settings = %#v", result.GenerationSettings)
+	}
+}
+
+func TestNativeCompletionQwen3VLMultimodalPrompt(t *testing.T) {
+	generator := &fakeGenerator{}
+	vision := &fakeQwen3VLProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		Qwen3VLProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	input.SetRGBA(0, 0, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"prompt": map[string]any{
+			"prompt_string":   "Look <__media__> now",
+			"multimodal_data": []string{base64.StdEncoding.EncodeToString(encoded.Bytes())},
+		},
+		"n_predict": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/completion", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if vision.before != "Look " || vision.after != " now" {
+		t.Fatalf("projector text = %q, %q", vision.before, vision.after)
+	}
+	if !slices.Equal(generator.promptIDs, []tokenizer.TokenID{1, 2, 2, 3}) ||
+		generator.projectedInputs == nil ||
+		len(generator.projectedInputs.EmbeddingOverrides) != 2 ||
+		generator.projectedInputs.MultiAxisPositions == nil {
+		t.Fatalf("prompt IDs = %v, projected = %+v", generator.promptIDs, generator.projectedInputs)
+	}
+	var result nativeCompletionResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.GenerationSettings["multimodal"] != true || result.Prompt != "Look <__media__> now" {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestNativeCompletionMultimodalRequiresProjector(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/completion",
+		strings.NewReader(`{"prompt":{"prompt_string":"<__media__>","multimodal_data":["AA=="]}}`),
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "no multimodal projector") {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 }
 

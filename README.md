@@ -154,6 +154,10 @@ The native `/completion` route accepts the same object as `projected_inputs`
 for a single prompt and completion. Token-only prompt caching and
 invocation-activated LoRA are rejected with projected payloads; ordinary LoRA
 scaling and generated-token continuation remain supported.
+With server `-mmproj`, the pinned llama.cpp native multimodal prompt object is
+also accepted: `{"prompt_string":"<__media__>Describe it.",
+"multimodal_data":["BASE64_IMAGE"]}`. One image and one media marker are
+supported per request; raw base64 and `data:image/...;base64,...` are accepted.
 
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,

@@ -9,6 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"math"
 	"net/http"
@@ -23,6 +27,7 @@ import (
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -165,6 +170,17 @@ type DeviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }
 
+type Qwen3VLProjector interface {
+	BuildQwen35ImagePrompt(
+		context.Context,
+		projector.Qwen3VLTokenizer,
+		image.Image,
+		string,
+		string,
+		bool,
+	) (projector.Qwen3VLPrompt, error)
+}
+
 type Config struct {
 	ModelID            string
 	MaxTokens          int
@@ -178,6 +194,7 @@ type Config struct {
 	RequestTimeout     time.Duration
 	InfillBatchSize    int
 	SPMInfill          bool
+	Qwen3VLProjector   Qwen3VLProjector
 }
 
 type slotRuntimeStats struct {
@@ -2243,9 +2260,12 @@ type nativePromptProgress struct {
 }
 
 type nativePrompt struct {
-	Text     string
-	TokenIDs []tokenizer.TokenID
-	Response any
+	Text        string
+	TokenIDs    []tokenizer.TokenID
+	Response    any
+	Image       []byte
+	BeforeImage string
+	AfterImage  string
 }
 
 func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.Request) {
@@ -2330,6 +2350,15 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "projected_inputs requires one prompt and one completion")
 		return
 	}
+	multimodal := len(prompts) == 1 && len(prompts[0].Image) > 0
+	if multimodal && (projectedInputs != nil || body.NCmpl != 1) {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal prompt requires one completion and no projected_inputs")
+		return
+	}
+	if multimodal && body.CachePrompt != nil && *body.CachePrompt {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal prompt cannot use cache_prompt")
+		return
+	}
 	stops, err := parseStopSequences(body.Stop)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
@@ -2347,7 +2376,17 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		return
 	}
 	defer h.releaseSlot(slotID)
+	if multimodal {
+		projectedPrompt, projected, projectErr := h.projectNativeImagePrompt(request.Context(), prompts[0])
+		if projectErr != nil {
+			writeGenerationError(response, projectErr)
+			return
+		}
+		prompts[0] = projectedPrompt
+		projectedInputs = &projected
+	}
 	settings := h.nativeGenerationSettings(body, sampler.Config(), maxTokens, stops)
+	settings["multimodal"] = multimodal
 	if body.Stream {
 		pingInterval := 30
 		if body.SSEPingInterval != nil {
@@ -2451,6 +2490,14 @@ func (h *Handler) parseNativePrompts(raw json.RawMessage) ([]nativePrompt, error
 	if len(raw) == 0 {
 		return nil, errors.New("prompt is required")
 	}
+	trimmedRaw := bytes.TrimSpace(raw)
+	if len(trimmedRaw) > 0 && trimmedRaw[0] == '{' {
+		prompt, err := h.parseNativeMultimodalPrompt(trimmedRaw)
+		if err != nil {
+			return nil, err
+		}
+		return []nativePrompt{prompt}, nil
+	}
 	var text string
 	if json.Unmarshal(raw, &text) == nil {
 		prompt, err := h.parseNativePrompt(raw)
@@ -2498,6 +2545,107 @@ func (h *Handler) parseNativePrompts(raw json.RawMessage) ([]nativePrompt, error
 		result = append(result, prompt)
 	}
 	return result, nil
+}
+
+func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt, error) {
+	if h.config.Qwen3VLProjector == nil {
+		return nativePrompt{}, errors.New("multimodal data provided, but the server has no multimodal projector")
+	}
+	var document struct {
+		PromptString   string   `json:"prompt_string"`
+		MultimodalData []string `json:"multimodal_data"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&document); err != nil {
+		return nativePrompt{}, errors.New("prompt object must contain prompt_string and multimodal_data")
+	}
+	if document.PromptString == "" {
+		return nativePrompt{}, errors.New("prompt_string must not be empty")
+	}
+	if len(document.MultimodalData) != 1 {
+		return nativePrompt{}, errors.New("Qwen3.5 multimodal prompt requires exactly one image")
+	}
+	const marker = "<__media__>"
+	if strings.Count(document.PromptString, marker) != 1 {
+		return nativePrompt{}, errors.New("prompt_string must contain exactly one <__media__> marker")
+	}
+	imageData, err := decodeNativeImageData(document.MultimodalData[0])
+	if err != nil {
+		return nativePrompt{}, err
+	}
+	before, after, _ := strings.Cut(document.PromptString, marker)
+	return nativePrompt{
+		Text: document.PromptString, Response: document.PromptString,
+		Image: imageData, BeforeImage: before, AfterImage: after,
+	}, nil
+}
+
+func decodeNativeImageData(encoded string) ([]byte, error) {
+	if strings.HasPrefix(encoded, "data:") {
+		header, payload, ok := strings.Cut(encoded, ",")
+		if !ok || !strings.HasPrefix(header, "data:image/") || !strings.HasSuffix(header, ";base64") {
+			return nil, errors.New("multimodal_data data URI must contain a base64 image")
+		}
+		encoded = payload
+	}
+	if encoded == "" {
+		return nil, errors.New("multimodal_data image is empty")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, errors.New("multimodal_data image is not valid base64")
+	}
+	if len(decoded) == 0 {
+		return nil, errors.New("multimodal_data image is empty")
+	}
+	return decoded, nil
+}
+
+func (h *Handler) projectNativeImagePrompt(
+	ctx context.Context,
+	prompt nativePrompt,
+) (nativePrompt, inference.ProjectedInputs, error) {
+	tokenizerAPI, ok := h.generator.(TokenizationAPI)
+	if !ok {
+		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: generator cannot tokenize multimodal prompt")
+	}
+	input, _, err := image.Decode(bytes.NewReader(prompt.Image))
+	if err != nil {
+		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: multimodal_data is not a supported image")
+	}
+	projected, err := h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
+		ctx, tokenizerAPI, input, prompt.BeforeImage, prompt.AfterImage, true,
+	)
+	if err != nil {
+		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: project image: %w", err)
+	}
+	if projected.EmbeddingWidth <= 0 || len(projected.Embeddings)%projected.EmbeddingWidth != 0 {
+		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: projector returned invalid embeddings")
+	}
+	if properties, ok := h.generator.(ModelPropertiesAPI); ok &&
+		projected.EmbeddingWidth != int(properties.ModelProperties().EmbeddingLength) {
+		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf(
+			"server: projector width %d differs from model width %d",
+			projected.EmbeddingWidth, properties.ModelProperties().EmbeddingLength,
+		)
+	}
+	imageTokens := len(projected.Embeddings) / projected.EmbeddingWidth
+	overrides := make([]inference.EmbeddingOverride, imageTokens)
+	for index := range overrides {
+		start := index * projected.EmbeddingWidth
+		overrides[index] = inference.EmbeddingOverride{
+			TokenIndex: uint32(projected.ImageStart + index),
+			Embedding:  projected.Embeddings[start : start+projected.EmbeddingWidth],
+		}
+	}
+	positions := inference.MultiAxisPositions(projected.MultiAxisPositions)
+	prompt.TokenIDs = projected.TokenIDs
+	prompt.Image = nil
+	return prompt, inference.ProjectedInputs{
+		EmbeddingOverrides: overrides,
+		MultiAxisPositions: &positions,
+	}, nil
 }
 
 func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {

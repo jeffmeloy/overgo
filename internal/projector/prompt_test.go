@@ -1,4 +1,4 @@
-package main
+package projector
 
 import (
 	"strings"
@@ -7,14 +7,14 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
-func TestQwen3VLPromptText(t *testing.T) {
-	prompt := qwen3VLPromptText("Describe.", 3, true)
-	if strings.Count(prompt, qwen3VLImagePad) != 3 ||
-		!strings.HasPrefix(prompt, "<|im_start|>user\n<|vision_start|>") ||
-		!strings.HasSuffix(prompt, "<|im_start|>assistant\n<think>\n") {
+func TestQwen35ImagePromptText(t *testing.T) {
+	prompt := Qwen35ImagePromptText("before", "after", 3, true)
+	if strings.Count(prompt, Qwen3VLImagePad) != 3 ||
+		!strings.HasPrefix(prompt, "<|im_start|>user\nbefore<|vision_start|>") ||
+		!strings.HasSuffix(prompt, "after<|im_end|>\n<|im_start|>assistant\n<think>\n") {
 		t.Fatalf("unexpected prompt %q", prompt)
 	}
-	withoutThinking := qwen3VLPromptText("Describe.", 1, false)
+	withoutThinking := Qwen35ImagePromptText("", "Describe.", 1, false)
 	if !strings.HasSuffix(withoutThinking, "<think>\n\n</think>\n\n") {
 		t.Fatalf("unexpected no-thinking prompt %q", withoutThinking)
 	}
@@ -32,7 +32,7 @@ func TestContiguousTokenRun(t *testing.T) {
 }
 
 func TestQwen3VLMultiAxisPositions(t *testing.T) {
-	positions, err := qwen3VLMultiAxisPositions(10, 2, 4, 4, 4, 2)
+	positions, err := Qwen3VLMultiAxisPositions(10, 2, 4, 4, 4, 2)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -765,8 +765,11 @@
   deepstack streams. `generate -mmproj -image` executes the Qwen3-VL
   `qwen3vl_merger` patch encoder, 24-layer bidirectional ViT, merger, exact
   image prompt, and compressed image-grid positions. A local Qwen3.5-4B F16
-  run reproduced the 84-token Transformers prompt and first generated token.
-  Video projection, projector CUDA offload, and multi-sequence recurrent
+  run reproduced the 85-token Transformers prompt and first generated token.
+  Server `-mmproj` exposes the pinned native `prompt_string` plus base64
+  `multimodal_data` object through buffered and streaming completion paths;
+  projection runs inside slot admission.
+  Video projection, projector CUDA offload, multi-image turns, and multi-sequence recurrent
   batching remain pending.
 - T5 single-sequence encoder-decoder sessions are supported. `GenerateT5`
   supplies high-level sampling, stop callbacks/sequences, LoRA selection, and

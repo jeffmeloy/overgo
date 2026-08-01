@@ -27,8 +27,32 @@ type Step35MTPSession struct {
 	targetModel   [32]byte
 }
 
+// HYV3MTPSession: HY-V3 multi-head draft state.
+type HYV3MTPSession = Step35MTPSession
+
 // NewStep35MTPSession: trunk prefill plus per-head catch-up.
 func (r *Runner) NewStep35MTPSession(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (*Step35MTPSession, error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return nil, err
+	}
+	return r.newMultiHeadMTPSession(ctx, tokenIDs)
+}
+
+// NewHYV3MTPSession: HY-V3 trunk and head prefill.
+func (r *Runner) NewHYV3MTPSession(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (*HYV3MTPSession, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return nil, err
+	}
+	return r.newMultiHeadMTPSession(ctx, tokenIDs)
+}
+
+func (r *Runner) newMultiHeadMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (*Step35MTPSession, error) {
@@ -40,10 +64,17 @@ func (r *Runner) NewStep35MTPSession(
 	if r.closed {
 		return nil, errors.New("inference: Step3.5 MTP runner is unavailable")
 	}
-	if err := r.validateStep35MTP(); err != nil {
+	if err := r.validateMultiHeadMTP(); err != nil {
 		return nil, err
 	}
-	hidden, cache, err := r.forwardCachedPreOutputNormLocked(ctx, tokenIDs, nil)
+	var hidden reference.Value
+	var cache *KVCache
+	var err error
+	if r.spec.Architecture == "step35" {
+		hidden, cache, err = r.forwardCachedPreOutputNormLocked(ctx, tokenIDs, nil)
+	} else {
+		hidden, cache, err = r.forwardCachedLocked(ctx, tokenIDs, nil)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -59,9 +90,9 @@ func (r *Runner) NewStep35MTPSession(
 	for index := range positions {
 		positions[index] = uint32(index)
 	}
-	heads := make([]LayerCache, len(r.weights.Step35MTP))
+	heads := make([]LayerCache, len(r.multiHeadMTPWeights()))
 	for offset := range heads {
-		_, _, headCache, runErr := r.runStep35MTPHeadLocked(
+		_, _, headCache, runErr := r.runMultiHeadMTPHeadLocked(
 			ctx, tokenIDs, shifted, positions, nil, uint32(offset),
 		)
 		if runErr != nil {
@@ -90,6 +121,29 @@ func (r *Runner) AdvanceStep35MTP(
 	tokenID tokenizer.TokenID,
 	session *Step35MTPSession,
 ) (reference.Value, *Step35MTPSession, error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return reference.Value{}, nil, err
+	}
+	return r.advanceMultiHeadMTP(ctx, tokenID, session)
+}
+
+// AdvanceHYV3MTP: next HY-V3 trained head.
+func (r *Runner) AdvanceHYV3MTP(
+	ctx context.Context,
+	tokenID tokenizer.TokenID,
+	session *HYV3MTPSession,
+) (reference.Value, *HYV3MTPSession, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return reference.Value{}, nil, err
+	}
+	return r.advanceMultiHeadMTP(ctx, tokenID, session)
+}
+
+func (r *Runner) advanceMultiHeadMTP(
+	ctx context.Context,
+	tokenID tokenizer.TokenID,
+	session *Step35MTPSession,
+) (reference.Value, *Step35MTPSession, error) {
 	if r == nil || session == nil {
 		return reference.Value{}, nil, errors.New("inference: Step3.5 MTP session is invalid")
 	}
@@ -98,7 +152,7 @@ func (r *Runner) AdvanceStep35MTP(
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: Step3.5 MTP runner is unavailable")
 	}
-	if err := r.validateStep35MTP(); err != nil {
+	if err := r.validateMultiHeadMTP(); err != nil {
 		return reference.Value{}, nil, err
 	}
 	if err := r.validateStep35MTPSession(session); err != nil {
@@ -108,7 +162,7 @@ func (r *Runner) AdvanceStep35MTP(
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	offset := len(session.DraftTokens)
-	if offset >= len(r.weights.Step35MTP) {
+	if offset >= len(r.multiHeadMTPWeights()) {
 		return reference.Value{}, nil, errors.New("inference: Step3.5 MTP head chain is exhausted")
 	}
 	tokens := append(append([]tokenizer.TokenID(nil), session.DraftTokens...), tokenID)
@@ -125,7 +179,7 @@ func (r *Runner) AdvanceStep35MTP(
 	for index := range positions {
 		positions[index] = session.MTPStart + uint32(index)
 	}
-	logits, nextHidden, headCache, err := r.runStep35MTPHeadLocked(
+	logits, nextHidden, headCache, err := r.runMultiHeadMTPHeadLocked(
 		ctx, tokens, hidden, positions, &session.Heads[offset], uint32(offset),
 	)
 	if err != nil {
@@ -157,7 +211,7 @@ func (r *Runner) AdvanceStep35MTP(
 	return lastLogits, next, nil
 }
 
-func (r *Runner) runStep35MTPHeadLocked(
+func (r *Runner) runMultiHeadMTPHeadLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 	hidden reference.Value,
@@ -165,7 +219,8 @@ func (r *Runner) runStep35MTPHeadLocked(
 	past *LayerCache,
 	offset uint32,
 ) (reference.Value, reference.Value, LayerCache, error) {
-	if offset >= uint32(len(r.weights.Step35MTP)) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
+	mtpWeights := r.multiHeadMTPWeights()
+	if offset >= uint32(len(mtpWeights)) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
 		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: Step3.5 MTP head inputs are invalid")
 	}
 	rows := make([]uint32, len(tokenIDs))
@@ -175,7 +230,7 @@ func (r *Runner) runStep35MTPHeadLocked(
 		}
 		rows[index] = uint32(id)
 	}
-	mtp := r.weights.Step35MTP[offset]
+	mtp := mtpWeights[offset]
 	embeddingInfo := r.weights.TokenEmbedding
 	if mtp.TokenEmbedding != nil {
 		embeddingInfo = *mtp.TokenEmbedding
@@ -192,7 +247,7 @@ func (r *Runner) runStep35MTPHeadLocked(
 	hiddenInput := builder.Input("step35_mtp.hidden", dtype.F32, hidden.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{tokenInput: tokenEmbedding, hiddenInput: hidden}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	graphWeights, layerFeeds, err := r.step35MTPLayerInputs(ctx, builder, hostFeeds, offset)
+	graphWeights, layerFeeds, err := r.multiHeadMTPLayerInputs(ctx, builder, hostFeeds, offset)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -218,9 +273,16 @@ func (r *Runner) runStep35MTPHeadLocked(
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	current, err := model.BuildStep35MTPInput(
-		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
-	)
+	var current *tensor.Tensor
+	if r.spec.Architecture == "step35" {
+		current, err = model.BuildStep35MTPInput(
+			builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
+		)
+	} else {
+		current, err = model.BuildHYV3MTPInput(
+			builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
+		)
+	}
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -230,9 +292,16 @@ func (r *Runner) runStep35MTPHeadLocked(
 		pastValue = builder.Input("step35_mtp.past_value", dtype.F32, past.Value.Shape)
 		hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
 	}
-	block, err := model.BuildStep35MTPBlockCached(
-		builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
-	)
+	var block model.DenseBlockResult
+	if r.spec.Architecture == "step35" {
+		block, err = model.BuildStep35MTPBlockCached(
+			builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
+		)
+	} else {
+		block, err = model.BuildHYV3MTPBlockCached(
+			builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
+		)
+	}
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -255,9 +324,16 @@ func (r *Runner) runStep35MTPHeadLocked(
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	logits, nextHidden, err := model.BuildStep35MTPOutputs(
-		builder, block.Output, outputNorm, output, r.spec, offset,
-	)
+	var logits, nextHidden *tensor.Tensor
+	if r.spec.Architecture == "step35" {
+		logits, nextHidden, err = model.BuildStep35MTPOutputs(
+			builder, block.Output, outputNorm, output, r.spec, offset,
+		)
+	} else {
+		logits, nextHidden, err = model.BuildHYV3MTPOutputs(
+			builder, block.Output, outputNorm, output, r.spec, offset,
+		)
+	}
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -276,13 +352,13 @@ func (r *Runner) runStep35MTPHeadLocked(
 	}, nil
 }
 
-func (r *Runner) step35MTPLayerInputs(
+func (r *Runner) multiHeadMTPLayerInputs(
 	ctx context.Context,
 	builder *tensor.Builder,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	offset uint32,
 ) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	mtp := r.weights.Step35MTP[offset]
+	mtp := r.multiHeadMTPWeights()[offset]
 	if r.hasPreloadedWeights() {
 		return r.layerDeviceInputs(builder, mtp.Layer)
 	}
@@ -302,15 +378,43 @@ func (r *Runner) step35MTPLayerInputs(
 }
 
 func (r *Runner) validateStep35MTP() error {
-	if r.spec.Architecture != "step35" || r.spec.NextNPredictLayers == 0 ||
+	if r == nil || r.spec.Architecture != "step35" || r.spec.NextNPredictLayers == 0 ||
 		len(r.weights.Step35MTP) != int(r.spec.NextNPredictLayers) {
 		return errors.New("inference: model has no supported Step3.5 MTP heads")
 	}
 	return nil
 }
 
+func (r *Runner) validateHYV3MTP() error {
+	if r == nil || r.spec.Architecture != "hy_v3" || r.spec.NextNPredictLayers == 0 ||
+		len(r.weights.HYV3MTP) != int(r.spec.NextNPredictLayers) {
+		return errors.New("inference: model has no supported HY-V3 MTP heads")
+	}
+	return nil
+}
+
+func (r *Runner) validateMultiHeadMTP() error {
+	if r == nil {
+		return errors.New("inference: MTP runner is nil")
+	}
+	if r.spec.Architecture == "hy_v3" {
+		return r.validateHYV3MTP()
+	}
+	return r.validateStep35MTP()
+}
+
+func (r *Runner) multiHeadMTPWeights() []model.Step35MTPWeights {
+	if r != nil && r.spec.Architecture == "hy_v3" {
+		return r.weights.HYV3MTP
+	}
+	if r == nil {
+		return nil
+	}
+	return r.weights.Step35MTP
+}
+
 func (r *Runner) validateStep35MTPSession(session *Step35MTPSession) error {
-	if session == nil || session.TrunkCache == nil || len(session.Heads) != len(r.weights.Step35MTP) ||
+	if session == nil || session.TrunkCache == nil || len(session.Heads) != len(r.multiHeadMTPWeights()) ||
 		len(session.DraftTokens) != len(session.DraftHidden) || len(session.DraftTokens) > len(session.Heads) ||
 		session.Position != session.MTPStart+uint32(len(session.DraftTokens)) || session.Position == math.MaxUint32 {
 		return errors.New("inference: Step3.5 MTP session state is incompatible")

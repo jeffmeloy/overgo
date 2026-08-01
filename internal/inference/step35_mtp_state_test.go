@@ -39,6 +39,25 @@ func TestStep35MTPSessionStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestHYV3MTPSessionStateRoundTrip(t *testing.T) {
+	runner := step35MTPStateRunner()
+	runner.spec.Architecture = "hy_v3"
+	runner.weights.HYV3MTP = runner.weights.Step35MTP
+	runner.weights.Step35MTP = nil
+	session := step35MTPStateFixture(t, runner, true)
+	data, err := runner.SaveHYV3MTPSession(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := runner.LoadHYV3MTPSession(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(restored, session) {
+		t.Fatalf("restored HY-V3 MTP session differs:\n got %+v\nwant %+v", restored, session)
+	}
+}
+
 func TestStep35MTPSessionStateRejectsCorruption(t *testing.T) {
 	runner := step35MTPStateRunner()
 	data, err := runner.SaveStep35MTPSession(step35MTPStateFixture(t, runner, true))

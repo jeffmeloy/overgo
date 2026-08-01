@@ -18,10 +18,25 @@ const (
 
 // SaveStep35MTPSession: model-bound multi-head state.
 func (r *Runner) SaveStep35MTPSession(session *Step35MTPSession) ([]byte, error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return nil, err
+	}
+	return r.saveMultiHeadMTPSession(session)
+}
+
+// SaveHYV3MTPSession: model-bound HY-V3 head state.
+func (r *Runner) SaveHYV3MTPSession(session *HYV3MTPSession) ([]byte, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return nil, err
+	}
+	return r.saveMultiHeadMTPSession(session)
+}
+
+func (r *Runner) saveMultiHeadMTPSession(session *Step35MTPSession) ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
-	if err := r.validateStep35MTP(); err != nil {
+	if err := r.validateMultiHeadMTP(); err != nil {
 		return nil, err
 	}
 	if err := r.validateStep35MTPSession(session); err != nil {
@@ -88,10 +103,25 @@ func (r *Runner) SaveStep35MTPSession(session *Step35MTPSession) ([]byte, error)
 
 // LoadStep35MTPSession: bounded multi-head restore.
 func (r *Runner) LoadStep35MTPSession(data []byte) (*Step35MTPSession, error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return nil, err
+	}
+	return r.loadMultiHeadMTPSession(data)
+}
+
+// LoadHYV3MTPSession: bounded HY-V3 head restore.
+func (r *Runner) LoadHYV3MTPSession(data []byte) (*HYV3MTPSession, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return nil, err
+	}
+	return r.loadMultiHeadMTPSession(data)
+}
+
+func (r *Runner) loadMultiHeadMTPSession(data []byte) (*Step35MTPSession, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
-	if err := r.validateStep35MTP(); err != nil {
+	if err := r.validateMultiHeadMTP(); err != nil {
 		return nil, err
 	}
 	if len(data) < step35MTPStateHeader {
@@ -121,7 +151,7 @@ func (r *Runner) LoadStep35MTPSession(data []byte) (*Step35MTPSession, error) {
 	draftCount := binary.LittleEndian.Uint32(data[84:])
 	trunkLength := binary.LittleEndian.Uint64(data[88:])
 	headLength := binary.LittleEndian.Uint64(data[96:])
-	if headCount != uint32(len(r.weights.Step35MTP)) || draftCount > headCount ||
+	if headCount != uint32(len(r.multiHeadMTPWeights())) || draftCount > headCount ||
 		position != mtpStart+draftCount || position == math.MaxUint32 || trunkLength == 0 || headLength == 0 {
 		return nil, errors.New("inference: Step3.5 MTP state metadata is invalid")
 	}

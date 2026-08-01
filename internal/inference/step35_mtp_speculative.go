@@ -27,8 +27,38 @@ type Step35MTPVerification struct {
 	Session      *Step35MTPSession
 }
 
+type HYV3MTPDraft = Step35MTPDraft
+type HYV3MTPVerification = Step35MTPVerification
+
 // DraftStep35MTPGreedy: high-confidence trained-head chain.
 func (r *Runner) DraftStep35MTPGreedy(
+	ctx context.Context,
+	initialToken tokenizer.TokenID,
+	session *Step35MTPSession,
+	maximum int,
+	minimumProbability float64,
+) (*Step35MTPDraft, error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return nil, err
+	}
+	return r.draftMultiHeadMTPGreedy(ctx, initialToken, session, maximum, minimumProbability)
+}
+
+// DraftHYV3MTPGreedy: HY-V3 trained-head proposals.
+func (r *Runner) DraftHYV3MTPGreedy(
+	ctx context.Context,
+	initialToken tokenizer.TokenID,
+	session *HYV3MTPSession,
+	maximum int,
+	minimumProbability float64,
+) (*HYV3MTPDraft, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return nil, err
+	}
+	return r.draftMultiHeadMTPGreedy(ctx, initialToken, session, maximum, minimumProbability)
+}
+
+func (r *Runner) draftMultiHeadMTPGreedy(
 	ctx context.Context,
 	initialToken tokenizer.TokenID,
 	session *Step35MTPSession,
@@ -39,7 +69,7 @@ func (r *Runner) DraftStep35MTPGreedy(
 		minimumProbability > 1 || math.IsNaN(minimumProbability) {
 		return nil, errors.New("inference: Step3.5 MTP draft inputs are invalid")
 	}
-	remaining := len(r.weights.Step35MTP)
+	remaining := len(r.multiHeadMTPWeights())
 	if remaining <= 0 {
 		return nil, errors.New("inference: Step3.5 MTP head chain is exhausted")
 	}
@@ -53,7 +83,7 @@ func (r *Runner) DraftStep35MTPGreedy(
 	currentToken := initialToken
 	currentSession := session
 	for range maximum {
-		logits, next, err := r.AdvanceStep35MTP(ctx, currentToken, currentSession)
+		logits, next, err := r.advanceMultiHeadMTP(ctx, currentToken, currentSession)
 		if err != nil {
 			return nil, err
 		}
@@ -81,13 +111,36 @@ func (r *Runner) VerifyStep35MTPGreedy(
 	target *Runner,
 	draft *Step35MTPDraft,
 ) (*Step35MTPVerification, error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return nil, err
+	}
+	return r.verifyMultiHeadMTPGreedy(ctx, target, draft)
+}
+
+// VerifyHYV3MTPGreedy: HY-V3 target check and resync.
+func (r *Runner) VerifyHYV3MTPGreedy(
+	ctx context.Context,
+	target *Runner,
+	draft *HYV3MTPDraft,
+) (*HYV3MTPVerification, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return nil, err
+	}
+	return r.verifyMultiHeadMTPGreedy(ctx, target, draft)
+}
+
+func (r *Runner) verifyMultiHeadMTPGreedy(
+	ctx context.Context,
+	target *Runner,
+	draft *Step35MTPDraft,
+) (*Step35MTPVerification, error) {
 	if r == nil || target == nil || draft == nil || draft.Base == nil {
 		return nil, errors.New("inference: Step3.5 MTP verification inputs are invalid")
 	}
 	if r != target {
 		return nil, errors.New("inference: bundled Step3.5 MTP verification requires its owning target runner")
 	}
-	if len(draft.Tokens) != len(draft.Probabilities) || len(draft.Tokens) > len(r.weights.Step35MTP) {
+	if len(draft.Tokens) != len(draft.Probabilities) || len(draft.Tokens) > len(r.multiHeadMTPWeights()) {
 		return nil, errors.New("inference: Step3.5 MTP draft state is inconsistent")
 	}
 	targetModel, err := target.sessionModelSignature()
@@ -103,7 +156,7 @@ func (r *Runner) VerifyStep35MTPGreedy(
 	processedHidden := make([]reference.Value, 0, len(draft.Tokens)+1)
 	accepted := 0
 	for {
-		logits, hidden, nextTargetCache, advanceErr := target.step35TargetAdvance(
+		logits, hidden, nextTargetCache, advanceErr := target.multiHeadMTPTargetAdvance(
 			ctx, currentToken, targetCache,
 		)
 		if advanceErr != nil {
@@ -133,7 +186,7 @@ func (r *Runner) VerifyStep35MTPGreedy(
 	}
 }
 
-func (r *Runner) step35TargetAdvance(
+func (r *Runner) multiHeadMTPTargetAdvance(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,
 	cache *KVCache,
@@ -146,15 +199,27 @@ func (r *Runner) step35TargetAdvance(
 	if r.closed {
 		return reference.Value{}, reference.Value{}, nil, errors.New("inference: Step3.5 target runner is unavailable")
 	}
-	hidden, nextCache, err := r.forwardCachedPreOutputNormLocked(
-		ctx, []tokenizer.TokenID{tokenID}, cache,
-	)
+	var hidden reference.Value
+	var nextCache *KVCache
+	var err error
+	if r.spec.Architecture == "step35" {
+		hidden, nextCache, err = r.forwardCachedPreOutputNormLocked(
+			ctx, []tokenizer.TokenID{tokenID}, cache,
+		)
+	} else {
+		hidden, nextCache, err = r.forwardCachedLocked(
+			ctx, []tokenizer.TokenID{tokenID}, cache,
+		)
+	}
 	if err != nil {
 		return reference.Value{}, reference.Value{}, nil, err
 	}
-	normalized, err := r.runOutputNorm(ctx, hidden)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, nil, err
+	normalized := hidden
+	if r.spec.Architecture == "step35" {
+		normalized, err = r.runOutputNorm(ctx, hidden)
+		if err != nil {
+			return reference.Value{}, reference.Value{}, nil, err
+		}
 	}
 	logits, err := r.projectAllLogits(ctx, normalized)
 	if err != nil {
@@ -197,7 +262,7 @@ func (r *Runner) resyncStep35MTPSession(
 	}
 	heads := make([]LayerCache, len(base.Heads))
 	for offset := range heads {
-		_, _, headCache, err := r.runStep35MTPHeadLocked(
+		_, _, headCache, err := r.runMultiHeadMTPHeadLocked(
 			ctx, tokens, hidden, positions, &base.Heads[offset], uint32(offset),
 		)
 		if err != nil {

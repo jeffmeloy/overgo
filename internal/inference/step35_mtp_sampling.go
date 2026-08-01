@@ -22,8 +22,39 @@ type Step35MTPSampledDraft struct {
 	samplerStates [][]byte
 }
 
+type HYV3MTPSampledDraft = Step35MTPSampledDraft
+
 // DraftStep35MTPSampled: transactional trained-head sampling.
 func (r *Runner) DraftStep35MTPSampled(
+	ctx context.Context,
+	session *Step35MTPSession,
+	sampler *sampling.Sampler,
+	history []tokenizer.TokenID,
+	maximum int,
+	minimumProbability float64,
+) (draft *Step35MTPSampledDraft, err error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return nil, err
+	}
+	return r.draftMultiHeadMTPSampled(ctx, session, sampler, history, maximum, minimumProbability)
+}
+
+// DraftHYV3MTPSampled: transactional HY-V3 head sampling.
+func (r *Runner) DraftHYV3MTPSampled(
+	ctx context.Context,
+	session *HYV3MTPSession,
+	sampler *sampling.Sampler,
+	history []tokenizer.TokenID,
+	maximum int,
+	minimumProbability float64,
+) (*HYV3MTPSampledDraft, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return nil, err
+	}
+	return r.draftMultiHeadMTPSampled(ctx, session, sampler, history, maximum, minimumProbability)
+}
+
+func (r *Runner) draftMultiHeadMTPSampled(
 	ctx context.Context,
 	session *Step35MTPSession,
 	sampler *sampling.Sampler,
@@ -37,7 +68,7 @@ func (r *Runner) DraftStep35MTPSampled(
 	if maximum <= 0 || minimumProbability < 0 || minimumProbability > 1 || math.IsNaN(minimumProbability) {
 		return nil, errors.New("inference: Step3.5 MTP sampled draft limits are invalid")
 	}
-	maximum = min(maximum, len(r.weights.Step35MTP))
+	maximum = min(maximum, len(r.multiHeadMTPWeights()))
 	initialState, err := sampler.SaveState()
 	if err != nil {
 		return nil, fmt.Errorf("inference: save Step3.5 MTP draft sampler: %w", err)
@@ -62,7 +93,7 @@ func (r *Runner) DraftStep35MTPSampled(
 	currentSession := session
 	currentHistory := tokenIDsAsInts(history)
 	for range maximum {
-		logits, next, advanceErr := r.AdvanceStep35MTP(ctx, currentToken, currentSession)
+		logits, next, advanceErr := r.advanceMultiHeadMTP(ctx, currentToken, currentSession)
 		if advanceErr != nil {
 			return nil, advanceErr
 		}
@@ -103,13 +134,40 @@ func (r *Runner) VerifyStep35MTPSampled(
 	draftSampler *sampling.Sampler,
 	targetSampler *sampling.Sampler,
 ) (verification *Step35MTPVerification, err error) {
+	if err := r.validateStep35MTP(); err != nil {
+		return nil, err
+	}
+	return r.verifyMultiHeadMTPSampled(ctx, target, draft, draftSampler, targetSampler)
+}
+
+// VerifyHYV3MTPSampled: sampled HY-V3 target verification.
+func (r *Runner) VerifyHYV3MTPSampled(
+	ctx context.Context,
+	target *Runner,
+	draft *HYV3MTPSampledDraft,
+	draftSampler *sampling.Sampler,
+	targetSampler *sampling.Sampler,
+) (*HYV3MTPVerification, error) {
+	if err := r.validateHYV3MTP(); err != nil {
+		return nil, err
+	}
+	return r.verifyMultiHeadMTPSampled(ctx, target, draft, draftSampler, targetSampler)
+}
+
+func (r *Runner) verifyMultiHeadMTPSampled(
+	ctx context.Context,
+	target *Runner,
+	draft *Step35MTPSampledDraft,
+	draftSampler *sampling.Sampler,
+	targetSampler *sampling.Sampler,
+) (verification *Step35MTPVerification, err error) {
 	if r == nil || target == nil || r != target || draft == nil || draft.Base == nil ||
 		draftSampler == nil || targetSampler == nil || draftSampler == targetSampler {
 		return nil, errors.New("inference: Step3.5 MTP sampled verification inputs are invalid")
 	}
 	if len(draft.History) == 0 || draft.History[len(draft.History)-1] != draft.InitialToken ||
 		len(draft.Tokens) != len(draft.Probabilities) || len(draft.Tokens) != len(draft.Distributions) ||
-		len(draft.samplerStates) != len(draft.Tokens)+1 || len(draft.Tokens) > len(r.weights.Step35MTP) {
+		len(draft.samplerStates) != len(draft.Tokens)+1 || len(draft.Tokens) > len(r.multiHeadMTPWeights()) {
 		return nil, errors.New("inference: Step3.5 MTP sampled draft state is inconsistent")
 	}
 	targetModel, err := target.sessionModelSignature()
@@ -145,7 +203,7 @@ func (r *Runner) VerifyStep35MTPSampled(
 	processedHidden := make([]reference.Value, 0, len(draft.Tokens)+1)
 	accepted := 0
 	for {
-		logits, hidden, nextTargetCache, advanceErr := target.step35TargetAdvance(
+		logits, hidden, nextTargetCache, advanceErr := target.multiHeadMTPTargetAdvance(
 			ctx, currentToken, targetCache,
 		)
 		if advanceErr != nil {

@@ -27,6 +27,20 @@ func TestValidateStep35MTP(t *testing.T) {
 	}
 }
 
+func TestValidateHYV3MTP(t *testing.T) {
+	runner := &Runner{
+		spec:    model.Spec{Architecture: "hy_v3", NextNPredictLayers: 2},
+		weights: model.Weights{HYV3MTP: make([]model.Step35MTPWeights, 2)},
+	}
+	if err := runner.validateHYV3MTP(); err != nil {
+		t.Fatal(err)
+	}
+	runner.weights.HYV3MTP = runner.weights.HYV3MTP[:1]
+	if err := runner.validateHYV3MTP(); err == nil {
+		t.Fatal("incomplete HY-V3 MTP head catalog was accepted")
+	}
+}
+
 func TestLastValueColumn(t *testing.T) {
 	value := reference.Value{
 		Shape: tensor.MustShape(2, 3),
@@ -144,5 +158,49 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 		sampledVerification.Session.TrunkCache.Position != sampledVerification.Session.Position ||
 		len(sampledVerification.Session.DraftTokens) != 0 {
 		t.Fatalf("unexpected sampled Step3.5 MTP verification: draft=%+v result=%+v", sampledDraft, sampledVerification)
+	}
+}
+
+func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_HYV3_MTP_MODEL")
+	if modelPath == "" {
+		t.Skip("LLAMACPP2GO_HYV3_MTP_MODEL is not set")
+	}
+	runner, err := OpenWithOptions(modelPath, OpenOptions{
+		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	ctx := context.Background()
+	session, err := runner.NewHYV3MTPSession(ctx, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logits, next, err := runner.AdvanceHYV3MTP(ctx, 0, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logits.Shape.Dims[0] != uint64(runner.spec.VocabularySize) ||
+		next.Position != session.Position+1 || len(next.DraftTokens) != 1 {
+		t.Fatalf("unexpected HY-V3 MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
+	}
+	coordinatorSession, err := runner.NewHYV3MTPSession(ctx, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := runner.DraftHYV3MTPGreedy(ctx, 0, coordinatorSession, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification, err := runner.VerifyHYV3MTPGreedy(ctx, runner, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
+		verification.Session.Position != coordinatorSession.Position+uint32(verification.Accepted)+1 ||
+		len(verification.Session.DraftTokens) != 0 {
+		t.Fatalf("unexpected HY-V3 MTP verification: draft=%+v result=%+v", draft, verification)
 	}
 }

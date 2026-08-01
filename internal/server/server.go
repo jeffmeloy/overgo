@@ -1927,28 +1927,29 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 }
 
 type nativeCompletionRequest struct {
-	Prompt            json.RawMessage `json:"prompt"`
-	Model             string          `json:"model"`
-	NPredict          *int            `json:"n_predict"`
-	NCmpl             int             `json:"n_cmpl"`
-	Stop              json.RawMessage `json:"stop"`
-	Stream            bool            `json:"stream"`
-	ReturnTokens      bool            `json:"return_tokens"`
-	CachePrompt       *bool           `json:"cache_prompt"`
-	NIndent           int             `json:"n_indent"`
-	NKeep             int             `json:"n_keep"`
-	NDiscard          int             `json:"n_discard"`
-	NCacheReuse       int             `json:"n_cache_reuse"`
-	NProbs            int             `json:"n_probs"`
-	TMaxPredictMS     int             `json:"t_max_predict_ms"`
-	IDSlot            *int            `json:"id_slot"`
-	TimingsPerToken   bool            `json:"timings_per_token"`
-	ReturnProgress    bool            `json:"return_progress"`
-	SSEPingInterval   *float64        `json:"sse_ping_interval"`
-	PostSamplingProbs bool            `json:"post_sampling_probs"`
-	ResponseFields    []string        `json:"response_fields"`
-	JSONSchema        json.RawMessage `json:"json_schema"`
-	LoRA              json.RawMessage `json:"lora"`
+	Prompt            json.RawMessage                `json:"prompt"`
+	Model             string                         `json:"model"`
+	NPredict          *int                           `json:"n_predict"`
+	NCmpl             int                            `json:"n_cmpl"`
+	Stop              json.RawMessage                `json:"stop"`
+	Stream            bool                           `json:"stream"`
+	ReturnTokens      bool                           `json:"return_tokens"`
+	CachePrompt       *bool                          `json:"cache_prompt"`
+	NIndent           int                            `json:"n_indent"`
+	NKeep             int                            `json:"n_keep"`
+	NDiscard          int                            `json:"n_discard"`
+	NCacheReuse       int                            `json:"n_cache_reuse"`
+	NProbs            int                            `json:"n_probs"`
+	TMaxPredictMS     int                            `json:"t_max_predict_ms"`
+	IDSlot            *int                           `json:"id_slot"`
+	TimingsPerToken   bool                           `json:"timings_per_token"`
+	ReturnProgress    bool                           `json:"return_progress"`
+	SSEPingInterval   *float64                       `json:"sse_ping_interval"`
+	PostSamplingProbs bool                           `json:"post_sampling_probs"`
+	ResponseFields    []string                       `json:"response_fields"`
+	JSONSchema        json.RawMessage                `json:"json_schema"`
+	LoRA              json.RawMessage                `json:"lora"`
+	ProjectedInputs   *inference.ProjectedInputsJSON `json:"projected_inputs"`
 	samplingParameters
 }
 
@@ -2275,6 +2276,15 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	var projectedInputs *inference.ProjectedInputs
+	if body.ProjectedInputs != nil {
+		projected, projectedErr := body.ProjectedInputs.ProjectedInputs()
+		if projectedErr != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", projectedErr.Error())
+			return
+		}
+		projectedInputs = &projected
+	}
 	if err := prepareStructuredOutput(
 		&body.samplingParameters,
 		body.JSONSchema,
@@ -2314,6 +2324,10 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	}
 	if body.NCmpl < 1 || body.NCmpl > 8 {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "n_cmpl must be in [1,8]")
+		return
+	}
+	if projectedInputs != nil && (len(prompts) != 1 || body.NCmpl != 1) {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "projected_inputs requires one prompt and one completion")
 		return
 	}
 	stops, err := parseStopSequences(body.Stop)
@@ -2363,6 +2377,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 			body.PostSamplingProbs,
 			lora,
 			loraConfigured,
+			projectedInputs,
 		)
 		return
 	}
@@ -2398,6 +2413,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 				body.NCacheReuse,
 				lora,
 				loraConfigured,
+				projectedInputs,
 			)
 			if generationErr != nil {
 				writeGenerationError(response, generationErr)
@@ -2580,6 +2596,8 @@ func validateNativeCompletionOptions(body nativeCompletionRequest) error {
 		return errors.New("n_cache_reuse is negative")
 	case body.NCacheReuse > 0 && (body.CachePrompt == nil || !*body.CachePrompt):
 		return errors.New("n_cache_reuse requires cache_prompt")
+	case body.ProjectedInputs != nil && body.CachePrompt != nil && *body.CachePrompt:
+		return errors.New("projected_inputs cannot use cache_prompt")
 	case body.NProbs < 0:
 		return errors.New("n_probs must be non-negative")
 	case body.TMaxPredictMS < -1:
@@ -2821,6 +2839,7 @@ func (h *Handler) nativeGenerationSettings(
 		"n_keep":                body.NKeep,
 		"n_discard":             body.NDiscard,
 		"cache_prompt":          body.CachePrompt != nil && *body.CachePrompt,
+		"projected_inputs":      body.ProjectedInputs != nil,
 		"sse_ping_interval":     nativeSSEPingInterval(body),
 	}
 }
@@ -2855,6 +2874,7 @@ func (h *Handler) runNativeCompletion(
 	minCacheReuse int,
 	lora []inference.LoRAScale,
 	loraConfigured bool,
+	projectedInputs *inference.ProjectedInputs,
 ) (nativeCompletionResponse, error) {
 	started := time.Now()
 	var output strings.Builder
@@ -2886,17 +2906,18 @@ func (h *Handler) runNativeCompletion(
 		slotID,
 		prompt.Text,
 		inference.GenerateOptions{
-			MaxNewTokens:   maxTokens,
-			Sampler:        sampler,
-			StopSequences:  stops,
-			ContextShift:   h.config.ContextShift,
-			KeepTokens:     nKeep,
-			DiscardTokens:  nDiscard,
-			PromptTokenIDs: prompt.TokenIDs,
-			CachePrompt:    cachePrompt,
-			MinCacheReuse:  minCacheReuse,
-			LoRA:           lora,
-			LoRAConfigured: loraConfigured,
+			MaxNewTokens:    maxTokens,
+			Sampler:         sampler,
+			StopSequences:   stops,
+			ContextShift:    h.config.ContextShift,
+			KeepTokens:      nKeep,
+			DiscardTokens:   nDiscard,
+			PromptTokenIDs:  prompt.TokenIDs,
+			CachePrompt:     cachePrompt,
+			MinCacheReuse:   minCacheReuse,
+			LoRA:            lora,
+			LoRAConfigured:  loraConfigured,
+			ProjectedInputs: projectedInputs,
 			PostSamplingProbabilities: func() int {
 				if postSamplingProbabilities {
 					return nProbs
@@ -3315,6 +3336,7 @@ func (h *Handler) streamNativeCompletion(
 	postSamplingProbabilities bool,
 	lora []inference.LoRAScale,
 	loraConfigured bool,
+	projectedInputs *inference.ProjectedInputs,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -3381,6 +3403,7 @@ func (h *Handler) streamNativeCompletion(
 				minCacheReuse,
 				lora,
 				loraConfigured,
+				projectedInputs,
 			)
 			if err != nil {
 				_ = stream.write(errorEnvelope("generation_error", err.Error()))

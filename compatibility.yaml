@@ -731,6 +731,13 @@ server:
       maximum: 64
       order: prompt-major
       heterogeneous: true
+    projected_inputs:
+      prompt_count: 1
+      completion_count: 1
+      fields:
+        - embedding-overrides
+        - four-axis-positions
+        - deepstack-embeddings
     streaming:
       partial-token-events: true
       final-metadata-event: true

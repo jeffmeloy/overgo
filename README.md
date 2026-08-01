@@ -144,9 +144,10 @@ four MRoPE coordinate arrays, and GGML-order deepstack tensors:
 }
 ```
 
-Token-only prompt caching and invocation-activated LoRA are rejected with
-projected payloads; ordinary LoRA scaling and generated-token continuation
-remain supported.
+The native `/completion` route accepts the same object as `projected_inputs`
+for a single prompt and completion. Token-only prompt caching and
+invocation-activated LoRA are rejected with projected payloads; ordinary LoRA
+scaling and generated-token continuation remain supported.
 
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,

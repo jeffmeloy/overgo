@@ -53,6 +53,7 @@ type fakeGenerator struct {
 	tokenDelay      time.Duration
 	lora            []inference.LoRAScale
 	loraConfigured  bool
+	projectedInputs *inference.ProjectedInputs
 }
 
 type failingMemoryGenerator struct {
@@ -116,6 +117,7 @@ func (f *fakeGenerator) Generate(
 	f.minCacheReuse = options.MinCacheReuse
 	f.lora = append([]inference.LoRAScale(nil), options.LoRA...)
 	f.loraConfigured = options.LoRAConfigured
+	f.projectedInputs = options.ProjectedInputs
 	f.mu.Unlock()
 	if f.started != nil {
 		f.mu.Lock()
@@ -1293,6 +1295,60 @@ func TestNativeCompletion(t *testing.T) {
 	if result.GenerationSettings["n_predict"] != float64(2) ||
 		result.GenerationSettings["model"] != "test-model" {
 		t.Fatalf("generation settings = %#v", result.GenerationSettings)
+	}
+}
+
+func TestNativeCompletionProjectedInputs(t *testing.T) {
+	generator := &fakeGenerator{}
+	handler := newTestHandler(t, generator)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/completion",
+		strings.NewReader(`{
+  "prompt": [5, 6],
+  "n_predict": 1,
+  "projected_inputs": {
+    "embedding_overrides": [{"token_index": 1, "embedding": [1, 2]}],
+    "multi_axis_positions": [[0, 1], [0, 1], [0, 1], [0, 1]],
+    "deepstack_embeddings": [{"shape": [2, 2], "data": [1, 2, 3, 4]}]
+  }
+}`),
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if generator.projectedInputs == nil ||
+		len(generator.projectedInputs.EmbeddingOverrides) != 1 ||
+		generator.projectedInputs.MultiAxisPositions == nil ||
+		len(generator.projectedInputs.DeepstackEmbeddings) != 1 {
+		t.Fatalf("projected inputs = %+v", generator.projectedInputs)
+	}
+	var result nativeCompletionResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.GenerationSettings["projected_inputs"] != true {
+		t.Fatalf("generation settings = %#v", result.GenerationSettings)
+	}
+}
+
+func TestNativeCompletionProjectedInputsRejectsPromptCache(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/completion",
+		strings.NewReader(`{
+  "prompt": [5],
+  "cache_prompt": true,
+  "projected_inputs": {"embedding_overrides": [{"token_index": 0, "embedding": [1]}]}
+}`),
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "cannot use cache_prompt") {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 }
 

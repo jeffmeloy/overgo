@@ -679,6 +679,54 @@ func TestReadWeightsDream(t *testing.T) {
 	}
 }
 
+func TestReadWeightsLlamaEmbedDenseAndMoE(t *testing.T) {
+	base := Spec{
+		Architecture: "llama-embed", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+	}
+	common := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_norm.weight", 8),
+	}
+
+	denseFile := &gguf.File{Tensors: append(append([]gguf.TensorInfo{}, common...),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 16),
+		tensorInfo("blk.0.ffn_up.weight", 8, 16),
+		tensorInfo("blk.0.ffn_down.weight", 16, 8),
+	)}
+	dense, err := ReadWeights(denseFile, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dense.OutputNorm.Name != "output_norm.weight" || dense.Output != nil ||
+		dense.Layers[0].FeedForwardGate.Name == "" || dense.Layers[0].FeedForwardRouter != nil {
+		t.Fatalf("unexpected dense Llama Embed catalog: %+v", dense)
+	}
+
+	moeSpec := base
+	moeSpec.ExpertCount, moeSpec.ExpertUsedCount, moeSpec.ExpertFeedForward = 4, 2, 16
+	moeSpec.ExpertWeightsScale = 1
+	moeFile := &gguf.File{Tensors: append(append([]gguf.TensorInfo{}, common...),
+		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_gate_exps.weight", 8, 16, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 8, 16, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 16, 8, 4),
+	)}
+	moe, err := ReadWeights(moeFile, moeSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moe.Layers[0].FeedForwardRouter == nil || moe.Layers[0].FeedForwardGateExperts == nil ||
+		moe.Layers[0].FeedForwardUpExperts == nil || moe.Layers[0].FeedForwardDownExperts == nil ||
+		moe.Layers[0].FeedForwardGate.Name != "" {
+		t.Fatalf("unexpected MoE Llama Embed catalog: %+v", moe.Layers[0])
+	}
+}
+
 func TestReadWeightsEuroBERTFusedQKVWithoutOutput(t *testing.T) {
 	spec := Spec{
 		Architecture: "eurobert", BlockCount: 1, EmbeddingLength: 8,

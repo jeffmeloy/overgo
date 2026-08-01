@@ -3978,6 +3978,76 @@ func TestBuildDenseLlamaBlockUsesNormalRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildLlamaEmbedBlocksUseBidirectionalNormalRoPE(t *testing.T) {
+	for _, moe := range []bool{false, true} {
+		name := "dense"
+		if moe {
+			name = "moe"
+		}
+		t.Run(name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: "llama-embed", EmbeddingLength: 8, FeedForwardLength: 12,
+				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+				RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5, NonCausalAttention: true,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+			weights := denseBlockInputs(builder, spec)
+			weights.AttentionQNorm = nil
+			weights.AttentionKNorm = nil
+			if moe {
+				spec.ExpertCount, spec.ExpertUsedCount, spec.ExpertFeedForward = 4, 2, 12
+				spec.ExpertWeightsScale = 1
+				weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
+				weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+				weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+				weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
+				weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
+			}
+			result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var attention *tensor.Tensor
+			var normal, experts int
+			for _, node := range nodes {
+				switch node.Op {
+				case tensor.OpAttention:
+					attention = node
+				case tensor.OpRoPENormal:
+					normal++
+				case tensor.OpMoE:
+					experts++
+				}
+			}
+			wantExperts := 0
+			if moe {
+				wantExperts = 1
+			}
+			if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Causal ||
+				normal != 2 || experts != wantExperts {
+				t.Fatalf("unexpected Llama Embed graph: attention=%v normal=%d experts=%d", attention, normal, experts)
+			}
+
+			cacheBuilder := tensor.NewBuilder()
+			cacheInput := cacheBuilder.Input("input", dtype.F32, tensor.MustShape(8, 1))
+			cacheWeights := denseBlockInputs(cacheBuilder, spec)
+			cacheWeights.AttentionQNorm = nil
+			cacheWeights.AttentionKNorm = nil
+			pastKey := cacheBuilder.Input("past_key", dtype.F32, tensor.MustShape(4, 1, 1))
+			pastValue := cacheBuilder.Input("past_value", dtype.F32, tensor.MustShape(4, 1, 1))
+			_, err = BuildDenseBlockCached(cacheBuilder, cacheInput, spec, cacheWeights, []uint32{1}, pastKey, pastValue)
+			if err == nil || !strings.Contains(err.Error(), "does not support a KV cache") {
+				t.Fatalf("cached Llama Embed block error = %v", err)
+			}
+		})
+	}
+}
+
 func TestBuildDenseLlamaBlockUsesLinearRoPEScale(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

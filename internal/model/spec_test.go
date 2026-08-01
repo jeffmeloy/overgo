@@ -2346,6 +2346,29 @@ func TestReadSpecDerivesHeadLength(t *testing.T) {
 	}
 }
 
+func TestReadLlamaEmbedSpecUsesBidirectionalLlamaExecution(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "llama-embed"),
+		metadata("llama-embed.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("llama-embed.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("llama-embed.embedding_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("llama-embed.feed_forward_length", gguf.ValueTypeUint32, uint32(256)),
+		metadata("llama-embed.attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("llama-embed.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("llama-embed.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("llama-embed.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("llama-embed.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "llama-embed" || !spec.NonCausalAttention || !spec.IsEncoderOnly() ||
+		!usesNormalRoPE(spec.Architecture) || spec.KeyLength != 32 || spec.ValueLength != 32 {
+		t.Fatalf("unexpected Llama Embed spec: %+v", spec)
+	}
+}
+
 func TestReadSpecAcceptsLinearRoPEScaling(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

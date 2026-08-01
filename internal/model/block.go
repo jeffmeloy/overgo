@@ -725,7 +725,7 @@ func BuildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !(spec.Architecture == "llama" && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGraniteMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isMellum && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter

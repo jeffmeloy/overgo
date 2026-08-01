@@ -110,7 +110,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
-	if architecture != "llama" && architecture != "internlm2" && architecture != "jais" &&
+	if architecture != "llama" && architecture != "llama-embed" && architecture != "internlm2" && architecture != "jais" &&
 		architecture != "arcee" &&
 		architecture != "apertus" &&
 		architecture != "arctic" &&
@@ -200,7 +200,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
 	spec := Spec{Architecture: architecture}
-	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" {
+	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" {
 		spec.NonCausalAttention = true
 	}
 	if architecture == "bert" || architecture == "jina-bert-v2" {
@@ -215,7 +215,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	prefix := architecture + "."
 	isLlamaMoE := false
-	if architecture == "llama" {
+	if architecture == "llama" || architecture == "llama-embed" {
 		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
 			isLlamaMoE = true
 		}
@@ -1694,6 +1694,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 
 func (s Spec) IsEncoderOnly() bool {
 	return s.Architecture == "bert" || s.Architecture == "eurobert" || s.Architecture == "jina-bert-v2" || s.Architecture == "jina-bert-v3" ||
+		s.Architecture == "llama-embed" ||
 		s.Architecture == "neo-bert" || s.Architecture == "nomic-bert" ||
 		s.Architecture == "nomic-bert-moe" ||
 		s.Architecture == "t5encoder"
@@ -2061,7 +2062,7 @@ func (s Spec) validate() error {
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("OLMoE expert or attention metadata is invalid")
 	}
-	if s.Architecture == "llama" && s.ExpertCount > 0 &&
+	if (s.Architecture == "llama" || s.Architecture == "llama-embed") && s.ExpertCount > 0 &&
 		(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
@@ -2467,7 +2468,7 @@ func usesPostOnlyNorm(architecture string) bool {
 }
 
 func usesNormalRoPE(architecture string) bool {
-	return architecture == "llama" ||
+	return architecture == "llama" || architecture == "llama-embed" ||
 		architecture == "arctic" ||
 		architecture == "deci" ||
 		architecture == "llada" ||

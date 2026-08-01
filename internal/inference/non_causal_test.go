@@ -17,11 +17,15 @@ func TestNonCausalRunnerRejectsCacheEntryPoint(t *testing.T) {
 	}
 }
 
-func TestBERTRunnerRejectsVocabularyLogits(t *testing.T) {
-	runner := &Runner{spec: model.Spec{Architecture: "bert"}}
-	_, err := runner.projectAllLogits(context.Background(), reference.Value{})
-	if err == nil || !strings.Contains(err.Error(), "hidden states") {
-		t.Fatalf("BERT logits error = %v", err)
+func TestEncoderRunnersRejectVocabularyLogits(t *testing.T) {
+	for _, architecture := range []string{"bert", "llama-embed"} {
+		t.Run(architecture, func(t *testing.T) {
+			runner := &Runner{spec: model.Spec{Architecture: architecture}}
+			_, err := runner.projectAllLogits(context.Background(), reference.Value{})
+			if err == nil || !strings.Contains(err.Error(), "hidden states") {
+				t.Fatalf("encoder logits error = %v", err)
+			}
+		})
 	}
 }
 

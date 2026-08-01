@@ -329,6 +329,27 @@ func (r *Runner) validateStep35MTPSession(session *Step35MTPSession) error {
 			return errors.New("inference: Step3.5 MTP draft hidden state is incompatible")
 		}
 	}
+	for offset, layer := range session.Heads {
+		tokens := session.MTPStart
+		if offset < len(session.DraftTokens) {
+			tokens += uint32(offset + 1)
+		}
+		block := r.spec.BlockCount + uint32(offset)
+		keyShape := tensor.MustShape(
+			uint64(r.spec.LayerKeyLength(block)),
+			uint64(r.spec.LayerKVHeadCount(block)),
+			uint64(tokens),
+		)
+		valueShape := tensor.MustShape(
+			uint64(r.spec.LayerValueLength(block)),
+			uint64(r.spec.LayerKVHeadCount(block)),
+			uint64(tokens),
+		)
+		if !layer.Key.Shape.Equal(keyShape) || !layer.Value.Shape.Equal(valueShape) ||
+			len(layer.Key.Data) == 0 || len(layer.Value.Data) == 0 {
+			return fmt.Errorf("inference: Step3.5 MTP head %d cache is incompatible", offset)
+		}
+	}
 	return nil
 }
 

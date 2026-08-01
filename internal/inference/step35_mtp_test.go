@@ -3,9 +3,11 @@ package inference
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 
 	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -78,5 +80,69 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	if third.Position != next.Position+1 || len(third.DraftTokens) != 2 ||
 		third.Heads[1].Key.Shape.Dims[2] != uint64(session.MTPStart+2) {
 		t.Fatalf("Step3.5 head-1 cache did not rebuild the draft prefix: %+v", third)
+	}
+	coordinatorSession, err := runner.NewStep35MTPSession(ctx, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := runner.DraftStep35MTPGreedy(ctx, 0, coordinatorSession, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(draft.Tokens) > int(runner.spec.NextNPredictLayers) {
+		t.Fatalf("Step3.5 greedy draft exceeded trained heads: %+v", draft)
+	}
+	verification, err := runner.VerifyStep35MTPGreedy(ctx, runner, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
+		verification.Session.Position != coordinatorSession.Position+uint32(verification.Accepted)+1 ||
+		verification.Session.TrunkCache.Position != verification.Session.Position ||
+		len(verification.Session.DraftTokens) != 0 {
+		t.Fatalf("unexpected Step3.5 greedy verification: draft=%+v result=%+v", draft, verification)
+	}
+	draftSampler, err := sampling.New(sampling.Config{
+		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetSampler, err := sampling.New(sampling.Config{
+		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSamplerBefore, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampledDraft, err := runner.DraftStep35MTPSampled(
+		ctx, coordinatorSession, draftSampler, []tokenizer.TokenID{0}, 10, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSamplerAfter, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
+		t.Fatal("Step3.5 sampled drafting changed caller sampler state")
+	}
+	sampledVerification, err := runner.VerifyStep35MTPSampled(
+		ctx, runner, sampledDraft, draftSampler, targetSampler,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sampledVerification.Accepted < 0 ||
+		sampledVerification.Accepted > len(sampledDraft.Tokens) ||
+		sampledVerification.Session.Position !=
+			coordinatorSession.Position+uint32(sampledVerification.Accepted)+1 ||
+		sampledVerification.Session.TrunkCache.Position != sampledVerification.Session.Position ||
+		len(sampledVerification.Session.DraftTokens) != 0 {
+		t.Fatalf("unexpected sampled Step3.5 MTP verification: draft=%+v result=%+v", sampledDraft, sampledVerification)
 	}
 }

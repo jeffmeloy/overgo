@@ -248,7 +248,8 @@ func buildBERTEncoderBlock(
 		"feed-forward post norm":      weights.FeedForwardPostNorm,
 		"feed-forward post norm bias": weights.FeedForwardPostNormBias,
 	}
-	usesExperts := spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(layerIndex)
+	usesExperts := (spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert-moe") &&
+		spec.IsInterleavedMoELayer(layerIndex)
 	if usesExperts {
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert up"] = weights.FeedForwardUpExperts

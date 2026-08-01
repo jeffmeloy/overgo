@@ -1517,41 +1517,45 @@ func TestReadWeightsJinaBERTV3PostNormGELU(t *testing.T) {
 	}
 }
 
-func TestReadWeightsNomicBERTMoEAlternatesDenseAndExperts(t *testing.T) {
-	spec := Spec{
-		Architecture: "nomic-bert-moe", BlockCount: 2, ContextLength: 8192,
-		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, TokenTypeCount: 2,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 16, ExpertWeightsScale: 1,
-		MoELayerStep: 2, LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDimensionCount: 4,
-	}
-	tensors := []gguf.TensorInfo{
-		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_types.weight", 8, 2),
-		tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
-	}
-	for block := 0; block < 2; block++ {
-		prefix := fmt.Sprintf("blk.%d.", block)
-		tensors = append(tensors,
-			tensorInfo(prefix+"attn_qkv.weight", 8, 24), tensorInfo(prefix+"attn_output.weight", 8, 8),
-			tensorInfo(prefix+"attn_output_norm.weight", 8), tensorInfo(prefix+"attn_output_norm.bias", 8),
-			tensorInfo(prefix+"layer_output_norm.weight", 8), tensorInfo(prefix+"layer_output_norm.bias", 8),
-		)
-	}
-	tensors = append(tensors,
-		tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
-		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
-		tensorInfo("blk.1.ffn_up_exps.weight", 8, 16, 4),
-		tensorInfo("blk.1.ffn_down_exps.weight", 16, 8, 4),
-	)
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dense, moe := weights.Layers[0], weights.Layers[1]
-	if dense.FeedForwardUp.Name == "" || dense.FeedForwardDown.Name == "" || dense.FeedForwardRouter != nil ||
-		moe.FeedForwardRouter == nil || moe.FeedForwardUpExperts == nil || moe.FeedForwardDownExperts == nil ||
-		moe.FeedForwardGateExperts != nil || moe.FeedForwardUp.Name != "" {
-		t.Fatalf("unexpected NomicBERT-MoE catalog: %+v / %+v", dense, moe)
+func TestReadWeightsBERTMoEAlternatesDenseAndExperts(t *testing.T) {
+	for _, architecture := range []string{"jina-bert-v3", "nomic-bert-moe"} {
+		t.Run(architecture, func(t *testing.T) {
+			spec := Spec{
+				Architecture: architecture, BlockCount: 2, ContextLength: 8192,
+				EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
+				KeyLength: 4, ValueLength: 4, VocabularySize: 32, TokenTypeCount: 2,
+				ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 16, ExpertWeightsScale: 1,
+				MoELayerStep: 2, LayerNormEpsilon: 1e-5, NonCausalAttention: true, RopeDimensionCount: 4,
+			}
+			tensors := []gguf.TensorInfo{
+				tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_types.weight", 8, 2),
+				tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
+			}
+			for block := 0; block < 2; block++ {
+				prefix := fmt.Sprintf("blk.%d.", block)
+				tensors = append(tensors,
+					tensorInfo(prefix+"attn_qkv.weight", 8, 24), tensorInfo(prefix+"attn_output.weight", 8, 8),
+					tensorInfo(prefix+"attn_output_norm.weight", 8), tensorInfo(prefix+"attn_output_norm.bias", 8),
+					tensorInfo(prefix+"layer_output_norm.weight", 8), tensorInfo(prefix+"layer_output_norm.bias", 8),
+				)
+			}
+			tensors = append(tensors,
+				tensorInfo("blk.0.ffn_up.weight", 8, 16), tensorInfo("blk.0.ffn_down.weight", 16, 8),
+				tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+				tensorInfo("blk.1.ffn_up_exps.weight", 8, 16, 4),
+				tensorInfo("blk.1.ffn_down_exps.weight", 16, 8, 4),
+			)
+			weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dense, moe := weights.Layers[0], weights.Layers[1]
+			if dense.FeedForwardUp.Name == "" || dense.FeedForwardDown.Name == "" || dense.FeedForwardRouter != nil ||
+				moe.FeedForwardRouter == nil || moe.FeedForwardUpExperts == nil || moe.FeedForwardDownExperts == nil ||
+				moe.FeedForwardGateExperts != nil || moe.FeedForwardUp.Name != "" {
+				t.Fatalf("unexpected %s MoE catalog: %+v / %+v", architecture, dense, moe)
+			}
+		})
 	}
 }
 

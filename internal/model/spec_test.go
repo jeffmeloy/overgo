@@ -873,6 +873,21 @@ func TestReadJinaBERTV3SpecUsesBidirectionalNeoXRoPE(t *testing.T) {
 		!usesPostOnlyNorm(spec.Architecture) || !usesGELU(spec.Architecture) {
 		t.Fatalf("unexpected JinaBERT v3 spec: %+v", spec)
 	}
+	moeFile := &gguf.File{Metadata: append([]gguf.Metadata(nil), file.Metadata...)}
+	moeFile.Metadata = append(moeFile.Metadata,
+		metadata("jina-bert-v3.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("jina-bert-v3.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("jina-bert-v3.moe_every_n_layers", gguf.ValueTypeUint32, uint32(2)),
+	)
+	moeSpec, err := ReadSpec(moeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moeSpec.ExpertCount != 4 || moeSpec.ExpertUsedCount != 2 ||
+		moeSpec.ExpertFeedForward != 16 || moeSpec.MoELayerStep != 2 ||
+		moeSpec.IsInterleavedMoELayer(0) || !moeSpec.IsInterleavedMoELayer(1) {
+		t.Fatalf("unexpected JinaBERT v3 MoE spec: %+v", moeSpec)
+	}
 }
 
 func TestReadNomicBERTMoESpecUsesInterleavedExperts(t *testing.T) {

@@ -2033,11 +2033,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
 		}
-		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
-			return Spec{}, errors.New("JinaBERT v3 expert layers are not supported")
-		}
-		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > 0 {
-			return Spec{}, errors.New("JinaBERT v3 MoE cadence is not supported")
+		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
+		spec.ExpertUsedCount, _ = optional[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32)
+		spec.MoELayerStep, _ = optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32)
+		if spec.ExpertCount > 0 {
+			spec.ExpertFeedForward = spec.FeedForwardLength
+			spec.ExpertWeightsScale = 1
+			if value, ok := optional[float32](values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32); ok {
+				spec.ExpertWeightsScale = value
+			}
 		}
 	}
 	if architecture == "nomic-bert" {
@@ -2713,7 +2717,7 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 }
 
 func (s Spec) IsInterleavedMoELayer(block uint32) bool {
-	if s.Architecture == "nomic-bert-moe" {
+	if s.Architecture == "jina-bert-v3" || s.Architecture == "nomic-bert-moe" {
 		return block < s.BlockCount && s.MoELayerStep > 1 && block%s.MoELayerStep == 1
 	}
 	return (s.Architecture == "ernie4_5-moe" && block >= s.LeadingDenseBlocks || s.Architecture == "llama4") &&
@@ -3115,7 +3119,11 @@ func (s Spec) validate() error {
 	if s.Architecture == "jina-bert-v3" &&
 		(s.TokenTypeCount == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0 ||
-			s.KeyLength != s.ValueLength) {
+			s.KeyLength != s.ValueLength ||
+			(s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.ExpertFeedForward != 0 || s.MoELayerStep != 0)) ||
+			(s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+				s.ExpertUsedCount > 16 || s.ExpertFeedForward != s.FeedForwardLength ||
+				s.MoELayerStep < 2 || s.ExpertWeightsScale <= 0))) {
 		return errors.New("JinaBERT v3 metadata is invalid")
 	}
 	if s.Architecture == "neo-bert" &&

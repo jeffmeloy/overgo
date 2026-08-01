@@ -3088,7 +3088,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					fusedGateUp = true
 				}
 			}
-			if spec.Architecture != "granitemoe" && spec.Architecture != "granitehybrid" && !(spec.Architecture == "granite" && spec.ExpertCount > 0) && spec.Architecture != "grok" && spec.Architecture != "ernie4_5-moe" && spec.Architecture != "nomic-bert-moe" && !fusedGateUp {
+			if spec.Architecture != "granitemoe" && spec.Architecture != "granitehybrid" && !(spec.Architecture == "granite" && spec.ExpertCount > 0) && spec.Architecture != "grok" && spec.Architecture != "ernie4_5-moe" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert-moe" && !fusedGateUp {
 				expertTensors["ffn_gate_exps.weight"] = struct {
 					shape       []uint64
 					destination **gguf.TensorInfo

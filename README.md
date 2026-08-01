@@ -471,6 +471,8 @@ state, and coordinator integration test.
 DeepSeek 3.2, GLM-DSA, GLM4/GLM4-MoE, EXAONE 4/EXAONE-MoE, BailingMoE2, and
 MiMo2 retain the declared NextN count while loading only the executable trunk,
 matching pinned upstream's preserved-but-unexecuted treatment of those tails.
+JinaBERT v3 supports optional cadence-selected, gate-free GELU expert layers
+with softmax top-k routing alongside its dense encoder layers.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA
 differentials use synthetic fixtures until a compatible local GGUF is available.
 GLM4-MoE dense-leading and expert catalogs, text-coordinate MRoPE, norm ordering,

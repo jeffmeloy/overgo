@@ -799,6 +799,11 @@ func (r *Runner) layerDeviceInputs(
 		{info.AttentionKVB, &result.AttentionKVB},
 		{info.AttentionKB, &result.AttentionKB},
 		{info.AttentionVB, &result.AttentionVB},
+		{info.IndexerKNorm, &result.IndexerKNorm},
+		{info.IndexerKNormBias, &result.IndexerKNormBias},
+		{info.IndexerProjection, &result.IndexerProjection},
+		{info.IndexerAttentionK, &result.IndexerAttentionK},
+		{info.IndexerAttentionQB, &result.IndexerAttentionQB},
 	} {
 		if item.info != nil {
 			if *item.destination, err = input(*item.info); err != nil {
@@ -1257,6 +1262,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
+		r.spec.Architecture != "glm-dsa" &&
 		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
 		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
@@ -1267,7 +1273,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
 	}
-	var firstLayerValue *reference.Value
+	var firstLayerValue, previousTopK *reference.Value
 	for layerIndex, layerInfo := range r.weights.Layers {
 		var past *LayerCache
 		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
@@ -1282,6 +1288,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		}
 		if (r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7") && layerIndex > 0 {
 			perLayerInput = firstLayerValue
+		}
+		if r.spec.Architecture == "glm-dsa" && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
+			perLayerInput = previousTopK
 		}
 		var layerCache LayerCache
 		activation, layerCache, err = r.runLayerCached(
@@ -1298,7 +1307,11 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
 		}
 		if layerCache.Auxiliary != nil {
-			firstLayerValue = layerCache.Auxiliary
+			if r.spec.Architecture == "glm-dsa" {
+				previousTopK = layerCache.Auxiliary
+			} else {
+				firstLayerValue = layerCache.Auxiliary
+			}
 			layerCache.Auxiliary = nil
 		}
 		nextCache.Layers[layerIndex] = layerCache
@@ -1628,7 +1641,7 @@ func (r *Runner) runLayerCached(
 	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	var pastKey, pastValue *tensor.Tensor
+	var pastKey, pastValue, pastIndexerKey *tensor.Tensor
 	jambaRecurrent := r.spec.Architecture == "jamba" && layerIndex < len(r.weights.Layers) &&
 		r.weights.Layers[layerIndex].Recurrent
 	graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && layerIndex < len(r.weights.Layers) &&
@@ -1713,6 +1726,10 @@ func (r *Runner) runLayerCached(
 		pastValue = builder.Input(fmt.Sprintf("blk.%d.cache_value", layerIndex), dtype.F32, past.Value.Shape)
 		hostFeeds[pastKey] = past.Key
 		hostFeeds[pastValue] = past.Value
+		if state, ok := past.States["indexer_key"]; ok {
+			pastIndexerKey = builder.Input(fmt.Sprintf("blk.%d.indexer_key", layerIndex), dtype.F32, state.Value.Shape)
+			hostFeeds[pastIndexerKey] = state.Value
+		}
 	}
 	var (
 		result model.DenseBlockResult
@@ -1742,6 +1759,11 @@ func (r *Runner) runLayerCached(
 		result, err = model.BuildMLABlockCachedForLayer(
 			builder, input, r.spec, graphWeights, positions, pastKey, pastValue, uint32(layerIndex),
 		)
+	} else if r.spec.Architecture == "glm-dsa" {
+		result, err = model.BuildGLMDSABlockCached(
+			builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
+			pastIndexerKey, graphWeights.PerLayerInput, uint32(layerIndex),
+		)
 	} else {
 		result, err = model.BuildDenseBlockCachedForLayer(
 			builder,
@@ -1768,6 +1790,9 @@ func (r *Runner) runLayerCached(
 	if result.Auxiliary != nil {
 		outputs = append(outputs, result.Auxiliary)
 	}
+	for _, state := range result.States {
+		outputs = append(outputs, state)
+	}
 	var results map[*tensor.Tensor]reference.Value
 	if r.hasPreloadedWeights() {
 		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
@@ -1784,6 +1809,12 @@ func (r *Runner) runLayerCached(
 	if result.Auxiliary != nil {
 		auxiliary := results[result.Auxiliary]
 		layerCache.Auxiliary = &auxiliary
+	}
+	if len(result.States) > 0 {
+		layerCache.States = make(map[string]LayerState, len(result.States))
+		for name, state := range result.States {
+			layerCache.States[name] = LayerState{Mode: CacheStateToken, Value: results[state]}
+		}
 	}
 	return results[outputTensor], layerCache, nil
 }
@@ -2268,7 +2299,7 @@ func (r *Runner) Generate(
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" &&
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
-		r.spec.Architecture != "mistral4" && r.spec.Architecture != "mamba" &&
+		r.spec.Architecture != "mistral4" && r.spec.Architecture != "glm-dsa" && r.spec.Architecture != "mamba" &&
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
 		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2" &&
 		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe" &&
@@ -3193,6 +3224,11 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.AttentionKVB,
 			layer.AttentionKB,
 			layer.AttentionVB,
+			layer.IndexerKNorm,
+			layer.IndexerKNormBias,
+			layer.IndexerProjection,
+			layer.IndexerAttentionK,
+			layer.IndexerAttentionQB,
 		} {
 			if pointer != nil {
 				names[pointer.Name] = struct{}{}

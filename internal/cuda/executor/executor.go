@@ -689,6 +689,7 @@ type functionSet struct {
 	topK              driver.Function
 	gatherLast        driver.Function
 	sparseAttention   driver.Function
+	indexerScore      driver.Function
 	rwkv7             driver.Function
 	moe               driver.Function
 	repeatHeads       driver.Function
@@ -872,6 +873,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"top_k_f32", &result.topK},
 		{"gather_last_f32", &result.gatherLast},
 		{"sparse_attention_f32", &result.sparseAttention},
+		{"indexer_score_f32", &result.indexerScore},
 		{"rwkv7_f32", &result.rwkv7},
 		{"moe_f32", &result.moe},
 		{"repeat_heads_f32", &result.repeatHeads},
@@ -1577,6 +1579,41 @@ func launchNode(
 			unsafe.Pointer(&causal), unsafe.Pointer(&queryStart), unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.sparseAttention, count, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpIndexerScore:
+		attributes, ok := node.Attrs.(tensor.IndexerScoreAttributes)
+		if !ok {
+			return errors.New("invalid IndexerScore attributes")
+		}
+		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "IndexerScore width")
+		if err != nil {
+			return err
+		}
+		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "IndexerScore heads")
+		if err != nil {
+			return err
+		}
+		queryTokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "IndexerScore query tokens")
+		if err != nil {
+			return err
+		}
+		keyTokens, err := uint32Checked(node.Inputs[1].Shape.Dims[2], "IndexerScore key tokens")
+		if err != nil {
+			return err
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		query, key, weights := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
+		scale, queryStart := attributes.Scale, attributes.QueryStart
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&query), unsafe.Pointer(&key), unsafe.Pointer(&weights), unsafe.Pointer(&output),
+			unsafe.Pointer(&width), unsafe.Pointer(&heads), unsafe.Pointer(&queryTokens),
+			unsafe.Pointer(&keyTokens), unsafe.Pointer(&scale), unsafe.Pointer(&queryStart), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.indexerScore, count, args)
 		runtime.KeepAlive(args)
 		return err
 	case tensor.OpRWKV7:

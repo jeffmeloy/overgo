@@ -54,6 +54,7 @@ const (
 	OpTopK
 	OpGatherLast
 	OpSparseAttention
+	OpIndexerScore
 )
 
 var opNames = [...]string{
@@ -99,6 +100,7 @@ var opNames = [...]string{
 	"top_k",
 	"gather_last",
 	"sparse_attention",
+	"indexer_score",
 }
 
 func (o Op) String() string {
@@ -251,6 +253,11 @@ type TopKAttributes struct {
 type SparseAttentionAttributes struct {
 	Scale      float32
 	Causal     bool
+	QueryStart uint32
+}
+
+type IndexerScoreAttributes struct {
+	Scale      float32
 	QueryStart uint32
 }
 
@@ -1659,6 +1666,42 @@ func (b *Builder) SparseAttentionWithOffset(
 		[]*Tensor{query, key, value, indices},
 		SparseAttentionAttributes{Scale: scale, Causal: causal, QueryStart: queryStart},
 	)
+}
+
+// IndexerScore: causal DSA head-reduced scores.
+func (b *Builder) IndexerScore(
+	query, key, weights *Tensor,
+	scale float32,
+	queryStart uint32,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if query == nil || key == nil || weights == nil || query.Type != dtype.F32 ||
+		key.Type != dtype.F32 || weights.Type != dtype.F32 {
+		b.setError(errors.New("IndexerScore requires F32 inputs"))
+		return nil
+	}
+	if query.Shape.Rank != 3 || key.Shape.Rank != 3 || weights.Shape.Rank != 2 ||
+		query.Shape.Dims[0] != key.Shape.Dims[0] || key.Shape.Dims[1] != 1 ||
+		weights.Shape.Dims[0] != query.Shape.Dims[1] ||
+		weights.Shape.Dims[1] != query.Shape.Dims[2] ||
+		uint64(queryStart) > key.Shape.Dims[2] ||
+		query.Shape.Dims[2] > key.Shape.Dims[2]-uint64(queryStart) {
+		b.setError(errors.New("IndexerScore input shapes are incompatible"))
+		return nil
+	}
+	if math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		b.setError(errors.New("IndexerScore scale must be finite"))
+		return nil
+	}
+	shape, err := NewShape(key.Shape.Dims[2], query.Shape.Dims[2])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpIndexerScore, []*Tensor{query, key, weights},
+		IndexerScoreAttributes{Scale: scale, QueryStart: queryStart})
 }
 
 // AttentionWithOffset: permits query to represent only suffix beginning at

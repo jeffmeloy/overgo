@@ -91,6 +91,11 @@ type HostLayer struct {
 	AttentionKVB                *reference.Value
 	AttentionKB                 *reference.Value
 	AttentionVB                 *reference.Value
+	IndexerKNorm                *reference.Value
+	IndexerKNormBias            *reference.Value
+	IndexerProjection           *reference.Value
+	IndexerAttentionK           *reference.Value
+	IndexerAttentionQB          *reference.Value
 
 	AttentionQKV         *reference.Value
 	AttentionQKVBias     *reference.Value
@@ -781,6 +786,11 @@ func LoadHostLayer(
 		{info.AttentionKVB, &result.AttentionKVB},
 		{info.AttentionKB, &result.AttentionKB},
 		{info.AttentionVB, &result.AttentionVB},
+		{info.IndexerKNorm, &result.IndexerKNorm},
+		{info.IndexerKNormBias, &result.IndexerKNormBias},
+		{info.IndexerProjection, &result.IndexerProjection},
+		{info.IndexerAttentionK, &result.IndexerAttentionK},
+		{info.IndexerAttentionQB, &result.IndexerAttentionQB},
 	} {
 		if item.info == nil {
 			continue
@@ -1076,6 +1086,11 @@ func (layer *HostLayer) GraphInputs(
 		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},
 		{"attn_k_b.weight", layer.AttentionKB, &result.AttentionKB},
 		{"attn_v_b.weight", layer.AttentionVB, &result.AttentionVB},
+		{"indexer.k_norm.weight", layer.IndexerKNorm, &result.IndexerKNorm},
+		{"indexer.k_norm.bias", layer.IndexerKNormBias, &result.IndexerKNormBias},
+		{"indexer.proj.weight", layer.IndexerProjection, &result.IndexerProjection},
+		{"indexer.attn_k.weight", layer.IndexerAttentionK, &result.IndexerAttentionK},
+		{"indexer.attn_q_b.weight", layer.IndexerAttentionQB, &result.IndexerAttentionQB},
 	} {
 		if item.value != nil {
 			*item.destination = input(item.name, *item.value)

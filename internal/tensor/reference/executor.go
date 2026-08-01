@@ -211,6 +211,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return gatherLast(node.Shape, inputs[0], inputs[1])
 	case tensor.OpSparseAttention:
 		return sparseAttention(node.Shape, inputs, node.Attrs.(tensor.SparseAttentionAttributes))
+	case tensor.OpIndexerScore:
+		return indexerScore(node.Shape, inputs, node.Attrs.(tensor.IndexerScoreAttributes))
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
 		if !ok {
@@ -1506,6 +1508,44 @@ func exactTensorIndex(value float32, limit int) (int, error) {
 		return 0, errors.New("index is not an exact integer")
 	}
 	return index, nil
+}
+
+func indexerScore(
+	shape tensor.Shape,
+	inputs []Value,
+	attributes tensor.IndexerScoreAttributes,
+) (Value, error) {
+	query, key, weights := inputs[0], inputs[1], inputs[2]
+	width := int(query.Shape.Dims[0])
+	heads := int(query.Shape.Dims[1])
+	queryTokens := int(query.Shape.Dims[2])
+	keyTokens := int(key.Shape.Dims[2])
+	if width <= 0 || heads <= 0 || queryTokens <= 0 || keyTokens <= 0 {
+		return Value{}, errors.New("invalid IndexerScore dimensions")
+	}
+	output := make([]float32, keyTokens*queryTokens)
+	for queryToken := range queryTokens {
+		for keyToken := range keyTokens {
+			if keyToken > int(attributes.QueryStart)+queryToken {
+				output[queryToken*keyTokens+keyToken] = float32(math.Inf(-1))
+				continue
+			}
+			var score float64
+			for head := range heads {
+				queryOffset := (queryToken*heads + head) * width
+				keyOffset := keyToken * width
+				var dot float64
+				for channel := range width {
+					dot += float64(query.Data[queryOffset+channel]) * float64(key.Data[keyOffset+channel])
+				}
+				if dot > 0 {
+					score += dot * float64(weights.Data[queryToken*heads+head])
+				}
+			}
+			output[queryToken*keyTokens+keyToken] = float32(score * float64(attributes.Scale))
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
 }
 
 func attention(

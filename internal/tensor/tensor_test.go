@@ -792,3 +792,17 @@ func TestBuilderGroupedMulMatShape(t *testing.T) {
 		t.Fatalf("unexpected grouped matmul output: %+v", output)
 	}
 }
+
+func TestBuilderIndexerScoreShape(t *testing.T) {
+	builder := NewBuilder()
+	query := builder.Input("query", dtype.F32, MustShape(4, 2, 3))
+	key := builder.Input("key", dtype.F32, MustShape(4, 1, 5))
+	weights := builder.Input("weights", dtype.F32, MustShape(2, 3))
+	output := builder.IndexerScore(query, key, weights, 0.5, 2)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Op != OpIndexerScore || !output.Shape.Equal(MustShape(5, 3)) {
+		t.Fatalf("unexpected indexer score output: %+v", output)
+	}
+}

@@ -45,17 +45,24 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 4))
 	attention := builder.SparseAttention(query, key, value, indices, 1)
 	causalAttention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, true, 0)
+	indexerQuery := builder.Input("indexer_query", dtype.F32, tensor.MustShape(2, 2, 2))
+	indexerKey := builder.Input("indexer_key", dtype.F32, tensor.MustShape(2, 1, 4))
+	indexerWeights := builder.Input("indexer_weights", dtype.F32, tensor.MustShape(2, 2))
+	indexerScores := builder.IndexerScore(indexerQuery, indexerKey, indexerWeights, 0.5, 2)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
 	feeds := map[*tensor.Tensor]reference.Value{
-		input: {Shape: input.Shape, Data: []float32{1, 2, 3, 4, 4, 3, 2, 1}},
-		table: {Shape: table.Shape, Data: []float32{10, 11, 20, 21, 30, 31, 40, 41}},
-		query: {Shape: query.Shape, Data: []float32{1, 1}},
-		key:   {Shape: key.Shape, Data: []float32{0, 1, 2, 3}},
-		value: {Shape: value.Shape, Data: []float32{10, 20, 30, 40}},
+		input:          {Shape: input.Shape, Data: []float32{1, 2, 3, 4, 4, 3, 2, 1}},
+		table:          {Shape: table.Shape, Data: []float32{10, 11, 20, 21, 30, 31, 40, 41}},
+		query:          {Shape: query.Shape, Data: []float32{1, 1}},
+		key:            {Shape: key.Shape, Data: []float32{0, 1, 2, 3}},
+		value:          {Shape: value.Shape, Data: []float32{10, 20, 30, 40}},
+		indexerQuery:   {Shape: indexerQuery.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
+		indexerKey:     {Shape: indexerKey.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
+		indexerWeights: {Shape: indexerWeights.Shape, Data: []float32{2, 1, 1, 3}},
 	}
-	outputs := []*tensor.Tensor{transformed, indices, gathered, attention, causalAttention}
+	outputs := []*tensor.Tensor{transformed, indices, gathered, attention, causalAttention, indexerScores}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -71,6 +78,66 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	}
 	for _, output := range outputs {
 		compare(t, got[output].Data, want[output].Data, 1e-5)
+	}
+}
+
+func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{Architecture: "glm-dsa", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 6, ValueLength: 4,
+		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6, LeadingDenseBlocks: 1, IndexerHeadCount: 2,
+		IndexerKeyLength: 8, IndexerTopK: 2, IndexerFullLayers: []bool{true}}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:      builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:         builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionQNorm:     builder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionQB:        builder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
+		AttentionKVAMQA:    builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm:   builder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKB:        builder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
+		AttentionVB:        builder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
+		AttentionOutput:    builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:    builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:    builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:      builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:    builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+		IndexerKNorm:       builder.Input("indexer_norm", dtype.F32, tensor.MustShape(8)),
+		IndexerKNormBias:   builder.Input("indexer_norm_bias", dtype.F32, tensor.MustShape(8)),
+		IndexerProjection:  builder.Input("indexer_proj", dtype.F32, tensor.MustShape(8, 2)),
+		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
+		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
+	}
+	result, err := model.BuildGLMDSABlockCached(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value, result.Auxiliary, result.States["indexer_key"]}
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	for _, node := range builder.Nodes() {
+		if node.Op == tensor.OpInput {
+			feeds[node] = patternedValue(node.Shape, int(node.ID%13)+3, 0.2, 0.1)
+		}
+	}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 2e-4)
 	}
 }
 

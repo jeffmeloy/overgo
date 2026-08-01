@@ -1455,6 +1455,60 @@ func TestReadDeepSeek2Spec(t *testing.T) {
 	}
 }
 
+func TestReadGLMDSASpec(t *testing.T) {
+	prefix := "glm-dsa."
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "glm-dsa"),
+		metadata(prefix+"block_count", gguf.ValueTypeUint32, uint32(6)),
+		metadata(prefix+"context_length", gguf.ValueTypeUint32, uint32(1048576)),
+		metadata(prefix+"embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"attention.key_length_mla", gguf.ValueTypeUint32, uint32(6)),
+		metadata(prefix+"attention.value_length_mla", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"attention.q_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata(prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata(prefix+"rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata(prefix+"rope.scaling.type", gguf.ValueTypeString, "yarn"),
+		metadata(prefix+"rope.scaling.factor", gguf.ValueTypeFloat32, float32(8)),
+		metadata(prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, uint32(131072)),
+		metadata(prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32, float32(0.1)),
+		metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata(prefix+"leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata(prefix+"expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata(prefix+"attention.indexer.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"attention.indexer.key_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata(prefix+"attention.indexer.top_k", gguf.ValueTypeUint32, uint32(4)),
+		{Key: prefix + "rope.dimension_sections", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 0, 0, 0}}},
+		{Key: prefix + "attention.indexer.types", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{1, 1, 1, 0, 0, 0}}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "glm-dsa" || spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 ||
+		spec.IndexerTopK != 4 || spec.ExpertGatingFunc != 2 || spec.RopeScalingType != "yarn" ||
+		spec.RopeYaRNLogMultiplier != 1 || !spec.LayerHasFullIndexer(2) ||
+		spec.LayerHasFullIndexer(3) || spec.RopeSections != [4]int32{1, 0, 0, 0} {
+		t.Fatalf("unexpected GLM-DSA spec: %+v", spec)
+	}
+	withoutSections := &gguf.File{}
+	for _, item := range file.Metadata {
+		if item.Key != prefix+"rope.dimension_sections" {
+			withoutSections.Metadata = append(withoutSections.Metadata, item)
+		}
+	}
+	if _, err := ReadSpec(withoutSections); err != nil {
+		t.Fatalf("optional GLM-DSA RoPE sections: %v", err)
+	}
+}
+
 func TestReadMistral4Spec(t *testing.T) {
 	prefix := "mistral4."
 	file := &gguf.File{Metadata: []gguf.Metadata{
@@ -3472,7 +3526,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	for _, architecture := range []string{
 		"unsupported-test", "gptj", "gemma3n", "gemma4-assistant", "falcon-h1",
-		"deepseek32", "deepseek4", "glm-dsa", "t5", "wavtokenizer-dec", "eagle3", "dflash",
+		"deepseek32", "deepseek4", "t5", "wavtokenizer-dec", "eagle3", "dflash",
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			file := &gguf.File{Metadata: []gguf.Metadata{

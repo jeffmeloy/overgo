@@ -814,6 +814,46 @@ extern "C" __global__ void sparse_attention_f32(
 	output[index] = weighted / sum;
 }
 
+extern "C" __global__ void indexer_score_f32(
+		const float * query,
+		const float * key,
+		const float * weights,
+		float * output,
+		unsigned int width,
+		unsigned int heads,
+		unsigned int query_tokens,
+		unsigned int key_tokens,
+		float scale,
+		unsigned int query_start,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int key_token = index % key_tokens;
+	const unsigned int query_token = index / key_tokens;
+	if (query_token >= query_tokens) {
+		return;
+	}
+	if (key_token > query_start + query_token) {
+		output[index] = -__int_as_float(0x7f800000);
+		return;
+	}
+	float score = 0.0f;
+	for (unsigned int head = 0; head < heads; ++head) {
+		const size_t query_offset = ((size_t) query_token * heads + head) * width;
+		const size_t key_offset = (size_t) key_token * width;
+		float dot = 0.0f;
+		for (unsigned int channel = 0; channel < width; ++channel) {
+			dot += query[query_offset + channel] * key[key_offset + channel];
+		}
+		if (dot > 0.0f) {
+			score += dot * weights[(size_t) query_token * heads + head];
+		}
+	}
+	output[index] = score * scale;
+}
+
 extern "C" __global__ void rwkv7_f32(
 		const float * receptance,
 		const float * decay,

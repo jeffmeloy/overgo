@@ -2212,6 +2212,84 @@ func TestBuildMiniCPM3MLABlock(t *testing.T) {
 	}
 }
 
+func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
+	spec := Spec{Architecture: "glm-dsa", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 6, ValueLength: 4,
+		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6, LeadingDenseBlocks: 2, IndexerHeadCount: 2,
+		IndexerKeyLength: 8, IndexerTopK: 2, IndexerFullLayers: []bool{true, false}}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:      builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:         builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionQNorm:     builder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionQB:        builder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
+		AttentionKVAMQA:    builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm:   builder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKB:        builder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
+		AttentionVB:        builder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
+		AttentionOutput:    builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:    builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:    builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:      builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:    builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+		IndexerKNorm:       builder.Input("indexer_norm", dtype.F32, tensor.MustShape(8)),
+		IndexerKNormBias:   builder.Input("indexer_norm_bias", dtype.F32, tensor.MustShape(8)),
+		IndexerProjection:  builder.Input("indexer_proj", dtype.F32, tensor.MustShape(8, 2)),
+		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
+		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
+	}
+	full, err := BuildGLMDSABlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.Auxiliary == nil || !full.Auxiliary.Shape.Equal(tensor.MustShape(2, 2)) ||
+		full.States["indexer_key"] == nil || !full.States["indexer_key"].Shape.Equal(tensor.MustShape(8, 1, 2)) {
+		t.Fatalf("unexpected full indexer result: %+v", full)
+	}
+	nodes, err := tensor.Topological(full.Output, full.Auxiliary, full.States["indexer_key"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fwht, score, topK, sparse bool
+	for _, node := range nodes {
+		fwht = fwht || node.Op == tensor.OpFWHT
+		score = score || node.Op == tensor.OpIndexerScore
+		topK = topK || node.Op == tensor.OpTopK
+		sparse = sparse || node.Op == tensor.OpSparseAttention
+	}
+	if !fwht || !score || !topK || !sparse {
+		t.Fatalf("GLM-DSA ops FWHT=%v score=%v top-k=%v sparse=%v", fwht, score, topK, sparse)
+	}
+
+	sharedBuilder := tensor.NewBuilder()
+	sharedInput := sharedBuilder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	sharedWeights := LayerGraphWeights{
+		AttentionNorm:    sharedBuilder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:       sharedBuilder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionQNorm:   sharedBuilder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionQB:      sharedBuilder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
+		AttentionKVAMQA:  sharedBuilder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm: sharedBuilder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKB:      sharedBuilder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
+		AttentionVB:      sharedBuilder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
+		AttentionOutput:  sharedBuilder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:  sharedBuilder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:  sharedBuilder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:    sharedBuilder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:  sharedBuilder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	previous := sharedBuilder.Input("top_k", dtype.F32, tensor.MustShape(2, 2))
+	shared, err := BuildGLMDSABlockCached(sharedBuilder, sharedInput, spec, sharedWeights, []uint32{0, 1}, nil, nil, nil, previous, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shared.Auxiliary != previous || len(shared.States) != 0 {
+		t.Fatalf("unexpected shared indexer result: %+v", shared)
+	}
+}
+
 func TestBuildChameleonSandwichBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

@@ -1394,3 +1394,23 @@ func TestExecuteGroupedMulMat(t *testing.T) {
 		t.Fatalf("grouped matmul = %v, want %v", results[output].Data, want)
 	}
 }
+
+func TestExecuteIndexerScore(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(2, 1, 3))
+	weights := builder.Input("weights", dtype.F32, tensor.MustShape(2, 2))
+	output := builder.IndexerScore(query, key, weights, 0.5, 1)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query:   {Shape: query.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
+		key:     {Shape: key.Shape, Data: []float32{1, 0, 0, 1, 1, 1}},
+		weights: {Shape: weights.Shape, Data: []float32{2, 1, 1, 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1, 0.5, float32(math.Inf(-1)), 0.5, 2, 1}
+	if !reflect.DeepEqual(results[output].Data, want) {
+		t.Fatalf("indexer score = %v, want %v", results[output].Data, want)
+	}
+}

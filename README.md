@@ -1,7 +1,7 @@
 # llamacpp2go
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
-Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1, DeepSeek2, DeepSeek2-OCR, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
+Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1, DeepSeek2, DeepSeek2-OCR, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon, Gemma 1/2/3/4 and Gemma Embedding,
@@ -396,6 +396,9 @@ expert storage are synthetic-fixture and CUDA-differential validated.
 DeepSeek2 and Mistral 4 query LoRA, legacy and absorbed MLA, YaRN scaling,
 temperature tuning, dense-prefix/MoE switching, correction bias, and shared
 experts are synthetic-fixture and CUDA-differential validated.
+GLM-DSA full/shared lightning indexers, FWHT key rotation, named indexer cache,
+top-k reuse, sparse absorbed MLA, YaRN scaling, and sigmoid MoE/shared experts
+are synthetic-fixture and CUDA-differential validated.
 Mamba v1 convolution state, selective-scan state, optional FalconMamba dt/B/C
 RMSNorm, D skip, and SiLU gate are synthetic-fixture and CUDA-differential validated.
 Mamba2 grouped B/C state, scalar-per-head A/D, grouped output RMSNorm, and

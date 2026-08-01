@@ -1821,6 +1821,26 @@ models:
       - image-encoder-external
       - image-grid-coordinate-construction-external
     real_model_validation: pending-fixture
+  qwen3vl:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quant
+    features:
+      - text-coordinate-decoder
+      - fused-or-separate-qkv-with-optional-bias
+      - pre-rope-per-head-qk-rmsnorm
+      - scaled-four-axis-split-half-mrope
+      - swiglu
+      - zero-filled-token-deepstack
+      - serializable-prefix-editable-kv-cache
+    limitations:
+      - projected-visual-deepstack-injection-external
+      - image-encoder-external
+      - image-grid-coordinate-construction-external
+      - classification-rerank-head-external
+    real_model_validation: pending-fixture
   qwen3:
     status: experimental
     types:

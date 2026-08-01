@@ -2906,6 +2906,10 @@ func TestBuildQwen2VLBlockUsesMRoPEAndOutputBias(t *testing.T) {
 	testBuildMRoPETextDecoderBlock(t, "qwen2vl")
 }
 
+func TestBuildQwen3VLBlockUsesQKNormAndMRoPE(t *testing.T) {
+	testBuildMRoPETextDecoderBlock(t, "qwen3vl")
+}
+
 func testBuildMRoPETextDecoderBlock(t *testing.T, architecture string) {
 	builder := tensor.NewBuilder()
 	spec := Spec{
@@ -2932,7 +2936,7 @@ func testBuildMRoPETextDecoderBlock(t *testing.T, architecture string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var multiRoPE, outputBias int
+	var multiRoPE, outputBias, rmsNorm int
 	for _, node := range nodes {
 		if node.Op == tensor.OpRoPEMulti {
 			multiRoPE++
@@ -2944,9 +2948,12 @@ func testBuildMRoPETextDecoderBlock(t *testing.T, architecture string) {
 		if node.Op == tensor.OpAdd && len(node.Inputs) == 2 && node.Inputs[1].Name == "attn_output_bias" {
 			outputBias++
 		}
+		if node.Op == tensor.OpRMSNorm {
+			rmsNorm++
+		}
 	}
-	if multiRoPE != 2 || outputBias != 1 {
-		t.Fatalf("%s graph has MRoPE=%d output-bias=%d", architecture, multiRoPE, outputBias)
+	if multiRoPE != 2 || outputBias != 1 || (architecture == "qwen3vl" && rmsNorm != 4) {
+		t.Fatalf("%s graph has MRoPE=%d output-bias=%d RMS=%d", architecture, multiRoPE, outputBias, rmsNorm)
 	}
 }
 

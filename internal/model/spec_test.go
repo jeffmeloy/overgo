@@ -2743,6 +2743,38 @@ func TestReadQwen2VLSpecUsesMRoPESections(t *testing.T) {
 	}
 }
 
+func TestReadQwen3VLSpecUsesMRoPEAndDeepstackMetadata(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen3vl"),
+		metadata("qwen3vl.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3vl.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("qwen3vl.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("qwen3vl.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("qwen3vl.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen3vl.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen3vl.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3vl.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen3vl.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("qwen3vl.rope.scaling.type", gguf.ValueTypeString, "linear"),
+		metadata("qwen3vl.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
+		metadata("qwen3vl.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("qwen3vl.n_deepstack_layers", gguf.ValueTypeUint32, uint32(3)),
+		metadata("qwen3vl.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		{Key: "qwen3vl.rope.dimension_sections", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
+		}},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "qwen3vl" || spec.RopeDimensionCount != 4 ||
+		spec.RopeSections != [4]int32{1, 1, 0, 0} || spec.RopeScalingFactor != 4 ||
+		spec.DeepstackLayerCount != 3 || usesNormalRoPE(spec.Architecture) {
+		t.Fatalf("unexpected Qwen3-VL spec: %+v", spec)
+	}
+}
+
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "mamba"),

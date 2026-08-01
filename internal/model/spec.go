@@ -88,6 +88,7 @@ type Spec struct {
 	SSMTimeStepRank       uint32
 	SSMGroupCount         uint32
 	FullAttentionInterval uint32
+	DeepstackLayerCount   uint32
 	RecurrentLayers       []bool
 }
 
@@ -198,6 +199,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen3moe" &&
 		architecture != "qwen2moe" &&
 		architecture != "qwen2vl" &&
+		architecture != "qwen3vl" &&
 		architecture != "qwen35" && architecture != "gemma" && architecture != "gemma-embedding" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
@@ -962,7 +964,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
-	if architecture == "paddleocr" || architecture == "qwen2vl" {
+	if architecture == "paddleocr" || architecture == "qwen2vl" || architecture == "qwen3vl" {
 		spec.RopeDimensionCount = spec.KeyLength
 		sections, sectionsErr := requiredArray[int32](
 			values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
@@ -977,6 +979,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			)
 		}
 		copy(spec.RopeSections[:], sections)
+	}
+	if architecture == "qwen3vl" {
+		if value, ok := optional[uint32](values, prefix+"n_deepstack_layers", gguf.ValueTypeUint32); ok {
+			spec.DeepstackLayerCount = value
+		}
 	}
 	if architecture == "smollm3" {
 		spec.NoRopeLayerStep = 4
@@ -2281,7 +2288,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
 	}
-	if s.Architecture == "paddleocr" || s.Architecture == "qwen2vl" {
+	if s.Architecture == "paddleocr" || s.Architecture == "qwen2vl" || s.Architecture == "qwen3vl" {
 		var sectionPairs int32
 		for _, section := range s.RopeSections {
 			if section < 0 {
@@ -2290,9 +2297,12 @@ func (s Spec) validate() error {
 			sectionPairs += section
 		}
 		if s.RopeDimensionCount == 0 || s.RopeDimensionCount%2 != 0 ||
-			s.RopeDimensionCount > s.KeyLength || sectionPairs == 0 ||
+			s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || sectionPairs == 0 ||
 			sectionPairs > int32(s.RopeDimensionCount/2) {
 			return fmt.Errorf("%s MRoPE metadata is invalid", s.Architecture)
+		}
+		if s.Architecture == "qwen3vl" && s.DeepstackLayerCount > s.BlockCount {
+			return errors.New("Qwen3-VL deepstack layer count exceeds block count")
 		}
 	}
 	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {

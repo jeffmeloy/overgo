@@ -3336,6 +3336,10 @@ func TestReadWeightsQwen2VL(t *testing.T) {
 	testReadWeightsMRoPETextDecoder(t, "qwen2vl")
 }
 
+func TestReadWeightsQwen3VL(t *testing.T) {
+	testReadWeightsMRoPETextDecoder(t, "qwen3vl")
+}
+
 func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 	spec := Spec{
 		Architecture: architecture, BlockCount: 1, EmbeddingLength: 8,
@@ -3349,13 +3353,20 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 12),
 		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8),
 	}}
+	if architecture == "qwen3vl" {
+		file.Tensors = append(file.Tensors,
+			tensorInfo("blk.0.attn_q_norm.weight", 4),
+			tensorInfo("blk.0.attn_k_norm.weight", 4),
+		)
+	}
 	weights, err := ReadWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
 	layer := weights.Layers[0]
 	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionOutputBias == nil ||
-		layer.FeedForwardNorm.Name == "" || layer.FeedForwardGate.Name == "" {
+		layer.FeedForwardNorm.Name == "" || layer.FeedForwardGate.Name == "" ||
+		(architecture == "qwen3vl" && (layer.AttentionQNorm == nil || layer.AttentionKNorm == nil)) {
 		t.Fatalf("unexpected %s catalog: %+v", architecture, weights)
 	}
 }

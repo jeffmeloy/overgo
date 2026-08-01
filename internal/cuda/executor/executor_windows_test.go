@@ -4661,6 +4661,10 @@ func TestExecutorQwen2VLBlockMatchesReference(t *testing.T) {
 	testExecutorMRoPETextDecoderBlockMatchesReference(t, "qwen2vl")
 }
 
+func TestExecutorQwen3VLBlockMatchesReference(t *testing.T) {
+	testExecutorMRoPETextDecoderBlockMatchesReference(t, "qwen3vl")
+}
+
 func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architecture string) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
@@ -4684,6 +4688,10 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
+	if architecture == "qwen3vl" {
+		weights.AttentionQNorm = builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(4))
+		weights.AttentionKNorm = builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(4))
+	}
 	result, err := model.BuildDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
@@ -4701,6 +4709,10 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 			offset = 1
 		}
 		feeds[node] = patternedValue(node.Shape, index+5, 0.05, offset)
+	}
+	if weights.AttentionQNorm != nil {
+		feeds[weights.AttentionQNorm] = patternedValue(weights.AttentionQNorm.Shape, 31, 0.03, 1)
+		feeds[weights.AttentionKNorm] = patternedValue(weights.AttentionKNorm.Shape, 37, 0.03, 1)
 	}
 	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
 	want, err := reference.Execute(outputs, feeds)

@@ -67,6 +67,7 @@ type HostLayer struct {
 	FeedForwardSharedUp      *reference.Value
 	FeedForwardSharedDown    *reference.Value
 	FeedForwardSharedRouter  *reference.Value
+	LayerOutputScale         *reference.Value
 	ShortConvKernel          *reference.Value
 	ShortConvInput           *reference.Value
 	ShortConvOutput          *reference.Value
@@ -488,6 +489,7 @@ func LoadHostLayer(
 		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{info.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
+		{info.LayerOutputScale, &result.LayerOutputScale},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -658,6 +660,7 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_up_shexp.weight", layer.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{"ffn_down_shexp.weight", layer.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{"ffn_gate_inp_shexp.weight", layer.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
+		{"layer_out_scale.weight", layer.LayerOutputScale, &result.LayerOutputScale},
 		{"attn_kv_a_mqa.weight", layer.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{"attn_kv_a_norm.weight", layer.AttentionKVANorm, &result.AttentionKVANorm},
 		{"attn_kv_b.weight", layer.AttentionKVB, &result.AttentionKVB},

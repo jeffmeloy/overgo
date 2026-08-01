@@ -353,6 +353,9 @@ func (r *Runner) applyDeviceOutputNorm(
 	if r.spec.UsesUnweightedLayerNorm() {
 		return builder.LayerNorm(input, r.spec.LayerNormEpsilon), builder.Err()
 	}
+	if r.spec.UsesUnweightedRMSNorm() {
+		return builder.RMSNorm(input, r.spec.RMSNormEpsilon), builder.Err()
+	}
 	weight, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
 	if err != nil {
 		return nil, err
@@ -544,6 +547,7 @@ func (r *Runner) layerDeviceInputs(
 		{info.FeedForwardSharedUp, &result.FeedForwardSharedUp},
 		{info.FeedForwardSharedDown, &result.FeedForwardSharedDown},
 		{info.FeedForwardSharedRouter, &result.FeedForwardSharedRouter},
+		{info.LayerOutputScale, &result.LayerOutputScale},
 		{info.AttentionKVAMQA, &result.AttentionKVAMQA},
 		{info.AttentionKVANorm, &result.AttentionKVANorm},
 		{info.AttentionKVB, &result.AttentionKVB},
@@ -981,6 +985,14 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
+	var embeddingSkip reference.Value
+	if r.spec.UsesUnweightedRMSNorm() {
+		activation, err = r.runUnweightedRMSNorm(ctx, activation)
+		if err != nil {
+			return reference.Value{}, nil, err
+		}
+		embeddingSkip = activation
+	}
 	nextCache := &KVCache{
 		Layers:   make([]LayerCache, len(r.weights.Layers)),
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
@@ -989,7 +1001,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" {
-		return r.forwardDenseLayersPreloaded(ctx, activation, positions, cache, nextCache)
+		return r.forwardDenseLayersPreloaded(ctx, activation, embeddingSkip, positions, cache, nextCache)
 	}
 	for layerIndex, layerInfo := range r.weights.Layers {
 		var past *LayerCache
@@ -1004,6 +1016,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			layerIndex,
 			positions,
 			past,
+			embeddingSkip,
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
@@ -1066,6 +1079,7 @@ func applyEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingO
 func (r *Runner) forwardDenseLayersPreloaded(
 	ctx context.Context,
 	activation reference.Value,
+	embeddingSkip reference.Value,
 	positions []uint32,
 	cache *KVCache,
 	nextCache *KVCache,
@@ -1081,6 +1095,9 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
 		if err != nil {
 			return reference.Value{}, nil, err
+		}
+		if r.spec.Architecture == "talkie" {
+			graphWeights.EmbeddingSkip = input
 		}
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
@@ -1258,6 +1275,7 @@ func (r *Runner) runLayerCached(
 	layerIndex int,
 	positions []uint32,
 	past *LayerCache,
+	embeddingSkip reference.Value,
 ) (reference.Value, LayerCache, error) {
 	if r.spec.Architecture == "qwen35" {
 		return r.runQwen35LayerCached(
@@ -1296,6 +1314,11 @@ func (r *Runner) runLayerCached(
 		for node, value := range layerFeeds {
 			hostFeeds[node] = value
 		}
+	}
+	if r.spec.Architecture == "talkie" {
+		skip := builder.Input("embedding_skip", dtype.F32, embeddingSkip.Shape)
+		hostFeeds[skip] = embeddingSkip
+		graphWeights.EmbeddingSkip = skip
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil {
@@ -1627,6 +1650,9 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 		}
 		return results[output], nil
 	}
+	if r.spec.UsesUnweightedRMSNorm() {
+		return r.runUnweightedRMSNorm(ctx, activation)
+	}
 	if r.hasPreloadedWeights() {
 		builder := tensor.NewBuilder()
 		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
@@ -1683,6 +1709,29 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 		return reference.Value{}, err
 	}
 	results, err := r.cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return results[output], nil
+}
+
+func (r *Runner) runUnweightedRMSNorm(
+	ctx context.Context,
+	activation reference.Value,
+) (reference.Value, error) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("rms_norm.input", dtype.F32, activation.Shape)
+	output := builder.RMSNorm(input, r.spec.RMSNormEpsilon)
+	feeds := map[*tensor.Tensor]reference.Value{input: activation}
+	var (
+		results map[*tensor.Tensor]reference.Value
+		err     error
+	)
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, feeds, nil)
+	} else {
+		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
+	}
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -2517,6 +2566,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardSharedUp,
 			layer.FeedForwardSharedDown,
 			layer.FeedForwardSharedRouter,
+			layer.LayerOutputScale,
 			layer.AttentionKVAMQA,
 			layer.AttentionKVANorm,
 			layer.AttentionKVB,

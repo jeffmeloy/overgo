@@ -203,6 +203,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "gemma2" &&
 		architecture != "gemma3" &&
 		architecture != "falcon" &&
+		architecture != "talkie" &&
 		architecture != "t5encoder" {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
@@ -491,6 +492,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok {
 			spec.RopeDimensionCount = value
 		}
+	}
+	if architecture == "talkie" {
+		if spec.LogitScale, err = required[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32); err != nil {
+			return Spec{}, err
+		}
+		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if architecture == "minicpm" || architecture == "minicpm3" {
 		spec.EmbeddingScale = 12
@@ -1752,7 +1759,7 @@ func (s Spec) InputEmbeddingScale() float32 {
 
 func (s Spec) OutputLogitMultiplier() float32 {
 	if s.LogitScale > 0 {
-		if s.Architecture == "cohere2" || s.Architecture == "cohere2moe" || s.Architecture == "command-r" || s.Architecture == "grok" {
+		if s.Architecture == "cohere2" || s.Architecture == "cohere2moe" || s.Architecture == "command-r" || s.Architecture == "grok" || s.Architecture == "talkie" {
 			return s.LogitScale
 		}
 		return 1 / s.LogitScale
@@ -1794,6 +1801,10 @@ func (s Spec) RequiresLayerNormBias() bool {
 
 func (s Spec) UsesUnweightedLayerNorm() bool {
 	return s.Architecture == "olmo"
+}
+
+func (s Spec) UsesUnweightedRMSNorm() bool {
+	return s.Architecture == "talkie"
 }
 
 func (s Spec) UsesWeightOnlyLayerNorm() bool {
@@ -2445,6 +2456,10 @@ func (s Spec) validate() error {
 			return errors.New("Gemma embedding dense-3 output width must match embedding length")
 		}
 	}
+	if s.Architecture == "talkie" &&
+		(s.KeyLength != s.ValueLength || s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0) {
+		return errors.New("Talkie attention metadata is invalid")
+	}
 	if s.Architecture == "apertus" {
 		if s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0 ||
 			s.OriginalContextLength == 0 || s.RopeAttentionFactor <= 0 ||
@@ -2541,7 +2556,7 @@ func (s Spec) validate() error {
 	if s.LogitScale < 0 ||
 		math.IsNaN(float64(s.LogitScale)) ||
 		math.IsInf(float64(s.LogitScale), 0) ||
-		((s.Architecture == "minicpm" || s.Architecture == "granite" || s.Architecture == "granitemoe") &&
+		((s.Architecture == "minicpm" || s.Architecture == "granite" || s.Architecture == "granitemoe" || s.Architecture == "talkie") &&
 			s.LogitScale == 0) {
 		return errors.New("logit scale must be finite and positive when required")
 	}

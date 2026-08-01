@@ -62,6 +62,8 @@ type LayerGraphWeights struct {
 	FeedForwardSharedUp      *tensor.Tensor
 	FeedForwardSharedDown    *tensor.Tensor
 	FeedForwardSharedRouter  *tensor.Tensor
+	LayerOutputScale         *tensor.Tensor
+	EmbeddingSkip            *tensor.Tensor
 	ShortConvKernel          *tensor.Tensor
 	ShortConvInput           *tensor.Tensor
 	ShortConvOutput          *tensor.Tensor
@@ -493,6 +495,126 @@ func buildGemmaEmbeddingBlock(
 	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
 }
 
+func buildTalkieBlock(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("Talkie block input shape is incompatible")
+	}
+	if weights.EmbeddingSkip == nil || !weights.EmbeddingSkip.Shape.Equal(input.Shape) {
+		return DenseBlockResult{}, errors.New("Talkie block embedding skip is missing or incompatible")
+	}
+	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Talkie block position count is incompatible")
+	}
+	if (pastKey == nil) != (pastValue == nil) {
+		return DenseBlockResult{}, errors.New("Talkie block past key/value cache must both be present")
+	}
+	if weights.AttentionQKV != nil &&
+		(weights.AttentionQBias != nil || weights.AttentionKBias != nil || weights.AttentionVBias != nil) {
+		return DenseBlockResult{}, errors.New("Talkie fused QKV cannot use separate projection biases")
+	}
+	if weights.AttentionQKV == nil && weights.AttentionQKVBias != nil {
+		return DenseBlockResult{}, errors.New("Talkie fused QKV bias has no fused projection")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention output":   weights.AttentionOutput,
+		"attention Q norm":   weights.AttentionQNorm,
+		"feed-forward gate":  weights.FeedForwardGate,
+		"feed-forward up":    weights.FeedForwardUp,
+		"feed-forward down":  weights.FeedForwardDown,
+		"layer output scale": weights.LayerOutputScale,
+	}
+	if weights.AttentionQKV != nil {
+		required["attention QKV"] = weights.AttentionQKV
+	} else {
+		required["attention Q"] = weights.AttentionQ
+		required["attention K"] = weights.AttentionK
+		required["attention V"] = weights.AttentionV
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("Talkie block %s weight is nil", name)
+		}
+	}
+
+	tokens := uint64(len(positions))
+	headCount := uint64(spec.HeadCount)
+	kvHeadCount := uint64(spec.HeadCountKV)
+	queryLength := headCount * uint64(spec.KeyLength)
+	keyLength := kvHeadCount * uint64(spec.KeyLength)
+	valueLength := kvHeadCount * uint64(spec.ValueLength)
+	normalized := builder.RMSNorm(input, spec.RMSNormEpsilon)
+	var query, key, value *tensor.Tensor
+	if weights.AttentionQKV != nil {
+		mixed := builder.MulMat(weights.AttentionQKV, normalized)
+		if weights.AttentionQKVBias != nil {
+			mixed = builder.Add(mixed, weights.AttentionQKVBias)
+		}
+		stride := queryLength + keyLength + valueLength
+		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, tokens)
+		key = builder.Reshape(builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, tokens)
+		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
+	} else {
+		query = builder.MulMat(weights.AttentionQ, normalized)
+		key = builder.MulMat(weights.AttentionK, normalized)
+		value = builder.MulMat(weights.AttentionV, normalized)
+		if weights.AttentionQBias != nil {
+			query = builder.Add(query, weights.AttentionQBias)
+		}
+		if weights.AttentionKBias != nil {
+			key = builder.Add(key, weights.AttentionKBias)
+		}
+		if weights.AttentionVBias != nil {
+			value = builder.Add(value, weights.AttentionVBias)
+		}
+	}
+	query = builder.Reshape(query, uint64(spec.KeyLength), headCount, tokens)
+	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeadCount, tokens)
+	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeadCount, tokens)
+	query = builder.RoPENeoXScaled(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
+	key = builder.RoPENeoXScaled(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
+	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+	key = builder.RMSNorm(key, spec.RMSNormEpsilon)
+
+	cacheKey := key
+	cacheValue := value
+	var queryStart uint32
+	if pastKey != nil {
+		if pastKey.Shape.Dims[2] > math.MaxUint32 {
+			return DenseBlockResult{}, errors.New("Talkie KV cache token count exceeds uint32")
+		}
+		queryStart = uint32(pastKey.Shape.Dims[2])
+		cacheKey = builder.Concat(pastKey, key, 2)
+		cacheValue = builder.Concat(pastValue, value, 2)
+	}
+	attention := builder.AttentionWithOffset(
+		query, cacheKey, cacheValue,
+		float32(1/math.Sqrt(float64(spec.KeyLength))), true, queryStart,
+	)
+	attention = builder.Reshape(attention, headCount*uint64(spec.ValueLength), tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if weights.AttentionOutputBias != nil {
+		attention = builder.Add(attention, weights.AttentionOutputBias)
+	}
+	residual := builder.Add(input, attention)
+	normalized = builder.RMSNorm(residual, spec.RMSNormEpsilon)
+	gate := builder.MulMat(weights.FeedForwardGate, normalized)
+	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	output := builder.Add(residual, feedForward)
+	output = builder.Add(output, builder.Multiply(weights.EmbeddingSkip, weights.LayerOutputScale))
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
 // BuildT5EncoderBlock: constructs one full, bidirectional T5 encoder block
 func BuildT5EncoderBlock(
 	builder *tensor.Builder,
@@ -899,6 +1021,9 @@ func BuildDenseBlockCachedForLayer(
 	}
 	if spec.Architecture == "gemma-embedding" {
 		return buildGemmaEmbeddingBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
+	}
+	if spec.Architecture == "talkie" {
+		return buildTalkieBlock(builder, input, spec, weights, positions, pastKey, pastValue)
 	}
 	isOLMo2 := spec.Architecture == "olmo2"
 	isOLMoE := spec.Architecture == "olmoe"

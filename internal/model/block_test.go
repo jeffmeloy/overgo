@@ -4244,6 +4244,73 @@ func TestBuildGemmaEmbeddingBlocksUseQKNormAndPeriodicSymmetricWindows(t *testin
 	}
 }
 
+func TestBuildTalkieBlockUsesPostRoPEQueryGainAndEmbeddingSkip(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "talkie", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	skip := builder.Input("embedding_skip", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionQ:       builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionK:       builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:       builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput:  builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionQNorm:   builder.Input("q_norm", dtype.F32, tensor.MustShape(1, 2)),
+		FeedForwardGate:  builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+		LayerOutputScale: builder.Input("layer_scale", dtype.F32, tensor.MustShape(1)),
+		EmbeddingSkip:    skip,
+	}
+	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(4, 1, 1))
+	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(4, 1, 1))
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{1, 2}, pastKey, pastValue, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Key.Shape.Dims[2] != 3 || result.Value.Shape.Dims[2] != 3 {
+		t.Fatalf("Talkie cache shapes = %v/%v", result.Key.Shape.Slice(), result.Value.Shape.Slice())
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention *tensor.Tensor
+	var neoX, rmsNorm, silu, skipProducts int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attention = node
+		case tensor.OpRoPENeoX:
+			neoX++
+		case tensor.OpRMSNorm:
+			rmsNorm++
+		case tensor.OpSiLU:
+			silu++
+		case tensor.OpMultiply:
+			if len(node.Inputs) == 2 &&
+				((node.Inputs[0] == skip && node.Inputs[1] == weights.LayerOutputScale) ||
+					(node.Inputs[1] == skip && node.Inputs[0] == weights.LayerOutputScale)) {
+				skipProducts++
+			}
+		}
+	}
+	if attention == nil {
+		t.Fatal("Talkie attention node is missing")
+	}
+	attributes := attention.Attrs.(tensor.AttentionAttributes)
+	if !attributes.Causal || attributes.QueryStart != 1 ||
+		math.Abs(float64(attributes.Scale-0.5)) > 1e-6 ||
+		neoX != 2 || rmsNorm != 4 || silu != 1 || skipProducts != 1 {
+		t.Fatalf("unexpected Talkie graph: attention=%v RMS=%d NeoX=%d SiLU=%d skip=%d", attention, rmsNorm, neoX, silu, skipProducts)
+	}
+}
+
 func TestBuildDenseLlamaBlockUsesLinearRoPEScale(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

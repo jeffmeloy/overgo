@@ -2723,6 +2723,33 @@ func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	}
 }
 
+func TestReadTalkieSpecUsesUnweightedRMSNormAndDirectLogitScale(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "talkie"),
+		metadata("talkie.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("talkie.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("talkie.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("talkie.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("talkie.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("talkie.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("talkie.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("talkie.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("talkie.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("talkie.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("talkie.logit_scale", gguf.ValueTypeFloat32, float32(0.125)),
+		metadata("talkie.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "talkie" || !spec.UsesUnweightedRMSNorm() ||
+		spec.UsesUnweightedLayerNorm() || spec.RopeDimensionCount != 4 ||
+		usesNormalRoPE(spec.Architecture) || spec.OutputLogitMultiplier() != 0.125 {
+		t.Fatalf("unexpected Talkie spec: %+v", spec)
+	}
+}
+
 func TestReadSpecRejectsUnsupportedRoPEScaling(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "llama"),

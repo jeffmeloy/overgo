@@ -3376,6 +3376,31 @@ func TestReadRealUMT5Catalog(t *testing.T) {
 	}
 }
 
+func TestReadWeightsTalkieUsesEmbeddingSkipCatalog(t *testing.T) {
+	spec := Spec{
+		Architecture: "talkie", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32, RMSNormEpsilon: 1e-6,
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_qkv.weight", 8, 16), tensorInfo("blk.0.attn_qkv.bias", 16),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.attn_q_norm.weight", 1, 2),
+		tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_up.weight", 8, 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8), tensorInfo("blk.0.layer_out_scale.weight", 1),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output == nil || weights.OutputNorm.Name != "" || layer.AttentionNorm.Name != "" ||
+		layer.FeedForwardNorm.Name != "" || layer.AttentionQKV == nil ||
+		layer.AttentionQNorm == nil || layer.AttentionKNorm != nil || layer.LayerOutputScale == nil {
+		t.Fatalf("unexpected Talkie catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsAcceptsDenseProjectionBiases(t *testing.T) {
 	spec := Spec{
 		Architecture:      "llama",

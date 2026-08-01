@@ -350,6 +350,11 @@ func (r *Runner) forwardDeviceCachedLocked(
 		}
 		current = model.ApplyNormalization(builder, current, normWeight, normBias, r.spec)
 	}
+	embeddingSkip := current
+	if r.spec.UsesUnweightedRMSNorm() {
+		current = builder.RMSNorm(current, r.spec.RMSNormEpsilon)
+		embeddingSkip = current
+	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
@@ -359,6 +364,9 @@ func (r *Runner) forwardDeviceCachedLocked(
 		}
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
+		}
+		if r.spec.Architecture == "talkie" {
+			graphWeights.EmbeddingSkip = embeddingSkip
 		}
 		if r.spec.Architecture == "qwen35" {
 			var pastKey, pastValue, convState, ssmState *tensor.Tensor

@@ -944,6 +944,28 @@ models:
       - required-projection-biases
       - tied-or-untied-output
     real_model_validation: pending-fixture
+  gpt-oss:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+      - retained-device-cache
+    tokenizers:
+      - gpt4o-bpe
+    features:
+      - separate-qkv
+      - normal-rope
+      - alternating-standard-sliding-and-full-attention
+      - attention-sinks
+      - biased-attention-output
+      - residual-post-attention-rmsnorm
+      - selected-expert-softmax-routing
+      - biased-openai-swiglu-experts
+      - mxfp4-native-expert-storage
+      - untied-output-projection
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   starcoder:
     status: experimental
     features:

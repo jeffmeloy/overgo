@@ -366,6 +366,76 @@ func TestExecutorLlama4MoEBlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 1e-6)
 }
 
+func TestExecutorGPTOSSBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "gpt-oss", BlockCount: 2, EmbeddingLength: 4, FeedForwardLength: 4,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RopeFrequencySWA: 2000,
+		RMSNormEpsilon: 1e-5, SlidingWindow: 4, SlidingPattern: 2,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 4,
+		ExpertWeightsScale: 1, ExpertGatingFunc: 3,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionPostNorm:      builder.Input("post_attn_norm", dtype.F32, tensor.MustShape(4)),
+		AttentionQ:             builder.Input("attn_q", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionK:             builder.Input("attn_k", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionV:             builder.Input("attn_v", dtype.F32, tensor.MustShape(4, 2)),
+		AttentionOutput:        builder.Input("attn_output", dtype.F32, tensor.MustShape(4, 4)),
+		AttentionOutputBias:    builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(4)),
+		AttentionSinks:         builder.Input("attn_sinks", dtype.F32, tensor.MustShape(2)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardRouterBias:  builder.Input("router_bias", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGateExperts: builder.Input("gate_exps", dtype.F32, tensor.MustShape(4, 4, 4)),
+		FeedForwardGateBias:    builder.Input("gate_bias", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(4, 4, 4)),
+		FeedForwardUpBias:      builder.Input("up_bias", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(4, 4, 4)),
+		FeedForwardDownBias:    builder.Input("down_bias", dtype.F32, tensor.MustShape(4, 4)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQ, weights.AttentionK, weights.AttentionV, weights.AttentionOutput,
+		weights.FeedForwardRouter, weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
+		weights.FeedForwardDownExperts,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.08, 0)
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionNorm, weights.AttentionPostNorm, weights.AttentionOutputBias,
+		weights.AttentionSinks, weights.FeedForwardRouterBias, weights.FeedForwardGateBias,
+		weights.FeedForwardUpBias, weights.FeedForwardDownBias,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+31, 0.03, 0.7)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 1e-6)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 1e-6)
+}
+
 func TestExecutorGLM4MoEBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

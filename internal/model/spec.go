@@ -178,6 +178,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "glm4" &&
 		architecture != "glm4-moe" &&
 		architecture != "gpt2" &&
+		architecture != "gpt-oss" &&
 		architecture != "gptneox" &&
 		architecture != "grovemoe" &&
 		architecture != "grok" &&
@@ -1312,7 +1313,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "llama4" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1353,6 +1354,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ExpertGatingFunc = 2
 		}
 		spec.ExpertWeightsScale = 1
+		if architecture == "gpt-oss" {
+			spec.ExpertGatingFunc = 3
+			spec.ExpertWeightsNorm = false
+		}
 		if value, ok := optional[float32](
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
 		); ok {
@@ -1945,6 +1950,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.AttentionTempFloor = 8192
 			spec.AttentionTempScale = 0.1
 			spec.AttentionTempOffset = 1
+		}
+	}
+	if architecture == "gpt-oss" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.SlidingPattern = 2
+		if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
+			spec.SlidingPattern = value
+		}
+		spec.RopeFrequencySWA = spec.RopeFrequencyBase
+		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
+			spec.RopeFrequencySWA = value
 		}
 	}
 	if architecture == "gemma4" {
@@ -2611,6 +2630,14 @@ func (s Spec) validate() error {
 			return errors.New("Llama 4 chunked-attention metadata is invalid")
 		}
 	}
+	if s.Architecture == "gpt-oss" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertGatingFunc != 3 ||
+			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0) ||
+			s.SlidingWindow == 0 || s.SlidingPattern < 2 || s.RopeDimensionCount != s.KeyLength ||
+			s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0 || s.RopeFrequencySWA <= 0) {
+		return errors.New("GPT-OSS metadata is invalid")
+	}
 	if s.Architecture == "phimoe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
@@ -3103,7 +3130,7 @@ func hasPostNorm(architecture string) bool {
 
 func usesSlidingAttention(architecture string) bool {
 	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma4") ||
-		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "llama4" || architecture == "olmo2" ||
+		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "gpt-oss" || architecture == "llama4" || architecture == "olmo2" ||
 		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "mimo2" ||
 		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35"
 }
@@ -3113,7 +3140,7 @@ func usesPostOnlyNorm(architecture string) bool {
 }
 
 func usesNormalRoPE(architecture string) bool {
-	return architecture == "llama" || architecture == "llama4" || architecture == "llama-embed" ||
+	return architecture == "llama" || architecture == "llama4" || architecture == "gpt-oss" || architecture == "llama-embed" ||
 		architecture == "arctic" ||
 		architecture == "deci" ||
 		architecture == "llada" ||

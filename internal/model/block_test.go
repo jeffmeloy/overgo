@@ -5653,3 +5653,53 @@ func TestBuildLlama4AttentionAndMoE(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildGPTOSSBiasedMoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "gpt-oss", BlockCount: 2, EmbeddingLength: 8, FeedForwardLength: 8,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 2000,
+		RMSNormEpsilon: 1e-5, SlidingWindow: 4, SlidingPattern: 2,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1, ExpertGatingFunc: 3,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.AttentionPostNorm = builder.Input("post_attention_norm", dtype.F32, tensor.MustShape(8))
+	weights.AttentionSinks = builder.Input("sinks", dtype.F32, tensor.MustShape(2))
+	weights.AttentionOutputBias = builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(8))
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardRouterBias = builder.Input("router_bias", dtype.F32, tensor.MustShape(4))
+	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardGateBias = builder.Input("gate_bias", dtype.F32, tensor.MustShape(6, 4))
+	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardUpBias = builder.Input("up_bias", dtype.F32, tensor.MustShape(6, 4))
+	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
+	weights.FeedForwardDownBias = builder.Input("down_bias", dtype.F32, tensor.MustShape(8, 4))
+	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention tensor.AttentionAttributes
+	var moe tensor.MoEAttributes
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attention = node.Attrs.(tensor.AttentionAttributes)
+		case tensor.OpMoE:
+			moe = node.Attrs.(tensor.MoEAttributes)
+		}
+	}
+	if !attention.HasSinks || attention.Window != 4 || attention.Scale != 0.5 {
+		t.Fatalf("unexpected GPT-OSS attention: %+v", attention)
+	}
+	if moe.Routing != tensor.MoERoutingSelectedSoftmax || moe.Activation != tensor.MoEActivationSwiGLUOAI ||
+		!moe.HasRouterBias || !moe.HasExpertBiases || moe.NormalizeTopKProb {
+		t.Fatalf("unexpected GPT-OSS MoE: %+v", moe)
+	}
+}

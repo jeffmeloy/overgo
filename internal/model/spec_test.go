@@ -101,6 +101,36 @@ func TestReadLlama4Spec(t *testing.T) {
 	}
 }
 
+func TestReadGPTOSSSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gpt-oss"),
+		metadata("gpt-oss.block_count", gguf.ValueTypeUint32, uint32(24)),
+		metadata("gpt-oss.context_length", gguf.ValueTypeUint32, uint32(131072)),
+		metadata("gpt-oss.embedding_length", gguf.ValueTypeUint32, uint32(2880)),
+		metadata("gpt-oss.feed_forward_length", gguf.ValueTypeUint32, uint32(2880)),
+		metadata("gpt-oss.attention.head_count", gguf.ValueTypeUint32, uint32(64)),
+		metadata("gpt-oss.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
+		metadata("gpt-oss.attention.key_length", gguf.ValueTypeUint32, uint32(64)),
+		metadata("gpt-oss.attention.value_length", gguf.ValueTypeUint32, uint32(64)),
+		metadata("gpt-oss.rope.freq_base", gguf.ValueTypeFloat32, float32(150000)),
+		metadata("gpt-oss.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("gpt-oss.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("gpt-oss.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		metadata("gpt-oss.expert_count", gguf.ValueTypeUint32, uint32(32)),
+		metadata("gpt-oss.expert_used_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("gpt-oss.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(2880)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.KeyLength != 64 || spec.RopeDimensionCount != 64 || spec.SlidingWindow != 128 ||
+		spec.SlidingPattern != 2 || !spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
+		spec.RopeFrequencySWA != 10000 || spec.ExpertGatingFunc != 3 || spec.ExpertWeightsNorm {
+		t.Fatalf("unexpected GPT-OSS spec: %+v", spec)
+	}
+}
+
 func TestReadGroveMoESpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "grovemoe"),

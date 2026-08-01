@@ -140,6 +140,36 @@ func TestReadWeightsLlama4InterleavedMoE(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGPTOSSBiasedExperts(t *testing.T) {
+	spec := Spec{
+		Architecture: "gpt-oss", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 8,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1,
+	}
+	prefix := "blk.0."
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8), tensorInfo("output.weight", 8, 32),
+		tensorInfo(prefix+"attn_norm.weight", 8), tensorInfo(prefix+"post_attention_norm.weight", 8),
+		tensorInfo(prefix+"attn_q.weight", 8, 8), tensorInfo(prefix+"attn_k.weight", 8, 4),
+		tensorInfo(prefix+"attn_v.weight", 8, 4), tensorInfo(prefix+"attn_output.weight", 8, 8),
+		tensorInfo(prefix+"attn_output.bias", 8), tensorInfo(prefix+"attn_sinks.weight", 2),
+		tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4), tensorInfo(prefix+"ffn_gate_inp.bias", 4),
+		tensorInfo(prefix+"ffn_gate_exps.weight", 8, 6, 4), tensorInfo(prefix+"ffn_gate_exps.bias", 6, 4),
+		tensorInfo(prefix+"ffn_up_exps.weight", 8, 6, 4), tensorInfo(prefix+"ffn_up_exps.bias", 6, 4),
+		tensorInfo(prefix+"ffn_down_exps.weight", 6, 8, 4), tensorInfo(prefix+"ffn_down_exps.bias", 8, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output == nil || layer.AttentionPostNorm == nil || layer.AttentionSinks == nil ||
+		layer.AttentionOutputBias == nil || layer.FeedForwardRouterBias == nil ||
+		layer.FeedForwardGateBias == nil || layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil {
+		t.Fatalf("unexpected GPT-OSS catalog: %+v", layer)
+	}
+}
+
 func TestReadWeightsGroveMoE(t *testing.T) {
 	spec := Spec{
 		Architecture: "grovemoe", BlockCount: 1, EmbeddingLength: 8,

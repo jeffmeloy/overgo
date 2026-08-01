@@ -850,6 +850,12 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	if attributes.HasExpertScale {
 		expectedInputs++
 	}
+	if attributes.HasRouterBias {
+		expectedInputs++
+	}
+	if attributes.HasExpertBiases {
+		expectedInputs += 3
+	}
 	if len(inputs) != expectedInputs {
 		return Value{}, errors.New("MoE input count is invalid")
 	}
@@ -864,16 +870,24 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	if attributes.FusedGateUp {
 		gate = up
 	}
-	var selectionBias, expertScale []float32
+	var selectionBias, expertScale, routerBias, gateBias, upBias, downBias []float32
+	optionalIndex := next + 2
 	if attributes.HasSelectionBias {
-		selectionBias = inputs[next+2].Data
+		selectionBias = inputs[optionalIndex].Data
+		optionalIndex++
 	}
 	if attributes.HasExpertScale {
-		scaleIndex := next + 2
-		if attributes.HasSelectionBias {
-			scaleIndex++
-		}
-		expertScale = inputs[scaleIndex].Data
+		expertScale = inputs[optionalIndex].Data
+		optionalIndex++
+	}
+	if attributes.HasRouterBias {
+		routerBias = inputs[optionalIndex].Data
+		optionalIndex++
+	}
+	if attributes.HasExpertBiases {
+		gateBias = inputs[optionalIndex].Data
+		upBias = inputs[optionalIndex+1].Data
+		downBias = inputs[optionalIndex+2].Data
 	}
 	hidden := int(input.Shape.Dims[0])
 	tokens := int(input.Shape.Dims[1])
@@ -909,6 +923,9 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 			for channel := 0; channel < hidden; channel++ {
 				dot += float64(routerX[channel]) * float64(router.Data[expert*hidden+channel])
 			}
+			if routerBias != nil {
+				dot += float64(routerBias[expert])
+			}
 			logits[expert] = dot
 			maximum = math.Max(maximum, dot)
 		}
@@ -924,6 +941,8 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 				probabilities[expert] = math.Exp(logit-maximum) / denominator
 			case tensor.MoERoutingSigmoid:
 				probabilities[expert] = 1 / (1 + math.Exp(-logit))
+			case tensor.MoERoutingSelectedSoftmax:
+				probabilities[expert] = logit
 			default:
 				return Value{}, errors.New("invalid MoE routing function")
 			}
@@ -946,6 +965,20 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 			selected[slot] = best
 			weights[slot] = probabilities[best]
 			selectedSum += weights[slot]
+		}
+		if attributes.Routing == tensor.MoERoutingSelectedSoftmax {
+			selectedMaximum := math.Inf(-1)
+			for _, weight := range weights {
+				selectedMaximum = math.Max(selectedMaximum, weight)
+			}
+			selectedSum = 0
+			for slot, weight := range weights {
+				weights[slot] = math.Exp(weight - selectedMaximum)
+				selectedSum += weights[slot]
+			}
+			for slot := range weights {
+				weights[slot] /= selectedSum
+			}
 		}
 		for slot := range topK {
 			if attributes.NormalizeTopKProb && selectedSum > 0 {
@@ -973,6 +1006,10 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 						}
 						upDot += float64(x[channel]) * float64(up.Data[upBase+channel])
 					}
+					if gateBias != nil {
+						gateDot += float64(gateBias[expert*intermediate+inner])
+						upDot += float64(upBias[expert*intermediate+inner])
+					}
 					var activation float64
 					switch attributes.Activation {
 					case tensor.MoEActivationSiLU:
@@ -996,11 +1033,18 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 						if attributes.Gated {
 							activation = moeGELU(gateDot) * upDot
 						}
+					case tensor.MoEActivationSwiGLUOAI:
+						x := math.Min(gateDot, 7)
+						y := math.Max(-7, math.Min(7, upDot))
+						activation = x / (1 + math.Exp(-1.702*x)) * (y + 1)
 					default:
 						return Value{}, errors.New("invalid MoE activation")
 					}
 					downIndex := (expert*hidden+outputChannel)*intermediate + inner
 					expertOutput += activation * float64(down.Data[downIndex])
+				}
+				if downBias != nil {
+					expertOutput += float64(downBias[expert*hidden+outputChannel])
 				}
 				if expertScale != nil {
 					expertOutput *= float64(expertScale[expert])

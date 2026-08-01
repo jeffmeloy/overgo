@@ -58,6 +58,7 @@ type LayerWeights struct {
 	FeedForwardPostNorm1        *gguf.TensorInfo
 	FeedForwardPostNorm2        *gguf.TensorInfo
 	FeedForwardRouter           *gguf.TensorInfo
+	FeedForwardRouterBias       *gguf.TensorInfo
 	FeedForwardRouterScale      *gguf.TensorInfo
 	FeedForwardGateUpExperts    *gguf.TensorInfo
 	FeedForwardGateExperts      *gguf.TensorInfo
@@ -335,6 +336,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "nemotron" ||
 		spec.Architecture == "orion" ||
 		spec.Architecture == "gptneox" ||
+		spec.Architecture == "gpt-oss" ||
 		spec.Architecture == "phi2" ||
 		spec.Architecture == "phimoe" ||
 		spec.Architecture == "plamo" ||
@@ -981,7 +983,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				layer.AttentionOutputGate = &gate
 			}
 		}
-		if spec.Architecture == "mimo2" {
+		if spec.Architecture == "mimo2" || spec.Architecture == "gpt-oss" {
 			if sinks, ok := tensors[prefix+"attn_sinks.weight"]; ok {
 				if sinks.Type != dtype.F32 || sinks.Dimensions != 1 ||
 					sinks.Shape[0] != uint64(spec.LayerHeadCount(block)) {
@@ -989,6 +991,16 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				layer.AttentionSinks = &sinks
 			}
+			if spec.Architecture == "gpt-oss" && layer.AttentionSinks == nil {
+				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_sinks.weight")
+			}
+		}
+		if spec.Architecture == "gpt-oss" {
+			postNorm, normErr := required(prefix+"post_attention_norm.weight", uint64(spec.EmbeddingLength))
+			if normErr != nil {
+				return Weights{}, normErr
+			}
+			layer.AttentionPostNorm = &postNorm
 		}
 		if spec.Architecture == "laguna" || spec.Architecture == "afmoe" {
 			gate, ok := tensors[prefix+"attn_gate.weight"]
@@ -1315,7 +1327,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			} else if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
 				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
 			}
-		} else if spec.Architecture != "olmo2" && !usesPostOnlyNorm(spec.Architecture) &&
+		} else if spec.Architecture != "olmo2" && spec.Architecture != "gpt-oss" && !usesPostOnlyNorm(spec.Architecture) &&
 			(spec.Architecture != "deci" || spec.LayerFeedForwardLength(block) > 0) &&
 			!usesParallelResidual(spec.Architecture) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
@@ -1339,6 +1351,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "glm4-moe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(block)) ||
+			spec.Architecture == "gpt-oss" ||
 			(spec.Architecture == "hy_v3" && tensorSelectedMoE) ||
 			(spec.Architecture == "deepseek2-ocr" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "cohere2moe" && block >= spec.LeadingDenseBlocks) ||
@@ -1432,6 +1445,29 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
 					if itemErr != nil {
 						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "gpt-oss" {
+				if layer.AttentionOutputBias == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
+				}
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_inp.bias":  {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardRouterBias},
+					"ffn_gate_exps.bias": {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardGateBias},
+					"ffn_up_exps.bias":   {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpBias},
+					"ffn_down_exps.bias": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardDownBias},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					if item.Type != dtype.F32 {
+						return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", item.Name)
 					}
 					*shapeAndDestination.destination = &item
 				}

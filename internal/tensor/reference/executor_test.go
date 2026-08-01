@@ -1115,6 +1115,48 @@ func TestExecuteChunkedWindowAttention(t *testing.T) {
 	}
 }
 
+func TestExecuteOpenAIMoEUsesSelectedSoftmaxAndBiases(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
+	routerBias := builder.Input("router_bias", dtype.F32, tensor.MustShape(2))
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
+	gateBias := builder.Input("gate_bias", dtype.F32, tensor.MustShape(1, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
+	upBias := builder.Input("up_bias", dtype.F32, tensor.MustShape(1, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
+	downBias := builder.Input("down_bias", dtype.F32, tensor.MustShape(2, 2))
+	output := builder.MoEOpenAI(input, router, routerBias, gate, gateBias, up, upBias, down, downBias, 2, 1)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:      {Shape: input.Shape, Data: []float32{1, 2}},
+		router:     {Shape: router.Shape, Data: make([]float32, 4)},
+		routerBias: {Shape: routerBias.Shape, Data: []float32{0, float32(math.Log(3))}},
+		gate:       {Shape: gate.Shape, Data: make([]float32, 4)},
+		gateBias:   {Shape: gateBias.Shape, Data: []float32{1, 2}},
+		up:         {Shape: up.Shape, Data: make([]float32, 4)},
+		upBias:     {Shape: upBias.Shape, Data: []float32{0, 1}},
+		down:       {Shape: down.Shape, Data: []float32{1, 0, 0, 1}},
+		downBias:   {Shape: downBias.Shape, Data: []float32{0, 1, 2, 0}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activation0 := 1 / (1 + math.Exp(-1.702))
+	activation1 := 2 / (1 + math.Exp(-3.404)) * 2
+	want := []float64{0.25*activation0 + 0.75*2, 0.25 + 0.75*activation1}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value)-want[index]) > 1e-6 {
+			t.Fatalf("OpenAI MoE[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+	attributes := output.Attrs.(tensor.MoEAttributes)
+	if attributes.Routing != tensor.MoERoutingSelectedSoftmax ||
+		attributes.Activation != tensor.MoEActivationSwiGLUOAI ||
+		!attributes.HasRouterBias || !attributes.HasExpertBiases {
+		t.Fatalf("unexpected OpenAI MoE attributes: %+v", attributes)
+	}
+}
+
 func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))

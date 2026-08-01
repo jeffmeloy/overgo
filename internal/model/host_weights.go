@@ -62,6 +62,7 @@ type HostLayer struct {
 	FeedForwardPostNorm1        *reference.Value
 	FeedForwardPostNorm2        *reference.Value
 	FeedForwardRouter           *reference.Value
+	FeedForwardRouterBias       *reference.Value
 	FeedForwardRouterScale      *reference.Value
 	FeedForwardGateUpExperts    *reference.Value
 	FeedForwardGateExperts      *reference.Value
@@ -708,6 +709,7 @@ func (layer *HostLayer) GraphInputs(
 		{"ffn_down.scale", layer.FeedForwardDownScale, &result.FeedForwardDownScale},
 		{"ffn_sub_norm.weight", layer.FeedForwardSubNorm, &result.FeedForwardSubNorm},
 		{"ffn_gate_inp.weight", layer.FeedForwardRouter, &result.FeedForwardRouter},
+		{"ffn_gate_inp.bias", layer.FeedForwardRouterBias, &result.FeedForwardRouterBias},
 		{"ffn_gate_inp.scale", layer.FeedForwardRouterScale, &result.FeedForwardRouterScale},
 		{"ffn_down_exps.scale", layer.FeedForwardDownExpertsScale, &result.FeedForwardDownExpertsScale},
 		{"ffn_gate_up_exps.weight", layer.FeedForwardGateUpExperts, &result.FeedForwardGateUpExperts},

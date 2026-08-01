@@ -390,6 +390,9 @@ blocks, expert output scales, projected per-layer inputs, and raw BPE are synthe
 Llama4 chunk-aligned attention, periodic temperature-scaled full attention,
 post-RoPE Q/K normalization, interleaved sigmoid MoE/shared-expert blocks, and
 GPT-4o pre-tokenization are synthetic-fixture and CUDA-differential validated.
+GPT-OSS alternating sliding attention with sinks, residual post-attention norm,
+selected-logit softmax routing, biased OpenAI SwiGLU experts, and MXFP4-native
+expert storage are synthetic-fixture and CUDA-differential validated.
 Set `LLAMACPP2GO_BONSAI_MODEL` to the local Bonsai 27B Q1_0 Qwen3.5 fixture
 to validate real-model native one-bit weights against the pinned CPU oracle.
 Set `LLAMACPP2GO_GEMMA3_MODEL` and `LLAMACPP2GO_UMT5_MODEL` to run the

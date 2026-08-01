@@ -1210,6 +1210,15 @@ its architecture enum and GGUF constants but has no model loader or graph and
 explicitly excludes GPT-J from architecture tests, so there is no executable
 upstream oracle to port against.
 
+GPT-OSS/OpenAI-MoE now executes alternating standard sliding and full causal
+attention with per-head sinks, separate RoPE bases, biased output projection,
+and residual post-attention RMSNorm. Every layer uses biased routed experts
+with top-k selection on raw router logits, softmax over selected logits, and
+the clamped OpenAI SwiGLU formula. F32 and native-quantized expert storage,
+including MXFP4, share the reference/CUDA graph. Strict metadata/catalog tests,
+formula-level routing tests, and a complete CUDA block differential pass;
+real-model validation remains pending a local GPT-OSS GGUF fixture.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

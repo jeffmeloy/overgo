@@ -3211,6 +3211,47 @@ func TestReadWeightsQwen35Hybrid(t *testing.T) {
 	}
 }
 
+func TestReadWeightsQwen35MoEAttention(t *testing.T) {
+	spec := Spec{
+		Architecture: "qwen35moe", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4,
+		ValueLength: 4, VocabularySize: 32, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, SharedExpertFF: 10, ExpertWeightsScale: 1.25,
+		SSMConvKernel: 3, SSMInnerSize: 4, SSMStateSize: 2, SSMTimeStepRank: 2,
+		SSMGroupCount: 1, RecurrentLayers: []bool{false},
+	}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.post_attention_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 16),
+		tensorInfo("blk.0.attn_k.weight", 8, 4),
+		tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.attn_q_norm.weight", 4),
+		tensorInfo("blk.0.attn_k_norm.weight", 4),
+		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_gate_up_exps.weight", 8, 12, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.0.ffn_gate_inp_shexp.weight", 8),
+		tensorInfo("blk.0.ffn_gate_shexp.weight", 8, 10),
+		tensorInfo("blk.0.ffn_up_shexp.weight", 8, 10),
+		tensorInfo("blk.0.ffn_down_shexp.weight", 10, 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.Recurrent || layer.FeedForwardRouter == nil ||
+		layer.FeedForwardGateUpExperts == nil || layer.FeedForwardDownExperts == nil ||
+		layer.FeedForwardSharedRouter == nil || layer.FeedForwardSharedGate == nil ||
+		layer.FeedForwardSharedUp == nil || layer.FeedForwardSharedDown == nil {
+		t.Fatalf("unexpected Qwen3.5-MoE layer catalog: %+v", layer)
+	}
+}
+
 func TestReadRealQwen35Catalog(t *testing.T) {
 	path := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
 	if path == "" {

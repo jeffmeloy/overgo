@@ -2157,8 +2157,8 @@ func BuildQwen35BlockCached(
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	if spec.Architecture != "qwen35" {
-		return Qwen35BlockResult{}, errors.New("Qwen3.5 block requires qwen35 architecture")
+	if spec.Architecture != "qwen35" && spec.Architecture != "qwen35moe" {
+		return Qwen35BlockResult{}, errors.New("Qwen3.5 block requires qwen35 or qwen35moe architecture")
 	}
 	if recurrent {
 		return buildQwen35RecurrentBlock(
@@ -2210,10 +2210,8 @@ func buildQwen35AttentionBlock(
 		"attention Q norm":    weights.AttentionQNorm,
 		"attention K norm":    weights.AttentionKNorm,
 		"post-attention norm": weights.FeedForwardNorm,
-		"feed-forward gate":   weights.FeedForwardGate,
-		"feed-forward up":     weights.FeedForwardUp,
-		"feed-forward down":   weights.FeedForwardDown,
 	}
+	addQwen35FeedForwardRequirements(required, spec, weights)
 	for name, item := range required {
 		if item == nil {
 			return DenseBlockResult{}, fmt.Errorf("Qwen3.5 attention block %s weight is nil", name)
@@ -2329,10 +2327,8 @@ func buildQwen35RecurrentBlock(
 		"SSM norm":            weights.SSMNorm,
 		"SSM output":          weights.SSMOutput,
 		"post-attention norm": weights.FeedForwardNorm,
-		"feed-forward gate":   weights.FeedForwardGate,
-		"feed-forward up":     weights.FeedForwardUp,
-		"feed-forward down":   weights.FeedForwardDown,
 	}
+	addQwen35FeedForwardRequirements(required, spec, weights)
 	for name, item := range required {
 		if item == nil {
 			return Qwen35BlockResult{}, fmt.Errorf("Qwen3.5 recurrent block %s weight is nil", name)
@@ -2439,8 +2435,61 @@ func buildQwen35FeedForward(
 		weights.FeedForwardNorm,
 		spec.RMSNormEpsilon,
 	)
-	gate := builder.MulMat(weights.FeedForwardGate, normalized)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	var feedForward *tensor.Tensor
+	if spec.Architecture == "qwen35moe" {
+		if weights.FeedForwardGateUpExperts != nil {
+			feedForward = builder.MoESoftmaxFusedGateUp(
+				normalized, weights.FeedForwardRouter, weights.FeedForwardGateUpExperts,
+				weights.FeedForwardDownExperts, nil, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+			)
+		} else {
+			feedForward = builder.MoE(
+				normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+				weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+			)
+		}
+		sharedRouter := builder.Reshape(
+			weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
+		)
+		sharedGate := builder.Sigmoid(builder.MulMat(sharedRouter, normalized))
+		shared := builder.MulMat(
+			weights.FeedForwardSharedDown,
+			builder.SwiGLU(
+				builder.MulMat(weights.FeedForwardSharedGate, normalized),
+				builder.MulMat(weights.FeedForwardSharedUp, normalized),
+			),
+		)
+		feedForward = builder.Add(feedForward, builder.Multiply(shared, sharedGate))
+	} else {
+		gate := builder.MulMat(weights.FeedForwardGate, normalized)
+		up := builder.MulMat(weights.FeedForwardUp, normalized)
+		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	}
 	return builder.Add(residual, feedForward)
+}
+
+func addQwen35FeedForwardRequirements(
+	required map[string]*tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+) {
+	if spec.Architecture == "qwen35moe" {
+		required["feed-forward router"] = weights.FeedForwardRouter
+		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		if weights.FeedForwardGateUpExperts != nil {
+			required["feed-forward fused expert gate/up"] = weights.FeedForwardGateUpExperts
+		} else {
+			required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+			required["feed-forward expert up"] = weights.FeedForwardUpExperts
+		}
+		required["feed-forward shared router"] = weights.FeedForwardSharedRouter
+		required["feed-forward shared gate"] = weights.FeedForwardSharedGate
+		required["feed-forward shared up"] = weights.FeedForwardSharedUp
+		required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		return
+	}
+	required["feed-forward gate"] = weights.FeedForwardGate
+	required["feed-forward up"] = weights.FeedForwardUp
+	required["feed-forward down"] = weights.FeedForwardDown
 }

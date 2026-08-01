@@ -614,62 +614,72 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
 	}
-	for _, recurrent := range []bool{false, true} {
-		name := "attention"
-		if recurrent {
-			name = "recurrent"
+	for _, architecture := range []string{"qwen35", "qwen35moe"} {
+		for _, recurrent := range []bool{false, true} {
+			name := architecture + "/attention"
+			if recurrent {
+				name = architecture + "/recurrent"
+			}
+			t.Run(name, func(t *testing.T) {
+				builder := tensor.NewBuilder()
+				spec := qwen35ExecutorSpec()
+				if architecture == "qwen35moe" {
+					spec.Architecture = architecture
+					spec.ExpertCount = 4
+					spec.ExpertUsedCount = 2
+					spec.ExpertFeedForward = 6
+					spec.SharedExpertFF = 10
+					spec.ExpertWeightsScale = 1.25
+				}
+				input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+				weights, feeds := qwen35ExecutorWeights(builder, spec, recurrent)
+				feeds[input] = patternedValue(input.Shape, 17, 0.04, -0.08)
+				var convState, ssmState *tensor.Tensor
+				if recurrent {
+					convState = builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
+					ssmState = builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+					feeds[convState] = patternedValue(convState.Shape, 7, 0.03, -0.02)
+					feeds[ssmState] = patternedValue(ssmState.Shape, 11, 0.02, 0.01)
+				}
+				result, err := model.BuildQwen35BlockCached(
+					builder,
+					input,
+					spec,
+					weights,
+					[]uint32{0, 1},
+					recurrent,
+					nil,
+					nil,
+					convState,
+					ssmState,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				outputs := []*tensor.Tensor{result.Output}
+				if recurrent {
+					outputs = append(outputs, result.ConvState, result.SSMState)
+				} else {
+					outputs = append(outputs, result.Key, result.Value)
+				}
+				want, err := reference.Execute(outputs, feeds)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cuda, err := New(0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer cuda.Close()
+				got, err := cuda.Execute(context.Background(), outputs, feeds)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, output := range outputs {
+					compare(t, got[output].Data, want[output].Data, 4e-5)
+				}
+			})
 		}
-		t.Run(name, func(t *testing.T) {
-			builder := tensor.NewBuilder()
-			spec := qwen35ExecutorSpec()
-			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-			weights, feeds := qwen35ExecutorWeights(builder, spec, recurrent)
-			feeds[input] = patternedValue(input.Shape, 17, 0.04, -0.08)
-			var convState, ssmState *tensor.Tensor
-			if recurrent {
-				convState = builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
-				ssmState = builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
-				feeds[convState] = patternedValue(convState.Shape, 7, 0.03, -0.02)
-				feeds[ssmState] = patternedValue(ssmState.Shape, 11, 0.02, 0.01)
-			}
-			result, err := model.BuildQwen35BlockCached(
-				builder,
-				input,
-				spec,
-				weights,
-				[]uint32{0, 1},
-				recurrent,
-				nil,
-				nil,
-				convState,
-				ssmState,
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			outputs := []*tensor.Tensor{result.Output}
-			if recurrent {
-				outputs = append(outputs, result.ConvState, result.SSMState)
-			} else {
-				outputs = append(outputs, result.Key, result.Value)
-			}
-			want, err := reference.Execute(outputs, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cuda, err := New(0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer cuda.Close()
-			got, err := cuda.Execute(context.Background(), outputs, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, output := range outputs {
-				compare(t, got[output].Data, want[output].Data, 4e-5)
-			}
-		})
 	}
 }
 
@@ -751,7 +761,6 @@ func qwen35ExecutorWeights(
 		return node
 	}
 	embedding := uint64(spec.EmbeddingLength)
-	feedForward := uint64(spec.FeedForwardLength)
 	result := model.LayerGraphWeights{
 		AttentionNorm: input("attn_norm", tensor.MustShape(embedding), 0.03, 0.9),
 		FeedForwardNorm: input(
@@ -760,24 +769,49 @@ func qwen35ExecutorWeights(
 			0.03,
 			0.9,
 		),
-		FeedForwardGate: input(
-			"ffn_gate",
-			tensor.MustShape(embedding, feedForward),
-			0.025,
-			-0.04,
-		),
-		FeedForwardUp: input(
-			"ffn_up",
-			tensor.MustShape(embedding, feedForward),
+	}
+	if spec.Architecture == "qwen35moe" {
+		expertWidth := uint64(spec.ExpertFeedForward)
+		experts := uint64(spec.ExpertCount)
+		sharedWidth := uint64(spec.SharedExpertFF)
+		result.FeedForwardRouter = input(
+			"ffn_router", tensor.MustShape(embedding, experts), 0.03, -0.02,
+		)
+		result.FeedForwardGateUpExperts = input(
+			"ffn_gate_up_exps",
+			tensor.MustShape(embedding, 2*expertWidth, experts),
 			0.02,
-			0.03,
-		),
-		FeedForwardDown: input(
-			"ffn_down",
-			tensor.MustShape(feedForward, embedding),
+			-0.03,
+		)
+		result.FeedForwardDownExperts = input(
+			"ffn_down_exps",
+			tensor.MustShape(expertWidth, embedding, experts),
 			0.02,
-			-0.01,
-		),
+			0.01,
+		)
+		result.FeedForwardSharedRouter = input(
+			"ffn_shared_router", tensor.MustShape(embedding), 0.03, -0.01,
+		)
+		result.FeedForwardSharedGate = input(
+			"ffn_shared_gate", tensor.MustShape(embedding, sharedWidth), 0.02, -0.02,
+		)
+		result.FeedForwardSharedUp = input(
+			"ffn_shared_up", tensor.MustShape(embedding, sharedWidth), 0.02, 0.01,
+		)
+		result.FeedForwardSharedDown = input(
+			"ffn_shared_down", tensor.MustShape(sharedWidth, embedding), 0.02, -0.01,
+		)
+	} else {
+		feedForward := uint64(spec.FeedForwardLength)
+		result.FeedForwardGate = input(
+			"ffn_gate", tensor.MustShape(embedding, feedForward), 0.025, -0.04,
+		)
+		result.FeedForwardUp = input(
+			"ffn_up", tensor.MustShape(embedding, feedForward), 0.02, 0.03,
+		)
+		result.FeedForwardDown = input(
+			"ffn_down", tensor.MustShape(feedForward, embedding), 0.02, -0.01,
+		)
 	}
 	if !recurrent {
 		headWidth := uint64(spec.KeyLength)

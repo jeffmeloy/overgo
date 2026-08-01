@@ -2008,6 +2008,28 @@ models:
       - stream-ordered-zero-state-initialization
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
+  qwen35moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - multi-axis-rope-kernel
+      - text-generation-position-input
+      - gated-full-attention
+      - fused-gated-delta-net
+      - recurrent-convolution-state
+      - softmax-top-k-routing
+      - selected-probability-normalization
+      - routed-weight-scaling
+      - separate-or-fused-swiglu-experts
+      - sigmoid-gated-shared-expert
+      - serializable-hybrid-cache
+    limitations:
+      - nextn-mtp-prediction-pending
+      - multimodal-position-input-pending
+    real_model_validation: pending-fixture
   gemma:
     status: experimental
     execution:

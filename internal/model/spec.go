@@ -203,7 +203,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen2vl" &&
 		architecture != "qwen3vl" &&
 		architecture != "qwen3vlmoe" &&
-		architecture != "qwen35" && architecture != "gemma" && architecture != "gemma-embedding" &&
+		architecture != "qwen35" && architecture != "qwen35moe" && architecture != "gemma" && architecture != "gemma-embedding" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
 		architecture != "gemma2" &&
@@ -351,7 +351,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			prefix+"rope.scaling.type",
 			gguf.ValueTypeString,
 		); ok && scalingType != "" && scalingType != "none" {
-			if architecture == "qwen35" ||
+			if architecture == "qwen35" || architecture == "qwen35moe" ||
 				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
 				if (architecture != "laguna" && architecture != "grok" && architecture != "mellum") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
@@ -1087,7 +1087,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
-	if architecture == "qwen35" {
+	if architecture == "qwen35" || architecture == "qwen35moe" {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values,
 			prefix+"rope.dimension_count",
@@ -1150,7 +1150,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1181,6 +1181,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
 		); ok {
 			spec.ExpertWeightsScale = value
+		}
+		if architecture == "qwen35moe" {
+			spec.SharedExpertFF = spec.FeedForwardLength
+			if value, ok := optional[uint32](
+				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
+			); ok {
+				spec.SharedExpertFF = value
+			}
 		}
 	}
 	if architecture == "cohere2moe" {
@@ -1688,7 +1696,7 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 	if len(s.RecurrentLayers) == int(s.BlockCount) {
 		return s.RecurrentLayers[block]
 	}
-	return s.Architecture == "qwen35" &&
+	return (s.Architecture == "qwen35" || s.Architecture == "qwen35moe") &&
 		s.FullAttentionInterval > 0 &&
 		(block+1)%s.FullAttentionInterval != 0
 }
@@ -1886,7 +1894,7 @@ func (s Spec) validate() error {
 			s.KeyLength != s.ValueLength) {
 		return errors.New("NomicBERT-MoE metadata is invalid")
 	}
-	if s.Architecture == "qwen35" {
+	if s.Architecture == "qwen35" || s.Architecture == "qwen35moe" {
 		switch {
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0:
@@ -1916,6 +1924,13 @@ func (s Spec) validate() error {
 		if sectionPairs == 0 || sectionPairs > int64(s.RopeDimensionCount/2) {
 			return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
 		}
+	}
+	if s.Architecture == "qwen35moe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("Qwen3.5-MoE expert metadata is invalid")
 	}
 	if (s.Architecture == "qwen3moe" || s.Architecture == "qwen3vlmoe" || s.Architecture == "rnd1") &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||

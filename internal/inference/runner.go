@@ -1001,7 +1001,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: nextPosition + uint32(len(tokenIDs)),
 	}
-	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" &&
+	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" && r.spec.Architecture != "qwen35moe" &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" {
 		return r.forwardDenseLayersPreloaded(ctx, activation, embeddingSkip, positions, cache, nextCache)
@@ -1280,7 +1280,7 @@ func (r *Runner) runLayerCached(
 	past *LayerCache,
 	embeddingSkip reference.Value,
 ) (reference.Value, LayerCache, error) {
-	if r.spec.Architecture == "qwen35" {
+	if r.spec.Architecture == "qwen35" || r.spec.Architecture == "qwen35moe" {
 		return r.runQwen35LayerCached(
 			ctx,
 			activation,
@@ -1855,7 +1855,7 @@ func (r *Runner) Generate(
 				}
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
-					r.spec.Architecture == "qwen35" {
+					(r.spec.Architecture == "qwen35" || r.spec.Architecture == "qwen35moe") {
 					cached = 0
 				}
 				if cached > 0 {
@@ -1930,7 +1930,7 @@ func (r *Runner) Generate(
 			} else {
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
-					r.spec.Architecture == "qwen35" {
+					(r.spec.Architecture == "qwen35" || r.spec.Architecture == "qwen35moe") {
 					cached = 0
 				}
 				if cached > 0 {

@@ -4917,6 +4917,61 @@ func TestBuildQwen35RecurrentBlock(t *testing.T) {
 	}
 }
 
+func TestBuildQwen35MoEBlocks(t *testing.T) {
+	for _, recurrent := range []bool{false, true} {
+		name := "attention"
+		if recurrent {
+			name = "recurrent"
+		}
+		t.Run(name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := qwen35TestSpec()
+			spec.Architecture = "qwen35moe"
+			spec.ExpertCount = 4
+			spec.ExpertUsedCount = 2
+			spec.ExpertFeedForward = 6
+			spec.SharedExpertFF = 10
+			spec.ExpertWeightsScale = 1.25
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := qwen35AttentionInputs(builder, spec)
+			var convState, ssmState *tensor.Tensor
+			if recurrent {
+				weights = qwen35RecurrentInputs(builder, spec)
+				convState = builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
+				ssmState = builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+			}
+			setQwen35MoEInputs(builder, spec, &weights)
+			result, err := BuildQwen35BlockCached(
+				builder, input, spec, weights, []uint32{0, 1}, recurrent,
+				nil, nil, convState, ssmState,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(result.Output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var moe tensor.MoEAttributes
+			var moeCount, sigmoid int
+			for _, node := range nodes {
+				if node.Op == tensor.OpMoE {
+					moeCount++
+					moe = node.Attrs.(tensor.MoEAttributes)
+				}
+				if node.Op == tensor.OpSigmoid {
+					sigmoid++
+				}
+			}
+			if moeCount != 1 || moe.TopK != 2 || !moe.NormalizeTopKProb ||
+				moe.Routing != tensor.MoERoutingSoftmax || moe.Scale != 1.25 ||
+				moe.Activation != tensor.MoEActivationSiLU || sigmoid < 1 {
+				t.Fatalf("Qwen3.5-MoE graph: MoE=%d attrs=%+v sigmoid=%d", moeCount, moe, sigmoid)
+			}
+		})
+	}
+}
+
 func qwen35TestSpec() Spec {
 	return Spec{
 		Architecture:          "qwen35",
@@ -4949,6 +5004,38 @@ func qwen35CommonInputs(builder *tensor.Builder, spec Spec) LayerGraphWeights {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(embedding, feedForward)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(feedForward, embedding)),
 	}
+}
+
+func setQwen35MoEInputs(builder *tensor.Builder, spec Spec, weights *LayerGraphWeights) {
+	embedding := uint64(spec.EmbeddingLength)
+	expertWidth := uint64(spec.ExpertFeedForward)
+	experts := uint64(spec.ExpertCount)
+	sharedWidth := uint64(spec.SharedExpertFF)
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUp = nil
+	weights.FeedForwardDown = nil
+	weights.FeedForwardRouter = builder.Input("ffn_router", dtype.F32, tensor.MustShape(embedding, experts))
+	weights.FeedForwardGateExperts = builder.Input(
+		"ffn_gate_exps", dtype.F32, tensor.MustShape(embedding, expertWidth, experts),
+	)
+	weights.FeedForwardUpExperts = builder.Input(
+		"ffn_up_exps", dtype.F32, tensor.MustShape(embedding, expertWidth, experts),
+	)
+	weights.FeedForwardDownExperts = builder.Input(
+		"ffn_down_exps", dtype.F32, tensor.MustShape(expertWidth, embedding, experts),
+	)
+	weights.FeedForwardSharedRouter = builder.Input(
+		"ffn_shared_router", dtype.F32, tensor.MustShape(embedding),
+	)
+	weights.FeedForwardSharedGate = builder.Input(
+		"ffn_shared_gate", dtype.F32, tensor.MustShape(embedding, sharedWidth),
+	)
+	weights.FeedForwardSharedUp = builder.Input(
+		"ffn_shared_up", dtype.F32, tensor.MustShape(embedding, sharedWidth),
+	)
+	weights.FeedForwardSharedDown = builder.Input(
+		"ffn_shared_down", dtype.F32, tensor.MustShape(sharedWidth, embedding),
+	)
 }
 
 func qwen35AttentionInputs(builder *tensor.Builder, spec Spec) LayerGraphWeights {

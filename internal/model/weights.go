@@ -389,7 +389,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			"ffn_up.bias",
 			"ffn_down.bias",
 		}
-		if spec.Architecture == "qwen35" || spec.Architecture == "cogvlm" {
+		if spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" || spec.Architecture == "cogvlm" {
 			for _, name := range biasNames {
 				if _, ok := tensors[prefix+name]; ok {
 					return Weights{}, fmt.Errorf(
@@ -427,7 +427,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if ropeFactors, ok := tensors[prefix+"rope_freqs.weight"]; ok {
-			if spec.Architecture == "qwen35" {
+			if spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" {
 				return Weights{}, fmt.Errorf(
 					"tensor %q requires unsupported multi-axis RoPE factors",
 					ropeFactors.Name,
@@ -566,7 +566,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			); err != nil {
 				return Weights{}, err
 			}
-		} else if spec.Architecture == "qwen35" {
+		} else if spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
 				keyDimension := uint64(spec.SSMStateSize) * uint64(spec.SSMGroupCount)
@@ -797,7 +797,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "gemma-embedding" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan-vl" || spec.Architecture == "hy_v3" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" || spec.Architecture == "hunyuan-moe" ||
 			spec.Architecture == "maincoder" ||
-			(spec.Architecture == "qwen35" && !layer.Recurrent) ||
+			((spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe") && !layer.Recurrent) ||
 			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
 			if normErr != nil {
@@ -1087,7 +1087,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "dbrx" {
 			feedForwardNormName = "attn_output_norm.weight"
 		}
-		if spec.Architecture == "qwen35" || spec.Architecture == "seed_oss" {
+		if spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" || spec.Architecture == "seed_oss" {
 			feedForwardNormName = "post_attention_norm.weight"
 		}
 		if spec.Architecture == "stablelm" {
@@ -1127,7 +1127,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		_, tensorSelectedMoE := tensors[prefix+"ffn_gate_inp.weight"]
-		if ((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
+		if ((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) || spec.Architecture == "arctic" || spec.Architecture == "bailingmoe" || spec.Architecture == "dbrx" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-moe" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "minimax-m2" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "qwen35moe" || spec.Architecture == "qwen2moe" || spec.Architecture == "olmoe" || spec.Architecture == "phimoe" || spec.Architecture == "rnd1" || spec.Architecture == "smallthinker" ||
 			spec.Architecture == "granitemoe" ||
 			(spec.Architecture == "nomic-bert-moe" && spec.IsInterleavedMoELayer(block)) ||
 			(spec.Architecture == "hy_v3" && tensorSelectedMoE) ||
@@ -1159,7 +1159,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				},
 			}
 			fusedGateUp := false
-			if spec.Architecture == "cohere2moe" || spec.Architecture == "deepseek2-ocr" || spec.Architecture == "hy_v3" {
+			if spec.Architecture == "cohere2moe" || spec.Architecture == "deepseek2-ocr" || spec.Architecture == "hy_v3" || spec.Architecture == "qwen35moe" {
 				if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
 					if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
 						item.Shape[1] != 2*uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
@@ -1401,6 +1401,23 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if spec.Architecture == "qwen2moe" {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_inp_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedRouter},
+					"ffn_gate_shexp.weight":     {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":       {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight":     {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			if spec.Architecture == "qwen35moe" {
 				for name, shapeAndDestination := range map[string]struct {
 					shape       []uint64
 					destination **gguf.TensorInfo

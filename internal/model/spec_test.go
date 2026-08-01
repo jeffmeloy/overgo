@@ -2639,6 +2639,50 @@ func TestReadQwen35Spec(t *testing.T) {
 	}
 }
 
+func TestReadQwen35MoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "qwen35moe"),
+		metadata("qwen35moe.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen35moe.context_length", gguf.ValueTypeUint32, uint32(1024)),
+		metadata("qwen35moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("qwen35moe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("qwen35moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen35moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen35moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen35moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen35moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("qwen35moe.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen35moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("qwen35moe.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("qwen35moe.ssm.inner_size", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen35moe.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen35moe.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen35moe.ssm.group_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("qwen35moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("qwen35moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("qwen35moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("qwen35moe.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(10)),
+		metadata("qwen35moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		{
+			Key: "qwen35moe.rope.dimension_sections",
+			Value: gguf.Value{
+				Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32,
+				Data: []int32{1, 1, 0, 0},
+			},
+		},
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "qwen35moe" || spec.ExpertCount != 4 ||
+		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+		spec.SharedExpertFF != 10 || spec.ExpertWeightsScale != 1.25 ||
+		!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(3) {
+		t.Fatalf("unexpected Qwen3.5-MoE spec: %+v", spec)
+	}
+}
+
 func TestReadQwen35ExplicitRecurrentLayers(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen35"),

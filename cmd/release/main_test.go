@@ -3,8 +3,15 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"slices"
 	"testing"
 )
+
+func TestReleaseCommandsIncludeDiffusion(t *testing.T) {
+	if len(releaseCommands) != 17 || !slices.Contains(releaseCommands, "diffusion") {
+		t.Fatalf("release commands = %v", releaseCommands)
+	}
+}
 
 func TestCreateArchiveIsDeterministic(t *testing.T) {
 	entries := []archiveEntry{

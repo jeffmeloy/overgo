@@ -4,12 +4,12 @@
 Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
-dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal inference, Falcon/Falcon-H1, Gemma 1/2/3/4 and Gemma Embedding,
+dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4 and Gemma Embedding,
 ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE, GPT-2/GPT-NeoX, Granite/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniCPM/MiniCPM3, compatible MPT,
 dense Mistral 3, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, PaddleOCR and Qwen2-VL/Qwen3-VL text-coordinate decoders, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,
-RND1 non-causal MoE, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5 encoder-decoder models and UMT5
+RND1 non-causal MoE diffusion generation, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5 encoder-decoder models and UMT5
 encoders, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3
 per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output
 projection biases and Gemma attention/final-logit softcapping are honored in
@@ -68,11 +68,19 @@ go run ./cmd/block-check -tokens 4 <model.gguf>
 go run ./cmd/generate -n 1 <model.gguf> "Hello"
 go run ./cmd/generate -native-quant -n 16 <supported-model.gguf> "Hello"
 go run ./cmd/generate -native-quant -context-shift -n 8192 <supported-model.gguf> "Hello"
+go run ./cmd/diffusion -native-quant -length 512 -steps 128 -eps 0.001 <dream.gguf> "Hello"
+go run ./cmd/diffusion -native-quant -length 512 -steps 128 -block-length 32 <llada.gguf> "Hello"
 go run ./cmd/perplexity -native-quant <supported-model.gguf> "evaluation text"
 go run ./cmd/embedding -model <t5-encoder.gguf> -prompt "Hello world!"
 go run ./cmd/benchmark -native-quant -tokens 32 -runs 5 <supported-model.gguf> "Hello"
 go run ./cmd/server -native-quant -listen 127.0.0.1:8080 <supported-model.gguf>
 ```
+
+`cmd/diffusion` implements the pinned iterative mask-transfer loop for Dream,
+LLaDA, LLaDA-MoE, and RND1. Select exactly one schedule with `-eps` or
+`-block-length`; confidence, entropy, margin, random, and origin ranking,
+classifier-free guidance, shifted logits, Gumbel transformation, and visual
+step progress are available.
 
 Opening a first shard named `<prefix>-00001-of-XXXXX.gguf` automatically loads
 the complete local split set. The reader validates shard indices/counts,
@@ -308,7 +316,7 @@ counting share the GGUF Jinja formatter used by OpenAI chat.
 system/message forms. Anthropic thinking and image blocks remain rejected
 until their template/runtime semantics are available.
 Repeatable `--lora <adapter.gguf>` loads pinned-format LoRA adapters for the
-server, generator, perplexity, embedding, and benchmark commands. Server
+server, generator, diffusion, perplexity, embedding, and benchmark commands. Server
 adapters start at scale 1 unless `--lora-init-without-apply` is set.
 Authenticated `GET /lora-adapters` reports `{id,path,scale}` entries;
 `POST /lora-adapters` atomically replaces global scales and disables omitted
@@ -318,7 +326,9 @@ F32-preloaded, and native-quantized model paths. Native completion `lora`
 arrays override scales for one serialized generation and restore global state;
 prompt caches are isolated by adapter content and scale. A single enabled
 aLoRA activates at the last matching invocation-token sequence; prompt state
-before that sequence is evaluated with scale zero. Fused-MoE execution forms
+before that sequence is evaluated with scale zero. Diffusion accepts regular
+adapters and rejects aLoRA because non-causal attention has no isolated
+pre-invocation prefix. Fused-MoE execution forms
 ephemeral adapted expert weights on device; this preserves request-local
 scales but adds a full expert-bank merge pass per graph.
 llama.cpp-compatible `POST /apply-template` returns
@@ -496,7 +506,7 @@ race detector is unavailable under the required `CGO_ENABLED=0` build; enabling
 it would test a different runtime contract, so concurrency is covered with
 deterministic contention tests until a no-cgo race instrumenter is available.
 
-`cmd/release` builds the sixteen user-facing Windows-amd64 executables twice
+`cmd/release` builds the seventeen user-facing Windows-amd64 executables twice
 with no cgo, source paths, VCS stamp, or Go build ID and rejects any byte
 difference. It creates a stable stored ZIP with fixed timestamps, embedded
 documentation/SBOM/license/kernel manifest, an internal `SHA256SUMS`, and an

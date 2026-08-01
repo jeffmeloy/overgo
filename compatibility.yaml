@@ -254,10 +254,30 @@ tools:
   - tokenize
   - block-check
   - generate
+  - diffusion
   - perplexity
   - embedding
   - benchmark
   - server
+diffusion:
+  architectures:
+    - dream
+    - llada
+    - llada-moe
+    - rnd1
+  schedules:
+    - timestep
+    - block
+  ranking_algorithms:
+    - origin
+    - entropy
+    - margin
+    - random
+    - confidence
+  classifier_free_guidance: true
+  gumbel_transform: optional
+  shift_logits_metadata: diffusion.shift_logits
+  cancellation: context-and-callback
 benchmark:
   format: json
   metrics:
@@ -1331,9 +1351,13 @@ models:
       - all-position-hidden-states
       - all-position-logits
       - optional-output-bias
-    limitations:
-      - iterative-mask-transfer-sampler-pending
-      - diffusion-cli-pending
+      - iterative-mask-transfer
+      - timestep-and-block-schedules
+      - five-ranking-algorithms
+      - classifier-free-guidance
+      - shifted-logit-metadata
+      - optional-gumbel-transform
+      - diffusion-cli
     real_model_validation: pending-fixture
   llada:
     status: experimental
@@ -1349,8 +1373,13 @@ models:
       - swiglu
       - all-position-hidden-states-and-logits
       - optional-tied-output
-    limitations:
-      - iterative-diffusion-sampler-pending
+      - iterative-mask-transfer
+      - timestep-and-block-schedules
+      - five-ranking-algorithms
+      - classifier-free-guidance
+      - shifted-logit-metadata
+      - optional-gumbel-transform
+      - diffusion-cli
     real_model_validation: pending-fixture
   llada-moe:
     status: experimental
@@ -1366,8 +1395,13 @@ models:
       - unnormalized-softmax-top-k-moe
       - all-position-hidden-states-and-logits
       - required-untied-output
-    limitations:
-      - iterative-diffusion-sampler-pending
+      - iterative-mask-transfer
+      - timestep-and-block-schedules
+      - five-ranking-algorithms
+      - classifier-free-guidance
+      - shifted-logit-metadata
+      - optional-gumbel-transform
+      - diffusion-cli
     real_model_validation: pending-fixture
   rnd1:
     status: experimental
@@ -1382,8 +1416,13 @@ models:
       - neox-rope
       - normalized-softmax-top-k-moe
       - all-position-hidden-states-and-logits
-    limitations:
-      - iterative-diffusion-sampler-pending
+      - iterative-mask-transfer
+      - timestep-and-block-schedules
+      - five-ranking-algorithms
+      - classifier-free-guidance
+      - shifted-logit-metadata
+      - optional-gumbel-transform
+      - diffusion-cli
     real_model_validation: pending-fixture
   laguna:
     status: experimental

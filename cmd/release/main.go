@@ -23,6 +23,7 @@ var releaseCommands = []string{
 	"block-check",
 	"cuda-info",
 	"cuda-smoke",
+	"diffusion",
 	"embedding",
 	"generate",
 	"gguf-hash",

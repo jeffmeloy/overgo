@@ -73,7 +73,7 @@
   `common_embd_normalize` (`-1`, max-absolute int16 range, and general p-norm);
   OpenAI responses can encode little-endian float32 vectors as base64. Real
   UMT5 per-token output matches its validated final hidden state.
-- The release builder cross-compiles sixteen Windows-amd64 tools with
+- The release builder cross-compiles seventeen Windows-amd64 tools with
   `CGO_ENABLED=0`, `-trimpath`, no VCS stamp, and no Go build ID; it builds
   twice and requires byte-identical stored ZIPs with fixed timestamps and
   internal/external SHA-256 manifests. A real two-build check produced
@@ -1092,8 +1092,15 @@ pending because no BailingMoE2 GGUF is available locally.
 Dream now has an explicit non-causal, no-cache full-sequence execution path
 for bounded-host and preloaded-device weights. It returns either all hidden
 states or vocabulary logits for every position, and rejects KV-cache and
-autoregressive-generation entry points. The iterative mask-transfer sampler
-and diffusion CLI remain separate work.
+autoregressive-generation entry points.
+
+The shared diffusion runtime and CLI execute iterative mask transfer for Dream,
+LLaDA, LLaDA-MoE, and RND1. They preserve the pinned timestep and block
+schedules, origin/confidence/entropy/margin/random selection, top-k/top-p/token
+temperature sampling, classifier-free guidance, optional Gumbel transformation,
+model-metadata logit shifting, callbacks, and cancellation. Deterministic
+scheduler, ranking, CFG, shift, CLI parsing, and validation tests pass. A real
+diffusion GGUF/oracle remains pending because none is present locally.
 
 Laguna now preserves scalar-or-array per-layer query/KV head metadata and its
 full/SWA cadence. Full layers use NeoX YaRN while sliding layers use their
@@ -1147,7 +1154,8 @@ RND1 now reuses the normalized softmax top-k MoE executor inside the explicit
 full-sequence non-causal path. Its Q/K-normalized NeoX-RoPE attention, expert
 tensors, hidden-state output, and all-position vocabulary logits run through
 bounded-host and F32-preload CUDA execution; cache and autoregressive entry
-points reject it. An iterative diffusion sampler/CLI remains separate work.
+points reject it. The shared iterative diffusion runtime and CLI consume those
+all-position logits.
 
 LFM2 now consumes its per-layer KV-head schedule, uses Q/K-normalized attention
 on transformer layers, and runs gated channel-wise short convolution on

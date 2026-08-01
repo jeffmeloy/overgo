@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -2725,22 +2726,34 @@ func TestReadMiniMaxM2Spec(t *testing.T) {
 	}
 }
 
-func TestReadGraniteRejectsNonDenseVariants(t *testing.T) {
-	for _, extra := range []gguf.Metadata{
+func TestReadGraniteRejectsIncompleteMoE(t *testing.T) {
+	file := &gguf.File{Metadata: append(
+		graniteMetadata(),
 		metadata("granite.expert_count", gguf.ValueTypeUint32, uint32(8)),
-		{
-			Key: "granite.deepstack_mapping",
-			Value: gguf.Value{
-				Type:      gguf.ValueTypeArray,
-				ArrayType: gguf.ValueTypeInt32,
-				Data:      []int32{0, -1},
-			},
+	)}
+	if _, err := ReadSpec(file); err == nil {
+		t.Fatal("incomplete Granite MoE metadata was accepted")
+	}
+}
+
+func TestReadGraniteDeepstackMapping(t *testing.T) {
+	mapping := make([]int32, 32)
+	for index := range mapping {
+		mapping[index] = -1
+	}
+	mapping[0], mapping[3], mapping[7] = 0, 1, 2
+	file := &gguf.File{Metadata: append(graniteMetadata(), gguf.Metadata{
+		Key: "granite.deepstack_mapping",
+		Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: mapping,
 		},
-	} {
-		file := &gguf.File{Metadata: append(graniteMetadata(), extra)}
-		if _, err := ReadSpec(file); err == nil {
-			t.Fatalf("Granite variant metadata %q was accepted", extra.Key)
-		}
+	})}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.DeepstackLayerCount != 3 || !slices.Equal(spec.DeepstackMapping, mapping) {
+		t.Fatalf("Granite deepstack count/mapping = %d/%v", spec.DeepstackLayerCount, spec.DeepstackMapping)
 	}
 }
 

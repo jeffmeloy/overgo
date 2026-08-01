@@ -5460,11 +5460,20 @@ func TestExecutorGraniteMoEUngatedBlockMatchesReference(t *testing.T) {
 				FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5)),
 				FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
 			}
-			result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+			layerInput := input
+			var deepstack *tensor.Tensor
+			if architecture == "granite" {
+				deepstack = builder.Input("deepstack_input", dtype.F32, input.Shape)
+				layerInput = builder.Add(layerInput, deepstack)
+			}
+			result, err := model.BuildDenseBlockCachedForLayer(builder, layerInput, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
 			feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
+			if deepstack != nil {
+				feeds[deepstack] = patternedValue(deepstack.Shape, 7, 0.04, 0)
+			}
 			for index, node := range []*tensor.Tensor{
 				weights.AttentionQ, weights.AttentionK, weights.AttentionV, weights.AttentionOutput,
 				weights.FeedForwardRouter, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
@@ -7084,7 +7093,13 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 		feeds[weights.AttentionQNorm] = patternedValue(weights.AttentionQNorm.Shape, 31, 0.03, 1)
 		feeds[weights.AttentionKNorm] = patternedValue(weights.AttentionKNorm.Shape, 37, 0.03, 1)
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	output := result.Output
+	if architecture == "qwen3vl" || architecture == "qwen3vlmoe" {
+		deepstack := builder.Input("deepstack_output", dtype.F32, result.Output.Shape)
+		feeds[deepstack] = patternedValue(deepstack.Shape, 43, 0.04, 0)
+		output = builder.Add(output, deepstack)
+	}
+	outputs := []*tensor.Tensor{output, result.Key, result.Value}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -7098,7 +7113,7 @@ func testExecutorMRoPETextDecoderBlockMatchesReference(t *testing.T, architectur
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 6e-4)
+	compare(t, got[output].Data, want[output].Data, 6e-4)
 	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }

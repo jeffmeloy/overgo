@@ -5,7 +5,7 @@ Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/Bai
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, text-only Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM token-input decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4 and Gemma Embedding,
-ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE multimodal-coordinate decoding, GPT-2/GPT-NeoX, Granite/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
+ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE multimodal-coordinate decoding, GPT-2/GPT-NeoX, Granite/GraniteMoE with projected vision deepstack injection, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniCPM/MiniCPM3, MPT,
 Mistral 3 dense/MoE, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, PaddleOCR and Qwen2-VL/Qwen3-VL text-coordinate decoders, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,

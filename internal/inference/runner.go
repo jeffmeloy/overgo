@@ -115,11 +115,7 @@ type T5Session struct {
 	Cache   *KVCache
 }
 
-// EmbeddingOverride: replaces one token-embedding column before learned
-// positions, model-specific embedding scaling, and embedding normalization are
-// applied; TokenIndex is local to token chunk passed to Forward call
-// decoder-side bridge used by multimodal encoders and other soft
-// prompt producers
+// EmbeddingOverride: projected replacement for one chunk-local token.
 type EmbeddingOverride struct {
 	TokenIndex uint32
 	Embedding  []float32
@@ -127,6 +123,13 @@ type EmbeddingOverride struct {
 
 // MultiAxisPositions: temporal, height, width, extra MRoPE coordinates.
 type MultiAxisPositions [4][]uint32
+
+// ProjectedInputs: projected base/deepstack streams plus optional MRoPE axes.
+type ProjectedInputs struct {
+	EmbeddingOverrides  []EmbeddingOverride
+	MultiAxisPositions  *MultiAxisPositions
+	DeepstackEmbeddings []reference.Value
+}
 
 // Runner: correctness-first Llama/Qwen inference runtime with editable
 // host attention/recurrent cache and optional persistent F32 or
@@ -1093,7 +1096,7 @@ func (r *Runner) ForwardWithEmbeddingOverrides(
 	if r.spec.Architecture == "t5encoder" || r.spec.NonCausalAttention {
 		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
 	}
-	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides, nil)
+	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides, nil, nil)
 	return hidden, err
 }
 
@@ -1569,7 +1572,7 @@ func (r *Runner) ForwardCachedWithEmbeddingOverrides(
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides, nil)
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides, nil, nil)
 }
 
 // ForwardCachedWithMultimodalInputs: projected embeddings plus MRoPE axes.
@@ -1592,7 +1595,34 @@ func (r *Runner) ForwardCachedWithMultimodalInputs(
 		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
 	}
 	return r.forwardCachedWithEmbeddingOverridesLocked(
-		ctx, tokenIDs, cache, overrides, &positions,
+		ctx, tokenIDs, cache, overrides, &positions, nil,
+	)
+}
+
+// ForwardCachedWithProjectedInputs: projected base/deepstack decoder input.
+func (r *Runner) ForwardCachedWithProjectedInputs(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	cache *KVCache,
+	inputs ProjectedInputs,
+) (reference.Value, *KVCache, error) {
+	if r == nil {
+		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, nil, errors.New("inference: runner is closed")
+	}
+	if inputs.MultiAxisPositions != nil && !supportsMultiAxisPositions(r.spec) {
+		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
+	}
+	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec) {
+		return reference.Value{}, nil, errors.New("inference: model does not support deepstack embeddings")
+	}
+	return r.forwardCachedWithEmbeddingOverridesLocked(
+		ctx, tokenIDs, cache, inputs.EmbeddingOverrides,
+		inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
 	)
 }
 
@@ -1601,7 +1631,7 @@ func (r *Runner) forwardCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil, nil)
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil, nil, nil)
 }
 
 func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
@@ -1610,6 +1640,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	cache *KVCache,
 	overrides []EmbeddingOverride,
 	multiPositions *MultiAxisPositions,
+	deepstackInputs []reference.Value,
 ) (reference.Value, *KVCache, error) {
 	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
 		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP-only model requires a paired target session")
@@ -1656,6 +1687,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 			}
 		}
 	}
+	if err := validateDeepstackInputs(r.spec, len(tokenIDs), deepstackInputs); err != nil {
+		return reference.Value{}, nil, err
+	}
 	rows := make([]uint32, len(tokenIDs))
 	positions := make([]uint32, len(tokenIDs))
 	for index, id := range tokenIDs {
@@ -1672,14 +1706,32 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
+	var deepstackBase reference.Value
+	graniteDeepstack := r.spec.Architecture == "granite" && len(r.spec.DeepstackMapping) > 0
+	if graniteDeepstack {
+		deepstackBase = reference.Value{
+			Shape: activation.Shape,
+			Data:  append([]float32(nil), activation.Data...),
+		}
+		if err := applyEmbeddingOverrides(&deepstackBase, overrides); err != nil {
+			return reference.Value{}, nil, err
+		}
+		if scale := r.spec.InputEmbeddingScale(); scale != 1 {
+			for index := range activation.Data {
+				activation.Data[index] *= scale
+			}
+		}
+		if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
+			return reference.Value{}, nil, err
+		}
+	} else if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
 		return reference.Value{}, nil, err
 	}
 	activation, err = r.addPositionEmbeddings(ctx, activation, positions)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
+	if scale := r.spec.InputEmbeddingScale(); !graniteDeepstack && scale != 1 {
 		for index := range activation.Data {
 			activation.Data[index] *= scale
 		}
@@ -1726,7 +1778,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: cachePosition,
 	}
-	if multiPositions == nil && r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
+	if r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
@@ -1739,11 +1791,18 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2" &&
 		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7" {
 		return r.forwardDenseLayersPreloaded(
-			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
+			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
+			deepstackBase, deepstackInputs, cache, nextCache,
 		)
 	}
 	var firstLayerValue, previousTopK *reference.Value
 	for layerIndex, layerInfo := range r.weights.Layers {
+		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), false, deepstackBase, deepstackInputs); stream != nil {
+			activation, err = addDeepstackEmbedding(activation, *stream)
+			if err != nil {
+				return reference.Value{}, nil, fmt.Errorf("inference layer %d deepstack input: %w", layerIndex, err)
+			}
+		}
 		var past *LayerCache
 		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
 			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
@@ -1776,6 +1835,12 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
+		}
+		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), true, deepstackBase, deepstackInputs); stream != nil {
+			activation, err = addDeepstackEmbedding(activation, *stream)
+			if err != nil {
+				return reference.Value{}, nil, fmt.Errorf("inference layer %d deepstack output: %w", layerIndex, err)
+			}
 		}
 		if layerCache.Auxiliary != nil {
 			if r.spec.Architecture == "glm-dsa" {
@@ -1846,6 +1911,9 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	embeddingSkip reference.Value,
 	perLayerInputs []reference.Value,
 	positions []uint32,
+	multiPositions *MultiAxisPositions,
+	deepstackBase reference.Value,
+	deepstackInputs []reference.Value,
 	cache *KVCache,
 	nextCache *KVCache,
 ) (reference.Value, *KVCache, error) {
@@ -1857,6 +1925,13 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
+		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), false, deepstackBase, deepstackInputs); stream != nil {
+			deepstack := builder.Input(
+				fmt.Sprintf("blk.%d.deepstack_input", layerIndex), dtype.F32, stream.Shape,
+			)
+			hostFeeds[deepstack] = *stream
+			current = builder.Add(current, deepstack)
+		}
 		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
 		if err != nil {
 			return reference.Value{}, nil, err
@@ -1898,20 +1973,29 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			hostFeeds[pastKey] = past.Key
 			hostFeeds[pastValue] = past.Value
 		}
-		result, err := model.BuildDenseBlockCachedForLayer(
-			builder,
-			current,
-			r.spec,
-			graphWeights,
-			positions,
-			pastKey,
-			pastValue,
-			uint32(layerIndex),
-		)
+		var result model.DenseBlockResult
+		if multiPositions != nil {
+			result, err = model.BuildDenseBlockCachedForLayerWithMultiPositions(
+				builder, current, r.spec, graphWeights, [4][]uint32(*multiPositions),
+				pastKey, pastValue, uint32(layerIndex),
+			)
+		} else {
+			result, err = model.BuildDenseBlockCachedForLayer(
+				builder, current, r.spec, graphWeights, positions,
+				pastKey, pastValue, uint32(layerIndex),
+			)
+		}
 		if err != nil {
 			return reference.Value{}, nil, err
 		}
 		current = result.Output
+		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), true, deepstackBase, deepstackInputs); stream != nil {
+			deepstack := builder.Input(
+				fmt.Sprintf("blk.%d.deepstack_output", layerIndex), dtype.F32, stream.Shape,
+			)
+			hostFeeds[deepstack] = *stream
+			current = builder.Add(current, deepstack)
+		}
 		keys[layerIndex] = result.Key
 		values[layerIndex] = result.Value
 	}
@@ -3825,6 +3909,85 @@ func supportsMultiAxisPositions(spec model.Spec) bool {
 	default:
 		return false
 	}
+}
+
+func supportsDeepstackInputs(spec model.Spec) bool {
+	return spec.DeepstackLayerCount > 0 &&
+		(spec.Architecture == "granite" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe")
+}
+
+func validateDeepstackInputs(spec model.Spec, tokens int, inputs []reference.Value) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if !supportsDeepstackInputs(spec) {
+		return errors.New("inference: model does not support deepstack embeddings")
+	}
+	if len(inputs) != int(spec.DeepstackLayerCount) {
+		return fmt.Errorf(
+			"inference: received %d deepstack streams, need %d",
+			len(inputs), spec.DeepstackLayerCount,
+		)
+	}
+	want := tensor.MustShape(uint64(spec.EmbeddingLength), uint64(tokens))
+	for streamIndex, stream := range inputs {
+		if !stream.Shape.Equal(want) || len(stream.Data) != int(spec.EmbeddingLength)*tokens {
+			return fmt.Errorf("inference: deepstack stream %d has invalid shape", streamIndex)
+		}
+		for _, value := range stream.Data {
+			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+				return fmt.Errorf("inference: deepstack stream %d contains non-finite value", streamIndex)
+			}
+		}
+	}
+	return nil
+}
+
+func deepstackInputForLayer(
+	spec model.Spec,
+	layer uint32,
+	after bool,
+	base reference.Value,
+	inputs []reference.Value,
+) *reference.Value {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" {
+		if after && layer < spec.DeepstackLayerCount {
+			return &inputs[layer]
+		}
+		return nil
+	}
+	if spec.Architecture != "granite" || after || layer == 0 || int(layer) >= len(spec.DeepstackMapping) {
+		return nil
+	}
+	stream := spec.DeepstackMapping[layer]
+	if stream < 0 {
+		return nil
+	}
+	if stream == 0 {
+		return &base
+	}
+	index := int(stream - 1)
+	if index >= len(inputs) {
+		return nil
+	}
+	return &inputs[index]
+}
+
+func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Value, error) {
+	if !activation.Shape.Equal(deepstack.Shape) || len(activation.Data) != len(deepstack.Data) {
+		return reference.Value{}, errors.New("activation and deepstack shapes differ")
+	}
+	output := reference.Value{
+		Shape: activation.Shape,
+		Data:  append([]float32(nil), activation.Data...),
+	}
+	for index, value := range deepstack.Data {
+		output.Data[index] += value
+	}
+	return output, nil
 }
 
 func isDSAArchitecture(architecture string) bool {

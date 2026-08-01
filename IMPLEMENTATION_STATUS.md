@@ -439,7 +439,7 @@
   concatenation, channel-wise SSM convolution, and the fused K=1 gated delta
   net match the CPU reference on CUDA for scalar/vector gates and shared Q/K
   heads.
-- Multi-axis RoPE implements the pinned split-half temporal/height/width/extra
+- Multi-axis RoPE implements the pinned adjacent-pair temporal/height/width/extra
   section mapping on CPU and CUDA. Qwen3.5 also honors an explicit
   `attention.recurrent_layers` boolean array when present, with the
   full-attention interval retained as the upstream-compatible fallback.
@@ -542,13 +542,15 @@
   and retained-device inference. Standard and linear-scaled normal RoPE are
   supported; LongRoPE variants remain pending. Real-model validation is pending
   a local fixture.
-- Text-only Granite and GraniteMoE decoders support metadata-driven embedding,
+- Granite and GraniteMoE decoders support metadata-driven embedding,
   residual-branch, attention, and inverse-logit scales, optional no-RoPE mode,
   and LongRoPE short/long factor selection. Either the Granite or GraniteMoE
   architecture may select normalized softmax top-k gated or ungated SiLU
   experts plus an optional shared SwiGLU expert.
-  Vision deepstack remains rejected explicitly. Real-model validation is
-  pending a local fixture.
+  Granite Vision 4.1 metadata maps caller-provided projected deepstack streams
+  into decoder layers before attention; token-only calls leave those streams
+  zero-filled. Vision encoding and projection remain external. Real-model
+  validation is pending a local fixture.
 - Maincoder dense decoders support normal consecutive-pair RoPE followed by
   per-head Q/K RMSNorm, preserving the upstream operation order, with the
   standard tied-output RMSNorm/SwiGLU catalog. Real-model validation is pending
@@ -1252,7 +1254,7 @@ mixed-layer catalog, graph semantics, and a reference/CUDA block differential
 pass. Image encoding, projection, and soft-embedding construction remain the
 external multimodal boundary; real-model validation is pending a local fixture.
 
-PaddleOCR now reuses the ERNIE 4.5 dense catalog with its pinned split-half
+PaddleOCR now reuses the ERNIE 4.5 dense catalog with its pinned adjacent-pair
 four-axis MRoPE graph and optional attention-output bias. Its decoder accepts
 caller-projected embeddings and distinct grid coordinates; text decoding still
 repeats the token coordinate across all axes. Reference/CUDA block
@@ -1260,7 +1262,7 @@ differentials pass. The vision projector and grid construction remain external;
 real-model validation is pending fixtures.
 
 Qwen2-VL now executes its dense text decoder with fused or separate Q/K/V,
-optional projection/output biases, scaled four-axis split-half MRoPE, SwiGLU,
+optional projection/output biases, scaled four-axis adjacent-pair MRoPE, SwiGLU,
 and serializable KV caching. Projected visual token embeddings can enter through
 the multimodal input API with caller-supplied four-axis grid coordinates; text
 tokens use repeated coordinates across all axes. Image encoding and grid
@@ -1269,11 +1271,11 @@ graph semantics, and a complete reference/CUDA block differential pass;
 real-model validation is pending a local text-model fixture.
 
 Qwen3-VL now adds mandatory per-head Q/K RMSNorm before scaled four-axis MRoPE,
-plus its optional deepstack-layer metadata, over the same dense text-decoder and
-KV-cache paths. Ordinary token input exactly matches upstream's zero-filled
-deepstack stream. Base projected visual embeddings and grid coordinates enter
-through the multimodal input API. Projected visual deepstack injection, vision
-encoding, grid construction, and the optional classification/rerank head
+plus its optional deepstack layers, over the same dense text-decoder and KV-cache
+paths. Ordinary token input exactly matches upstream's zero-filled deepstack
+stream. The projected-input API accepts base visual embeddings, grid coordinates,
+and one projected stream per deepstack layer, injected after each target layer.
+Vision encoding, grid construction, and the optional classification/rerank head
 remain external boundaries. Metadata, strict catalog, graph topology, and a
 complete reference/CUDA block differential pass; real-model validation is
 pending a local fixture.
@@ -1281,11 +1283,11 @@ pending a local fixture.
 Qwen3-VL-MoE now composes the Qwen3-VL text attention path with packed routed
 SwiGLU experts. It supports fused or separate Q/K/V, per-head Q/K RMSNorm,
 scaled four-axis MRoPE, normalized softmax top-k routing, routed-weight scaling,
-native-quantized experts, zero-filled token deepstack, and serializable KV
-caching. Projected visual deepstack injection, vision encoding, image-grid
-construction, and the optional classification/rerank head remain external;
-base projected embeddings and four-axis coordinates enter through the
-multimodal input API.
+native-quantized experts, zero-filled or caller-projected deepstack, and
+serializable KV caching. Vision encoding, image-grid construction, and the
+optional classification/rerank head remain external; base projected embeddings,
+four-axis coordinates, and projected deepstack streams enter through the
+projected-input API.
 Metadata, strict catalog, graph topology, and reference/CUDA block differential
 tests pass; real-model validation is pending a local fixture.
 

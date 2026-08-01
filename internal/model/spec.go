@@ -118,6 +118,7 @@ type Spec struct {
 	SSMDtBCNorm           bool
 	FullAttentionInterval uint32
 	DeepstackLayerCount   uint32
+	DeepstackMapping      []int32
 	EmbeddingPerLayer     uint32
 	SharedKVLayers        uint32
 	KVFromStart           uint32
@@ -905,7 +906,28 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); mappingErr != nil {
 			return Spec{}, mappingErr
 		} else if ok && len(mapping) > 0 {
-			return Spec{}, errors.New("Granite vision deepstack is not supported")
+			if architecture != "granite" {
+				return Spec{}, errors.New("Granite deepstack mapping requires granite architecture")
+			}
+			if len(mapping) != int(spec.BlockCount) {
+				return Spec{}, fmt.Errorf("Granite deepstack mapping has %d entries, need %d", len(mapping), spec.BlockCount)
+			}
+			unique := make(map[int32]struct{})
+			for _, index := range mapping {
+				if index < -1 {
+					return Spec{}, errors.New("Granite deepstack mapping index is invalid")
+				}
+				if index >= 0 {
+					unique[index] = struct{}{}
+				}
+			}
+			for index := range unique {
+				if uint32(index) > uint32(len(unique)) {
+					return Spec{}, errors.New("Granite deepstack mapping index exceeds stream count")
+				}
+			}
+			spec.DeepstackLayerCount = uint32(len(unique))
+			spec.DeepstackMapping = append([]int32(nil), mapping...)
 		}
 	}
 	if architecture == "cohere2" || architecture == "cohere2moe" {

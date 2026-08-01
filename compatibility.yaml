@@ -1736,7 +1736,7 @@ models:
     features:
       - ernie-4-5-rmsnorm-swiglu-decoder
       - contiguous-fused-or-separate-qkv
-      - split-half-four-axis-mrope
+      - adjacent-pair-four-axis-mrope
       - caller-supplied-four-axis-positions
       - projected-embedding-overrides
       - optional-attention-output-bias
@@ -2186,6 +2186,7 @@ models:
     variants:
       - dense-text-only
       - same-architecture-moe-text-only
+      - vision-deepstack-decoder
     features:
       - embedding-scale
       - residual-branch-scale
@@ -2199,8 +2200,12 @@ models:
       - optional-normalized-softmax-top-k-moe
       - optional-gated-or-ungated-experts
       - optional-shared-swiglu-expert
+      - projected-base-embedding-overrides
+      - mapped-projector-deepstack-injection
+      - zero-filled-token-deepstack
     limitations:
-      - vision-deepstack-rejected
+      - vision-encoder-external
+      - vision-projector-external
     real_model_validation: pending-fixture
   maincoder:
     status: experimental
@@ -2268,7 +2273,7 @@ models:
     features:
       - text-coordinate-decoder
       - fused-or-separate-qkv-with-optional-bias
-      - scaled-four-axis-split-half-mrope
+      - scaled-four-axis-adjacent-pair-mrope
       - caller-supplied-four-axis-positions
       - optional-output-bias
       - swiglu
@@ -2288,14 +2293,13 @@ models:
       - text-coordinate-decoder
       - fused-or-separate-qkv-with-optional-bias
       - pre-rope-per-head-qk-rmsnorm
-      - scaled-four-axis-split-half-mrope
+      - scaled-four-axis-adjacent-pair-mrope
       - caller-supplied-four-axis-positions
       - swiglu
       - projected-embedding-overrides
-      - zero-filled-token-deepstack
+      - zero-filled-or-projected-deepstack
       - serializable-prefix-editable-kv-cache
     limitations:
-      - projected-visual-deepstack-injection-external
       - image-encoder-external
       - image-grid-coordinate-construction-external
       - classification-rerank-head-external
@@ -2310,17 +2314,16 @@ models:
       - text-coordinate-decoder
       - fused-or-separate-qkv-with-optional-bias
       - pre-rope-per-head-qk-rmsnorm
-      - scaled-four-axis-split-half-mrope
+      - scaled-four-axis-adjacent-pair-mrope
       - caller-supplied-four-axis-positions
       - softmax-top-k-routing
       - selected-probability-normalization
       - routed-weight-scaling
       - packed-swiglu-experts
-      - zero-filled-token-deepstack
+      - zero-filled-or-projected-deepstack
       - projected-embedding-overrides
       - serializable-prefix-editable-kv-cache
     limitations:
-      - projected-visual-deepstack-injection-external
       - image-encoder-external
       - image-grid-coordinate-construction-external
       - classification-rerank-head-external

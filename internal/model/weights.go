@@ -209,6 +209,8 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	outputNormName := "output_norm.weight"
 	if spec.Architecture == "t5encoder" {
 		outputNormName = "enc.output_norm.weight"
+	} else if spec.Architecture == "neo-bert" {
+		outputNormName = "enc.output_norm.weight"
 	} else if spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe" {
 		outputNormName = "token_embd_norm.weight"
 	}
@@ -668,10 +670,10 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
+			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hy_v3" || spec.Architecture == "minimax-m2" || spec.Architecture == "neo-bert" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" ||
 				spec.Architecture == "falcon" {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
-				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
+				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight",
 						uint64(spec.EmbeddingLength),

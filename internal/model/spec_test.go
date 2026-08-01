@@ -420,6 +420,29 @@ func TestReadBERTSpecUsesLearnedPositions(t *testing.T) {
 	}
 }
 
+func TestReadNeoBERTSpecIsNonCausalNormalRoPE(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "neo-bert"),
+		metadata("neo-bert.block_count", gguf.ValueTypeUint32, uint32(28)),
+		metadata("neo-bert.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("neo-bert.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("neo-bert.feed_forward_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("neo-bert.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("neo-bert.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("neo-bert.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "neo-bert" || !spec.NonCausalAttention || !spec.IsEncoderOnly() ||
+		spec.HeadCountKV != 2 || spec.KeyLength != 4 || spec.RopeDimensionCount != 4 ||
+		spec.RopeFrequencyBase != 10000 || !usesNormalRoPE(spec.Architecture) ||
+		!usesFusedGateUp(spec.Architecture) {
+		t.Fatalf("unexpected NeoBERT spec: %+v", spec)
+	}
+}
+
 func TestReadRND1SpecIsNonCausalMoE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "rnd1"),

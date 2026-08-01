@@ -951,6 +951,51 @@ func TestBuildBERTBlockUsesPostNormNonCausalAttention(t *testing.T) {
 	}
 }
 
+func TestBuildNeoBERTBlockUsesNormalRoPEAndFusedSwiGLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "neo-bert", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := LayerGraphWeights{
+		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:    builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionOutput: builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 32)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attention *tensor.Tensor
+	var normalRoPE, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpAttention:
+			attention = node
+		case tensor.OpRoPENormal:
+			normalRoPE++
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Causal ||
+		normalRoPE != 2 || silu != 1 {
+		t.Fatalf("unexpected NeoBERT graph: attention=%+v RoPE=%d SiLU=%d", attention, normalRoPE, silu)
+	}
+}
+
 func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

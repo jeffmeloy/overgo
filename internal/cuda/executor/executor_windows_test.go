@@ -1906,6 +1906,62 @@ func TestExecutorBERTBlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorNeoBERTBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "neo-bert", EmbeddingLength: 8, FeedForwardLength: 16,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+		RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:    builder.Input("qkv", dtype.F32, tensor.MustShape(8, 24)),
+		AttentionOutput: builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 32)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
+	}
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                   patternedValue(input.Shape, 3, 0.2, 0),
+		weights.AttentionNorm:   patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 1),
+		weights.FeedForwardNorm: patternedValue(weights.FeedForwardNorm.Shape, 7, 0.03, 1),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQKV, weights.AttentionOutput,
+		weights.FeedForwardUp, weights.FeedForwardDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.06, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 6e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorRND1NonCausalMoEBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

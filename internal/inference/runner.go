@@ -770,8 +770,8 @@ func (r *Runner) projectAllLogits(
 	ctx context.Context,
 	hidden reference.Value,
 ) (reference.Value, error) {
-	if r.spec.Architecture == "bert" {
-		return reference.Value{}, errors.New("inference: BERT exposes hidden states, not vocabulary logits")
+	if r.spec.IsEncoderOnly() {
+		return reference.Value{}, errors.New("inference: encoder exposes hidden states, not vocabulary logits")
 	}
 	if hidden.Shape.Rank != 2 || hidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) {
 		return reference.Value{}, errors.New("inference: non-causal hidden-state shape is incompatible")

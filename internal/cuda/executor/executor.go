@@ -685,6 +685,10 @@ type functionSet struct {
 	gatedLinearAttn   driver.Function
 	rwkv6             driver.Function
 	sumRows           driver.Function
+	fwht              driver.Function
+	topK              driver.Function
+	gatherLast        driver.Function
+	sparseAttention   driver.Function
 	rwkv7             driver.Function
 	moe               driver.Function
 	repeatHeads       driver.Function
@@ -864,6 +868,10 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"gated_linear_attention_f32", &result.gatedLinearAttn},
 		{"rwkv6_f32", &result.rwkv6},
 		{"sum_rows_f32", &result.sumRows},
+		{"fwht_f32", &result.fwht},
+		{"top_k_f32", &result.topK},
+		{"gather_last_f32", &result.gatherLast},
+		{"sparse_attention_f32", &result.sparseAttention},
 		{"rwkv7_f32", &result.rwkv7},
 		{"moe_f32", &result.moe},
 		{"repeat_heads_f32", &result.repeatHeads},
@@ -1448,6 +1456,128 @@ func launchNode(
 		runtime.KeepAlive(output)
 		runtime.KeepAlive(width)
 		runtime.KeepAlive(rows)
+		return err
+	case tensor.OpFWHT:
+		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width), unsafe.Pointer(&rows),
+		}
+		err = launch1D(state, functions.fwht, rows, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpTopK:
+		attributes, ok := node.Attrs.(tensor.TopKAttributes)
+		if !ok || attributes.K == 0 {
+			return errors.New("invalid TopK attributes")
+		}
+		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		k := attributes.K
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width),
+			unsafe.Pointer(&k), unsafe.Pointer(&rows),
+		}
+		err = launch1D(state, functions.topK, rows, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpGatherLast:
+		inputNode, indicesNode := node.Inputs[0], node.Inputs[1]
+		inputRows, err := uint32Checked(
+			inputNode.Shape.Dims[inputNode.Shape.Rank-1], "GatherLast input rows",
+		)
+		if err != nil {
+			return err
+		}
+		inputElements, err := inputNode.Shape.Elements()
+		if err != nil || inputElements%uint64(inputRows) != 0 {
+			return errors.New("GatherLast input dimensions are invalid")
+		}
+		inner, err := uint32Checked(inputElements/uint64(inputRows), "GatherLast inner size")
+		if err != nil {
+			return err
+		}
+		indexElements, err := indicesNode.Shape.Elements()
+		if err != nil {
+			return err
+		}
+		indexCount, err := uint32Checked(indexElements, "GatherLast index count")
+		if err != nil {
+			return err
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input, indices := pointers[inputNode], pointers[indicesNode]
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&indices), unsafe.Pointer(&output),
+			unsafe.Pointer(&inner), unsafe.Pointer(&indexCount), unsafe.Pointer(&inputRows),
+			unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.gatherLast, count, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpSparseAttention:
+		attributes, ok := node.Attrs.(tensor.SparseAttentionAttributes)
+		if !ok {
+			return errors.New("invalid SparseAttention attributes")
+		}
+		keyWidth, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SparseAttention key width")
+		if err != nil {
+			return err
+		}
+		valueWidth, err := uint32Checked(node.Inputs[2].Shape.Dims[0], "SparseAttention value width")
+		if err != nil {
+			return err
+		}
+		queryHeads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "SparseAttention query heads")
+		if err != nil {
+			return err
+		}
+		keyValueHeads, err := uint32Checked(node.Inputs[1].Shape.Dims[1], "SparseAttention KV heads")
+		if err != nil {
+			return err
+		}
+		queryTokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "SparseAttention query tokens")
+		if err != nil {
+			return err
+		}
+		keyValueTokens, err := uint32Checked(node.Inputs[1].Shape.Dims[2], "SparseAttention KV tokens")
+		if err != nil {
+			return err
+		}
+		selected, err := uint32Checked(node.Inputs[3].Shape.Dims[0], "SparseAttention selected tokens")
+		if err != nil {
+			return err
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		query, key := pointers[node.Inputs[0]], pointers[node.Inputs[1]]
+		value, indices := pointers[node.Inputs[2]], pointers[node.Inputs[3]]
+		scale := attributes.Scale
+		var causal uint32
+		if attributes.Causal {
+			causal = 1
+		}
+		queryStart := attributes.QueryStart
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&query), unsafe.Pointer(&key), unsafe.Pointer(&value), unsafe.Pointer(&indices),
+			unsafe.Pointer(&output), unsafe.Pointer(&keyWidth), unsafe.Pointer(&valueWidth),
+			unsafe.Pointer(&queryHeads), unsafe.Pointer(&keyValueHeads), unsafe.Pointer(&queryTokens),
+			unsafe.Pointer(&keyValueTokens), unsafe.Pointer(&selected), unsafe.Pointer(&scale),
+			unsafe.Pointer(&causal), unsafe.Pointer(&queryStart), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.sparseAttention, count, args)
+		runtime.KeepAlive(args)
 		return err
 	case tensor.OpRWKV7:
 		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "RWKV7 width")

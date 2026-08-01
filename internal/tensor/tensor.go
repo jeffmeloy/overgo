@@ -50,6 +50,10 @@ const (
 	OpRWKV6
 	OpSumRows
 	OpRWKV7
+	OpFWHT
+	OpTopK
+	OpGatherLast
+	OpSparseAttention
 )
 
 var opNames = [...]string{
@@ -91,6 +95,10 @@ var opNames = [...]string{
 	"rwkv6",
 	"sum_rows",
 	"rwkv7",
+	"fwht",
+	"top_k",
+	"gather_last",
+	"sparse_attention",
 }
 
 func (o Op) String() string {
@@ -234,6 +242,16 @@ type GroupSliceAttributes struct {
 
 type FlatSliceAttributes struct {
 	Offset uint64
+}
+
+type TopKAttributes struct {
+	K uint32
+}
+
+type SparseAttentionAttributes struct {
+	Scale      float32
+	Causal     bool
+	QueryStart uint32
 }
 
 // Tensor: immutable graph node descriptor
@@ -610,6 +628,74 @@ func (b *Builder) SumRows(input *Tensor) *Tensor {
 		return nil
 	}
 	return b.add("", dtype.F32, shape, OpSumRows, []*Tensor{input}, nil)
+}
+
+// FWHT: orthonormal Walsh-Hadamard transform over dimension zero.
+func (b *Builder) FWHT(input *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Rank == 0 {
+		b.setError(errors.New("FWHT requires non-empty F32 input"))
+		return nil
+	}
+	width := input.Shape.Dims[0]
+	if width == 0 || width&(width-1) != 0 {
+		b.setError(errors.New("FWHT dimension zero must be a power of two"))
+		return nil
+	}
+	return b.add("", dtype.F32, input.Shape, OpFWHT, []*Tensor{input}, nil)
+}
+
+// TopK: descending dimension-zero indices; lower index wins ties.
+func (b *Builder) TopK(input *Tensor, k uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Rank == 0 {
+		b.setError(errors.New("TopK requires non-empty F32 input"))
+		return nil
+	}
+	if k == 0 || uint64(k) > input.Shape.Dims[0] {
+		b.setError(errors.New("TopK count exceeds dimension zero"))
+		return nil
+	}
+	if input.Shape.Dims[0] > 1<<24 {
+		b.setError(errors.New("TopK dimension zero exceeds exact F32 index range"))
+		return nil
+	}
+	dimensions := input.Shape.Slice()
+	dimensions[0] = uint64(k)
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpTopK, []*Tensor{input}, TopKAttributes{K: k})
+}
+
+// GatherLast: dynamic gather from final dimension; exact F32 indices.
+func (b *Builder) GatherLast(input, indices *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || indices == nil || input.Type != dtype.F32 || indices.Type != dtype.F32 ||
+		input.Shape.Rank == 0 || indices.Shape.Rank == 0 {
+		b.setError(errors.New("GatherLast requires non-empty F32 inputs"))
+		return nil
+	}
+	if int(input.Shape.Rank)-1+int(indices.Shape.Rank) > MaxDimensions {
+		b.setError(errors.New("GatherLast output rank exceeds limit"))
+		return nil
+	}
+	dimensions := append([]uint64(nil), input.Shape.Slice()[:input.Shape.Rank-1]...)
+	dimensions = append(dimensions, indices.Shape.Slice()...)
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpGatherLast, []*Tensor{input, indices}, nil)
 }
 
 // RWKV7: vector-valued decay recurrence; packed output and state.
@@ -1513,6 +1599,66 @@ func (b *Builder) FlatSlice(input *Tensor, offset uint64, dimensions ...uint64) 
 // [value width, KV heads, tokens]
 func (b *Builder) Attention(query, key, value *Tensor, scale float32, causal bool) *Tensor {
 	return b.AttentionWithOffset(query, key, value, scale, causal, 0)
+}
+
+// SparseAttention: top-k indexed grouped-query attention.
+func (b *Builder) SparseAttention(
+	query, key, value, indices *Tensor,
+	scale float32,
+) *Tensor {
+	return b.SparseAttentionWithOffset(query, key, value, indices, scale, false, 0)
+}
+
+// SparseAttentionWithOffset: optional causal suffix attention.
+func (b *Builder) SparseAttentionWithOffset(
+	query, key, value, indices *Tensor,
+	scale float32,
+	causal bool,
+	queryStart uint32,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if query == nil || key == nil || value == nil || indices == nil {
+		b.setError(errors.New("SparseAttention input is nil"))
+		return nil
+	}
+	if query.Type != dtype.F32 || key.Type != dtype.F32 || value.Type != dtype.F32 || indices.Type != dtype.F32 {
+		b.setError(errors.New("SparseAttention requires F32 inputs"))
+		return nil
+	}
+	if query.Shape.Rank != 3 || key.Shape.Rank != 3 || value.Shape.Rank != 3 || indices.Shape.Rank != 2 {
+		b.setError(errors.New("SparseAttention requires rank-3 Q/K/V and rank-2 indices"))
+		return nil
+	}
+	if query.Shape.Dims[0] != key.Shape.Dims[0] ||
+		key.Shape.Dims[1] != value.Shape.Dims[1] ||
+		key.Shape.Dims[2] != value.Shape.Dims[2] ||
+		query.Shape.Dims[1]%key.Shape.Dims[1] != 0 ||
+		indices.Shape.Dims[0] == 0 || indices.Shape.Dims[0] > key.Shape.Dims[2] ||
+		indices.Shape.Dims[1] != query.Shape.Dims[2] {
+		b.setError(errors.New("SparseAttention input shapes are incompatible"))
+		return nil
+	}
+	if uint64(queryStart) > key.Shape.Dims[2] ||
+		query.Shape.Dims[2] > key.Shape.Dims[2]-uint64(queryStart) {
+		b.setError(errors.New("SparseAttention query range exceeds KV tokens"))
+		return nil
+	}
+	if math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		b.setError(errors.New("SparseAttention scale must be finite"))
+		return nil
+	}
+	shape, err := NewShape(value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add(
+		"", dtype.F32, shape, OpSparseAttention,
+		[]*Tensor{query, key, value, indices},
+		SparseAttentionAttributes{Scale: scale, Causal: causal, QueryStart: queryStart},
+	)
 }
 
 // AttentionWithOffset: permits query to represent only suffix beginning at

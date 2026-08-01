@@ -618,6 +618,202 @@ extern "C" __global__ void sum_rows_f32(
 	output[row] = sum;
 }
 
+extern "C" __global__ void fwht_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int rows) {
+	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	const size_t base = (size_t) row * width;
+	for (unsigned int column = 0; column < width; ++column) {
+		output[base + column] = input[base + column];
+	}
+	for (unsigned int stride = 1; stride < width; stride *= 2) {
+		for (unsigned int block = 0; block < width; block += 2 * stride) {
+			for (unsigned int offset = 0; offset < stride; ++offset) {
+				const size_t first = base + block + offset;
+				const size_t second = first + stride;
+				const float a = output[first];
+				const float b = output[second];
+				output[first] = a + b;
+				output[second] = a - b;
+			}
+		}
+	}
+	const float scale = rsqrtf((float) width);
+	for (unsigned int column = 0; column < width; ++column) {
+		output[base + column] *= scale;
+	}
+}
+
+__device__ bool top_k_before(
+		float left,
+		unsigned int left_index,
+		float right,
+		unsigned int right_index) {
+	const bool left_nan = isnan(left);
+	const bool right_nan = isnan(right);
+	if (left_nan != right_nan) {
+		return !left_nan;
+	}
+	if (left == right || left_nan) {
+		return left_index < right_index;
+	}
+	return left > right;
+}
+
+extern "C" __global__ void top_k_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int k,
+		unsigned int rows) {
+	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	const size_t input_base = (size_t) row * width;
+	const size_t output_base = (size_t) row * k;
+	for (unsigned int slot = 0; slot < k; ++slot) {
+		output[output_base + slot] = -1.0f;
+	}
+	for (unsigned int candidate = 0; candidate < width; ++candidate) {
+		unsigned int insertion = k;
+		const float candidate_value = input[input_base + candidate];
+		for (unsigned int slot = 0; slot < k; ++slot) {
+			const int selected = (int) output[output_base + slot];
+			if (selected < 0 || top_k_before(
+					candidate_value, candidate,
+					input[input_base + (unsigned int) selected], (unsigned int) selected)) {
+				insertion = slot;
+				break;
+			}
+		}
+		if (insertion == k) {
+			continue;
+		}
+		for (unsigned int slot = k - 1; slot > insertion; --slot) {
+			output[output_base + slot] = output[output_base + slot - 1];
+		}
+		output[output_base + insertion] = (float) candidate;
+	}
+}
+
+extern "C" __global__ void gather_last_f32(
+		const float * input,
+		const float * indices,
+		float * output,
+		unsigned int inner,
+		unsigned int index_count,
+		unsigned int input_rows,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int inner_index = index % inner;
+	const unsigned int index_position = index / inner;
+	if (index_position >= index_count) {
+		return;
+	}
+	const float raw = indices[index_position];
+	if (!isfinite(raw) || raw < 0.0f || raw >= (float) input_rows) {
+		output[index] = 0.0f;
+		return;
+	}
+	const unsigned int row = (unsigned int) raw;
+	if (raw != (float) row) {
+		output[index] = 0.0f;
+		return;
+	}
+	output[index] = input[(size_t) row * inner + inner_index];
+}
+
+extern "C" __global__ void sparse_attention_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * indices,
+		float * output,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_value_heads,
+		unsigned int query_tokens,
+		unsigned int key_value_tokens,
+		unsigned int selected,
+		float scale,
+		unsigned int causal,
+		unsigned int query_start,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int value_channel = index % value_width;
+	const unsigned int row = index / value_width;
+	const unsigned int query_head = row % query_heads;
+	const unsigned int query_token = row / query_heads;
+	if (query_token >= query_tokens) {
+		return;
+	}
+	const unsigned int key_value_head = query_head / (query_heads / key_value_heads);
+	const size_t query_offset =
+		((size_t) query_token * query_heads + query_head) * key_width;
+	const size_t index_base = (size_t) query_token * selected;
+	float maximum = -3.402823466e+38F;
+	unsigned int valid_count = 0;
+	for (unsigned int slot = 0; slot < selected; ++slot) {
+		const float raw = indices[index_base + slot];
+		if (!isfinite(raw) || raw < 0.0f || raw >= (float) key_value_tokens) {
+			continue;
+		}
+		const unsigned int key_token = (unsigned int) raw;
+		if (raw != (float) key_token || causal && key_token > query_start + query_token) {
+			continue;
+		}
+		const size_t key_offset =
+			((size_t) key_token * key_value_heads + key_value_head) * key_width;
+		float dot = 0.0f;
+		for (unsigned int channel = 0; channel < key_width; ++channel) {
+			dot += query[query_offset + channel] * key[key_offset + channel];
+		}
+		maximum = fmaxf(maximum, dot * scale);
+		++valid_count;
+	}
+	if (valid_count == 0) {
+		output[index] = 0.0f;
+		return;
+	}
+	float sum = 0.0f;
+	float weighted = 0.0f;
+	for (unsigned int slot = 0; slot < selected; ++slot) {
+		const float raw = indices[index_base + slot];
+		if (!isfinite(raw) || raw < 0.0f || raw >= (float) key_value_tokens) {
+			continue;
+		}
+		const unsigned int key_token = (unsigned int) raw;
+		if (raw != (float) key_token || causal && key_token > query_start + query_token) {
+			continue;
+		}
+		const size_t key_offset =
+			((size_t) key_token * key_value_heads + key_value_head) * key_width;
+		float dot = 0.0f;
+		for (unsigned int channel = 0; channel < key_width; ++channel) {
+			dot += query[query_offset + channel] * key[key_offset + channel];
+		}
+		const float probability = expf(dot * scale - maximum);
+		const size_t value_offset =
+			((size_t) key_token * key_value_heads + key_value_head) * value_width;
+		sum += probability;
+		weighted += probability * value[value_offset + value_channel];
+	}
+	output[index] = weighted / sum;
+}
+
 extern "C" __global__ void rwkv7_f32(
 		const float * receptance,
 		const float * decay,

@@ -124,6 +124,33 @@ func TestBuilderQwen35UnaryPrimitives(t *testing.T) {
 	}
 }
 
+func TestBuilderSparsePrimitives(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(4, 3))
+	transformed := builder.FWHT(input)
+	indices := builder.TopK(transformed, 2)
+	table := builder.Input("table", dtype.F32, MustShape(5, 4))
+	gathered := builder.GatherLast(table, indices)
+	query := builder.Input("query", dtype.F32, MustShape(5, 2, 3))
+	key := builder.Input("key", dtype.F32, MustShape(5, 1, 4))
+	value := builder.Input("value", dtype.F32, MustShape(6, 1, 4))
+	attention := builder.SparseAttention(query, key, value, indices, 0.5)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if transformed.Op != OpFWHT || !indices.Shape.Equal(MustShape(2, 3)) ||
+		!gathered.Shape.Equal(MustShape(5, 2, 3)) ||
+		!attention.Shape.Equal(MustShape(6, 2, 3)) {
+		t.Fatalf("unexpected sparse primitive shapes: %v %v %v", indices.Shape.Slice(), gathered.Shape.Slice(), attention.Shape.Slice())
+	}
+
+	invalid := NewBuilder()
+	invalid.FWHT(invalid.Input("input", dtype.F32, MustShape(3)))
+	if invalid.Err() == nil {
+		t.Fatal("FWHT accepted non-power-of-two width")
+	}
+}
+
 func TestBuilderXIELU(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 3))

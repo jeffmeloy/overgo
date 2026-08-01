@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 19,
+  "abiVersion": 20,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "1ed35a18cf5e78d0300c88f398f10ad3009e7b735e03efe6603215c9552da5d3",
+      "sourceSha256": "864bb0a24969e60d3b4e78b25f74c81d3d738f2c8d995094d1acde29b01f98c2",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "300857b38527d12080a8614ee65e883ef6b5be0beda10058f1a47a2efeb6d8a0",
+      "assetSha256": "a98cdda9cf3bf3ad09cd0a9931b5e11e0e6cf564330117a76b3a08d242fe4b38",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -71,6 +71,10 @@
         "gated_linear_attention_f32",
         "rwkv6_f32",
         "sum_rows_f32",
+        "fwht_f32",
+        "top_k_f32",
+        "gather_last_f32",
+        "sparse_attention_f32",
         "rwkv7_f32",
         "rms_norm_f32",
         "layer_norm_f32",
@@ -254,7 +258,8 @@
             ".u32"
           ],
           "functions": [
-            "ssm_conv_f32"
+            "ssm_conv_f32",
+            "gather_last_f32"
           ]
         },
         {
@@ -287,7 +292,8 @@
             ".u32"
           ],
           "functions": [
-            "transpose_2d_f32"
+            "transpose_2d_f32",
+            "top_k_f32"
           ]
         },
         {
@@ -315,6 +321,7 @@
           "functions": [
             "flat_slice_f32",
             "sum_rows_f32",
+            "fwht_f32",
             "softmax_f32"
           ]
         },
@@ -375,6 +382,29 @@
           ],
           "functions": [
             "rwkv6_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "sparse_attention_f32"
           ]
         },
         {

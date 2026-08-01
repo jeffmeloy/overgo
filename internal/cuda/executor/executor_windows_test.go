@@ -30,6 +30,50 @@ func TestAllZeroFloat32(t *testing.T) {
 	}
 }
 
+func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	transformed := builder.FWHT(input)
+	indices := builder.TopK(transformed, 2)
+	table := builder.Input("table", dtype.F32, tensor.MustShape(2, 4))
+	gathered := builder.GatherLast(table, indices)
+	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 4))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 4))
+	attention := builder.SparseAttention(query, key, value, indices, 1)
+	causalAttention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, true, 0)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input: {Shape: input.Shape, Data: []float32{1, 2, 3, 4, 4, 3, 2, 1}},
+		table: {Shape: table.Shape, Data: []float32{10, 11, 20, 21, 30, 31, 40, 41}},
+		query: {Shape: query.Shape, Data: []float32{1, 1}},
+		key:   {Shape: key.Shape, Data: []float32{0, 1, 2, 3}},
+		value: {Shape: value.Shape, Data: []float32{10, 20, 30, 40}},
+	}
+	outputs := []*tensor.Tensor{transformed, indices, gathered, attention, causalAttention}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 1e-5)
+	}
+}
+
 func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

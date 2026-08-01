@@ -399,6 +399,74 @@ func TestExecuteSumRowsAndRWKV7(t *testing.T) {
 	}
 }
 
+func TestExecuteSparsePrimitives(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	transformed := builder.FWHT(input)
+	indices := builder.TopK(transformed, 2)
+	table := builder.Input("table", dtype.F32, tensor.MustShape(2, 4))
+	gathered := builder.GatherLast(table, indices)
+	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 4))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 4))
+	attention := builder.SparseAttention(query, key, value, indices, 1)
+	causalAttention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, true, 0)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	results, err := Execute(
+		[]*tensor.Tensor{transformed, indices, gathered, attention, causalAttention},
+		map[*tensor.Tensor]Value{
+			input: {Shape: input.Shape, Data: []float32{1, 2, 3, 4, 4, 3, 2, 1}},
+			table: {Shape: table.Shape, Data: []float32{10, 11, 20, 21, 30, 31, 40, 41}},
+			query: {Shape: query.Shape, Data: []float32{1, 1}},
+			key:   {Shape: key.Shape, Data: []float32{0, 1, 2, 3}},
+			value: {Shape: value.Shape, Data: []float32{10, 20, 30, 40}},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, test := range map[string]struct {
+		got  []float32
+		want []float32
+	}{
+		"fwht":   {results[transformed].Data, []float32{5, -1, -2, 0, 5, 1, 2, 0}},
+		"top-k":  {results[indices].Data, []float32{0, 3, 0, 2}},
+		"gather": {results[gathered].Data, []float32{10, 11, 40, 41, 10, 11, 30, 31}},
+	} {
+		if !reflect.DeepEqual(test.got, test.want) {
+			t.Fatalf("%s = %v, want %v", name, test.got, test.want)
+		}
+	}
+	wantAttention := []float32{
+		float32((10 + 40*math.Exp(3)) / (1 + math.Exp(3))),
+		float32((10 + 30*math.Exp(2)) / (1 + math.Exp(2))),
+	}
+	for index, want := range wantAttention {
+		if got := results[attention].Data[index]; math.Abs(float64(got-want)) > 1e-5 {
+			t.Fatalf("SparseAttention output[%d] = %v, want %v", index, got, want)
+		}
+	}
+	if got := results[causalAttention].Data; !reflect.DeepEqual(got, []float32{10, 10}) {
+		t.Fatalf("causal SparseAttention = %v, want [10 10]", got)
+	}
+}
+
+func TestExecuteGatherLastRejectsFractionalIndex(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 2))
+	indices := builder.Input("indices", dtype.F32, tensor.MustShape(1))
+	output := builder.GatherLast(input, indices)
+	_, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:   {Shape: input.Shape, Data: []float32{1, 2, 3, 4}},
+		indices: {Shape: indices.Shape, Data: []float32{0.5}},
+	})
+	if err == nil {
+		t.Fatal("fractional gather index was accepted")
+	}
+}
+
 func TestExecuteGatedDeltaNetRepeatInterleave(t *testing.T) {
 	builder := tensor.NewBuilder()
 	q := builder.Input("q", dtype.F32, tensor.MustShape(2, 2, 1, 1))

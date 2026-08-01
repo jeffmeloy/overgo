@@ -3910,7 +3910,11 @@ func TestReadQwen3VLSpecUsesMRoPEAndDeepstackMetadata(t *testing.T) {
 		metadata("qwen3vl.rope.scaling.factor", gguf.ValueTypeFloat32, float32(4)),
 		metadata("qwen3vl.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 		metadata("qwen3vl.n_deepstack_layers", gguf.ValueTypeUint32, uint32(3)),
+		metadata("qwen3vl.pooling_type", gguf.ValueTypeUint32, uint32(4)),
 		metadata("qwen3vl.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		{Key: "qwen3vl.classifier.output_labels", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeString, Data: []string{"no", "yes"},
+		}},
 		{Key: "qwen3vl.rope.dimension_sections", Value: gguf.Value{
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
 		}},
@@ -3921,7 +3925,9 @@ func TestReadQwen3VLSpecUsesMRoPEAndDeepstackMetadata(t *testing.T) {
 	}
 	if spec.Architecture != "qwen3vl" || spec.RopeDimensionCount != 4 ||
 		spec.RopeSections != [4]int32{1, 1, 0, 0} || spec.RopeScalingFactor != 4 ||
-		spec.DeepstackLayerCount != 3 || usesNormalRoPE(spec.Architecture) {
+		spec.DeepstackLayerCount != 3 || spec.PoolingType != 4 ||
+		len(spec.ClassifierLabels) != 2 || spec.ClassifierLabels[1] != "yes" ||
+		usesNormalRoPE(spec.Architecture) {
 		t.Fatalf("unexpected Qwen3-VL spec: %+v", spec)
 	}
 }

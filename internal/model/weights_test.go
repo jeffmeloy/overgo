@@ -5021,7 +5021,9 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 		file.Tensors = append(file.Tensors,
 			tensorInfo("blk.0.attn_q_norm.weight", 4),
 			tensorInfo("blk.0.attn_k_norm.weight", 4),
+			tensorInfo("cls.output.weight", 8, 2),
 		)
+		spec.ClassifierLabels = []string{"no", "yes"}
 	}
 	weights, err := ReadWeights(file, spec)
 	if err != nil {
@@ -5030,7 +5032,8 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 	layer := weights.Layers[0]
 	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionOutputBias == nil ||
 		layer.FeedForwardNorm.Name == "" || layer.FeedForwardGate.Name == "" ||
-		(architecture == "qwen3vl" && (layer.AttentionQNorm == nil || layer.AttentionKNorm == nil)) {
+		(architecture == "qwen3vl" && (layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
+			weights.ClassifierOutput == nil)) {
 		t.Fatalf("unexpected %s catalog: %+v", architecture, weights)
 	}
 }

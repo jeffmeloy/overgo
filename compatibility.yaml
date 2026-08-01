@@ -2303,11 +2303,12 @@ models:
       - swiglu
       - projected-embedding-overrides
       - zero-filled-or-projected-deepstack
+      - last-token-classification-rerank-softmax
+      - named-rerank-template-or-eos-sep-pair-format
       - serializable-prefix-editable-kv-cache
     limitations:
       - image-encoder-external
       - image-grid-coordinate-construction-external
-      - classification-rerank-head-external
     real_model_validation: pending-fixture
   qwen3vlmoe:
     status: experimental
@@ -2331,7 +2332,7 @@ models:
     limitations:
       - image-encoder-external
       - image-grid-coordinate-construction-external
-      - classification-rerank-head-external
+      - classification-rerank-head-absent-from-pinned-graph
     real_model_validation: pending-fixture
   qwen3:
     status: experimental
@@ -2355,6 +2356,9 @@ models:
       - native-q8
       - native-k-quant
       - native-iq4-xs
+    features:
+      - last-token-classification-rerank-softmax
+      - named-rerank-template-or-eos-sep-pair-format
     validated_fixture: Qwen3-4B-UD-Q8_K_XL.gguf
   qwen3moe:
     status: experimental

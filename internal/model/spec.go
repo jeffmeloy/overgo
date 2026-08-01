@@ -86,6 +86,8 @@ type Spec struct {
 	Dense2FeatureOut        uint32
 	Dense3FeatureIn         uint32
 	Dense3FeatureOut        uint32
+	PoolingType             uint32
+	ClassifierLabels        []string
 	RopeDisabled            bool
 	ParallelResidual        bool
 	NonCausalAttention      bool
@@ -338,6 +340,16 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.Name = value
 	}
 	prefix := architecture + "."
+	if spec.PoolingType, _ = optional[uint32](values, prefix+"pooling_type", gguf.ValueTypeUint32); spec.PoolingType > 4 {
+		return Spec{}, fmt.Errorf("metadata %q has unsupported pooling type %d", prefix+"pooling_type", spec.PoolingType)
+	}
+	if labels, ok, labelsErr := optionalArray[string](
+		values, prefix+"classifier.output_labels", gguf.ValueTypeString,
+	); labelsErr != nil {
+		return Spec{}, labelsErr
+	} else if ok {
+		spec.ClassifierLabels = append([]string(nil), labels...)
+	}
 	if isDeepSeek2Family(architecture) || architecture == "glm-dsa" {
 		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {

@@ -73,6 +73,7 @@ go run ./cmd/diffusion -native-quant -length 512 -steps 128 -eps 0.001 <dream.gg
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -block-length 32 <llada.gguf> "Hello"
 go run ./cmd/perplexity -native-quant <supported-model.gguf> "evaluation text"
 go run ./cmd/embedding -model <t5-encoder.gguf> -prompt "Hello world!"
+go run ./cmd/rerank -model <qwen3-reranker.gguf> -query "search terms" -document "candidate text"
 go run ./cmd/benchmark -native-quant -tokens 32 -runs 5 <supported-model.gguf> "Hello"
 go run ./cmd/server -native-quant -listen 127.0.0.1:8080 <supported-model.gguf>
 ```
@@ -233,7 +234,13 @@ last-token, and unpooled per-token vectors plus `embd_normalize` modes `-1`,
 `0`, and general p-norms. OpenAI embeddings support float arrays and
 little-endian float32 `base64`. Gemma Embedding applies optional converted
 sentence-transformer dense-2/dense-3 projections after pooling and before
-normalization. Native llama.cpp-compatible
+normalization.
+Qwen3 and dense Qwen3-VL rerank heads execute through `Runner.RankPair`,
+`Rank`, `RankTokens`, or `RankTokensWithProjectedInputs`. The rank path selects
+the last normalized token, applies `cls.output.weight`, returns labeled softmax
+scores, and honors the named rerank template or configured EOS/SEP separator.
+`cmd/rerank` exposes the text-pair path for bounded-host, F32-preloaded, and
+native-quantized execution.
 OpenAI `/v1/completions` likewise accepts strings, exact or mixed token
 sequences, flat string batches, and nested heterogeneous prompt batches of up
 to 64. Choices flatten in prompt-major order and exact IDs enter the Runner

@@ -4171,6 +4171,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	if weights.Dense3Output != nil {
 		names[weights.Dense3Output.Name] = struct{}{}
 	}
+	if weights.ClassifierOutput != nil {
+		names[weights.ClassifierOutput.Name] = struct{}{}
+	}
 	for _, pointer := range []*gguf.TensorInfo{
 		weights.PerLayerTokenEmbedding,
 		weights.PerLayerModelProjection,

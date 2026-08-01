@@ -252,6 +252,7 @@ type Weights struct {
 	OutputBias              *gguf.TensorInfo
 	Dense2Output            *gguf.TensorInfo
 	Dense3Output            *gguf.TensorInfo
+	ClassifierOutput        *gguf.TensorInfo
 	PerLayerTokenEmbedding  *gguf.TensorInfo
 	PerLayerModelProjection *gguf.TensorInfo
 	PerLayerProjectionNorm  *gguf.TensorInfo
@@ -1120,6 +1121,21 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			)
 		}
 		result.OutputBias = &outputBias
+	}
+	if spec.Architecture == "qwen3" || spec.Architecture == "qwen3vl" {
+		if item, ok := tensors["cls.output.weight"]; ok {
+			outputCount := uint64(1)
+			if len(spec.ClassifierLabels) > 0 {
+				outputCount = uint64(len(spec.ClassifierLabels))
+			}
+			validated, classifierErr := required(
+				item.Name, uint64(spec.EmbeddingLength), outputCount,
+			)
+			if classifierErr != nil {
+				return Weights{}, classifierErr
+			}
+			result.ClassifierOutput = &validated
+		}
 	}
 	if (spec.Architecture == "phi2" || spec.Architecture == "phimoe") && result.OutputBias == nil {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)

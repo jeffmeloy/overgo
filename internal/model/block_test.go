@@ -1247,15 +1247,74 @@ func TestBuildPLMMLABlock(t *testing.T) {
 	}
 	nodes, _ := tensor.Topological(result.Output)
 	var attention, repeatHeads bool
+	var normalRoPE, neoxRoPE int
 	for _, node := range nodes {
 		attention = attention || node.Op == tensor.OpAttention
 		repeatHeads = repeatHeads || node.Op == tensor.OpRepeatHeads
+		if node.Op == tensor.OpRoPENormal {
+			normalRoPE++
+		}
+		if node.Op == tensor.OpRoPENeoX {
+			neoxRoPE++
+		}
 	}
 	if !attention {
 		t.Fatal("PLM graph has no attention")
 	}
 	if !repeatHeads {
 		t.Fatal("PLM graph does not repeat its shared positional key")
+	}
+	if normalRoPE != 2 || neoxRoPE != 0 {
+		t.Fatalf("PLM RoPE ops: normal=%d NeoX=%d", normalRoPE, neoxRoPE)
+	}
+}
+
+func TestBuildMiniCPM3MLABlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{Architecture: "minicpm3", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,
+		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		RopeAttentionFactor: 1, ResidualScale: 0.7, RMSNormEpsilon: 1e-6}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:    builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:       builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
+		AttentionQNorm:   builder.Input("q_a_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionQB:      builder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
+		AttentionKVAMQA:  builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm: builder.Input("kv_a_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKVB:     builder.Input("kv_b", dtype.F32, tensor.MustShape(3, 16)),
+		AttentionOutput:  builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
+		RopeFactors:      builder.Input("rope", dtype.F32, tensor.MustShape(1)),
+		FeedForwardNorm:  builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate:  builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	result, err := BuildMLABlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(6, 2, 2)) ||
+		!result.Value.Shape.Equal(tensor.MustShape(4, 2, 2)) {
+		t.Fatalf("unexpected MiniCPM3 result: %+v", result)
+	}
+	nodes, _ := tensor.Topological(result.Output)
+	var rms, neox, swiglu, scale int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRMSNorm:
+			rms++
+		case tensor.OpRoPENeoX:
+			neox++
+		case tensor.OpSiLU:
+			swiglu++
+		case tensor.OpScale:
+			scale++
+		}
+	}
+	if rms != 4 || neox != 2 || swiglu != 1 || scale != 2 {
+		t.Fatalf("MiniCPM3 ops: RMS=%d NeoX=%d SiLU=%d Scale=%d", rms, neox, swiglu, scale)
 	}
 }
 

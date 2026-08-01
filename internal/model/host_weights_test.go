@@ -65,6 +65,7 @@ func TestHostLayerGraphInputs(t *testing.T) {
 		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
 	}
 	qNorm := value(4)
+	qB := value(4, 8)
 	kNorm := value(4)
 	ropeFactors := value(2)
 	attentionQBias := value(8)
@@ -77,6 +78,7 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	layer := HostLayer{
 		AttentionNorm:       value(8),
 		AttentionQ:          value(8, 8),
+		AttentionQB:         &qB,
 		AttentionK:          value(8, 4),
 		AttentionV:          value(8, 4),
 		AttentionOutput:     value(8, 8),
@@ -99,7 +101,8 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(feeds) != 19 ||
+	if len(feeds) != 20 ||
+		graph.AttentionQB == nil ||
 		graph.AttentionQNorm == nil ||
 		graph.RopeFactors == nil ||
 		graph.AttentionOutputBias == nil ||

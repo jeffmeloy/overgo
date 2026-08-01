@@ -1423,6 +1423,20 @@ models:
       - swiglu
       - untied-output-projection
     real_model_validation: pending-fixture
+  plm:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - rmsnorm
+      - mla-direct-query
+      - compressed-kv-rmsnorm
+      - shared-positional-key
+      - partial-normal-rope
+      - squared-relu
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   stablelm:
     status: experimental
     features:
@@ -1606,6 +1620,24 @@ models:
       - optional-projection-biases
     limitations:
       - longrope-not-yet-supported
+    real_model_validation: pending-fixture
+  minicpm3:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - embedding-scale
+      - residual-branch-scale
+      - inverse-logit-scale
+      - mla-query-lora-a-norm-b
+      - compressed-kv-rmsnorm
+      - shared-positional-key
+      - partial-neox-rope
+      - optional-longrope-factors
+      - swiglu
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
   granite:
     status: experimental

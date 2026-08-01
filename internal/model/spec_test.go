@@ -872,6 +872,33 @@ func TestReadPLMMLASpec(t *testing.T) {
 	}
 }
 
+func TestReadMiniCPM3Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "minicpm3"),
+		metadata("minicpm3.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minicpm3.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("minicpm3.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("minicpm3.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("minicpm3.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minicpm3.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minicpm3.attention.key_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("minicpm3.attention.q_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata("minicpm3.attention.kv_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata("minicpm3.rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minicpm3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.QLoRARank != 3 || spec.KVLoRARank != 3 || spec.KeyLength != 6 || spec.ValueLength != 4 ||
+		spec.RopeDimensionCount != 2 || spec.RopeFrequencyBase != 10000 ||
+		spec.EmbeddingScale != 12 || spec.LogitScale != 32 ||
+		math.Abs(float64(spec.ResidualScale-float32(1.4/math.Sqrt(2)))) > 1e-6 {
+		t.Fatalf("unexpected MiniCPM3 spec: %+v", spec)
+	}
+}
+
 func TestReadQwen2Spec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen2"),

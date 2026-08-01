@@ -288,6 +288,7 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		info        *gguf.TensorInfo
 		destination **tensor.Tensor
 	}{
+		{info.AttentionQB, &result.AttentionQB},
 		{info.AttentionQScale, &result.AttentionQScale},
 		{info.AttentionKScale, &result.AttentionKScale},
 		{info.AttentionVScale, &result.AttentionVScale},

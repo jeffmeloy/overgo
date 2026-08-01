@@ -47,6 +47,7 @@ type Spec struct {
 	ExpertGatingFunc      uint32
 	ExpertWeightsNorm     bool
 	ShortConvCacheLength  uint32
+	QLoRARank             uint32
 	KVLoRARank            uint32
 	QKNormEpsilon         float32
 	SlidingWindow         uint32
@@ -140,6 +141,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "smollm3" &&
 		architecture != "smallthinker" &&
 		architecture != "minicpm" &&
+		architecture != "minicpm3" &&
 		architecture != "minimax-m2" &&
 		architecture != "granite" &&
 		architecture != "granitemoe" &&
@@ -303,6 +305,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			); ok {
 				spec.RopeFrequencyBase = value
 			}
+		} else if architecture == "minicpm3" {
+			spec.RopeFrequencyBase = 10000
+			if value, ok := optional[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); ok {
+				spec.RopeFrequencyBase = value
+			}
 		} else if spec.RopeFrequencyBase, err = required[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err
 		}
@@ -449,10 +456,20 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RopeDimensionCount = value
 		}
 	}
-	if architecture == "minicpm" {
+	if architecture == "minicpm" || architecture == "minicpm3" {
 		spec.EmbeddingScale = 12
 		spec.ResidualScale = float32(1.4 / math.Sqrt(float64(spec.BlockCount)))
 		spec.LogitScale = 256 / float32(spec.EmbeddingLength)
+		if architecture == "minicpm3" {
+			spec.OriginalContextLength = spec.ContextLength
+			spec.RopeAttentionFactor = 1
+			if value, ok := optional[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32); ok {
+				spec.OriginalContextLength = value
+			}
+			if value, ok := optional[float32](values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32); ok {
+				spec.RopeAttentionFactor = value
+			}
+		}
 		if value, ok := optional[float32](
 			values,
 			prefix+"embedding_scale",
@@ -1292,7 +1309,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SlidingWindow = value
 		}
 	}
-	if architecture == "plm" {
+	if architecture == "plm" || architecture == "minicpm3" {
+		if architecture == "minicpm3" {
+			if spec.QLoRARank, err = required[uint32](
+				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+		}
 		if spec.KVLoRARank, err = required[uint32](
 			values, prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1863,10 +1887,17 @@ func (s Spec) validate() error {
 			}
 		}
 	}
-	if s.Architecture == "plm" &&
+	if (s.Architecture == "plm" || s.Architecture == "minicpm3") &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength || s.HeadCountKV != s.HeadCount) {
-		return errors.New("PLM MLA metadata is invalid")
+		return errors.New("MLA metadata is invalid")
+	}
+	if s.Architecture == "minicpm3" &&
+		(s.QLoRARank == 0 || s.ResidualScale <= 0 || s.OriginalContextLength == 0 ||
+			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.ResidualScale)) ||
+			math.IsInf(float64(s.ResidualScale), 0) || math.IsNaN(float64(s.RopeAttentionFactor)) ||
+			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
+		return errors.New("MiniCPM3 metadata is invalid")
 	}
 	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
@@ -2142,7 +2173,7 @@ func usesFusedGateUp(architecture string) bool {
 
 func supportsLongRoPE(architecture string) bool {
 	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitemoe" ||
-		architecture == "phi3" || architecture == "phimoe"
+		architecture == "minicpm3" || architecture == "phi3" || architecture == "phimoe"
 }
 
 func firstPositive(values []uint32) uint32 {

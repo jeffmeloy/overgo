@@ -16,6 +16,7 @@ type LayerWeights struct {
 	AttentionNorm2          *gguf.TensorInfo
 	AttentionNorm2Bias      *gguf.TensorInfo
 	AttentionQ              gguf.TensorInfo
+	AttentionQB             *gguf.TensorInfo
 	AttentionK              gguf.TensorInfo
 	AttentionV              gguf.TensorInfo
 	AttentionOutput         gguf.TensorInfo
@@ -592,9 +593,25 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
-		} else if spec.Architecture == "plm" {
+		} else if spec.Architecture == "plm" || spec.Architecture == "minicpm3" {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-			if layer.AttentionQ, err = required(
+			if spec.Architecture == "minicpm3" {
+				if layer.AttentionQ, err = required(
+					prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank),
+				); err != nil {
+					return Weights{}, err
+				}
+				qB, qBErr := required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
+				if qBErr != nil {
+					return Weights{}, qBErr
+				}
+				layer.AttentionQB = &qB
+				qNorm, qNormErr := required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
+				if qNormErr != nil {
+					return Weights{}, qNormErr
+				}
+				layer.AttentionQNorm = &qNorm
+			} else if layer.AttentionQ, err = required(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
 			); err != nil {
 				return Weights{}, err

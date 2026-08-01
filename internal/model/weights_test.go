@@ -1101,6 +1101,33 @@ func TestReadWeightsPLMMLA(t *testing.T) {
 	}
 }
 
+func TestReadWeightsMiniCPM3(t *testing.T) {
+	spec := Spec{Architecture: "minicpm3", BlockCount: 1, ContextLength: 4096, OriginalContextLength: 4096,
+		EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 6, ValueLength: 4, QLoRARank: 3, KVLoRARank: 3,
+		RopeDimensionCount: 2, VocabularySize: 32}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q_a.weight", 8, 3),
+		tensorInfo("blk.0.attn_q_a_norm.weight", 3), tensorInfo("blk.0.attn_q_b.weight", 3, 12),
+		tensorInfo("blk.0.attn_kv_a_mqa.weight", 8, 5), tensorInfo("blk.0.attn_kv_a_norm.weight", 3),
+		tensorInfo("blk.0.attn_kv_b.weight", 3, 16), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8),
+		tensorInfo("blk.0.rope_factors_long.weight", 1), tensorInfo("blk.0.rope_factors_short.weight", 1),
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output != nil || layer.AttentionQB == nil || layer.AttentionQNorm == nil ||
+		layer.AttentionKVAMQA == nil || layer.RopeFactors == nil ||
+		layer.RopeFactors.Name != "blk.0.rope_factors_short.weight" {
+		t.Fatalf("unexpected MiniCPM3 catalog: %+v", weights)
+	}
+}
+
 func TestReadWeightsQwen2WithOutputBias(t *testing.T) {
 	spec := Spec{
 		Architecture:      "qwen2",

@@ -15,6 +15,7 @@ type LayerGraphWeights struct {
 	AttentionNorm2          *tensor.Tensor
 	AttentionNorm2Bias      *tensor.Tensor
 	AttentionQ              *tensor.Tensor
+	AttentionQB             *tensor.Tensor
 	AttentionK              *tensor.Tensor
 	AttentionV              *tensor.Tensor
 	AttentionOutput         *tensor.Tensor
@@ -208,10 +209,7 @@ type LFM2BlockResult struct {
 	Recurrent bool
 }
 
-// BuildPLMBlockCached: constructs PLM's multi-head latent-attention block
-// compressed KV projection is normalized and expanded into per-head
-// non-positional keys/values, while one shared positional key is repeated
-// across heads after RoPE
+// BuildPLMBlockCached: PLM MLA block
 func BuildPLMBlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -223,6 +221,22 @@ func BuildPLMBlockCached(
 	if spec.Architecture != "plm" {
 		return DenseBlockResult{}, errors.New("PLM block requires plm architecture")
 	}
+	return BuildMLABlockCached(builder, input, spec, weights, positions, pastKey, pastValue)
+}
+
+// BuildMLABlockCached: PLM/MiniCPM3 MLA block
+func BuildMLABlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "plm" && spec.Architecture != "minicpm3" {
+		return DenseBlockResult{}, errors.New("MLA block requires plm or minicpm3 architecture")
+	}
+	isMiniCPM3 := spec.Architecture == "minicpm3"
 	required := map[string]*tensor.Tensor{
 		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
 		"attention KV-A": weights.AttentionKVAMQA, "attention KV-A norm": weights.AttentionKVANorm,
@@ -230,17 +244,22 @@ func BuildPLMBlockCached(
 		"feed-forward norm": weights.FeedForwardNorm, "feed-forward up": weights.FeedForwardUp,
 		"feed-forward down": weights.FeedForwardDown,
 	}
+	if isMiniCPM3 {
+		required["attention Q-B"] = weights.AttentionQB
+		required["attention Q-A norm"] = weights.AttentionQNorm
+		required["feed-forward gate"] = weights.FeedForwardGate
+	}
 	for name, item := range required {
 		if item == nil {
-			return DenseBlockResult{}, fmt.Errorf("PLM block %s weight is nil", name)
+			return DenseBlockResult{}, fmt.Errorf("MLA block %s weight is nil", name)
 		}
 	}
 	if builder == nil || input == nil || input.Shape.Rank != 2 || len(positions) == 0 ||
 		uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("PLM block input shape is invalid")
+		return DenseBlockResult{}, errors.New("MLA block input shape is invalid")
 	}
 	if (pastKey == nil) != (pastValue == nil) {
-		return DenseBlockResult{}, errors.New("PLM cache must contain both key and value")
+		return DenseBlockResult{}, errors.New("MLA cache must contain both key and value")
 	}
 	tokens := uint64(len(positions))
 	heads := uint64(spec.HeadCount)
@@ -250,6 +269,10 @@ func BuildPLMBlockCached(
 	valueWidth := uint64(spec.ValueLength)
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
+	if isMiniCPM3 {
+		queryMixed = builder.WeightedRMSNorm(queryMixed, weights.AttentionQNorm, spec.RMSNormEpsilon)
+		queryMixed = builder.MulMat(weights.AttentionQB, queryMixed)
+	}
 	qNoPE := builder.GroupSlice(queryMixed, 0, nopeWidth, heads, keyWidth)
 	qPE := builder.GroupSlice(queryMixed, nopeWidth, ropeWidth, heads, keyWidth)
 	kvPE := builder.MulMat(weights.AttentionKVAMQA, normalized)
@@ -266,8 +289,29 @@ func BuildPLMBlockCached(
 	stride := nopeWidth + valueWidth
 	kNoPE := builder.GroupSlice(kv, 0, nopeWidth, heads, stride)
 	value := builder.GroupSlice(kv, nopeWidth, valueWidth, heads, stride)
-	qPE = builder.RoPENeoX(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase)
-	kPE = builder.RoPENeoX(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase)
+	frequencyScale := float32(1)
+	if spec.RopeScalingType == "linear" && spec.RopeScalingFactor > 0 {
+		frequencyScale = 1 / spec.RopeScalingFactor
+	}
+	if isMiniCPM3 {
+		if weights.RopeFactors != nil {
+			qPE = builder.RoPENeoXScaledWithFactors(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
+			kPE = builder.RoPENeoXScaledWithFactors(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
+		} else {
+			qPE = builder.RoPENeoXScaled(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
+			kPE = builder.RoPENeoXScaled(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
+		}
+	} else if weights.RopeFactors != nil {
+		qPE = builder.RoPENormalScaledWithFactors(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
+		kPE = builder.RoPENormalScaledWithFactors(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
+	} else {
+		qPE = builder.RoPENormalScaled(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
+		kPE = builder.RoPENormalScaled(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
+	}
+	if spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
+		qPE = builder.Scale(qPE, spec.RopeAttentionFactor)
+		kPE = builder.Scale(kPE, spec.RopeAttentionFactor)
+	}
 	kPEHeads := builder.RepeatHeads(kPE, spec.HeadCount)
 	query := builder.Concat(qNoPE, qPE, 0)
 	key := builder.Concat(kNoPE, kPEHeads, 0)
@@ -283,10 +327,21 @@ func BuildPLMBlockCached(
 	)
 	attention = builder.Reshape(attention, heads*valueWidth, tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if isMiniCPM3 {
+		attention = builder.Scale(attention, spec.ResidualScale)
+	}
 	residual := builder.Add(input, attention)
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.ReLUSquared(up))
+	activated := builder.ReLUSquared(up)
+	if isMiniCPM3 {
+		gate := builder.MulMat(weights.FeedForwardGate, normalized)
+		activated = builder.SwiGLU(gate, up)
+	}
+	feedForward := builder.MulMat(weights.FeedForwardDown, activated)
+	if isMiniCPM3 {
+		feedForward = builder.Scale(feedForward, spec.ResidualScale)
+	}
 	output := builder.Add(residual, feedForward)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err

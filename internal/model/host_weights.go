@@ -20,6 +20,7 @@ type HostLayer struct {
 	AttentionNorm2          *reference.Value
 	AttentionNorm2Bias      *reference.Value
 	AttentionQ              reference.Value
+	AttentionQB             *reference.Value
 	AttentionK              reference.Value
 	AttentionV              reference.Value
 	AttentionOutput         reference.Value
@@ -446,6 +447,7 @@ func LoadHostLayer(
 		info        *gguf.TensorInfo
 		destination **reference.Value
 	}{
+		{info.AttentionQB, &result.AttentionQB},
 		{info.AttentionQScale, &result.AttentionQScale},
 		{info.AttentionKScale, &result.AttentionKScale},
 		{info.AttentionVScale, &result.AttentionVScale},
@@ -616,6 +618,7 @@ func (layer *HostLayer) GraphInputs(
 		value       *reference.Value
 		destination **tensor.Tensor
 	}{
+		{"attn_q_b.weight", layer.AttentionQB, &result.AttentionQB},
 		{"attn_q.scale", layer.AttentionQScale, &result.AttentionQScale},
 		{"attn_k.scale", layer.AttentionKScale, &result.AttentionKScale},
 		{"attn_v.scale", layer.AttentionVScale, &result.AttentionVScale},

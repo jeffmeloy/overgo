@@ -506,6 +506,7 @@ func (r *Runner) layerDeviceInputs(
 		info        *gguf.TensorInfo
 		destination **tensor.Tensor
 	}{
+		{info.AttentionQB, &result.AttentionQB},
 		{info.AttentionQScale, &result.AttentionQScale},
 		{info.AttentionKScale, &result.AttentionKScale},
 		{info.AttentionVScale, &result.AttentionVScale},
@@ -973,7 +974,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		Position: nextPosition + uint32(len(tokenIDs)),
 	}
 	if r.hasPreloadedWeights() && r.spec.Architecture != "qwen35" &&
-		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" {
+		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
+		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" {
 		return r.forwardDenseLayersPreloaded(ctx, activation, positions, cache, nextCache)
 	}
 	for layerIndex, layerInfo := range r.weights.Layers {
@@ -1293,8 +1295,8 @@ func (r *Runner) runLayerCached(
 		result model.DenseBlockResult
 		err    error
 	)
-	if r.spec.Architecture == "plm" {
-		result, err = model.BuildPLMBlockCached(
+	if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" {
+		result, err = model.BuildMLABlockCached(
 			builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
 		)
 	} else {
@@ -1753,7 +1755,8 @@ func (r *Runner) Generate(
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
-		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm"
+		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" &&
+		r.spec.Architecture != "minicpm3"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -2428,6 +2431,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			names[layer.AttentionQNorm.Name] = struct{}{}
 		}
 		for _, pointer := range []*gguf.TensorInfo{
+			layer.AttentionQB,
 			layer.AttentionNormBias,
 			layer.AttentionNorm2,
 			layer.AttentionNorm2Bias,

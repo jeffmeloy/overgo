@@ -2732,6 +2732,42 @@ func TestReadWeightsMiniCPM(t *testing.T) {
 	}
 }
 
+func TestReadWeightsNormalRoPELongRoPESelectsContextFactors(t *testing.T) {
+	for _, architecture := range []string{"llama", "llama-embed", "minicpm", "mistral3"} {
+		t.Run(architecture, func(t *testing.T) {
+			tensors := []gguf.TensorInfo{
+				tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+				tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 8),
+				tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
+				tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_norm.weight", 8),
+				tensorInfo("blk.0.ffn_gate.weight", 8, 16), tensorInfo("blk.0.ffn_up.weight", 8, 16),
+				tensorInfo("blk.0.ffn_down.weight", 16, 8),
+				tensorInfo("blk.0.rope_factors_long.weight", 2),
+				tensorInfo("blk.0.rope_factors_short.weight", 2),
+			}
+			for _, context := range []uint32{2048, 8192} {
+				spec := Spec{
+					Architecture: architecture, BlockCount: 1, ContextLength: context,
+					OriginalContextLength: 4096, EmbeddingLength: 8, FeedForwardLength: 16,
+					HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+					RopeDimensionCount: 4, RopeScalingType: "longrope", VocabularySize: 32,
+				}
+				weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := "blk.0.rope_factors_short.weight"
+				if context > spec.OriginalContextLength {
+					want = "blk.0.rope_factors_long.weight"
+				}
+				if weights.Layers[0].RopeFactors == nil || weights.Layers[0].RopeFactors.Name != want {
+					t.Fatalf("context %d factors = %v, want %q", context, weights.Layers[0].RopeFactors, want)
+				}
+			}
+		})
+	}
+}
+
 func TestReadWeightsGraniteDense(t *testing.T) {
 	spec := Spec{
 		Architecture:          "granite",

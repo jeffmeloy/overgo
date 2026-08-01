@@ -2614,6 +2614,23 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.RopeDimensionSWA = spec.KeyLengthSWA
 		spec.AttentionScale = 1
 	}
+	if spec.RopeScalingType == "longrope" &&
+		(architecture == "llama" || architecture == "llama-embed" ||
+			architecture == "minicpm" || architecture == "mistral3") {
+		spec.RopeDimensionCount = spec.KeyLength
+		spec.OriginalContextLength = spec.ContextLength
+		if value, ok := optional[uint32](
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
+		); ok {
+			spec.OriginalContextLength = value
+		}
+		spec.RopeAttentionFactor = 1
+		if value, ok := optional[float32](
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
+		); ok {
+			spec.RopeAttentionFactor = value
+		}
+	}
 	spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 	if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
 		if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
@@ -3416,6 +3433,15 @@ func (s Spec) validate() error {
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Llama MoE expert metadata is invalid")
 	}
+	if s.RopeScalingType == "longrope" &&
+		(s.Architecture == "llama" || s.Architecture == "llama-embed" ||
+			s.Architecture == "minicpm" || s.Architecture == "mistral3") &&
+		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
+			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
+			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
+		return fmt.Errorf("%s LongRoPE metadata is invalid", s.Architecture)
+	}
 	if s.Architecture == "llama4" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
@@ -4188,7 +4214,8 @@ func usesFusedGateUp(architecture string) bool {
 
 func supportsLongRoPE(architecture string) bool {
 	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitehybrid" || architecture == "granitemoe" ||
-		architecture == "minicpm3" || architecture == "pangu-embedded" || architecture == "phi3" || architecture == "phimoe" || architecture == "step35"
+		architecture == "llama" || architecture == "llama-embed" || architecture == "minicpm" || architecture == "minicpm3" || architecture == "mistral3" ||
+		architecture == "pangu-embedded" || architecture == "phi3" || architecture == "phimoe" || architecture == "step35"
 }
 
 func firstPositive(values []uint32) uint32 {

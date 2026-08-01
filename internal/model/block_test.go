@@ -2829,6 +2829,49 @@ func TestBuildDenseInternLM2EXAONEAndXVERSEUseExpectedRoPE(t *testing.T) {
 	}
 }
 
+func TestBuildNormalRoPELongRoPEUsesFactorsAndAttentionScale(t *testing.T) {
+	for _, architecture := range []string{"llama", "llama-embed", "minicpm", "mistral3"} {
+		t.Run(architecture, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			spec := Spec{
+				Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
+				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+				RopeDimensionCount: 4, RopeFrequencyBase: 10000,
+				RopeScalingType: "longrope", RopeAttentionFactor: 1.25,
+				RMSNormEpsilon: 1e-6,
+			}
+			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+			weights := denseBlockInputs(builder, spec)
+			weights.AttentionQNorm = nil
+			weights.AttentionKNorm = nil
+			weights.RopeFactors = builder.Input("rope_long", dtype.F32, tensor.MustShape(2))
+			output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			nodes, err := tensor.Topological(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ropeCount, attentionScales int
+			for _, node := range nodes {
+				if node.Op == tensor.OpRoPENormal {
+					ropeCount++
+					if len(node.Inputs) != 2 || node.Inputs[1] != weights.RopeFactors {
+						t.Fatal("LongRoPE factors are disconnected")
+					}
+				}
+				if node.Op == tensor.OpScale && node.Attrs.(tensor.ScaleAttributes).Value == 1.25 {
+					attentionScales++
+				}
+			}
+			if ropeCount != 2 || attentionScales != 2 {
+				t.Fatalf("%s LongRoPE graph has rope=%d scale=%d", architecture, ropeCount, attentionScales)
+			}
+		})
+	}
+}
+
 func TestBuildDenseOLMo2PostNormalizedSlidingBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

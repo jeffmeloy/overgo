@@ -425,8 +425,8 @@
   than Qwen3's split-half NeoX layout. Converted Llama 3
   `rope_freqs.weight` tensors apply one validated divisor per rotary pair on
   both the CPU reference and CUDA paths, including streamed, preloaded-F32,
-  and native-quantized execution. Unsupported long/short RoPE factors,
-  YaRN, and LongRoPE modes are rejected before execution. Metadata-driven
+  and native-quantized execution. LongRoPE short/long factors are selected
+  from configured versus original context; YaRN remains rejected. Metadata-driven
   linear scaling is applied to Llama normal RoPE and Qwen/Gemma NeoX RoPE and
   composes with per-pair factors.
 - Dense attention Q/K/V/output and feed-forward gate/up/down projection biases
@@ -540,7 +540,7 @@
 - MiniCPM dense decoders support their backward-compatible and metadata-
   overridden embedding, residual-branch, and inverse-logit scales across host
   and retained-device inference. Standard and linear-scaled normal RoPE are
-  supported; LongRoPE variants remain pending. Real-model validation is pending
+  supported, including context-selected LongRoPE factors and attention scaling. Real-model validation is pending
   a local fixture.
 - Granite and GraniteMoE decoders support metadata-driven embedding,
   residual-branch, attention, and inverse-logit scales, optional no-RoPE mode,
@@ -561,7 +561,7 @@
   original-context step schedule. MoE variants load normalized softmax top-k
   packed SwiGLU experts through bounded-host, F32-preload, and native-quantized
   execution. Metadata, catalog, topology, and reference/CUDA differentials
-  pass. YaRN and LongRoPE variants remain pending; real-model validation awaits
+  pass. LongRoPE variants use context-selected factors; YaRN remains pending. Real-model validation awaits
   a local fixture.
 - Orion dense decoders support affine LayerNorm (including attention, FFN, and
   final-output biases), split-half NeoX RoPE, parallel SwiGLU, and the
@@ -749,10 +749,10 @@
   rates. Its `params` object retains the effective sampler, stop, cache, and
   context-shift settings. Its `next_token` object reports decoded/remaining
   counts and truthfully reports no pending token in the synchronous runtime.
-- Llama execution currently covers dense models with optional projection
-  biases and ordinary RoPE
-  or converted Llama 3 per-pair frequency factors. LongRoPE/YaRN tensor
-  selection, MoE, and model-specific attention variants are rejected.
+- Llama execution covers dense and metadata-selected MoE models with optional
+  projection biases, ordinary or converted Llama 3 per-pair frequency factors,
+  and context-selected LongRoPE factors. YaRN and remaining model-specific
+  attention variants are rejected.
 - The Qwen3.5 graph supports true multi-axis positions, but the text generation
   and MTP APIs currently supply the same sequential position to every MRoPE
   axis. Image/video encoder plumbing, probabilistic residual-distribution

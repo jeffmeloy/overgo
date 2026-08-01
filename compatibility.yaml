@@ -1031,6 +1031,23 @@ models:
       - silu-z-gate
       - serializable-recurrent-cache
     real_model_validation: pending-fixture
+  mamba2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - pure-recurrent-no-attention
+      - rms-pre-normalization
+      - expanded-z-x-b-c-dt-projection
+      - grouped-b-c-channel-convolution
+      - scalar-per-head-a-and-d
+      - grouped-mamba2-selective-scan
+      - silu-z-gate
+      - grouped-learned-output-rmsnorm
+      - serializable-recurrent-cache
+    real_model_validation: pending-fixture
   starcoder:
     status: experimental
     features:

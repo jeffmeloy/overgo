@@ -190,8 +190,13 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 			recurrent = []*gguf.TensorInfo{info.ShortConvKernel, info.ShortConvInput, info.ShortConvOutput}
 		} else if info.SSMInput != nil {
 			recurrent = []*gguf.TensorInfo{
-				info.SSMInput, info.SSMConv1D, info.SSMConv1DBias, info.SSMX,
-				info.SSMTimeStepWeight, info.SSMTimeStep, info.SSMA, info.SSMD, info.SSMOutput,
+				info.SSMInput, info.SSMConv1D, info.SSMConv1DBias,
+				info.SSMTimeStep, info.SSMA, info.SSMD, info.SSMOutput,
+			}
+			if info.SSMX != nil {
+				recurrent = append(recurrent, info.SSMX, info.SSMTimeStepWeight)
+			} else {
+				recurrent = append(recurrent, info.SSMNorm)
 			}
 		} else {
 			recurrent = []*gguf.TensorInfo{

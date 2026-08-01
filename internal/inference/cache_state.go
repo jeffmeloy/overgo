@@ -81,9 +81,13 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		)
 	}
 	for index, layer := range cache.Layers {
-		if r.spec.Architecture == "mamba" {
+		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" {
+			convWidth := uint64(r.spec.SSMInnerSize)
+			if r.spec.Architecture == "mamba2" {
+				convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
+			}
 			convShape := tensor.MustShape(
-				uint64(r.spec.SSMConvKernel-1), uint64(r.spec.SSMInnerSize),
+				uint64(r.spec.SSMConvKernel-1), convWidth,
 			)
 			ssmShape := tensor.MustShape(
 				uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize),

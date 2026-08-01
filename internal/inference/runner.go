@@ -444,14 +444,6 @@ func (r *Runner) layerDeviceInputs(
 				struct {
 					info        *gguf.TensorInfo
 					destination **tensor.Tensor
-				}{info.SSMX, &result.SSMX},
-				struct {
-					info        *gguf.TensorInfo
-					destination **tensor.Tensor
-				}{info.SSMTimeStepWeight, &result.SSMTimeStepWeight},
-				struct {
-					info        *gguf.TensorInfo
-					destination **tensor.Tensor
 				}{info.SSMTimeStep, &result.SSMTimeStep},
 				struct {
 					info        *gguf.TensorInfo
@@ -466,6 +458,23 @@ func (r *Runner) layerDeviceInputs(
 					destination **tensor.Tensor
 				}{info.SSMOutput, &result.SSMOutput},
 			)
+			if info.SSMX != nil {
+				recurrent = append(recurrent,
+					struct {
+						info        *gguf.TensorInfo
+						destination **tensor.Tensor
+					}{info.SSMX, &result.SSMX},
+					struct {
+						info        *gguf.TensorInfo
+						destination **tensor.Tensor
+					}{info.SSMTimeStepWeight, &result.SSMTimeStepWeight},
+				)
+			} else {
+				recurrent = append(recurrent, struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMNorm, &result.SSMNorm})
+			}
 		} else {
 			recurrent = append(recurrent,
 				struct {
@@ -1071,7 +1080,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
-		r.spec.Architecture != "mamba" {
+		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
@@ -1430,8 +1439,12 @@ func (r *Runner) runLayerCached(
 		return reference.Value{}, LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
-	if r.spec.Architecture == "mamba" {
-		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), uint64(r.spec.SSMInnerSize))
+	if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" {
+		convWidth := uint64(r.spec.SSMInnerSize)
+		if r.spec.Architecture == "mamba2" {
+			convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
+		}
+		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convWidth)
 		ssmShape := tensor.MustShape(uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize))
 		convValue := reference.Value{Shape: convShape, Data: make([]float32, int(convShape.Dims[0]*convShape.Dims[1]))}
 		ssmValue := reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmShape.Dims[0]*ssmShape.Dims[1]))}
@@ -1455,6 +1468,8 @@ func (r *Runner) runLayerCached(
 	)
 	if r.spec.Architecture == "mamba" {
 		result, err = model.BuildMambaBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
+	} else if r.spec.Architecture == "mamba2" {
+		result, err = model.BuildMamba2BlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
 	} else if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" ||
 		r.spec.Architecture == "deepseek2" || r.spec.Architecture == "mistral4" {
 		result, err = model.BuildMLABlockCachedForLayer(
@@ -1978,7 +1993,8 @@ func (r *Runner) Generate(
 	useDeviceCache := r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
 		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "plm" &&
 		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
-		r.spec.Architecture != "mistral4" && r.spec.Architecture != "mamba"
+		r.spec.Architecture != "mistral4" && r.spec.Architecture != "mamba" &&
+		r.spec.Architecture != "mamba2"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {

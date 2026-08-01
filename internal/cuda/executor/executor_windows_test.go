@@ -988,7 +988,7 @@ func TestExecutorSSMScanMatchesReference(t *testing.T) {
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 1, 4, 2))
 	x := builder.Input("x", dtype.F32, tensor.MustShape(1, 4, 3, 2))
 	dt := builder.Input("dt", dtype.F32, tensor.MustShape(4, 3, 2))
-	a := builder.Input("a", dtype.F32, tensor.MustShape(4, 4))
+	a := builder.Input("a", dtype.F32, tensor.MustShape(1, 4))
 	beta := builder.Input("beta", dtype.F32, tensor.MustShape(4, 2, 3, 2))
 	c := builder.Input("c", dtype.F32, tensor.MustShape(4, 2, 3, 2))
 	output := builder.SSMScan(state, x, dt, a, beta, c)
@@ -1076,6 +1076,65 @@ func TestExecutorMambaBlockMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	compare(t, got[result.Output].Data, want[result.Output].Data, 5e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
+func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{Architecture: "mamba2", EmbeddingLength: 4, RMSNormEpsilon: 1e-5,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4,
+		SSMGroupCount: 2}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 3))
+	weights := model.LayerGraphWeights{
+		AttentionNorm: builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		SSMInput:      builder.Input("in", dtype.F32, tensor.MustShape(4, 28)),
+		SSMConv1D:     builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
+		SSMConv1DBias: builder.Input("conv_bias", dtype.F32, tensor.MustShape(16)),
+		SSMTimeStep:   builder.Input("dt_bias", dtype.F32, tensor.MustShape(4)),
+		SSMA:          builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
+		SSMD:          builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
+		SSMNorm:       builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
+		SSMOutput:     builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	result, err := model.BuildMamba2BlockCached(builder, input, spec, weights, convState, ssmState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                 patternedValue(input.Shape, 3, 0.08, -0.2),
+		weights.AttentionNorm: patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 0.9),
+		weights.SSMInput:      patternedValue(weights.SSMInput.Shape, 7, 0.04, -0.1),
+		weights.SSMConv1D:     patternedValue(weights.SSMConv1D.Shape, 11, 0.03, -0.05),
+		weights.SSMConv1DBias: patternedValue(weights.SSMConv1DBias.Shape, 13, 0.02, -0.1),
+		weights.SSMTimeStep:   patternedValue(weights.SSMTimeStep.Shape, 17, 0.02, -0.2),
+		weights.SSMA:          patternedValue(weights.SSMA.Shape, 19, 0.01, -0.5),
+		weights.SSMD:          patternedValue(weights.SSMD.Shape, 23, 0.02, 0.1),
+		weights.SSMNorm:       patternedValue(weights.SSMNorm.Shape, 29, 0.03, 0.9),
+		weights.SSMOutput:     patternedValue(weights.SSMOutput.Shape, 31, 0.03, -0.1),
+		convState:             patternedValue(convState.Shape, 37, 0.02, -0.05),
+		ssmState:              patternedValue(ssmState.Shape, 41, 0.02, -0.03),
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 7e-4)
 	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }

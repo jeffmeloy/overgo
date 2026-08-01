@@ -1203,6 +1203,10 @@ func launchNode(
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("SSMScan launch count exceeds uint32")
 		}
+		aWidth, err := uint32Checked(node.Inputs[3].Shape.Dims[0], "SSMScan A width")
+		if err != nil {
+			return err
+		}
 		inputState := pointers[node.Inputs[0]]
 		x := pointers[node.Inputs[1]]
 		dt := pointers[node.Inputs[2]]
@@ -1214,7 +1218,7 @@ func launchNode(
 			unsafe.Pointer(&a), unsafe.Pointer(&beta), unsafe.Pointer(&c),
 			unsafe.Pointer(&output), unsafe.Pointer(&stateWidth), unsafe.Pointer(&dimension),
 			unsafe.Pointer(&heads), unsafe.Pointer(&tokens), unsafe.Pointer(&sequences),
-			unsafe.Pointer(&groups),
+			unsafe.Pointer(&groups), unsafe.Pointer(&aWidth),
 		}
 		err = launch1D(state, functions.ssmScan, heads*sequences, args)
 		runtime.KeepAlive(inputState)
@@ -1230,6 +1234,7 @@ func launchNode(
 		runtime.KeepAlive(tokens)
 		runtime.KeepAlive(sequences)
 		runtime.KeepAlive(groups)
+		runtime.KeepAlive(aWidth)
 		return err
 	case tensor.OpGatedDeltaNet:
 		attributes := node.Attrs.(tensor.GatedDeltaNetAttributes)

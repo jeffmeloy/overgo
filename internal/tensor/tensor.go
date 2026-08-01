@@ -422,7 +422,7 @@ func (b *Builder) SSMScan(state, x, dt, a, beta, c *Tensor) *Tensor {
 	if stateWidth == 0 || dimension == 0 || heads == 0 || sequences == 0 || tokens == 0 || groups == 0 ||
 		x.Shape.Dims[0] != dimension || x.Shape.Dims[1] != heads || x.Shape.Dims[3] != sequences ||
 		dt.Shape.Dims[0] != heads || dt.Shape.Dims[1] != tokens || dt.Shape.Dims[2] != sequences ||
-		a.Shape.Dims[0] != stateWidth || a.Shape.Dims[1] != heads || heads%groups != 0 ||
+		(a.Shape.Dims[0] != 1 && a.Shape.Dims[0] != stateWidth) || a.Shape.Dims[1] != heads || heads%groups != 0 ||
 		beta.Shape.Dims[0] != stateWidth || beta.Shape.Dims[2] != tokens || beta.Shape.Dims[3] != sequences ||
 		!beta.Shape.Equal(c.Shape) {
 		b.setError(errors.New("SSMScan input shapes are incompatible"))

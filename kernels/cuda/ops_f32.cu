@@ -310,7 +310,8 @@ extern "C" __global__ void ssm_scan_f32(
         unsigned int heads,
         unsigned int tokens,
         unsigned int sequences,
-        unsigned int groups) {
+        unsigned int groups,
+        unsigned int a_width) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int count = heads * sequences;
     if (index >= count) {
@@ -342,7 +343,7 @@ extern "C" __global__ void ssm_scan_f32(
                 const unsigned int bc_index = column + state_width *
                     (group + groups * (token + tokens * sequence));
                 const float next = output[state_index] *
-                    expf(delta * a[column + state_width * head]) +
+                    expf(delta * a[(column % a_width) + a_width * head]) +
                     beta[bc_index] * x_delta;
                 output[state_index] = next;
                 sum += next * c[bc_index];

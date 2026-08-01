@@ -668,6 +668,46 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				*shapeAndDestination.destination = &item
 			}
+		} else if spec.Architecture == "mamba2" {
+			layer.Recurrent = true
+			convDimension := uint64(spec.SSMInnerSize) +
+				2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+			inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
+			for name, shapeAndDestination := range map[string]struct {
+				shape       []uint64
+				destination **gguf.TensorInfo
+			}{
+				"ssm_in.weight": {
+					[]uint64{uint64(spec.EmbeddingLength), inputDimension}, &layer.SSMInput,
+				},
+				"ssm_conv1d.weight": {
+					[]uint64{uint64(spec.SSMConvKernel), convDimension}, &layer.SSMConv1D,
+				},
+				"ssm_conv1d.bias": {
+					[]uint64{convDimension}, &layer.SSMConv1DBias,
+				},
+				"ssm_dt.bias": {
+					[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep,
+				},
+				"ssm_a": {
+					[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMA,
+				},
+				"ssm_d": {
+					[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMD,
+				},
+				"ssm_norm.weight": {
+					[]uint64{uint64(spec.SSMInnerSize / spec.SSMGroupCount), uint64(spec.SSMGroupCount)}, &layer.SSMNorm,
+				},
+				"ssm_out.weight": {
+					[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput,
+				},
+			} {
+				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				*shapeAndDestination.destination = &item
+			}
 		} else if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
@@ -1358,7 +1398,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
-		if spec.Architecture == "mamba" {
+		if spec.Architecture == "mamba" || spec.Architecture == "mamba2" {
 			continue
 		}
 		feedForwardNormName := "ffn_norm.weight"

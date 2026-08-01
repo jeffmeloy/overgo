@@ -46,6 +46,17 @@ func TestMambaCacheValidation(t *testing.T) {
 	}
 }
 
+func TestMamba2CacheValidation(t *testing.T) {
+	runner := &Runner{spec: model.Spec{Architecture: "mamba2", BlockCount: 1,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: 2}}
+	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
+	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
+	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{

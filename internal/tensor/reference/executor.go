@@ -458,6 +458,7 @@ func ssmScan(shape tensor.Shape, inputs []Value) (Value, error) {
 	sequences := int(state.Shape.Dims[3])
 	tokens := int(x.Shape.Dims[2])
 	groups := int(beta.Shape.Dims[1])
+	aWidth := int(a.Shape.Dims[0])
 	if stateWidth <= 0 || dimension <= 0 || heads <= 0 || sequences <= 0 || tokens <= 0 || groups <= 0 || heads%groups != 0 {
 		return Value{}, errors.New("invalid SSMScan dimensions")
 	}
@@ -480,7 +481,7 @@ func ssmScan(shape tensor.Shape, inputs []Value) (Value, error) {
 					stateBase := attentionElements + stateWidth*(inner+dimension*(head+heads*sequence))
 					for column := range stateWidth {
 						stateIndex := stateBase + column
-						factor := float32(math.Exp(float64(delta * a.Data[column+stateWidth*head])))
+						factor := float32(math.Exp(float64(delta * a.Data[column%aWidth+aWidth*head])))
 						bcIndex := column + stateWidth*(group+groups*(token+tokens*sequence))
 						next := output[stateIndex]*factor + beta.Data[bcIndex]*xDelta
 						output[stateIndex] = next

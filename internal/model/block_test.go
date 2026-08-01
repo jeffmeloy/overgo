@@ -1888,6 +1888,48 @@ func TestBuildMambaBlock(t *testing.T) {
 	}
 }
 
+func TestBuildMamba2Block(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{Architecture: "mamba2", EmbeddingLength: 4, RMSNormEpsilon: 1e-5,
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4,
+		SSMGroupCount: 2}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm: builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		SSMInput:      builder.Input("in", dtype.F32, tensor.MustShape(4, 28)),
+		SSMConv1D:     builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
+		SSMConv1DBias: builder.Input("conv_bias", dtype.F32, tensor.MustShape(16)),
+		SSMTimeStep:   builder.Input("dt_bias", dtype.F32, tensor.MustShape(4)),
+		SSMA:          builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
+		SSMD:          builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
+		SSMNorm:       builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
+		SSMOutput:     builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	result, err := BuildMamba2BlockCached(builder, input, spec, weights, convState, ssmState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(convState.Shape) ||
+		!result.Value.Shape.Equal(ssmState.Shape) {
+		t.Fatalf("unexpected Mamba2 result shapes: output=%v conv=%v ssm=%v", result.Output.Shape, result.Key.Shape, result.Value.Shape)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	convolution, scan, groupedNorm := false, false, false
+	for _, node := range nodes {
+		convolution = convolution || node.Op == tensor.OpSSMConv
+		scan = scan || node.Op == tensor.OpSSMScan
+		groupedNorm = groupedNorm || node.Op == tensor.OpRMSNorm && node.Shape.Rank == 4 && node.Shape.Dims[0] == 4
+	}
+	if !convolution || !scan || !groupedNorm {
+		t.Fatalf("Mamba2 graph convolution=%v scan=%v grouped_norm=%v", convolution, scan, groupedNorm)
+	}
+}
+
 func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string) {
 	builder := tensor.NewBuilder()
 	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,

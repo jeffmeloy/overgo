@@ -174,6 +174,36 @@ func TestHostLayerGraphInputsPermitFusedBetaAlphaRecurrent(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitMamba2(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	input := value(4, 28)
+	conv := value(3, 16)
+	convBias := value(16)
+	dt := value(4)
+	a := value(1, 4)
+	d := value(1, 4)
+	norm := value(4, 2)
+	output := value(8, 4)
+	layer := HostLayer{
+		AttentionNorm: value(4), SSMInput: &input, SSMConv1D: &conv,
+		SSMConv1DBias: &convBias, SSMTimeStep: &dt, SSMA: &a, SSMD: &d,
+		SSMNorm: &norm, SSMOutput: &output,
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 9 || graph.SSMInput == nil || graph.SSMNorm == nil ||
+		graph.SSMX != nil || graph.SSMTimeStepWeight != nil {
+		t.Fatalf("unexpected Mamba2 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitParallelDenseAndMoE(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

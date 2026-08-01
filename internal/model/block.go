@@ -829,6 +829,94 @@ func BuildMambaBlockCached(
 	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
 }
 
+func BuildMamba2BlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	convState, ssmState *tensor.Tensor,
+) (DenseBlockResult, error) {
+	if builder == nil || input == nil || convState == nil || ssmState == nil {
+		return DenseBlockResult{}, errors.New("Mamba2 block input/state is nil")
+	}
+	if spec.Architecture != "mamba2" || input.Shape.Rank != 2 ||
+		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("Mamba2 block architecture/input is invalid")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm":       weights.AttentionNorm,
+		"SSM input":            weights.SSMInput,
+		"SSM convolution":      weights.SSMConv1D,
+		"SSM convolution bias": weights.SSMConv1DBias,
+		"SSM time-step bias":   weights.SSMTimeStep,
+		"SSM A":                weights.SSMA,
+		"SSM D":                weights.SSMD,
+		"SSM norm":             weights.SSMNorm,
+		"SSM output":           weights.SSMOutput,
+	}
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("Mamba2 block %s weight is nil", name)
+		}
+	}
+	inner := uint64(spec.SSMInnerSize)
+	stateWidth := uint64(spec.SSMStateSize)
+	heads := uint64(spec.SSMTimeStepRank)
+	groups := uint64(spec.SSMGroupCount)
+	headWidth := inner / heads
+	convWidth := inner + 2*groups*stateWidth
+	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), convWidth)
+	ssmShape := tensor.MustShape(stateWidth, inner)
+	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
+		return DenseBlockResult{}, errors.New("Mamba2 recurrent cache shape is invalid")
+	}
+	tokens := input.Shape.Dims[1]
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	zxBCdt := builder.MulMat(weights.SSMInput, normalized)
+	z := builder.Reshape(builder.GroupSlice(zxBCdt, 0, headWidth, heads, headWidth), headWidth, heads, tokens, 1)
+	xBC := builder.Reshape(builder.GroupSlice(zxBCdt, inner, convWidth, 1, convWidth), convWidth, tokens)
+	dt := builder.Reshape(
+		builder.GroupSlice(zxBCdt, inner+convWidth, heads, 1, heads), heads, tokens, 1,
+	)
+	convInput := builder.Concat(convState, builder.Transpose2D(xBC), 0)
+	nextConvState := builder.Reshape(
+		builder.GroupSlice(convInput, tokens, uint64(spec.SSMConvKernel-1), 1, uint64(spec.SSMConvKernel-1)),
+		uint64(spec.SSMConvKernel-1), convWidth,
+	)
+	xBC = builder.SiLU(builder.Add(builder.SSMConv(convInput, weights.SSMConv1D), weights.SSMConv1DBias))
+	x := builder.Reshape(builder.GroupSlice(xBC, 0, headWidth, heads, headWidth), headWidth, heads, tokens, 1)
+	beta := builder.Reshape(
+		builder.GroupSlice(xBC, inner, stateWidth, groups, stateWidth), stateWidth, groups, tokens, 1,
+	)
+	c := builder.Reshape(
+		builder.GroupSlice(xBC, inner+groups*stateWidth, stateWidth, groups, stateWidth),
+		stateWidth, groups, tokens, 1,
+	)
+	dt = builder.Add(dt, weights.SSMTimeStep)
+	packed := builder.SSMScan(
+		builder.Reshape(ssmState, stateWidth, headWidth, heads, 1),
+		x,
+		dt,
+		weights.SSMA,
+		beta,
+		c,
+	)
+	attentionElements := inner * tokens
+	attention := builder.FlatSlice(packed, 0, headWidth, heads, tokens, 1)
+	nextSSMState := builder.FlatSlice(packed, attentionElements, stateWidth, inner)
+	attention = builder.Add(attention, builder.Multiply(x, weights.SSMD))
+	attention = builder.Multiply(attention, builder.SiLU(z))
+	attention = builder.Reshape(attention, inner/groups, groups, tokens, 1)
+	attention = builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon)
+	attention = builder.Reshape(attention, inner, tokens)
+	attention = builder.MulMat(weights.SSMOutput, attention)
+	output := builder.Add(input, attention)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
+}
+
 // BuildPLMBlockCached: PLM MLA block
 func BuildPLMBlockCached(
 	builder *tensor.Builder,

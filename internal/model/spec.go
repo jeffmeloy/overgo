@@ -197,6 +197,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "jina-bert-v3" &&
 		architecture != "maincoder" &&
 		architecture != "mamba" &&
+		architecture != "mamba2" &&
 		architecture != "mellum" &&
 		architecture != "mistral3" &&
 		architecture != "mistral4" &&
@@ -247,7 +248,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" {
+	if architecture == "mamba" || architecture == "mamba2" {
 		spec.RopeDisabled = true
 	}
 	if architecture == "chameleon" {
@@ -318,7 +319,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "mamba" {
+	if architecture == "mamba" || architecture == "mamba2" {
 		spec.HeadCountKV = 0
 	} else if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
@@ -386,7 +387,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.ValueLength = value
 		}
 	}
-	if architecture != "mamba" && (spec.KeyLength == 0 || spec.ValueLength == 0) {
+	if architecture != "mamba" && architecture != "mamba2" && (spec.KeyLength == 0 || spec.ValueLength == 0) {
 		if spec.HeadCount == 0 || spec.EmbeddingLength%spec.HeadCount != 0 {
 			return Spec{}, errors.New("embedding length is not divisible by attention head count")
 		}
@@ -1347,7 +1348,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "mamba" {
+	if architecture == "mamba" || architecture == "mamba2" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1359,8 +1360,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				return Spec{}, err
 			}
 		}
-		spec.SSMGroupCount = 1
-		spec.SSMDtBCNorm, _ = optional[bool](values, prefix+"ssm.dt_b_c_rms", gguf.ValueTypeBool)
+		if architecture == "mamba" {
+			spec.SSMGroupCount = 1
+			spec.SSMDtBCNorm, _ = optional[bool](values, prefix+"ssm.dt_b_c_rms", gguf.ValueTypeBool)
+		} else if spec.SSMGroupCount, err = required[uint32](values, prefix+"ssm.group_count", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
 	}
 	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
@@ -2307,7 +2312,7 @@ func (s Spec) UsesWeightOnlyLayerNorm() bool {
 }
 
 func (s Spec) validate() error {
-	attentionFree := s.Architecture == "mamba"
+	attentionFree := s.Architecture == "mamba" || s.Architecture == "mamba2"
 	switch {
 	case s.BlockCount == 0:
 		return errors.New("model block count is zero")
@@ -2341,6 +2346,17 @@ func (s Spec) validate() error {
 			return errors.New("Mamba attention metadata must be zero")
 		case s.SSMConvKernel < 2 || s.SSMInnerSize != 2*s.EmbeddingLength || s.SSMStateSize == 0 || s.SSMTimeStepRank == 0:
 			return errors.New("Mamba SSM metadata is invalid")
+		}
+	}
+	if s.Architecture == "mamba2" {
+		switch {
+		case s.FeedForwardLength != 0 || s.HeadCount != 0 || s.HeadCountKV != 0 || s.KeyLength != 0 || s.ValueLength != 0:
+			return errors.New("Mamba2 attention metadata must be zero")
+		case s.SSMConvKernel < 2 || s.SSMInnerSize == 0 || s.SSMStateSize == 0 ||
+			s.SSMTimeStepRank == 0 || s.SSMGroupCount == 0 ||
+			s.SSMInnerSize%s.SSMTimeStepRank != 0 || s.SSMInnerSize%s.SSMGroupCount != 0 ||
+			s.SSMTimeStepRank%s.SSMGroupCount != 0:
+			return errors.New("Mamba2 SSM metadata is invalid")
 		}
 	}
 	if s.Architecture == "bert" &&

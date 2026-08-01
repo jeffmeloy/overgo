@@ -161,7 +161,7 @@ func TestBuilderSSMScan(t *testing.T) {
 	state := builder.Input("state", dtype.F32, MustShape(3, 1, 4, 2))
 	x := builder.Input("x", dtype.F32, MustShape(1, 4, 5, 2))
 	dt := builder.Input("dt", dtype.F32, MustShape(4, 5, 2))
-	a := builder.Input("a", dtype.F32, MustShape(3, 4))
+	a := builder.Input("a", dtype.F32, MustShape(1, 4))
 	beta := builder.Input("beta", dtype.F32, MustShape(3, 2, 5, 2))
 	c := builder.Input("c", dtype.F32, MustShape(3, 2, 5, 2))
 	output := builder.SSMScan(state, x, dt, a, beta, c)

@@ -74,6 +74,23 @@ func TestJambaHybridCacheValidation(t *testing.T) {
 	}
 }
 
+func TestGraniteHybridCacheValidation(t *testing.T) {
+	runner := &Runner{
+		spec: model.Spec{Architecture: "granitehybrid", BlockCount: 2, SSMConvKernel: 3,
+			SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: 2, KeyLength: 2, ValueLength: 2,
+			HeadCountKV: 1, LayerKVHeadCounts: []uint32{0, 1}, RecurrentLayers: []bool{true, false}},
+		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}},
+	}
+	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
+	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
+	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}, {Key: key, Value: value}}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{

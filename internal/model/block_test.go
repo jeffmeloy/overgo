@@ -1930,6 +1930,55 @@ func TestBuildMamba2Block(t *testing.T) {
 	}
 }
 
+func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{Architecture: "granitehybrid", EmbeddingLength: 4, FeedForwardLength: 6,
+		RMSNormEpsilon: 1e-5, ResidualScale: 0.5, SSMConvKernel: 3, SSMInnerSize: 8,
+		SSMStateSize: 2, SSMTimeStepRank: 4, SSMGroupCount: 2, ExpertCount: 4,
+		ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 5, ExpertWeightsScale: 1}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		SSMInput:               builder.Input("in", dtype.F32, tensor.MustShape(4, 28)),
+		SSMConv1D:              builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
+		SSMTimeStep:            builder.Input("dt_bias", dtype.F32, tensor.MustShape(4)),
+		SSMA:                   builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
+		SSMD:                   builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
+		SSMNorm:                builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
+		SSMOutput:              builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(4, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(4, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 4, 4)),
+		FeedForwardSharedGate:  builder.Input("shared_gate", dtype.F32, tensor.MustShape(4, 5)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(4, 5)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	result, err := BuildGraniteHybridRecurrentBlockCached(builder, input, spec, weights, convState, ssmState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	convolution, scan, moe, scales := false, false, false, 0
+	for _, node := range nodes {
+		convolution = convolution || node.Op == tensor.OpSSMConv
+		scan = scan || node.Op == tensor.OpSSMScan
+		moe = moe || node.Op == tensor.OpMoE
+		if node.Op == tensor.OpScale {
+			scales++
+		}
+	}
+	if !convolution || !scan || !moe || scales < 2 || !result.Key.Shape.Equal(convState.Shape) ||
+		!result.Value.Shape.Equal(ssmState.Shape) {
+		t.Fatalf("Granite Hybrid graph convolution=%v scan=%v moe=%v scales=%d", convolution, scan, moe, scales)
+	}
+}
+
 func TestBuildJambaAttentionMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{Architecture: "jamba", BlockCount: 2, EmbeddingLength: 4,

@@ -3425,6 +3425,47 @@ func TestReadJambaSpec(t *testing.T) {
 	}
 }
 
+func TestReadGraniteHybridSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "granitehybrid"),
+		metadata("granitehybrid.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granitehybrid.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("granitehybrid.embedding_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("granitehybrid.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("granitehybrid.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "granitehybrid.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{0, 1},
+		}},
+		metadata("granitehybrid.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("granitehybrid.rope.scaling.finetuned", gguf.ValueTypeBool, false),
+		metadata("granitehybrid.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("granitehybrid.attention.scale", gguf.ValueTypeFloat32, float32(0.25)),
+		metadata("granitehybrid.embedding_scale", gguf.ValueTypeFloat32, float32(2)),
+		metadata("granitehybrid.residual_scale", gguf.ValueTypeFloat32, float32(0.5)),
+		metadata("granitehybrid.logit_scale", gguf.ValueTypeFloat32, float32(8)),
+		metadata("granitehybrid.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("granitehybrid.ssm.inner_size", gguf.ValueTypeUint32, uint32(8)),
+		metadata("granitehybrid.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granitehybrid.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(4)),
+		metadata("granitehybrid.ssm.group_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granitehybrid.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("granitehybrid.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("granitehybrid.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(5)),
+		metadata("granitehybrid.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "granitehybrid" || !spec.RopeDisabled || !spec.IsRecurrentLayer(0) ||
+		spec.IsRecurrentLayer(1) || spec.LayerKVHeadCount(1) != 1 || spec.SSMInnerSize != 8 ||
+		spec.SSMTimeStepRank != 4 || spec.SSMGroupCount != 2 || spec.ExpertFeedForward != 6 ||
+		!spec.ExpertWeightsNorm || spec.SharedExpertFF != 5 || spec.AttentionScale != 0.25 ||
+		spec.EmbeddingScale != 2 || spec.ResidualScale != 0.5 || spec.OutputLogitMultiplier() != 0.125 {
+		t.Fatalf("unexpected Granite Hybrid spec: %+v", spec)
+	}
+}
+
 func TestReadTalkieSpecUsesUnweightedRMSNormAndDirectLogitScale(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "talkie"),

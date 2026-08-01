@@ -1139,6 +1139,71 @@ func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
 	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
 }
 
+func TestExecutorGraniteHybridRecurrentBlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{Architecture: "granitehybrid", EmbeddingLength: 4, FeedForwardLength: 6,
+		RMSNormEpsilon: 1e-5, ResidualScale: 0.5, SSMConvKernel: 3, SSMInnerSize: 8,
+		SSMStateSize: 2, SSMTimeStepRank: 4, SSMGroupCount: 2}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 3))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:       builder.Input("norm", dtype.F32, tensor.MustShape(4)),
+		SSMInput:            builder.Input("in", dtype.F32, tensor.MustShape(4, 28)),
+		SSMConv1D:           builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
+		SSMTimeStep:         builder.Input("dt_bias", dtype.F32, tensor.MustShape(4)),
+		SSMA:                builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
+		SSMD:                builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
+		SSMNorm:             builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
+		SSMOutput:           builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(4)),
+		FeedForwardGate:     builder.Input("ffn_gate", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
+		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
+		FeedForwardGateBias: builder.Input("ffn_gate_bias", dtype.F32, tensor.MustShape(6)),
+		FeedForwardUpBias:   builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(6)),
+		FeedForwardDownBias: builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(4)),
+	}
+	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
+	result, err := model.BuildGraniteHybridRecurrentBlockCached(builder, input, spec, weights, convState, ssmState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{}
+	for index, node := range []*tensor.Tensor{
+		input, weights.AttentionNorm, weights.SSMInput, weights.SSMConv1D, weights.SSMTimeStep,
+		weights.SSMA, weights.SSMD, weights.SSMNorm, weights.SSMOutput, weights.FeedForwardNorm,
+		weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown,
+		weights.FeedForwardGateBias, weights.FeedForwardUpBias, weights.FeedForwardDownBias,
+		convState, ssmState,
+	} {
+		offset := float32(-0.15)
+		if node == weights.AttentionNorm || node == weights.SSMNorm || node == weights.FeedForwardNorm {
+			offset = 0.9
+		}
+		feeds[node] = patternedValue(node.Shape, index+3, 0.025, offset)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 1e-3)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorJambaRecurrentMoEBlockMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

@@ -83,9 +83,11 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	for index, layer := range cache.Layers {
 		jambaRecurrent := r.spec.Architecture == "jamba" && index < len(r.weights.Layers) &&
 			r.weights.Layers[index].Recurrent
-		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent {
+		graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && index < len(r.weights.Layers) &&
+			r.weights.Layers[index].Recurrent
+		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent {
 			convWidth := uint64(r.spec.SSMInnerSize)
-			if r.spec.Architecture == "mamba2" {
+			if r.spec.Architecture == "mamba2" || graniteHybridRecurrent {
 				convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
 			}
 			convShape := tensor.MustShape(

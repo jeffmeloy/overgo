@@ -1977,6 +1977,45 @@ func TestReadWeightsJamba(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGraniteHybrid(t *testing.T) {
+	spec := Spec{Architecture: "granitehybrid", BlockCount: 2, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		LayerKVHeadCounts: []uint32{0, 1}, RecurrentLayers: []bool{true, false},
+		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4,
+		SSMGroupCount: 2, ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertFF: 5, VocabularySize: 32}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 4, 32), tensorInfo("output_norm.weight", 4),
+		tensorInfo("blk.0.attn_norm.weight", 4), tensorInfo("blk.0.ssm_in.weight", 4, 28),
+		tensorInfo("blk.0.ssm_conv1d.weight", 3, 16), tensorInfo("blk.0.ssm_dt.bias", 4),
+		tensorInfo("blk.0.ssm_a", 1, 4), tensorInfo("blk.0.ssm_d", 1, 4),
+		tensorInfo("blk.0.ssm_norm.weight", 4, 2), tensorInfo("blk.0.ssm_out.weight", 8, 4),
+		tensorInfo("blk.0.ffn_norm.weight", 4), tensorInfo("blk.0.ffn_gate_inp.weight", 4, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 4, 6, 4), tensorInfo("blk.0.ffn_down_exps.weight", 6, 4, 4),
+		tensorInfo("blk.0.ffn_gate_shexp.weight", 4, 5), tensorInfo("blk.0.ffn_up_shexp.weight", 4, 5),
+		tensorInfo("blk.0.ffn_down_shexp.weight", 5, 4),
+		tensorInfo("blk.1.attn_norm.weight", 4), tensorInfo("blk.1.attn_q.weight", 4, 4),
+		tensorInfo("blk.1.attn_k.weight", 4, 2), tensorInfo("blk.1.attn_v.weight", 4, 2),
+		tensorInfo("blk.1.attn_output.weight", 4, 4), tensorInfo("blk.1.attn_output.bias", 4),
+		tensorInfo("blk.1.ffn_norm.weight", 4), tensorInfo("blk.1.ffn_gate_inp.weight", 4, 4),
+		tensorInfo("blk.1.ffn_gate_exps.weight", 4, 6, 4), tensorInfo("blk.1.ffn_up_exps.weight", 4, 6, 4),
+		tensorInfo("blk.1.ffn_down_exps.weight", 6, 4, 4), tensorInfo("blk.1.ffn_gate_shexp.weight", 4, 5),
+		tensorInfo("blk.1.ffn_up_shexp.weight", 4, 5), tensorInfo("blk.1.ffn_down_shexp.weight", 5, 4),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recurrent, attention := weights.Layers[0], weights.Layers[1]
+	if !recurrent.Recurrent || recurrent.SSMInput == nil || recurrent.SSMConv1DBias != nil ||
+		recurrent.SSMNorm == nil || recurrent.FeedForwardRouter == nil ||
+		recurrent.FeedForwardGateExperts != nil || recurrent.FeedForwardSharedDown == nil ||
+		attention.Recurrent || attention.AttentionQ.Name == "" || attention.AttentionOutputBias == nil ||
+		attention.FeedForwardGateExperts == nil || attention.FeedForwardSharedDown == nil {
+		t.Fatalf("unexpected Granite Hybrid catalog: %+v", weights.Layers)
+	}
+}
+
 func testReadWeightsDeepSeek2FamilyAbsorbedMLA(t *testing.T, architecture string) {
 	spec := Spec{Architecture: architecture, BlockCount: 2, EmbeddingLength: 8,
 		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 6, ValueLength: 4,

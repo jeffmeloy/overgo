@@ -357,7 +357,7 @@ func LoadHostLayer(
 			return HostLayer{}, errors.New("host recurrent convolution catalog is incomplete")
 		}
 		if info.SSMInput != nil &&
-			(info.SSMConv1D == nil || info.SSMConv1DBias == nil || info.SSMTimeStep == nil ||
+			(info.SSMConv1D == nil || info.SSMTimeStep == nil ||
 				info.SSMA == nil || info.SSMD == nil || info.SSMOutput == nil ||
 				(info.SSMX != nil && info.SSMTimeStepWeight == nil) ||
 				(info.SSMTimeStepNorm != nil && (info.SSMBNorm == nil || info.SSMCNorm == nil)) ||
@@ -715,7 +715,9 @@ func (layer *HostLayer) GraphInputs(
 	if layer.SSMInput != nil {
 		result.SSMInput = input("ssm_in.weight", *layer.SSMInput)
 		result.SSMConv1D = input("ssm_conv1d.weight", *layer.SSMConv1D)
-		result.SSMConv1DBias = input("ssm_conv1d.bias", *layer.SSMConv1DBias)
+		if layer.SSMConv1DBias != nil {
+			result.SSMConv1DBias = input("ssm_conv1d.bias", *layer.SSMConv1DBias)
+		}
 		result.SSMTimeStep = input("ssm_dt.bias", *layer.SSMTimeStep)
 		result.SSMA = input("ssm_a", *layer.SSMA)
 		result.SSMD = input("ssm_d", *layer.SSMD)

@@ -181,6 +181,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "mimo2" &&
 		architecture != "step35" &&
 		architecture != "granite" &&
+		architecture != "granitehybrid" &&
 		architecture != "granitemoe" &&
 		architecture != "glm4" &&
 		architecture != "glm4-moe" &&
@@ -348,7 +349,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
-	} else if architecture == "lfm2" || architecture == "lfm2moe" || architecture == "jamba" {
+	} else if architecture == "lfm2" || architecture == "lfm2moe" || architecture == "jamba" || architecture == "granitehybrid" {
 		counts, countErr := requiredArray[uint32](
 			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
 		)
@@ -362,7 +363,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			)
 		}
 		spec.RecurrentLayers = make([]bool, len(counts))
-		if architecture == "jamba" {
+		if architecture == "jamba" || architecture == "granitehybrid" {
 			spec.LayerKVHeadCounts = append([]uint32(nil), counts...)
 		}
 		for index, count := range counts {
@@ -631,11 +632,11 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.LogitScale = value
 		}
 	}
-	if architecture == "granite" || architecture == "granitemoe" {
-		if spec.LogitScale, err = required[float32](
-			values,
-			prefix+"logit_scale",
-			gguf.ValueTypeFloat32,
+	if architecture == "granite" || architecture == "granitemoe" || architecture == "granitehybrid" {
+		if architecture == "granitehybrid" {
+			spec.LogitScale, _ = optional[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32)
+		} else if spec.LogitScale, err = required[float32](
+			values, prefix+"logit_scale", gguf.ValueTypeFloat32,
 		); err != nil {
 			return Spec{}, err
 		}
@@ -1352,7 +1353,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" {
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1369,6 +1370,18 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SSMDtBCNorm, _ = optional[bool](values, prefix+"ssm.dt_b_c_rms", gguf.ValueTypeBool)
 		} else if spec.SSMGroupCount, err = required[uint32](values, prefix+"ssm.group_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
+		}
+	}
+	if architecture == "granitehybrid" {
+		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
+		if spec.ExpertCount > 0 {
+			if spec.ExpertUsedCount, err = required[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32); err != nil {
+				return Spec{}, err
+			}
+			spec.ExpertFeedForward = spec.FeedForwardLength
+			spec.ExpertWeightsScale = 1
+			spec.ExpertWeightsNorm = true
+			spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		}
 	}
 	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4-moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
@@ -2379,6 +2392,22 @@ func (s Spec) validate() error {
 			return errors.New("Jamba expert metadata is invalid")
 		}
 	}
+	if s.Architecture == "granitehybrid" {
+		switch {
+		case s.SSMConvKernel < 2 || s.SSMInnerSize != 2*s.EmbeddingLength ||
+			s.SSMStateSize == 0 || s.SSMTimeStepRank == 0 || s.SSMGroupCount == 0 ||
+			s.SSMInnerSize%s.SSMTimeStepRank != 0 || s.SSMInnerSize%s.SSMGroupCount != 0 ||
+			s.SSMTimeStepRank%s.SSMGroupCount != 0:
+			return errors.New("Granite Hybrid SSM metadata is invalid")
+		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
+			return errors.New("Granite Hybrid layer schedule is invalid")
+		case s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0):
+			return errors.New("Granite Hybrid expert metadata is invalid")
+		case s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.ExpertFeedForward != 0 || s.SharedExpertFF != 0):
+			return errors.New("dense Granite Hybrid expert metadata is inconsistent")
+		}
+	}
 	if s.Architecture == "bert" &&
 		(s.TokenTypeCount == 0 || s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength) {
 		return errors.New("BERT metadata is invalid")
@@ -2719,7 +2748,7 @@ func (s Spec) validate() error {
 			return errors.New("MiniMax-M2 rotary/head dimensions are invalid")
 		}
 	}
-	if (s.Architecture == "granite" || s.Architecture == "granitemoe") &&
+	if (s.Architecture == "granite" || s.Architecture == "granitemoe" || s.Architecture == "granitehybrid") &&
 		s.RopeScalingType == "longrope" &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
@@ -3345,6 +3374,7 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "chatglm" ||
 		architecture == "cogvlm" ||
 		architecture == "granite" ||
+		architecture == "granitehybrid" ||
 		architecture == "granitemoe" ||
 		architecture == "hunyuan-dense" ||
 		architecture == "hunyuan-vl" ||
@@ -3380,7 +3410,7 @@ func usesFusedGateUp(architecture string) bool {
 }
 
 func supportsLongRoPE(architecture string) bool {
-	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitemoe" ||
+	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitehybrid" || architecture == "granitemoe" ||
 		architecture == "minicpm3" || architecture == "pangu-embedded" || architecture == "phi3" || architecture == "phimoe" || architecture == "step35"
 }
 

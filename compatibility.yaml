@@ -1046,6 +1046,24 @@ models:
       - non-renormalized-selected-expert-weights
       - serializable-hybrid-cache
     real_model_validation: pending-fixture
+  granitehybrid:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - metadata-selected-attention-and-mamba2-layers
+      - optional-normal-rope
+      - metadata-attention-scale
+      - optional-convolution-and-projection-biases
+      - grouped-mamba2-selective-scan
+      - embedding-and-residual-branch-scales
+      - dense-or-softmax-routed-moe-swiglu
+      - optional-ungated-and-shared-experts
+      - inverse-logit-scale
+      - serializable-hybrid-cache
+    real_model_validation: pending-fixture
   mamba2:
     status: experimental
     execution:

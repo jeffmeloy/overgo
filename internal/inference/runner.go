@@ -4165,6 +4165,9 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	for _, mtp := range weights.HYV3MTP {
 		layers = append(layers, mtp.Layer)
 	}
+	if weights.Cohere2MTP != nil {
+		layers = append(layers, weights.Cohere2MTP.Layer)
+	}
 	for _, layer := range layers {
 		for _, info := range []*gguf.TensorInfo{
 			layer.SSMConv1D,
@@ -4204,6 +4207,16 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		}
 	}
 	for _, mtp := range weights.HYV3MTP {
+		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
+			names[info.Name] = struct{}{}
+		}
+		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.OutputNorm, mtp.Output} {
+			if info != nil {
+				names[info.Name] = struct{}{}
+			}
+		}
+	}
+	if mtp := weights.Cohere2MTP; mtp != nil {
 		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
 			names[info.Name] = struct{}{}
 		}
@@ -4293,6 +4306,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	if weights.Qwen35MTP != nil {
 		capacity++
 	}
+	if weights.Cohere2MTP != nil {
+		capacity++
+	}
 	allLayers := make([]model.LayerWeights, 0, capacity)
 	allLayers = append(allLayers, weights.EncoderLayers...)
 	allLayers = append(allLayers, weights.Layers...)
@@ -4304,6 +4320,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 	}
 	for _, mtp := range weights.HYV3MTP {
 		allLayers = append(allLayers, mtp.Layer)
+	}
+	if weights.Cohere2MTP != nil {
+		allLayers = append(allLayers, weights.Cohere2MTP.Layer)
 	}
 	for _, layer := range allLayers {
 		infos := []gguf.TensorInfo{

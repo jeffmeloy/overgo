@@ -3432,6 +3432,54 @@ func TestReadWeightsCohere2MoEDensePrefixAndFusedExperts(t *testing.T) {
 	}
 }
 
+func TestReadWeightsCohere2MoEMTP(t *testing.T) {
+	spec := Spec{
+		Architecture: "cohere2moe", BlockCount: 1, NextNPredictLayers: 1,
+		EmbeddingLength: 8, FeedForwardLength: 12, VocabularySize: 32,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RMSNormEpsilon: 1e-5, LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertCount: 1, SharedExpertFF: 6,
+	}
+	common := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32),
+	}
+	trunk := []gguf.TensorInfo{
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 8),
+		tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8),
+	}
+	mtp := []gguf.TensorInfo{
+		tensorInfo("blk.1.attn_norm.weight", 8), tensorInfo("blk.1.attn_q.weight", 8, 8),
+		tensorInfo("blk.1.attn_k.weight", 8, 4), tensorInfo("blk.1.attn_v.weight", 8, 4),
+		tensorInfo("blk.1.attn_output.weight", 8, 8), tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.1.ffn_gate_up_exps.weight", 8, 12, 4), tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 6), tensorInfo("blk.1.ffn_up_shexp.weight", 8, 6),
+		tensorInfo("blk.1.ffn_down_shexp.weight", 6, 8), tensorInfo("blk.1.nextn.eh_proj.weight", 16, 8),
+		tensorInfo("blk.1.nextn.enorm.weight", 8), tensorInfo("blk.1.nextn.hnorm.weight", 8),
+		tensorInfo("blk.1.nextn.shared_head_norm.weight", 8),
+		tensorInfo("blk.1.nextn.shared_head_head.weight", 8, 32),
+	}
+	combined, err := ReadWeights(&gguf.File{Tensors: append(append(common, trunk...), mtp...)}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(combined.Layers) != 1 || combined.Cohere2MTP == nil || combined.Cohere2MTP.MTPOnly ||
+		combined.Cohere2MTP.Layer.FeedForwardGateUpExperts == nil ||
+		combined.Cohere2MTP.OutputNorm == nil || combined.Cohere2MTP.Output == nil {
+		t.Fatalf("unexpected combined Cohere2-MoE MTP catalog: %+v", combined.Cohere2MTP)
+	}
+	sidecar, err := ReadWeights(&gguf.File{Tensors: append(common, mtp...)}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sidecar.Layers) != 0 || sidecar.Cohere2MTP == nil || !sidecar.Cohere2MTP.MTPOnly {
+		t.Fatalf("unexpected Cohere2-MoE MTP sidecar catalog: %+v", sidecar)
+	}
+}
+
 func TestReadWeightsHYV3DetectsDenseAndFusedMoELayers(t *testing.T) {
 	spec := Spec{
 		Architecture: "hy_v3", BlockCount: 2, EmbeddingLength: 8,

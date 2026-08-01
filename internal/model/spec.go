@@ -1936,9 +1936,10 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	if architecture == "cohere2moe" {
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
+			if nextN != 1 || nextN >= spec.BlockCount {
 				return Spec{}, errors.New("Cohere2-MoE NextN/MTP layer count is invalid")
 			}
+			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
 		if spec.LeadingDenseBlocks, err = required[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32); err != nil {

@@ -249,6 +249,18 @@ type Step35MTPWeights struct {
 	Output         *gguf.TensorInfo
 }
 
+// Cohere2MTPWeights: one full Cohere2-MoE draft block.
+type Cohere2MTPWeights struct {
+	MTPOnly        bool
+	Layer          LayerWeights
+	EHProjection   gguf.TensorInfo
+	EmbeddingNorm  gguf.TensorInfo
+	HiddenNorm     gguf.TensorInfo
+	TokenEmbedding *gguf.TensorInfo
+	OutputNorm     *gguf.TensorInfo
+	Output         *gguf.TensorInfo
+}
+
 // Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
 	TokenEmbedding          gguf.TensorInfo
@@ -278,6 +290,7 @@ type Weights struct {
 	Qwen35MTP               *Qwen35MTPWeights
 	Step35MTP               []Step35MTPWeights
 	HYV3MTP                 []Step35MTPWeights
+	Cohere2MTP              *Cohere2MTPWeights
 }
 
 // ReadWeights: validates names and shapes without loading tensor bytes
@@ -1230,6 +1243,17 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if spec.Architecture == "step35" || spec.Architecture == "hy_v3" {
 		trunkBlockCount += spec.NextNPredictLayers
 	}
+	cohere2HasMTP := false
+	cohere2MTPOnly := false
+	if spec.Architecture == "cohere2moe" && spec.NextNPredictLayers == 1 {
+		mtpPrefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
+		_, cohere2HasMTP = tensors[mtpPrefix+"nextn.eh_proj.weight"]
+		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
+		cohere2MTPOnly = cohere2HasMTP && !hasTrunk
+		if cohere2HasMTP {
+			trunkBlockCount++
+		}
+	}
 	mtpOnly := spec.NextNPredictLayers == 1 &&
 		(spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe")
 	if mtpOnly {
@@ -1241,6 +1265,9 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	}
 	result.Layers = make([]LayerWeights, trunkBlockCount)
 	for block := uint32(0); block < trunkBlockCount; block++ {
+		if cohere2MTPOnly && block < spec.BlockCount {
+			continue
+		}
 		prefix := fmt.Sprintf("blk.%d.", block)
 		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerKeyLength(block))
 		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerKeyLength(block))
@@ -3839,6 +3866,49 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
+	}
+	if cohere2HasMTP {
+		block := spec.BlockCount
+		prefix := fmt.Sprintf("blk.%d.", block)
+		mtp := &Cohere2MTPWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
+		for name, item := range map[string]struct {
+			destination *gguf.TensorInfo
+			shape       []uint64
+		}{
+			"nextn.eh_proj.weight": {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
+			"nextn.enorm.weight":   {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
+			"nextn.hnorm.weight":   {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
+		} {
+			loaded, loadErr := required(prefix+name, item.shape...)
+			if loadErr != nil {
+				return Weights{}, loadErr
+			}
+			*item.destination = loaded
+		}
+		for name, destination := range map[string]**gguf.TensorInfo{
+			"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
+			"nextn.shared_head_norm.weight": &mtp.OutputNorm,
+			"nextn.shared_head_head.weight": &mtp.Output,
+		} {
+			if _, ok := tensors[prefix+name]; !ok {
+				continue
+			}
+			shape := []uint64{uint64(spec.EmbeddingLength)}
+			if name != "nextn.shared_head_norm.weight" {
+				shape = append(shape, uint64(spec.VocabularySize))
+			}
+			loaded, loadErr := required(prefix+name, shape...)
+			if loadErr != nil {
+				return Weights{}, loadErr
+			}
+			*destination = &loaded
+		}
+		result.Cohere2MTP = mtp
+		if cohere2MTPOnly {
+			result.Layers = result.Layers[:0]
+		} else {
+			result.Layers = result.Layers[:spec.BlockCount]
+		}
 	}
 	return result, nil
 }

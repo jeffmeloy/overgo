@@ -2009,6 +2009,7 @@ func TestReadCohere2MoESpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	if spec.Architecture != "cohere2moe" || spec.BlockCount != 4 || spec.RMSNormEpsilon != 1e-5 ||
+		spec.NextNPredictLayers != 1 ||
 		spec.UsesWeightOnlyLayerNorm() || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 ||
 		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||

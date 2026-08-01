@@ -59,6 +59,14 @@ type failingMemoryGenerator struct {
 	*fakeGenerator
 }
 
+type rankDisabledGenerator struct {
+	*fakeGenerator
+}
+
+func (f *rankDisabledGenerator) SupportsRank() bool {
+	return false
+}
+
 type fakeLoRAGenerator struct {
 	*fakeGenerator
 	adapters  []inference.LoRAAdapterInfo
@@ -358,6 +366,25 @@ func (f *fakeGenerator) EmbedTokensAdvanced(
 	f.promptIDs = append([]tokenizer.TokenID(nil), tokens...)
 	f.mu.Unlock()
 	return fakeAdvancedEmbedding(ctx, len(tokens), options)
+}
+
+func (f *fakeGenerator) SupportsRank() bool {
+	return true
+}
+
+func (f *fakeGenerator) RankPair(
+	ctx context.Context,
+	query string,
+	document string,
+) (inference.RankResult, error) {
+	if err := ctx.Err(); err != nil {
+		return inference.RankResult{}, err
+	}
+	return inference.RankResult{
+		Scores: []float32{float32(len(document)) / 10},
+		Labels: []string{"0"},
+		Tokens: len(query) + len(document),
+	}, nil
 }
 
 func fakeAdvancedEmbedding(
@@ -2777,6 +2804,75 @@ func TestNativeEmbeddingsValidationAuthenticationAndMethod(t *testing.T) {
 	protected.ServeHTTP(oversized, request)
 	if oversized.Code != http.StatusBadRequest {
 		t.Fatalf("oversized status = %d body=%s", oversized.Code, oversized.Body.String())
+	}
+}
+
+func TestRerankJinaAndTEIFormats(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	jina := httptest.NewRecorder()
+	handler.ServeHTTP(jina, httptest.NewRequest(
+		http.MethodPost, "/v1/rerank",
+		strings.NewReader(`{"model":"test-model","query":"q","documents":["a","longer"],"top_n":1}`),
+	))
+	if jina.Code != http.StatusOK {
+		t.Fatalf("Jina status = %d body=%s", jina.Code, jina.Body.String())
+	}
+	var jinaResult rerankResponse
+	if err := json.Unmarshal(jina.Body.Bytes(), &jinaResult); err != nil {
+		t.Fatal(err)
+	}
+	if jinaResult.Model != "test-model" || jinaResult.Object != "list" ||
+		len(jinaResult.Results) != 1 || jinaResult.Results[0].Index != 1 ||
+		jinaResult.Results[0].RelevanceScore == nil || *jinaResult.Results[0].RelevanceScore != 0.6 ||
+		jinaResult.Usage != (embeddingUsage{PromptTokens: 9, TotalTokens: 9}) {
+		t.Fatalf("Jina rerank = %+v", jinaResult)
+	}
+
+	tei := httptest.NewRecorder()
+	handler.ServeHTTP(tei, httptest.NewRequest(
+		http.MethodPost, "/reranking",
+		strings.NewReader(`{"query":"q","texts":["a","longer"],"return_text":true}`),
+	))
+	if tei.Code != http.StatusOK {
+		t.Fatalf("TEI status = %d body=%s", tei.Code, tei.Body.String())
+	}
+	var teiResult []rerankItem
+	if err := json.Unmarshal(tei.Body.Bytes(), &teiResult); err != nil {
+		t.Fatal(err)
+	}
+	if len(teiResult) != 2 || teiResult[0].Index != 1 || teiResult[0].Score == nil ||
+		*teiResult[0].Score != 0.6 || teiResult[0].Text == nil || *teiResult[0].Text != "longer" ||
+		teiResult[0].RelevanceScore != nil {
+		t.Fatalf("TEI rerank = %+v", teiResult)
+	}
+}
+
+func TestRerankValidationCapabilityAndMethod(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	for _, body := range []string{
+		`{"documents":["a"]}`,
+		`{"query":"q","documents":[]}`,
+		`{"query":"q","documents":[1]}`,
+		`{"query":"q","documents":["a"],"top_n":-1}`,
+	} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/rerank", strings.NewReader(body)))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("body %s status = %d response=%s", body, response.Code, response.Body.String())
+		}
+	}
+	method := httptest.NewRecorder()
+	handler.ServeHTTP(method, httptest.NewRequest(http.MethodGet, "/rerank", nil))
+	if method.Code != http.StatusMethodNotAllowed || method.Header().Get("Allow") != http.MethodPost {
+		t.Fatalf("GET status = %d Allow=%q", method.Code, method.Header().Get("Allow"))
+	}
+	disabled := newTestHandler(t, &rankDisabledGenerator{fakeGenerator: &fakeGenerator{}})
+	unavailable := httptest.NewRecorder()
+	disabled.ServeHTTP(unavailable, httptest.NewRequest(
+		http.MethodPost, "/rerank", strings.NewReader(`{"query":"q","documents":["a"]}`),
+	))
+	if unavailable.Code != http.StatusNotImplemented {
+		t.Fatalf("disabled status = %d body=%s", unavailable.Code, unavailable.Body.String())
 	}
 }
 

@@ -257,6 +257,7 @@ tools:
   - diffusion
   - perplexity
   - embedding
+  - rerank
   - benchmark
   - server
 diffusion:
@@ -396,6 +397,7 @@ server:
       - documents-empty
     named_template_variants:
       - tool_use
+      - rerank
     pinned_real_model_oracles:
       - qwen3
       - qwen3-tools-and-history
@@ -485,6 +487,10 @@ server:
     - /v1/embeddings
     - /embedding
     - /embeddings
+    - /rerank
+    - /reranking
+    - /v1/rerank
+    - /v1/reranking
     - /completion
     - /completions
     - /infill
@@ -546,6 +552,19 @@ server:
     encoding:
       - float
       - base64-little-endian-float32
+  reranking:
+    routes:
+      - /rerank
+      - /reranking
+      - /v1/rerank
+      - /v1/reranking
+    formats:
+      - jina-results-envelope
+      - tei-result-array
+    sorting: descending-stable
+    top_n: optional
+    tei_return_text: optional
+    usage: prompt-and-total-tokens
   tokenizer:
     tokenize:
       content_shapes:

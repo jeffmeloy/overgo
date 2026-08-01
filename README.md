@@ -225,7 +225,10 @@ The experimental HTTP server provides public `GET /health`, `/healthz`, and
 `/v1/health`, Prometheus-format
 `GET /metrics`, public native `GET /models`, `GET /v1/models`,
 `POST /v1/completions`, `POST /v1/chat/completions`, and
-`POST /v1/embeddings`. Native llama.cpp-compatible `POST /embedding` and
+`POST /v1/embeddings`. Reranker models expose `/rerank`, `/reranking`,
+`/v1/rerank`, and `/v1/reranking` with Jina and TEI response formats,
+descending stable sorting, `top_n`, usage totals, and optional TEI text return.
+Native llama.cpp-compatible `POST /embedding` and
 `/embeddings` return the pinned non-OpenAI array with one nested normalized
 vector per pooled input. Native and OpenAI embedding inputs accept strings,
 exact token sequences, mixed token/string sequences, and heterogeneous
@@ -392,7 +395,8 @@ keeps long generations unbounded. SIGINT/SIGTERM stop admission and allow a
 Set `LLAMACPP2GO_API_KEY` or pass `-api-key-file <path>` to require a
 constant-time checked bearer token on generation/embedding `/v1/*` routes,
 `/apply-template`,
-`/completion`, `/completions`, `/embedding`, `/embeddings`, `/tokenize`,
+`/completion`, `/completions`, `/embedding`, `/embeddings`, `/rerank`,
+`/reranking`, `/tokenize`,
 `/detokenize`, `/slots`, `/lora-adapters`, `/chat/completions`, `/responses`, `/v1/messages`,
 chat/Responses/Anthropic token-count routes, and
 `/props` endpoint. Health, metrics, `/models`, and

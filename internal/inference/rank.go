@@ -21,6 +21,11 @@ type RankResult struct {
 	Tokens int
 }
 
+func (r *Runner) SupportsRank() bool {
+	return r != nil && r.weights.ClassifierOutput != nil &&
+		(r.spec.Architecture == "qwen3" || r.spec.Architecture == "qwen3vl")
+}
+
 func (r *Runner) RankPair(
 	ctx context.Context,
 	query string,
@@ -29,31 +34,73 @@ func (r *Runner) RankPair(
 	if r == nil || r.vocab == nil {
 		return RankResult{}, errors.New("inference: runner is nil")
 	}
-	prompt, err := r.rankPairPrompt(query, document)
+	prompt := metadataString(r.file, "tokenizer.chat_template.rerank")
+	if prompt != "" {
+		ids, err := r.vocab.Encode(rankTemplatePrompt(prompt, query, document), tokenizer.EncodeOptions{
+			ParseSpecial: true,
+		})
+		if err != nil {
+			return RankResult{}, err
+		}
+		return r.RankTokens(ctx, ids)
+	}
+	queryIDs, err := r.vocab.Encode(query, tokenizer.EncodeOptions{})
 	if err != nil {
 		return RankResult{}, err
 	}
-	return r.Rank(ctx, prompt)
+	documentIDs, err := r.vocab.Encode(document, tokenizer.EncodeOptions{})
+	if err != nil {
+		return RankResult{}, err
+	}
+	ids, err := assembleRankPairTokens(r.vocab, queryIDs, documentIDs)
+	if err != nil {
+		return RankResult{}, err
+	}
+	return r.RankTokens(ctx, ids)
 }
 
-func (r *Runner) rankPairPrompt(query, document string) (string, error) {
-	prompt := metadataString(r.file, "tokenizer.chat_template.rerank")
-	if prompt != "" {
-		prompt = strings.ReplaceAll(prompt, "{query}", query)
-		prompt = strings.ReplaceAll(prompt, "{document}", document)
-		return prompt, nil
+func rankTemplatePrompt(source, query, document string) string {
+	prompt := strings.ReplaceAll(source, "{query}", query)
+	return strings.ReplaceAll(prompt, "{document}", document)
+}
+
+func assembleRankPairTokens(
+	vocab *tokenizer.Vocab,
+	query []tokenizer.TokenID,
+	document []tokenizer.TokenID,
+) ([]tokenizer.TokenID, error) {
+	eos := vocab.EOS
+	if eos == tokenizer.NullToken {
+		eos = vocab.SEP
 	}
-	var separator strings.Builder
-	if r.vocab.AddEOS && r.vocab.EOS != tokenizer.NullToken {
-		separator.WriteString(vocabularyTokenText(r.vocab, r.vocab.EOS))
+	if vocab.AddEOS && eos == tokenizer.NullToken {
+		return nil, errors.New("inference: rank pair EOS/SEP token is missing")
 	}
-	if r.vocab.AddSEP && r.vocab.SEP != tokenizer.NullToken {
-		separator.WriteString(vocabularyTokenText(r.vocab, r.vocab.SEP))
+	if vocab.AddSEP && vocab.SEP == tokenizer.NullToken {
+		return nil, errors.New("inference: rank pair SEP token is missing")
 	}
-	if separator.Len() == 0 {
-		return "", errors.New("inference: rank pair has no rerank template or EOS/SEP separator")
+	if !vocab.AddEOS && !vocab.AddSEP {
+		return nil, errors.New("inference: rank pair has no rerank template or EOS/SEP separator")
 	}
-	return query + separator.String() + document, nil
+	result := make([]tokenizer.TokenID, 0, len(query)+len(document)+4)
+	if vocab.AddBOS {
+		if vocab.BOS == tokenizer.NullToken {
+			return nil, errors.New("inference: rank pair BOS token is missing")
+		}
+		result = append(result, vocab.BOS)
+	}
+	result = append(result, query...)
+	if vocab.AddEOS {
+		result = append(result, eos)
+	}
+	if vocab.AddSEP {
+		result = append(result, vocab.SEP)
+	}
+	result = append(result, document...)
+	if vocab.AddEOS {
+		result = append(result, eos)
+	}
+	return result, nil
 }
 
 func (r *Runner) Rank(ctx context.Context, text string) (RankResult, error) {

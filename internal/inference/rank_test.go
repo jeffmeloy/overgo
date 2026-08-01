@@ -29,34 +29,28 @@ func TestSoftmaxScoresStable(t *testing.T) {
 }
 
 func TestRankPairPromptUsesNamedTemplate(t *testing.T) {
-	runner := &Runner{
-		file: &gguf.File{Metadata: []gguf.Metadata{{
-			Key: "tokenizer.chat_template.rerank",
-			Value: gguf.Value{Type: gguf.ValueTypeString,
-				Data: "Query: {query}\nDocument: {document}"},
-		}}},
-		vocab: &tokenizer.Vocab{},
-	}
-	prompt, err := runner.rankPairPrompt("needle", "haystack")
-	if err != nil {
-		t.Fatal(err)
-	}
+	prompt := rankTemplatePrompt("Query: {query}\nDocument: {document}", "needle", "haystack")
 	if prompt != "Query: needle\nDocument: haystack" {
 		t.Fatalf("rank prompt = %q", prompt)
 	}
 }
 
 func TestRankPairPromptUsesConfiguredSeparators(t *testing.T) {
-	runner := &Runner{vocab: &tokenizer.Vocab{
-		Tokens: []tokenizer.Token{{Text: "</s>"}, {Text: "<sep>"}},
-		EOS:    0, SEP: 1, AddEOS: true, AddSEP: true,
-	}}
-	prompt, err := runner.rankPairPrompt("q", "d")
+	vocab := &tokenizer.Vocab{
+		BOS: 1, EOS: 2, SEP: 3, AddBOS: true, AddEOS: true, AddSEP: true,
+	}
+	prompt, err := assembleRankPairTokens(vocab, []tokenizer.TokenID{4}, []tokenizer.TokenID{5})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prompt != "q</s><sep>d" {
-		t.Fatalf("rank prompt = %q", prompt)
+	want := []tokenizer.TokenID{1, 4, 2, 3, 5, 2}
+	if len(prompt) != len(want) {
+		t.Fatalf("rank tokens = %v", prompt)
+	}
+	for index := range want {
+		if prompt[index] != want[index] {
+			t.Fatalf("rank tokens = %v", prompt)
+		}
 	}
 }
 

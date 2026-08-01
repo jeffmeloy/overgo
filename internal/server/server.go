@@ -58,6 +58,14 @@ type AdvancedEmbedder interface {
 	) (inference.EmbeddingResult, error)
 }
 
+type Ranker interface {
+	RankPair(context.Context, string, string) (inference.RankResult, error)
+}
+
+type RankCapability interface {
+	SupportsRank() bool
+}
+
 type ChatFormatter interface {
 	FormatChat([]inference.ChatMessage) (string, error)
 }
@@ -420,6 +428,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/responses" ||
 		request.URL.Path == "/embedding" ||
 		request.URL.Path == "/embeddings" ||
+		request.URL.Path == "/rerank" ||
+		request.URL.Path == "/reranking" ||
 		request.URL.Path == "/slots" ||
 		request.URL.Path == "/chat/completions" ||
 		request.URL.Path == "/chat/completions/input_tokens" ||
@@ -468,6 +478,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.embeddings(response, request)
 	case "/embedding", "/embeddings":
 		h.nativeEmbeddings(response, request)
+	case "/rerank", "/reranking", "/v1/rerank", "/v1/reranking":
+		h.rerank(response, request)
 	case "/apply-template":
 		h.applyTemplate(response, request)
 	case "/tokenize":
@@ -1243,6 +1255,9 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 	}
 	created := time.Now().Unix()
 	capabilities := []string{"completion", "embedding"}
+	if capability, ok := h.generator.(RankCapability); ok && capability.SupportsRank() {
+		capabilities = append(capabilities, "rerank")
+	}
 	writeJSON(response, http.StatusOK, map[string]any{
 		"models": []map[string]any{{
 			"name":         h.config.ModelID,
@@ -1321,6 +1336,129 @@ type embeddingResponse struct {
 type embeddingUsage struct {
 	PromptTokens int `json:"prompt_tokens"`
 	TotalTokens  int `json:"total_tokens"`
+}
+
+type rerankRequest struct {
+	Model      string   `json:"model"`
+	Query      *string  `json:"query"`
+	Documents  []string `json:"documents"`
+	Texts      []string `json:"texts"`
+	TopN       *int     `json:"top_n"`
+	ReturnText bool     `json:"return_text"`
+}
+
+type rerankItem struct {
+	Index          int      `json:"index"`
+	RelevanceScore *float32 `json:"relevance_score,omitempty"`
+	Score          *float32 `json:"score,omitempty"`
+	Text           *string  `json:"text,omitempty"`
+}
+
+type rerankResponse struct {
+	Model   string         `json:"model"`
+	Object  string         `json:"object"`
+	Usage   embeddingUsage `json:"usage"`
+	Results []rerankItem   `json:"results"`
+}
+
+func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		response.Header().Set("Allow", http.MethodPost)
+		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+		return
+	}
+	ranker, ok := h.generator.(Ranker)
+	if !ok {
+		writeError(response, http.StatusNotImplemented, "unsupported_operation", "reranking is unavailable")
+		return
+	}
+	if capability, ok := h.generator.(RankCapability); ok && !capability.SupportsRank() {
+		writeError(response, http.StatusNotImplemented, "unsupported_operation", "reranking is unavailable")
+		return
+	}
+	var body rerankRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	if body.Model != "" && body.Model != h.config.ModelID {
+		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+		return
+	}
+	if body.Query == nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "query must be provided")
+		return
+	}
+	tei := body.Texts != nil
+	documents := body.Documents
+	if documents == nil {
+		documents = body.Texts
+	}
+	if len(documents) == 0 {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "documents must be a non-empty string array")
+		return
+	}
+	if len(documents) > h.config.MaxEmbeddingInputs {
+		writeError(response, http.StatusBadRequest, "invalid_request_error",
+			fmt.Sprintf("rerank document count exceeds %d", h.config.MaxEmbeddingInputs))
+		return
+	}
+	topN := len(documents)
+	if body.TopN != nil {
+		if *body.TopN < 0 {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", "top_n must be non-negative")
+			return
+		}
+		topN = min(*body.TopN, len(documents))
+	}
+	slotID, acquired := h.acquireSlot(-1)
+	if !acquired {
+		response.Header().Set("Retry-After", "1")
+		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
+		return
+	}
+	defer h.releaseSlot(slotID)
+	items := make([]rerankItem, len(documents))
+	usage := embeddingUsage{}
+	for index, document := range documents {
+		result, err := ranker.RankPair(request.Context(), *body.Query, document)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		if len(result.Scores) == 0 {
+			writeGenerationError(response, errors.New("server: rerank result has no scores"))
+			return
+		}
+		score := result.Scores[0]
+		item := rerankItem{Index: index}
+		if tei {
+			item.Score = &score
+			if body.ReturnText {
+				text := document
+				item.Text = &text
+			}
+		} else {
+			item.RelevanceScore = &score
+		}
+		items[index] = item
+		usage.PromptTokens += result.Tokens
+		usage.TotalTokens += result.Tokens
+	}
+	sort.SliceStable(items, func(left, right int) bool {
+		leftScore, rightScore := items[left].RelevanceScore, items[right].RelevanceScore
+		if tei {
+			leftScore, rightScore = items[left].Score, items[right].Score
+		}
+		return *leftScore > *rightScore
+	})
+	items = items[:topN]
+	if tei {
+		writeJSON(response, http.StatusOK, items)
+		return
+	}
+	writeJSON(response, http.StatusOK, rerankResponse{
+		Model: h.config.ModelID, Object: "list", Usage: usage, Results: items,
+	})
 }
 
 func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request) {

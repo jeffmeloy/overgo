@@ -2680,6 +2680,71 @@ func TestReadWeightsT5Encoder(t *testing.T) {
 	}
 }
 
+func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
+	spec := Spec{
+		Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
+		RMSNormEpsilon: 1e-6, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25,
+		LeadingDenseBlocks: 1, MoELayerStep: 2, SharedExpertFF: 5,
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+	}
+	for block := range uint32(4) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_qkv.weight", 8, 16),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"attn_output.bias", 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+		)
+		if spec.IsInterleavedMoELayer(block) {
+			tensors = append(tensors,
+				tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4),
+				tensorInfo(prefix+"ffn_up_exps.weight", 8, 6, 4),
+				tensorInfo(prefix+"ffn_down_exps.weight", 6, 8, 4),
+				tensorInfo(prefix+"exp_probs_b.bias", 4),
+				tensorInfo(prefix+"ffn_gate_shexp.weight", 8, 5),
+				tensorInfo(prefix+"ffn_up_shexp.weight", 8, 5),
+				tensorInfo(prefix+"ffn_down_shexp.weight", 5, 8),
+			)
+			if block == 3 {
+				tensors = append(tensors, tensorInfo(prefix+"ffn_gate_exps.weight", 8, 6, 4))
+			}
+		} else {
+			tensors = append(tensors,
+				tensorInfo(prefix+"ffn_gate.weight", 8, 12),
+				tensorInfo(prefix+"ffn_up.weight", 8, 12),
+				tensorInfo(prefix+"ffn_down.weight", 12, 8),
+			)
+		}
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for block, layer := range weights.Layers {
+		if layer.AttentionOutputBias != nil {
+			t.Fatalf("ERNIE layer %d retained ignored attention output bias", block)
+		}
+		if spec.IsInterleavedMoELayer(uint32(block)) {
+			if layer.FeedForwardRouter == nil || layer.FeedForwardUpExperts == nil ||
+				layer.FeedForwardDownExperts == nil || layer.FeedForwardExpertBias == nil ||
+				layer.FeedForwardSharedGate == nil || layer.FeedForwardGate.Name != "" {
+				t.Fatalf("ERNIE MoE layer %d catalog: %+v", block, layer)
+			}
+			if (block == 1) != (layer.FeedForwardGateExperts == nil) {
+				t.Fatalf("ERNIE optional expert gate mismatch at layer %d", block)
+			}
+		} else if layer.FeedForwardGate.Name == "" || layer.FeedForwardRouter != nil {
+			t.Fatalf("ERNIE dense layer %d catalog: %+v", block, layer)
+		}
+	}
+}
+
 func TestReadRealUMT5Catalog(t *testing.T) {
 	path := os.Getenv("LLAMACPP2GO_UMT5_MODEL")
 	if path == "" {

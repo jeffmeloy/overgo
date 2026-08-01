@@ -229,6 +229,25 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	}
 }
 
+func TestBuilderUngatedMoEWithSelectionBias(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, MustShape(2, 3))
+	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
+	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
+	bias := builder.Input("bias", dtype.F32, MustShape(3))
+	output := builder.MoEUngatedWithSelectionBias(input, router, up, down, bias, 2, true, 1.5)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes := output.Attrs.(MoEAttributes)
+	if attributes.Gated || attributes.Routing != MoERoutingSoftmax ||
+		attributes.Activation != MoEActivationSiLU || !attributes.NormalizeTopKProb ||
+		attributes.Scale != 1.5 || len(output.Inputs) != 6 {
+		t.Fatalf("unexpected biased ungated MoE graph: %+v", output)
+	}
+}
+
 func TestBuilderReLUMoEWithRouterInput(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(2, 1))

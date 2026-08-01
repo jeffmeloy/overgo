@@ -2249,6 +2249,41 @@ func TestReadT5EncoderSpec(t *testing.T) {
 	}
 }
 
+func TestReadErnie45MoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "ernie4_5-moe"),
+		metadata("ernie4_5-moe.block_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("ernie4_5-moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("ernie4_5-moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("ernie4_5-moe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("ernie4_5-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("ernie4_5-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("ernie4_5-moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("ernie4_5-moe.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(5)),
+		metadata("ernie4_5-moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
+		metadata("ernie4_5-moe.interleave_moe_layer_step", gguf.ValueTypeUint32, uint32(2)),
+		metadata("ernie4_5-moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("ernie4_5-moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("ernie4_5-moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("ernie4_5-moe.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("ernie4_5-moe.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("ernie4_5-moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("ernie4_5-moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.MoELayerStep != 2 || spec.LeadingDenseBlocks != 1 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 5 ||
+		spec.ExpertWeightsScale != 1.25 || !spec.ExpertWeightsNorm ||
+		spec.IsInterleavedMoELayer(0) || !spec.IsInterleavedMoELayer(1) ||
+		spec.IsInterleavedMoELayer(2) || !spec.IsInterleavedMoELayer(3) ||
+		!usesNormalRoPE(spec.Architecture) || !spec.UsesRoPE(0) {
+		t.Fatalf("unexpected ERNIE 4.5 MoE spec: %+v", spec)
+	}
+}
+
 func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "mamba"),

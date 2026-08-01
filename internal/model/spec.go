@@ -42,6 +42,7 @@ type Spec struct {
 	ExpertFeedForward     uint32
 	ExpertWeightsScale    float32
 	LeadingDenseBlocks    uint32
+	MoELayerStep          uint32
 	SharedExpertFF        uint32
 	SharedExpertCount     uint32
 	ExpertGatingFunc      uint32
@@ -125,6 +126,8 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "deci" &&
 		architecture != "dbrx" &&
 		architecture != "dots1" &&
+		architecture != "ernie4_5" &&
+		architecture != "ernie4_5-moe" &&
 		architecture != "cohere2" &&
 		architecture != "cohere2moe" &&
 		architecture != "command-r" &&
@@ -1001,7 +1004,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
-	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "granitemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "llada-moe" || architecture == "mellum" || architecture == "minimax-m2" || architecture == "qwen3moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1060,6 +1063,17 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.SharedExpertFF = value
 			}
 		}
+	}
+	if architecture == "ernie4_5-moe" {
+		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		if spec.MoELayerStep, err = required[uint32](values, prefix+"interleave_moe_layer_step", gguf.ValueTypeUint32); err != nil {
+			return Spec{}, err
+		}
+		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+		spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
+		spec.ExpertWeightsNorm = true
 	}
 	if architecture == "mellum" {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
@@ -1446,6 +1460,12 @@ func (s Spec) IsRecurrentLayer(block uint32) bool {
 	return s.Architecture == "qwen35" &&
 		s.FullAttentionInterval > 0 &&
 		(block+1)%s.FullAttentionInterval != 0
+}
+
+func (s Spec) IsInterleavedMoELayer(block uint32) bool {
+	return s.Architecture == "ernie4_5-moe" && block < s.BlockCount &&
+		block >= s.LeadingDenseBlocks && s.MoELayerStep > 0 &&
+		(block+1)%s.MoELayerStep == 0
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
@@ -2046,6 +2066,11 @@ func (s Spec) validate() error {
 			(s.ExpertGatingFunc != 2) || (s.SharedExpertCount > 0 && s.SharedExpertFF == 0)) {
 		return errors.New("Cohere2-MoE expert metadata is invalid")
 	}
+	if s.Architecture == "ernie4_5-moe" &&
+		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertFeedForward == 0 || s.MoELayerStep == 0 || s.LeadingDenseBlocks >= s.BlockCount) {
+		return errors.New("ERNIE 4.5 MoE expert metadata is invalid")
+	}
 	if s.Architecture == "stablelm" &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0) {
@@ -2195,6 +2220,8 @@ func usesNormalRoPE(architecture string) bool {
 		architecture == "baichuan" ||
 		architecture == "bailingmoe" ||
 		architecture == "deepseek" ||
+		architecture == "ernie4_5" ||
+		architecture == "ernie4_5-moe" ||
 		architecture == "cohere2" ||
 		architecture == "cohere2moe" ||
 		architecture == "command-r" ||

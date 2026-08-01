@@ -435,6 +435,17 @@ func (b *Builder) MoEUngated(
 		MoERoutingSoftmax, MoEActivationSiLU, false)
 }
 
+// MoEUngatedWithSelectionBias: softmax selection bias; ungated experts.
+func (b *Builder) MoEUngatedWithSelectionBias(
+	input, router, up, down, selectionBias *Tensor,
+	topK uint32,
+	normalizeTopKProb bool,
+	scale float32,
+) *Tensor {
+	return b.moe(input, input, router, nil, up, down, selectionBias, topK, normalizeTopKProb, scale,
+		MoERoutingSoftmax, MoEActivationSiLU, false)
+}
+
 // MoESoftmaxWithSelectionBias: biased selection; unbiased route weights.
 func (b *Builder) MoESoftmaxWithSelectionBias(
 	input, router, gate, up, down, selectionBias *Tensor,

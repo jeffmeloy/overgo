@@ -2323,6 +2323,64 @@ func TestBuildCohere2MoEBlockFusedExpertsAndSharedBranch(t *testing.T) {
 	}
 }
 
+func TestBuildErnie45MoEBlockUsesBiasedUngatedExpertsAndSharedBranch(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+		LeadingDenseBlocks: 1, MoELayerStep: 2, SharedExpertFF: 5,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:           builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 16)),
+		AttentionOutput:        builder.Input("attn_output", dtype.F32, tensor.MustShape(8, 8)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
+		FeedForwardSharedGate:  builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 5)),
+		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5)),
+		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moe *tensor.Tensor
+	var normalRoPE, silu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpMoE:
+			moe = node
+		case tensor.OpRoPENormal:
+			normalRoPE++
+		case tensor.OpSiLU:
+			silu++
+		}
+	}
+	if moe == nil {
+		t.Fatal("ERNIE MoE node is missing")
+	}
+	attributes := moe.Attrs.(tensor.MoEAttributes)
+	if attributes.Gated || attributes.Routing != tensor.MoERoutingSoftmax ||
+		!attributes.NormalizeTopKProb || attributes.Scale != 1.25 ||
+		len(moe.Inputs) != 6 || normalRoPE != 2 || silu != 1 {
+		t.Fatalf("unexpected ERNIE MoE graph: MoE=%+v RoPE=%d SiLU=%d", moe, normalRoPE, silu)
+	}
+}
+
 func TestBuildDenseCommandR64UsesParallelResidualAndQKNorms(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

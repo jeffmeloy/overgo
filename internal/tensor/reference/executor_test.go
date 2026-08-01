@@ -428,6 +428,43 @@ func TestExecuteUngatedMoE(t *testing.T) {
 	}
 }
 
+func TestExecuteUngatedMoEWithSelectionBias(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
+	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
+	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
+	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2))
+	output := builder.MoEUngatedWithSelectionBias(input, router, up, down, bias, 1, true, 1)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	values := func(shape tensor.Shape, data []float32) Value {
+		value, err := NewValue(shape, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input:  values(input.Shape, []float32{1, 0}),
+		router: values(router.Shape, []float32{1, 0, 0, 0}),
+		up:     values(up.Shape, []float32{1, 0, 2, 0}),
+		down:   values(down.Shape, []float32{1, 2, 3, 4}),
+		bias:   values(bias.Shape, []float32{-1, 1}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activation := 2 / (1 + math.Exp(-2))
+	want := []float32{float32(3 * activation), float32(4 * activation)}
+	for index, got := range results[output].Data {
+		if math.Abs(float64(got-want[index])) > 1e-5 {
+			t.Fatalf("biased ungated MoE output[%d] = %v, want %v", index, got, want[index])
+		}
+	}
+}
+
 func TestExecuteReLUMoEWithRouterInput(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))

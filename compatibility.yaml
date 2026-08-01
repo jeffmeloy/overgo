@@ -1281,6 +1281,40 @@ models:
       - preserved-unexecuted-nextn-mtp-layers
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  ernie4_5:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - normal-rope
+      - sequential-attention-and-swiglu-residuals
+      - ignored-catalog-only-attention-output-bias
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
+  ernie4_5-moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - rmsnorm
+      - contiguous-fused-or-separate-qkv
+      - normal-rope
+      - leading-and-interleaved-dense-swiglu-layers
+      - normalized-softmax-top-k-routing
+      - optional-selection-correction-bias
+      - optional-gated-or-ungated-silu-experts
+      - routed-weight-scaling
+      - optional-shared-swiglu-expert
+      - ignored-catalog-only-attention-output-bias
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   dbrx:
     status: experimental
     tokenizers:

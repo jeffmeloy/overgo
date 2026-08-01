@@ -164,8 +164,8 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	// behind later builder error
 	required := []gguf.TensorInfo{}
 	if info.FeedForwardRouter != nil {
-		separateGateUp := info.FeedForwardGateExperts != nil && info.FeedForwardUpExperts != nil
-		if (!separateGateUp && info.FeedForwardGateUpExperts == nil) || info.FeedForwardDownExperts == nil {
+		if (info.FeedForwardUpExperts == nil && info.FeedForwardGateUpExperts == nil) ||
+			info.FeedForwardDownExperts == nil {
 			return LayerGraphWeights{}, nil, errors.New("F32 device expert layer catalog is incomplete")
 		}
 		required = append(required,
@@ -175,7 +175,10 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 		if info.FeedForwardGateUpExperts != nil {
 			required = append(required, *info.FeedForwardGateUpExperts)
 		} else {
-			required = append(required, *info.FeedForwardGateExperts, *info.FeedForwardUpExperts)
+			if info.FeedForwardGateExperts != nil {
+				required = append(required, *info.FeedForwardGateExperts)
+			}
+			required = append(required, *info.FeedForwardUpExperts)
 		}
 	}
 	if info.FeedForwardUp.Name != "" && info.FeedForwardDown.Name != "" {

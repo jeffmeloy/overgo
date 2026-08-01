@@ -2105,6 +2105,50 @@ func TestReadWeightsPLaMoUsesOneNormPerBlock(t *testing.T) {
 	}
 }
 
+func TestReadWeightsPLaMo3PerLayerWidths(t *testing.T) {
+	spec := Spec{
+		Architecture: "plamo3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 2, ValueLength: 2, VocabularySize: 32, RMSNormEpsilon: 1e-6,
+		LayerHeadCounts: []uint32{2, 4}, LayerKVHeadCounts: []uint32{1, 2},
+		LayerFeedForward: []uint32{12, 16},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+	}
+	for block := range uint32(2) {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		heads := uint64(spec.LayerHeadCount(block))
+		kvHeads := uint64(spec.LayerKVHeadCount(block))
+		ff := uint64(spec.LayerFeedForwardLength(block))
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_qkv.weight", 8, 2*heads+4*kvHeads),
+			tensorInfo(prefix+"attn_q_norm.weight", 2),
+			tensorInfo(prefix+"attn_k_norm.weight", 2),
+			tensorInfo(prefix+"attn_output.weight", 2*heads, 8),
+			tensorInfo(prefix+"post_attention_norm.weight", 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_up.weight", 8, 2*ff),
+			tensorInfo(prefix+"ffn_down.weight", ff, 8),
+			tensorInfo(prefix+"post_ffw_norm.weight", 8),
+		)
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for block, layer := range weights.Layers {
+		ff := uint64(spec.LayerFeedForwardLength(uint32(block)))
+		if layer.AttentionQKV == nil || layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
+			layer.AttentionPostNorm == nil || layer.FeedForwardNorm.Name == "" ||
+			layer.FeedForwardGate.Name != "" || layer.FeedForwardUp.Shape[1] != 2*ff ||
+			layer.FeedForwardPostNorm == nil {
+			t.Fatalf("unexpected PLaMo 3 layer %d catalog: %+v", block, layer)
+		}
+	}
+}
+
 func TestReadWeightsStableLMOptionalNormLayouts(t *testing.T) {
 	for _, sequential := range []bool{false, true} {
 		spec := Spec{

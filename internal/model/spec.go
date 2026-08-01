@@ -168,6 +168,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "phi3" &&
 		architecture != "phimoe" &&
 		architecture != "plamo" &&
+		architecture != "plamo3" &&
 		architecture != "plm" &&
 		architecture != "qwen" &&
 		architecture != "seed_oss" &&
@@ -214,7 +215,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "deci" || architecture == "openelm" {
+	if architecture == "deci" || architecture == "openelm" || architecture == "plamo3" {
 		if spec.LayerFeedForward, err = requiredLayerUint32(values, prefix+"feed_forward_length", spec.BlockCount); err != nil {
 			return Spec{}, err
 		}
@@ -222,7 +223,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32); err != nil {
 		return Spec{}, err
 	}
-	if architecture == "deci" || architecture == "laguna" || architecture == "openelm" {
+	if architecture == "deci" || architecture == "laguna" || architecture == "openelm" || architecture == "plamo3" {
 		if spec.LayerHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count", spec.BlockCount,
 		); err != nil {
@@ -244,7 +245,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				spec.HeadCountKV = value
 			}
 		}
-	} else if architecture == "deci" || architecture == "laguna" || architecture == "openelm" {
+	} else if architecture == "deci" || architecture == "laguna" || architecture == "openelm" || architecture == "plamo3" {
 		if spec.LayerKVHeadCounts, err = requiredLayerUint32(
 			values, prefix+"attention.head_count_kv", spec.BlockCount,
 		); err != nil {
@@ -904,6 +905,29 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		if spec.SlidingWindow > 0 {
 			spec.SlidingPattern = 4
+			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
+				spec.SlidingPattern = value
+			} else if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); arrayErr != nil {
+				return Spec{}, arrayErr
+			} else if ok {
+				if len(layers) != int(spec.BlockCount) {
+					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
+				}
+				spec.SlidingLayers = append([]bool(nil), layers...)
+			}
+			spec.RopeFrequencySWA = spec.RopeFrequencyBase
+			if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
+				spec.RopeFrequencySWA = value
+			}
+		}
+	}
+	if architecture == "plamo3" {
+		spec.RopeDimensionCount = spec.KeyLength
+		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
+			spec.SlidingWindow = value
+		}
+		if spec.SlidingWindow > 0 {
+			spec.SlidingPattern = 8
 			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
 				spec.SlidingPattern = value
 			} else if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); arrayErr != nil {
@@ -1993,6 +2017,25 @@ func (s Spec) validate() error {
 			}
 		}
 	}
+	if s.Architecture == "plamo3" {
+		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
+			len(s.LayerFeedForward) != int(s.BlockCount) {
+			return errors.New("PLaMo 3 per-layer metadata is invalid")
+		}
+		for block := uint32(0); block < s.BlockCount; block++ {
+			heads := s.LayerHeadCount(block)
+			kvHeads := s.LayerKVHeadCount(block)
+			if heads == 0 || kvHeads == 0 || heads%kvHeads != 0 || s.LayerFeedForwardLength(block) == 0 {
+				return fmt.Errorf("PLaMo 3 layer %d dimensions are invalid", block)
+			}
+		}
+		if s.RopeDimensionCount != s.KeyLength || s.KeyLength%2 != 0 ||
+			(s.SlidingWindow > 0 && (s.RopeFrequencySWA <= 0 ||
+				(len(s.SlidingLayers) == 0 && s.SlidingPattern < 2))) {
+			return errors.New("PLaMo 3 rotary or sliding-attention metadata is invalid")
+		}
+	}
 	if s.Architecture == "deci" {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
@@ -2197,13 +2240,14 @@ func isGemmaArchitecture(architecture string) bool {
 
 func hasPostNorm(architecture string) bool {
 	return architecture == "afmoe" || architecture == "exaone4" || architecture == "gemma2" ||
-		architecture == "gemma3" || architecture == "glm4" || architecture == "grok"
+		architecture == "gemma3" || architecture == "glm4" || architecture == "grok" || architecture == "plamo3"
 }
 
 func usesSlidingAttention(architecture string) bool {
 	return architecture == "afmoe" || (architecture == "gemma2" || architecture == "gemma3") ||
 		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "olmo2" ||
-		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "smallthinker"
+		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" ||
+		architecture == "plamo3" || architecture == "smallthinker"
 }
 
 func usesPostOnlyNorm(architecture string) bool {
@@ -2256,7 +2300,7 @@ func usesGateFreeFFN(architecture string) bool {
 }
 
 func usesFusedGateUp(architecture string) bool {
-	return architecture == "chatglm" || architecture == "glm4" || architecture == "phi3"
+	return architecture == "chatglm" || architecture == "glm4" || architecture == "phi3" || architecture == "plamo3"
 }
 
 func supportsLongRoPE(architecture string) bool {

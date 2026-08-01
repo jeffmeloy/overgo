@@ -1201,6 +1201,43 @@ func TestReadPLaMoSpec(t *testing.T) {
 	}
 }
 
+func TestReadPLaMo3Spec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "plamo3"),
+		metadata("plamo3.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo3.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("plamo3.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		{Key: "plamo3.feed_forward_length", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{12, 16},
+		}},
+		{Key: "plamo3.attention.head_count", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{2, 4},
+		}},
+		{Key: "plamo3.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{1, 2},
+		}},
+		metadata("plamo3.attention.key_length", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo3.attention.value_length", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo3.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("plamo3.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
+		metadata("plamo3.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
+		metadata("plamo3.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(2)),
+		metadata("plamo3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.LayerHeadCount(0) != 2 || spec.LayerHeadCount(1) != 4 ||
+		spec.LayerKVHeadCount(0) != 1 || spec.LayerKVHeadCount(1) != 2 ||
+		spec.LayerFeedForwardLength(0) != 12 || spec.LayerFeedForwardLength(1) != 16 ||
+		!spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
+		spec.RopeFrequencySWA != 20000 || usesNormalRoPE(spec.Architecture) ||
+		!hasPostNorm(spec.Architecture) || !usesFusedGateUp(spec.Architecture) {
+		t.Fatalf("unexpected PLaMo 3 spec: %+v", spec)
+	}
+}
+
 func TestReadJaisSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "jais"),

@@ -1481,6 +1481,23 @@ models:
       - swiglu
       - untied-output-projection
     real_model_validation: pending-fixture
+  plamo3:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - per-layer-query-kv-and-feed-forward-widths
+      - rmsnorm
+      - required-contiguous-fused-qkv
+      - pre-rope-per-head-qk-rmsnorm
+      - neox-rope-with-sliding-frequency-base
+      - scalar-or-per-layer-sliding-window-pattern
+      - attention-and-ffn-postnorms
+      - fused-gate-up-swiglu
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   plm:
     status: experimental
     execution:

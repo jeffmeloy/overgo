@@ -2472,6 +2472,65 @@ func TestBuildDensePLaMoUsesParallelResidualAndNeoX(t *testing.T) {
 	}
 }
 
+func TestBuildDensePLaMo3UsesPreRoPEQKNormPostNormAndFusedSwiGLU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "plamo3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 2, ValueLength: 2, RopeDimensionCount: 2,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
+		RMSNormEpsilon: 1e-6, SlidingWindow: 128, SlidingPattern: 2,
+		LayerHeadCounts: []uint32{2, 4}, LayerKVHeadCounts: []uint32{1, 2},
+		LayerFeedForward: []uint32{12, 16},
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := LayerGraphWeights{
+		AttentionNorm:       builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQKV:        builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionQNorm:      builder.Input("attn_q_norm", dtype.F32, tensor.MustShape(2)),
+		AttentionKNorm:      builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(2)),
+		AttentionOutput:     builder.Input("attn_output", dtype.F32, tensor.MustShape(4, 8)),
+		AttentionPostNorm:   builder.Input("attn_post_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardNorm:     builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 24)),
+		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+		FeedForwardPostNorm: builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
+	}
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rmsNorms, groupSlices int
+	var attention *tensor.Tensor
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpRMSNorm:
+			rmsNorms++
+		case tensor.OpGroupSlice:
+			groupSlices++
+		case tensor.OpAttention:
+			attention = node
+		}
+		if node.Op == tensor.OpRoPENeoX {
+			attributes := node.Attrs.(tensor.RoPEAttributes)
+			if attributes.FrequencyBase != 20000 || node.Inputs[0].Op != tensor.OpMultiply ||
+				node.Inputs[0].Inputs[0].Op != tensor.OpRMSNorm {
+				t.Fatalf("PLaMo 3 NeoX RoPE does not follow Q/K norm: %+v", node)
+			}
+		}
+	}
+	if attention == nil || attention.Attrs.(tensor.AttentionAttributes).Window != 128 ||
+		rmsNorms != 6 || groupSlices != 5 {
+		t.Fatalf("PLaMo 3 graph: attention=%+v RMSNorm=%d slices=%d", attention, rmsNorms, groupSlices)
+	}
+}
+
 func TestBuildDenseStableLMOptionalNormLayouts(t *testing.T) {
 	for _, sequential := range []bool{false, true} {
 		builder := tensor.NewBuilder()

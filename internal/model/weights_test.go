@@ -3985,6 +3985,19 @@ func TestReadWeightsQwen35MTP(t *testing.T) {
 		mtp.TokenEmbedding == nil || mtp.OutputNorm == nil || mtp.Output == nil {
 		t.Fatalf("unexpected Qwen3.5 MTP catalog: %+v", mtp)
 	}
+	sidecarTensors := make([]gguf.TensorInfo, 0, len(tensors))
+	for _, item := range tensors {
+		if !strings.HasPrefix(item.Name, "blk.0.") {
+			sidecarTensors = append(sidecarTensors, item)
+		}
+	}
+	sidecar, err := ReadWeights(&gguf.File{Tensors: sidecarTensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sidecar.Layers) != 0 || sidecar.Qwen35MTP == nil || !sidecar.Qwen35MTP.MTPOnly {
+		t.Fatalf("unexpected Qwen3.5 MTP-only catalog: %+v", sidecar)
+	}
 }
 
 func TestReadWeightsKimiLinearHybrid(t *testing.T) {

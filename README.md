@@ -410,6 +410,11 @@ Qwen3.5 files declaring the pinned single NextN layer expose
 `NewQwen35MTPSession`/`AdvanceQwen35MTP`; the catalog, normalized token/hidden
 fusion, dense gated-attention draft block, private/shared embedding and head
 fallbacks, independent KV/hidden state, and CPU/CUDA execution are synthetic-fixture validated.
+MTP-only sidecars use `NewQwen35MTPPairedSession` with an exact compatible
+target vocabulary/shape profile. `DraftQwen35MTPGreedy` and
+`VerifyQwen35MTPGreedy` build bounded probability-filtered proposals, verify
+the prefix without committing a rejected suffix, and resynchronize target
+hidden state at the accepted boundary.
 Set `LLAMACPP2GO_QWEN35_MTP_MODEL` to a bundled trunk-plus-MTP fixture to run
 the optional two-step native-quantized session integration test.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA

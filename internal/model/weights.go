@@ -227,6 +227,7 @@ type WavTokenizerWeights struct {
 
 // Qwen35MTPWeights: one pinned dense NextN block.
 type Qwen35MTPWeights struct {
+	MTPOnly        bool
 	Layer          LayerWeights
 	EHProjection   gguf.TensorInfo
 	EmbeddingNorm  gguf.TensorInfo
@@ -1195,8 +1196,18 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		result.AltUpProjection, result.AltUpUnembedding = &projection, &unembedding
 	}
 
-	result.Layers = make([]LayerWeights, spec.BlockCount)
-	for block := uint32(0); block < spec.BlockCount; block++ {
+	trunkBlockCount := spec.BlockCount
+	mtpOnly := spec.NextNPredictLayers == 1 &&
+		(spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe")
+	if mtpOnly {
+		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
+		mtpOnly = !hasTrunk
+	}
+	if mtpOnly {
+		trunkBlockCount = 0
+	}
+	result.Layers = make([]LayerWeights, trunkBlockCount)
+	for block := uint32(0); block < trunkBlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerKeyLength(block))
 		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerKeyLength(block))
@@ -3605,6 +3616,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if spec.NextNPredictLayers == 1 && (spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe") {
 		prefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
 		mtp := &Qwen35MTPWeights{}
+		mtp.MTPOnly = mtpOnly
 		mtp.Layer.Recurrent = false
 		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
 		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)

@@ -465,8 +465,13 @@
   target final-normalized hidden row; `AdvanceQwen35MTP` applies the pinned
   embedding/hidden RMSNorm fusion, independent MTP KV cache, gated attention,
   dense SwiGLU, optional private embedding/norm/head fallbacks, and returns an
-  immutable next session for caller-controlled accept/rollback. Catalog, CPU,
-  and CUDA differentials pass; real-model MTP validation awaits a local fixture.
+  immutable next session for caller-controlled accept/rollback. Standalone
+  MTP-only sidecars pair with an exact architecture/shape/vocabulary target;
+  ordinary sidecar forward fails closed. The greedy coordinator creates
+  bounded probability-filtered drafts, target-verifies one token at a time,
+  commits only the accepted prefix, and replaces approximate draft hidden rows
+  with target final-normalized rows. Catalog, CPU, and CUDA differentials pass;
+  real-model MTP validation awaits a local fixture.
 - Qwen3-Next executes gated NeoX full attention and recurrent GDN layers with
   optimized QKV-plus-gate or legacy grouped QKVZ projection layouts. Its fused
   beta/alpha projection, adjacent value-head key-group repetition, normalized
@@ -736,8 +741,8 @@
   selection, MoE, and model-specific attention variants are rejected.
 - The Qwen3.5 graph supports true multi-axis positions, but the text generation
   and MTP APIs currently supply the same sequential position to every MRoPE
-  axis. Image/video encoder plumbing, a high-level speculative accept/reject
-  coordinator, and multi-sequence recurrent batching remain pending.
+  axis. Image/video encoder plumbing, probabilistic residual-distribution
+  speculative sampling, and multi-sequence recurrent batching remain pending.
 - T5 single-sequence encoder-decoder sessions are supported. Padding masks for
   padded multi-sequence batches and a high-level text-generation convenience
   wrapper remain pending; callers can generate incrementally with `DecodeT5`.

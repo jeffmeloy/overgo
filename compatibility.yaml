@@ -2433,6 +2433,8 @@ models:
       - pinned-single-dense-nextn-block
       - stateful-mtp-kv-and-hidden-session
       - shared-or-private-mtp-embedding-norm-head
+      - standalone-mtp-sidecar-pairing
+      - greedy-speculative-accept-rollback
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
   qwen3next:
@@ -2619,8 +2621,10 @@ models:
       - pinned-single-dense-nextn-block
       - stateful-mtp-kv-and-hidden-session
       - shared-or-private-mtp-embedding-norm-head
+      - standalone-mtp-sidecar-pairing
+      - greedy-speculative-accept-rollback
     limitations:
-      - high-level-speculative-accept-reject-coordinator-pending
+      - probabilistic-residual-speculative-sampling-pending
     real_model_validation: pending-fixture
   gemma:
     status: experimental

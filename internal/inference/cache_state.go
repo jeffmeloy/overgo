@@ -306,9 +306,9 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		}
 		keyShape := tensor.MustShape(keyWidth, kvHeads, uint64(cache.Tokens))
 		valueShape := tensor.MustShape(valueWidth, kvHeads, uint64(cache.Tokens))
-		if isQwenGDNArchitecture(r.spec.Architecture) &&
-			index < len(r.weights.Layers) &&
-			r.weights.Layers[index].Recurrent {
+		qwenRecurrent := r.spec.IsRecurrentLayer(uint32(index)) ||
+			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
+		if isQwenGDNArchitecture(r.spec.Architecture) && qwenRecurrent {
 			convChannels := uint64(r.spec.SSMInnerSize) +
 				2*uint64(r.spec.SSMStateSize)*uint64(r.spec.SSMGroupCount)
 			convShape := tensor.MustShape(

@@ -1610,6 +1610,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	overrides []EmbeddingOverride,
 	multiPositions *MultiAxisPositions,
 ) (reference.Value, *KVCache, error) {
+	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
+		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP-only model requires a paired target session")
+	}
 	if r.spec.Architecture == "gemma4-assistant" {
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
 	}

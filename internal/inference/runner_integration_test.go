@@ -714,6 +714,23 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	if third.Position != next.Position+1 || third.Layer.Key.Shape.Dims[2] != 2 {
 		t.Fatalf("Qwen3.5 MTP cache did not advance: %+v", third)
 	}
+	coordinatorSession, err := runner.NewQwen35MTPSession(ctx, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := runner.DraftQwen35MTPGreedy(ctx, 0, coordinatorSession, 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification, err := runner.VerifyQwen35MTPGreedy(ctx, runner, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
+		verification.Session.Position != coordinatorSession.Position+uint32(verification.Accepted)+1 ||
+		verification.Session.TrunkCache.Position != verification.Session.Position {
+		t.Fatalf("unexpected Qwen3.5 MTP verification: draft=%+v result=%+v", draft, verification)
+	}
 }
 
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {

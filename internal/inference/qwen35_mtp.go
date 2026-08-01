@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
@@ -19,6 +20,7 @@ type Qwen35MTPSession struct {
 	TrunkCache    *KVCache
 	Layer         LayerCache
 	PendingHidden reference.Value
+	MTPStart      uint32
 	Position      uint32
 }
 
@@ -33,6 +35,9 @@ func (r *Runner) NewQwen35MTPSession(
 	if err := r.validateQwen35MTP(); err != nil {
 		return nil, err
 	}
+	if r.weights.Qwen35MTP.MTPOnly {
+		return nil, errors.New("inference: Qwen3.5 MTP-only model requires NewQwen35MTPPairedSession")
+	}
 	hidden, cache, err := r.ForwardCached(ctx, tokenIDs, nil)
 	if err != nil {
 		return nil, err
@@ -43,7 +48,35 @@ func (r *Runner) NewQwen35MTPSession(
 		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
 	}
 	return &Qwen35MTPSession{
-		TrunkCache: cache, PendingHidden: last, Position: effectiveCachePosition(cache),
+		TrunkCache: cache, PendingHidden: last,
+		MTPStart: effectiveCachePosition(cache), Position: effectiveCachePosition(cache),
+	}, nil
+}
+
+// NewQwen35MTPPairedSession: sidecar/target prefix setup.
+func (r *Runner) NewQwen35MTPPairedSession(
+	ctx context.Context,
+	target *Runner,
+	tokenIDs []tokenizer.TokenID,
+) (*Qwen35MTPSession, error) {
+	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
+		return nil, errors.New("inference: Qwen3.5 MTP sidecar and target inputs are invalid")
+	}
+	if err := r.validateQwen35MTPTarget(target); err != nil {
+		return nil, err
+	}
+	hidden, cache, err := target.ForwardCached(ctx, tokenIDs, nil)
+	if err != nil {
+		return nil, err
+	}
+	width := int(hidden.Shape.Dims[0])
+	last := reference.Value{
+		Shape: tensor.MustShape(uint64(width), 1),
+		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
+	}
+	return &Qwen35MTPSession{
+		TrunkCache: cache, PendingHidden: last,
+		MTPStart: effectiveCachePosition(cache), Position: effectiveCachePosition(cache),
 	}, nil
 }
 
@@ -73,8 +106,9 @@ func (r *Runner) AdvanceQwen35MTP(
 		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP session state is incompatible")
 	}
 	basePosition := effectiveCachePosition(session.TrunkCache)
-	if session.Position < basePosition ||
+	if session.Position < basePosition || session.Position < session.MTPStart ||
 		session.Layer.Key.Shape.Rank != session.Layer.Value.Shape.Rank ||
+		(session.Layer.Key.Shape.Rank == 0 && session.Position != session.MTPStart) ||
 		(session.Layer.Key.Shape.Rank != 0 &&
 			(session.Layer.Key.Shape.Rank != 3 || session.Layer.Value.Shape.Rank != 3 ||
 				session.Layer.Key.Shape.Dims[0] != uint64(r.spec.KeyLength) ||
@@ -82,7 +116,7 @@ func (r *Runner) AdvanceQwen35MTP(
 				session.Layer.Key.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
 				session.Layer.Value.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
 				session.Layer.Key.Shape.Dims[2] != session.Layer.Value.Shape.Dims[2] ||
-				session.Layer.Key.Shape.Dims[2] != uint64(session.Position-basePosition) ||
+				session.Layer.Key.Shape.Dims[2] != uint64(session.Position-session.MTPStart) ||
 				session.Layer.Key.Shape.Dims[2] >= uint64(r.spec.ContextLength))) {
 		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP layer cache is incompatible")
 	}
@@ -196,6 +230,7 @@ func (r *Runner) AdvanceQwen35MTP(
 		TrunkCache:    session.TrunkCache,
 		Layer:         LayerCache{Key: results[block.Key], Value: results[block.Value]},
 		PendingHidden: results[nextHidden],
+		MTPStart:      session.MTPStart,
 		Position:      session.Position + 1,
 	}
 	return logitValue, next, nil
@@ -205,6 +240,25 @@ func (r *Runner) validateQwen35MTP() error {
 	if r.spec.NextNPredictLayers != 1 || r.weights.Qwen35MTP == nil ||
 		(r.spec.Architecture != "qwen35" && r.spec.Architecture != "qwen35moe") {
 		return errors.New("inference: model has no supported Qwen3.5 MTP block")
+	}
+	return nil
+}
+
+func (r *Runner) validateQwen35MTPTarget(target *Runner) error {
+	if err := r.validateQwen35MTP(); err != nil {
+		return err
+	}
+	if !r.weights.Qwen35MTP.MTPOnly || target == nil || target.weights.Qwen35MTP != nil && target.weights.Qwen35MTP.MTPOnly ||
+		r.spec.Architecture != target.spec.Architecture ||
+		r.spec.EmbeddingLength != target.spec.EmbeddingLength ||
+		r.spec.VocabularySize != target.spec.VocabularySize ||
+		r.spec.HeadCount != target.spec.HeadCount || r.spec.HeadCountKV != target.spec.HeadCountKV ||
+		r.spec.KeyLength != target.spec.KeyLength || r.spec.ValueLength != target.spec.ValueLength ||
+		r.spec.RopeDimensionCount != target.spec.RopeDimensionCount ||
+		r.spec.RopeSections != target.spec.RopeSections ||
+		len(target.weights.Layers) != int(target.spec.BlockCount) ||
+		r.vocab == nil || target.vocab == nil || !slices.Equal(r.vocab.Tokens, target.vocab.Tokens) {
+		return errors.New("inference: Qwen3.5 MTP sidecar target is incompatible")
 	}
 	return nil
 }

@@ -129,6 +129,24 @@ func TestNemotronHThreeWayCacheValidation(t *testing.T) {
 	}
 }
 
+func TestKimiLinearHybridCacheValidation(t *testing.T) {
+	attentionKB := gguf.TensorInfo{Name: "blk.1.attn_k_b.weight"}
+	runner := &Runner{
+		spec: model.Spec{Architecture: "kimi-linear", BlockCount: 2, SSMConvKernel: 3,
+			SSMInnerSize: 4, KDAHeadDim: 2, HeadCount: 2, HeadCountKV: 1,
+			KeyLength: 4, ValueLength: 2, KVLoRARank: 3, RopeDimensionCount: 2},
+		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {AttentionKB: &attentionKB}}},
+	}
+	conv, _ := reference.NewValue(tensor.MustShape(2, 12), make([]float32, 24))
+	state, _ := reference.NewValue(tensor.MustShape(2, 2, 2, 1), make([]float32, 8))
+	key, _ := reference.NewValue(tensor.MustShape(5, 1, 2), make([]float32, 10))
+	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
+	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: state}, {Key: key, Value: value}}, Tokens: 2, Position: 2}
+	if err := runner.validateCache(cache); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{

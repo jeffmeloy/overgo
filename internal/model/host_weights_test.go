@@ -174,6 +174,34 @@ func TestHostLayerGraphInputsPermitFusedBetaAlphaRecurrent(t *testing.T) {
 	}
 }
 
+func TestHostLayerGraphInputsPermitKimiKDA(t *testing.T) {
+	builder := tensor.NewBuilder()
+	value := func(shape ...uint64) reference.Value {
+		tensorShape := tensor.MustShape(shape...)
+		elements, _ := tensorShape.Elements()
+		return reference.Value{Shape: tensorShape, Data: make([]float32, int(elements))}
+	}
+	q, k, v, output := value(8, 4), value(8, 4), value(8, 4), value(4, 8)
+	queryConv, keyConv, valueConv := value(3, 1, 4, 1), value(3, 1, 4, 1), value(3, 1, 4, 1)
+	forgetA, forgetB, beta := value(8, 2), value(2, 4), value(8, 2)
+	a, dt, gateA, gateB, norm := value(1, 2, 1, 1), value(4), value(8, 2), value(2, 4), value(2)
+	layer := HostLayer{
+		AttentionNorm: value(8), AttentionQ: q, AttentionK: k, AttentionV: v, AttentionOutput: output,
+		SSMQueryConv: &queryConv, SSMKeyConv: &keyConv, SSMValueConv: &valueConv,
+		SSMForgetA: &forgetA, SSMForgetB: &forgetB, SSMBeta: &beta, SSMA: &a,
+		SSMTimeStep: &dt, SSMOutputGateA: &gateA, SSMOutputGateB: &gateB, SSMNorm: &norm,
+		FeedForwardNorm: value(8),
+	}
+	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 17 || graph.SSMQueryConv == nil || graph.SSMForgetA == nil ||
+		graph.SSMOutputGateB == nil || graph.AttentionQ == nil || graph.AttentionOutput == nil {
+		t.Fatalf("unexpected Kimi KDA graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+	}
+}
+
 func TestHostLayerGraphInputsPermitMamba2(t *testing.T) {
 	builder := tensor.NewBuilder()
 	value := func(shape ...uint64) reference.Value {

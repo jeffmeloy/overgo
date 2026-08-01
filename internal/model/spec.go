@@ -100,6 +100,7 @@ type Spec struct {
 	SSMStateSize          uint32
 	SSMTimeStepRank       uint32
 	SSMGroupCount         uint32
+	KDAHeadDim            uint32
 	SSMDtBCNorm           bool
 	FullAttentionInterval uint32
 	DeepstackLayerCount   uint32
@@ -238,6 +239,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		architecture != "qwen3vl" &&
 		architecture != "qwen3vlmoe" &&
 		architecture != "qwen3next" && architecture != "qwen35" && architecture != "qwen35moe" && architecture != "gemma" && architecture != "gemma-embedding" &&
+		architecture != "kimi-linear" &&
 		architecture != "refact" &&
 		architecture != "rnd1" &&
 		architecture != "gemma2" &&
@@ -254,7 +256,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if architecture == "bert" || architecture == "jina-bert-v2" {
 		spec.RopeDisabled = true
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" ||
+	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" ||
 		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		spec.RopeDisabled = true
 	}
@@ -360,7 +362,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
-	} else if architecture == "lfm2" || architecture == "lfm2moe" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" {
+	} else if architecture == "lfm2" || architecture == "lfm2moe" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "kimi-linear" {
 		counts, countErr := requiredArray[uint32](
 			values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32,
 		)
@@ -374,7 +376,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			)
 		}
 		spec.RecurrentLayers = make([]bool, len(counts))
-		if architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" {
+		if architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "kimi-linear" {
 			spec.LayerKVHeadCounts = append([]uint32(nil), counts...)
 		}
 		for index, count := range counts {
@@ -395,7 +397,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	}
 	spec.KeyLength, _ = optional[uint32](values, prefix+"attention.key_length", gguf.ValueTypeUint32)
 	spec.ValueLength, _ = optional[uint32](values, prefix+"attention.value_length", gguf.ValueTypeUint32)
-	if isDeepSeek2Family(architecture) {
+	if isDeepSeek2Family(architecture) || architecture == "kimi-linear" {
 		if value, ok := optional[uint32](values, prefix+"attention.key_length_mla", gguf.ValueTypeUint32); ok {
 			spec.KeyLength = value
 		}
@@ -1364,6 +1366,33 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.RecurrentLayers = append([]bool(nil), recurrent...)
 		}
 	}
+	if architecture == "kimi-linear" {
+		if spec.KVLoRARank, err = required[uint32](
+			values, prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.QLoRARank, _ = optional[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32)
+		if spec.RopeDimensionCount, err = required[uint32](
+			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.SSMConvKernel, err = required[uint32](
+			values, prefix+"ssm.conv_kernel", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		if spec.KDAHeadDim, err = required[uint32](
+			values, prefix+"kda.head_dim", gguf.ValueTypeUint32,
+		); err != nil {
+			return Spec{}, err
+		}
+		spec.SSMInnerSize = spec.HeadCount * spec.KDAHeadDim
+		spec.SSMStateSize = spec.KDAHeadDim
+		spec.SSMTimeStepRank = spec.HeadCount
+		spec.SSMGroupCount = spec.HeadCount
+	}
 	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
@@ -1419,7 +1448,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.MoELatentSize, _ = optional[uint32](values, prefix+"moe_latent_size", gguf.ValueTypeUint32)
 		spec.ExpertGatingFunc = 2
 	}
-	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1448,6 +1477,22 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		if architecture == "jamba" {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 			spec.ExpertWeightsNorm = false
+		}
+		if architecture == "kimi-linear" {
+			if spec.ExpertFeedForward, err = required[uint32](
+				values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+			spec.SharedExpertCount, _ = optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32)
+			spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+			spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
+			if spec.ExpertGatingFunc, err = required[uint32](
+				values, prefix+"expert_gating_func", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+			spec.ExpertWeightsNorm = true
 		}
 		if architecture == "llama4" {
 			if spec.ExpertFeedForward, err = required[uint32](
@@ -3012,12 +3057,36 @@ func (s Spec) validate() error {
 			}
 		}
 	}
-	if (s.Architecture == "plm" || s.Architecture == "minicpm3" || isDeepSeek2Family(s.Architecture)) &&
+	if (s.Architecture == "plm" || s.Architecture == "minicpm3" || isDeepSeek2Family(s.Architecture) || s.Architecture == "kimi-linear") &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength ||
-			(!isDeepSeek2Family(s.Architecture) && s.HeadCountKV != s.HeadCount) ||
-			(isDeepSeek2Family(s.Architecture) && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
+			(!isDeepSeek2Family(s.Architecture) && s.Architecture != "kimi-linear" && s.HeadCountKV != s.HeadCount) ||
+			((isDeepSeek2Family(s.Architecture) || s.Architecture == "kimi-linear") && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
+	}
+	if s.Architecture == "kimi-linear" {
+		switch {
+		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
+			return errors.New("Kimi Linear layer schedule is invalid")
+		case s.SSMConvKernel < 2 || s.KDAHeadDim == 0 || s.SSMInnerSize != s.HeadCount*s.KDAHeadDim:
+			return errors.New("Kimi Linear KDA metadata is invalid")
+		case s.LeadingDenseBlocks >= s.BlockCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
+			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
+			s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
+			return errors.New("Kimi Linear expert metadata is invalid")
+		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			return errors.New("Kimi Linear expert routing function is unsupported")
+		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+			return errors.New("Kimi Linear expert weight scale is invalid")
+		}
+		var recurrent, attention bool
+		for _, item := range s.RecurrentLayers {
+			recurrent = recurrent || item
+			attention = attention || !item
+		}
+		if !recurrent || !attention {
+			return errors.New("Kimi Linear requires KDA and MLA layers")
+		}
 	}
 	if isDeepSeek2Family(s.Architecture) {
 		lite := s.BlockCount == 26 || s.BlockCount == 27 || (s.BlockCount == 48 && s.VocabularySize == 128256)

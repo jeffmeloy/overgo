@@ -3770,6 +3770,51 @@ func TestReadWeightsQwen35Hybrid(t *testing.T) {
 	}
 }
 
+func TestReadWeightsKimiLinearHybrid(t *testing.T) {
+	spec := Spec{
+		Architecture: "kimi-linear", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4,
+		ValueLength: 2, VocabularySize: 32, KVLoRARank: 3, RopeDimensionCount: 2,
+		KDAHeadDim: 2, SSMConvKernel: 3, SSMInnerSize: 4,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertFF: 6, LeadingDenseBlocks: 1,
+		RecurrentLayers: []bool{true, false}, LayerKVHeadCounts: []uint32{0, 1},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_q.weight", 8, 4),
+		tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
+		tensorInfo("blk.0.attn_output.weight", 4, 8),
+		tensorInfo("blk.0.ssm_conv1d_q.weight", 3, 1, 4, 1),
+		tensorInfo("blk.0.ssm_conv1d_k.weight", 3, 1, 4),
+		tensorInfo("blk.0.ssm_conv1d_v.weight", 3, 1, 4, 1),
+		tensorInfo("blk.0.ssm_f_a.weight", 8, 2), tensorInfo("blk.0.ssm_f_b.weight", 2, 4),
+		tensorInfo("blk.0.ssm_beta.weight", 8, 2), tensorInfo("blk.0.ssm_a", 1, 2, 1, 1),
+		tensorInfo("blk.0.ssm_dt.bias", 4), tensorInfo("blk.0.ssm_g_a.weight", 8, 2),
+		tensorInfo("blk.0.ssm_g_b.weight", 2, 4), tensorInfo("blk.0.ssm_norm.weight", 2),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8),
+		tensorInfo("blk.1.attn_norm.weight", 8), tensorInfo("blk.1.attn_q.weight", 8, 8),
+		tensorInfo("blk.1.attn_kv_a_mqa.weight", 8, 5), tensorInfo("blk.1.attn_kv_a_norm.weight", 3),
+		tensorInfo("blk.1.attn_k_b.weight", 2, 3, 2), tensorInfo("blk.1.attn_v_b.weight", 3, 2, 2),
+		tensorInfo("blk.1.attn_output.weight", 4, 8), tensorInfo("blk.1.ffn_norm.weight", 8),
+		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4), tensorInfo("blk.1.ffn_gate_exps.weight", 8, 6, 4),
+		tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4), tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
+		tensorInfo("blk.1.exp_probs_b.bias", 4), tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 6),
+		tensorInfo("blk.1.ffn_up_shexp.weight", 8, 6), tensorInfo("blk.1.ffn_down_shexp.weight", 6, 8),
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !weights.Layers[0].Recurrent || weights.Layers[1].Recurrent ||
+		weights.Layers[0].SSMQueryConv == nil || weights.Layers[0].SSMOutputGateB == nil ||
+		weights.Layers[1].AttentionKB == nil || weights.Layers[1].FeedForwardExpertBias == nil {
+		t.Fatalf("unexpected Kimi Linear catalog: %+v", weights.Layers)
+	}
+}
+
 func TestReadWeightsQwen35MoEAttention(t *testing.T) {
 	spec := Spec{
 		Architecture: "qwen35moe", BlockCount: 1, EmbeddingLength: 8,
@@ -3888,6 +3933,37 @@ func TestReadRealQwen35Catalog(t *testing.T) {
 	if spec.Architecture != "qwen35" || len(weights.Layers) != 32 ||
 		!weights.Layers[0].Recurrent || weights.Layers[3].Recurrent {
 		t.Fatalf("unexpected real Qwen3.5 catalog: spec=%+v layers=%d", spec, len(weights.Layers))
+	}
+}
+
+func TestReadRealKimiLinearCatalog(t *testing.T) {
+	path := os.Getenv("LLAMACPP2GO_KIMI_LINEAR_MODEL")
+	if path == "" {
+		t.Skip("set LLAMACPP2GO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
+	}
+	file, err := gguf.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "kimi-linear" || len(weights.Layers) != int(spec.BlockCount) {
+		t.Fatalf("unexpected real Kimi Linear catalog: spec=%+v layers=%d", spec, len(weights.Layers))
+	}
+	var recurrent, attention bool
+	for _, layer := range weights.Layers {
+		recurrent = recurrent || layer.Recurrent
+		attention = attention || !layer.Recurrent
+	}
+	if !recurrent || !attention {
+		t.Fatal("real Kimi Linear catalog lacks hybrid layers")
 	}
 }
 

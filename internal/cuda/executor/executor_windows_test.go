@@ -1714,6 +1714,159 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 	}
 }
 
+func TestExecutorKimiLinearKDABlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "kimi-linear", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 2,
+		RMSNormEpsilon: 1e-6, RopeDisabled: true, RopeDimensionCount: 2,
+		KVLoRARank: 3, KDAHeadDim: 2, SSMConvKernel: 3, SSMInnerSize: 4,
+		LeadingDenseBlocks: 1,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:      builder.Input("q", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionK:      builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionV:      builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
+		AttentionOutput: builder.Input("o", dtype.F32, tensor.MustShape(4, 8)),
+		SSMQueryConv:    builder.Input("cq", dtype.F32, tensor.MustShape(3, 1, 4, 1)),
+		SSMKeyConv:      builder.Input("ck", dtype.F32, tensor.MustShape(3, 1, 4, 1)),
+		SSMValueConv:    builder.Input("cv", dtype.F32, tensor.MustShape(3, 1, 4, 1)),
+		SSMForgetA:      builder.Input("fa", dtype.F32, tensor.MustShape(8, 2)),
+		SSMForgetB:      builder.Input("fb", dtype.F32, tensor.MustShape(2, 4)),
+		SSMBeta:         builder.Input("beta", dtype.F32, tensor.MustShape(8, 2)),
+		SSMA:            builder.Input("a", dtype.F32, tensor.MustShape(1, 2, 1, 1)),
+		SSMTimeStep:     builder.Input("dt", dtype.F32, tensor.MustShape(4)),
+		SSMOutputGateA:  builder.Input("ga", dtype.F32, tensor.MustShape(8, 2)),
+		SSMOutputGateB:  builder.Input("gb", dtype.F32, tensor.MustShape(2, 4)),
+		SSMNorm:         builder.Input("ssm_norm", dtype.F32, tensor.MustShape(2)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	conv := builder.Input("conv", dtype.F32, tensor.MustShape(2, 12))
+	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+	result, err := model.BuildKimiLinearBlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, true, conv, state, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                   patternedValue(input.Shape, 3, 0.08, -0.03),
+		weights.AttentionNorm:   patternedValue(weights.AttentionNorm.Shape, 5, 0.02, 1),
+		weights.SSMA:            patternedValue(weights.SSMA.Shape, 7, 0.01, -0.1),
+		weights.SSMTimeStep:     patternedValue(weights.SSMTimeStep.Shape, 9, 0.02, 0.1),
+		weights.SSMNorm:         patternedValue(weights.SSMNorm.Shape, 11, 0.02, 1),
+		weights.FeedForwardNorm: patternedValue(weights.FeedForwardNorm.Shape, 13, 0.02, 1),
+		conv:                    patternedValue(conv.Shape, 15, 0.02, -0.01),
+		state:                   patternedValue(state.Shape, 17, 0.01, 0),
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQ, weights.AttentionK, weights.AttentionV, weights.AttentionOutput,
+		weights.SSMQueryConv, weights.SSMKeyConv, weights.SSMValueConv,
+		weights.SSMForgetA, weights.SSMForgetB, weights.SSMBeta,
+		weights.SSMOutputGateA, weights.SSMOutputGateB,
+		weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+19, 0.025, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
+func TestExecutorKimiLinearMLABlockMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	spec := model.Spec{
+		Architecture: "kimi-linear", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 2,
+		RMSNormEpsilon: 1e-6, RopeDisabled: true, RopeDimensionCount: 2,
+		KVLoRARank: 3, LeadingDenseBlocks: 1, ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, SharedExpertFF: 6, ExpertGatingFunc: 2,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := model.LayerGraphWeights{
+		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		AttentionQ:             builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
+		AttentionKVAMQA:        builder.Input("kva", dtype.F32, tensor.MustShape(8, 5)),
+		AttentionKVANorm:       builder.Input("kva_norm", dtype.F32, tensor.MustShape(3)),
+		AttentionKB:            builder.Input("kb", dtype.F32, tensor.MustShape(2, 3, 2)),
+		AttentionVB:            builder.Input("vb", dtype.F32, tensor.MustShape(3, 2, 2)),
+		AttentionOutput:        builder.Input("o", dtype.F32, tensor.MustShape(4, 8)),
+		FeedForwardNorm:        builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
+		FeedForwardGateExperts: builder.Input("eg", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardUpExperts:   builder.Input("eu", dtype.F32, tensor.MustShape(8, 6, 4)),
+		FeedForwardDownExperts: builder.Input("ed", dtype.F32, tensor.MustShape(6, 8, 4)),
+		FeedForwardExpertBias:  builder.Input("eb", dtype.F32, tensor.MustShape(4)),
+		FeedForwardSharedGate:  builder.Input("sg", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedUp:    builder.Input("su", dtype.F32, tensor.MustShape(8, 6)),
+		FeedForwardSharedDown:  builder.Input("sd", dtype.F32, tensor.MustShape(6, 8)),
+	}
+	result, err := model.BuildKimiLinearBlockCached(
+		builder, input, spec, weights, []uint32{0, 1}, false, nil, nil, 1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:                         patternedValue(input.Shape, 3, 0.08, -0.03),
+		weights.AttentionNorm:         patternedValue(weights.AttentionNorm.Shape, 5, 0.02, 1),
+		weights.AttentionKVANorm:      patternedValue(weights.AttentionKVANorm.Shape, 7, 0.02, 1),
+		weights.FeedForwardNorm:       patternedValue(weights.FeedForwardNorm.Shape, 9, 0.02, 1),
+		weights.FeedForwardExpertBias: {Shape: weights.FeedForwardExpertBias.Shape, Data: []float32{0.1, -0.2, 0.3, -0.1}},
+	}
+	for index, node := range []*tensor.Tensor{
+		weights.AttentionQ, weights.AttentionKVAMQA, weights.AttentionKB, weights.AttentionVB,
+		weights.AttentionOutput, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+		weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+		weights.FeedForwardSharedGate, weights.FeedForwardSharedUp, weights.FeedForwardSharedDown,
+	} {
+		feeds[node] = patternedValue(node.Shape, index+11, 0.025, 0)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

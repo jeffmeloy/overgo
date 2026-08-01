@@ -109,6 +109,13 @@ type LayerGraphWeights struct {
 	SSMBetaAlpha      *tensor.Tensor
 	SSMNorm           *tensor.Tensor
 	SSMOutput         *tensor.Tensor
+	SSMQueryConv      *tensor.Tensor
+	SSMKeyConv        *tensor.Tensor
+	SSMValueConv      *tensor.Tensor
+	SSMForgetA        *tensor.Tensor
+	SSMForgetB        *tensor.Tensor
+	SSMOutputGateA    *tensor.Tensor
+	SSMOutputGateB    *tensor.Tensor
 }
 
 // ApplyNormalization: applies architecture's learned pre/post
@@ -1360,11 +1367,12 @@ func BuildMLABlockCachedForLayer(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "plm" && spec.Architecture != "minicpm3" && !isDeepSeek2Family(spec.Architecture) {
+	if spec.Architecture != "plm" && spec.Architecture != "minicpm3" && !isDeepSeek2Family(spec.Architecture) && spec.Architecture != "kimi-linear" {
 		return DenseBlockResult{}, errors.New("MLA block architecture is unsupported")
 	}
 	isMiniCPM3 := spec.Architecture == "minicpm3"
 	isDeepSeek2 := isDeepSeek2Family(spec.Architecture)
+	isKimi := spec.Architecture == "kimi-linear"
 	required := map[string]*tensor.Tensor{
 		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
 		"attention KV-A": weights.AttentionKVAMQA, "attention KV-A norm": weights.AttentionKVANorm,
@@ -1376,11 +1384,11 @@ func BuildMLABlockCachedForLayer(
 		required["attention K-B"] = weights.AttentionKB
 		required["attention V-B"] = weights.AttentionVB
 	}
-	if isMiniCPM3 || (isDeepSeek2 && spec.QLoRARank > 0) {
+	if isMiniCPM3 || ((isDeepSeek2 || isKimi) && spec.QLoRARank > 0) {
 		required["attention Q-B"] = weights.AttentionQB
 		required["attention Q-A norm"] = weights.AttentionQNorm
 	}
-	if isDeepSeek2 && layerIndex >= spec.LeadingDenseBlocks {
+	if (isDeepSeek2 || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
 		if weights.FeedForwardGateUpExperts == nil {
@@ -1393,7 +1401,7 @@ func BuildMLABlockCachedForLayer(
 	} else {
 		required["feed-forward up"] = weights.FeedForwardUp
 		required["feed-forward down"] = weights.FeedForwardDown
-		if isMiniCPM3 || isDeepSeek2 {
+		if isMiniCPM3 || isDeepSeek2 || isKimi {
 			required["feed-forward gate"] = weights.FeedForwardGate
 		}
 	}
@@ -1420,7 +1428,7 @@ func BuildMLABlockCachedForLayer(
 	valueWidth := uint64(spec.ValueLength)
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
-	if isMiniCPM3 || (isDeepSeek2 && spec.QLoRARank > 0) {
+	if isMiniCPM3 || ((isDeepSeek2 || isKimi) && spec.QLoRARank > 0) {
 		queryMixed = builder.WeightedRMSNorm(queryMixed, weights.AttentionQNorm, spec.RMSNormEpsilon)
 		queryMixed = builder.MulMat(weights.AttentionQB, queryMixed)
 	}
@@ -1440,7 +1448,9 @@ func BuildMLABlockCachedForLayer(
 	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if isDeepSeek2 && spec.RopeScalingType == "yarn" {
+	if isKimi {
+		// Kimi: no RoPE.
+	} else if isDeepSeek2 && spec.RopeScalingType == "yarn" {
 		qPE = builder.RoPENormalYaRN(qPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
 			spec.YaRNBetaFast, spec.YaRNBetaSlow)
@@ -1510,7 +1520,7 @@ func BuildMLABlockCachedForLayer(
 	}
 	residual := builder.Add(input, attention)
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	if isDeepSeek2 && layerIndex >= spec.LeadingDenseBlocks {
+	if (isDeepSeek2 || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
 		var feedForward *tensor.Tensor
 		if weights.FeedForwardGateUpExperts != nil {
 			if spec.ExpertGatingFunc == 2 {
@@ -1546,7 +1556,7 @@ func BuildMLABlockCachedForLayer(
 	}
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	activated := builder.ReLUSquared(up)
-	if isMiniCPM3 || isDeepSeek2 {
+	if isMiniCPM3 || isDeepSeek2 || isKimi {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)
 		activated = builder.SwiGLU(gate, up)
 	}
@@ -1559,6 +1569,160 @@ func BuildMLABlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
+// BuildKimiLinearBlockCached: KDA or no-RoPE MLA block.
+func BuildKimiLinearBlockCached(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	recurrent bool,
+	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
+) (DenseBlockResult, error) {
+	if spec.Architecture != "kimi-linear" {
+		return DenseBlockResult{}, errors.New("Kimi Linear block requires kimi-linear architecture")
+	}
+	if !recurrent {
+		return BuildMLABlockCachedForLayer(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
+	}
+	if builder == nil || input == nil || pastKey == nil || pastValue == nil {
+		return DenseBlockResult{}, errors.New("Kimi Linear KDA input/state is nil")
+	}
+	required := map[string]*tensor.Tensor{
+		"attention norm": weights.AttentionNorm,
+		"attention Q":    weights.AttentionQ, "attention K": weights.AttentionK,
+		"attention V": weights.AttentionV, "attention output": weights.AttentionOutput,
+		"Q convolution": weights.SSMQueryConv, "K convolution": weights.SSMKeyConv,
+		"V convolution": weights.SSMValueConv,
+		"forget A":      weights.SSMForgetA, "forget B": weights.SSMForgetB,
+		"beta": weights.SSMBeta, "SSM A": weights.SSMA, "time-step bias": weights.SSMTimeStep,
+		"output gate A": weights.SSMOutputGateA, "output gate B": weights.SSMOutputGateB,
+		"SSM norm": weights.SSMNorm, "feed-forward norm": weights.FeedForwardNorm,
+	}
+	addKimiFeedForwardRequirements(required, spec, weights, layerIndex)
+	for name, item := range required {
+		if item == nil {
+			return DenseBlockResult{}, fmt.Errorf("Kimi Linear KDA %s weight is nil", name)
+		}
+	}
+	if input.Shape.Rank != 2 || len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Kimi Linear KDA input shape is invalid")
+	}
+	headDim := uint64(spec.KDAHeadDim)
+	heads := uint64(spec.HeadCount)
+	inner := headDim * heads
+	tokens := uint64(len(positions))
+	window := uint64(spec.SSMConvKernel - 1)
+	if !pastKey.Shape.Equal(tensor.MustShape(window, 3*inner)) ||
+		!pastValue.Shape.Equal(tensor.MustShape(headDim, headDim, heads, 1)) {
+		return DenseBlockResult{}, errors.New("Kimi Linear KDA cache shape is invalid")
+	}
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	convolve := func(projection, kernel *tensor.Tensor, stateIndex uint64) (*tensor.Tensor, *tensor.Tensor) {
+		state := builder.FlatSlice(pastKey, stateIndex*window*inner, window, inner)
+		projected := builder.MulMat(projection, normalized)
+		mixed := builder.Concat(state, builder.Transpose2D(projected), 0)
+		next := builder.Reshape(builder.GroupSlice(mixed, tokens, window, 1, window), window, inner)
+		kernel = builder.Reshape(kernel, uint64(spec.SSMConvKernel), inner)
+		value := builder.SiLU(builder.SSMConv(mixed, kernel))
+		return builder.Reshape(value, headDim, heads, tokens, 1), next
+	}
+	query, nextQ := convolve(weights.AttentionQ, weights.SSMQueryConv, 0)
+	key, nextK := convolve(weights.AttentionK, weights.SSMKeyConv, 1)
+	value, nextV := convolve(weights.AttentionV, weights.SSMValueConv, 2)
+	nextConv := builder.Transpose2D(builder.Concat(
+		builder.Concat(builder.Transpose2D(nextQ), builder.Transpose2D(nextK), 0),
+		builder.Transpose2D(nextV), 0,
+	))
+	gate := builder.MulMat(weights.SSMForgetB, builder.MulMat(weights.SSMForgetA, normalized))
+	gate = builder.Softplus(builder.Add(gate, weights.SSMTimeStep))
+	gate = builder.Reshape(gate, headDim, heads, tokens, 1)
+	gate = builder.Multiply(gate, builder.Reshape(weights.SSMA, 1, heads, 1, 1))
+	beta := builder.Reshape(
+		builder.Sigmoid(builder.MulMat(weights.SSMBeta, normalized)),
+		1, heads, tokens, 1,
+	)
+	query = builder.L2Norm(query, spec.RMSNormEpsilon)
+	key = builder.L2Norm(key, spec.RMSNormEpsilon)
+	packed := builder.GatedDeltaNet(query, key, value, gate, beta, pastValue)
+	attentionElements := headDim * heads * tokens
+	attention := builder.FlatSlice(packed, 0, headDim, heads, tokens, 1)
+	nextState := builder.FlatSlice(packed, attentionElements, headDim, headDim, heads, 1)
+	outputGate := builder.MulMat(weights.SSMOutputGateB, builder.MulMat(weights.SSMOutputGateA, normalized))
+	outputGate = builder.Reshape(outputGate, headDim, heads, tokens, 1)
+	attention = builder.Multiply(
+		builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon),
+		builder.Sigmoid(outputGate),
+	)
+	attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, inner, tokens))
+	residual := builder.Add(input, attention)
+	output := buildKimiFeedForward(builder, residual, spec, weights, layerIndex)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: output, Key: nextConv, Value: nextState}, nil
+}
+
+func buildKimiFeedForward(
+	builder *tensor.Builder,
+	residual *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	layerIndex uint32,
+) *tensor.Tensor {
+	normalized := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	if layerIndex < spec.LeadingDenseBlocks {
+		gate := builder.MulMat(weights.FeedForwardGate, normalized)
+		up := builder.MulMat(weights.FeedForwardUp, normalized)
+		return builder.Add(residual, builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up)))
+	}
+	var routed *tensor.Tensor
+	if spec.ExpertGatingFunc == 2 {
+		routed = builder.MoESigmoid(
+			normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+			weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+			weights.FeedForwardExpertBias, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+		)
+	} else {
+		routed = builder.MoESoftmaxWithSelectionBias(
+			normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+			weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+			weights.FeedForwardExpertBias, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+		)
+	}
+	shared := builder.MulMat(
+		weights.FeedForwardSharedDown,
+		builder.SwiGLU(
+			builder.MulMat(weights.FeedForwardSharedGate, normalized),
+			builder.MulMat(weights.FeedForwardSharedUp, normalized),
+		),
+	)
+	return builder.Add(residual, builder.Add(routed, shared))
+}
+
+func addKimiFeedForwardRequirements(
+	required map[string]*tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	layerIndex uint32,
+) {
+	if layerIndex < spec.LeadingDenseBlocks {
+		required["feed-forward gate"] = weights.FeedForwardGate
+		required["feed-forward up"] = weights.FeedForwardUp
+		required["feed-forward down"] = weights.FeedForwardDown
+		return
+	}
+	required["feed-forward router"] = weights.FeedForwardRouter
+	required["feed-forward expert gate"] = weights.FeedForwardGateExperts
+	required["feed-forward expert up"] = weights.FeedForwardUpExperts
+	required["feed-forward expert down"] = weights.FeedForwardDownExperts
+	required["feed-forward correction bias"] = weights.FeedForwardExpertBias
+	required["shared expert gate"] = weights.FeedForwardSharedGate
+	required["shared expert up"] = weights.FeedForwardSharedUp
+	required["shared expert down"] = weights.FeedForwardSharedDown
 }
 
 // BuildLFM2BlockCached: attention or gated short-convolution block

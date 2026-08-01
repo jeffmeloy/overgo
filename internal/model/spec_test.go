@@ -3019,6 +3019,43 @@ func TestReadQwen35Spec(t *testing.T) {
 	}
 }
 
+func TestReadKimiLinearSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "kimi-linear"),
+		metadata("kimi-linear.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("kimi-linear.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("kimi-linear.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("kimi-linear.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("kimi-linear.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		{Key: "kimi-linear.attention.head_count_kv", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{0, 1}}},
+		metadata("kimi-linear.attention.key_length_mla", gguf.ValueTypeUint32, uint32(4)),
+		metadata("kimi-linear.attention.value_length_mla", gguf.ValueTypeUint32, uint32(2)),
+		metadata("kimi-linear.attention.kv_lora_rank", gguf.ValueTypeUint32, uint32(3)),
+		metadata("kimi-linear.rope.dimension_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("kimi-linear.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("kimi-linear.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("kimi-linear.kda.head_dim", gguf.ValueTypeUint32, uint32(2)),
+		metadata("kimi-linear.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("kimi-linear.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("kimi-linear.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+		metadata("kimi-linear.expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("kimi-linear.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
+		metadata("kimi-linear.expert_weights_scale", gguf.ValueTypeFloat32, float32(2.446)),
+		metadata("kimi-linear.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "kimi-linear" || !spec.RopeDisabled ||
+		!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(1) ||
+		spec.KDAHeadDim != 2 || spec.SSMInnerSize != 4 ||
+		spec.KVLoRARank != 3 || spec.SharedExpertFF != 6 ||
+		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 2.446 {
+		t.Fatalf("unexpected Kimi Linear spec: %+v", spec)
+	}
+}
+
 func TestReadQwen3NextSpec(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "qwen3next"),

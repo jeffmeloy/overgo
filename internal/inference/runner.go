@@ -412,7 +412,65 @@ func (r *Runner) layerDeviceInputs(
 			info        *gguf.TensorInfo
 			destination **tensor.Tensor
 		}{}
-		if info.ShortConvKernel != nil {
+		if info.SSMQueryConv != nil {
+			for _, item := range []struct {
+				info        gguf.TensorInfo
+				destination **tensor.Tensor
+			}{
+				{info.AttentionQ, &result.AttentionQ}, {info.AttentionK, &result.AttentionK},
+				{info.AttentionV, &result.AttentionV}, {info.AttentionOutput, &result.AttentionOutput},
+			} {
+				if *item.destination, err = input(item.info); err != nil {
+					return result, nil, err
+				}
+			}
+			recurrent = append(recurrent,
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMQueryConv, &result.SSMQueryConv},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMKeyConv, &result.SSMKeyConv},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMValueConv, &result.SSMValueConv},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMForgetA, &result.SSMForgetA},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMForgetB, &result.SSMForgetB},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMBeta, &result.SSMBeta},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMA, &result.SSMA},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMTimeStep, &result.SSMTimeStep},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMOutputGateA, &result.SSMOutputGateA},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMOutputGateB, &result.SSMOutputGateB},
+				struct {
+					info        *gguf.TensorInfo
+					destination **tensor.Tensor
+				}{info.SSMNorm, &result.SSMNorm},
+			)
+		} else if info.ShortConvKernel != nil {
 			recurrent = append(recurrent,
 				struct {
 					info        *gguf.TensorInfo
@@ -1101,7 +1159,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
 		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
-		r.spec.Architecture != "nemotron_h_moe" {
+		r.spec.Architecture != "nemotron_h_moe" && r.spec.Architecture != "kimi-linear" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, cache, nextCache,
 		)
@@ -1468,7 +1526,22 @@ func (r *Runner) runLayerCached(
 		r.weights.Layers[layerIndex].Recurrent
 	nemotronHRecurrent := (r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe") &&
 		layerIndex < len(r.weights.Layers) && r.weights.Layers[layerIndex].Recurrent
-	if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent || nemotronHRecurrent {
+	kimiRecurrent := r.spec.Architecture == "kimi-linear" && layerIndex < len(r.weights.Layers) &&
+		r.weights.Layers[layerIndex].Recurrent
+	if kimiRecurrent {
+		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), 3*uint64(r.spec.SSMInnerSize))
+		ssmShape := tensor.MustShape(uint64(r.spec.KDAHeadDim), uint64(r.spec.KDAHeadDim), uint64(r.spec.HeadCount), 1)
+		convElements, _ := convShape.Elements()
+		ssmElements, _ := ssmShape.Elements()
+		convValue := reference.Value{Shape: convShape, Data: make([]float32, int(convElements))}
+		ssmValue := reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmElements))}
+		if past != nil {
+			convValue, ssmValue = past.Key, past.Value
+		}
+		pastKey = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convValue.Shape)
+		pastValue = builder.Input(fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmValue.Shape)
+		hostFeeds[pastKey], hostFeeds[pastValue] = convValue, ssmValue
+	} else if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent || nemotronHRecurrent {
 		convWidth := uint64(r.spec.SSMInnerSize)
 		if r.spec.Architecture == "mamba2" || graniteHybridRecurrent || nemotronHRecurrent {
 			convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
@@ -1508,6 +1581,11 @@ func (r *Runner) runLayerCached(
 	} else if r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe" {
 		result, err = model.BuildNemotronHBlockCached(
 			builder, input, r.spec, graphWeights, positions, pastKey, pastValue, uint32(layerIndex),
+		)
+	} else if r.spec.Architecture == "kimi-linear" {
+		result, err = model.BuildKimiLinearBlockCached(
+			builder, input, r.spec, graphWeights, positions, info.Recurrent,
+			pastKey, pastValue, uint32(layerIndex),
 		)
 	} else if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" ||
 		r.spec.Architecture == "deepseek2" || r.spec.Architecture == "mistral4" {
@@ -2035,7 +2113,8 @@ func (r *Runner) Generate(
 		r.spec.Architecture != "mistral4" && r.spec.Architecture != "mamba" &&
 		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
 		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2" &&
-		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe"
+		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe" &&
+		r.spec.Architecture != "kimi-linear"
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -2795,6 +2874,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			layer.FeedForwardDown,
 		}
 		if layer.Recurrent {
+			if layer.SSMQueryConv != nil {
+				infos = append(infos, layer.AttentionQ, layer.AttentionK, layer.AttentionV, layer.AttentionOutput)
+			}
 			for _, pointer := range []*gguf.TensorInfo{
 				layer.SSMInput,
 				layer.AttentionQKV,
@@ -2814,6 +2896,13 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 				layer.SSMBetaAlpha,
 				layer.SSMNorm,
 				layer.SSMOutput,
+				layer.SSMQueryConv,
+				layer.SSMKeyConv,
+				layer.SSMValueConv,
+				layer.SSMForgetA,
+				layer.SSMForgetB,
+				layer.SSMOutputGateA,
+				layer.SSMOutputGateB,
 				layer.ShortConvKernel,
 				layer.ShortConvInput,
 				layer.ShortConvOutput,

@@ -5511,6 +5511,125 @@ func TestBuildQwen35AttentionBlock(t *testing.T) {
 	}
 }
 
+func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
+	spec := Spec{
+		Architecture: "kimi-linear", EmbeddingLength: 8, FeedForwardLength: 12,
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 2,
+		RMSNormEpsilon: 1e-6, RopeDisabled: true, RopeDimensionCount: 2,
+		KVLoRARank: 3, KDAHeadDim: 2, SSMConvKernel: 3, SSMInnerSize: 4,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertFF: 6, LeadingDenseBlocks: 1, ExpertGatingFunc: 2,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
+	}
+	t.Run("kda", func(t *testing.T) {
+		builder := tensor.NewBuilder()
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+		weights := kimiLinearCommonInputs(builder, spec, false)
+		weights.AttentionQ = builder.Input("q", dtype.F32, tensor.MustShape(8, 4))
+		weights.AttentionK = builder.Input("k", dtype.F32, tensor.MustShape(8, 4))
+		weights.AttentionV = builder.Input("v", dtype.F32, tensor.MustShape(8, 4))
+		weights.AttentionOutput = builder.Input("o", dtype.F32, tensor.MustShape(4, 8))
+		weights.SSMQueryConv = builder.Input("cq", dtype.F32, tensor.MustShape(3, 1, 4, 1))
+		weights.SSMKeyConv = builder.Input("ck", dtype.F32, tensor.MustShape(3, 1, 4, 1))
+		weights.SSMValueConv = builder.Input("cv", dtype.F32, tensor.MustShape(3, 1, 4, 1))
+		weights.SSMForgetA = builder.Input("fa", dtype.F32, tensor.MustShape(8, 2))
+		weights.SSMForgetB = builder.Input("fb", dtype.F32, tensor.MustShape(2, 4))
+		weights.SSMBeta = builder.Input("beta", dtype.F32, tensor.MustShape(8, 2))
+		weights.SSMA = builder.Input("a", dtype.F32, tensor.MustShape(1, 2, 1, 1))
+		weights.SSMTimeStep = builder.Input("dt", dtype.F32, tensor.MustShape(4))
+		weights.SSMOutputGateA = builder.Input("ga", dtype.F32, tensor.MustShape(8, 2))
+		weights.SSMOutputGateB = builder.Input("gb", dtype.F32, tensor.MustShape(2, 4))
+		weights.SSMNorm = builder.Input("ssm_norm", dtype.F32, tensor.MustShape(2))
+		conv := builder.Input("conv", dtype.F32, tensor.MustShape(2, 12))
+		state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+		result, err := BuildKimiLinearBlockCached(builder, input, spec, weights, []uint32{0, 1}, true, conv, state, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(conv.Shape) || !result.Value.Shape.Equal(state.Shape) {
+			t.Fatalf("unexpected KDA result: %+v", result)
+		}
+		nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var convolutions, delta, rope int
+		for _, node := range nodes {
+			if node.Op == tensor.OpSSMConv {
+				convolutions++
+			}
+			if node.Op == tensor.OpGatedDeltaNet {
+				delta++
+			}
+			if node.Op == tensor.OpRoPENormal || node.Op == tensor.OpRoPENeoX {
+				rope++
+			}
+		}
+		if convolutions != 3 || delta != 1 || rope != 0 {
+			t.Fatalf("KDA ops: convolution=%d delta=%d rope=%d", convolutions, delta, rope)
+		}
+	})
+	t.Run("mla", func(t *testing.T) {
+		builder := tensor.NewBuilder()
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+		weights := kimiLinearCommonInputs(builder, spec, true)
+		weights.AttentionQ = builder.Input("q", dtype.F32, tensor.MustShape(8, 8))
+		weights.AttentionKVAMQA = builder.Input("kva", dtype.F32, tensor.MustShape(8, 5))
+		weights.AttentionKVANorm = builder.Input("kva_norm", dtype.F32, tensor.MustShape(3))
+		weights.AttentionKB = builder.Input("kb", dtype.F32, tensor.MustShape(2, 3, 2))
+		weights.AttentionVB = builder.Input("vb", dtype.F32, tensor.MustShape(3, 2, 2))
+		weights.AttentionOutput = builder.Input("o", dtype.F32, tensor.MustShape(4, 8))
+		result, err := BuildKimiLinearBlockCached(builder, input, spec, weights, []uint32{0, 1}, false, nil, nil, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Key.Shape.Equal(tensor.MustShape(5, 1, 2)) || !result.Value.Shape.Equal(tensor.MustShape(3, 1, 2)) {
+			t.Fatalf("unexpected MLA cache: %v %v", result.Key.Shape, result.Value.Shape)
+		}
+		nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var moe, rope int
+		for _, node := range nodes {
+			if node.Op == tensor.OpMoE {
+				moe++
+			}
+			if node.Op == tensor.OpRoPENormal || node.Op == tensor.OpRoPENeoX {
+				rope++
+			}
+		}
+		if moe != 1 || rope != 0 {
+			t.Fatalf("MLA ops: MoE=%d RoPE=%d", moe, rope)
+		}
+	})
+}
+
+func kimiLinearCommonInputs(builder *tensor.Builder, spec Spec, moe bool) LayerGraphWeights {
+	weights := LayerGraphWeights{
+		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardNorm: builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
+		FeedForwardGate: builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
+		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
+	}
+	if !moe {
+		return weights
+	}
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUp = nil
+	weights.FeedForwardDown = nil
+	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+	weights.FeedForwardGateExperts = builder.Input("eg", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardUpExperts = builder.Input("eu", dtype.F32, tensor.MustShape(8, 6, 4))
+	weights.FeedForwardDownExperts = builder.Input("ed", dtype.F32, tensor.MustShape(6, 8, 4))
+	weights.FeedForwardExpertBias = builder.Input("eb", dtype.F32, tensor.MustShape(4))
+	weights.FeedForwardSharedGate = builder.Input("sg", dtype.F32, tensor.MustShape(8, 6))
+	weights.FeedForwardSharedUp = builder.Input("su", dtype.F32, tensor.MustShape(8, 6))
+	weights.FeedForwardSharedDown = builder.Input("sd", dtype.F32, tensor.MustShape(6, 8))
+	return weights
+}
+
 func TestBuildT5EncoderBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{

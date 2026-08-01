@@ -112,6 +112,13 @@ type LayerWeights struct {
 	SSMBetaAlpha      *gguf.TensorInfo
 	SSMNorm           *gguf.TensorInfo
 	SSMOutput         *gguf.TensorInfo
+	SSMQueryConv      *gguf.TensorInfo
+	SSMKeyConv        *gguf.TensorInfo
+	SSMValueConv      *gguf.TensorInfo
+	SSMForgetA        *gguf.TensorInfo
+	SSMForgetB        *gguf.TensorInfo
+	SSMOutputGateA    *gguf.TensorInfo
+	SSMOutputGateB    *gguf.TensorInfo
 }
 
 // Weights: validated initial Llama/Qwen3 tensor catalog
@@ -340,6 +347,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "minimax-m2" ||
 		spec.Architecture == "mimo2" ||
 		spec.Architecture == "step35" ||
+		spec.Architecture == "kimi-linear" ||
 		spec.Architecture == "mellum" ||
 		spec.Architecture == "jais" ||
 		spec.Architecture == "llada-moe" ||
@@ -574,6 +582,169 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				layer.AttentionNormBias = &attentionNormBias
 			}
+		}
+		if spec.Architecture == "kimi-linear" {
+			layer.Recurrent = spec.IsRecurrentLayer(block)
+			if layer.Recurrent {
+				inner := uint64(spec.SSMInnerSize)
+				for name, destination := range map[string]*gguf.TensorInfo{
+					"attn_q.weight": &layer.AttentionQ, "attn_k.weight": &layer.AttentionK,
+					"attn_v.weight": &layer.AttentionV, "attn_output.weight": &layer.AttentionOutput,
+				} {
+					shape := []uint64{uint64(spec.EmbeddingLength), inner}
+					if name == "attn_output.weight" {
+						shape = []uint64{inner, uint64(spec.EmbeddingLength)}
+					}
+					item, itemErr := required(prefix+name, shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*destination = item
+				}
+				conv := func(name string) (*gguf.TensorInfo, error) {
+					item, ok := tensors[prefix+name]
+					if !ok {
+						return nil, fmt.Errorf("required tensor %q is missing", prefix+name)
+					}
+					valid3 := item.Dimensions == 3 && item.Shape[0] == uint64(spec.SSMConvKernel) && item.Shape[1] == 1 && item.Shape[2] == inner
+					valid4 := item.Dimensions == 4 && item.Shape[0] == uint64(spec.SSMConvKernel) && item.Shape[1] == 1 && item.Shape[2] == inner && item.Shape[3] == 1
+					if !valid3 && !valid4 {
+						return nil, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+					}
+					return &item, nil
+				}
+				for name, destination := range map[string]**gguf.TensorInfo{
+					"ssm_conv1d_q.weight": &layer.SSMQueryConv,
+					"ssm_conv1d_k.weight": &layer.SSMKeyConv,
+					"ssm_conv1d_v.weight": &layer.SSMValueConv,
+				} {
+					item, itemErr := conv(name)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*destination = item
+				}
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ssm_f_a.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.KDAHeadDim)}, &layer.SSMForgetA},
+					"ssm_f_b.weight":  {[]uint64{uint64(spec.KDAHeadDim), inner}, &layer.SSMForgetB},
+					"ssm_beta.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.HeadCount)}, &layer.SSMBeta},
+					"ssm_dt.bias":     {[]uint64{inner}, &layer.SSMTimeStep},
+					"ssm_g_a.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.KDAHeadDim)}, &layer.SSMOutputGateA},
+					"ssm_g_b.weight":  {[]uint64{uint64(spec.KDAHeadDim), inner}, &layer.SSMOutputGateB},
+					"ssm_norm.weight": {[]uint64{uint64(spec.KDAHeadDim)}, &layer.SSMNorm},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+				ssmA, ok := tensors[prefix+"ssm_a"]
+				if !ok {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"ssm_a")
+				}
+				validA2 := ssmA.Dimensions == 2 && ssmA.Shape[0] == 1 && ssmA.Shape[1] == uint64(spec.HeadCount)
+				validA4 := ssmA.Dimensions == 4 && ssmA.Shape[0] == 1 && ssmA.Shape[1] == uint64(spec.HeadCount) && ssmA.Shape[2] == 1 && ssmA.Shape[3] == 1
+				if !validA2 && !validA4 {
+					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", ssmA.Name, ssmA.Shape)
+				}
+				layer.SSMA = &ssmA
+			} else {
+				if spec.QLoRARank > 0 {
+					item, itemErr := required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					layer.AttentionQ = item
+					item, itemErr = required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					layer.AttentionQNorm = &item
+					item, itemErr = required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					layer.AttentionQB = &item
+				} else if layer.AttentionQ, err = required(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); err != nil {
+					return Weights{}, err
+				}
+				if layer.AttentionOutput, err = required(prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); err != nil {
+					return Weights{}, err
+				}
+				kvA, itemErr := required(prefix+"attn_kv_a_mqa.weight", uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount))
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				layer.AttentionKVAMQA = &kvA
+				kvNorm, itemErr := required(prefix+"attn_kv_a_norm.weight", uint64(spec.KVLoRARank))
+				if itemErr != nil {
+					return Weights{}, itemErr
+				}
+				layer.AttentionKVANorm = &kvNorm
+				nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
+				if item, ok := tensors[prefix+"attn_k_b.weight"]; ok {
+					validated, itemErr := required(item.Name, nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount))
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					layer.AttentionKB = &validated
+					validated, itemErr = required(prefix+"attn_v_b.weight", uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount))
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					layer.AttentionVB = &validated
+				} else {
+					validated, itemErr := required(prefix+"attn_kv_b.weight", uint64(spec.KVLoRARank), uint64(spec.HeadCount)*(nope+uint64(spec.ValueLength)))
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					layer.AttentionKVB = &validated
+				}
+			}
+			if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
+				return Weights{}, err
+			}
+			if block < spec.LeadingDenseBlocks {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination *gguf.TensorInfo
+				}{
+					"ffn_gate.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}, &layer.FeedForwardGate},
+					"ffn_up.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}, &layer.FeedForwardUp},
+					"ffn_down.weight": {[]uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}, &layer.FeedForwardDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = item
+				}
+			} else {
+				for name, shapeAndDestination := range map[string]struct {
+					shape       []uint64
+					destination **gguf.TensorInfo
+				}{
+					"ffn_gate_inp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardRouter},
+					"ffn_gate_exps.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardGateExperts},
+					"ffn_up_exps.weight":    {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpExperts},
+					"ffn_down_exps.weight":  {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardDownExperts},
+					"exp_probs_b.bias":      {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias},
+					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+				} {
+					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
+					if itemErr != nil {
+						return Weights{}, itemErr
+					}
+					*shapeAndDestination.destination = &item
+				}
+			}
+			continue
 		}
 		if spec.Architecture == "nemotron_h" || spec.Architecture == "nemotron_h_moe" {
 			if spec.IsRecurrentLayer(block) {

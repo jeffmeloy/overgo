@@ -111,6 +111,13 @@ type HostLayer struct {
 	SSMBetaAlpha      *reference.Value
 	SSMNorm           *reference.Value
 	SSMOutput         *reference.Value
+	SSMQueryConv      *reference.Value
+	SSMKeyConv        *reference.Value
+	SSMValueConv      *reference.Value
+	SSMForgetA        *reference.Value
+	SSMForgetB        *reference.Value
+	SSMOutputGateA    *reference.Value
+	SSMOutputGateB    *reference.Value
 }
 
 // LoadHostTensor: reads and dequantizes one GGUF tensor
@@ -355,6 +362,7 @@ func LoadHostLayer(
 		}{&result.FeedForwardNorm, info.FeedForwardNorm})
 	}
 	if info.Recurrent {
+		kimi := info.SSMQueryConv != nil
 		if info.ShortConvKernel != nil && (info.ShortConvInput == nil || info.ShortConvOutput == nil) {
 			return HostLayer{}, errors.New("host recurrent convolution catalog is incomplete")
 		}
@@ -366,7 +374,7 @@ func LoadHostLayer(
 				(info.SSMX == nil && info.SSMNorm == nil)) {
 			return HostLayer{}, errors.New("host Mamba SSM catalog is incomplete")
 		}
-		if info.ShortConvKernel == nil && info.SSMInput == nil &&
+		if !kimi && info.ShortConvKernel == nil && info.SSMInput == nil &&
 			(info.AttentionQKV == nil || info.SSMConv1D == nil || info.SSMTimeStep == nil ||
 				info.SSMA == nil || info.SSMNorm == nil || info.SSMOutput == nil ||
 				(info.SSMBetaAlpha == nil && (info.SSMBeta == nil || info.SSMAlpha == nil))) {
@@ -376,7 +384,72 @@ func LoadHostLayer(
 			destination **reference.Value
 			info        *gguf.TensorInfo
 		}{}
-		if info.ShortConvKernel != nil {
+		if kimi {
+			items = append(items,
+				struct {
+					destination *reference.Value
+					info        gguf.TensorInfo
+				}{&result.AttentionQ, info.AttentionQ},
+				struct {
+					destination *reference.Value
+					info        gguf.TensorInfo
+				}{&result.AttentionK, info.AttentionK},
+				struct {
+					destination *reference.Value
+					info        gguf.TensorInfo
+				}{&result.AttentionV, info.AttentionV},
+				struct {
+					destination *reference.Value
+					info        gguf.TensorInfo
+				}{&result.AttentionOutput, info.AttentionOutput},
+			)
+			optionalItems = append(optionalItems,
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMQueryConv, info.SSMQueryConv},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMKeyConv, info.SSMKeyConv},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMValueConv, info.SSMValueConv},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMForgetA, info.SSMForgetA},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMForgetB, info.SSMForgetB},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMBeta, info.SSMBeta},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMA, info.SSMA},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMTimeStep, info.SSMTimeStep},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMOutputGateA, info.SSMOutputGateA},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMOutputGateB, info.SSMOutputGateB},
+				struct {
+					destination **reference.Value
+					info        *gguf.TensorInfo
+				}{&result.SSMNorm, info.SSMNorm},
+			)
+		} else if info.ShortConvKernel != nil {
 			optionalItems = append(optionalItems,
 				struct {
 					destination **reference.Value
@@ -736,6 +809,30 @@ func (layer *HostLayer) GraphInputs(
 			}
 		} else {
 			result.SSMNorm = input("ssm_norm.weight", *layer.SSMNorm)
+		}
+	} else if layer.SSMQueryConv != nil {
+		result.AttentionQ = input("attn_q.weight", layer.AttentionQ)
+		result.AttentionK = input("attn_k.weight", layer.AttentionK)
+		result.AttentionV = input("attn_v.weight", layer.AttentionV)
+		result.AttentionOutput = input("attn_output.weight", layer.AttentionOutput)
+		for _, item := range []struct {
+			name        string
+			value       *reference.Value
+			destination **tensor.Tensor
+		}{
+			{"ssm_conv1d_q.weight", layer.SSMQueryConv, &result.SSMQueryConv},
+			{"ssm_conv1d_k.weight", layer.SSMKeyConv, &result.SSMKeyConv},
+			{"ssm_conv1d_v.weight", layer.SSMValueConv, &result.SSMValueConv},
+			{"ssm_f_a.weight", layer.SSMForgetA, &result.SSMForgetA},
+			{"ssm_f_b.weight", layer.SSMForgetB, &result.SSMForgetB},
+			{"ssm_beta.weight", layer.SSMBeta, &result.SSMBeta},
+			{"ssm_a", layer.SSMA, &result.SSMA},
+			{"ssm_dt.bias", layer.SSMTimeStep, &result.SSMTimeStep},
+			{"ssm_g_a.weight", layer.SSMOutputGateA, &result.SSMOutputGateA},
+			{"ssm_g_b.weight", layer.SSMOutputGateB, &result.SSMOutputGateB},
+			{"ssm_norm.weight", layer.SSMNorm, &result.SSMNorm},
+		} {
+			*item.destination = input(item.name, *item.value)
 		}
 	} else if layer.AttentionQKV != nil {
 		result.AttentionQKV = input("attn_qkv.weight", *layer.AttentionQKV)

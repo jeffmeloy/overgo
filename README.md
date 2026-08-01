@@ -440,6 +440,19 @@ independent MTP KV, pending hidden row, and absolute positions in a bounded
 payload fingerprint-bound to both draft and target models.
 Set `LLAMACPP2GO_QWEN35_MTP_MODEL` to a bundled trunk-plus-MTP fixture to run
 the optional two-step native-quantized session integration test.
+Step3.5 files declaring multiple trained NextN heads expose
+`NewStep35MTPSession`/`AdvanceStep35MTP`. Each head retains its full decoder
+block, per-layer head/sliding/clamp schedule, optional private embedding and
+output head, and independent prompt KV. Drafting rebuilds the growing draft
+prefix under successive heads while carrying the target's pre-output-norm
+hidden rows, matching the pinned chain semantics. `DraftStep35MTPGreedy` and
+`VerifyStep35MTPGreedy` provide bounded confidence-filtered proposals and
+target resynchronization; `DraftStep35MTPSampled` and
+`VerifyStep35MTPSampled` add probability-ratio acceptance and transactional
+sampler state. `SaveStep35MTPSession`/`LoadStep35MTPSession` preserve all head
+caches, active draft rows, trunk cache, positions, and model binding. Set
+`LLAMACPP2GO_STEP35_MTP_MODEL` to run the optional native-quantized multi-head
+session and coordinator integration test.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA
 differentials use synthetic fixtures until a compatible local GGUF is available.
 GLM4-MoE dense-leading and expert catalogs, text-coordinate MRoPE, norm ordering,

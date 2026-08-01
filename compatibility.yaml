@@ -2630,10 +2630,16 @@ models:
       - optional-selected-weight-normalization
       - per-layer-limited-swiglu-experts
       - per-layer-limited-shared-experts
-      - preserved-unexecuted-nextn-mtp-layers
+      - multi-head-full-decoder-nextn-mtp
+      - pre-output-norm-target-hidden-state
+      - per-head-growing-prefix-kv-cache
+      - shared-or-private-mtp-embedding-norm-head
+      - greedy-speculative-accept-rollback
+      - probability-ratio-speculative-acceptance
+      - positive-residual-correction
+      - transactional-draft-target-sampler-state
+      - model-bound-multi-head-mtp-session-state
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   qwen35moe:
     status: experimental

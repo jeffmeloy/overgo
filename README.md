@@ -415,6 +415,9 @@ target vocabulary/shape profile. `DraftQwen35MTPGreedy` and
 `VerifyQwen35MTPGreedy` build bounded probability-filtered proposals, verify
 the prefix without committing a rejected suffix, and resynchronize target
 hidden state at the accepted boundary.
+`SaveQwen35MTPSession`/`LoadQwen35MTPSession` preserve the target trunk cache,
+independent MTP KV, pending hidden row, and absolute positions in a bounded
+payload fingerprint-bound to both draft and target models.
 Set `LLAMACPP2GO_QWEN35_MTP_MODEL` to a bundled trunk-plus-MTP fixture to run
 the optional two-step native-quantized session integration test.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA

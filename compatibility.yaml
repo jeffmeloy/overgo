@@ -2435,6 +2435,7 @@ models:
       - shared-or-private-mtp-embedding-norm-head
       - standalone-mtp-sidecar-pairing
       - greedy-speculative-accept-rollback
+      - draft-and-target-bound-mtp-session-state
     validated_fixture: Qwen3.5-9B-Q8_0.gguf
     additional_validated_fixture: Bonsai-27B-Q1_0.gguf
   qwen3next:
@@ -2623,6 +2624,7 @@ models:
       - shared-or-private-mtp-embedding-norm-head
       - standalone-mtp-sidecar-pairing
       - greedy-speculative-accept-rollback
+      - draft-and-target-bound-mtp-session-state
     limitations:
       - probabilistic-residual-speculative-sampling-pending
     real_model_validation: pending-fixture

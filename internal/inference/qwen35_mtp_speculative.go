@@ -92,6 +92,13 @@ func (r *Runner) VerifyQwen35MTPGreedy(
 	} else if r != target {
 		return nil, errors.New("inference: bundled Qwen3.5 MTP verification requires its owning target runner")
 	}
+	targetModel, err := target.sessionModelSignature()
+	if err != nil {
+		return nil, err
+	}
+	if draft.Base.targetModel != targetModel {
+		return nil, errors.New("inference: Qwen3.5 MTP session belongs to a different target model")
+	}
 	mtpSession := draft.Base
 	targetCache := draft.Base.TrunkCache
 	currentToken := draft.InitialToken

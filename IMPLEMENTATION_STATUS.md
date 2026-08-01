@@ -471,7 +471,10 @@
   bounded probability-filtered drafts, target-verifies one token at a time,
   commits only the accepted prefix, and replaces approximate draft hidden rows
   with target final-normalized rows. Catalog, CPU, and CUDA differentials pass;
-  real-model MTP validation awaits a local fixture.
+  the bounded resumable state carries trunk/MTP caches, pending hidden row,
+  absolute positions, and independent draft/target fingerprints with
+  corruption and cross-model rejection coverage. Real-model MTP validation
+  awaits a local fixture.
 - Qwen3-Next executes gated NeoX full attention and recurrent GDN layers with
   optimized QKV-plus-gate or legacy grouped QKVZ projection layouts. Its fused
   beta/alpha projection, adjacent value-head key-group repetition, normalized

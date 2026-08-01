@@ -22,6 +22,7 @@ type Qwen35MTPSession struct {
 	PendingHidden reference.Value
 	MTPStart      uint32
 	Position      uint32
+	targetModel   [32]byte
 }
 
 // NewQwen35MTPSession: trunk-prefix MTP setup.
@@ -47,9 +48,14 @@ func (r *Runner) NewQwen35MTPSession(
 		Shape: tensor.MustShape(uint64(width), 1),
 		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
 	}
+	targetModel, err := r.sessionModelSignature()
+	if err != nil {
+		return nil, err
+	}
 	return &Qwen35MTPSession{
 		TrunkCache: cache, PendingHidden: last,
 		MTPStart: effectiveCachePosition(cache), Position: effectiveCachePosition(cache),
+		targetModel: targetModel,
 	}, nil
 }
 
@@ -74,9 +80,14 @@ func (r *Runner) NewQwen35MTPPairedSession(
 		Shape: tensor.MustShape(uint64(width), 1),
 		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
 	}
+	targetModel, err := target.sessionModelSignature()
+	if err != nil {
+		return nil, err
+	}
 	return &Qwen35MTPSession{
 		TrunkCache: cache, PendingHidden: last,
 		MTPStart: effectiveCachePosition(cache), Position: effectiveCachePosition(cache),
+		targetModel: targetModel,
 	}, nil
 }
 
@@ -97,28 +108,8 @@ func (r *Runner) AdvanceQwen35MTP(
 	if err := r.validateQwen35MTP(); err != nil {
 		return reference.Value{}, nil, err
 	}
-	if err := r.validateCache(session.TrunkCache); err != nil {
-		return reference.Value{}, nil, fmt.Errorf("inference: Qwen3.5 MTP trunk cache: %w", err)
-	}
-	if session.PendingHidden.Shape.Rank != 2 ||
-		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
-		session.PendingHidden.Shape.Dims[1] != 1 || session.Position == math.MaxUint32 {
-		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP session state is incompatible")
-	}
-	basePosition := effectiveCachePosition(session.TrunkCache)
-	if session.Position < basePosition || session.Position < session.MTPStart ||
-		session.Layer.Key.Shape.Rank != session.Layer.Value.Shape.Rank ||
-		(session.Layer.Key.Shape.Rank == 0 && session.Position != session.MTPStart) ||
-		(session.Layer.Key.Shape.Rank != 0 &&
-			(session.Layer.Key.Shape.Rank != 3 || session.Layer.Value.Shape.Rank != 3 ||
-				session.Layer.Key.Shape.Dims[0] != uint64(r.spec.KeyLength) ||
-				session.Layer.Value.Shape.Dims[0] != uint64(r.spec.ValueLength) ||
-				session.Layer.Key.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
-				session.Layer.Value.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
-				session.Layer.Key.Shape.Dims[2] != session.Layer.Value.Shape.Dims[2] ||
-				session.Layer.Key.Shape.Dims[2] != uint64(session.Position-session.MTPStart) ||
-				session.Layer.Key.Shape.Dims[2] >= uint64(r.spec.ContextLength))) {
-		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP layer cache is incompatible")
+	if err := r.validateQwen35MTPSession(session); err != nil {
+		return reference.Value{}, nil, err
 	}
 	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
@@ -232,6 +223,7 @@ func (r *Runner) AdvanceQwen35MTP(
 		PendingHidden: results[nextHidden],
 		MTPStart:      session.MTPStart,
 		Position:      session.Position + 1,
+		targetModel:   session.targetModel,
 	}
 	return logitValue, next, nil
 }
@@ -240,6 +232,36 @@ func (r *Runner) validateQwen35MTP() error {
 	if r.spec.NextNPredictLayers != 1 || r.weights.Qwen35MTP == nil ||
 		(r.spec.Architecture != "qwen35" && r.spec.Architecture != "qwen35moe") {
 		return errors.New("inference: model has no supported Qwen3.5 MTP block")
+	}
+	return nil
+}
+
+func (r *Runner) validateQwen35MTPSession(session *Qwen35MTPSession) error {
+	if session == nil || session.TrunkCache == nil {
+		return errors.New("inference: Qwen3.5 MTP session is invalid")
+	}
+	if err := r.validateCache(session.TrunkCache); err != nil {
+		return fmt.Errorf("inference: Qwen3.5 MTP trunk cache: %w", err)
+	}
+	if session.PendingHidden.Shape.Rank != 2 ||
+		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
+		session.PendingHidden.Shape.Dims[1] != 1 || session.Position == math.MaxUint32 {
+		return errors.New("inference: Qwen3.5 MTP session state is incompatible")
+	}
+	basePosition := effectiveCachePosition(session.TrunkCache)
+	if session.Position < basePosition || session.Position < session.MTPStart ||
+		session.Layer.Key.Shape.Rank != session.Layer.Value.Shape.Rank ||
+		(session.Layer.Key.Shape.Rank == 0 && session.Position != session.MTPStart) ||
+		(session.Layer.Key.Shape.Rank != 0 &&
+			(session.Layer.Key.Shape.Rank != 3 || session.Layer.Value.Shape.Rank != 3 ||
+				session.Layer.Key.Shape.Dims[0] != uint64(r.spec.KeyLength) ||
+				session.Layer.Value.Shape.Dims[0] != uint64(r.spec.ValueLength) ||
+				session.Layer.Key.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
+				session.Layer.Value.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
+				session.Layer.Key.Shape.Dims[2] != session.Layer.Value.Shape.Dims[2] ||
+				session.Layer.Key.Shape.Dims[2] != uint64(session.Position-session.MTPStart) ||
+				session.Layer.Key.Shape.Dims[2] >= uint64(r.spec.ContextLength))) {
+		return errors.New("inference: Qwen3.5 MTP layer cache is incompatible")
 	}
 	return nil
 }

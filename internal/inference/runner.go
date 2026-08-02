@@ -163,6 +163,7 @@ type Runner struct {
 	modelSignatureOnce  sync.Once
 	promptCaches        []*cachedPrompt
 	promptCacheCapacity int
+	cachePageTokens     uint32
 }
 
 type cachedPrompt struct {
@@ -180,7 +181,9 @@ type OpenOptions struct {
 	// PromptCacheEntries: bounds independently reusable prompt states
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
-	LoRAAdapters       []LoRAConfig
+	// CachePageTokens: retained CUDA KV page width; zero selects 256.
+	CachePageTokens uint32
+	LoRAAdapters    []LoRAConfig
 }
 
 func Open(path string, deviceOrdinal int) (*Runner, error) {
@@ -197,6 +200,10 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	promptCacheCapacity := options.PromptCacheEntries
 	if promptCacheCapacity == 0 {
 		promptCacheCapacity = 1
+	}
+	cachePageTokens := options.CachePageTokens
+	if cachePageTokens == 0 {
+		cachePageTokens = 256
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -351,6 +358,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		outputBias:          outputBias,
 		loraAdapters:        loraAdapters,
 		promptCacheCapacity: promptCacheCapacity,
+		cachePageTokens:     cachePageTokens,
 	}, nil
 }
 
@@ -3336,16 +3344,8 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
-	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 && r.hasPreloadedWeights() && r.spec.Architecture != "lfm2" &&
-		r.spec.Architecture != "lfm2moe" && r.spec.Architecture != "gemma3n" &&
-		r.spec.Architecture != "plm" &&
-		r.spec.Architecture != "minicpm3" && r.spec.Architecture != "deepseek2" &&
-		r.spec.Architecture != "mistral4" && !isDSAArchitecture(r.spec.Architecture) && r.spec.Architecture != "falcon-h1" && r.spec.Architecture != "mamba" &&
-		r.spec.Architecture != "mamba2" && r.spec.Architecture != "jamba" &&
-		r.spec.Architecture != "granitehybrid" && r.spec.Architecture != "plamo2" &&
-		r.spec.Architecture != "nemotron_h" && r.spec.Architecture != "nemotron_h_moe" &&
-		r.spec.Architecture != "kimi-linear" && r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2" &&
-		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7"
+	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 &&
+		r.hasPreloadedWeights() && supportsPersistentDeviceCache(r.spec)
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {

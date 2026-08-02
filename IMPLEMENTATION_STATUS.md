@@ -43,16 +43,15 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Central architecture registry with family/capability profiles.
 - Embedded common, attention, MoE, recurrent, encoder, and multimodal specs.
 - Family-routed graph construction and tensor-catalog validation.
+- Paged retained-device caches and dynamic multi-sequence cache batches.
+- Padded multi-sequence T5 encoder/decoder batches with explicit lengths.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
 ## Active roadmap
 
-### Runtime architecture
-
-1. Add device paging, multiple sequences, and continuous-batching cache
-   semantics.
-2. Add padding masks for padded multi-sequence T5 batches.
+No unblocked implementation items remain. Deferred work below requires an
+external fixture, policy, certificate, or model/projector contract.
 
 ## Deferred or externally blocked
 

@@ -695,8 +695,11 @@ matrix.
   middle-range compaction in owned CUDA allocations using direct
   device-to-device range copies; zero-prefix shifts remain pointer views.
   `n_discard` accepts an explicit bounded removal size, with zero using the
-  pinned half-window default. Device paging, multiple sequences, and
-  continuous batching remain pending.
+  pinned half-window default. Retained CUDA caches expose fixed-width pointer
+  pages rebuilt after append, trim, pointer shift, and owned compaction.
+  `ContinuousBatch` owns sequence-tagged host or device caches, supports
+  transactional multi-sequence append, dynamic admission/removal, host-cache
+  forks, context shifting, and sorted page/state snapshots.
 - Native device execution currently supports Q1_0/Q2_0, Q4_0/Q4_1,
   Q5_0/Q5_1, Q8_0/Q8_1/Q8_K, Q2_K-Q6_K, TQ1_0/TQ2_0,
   every pinned IQ1/IQ2/IQ3/IQ4 layout, and MXFP4/NVFP4 matrices. This covers
@@ -828,7 +831,9 @@ matrix.
   context shifting; callers can also generate incrementally with `DecodeT5`.
   Exact source-token matches reuse LoRA-isolated cached encoder output;
   prefix-only matches are re-encoded because source attention is bidirectional.
-  Padding masks for padded multi-sequence batches remain pending.
+  Rectangular multi-sequence source and decoder batches carry explicit active
+  lengths; padding suffixes are excluded before graph construction, so they
+  cannot enter encoder attention, decoder attention, cross attention, or cache.
   Decoder relative buckets support active-range cache deletion; fixed encoder
   cross-attention K/V remains unchanged while self-attention rows compact.
 
@@ -975,15 +980,15 @@ the local GGUF fixtures contains FIM metadata or recognized FIM control-token
 spellings, so end-to-end token/output differential validation remains
 deferred until a compatible model is available.
 
-### Deferred: continuous-batching graph and cache architecture
+### Deferred: fused continuous-batching server scheduling
 
-The HTTP layer can admit multiple slots, but `Runner.Generate` intentionally
-holds one model-wide lock across prompt evaluation, decode, callbacks, and
-cache mutation, and the CUDA worker owns one serial stream. True continuous
-batching requires sequence-tagged device KV/recurrent caches, variable active
-batch graph shapes, per-sequence sampling/stop state, and cancellation-safe
-compaction. Concurrent admission is not reported as batching; this tranche is
-deferred while independent compatibility work continues.
+`ContinuousBatch` now supplies sequence-tagged host/device caches, page tables,
+dynamic admission/removal, transactional steps, context compaction, and host
+forks. Graph execution still uses the model-wide lock and the CUDA worker's
+single serial stream. Fusing variable active sequences into one graph and
+integrating per-sequence sampling, stop state, and cancellation into HTTP
+scheduling remain performance/server work; concurrent admission alone is not
+reported as fused batching.
 
 ### Deferred: RWKV and PLaMo2 tokenizer oracle fixtures
 
@@ -1619,6 +1624,18 @@ validation uses matching attention, MoE, recurrent, hybrid, encoder,
 encoder-decoder, diffusion, and draft entry points over the shared strict
 shape/name validation core. Family routing is sourced only from the central
 architecture profile.
+
+Retained CUDA KV caches now maintain configurable token-page tables. Each page
+contains layer-specific device pointer views with bounded token extents;
+append, suffix trim, zero-copy shift, and owned range compaction rebuild the
+table. The continuous-batch session layers sequence ownership on those caches,
+commits multi-sequence steps transactionally, permits sequences to enter and
+leave between steps, clones host branches, and exposes stable page snapshots.
+
+T5 now accepts padded rectangular source and decoder batches with explicit
+per-row lengths. Each active prefix is evaluated as an independent session
+inside one batch transaction, which provides the required padding mask
+semantics without placing padding tokens into any attention graph or cache.
 
 ## Working rules
 

@@ -115,6 +115,22 @@ claims:
         contains: "func ReadWeights("
       - path: internal/model/graph_dispatch_test.go
         contains: "func TestArchitectureBlockDispatchRoutesFamilies("
+  - id: paged-continuous-cache
+    status: implemented
+    summary: Retained CUDA cache pages and transactional multi-sequence cache steps support dynamic admission.
+    evidence:
+      - path: internal/inference/continuous_batch.go
+        contains: "func (b *ContinuousBatch) Step("
+      - path: internal/inference/device_cache_paging_test.go
+        contains: "func TestRebuildDeviceCachePagesCreatesPointerViews("
+  - id: padded-t5-batches
+    status: implemented
+    summary: Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state.
+    evidence:
+      - path: internal/inference/t5_batch.go
+        contains: "func (r *Runner) NewT5BatchSession("
+      - path: internal/inference/t5_batch_test.go
+        contains: "func TestValidatePaddedTokenBatchMasksSuffixes("
   - id: reproducible-release
     status: implemented
     summary: Release archives are deterministic and compared across two builds.

@@ -16,12 +16,21 @@ import (
 )
 
 type deviceKVCache struct {
-	Outputs  *executor.RetainedOutputs
-	Keys     []executor.DeviceValue
-	Values   []executor.DeviceValue
-	Tokens   uint32
-	Position uint32
-	Logits   []float32
+	Outputs    *executor.RetainedOutputs
+	Keys       []executor.DeviceValue
+	Values     []executor.DeviceValue
+	Pages      []deviceKVPage
+	PageTokens uint32
+	Tokens     uint32
+	Position   uint32
+	Logits     []float32
+}
+
+type deviceKVPage struct {
+	Start  uint32
+	Tokens uint32
+	Keys   []executor.DeviceValue
+	Values []executor.DeviceValue
 }
 
 func (c *deviceKVCache) Release(ctx context.Context) error {
@@ -99,7 +108,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 		}
 	}
 	cache.Tokens = uint32(remaining)
-	return nil
+	return rebuildDeviceCachePages(cache, cache.PageTokens)
 }
 
 func (r *Runner) compactDeviceCacheForAppend(
@@ -174,15 +183,20 @@ func (r *Runner) compactDeviceCacheForAppend(
 		return nil, err
 	}
 	next := &deviceKVCache{
-		Outputs:  outputs,
-		Keys:     make([]executor.DeviceValue, len(cache.Keys)),
-		Values:   make([]executor.DeviceValue, len(cache.Values)),
-		Tokens:   cache.Tokens - discard,
-		Position: cache.Position,
+		Outputs:    outputs,
+		Keys:       make([]executor.DeviceValue, len(cache.Keys)),
+		Values:     make([]executor.DeviceValue, len(cache.Values)),
+		Tokens:     cache.Tokens - discard,
+		Position:   cache.Position,
+		PageTokens: cache.PageTokens,
 	}
 	for index := range next.Keys {
 		next.Keys[index] = values[2*index]
 		next.Values[index] = values[2*index+1]
+	}
+	if err := rebuildDeviceCachePages(next, next.PageTokens); err != nil {
+		_ = next.Release(context.Background())
+		return nil, err
 	}
 	return next, nil
 }
@@ -569,11 +583,12 @@ func (r *Runner) forwardDeviceCachedLocked(
 		return reference.Value{}, nil, cause
 	}
 	next := &deviceKVCache{
-		Outputs:  retained,
-		Keys:     make([]executor.DeviceValue, len(keys)),
-		Values:   make([]executor.DeviceValue, len(values)),
-		Tokens:   pastTokens + uint32(len(tokenIDs)),
-		Position: nextPosition + uint32(len(tokenIDs)),
+		Outputs:    retained,
+		Keys:       make([]executor.DeviceValue, len(keys)),
+		Values:     make([]executor.DeviceValue, len(values)),
+		Tokens:     pastTokens + uint32(len(tokenIDs)),
+		Position:   nextPosition + uint32(len(tokenIDs)),
+		PageTokens: r.cachePageTokens,
 	}
 	logits, err := retained.CopyToHost(ctx, logitsTensor)
 	if err != nil {
@@ -591,5 +606,57 @@ func (r *Runner) forwardDeviceCachedLocked(
 			return fail(fmt.Errorf("inference: missing retained value for layer %d", layerIndex))
 		}
 	}
+	if err := rebuildDeviceCachePages(next, next.PageTokens); err != nil {
+		return fail(err)
+	}
 	return reference.Value{}, next, nil
+}
+
+func rebuildDeviceCachePages(
+	cache *deviceKVCache,
+	pageTokens uint32,
+) error {
+	if cache == nil {
+		return errors.New("inference: device cache is nil")
+	}
+	if pageTokens == 0 {
+		pageTokens = 256
+	}
+	cache.PageTokens = pageTokens
+	cache.Pages = cache.Pages[:0]
+	for start := uint32(0); start < cache.Tokens; start += pageTokens {
+		count := pageTokens
+		if remaining := cache.Tokens - start; remaining < count {
+			count = remaining
+		}
+		page := deviceKVPage{
+			Start: start, Tokens: count,
+			Keys:   make([]executor.DeviceValue, len(cache.Keys)),
+			Values: make([]executor.DeviceValue, len(cache.Values)),
+		}
+		for layer := range cache.Keys {
+			for source, destination := range map[*executor.DeviceValue]*executor.DeviceValue{
+				&cache.Keys[layer]:   &page.Keys[layer],
+				&cache.Values[layer]: &page.Values[layer],
+			} {
+				*destination = *source
+				if source.Shape.Rank != 3 || source.Shape.Dims[2] != uint64(cache.Tokens) {
+					continue
+				}
+				stride := source.Shape.Dims[0] * source.Shape.Dims[1]
+				if stride == 0 || stride > math.MaxUint64/4 ||
+					uint64(start) > math.MaxUint64/(stride*4) {
+					return fmt.Errorf("inference: device cache layer %d page offset overflows", layer)
+				}
+				offset := uint64(start) * stride * 4
+				if uint64(source.Pointer) > math.MaxUint64-offset {
+					return fmt.Errorf("inference: device cache layer %d page pointer overflows", layer)
+				}
+				destination.Pointer += driver.DevicePtr(offset)
+				destination.Shape.Dims[2] = uint64(count)
+			}
+		}
+		cache.Pages = append(cache.Pages, page)
+	}
+	return nil
 }

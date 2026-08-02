@@ -1746,6 +1746,15 @@ metadata/catalog checks, preprocessing and prompt tests, plus a nonzero
 multi-window CPU/CUDA differential pass; real-model validation remains
 fixture-gated.
 
+MiMo-VL now executes dynamic Pillow-bicubic preprocessing, split temporal-pair
+patch projection, grouped-query vision attention, two-axis RoPE, alternating
+row/column symmetric windows with per-head sink logits, SwiGLU blocks, affine
+post normalization, and the 2x2 GELU merger. Native single/multi-image prompts
+use the pinned MiMo system turn and vision markers while history prompts retain
+caller formatting. Strict metadata/catalog checks, order round trips, prompt
+coverage, reference/CUDA sink-window differentials, and a nonzero end-to-end
+CPU/CUDA differential pass; real-model validation remains fixture-gated.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

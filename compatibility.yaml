@@ -2963,8 +2963,17 @@ models:
       - executable-nextn-mtp-layer
       - stateful-greedy-nextn-draft-and-verification
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - vision-tower-pending
+      - mimovl-dynamic-image-projector
+      - temporal-pair-convolutional-patch-embedding
+      - grouped-query-vision-attention
+      - row-and-column-symmetric-window-attention
+      - per-head-vision-attention-sinks
+      - two-axis-vision-rope
+      - swiglu-vision-feed-forward
+      - two-by-two-gelu-merger
+      - native-mimo-image-prompt
+      - ordered-multi-image-soft-token-merge
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   gemma4:
     status: experimental

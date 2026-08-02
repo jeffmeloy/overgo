@@ -15,6 +15,7 @@ import (
 
 const Qwen3VLImagePad = "<|image_pad|>"
 const Qwen3VLVideoPad = "<|video_pad|>"
+const MiMoVLSystemPrompt = "You are MiMo, an AI assistant developed by Xiaomi."
 const PaddleOCRImagePad = "<|IMAGE_PLACEHOLDER|>"
 const Llama4ImageStart = "<|image_start|>"
 const Llama4ImageEnd = "<|image_end|>"
@@ -114,6 +115,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case mimoVLProjectorType:
+		return OpenMiMoVLWithOptions(path, MiMoVLOpenOptions(options))
 	case granite4VisionProjectorType:
 		return OpenGranite4VisionWithOptions(path, Granite4VisionOpenOptions(options))
 	case llama4ProjectorType:
@@ -569,6 +572,97 @@ func OpenVideoProjectorWithOptions(path string, options OpenOptions) (VideoProje
 		return nil, errors.New("projector: selected image projector has no video path")
 	}
 	return video, nil
+}
+
+func (r *MiMoVLRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+}
+
+func (r *MiMoVLRunner) BuildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
+}
+
+func (r *MiMoVLRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+}
+
+func (r *MiMoVLRunner) buildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	history bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: MiMo-VL image/text sequence is inconsistent")
+	}
+	counts := make([]int, len(sources))
+	var embeddings []float32
+	var prompt strings.Builder
+	if !history {
+		prompt.WriteString("<|im_start|>system\n")
+		prompt.WriteString(MiMoVLSystemPrompt)
+		prompt.WriteString("<|im_end|>\n<|im_start|>user\n")
+	}
+	for index, source := range sources {
+		prompt.WriteString(text[index])
+		output, err := r.EncodeImage(ctx, source)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode MiMo-VL image %d: %w", index, err)
+		}
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		prompt.WriteString("<|vision_start|>")
+		prompt.WriteString(strings.Repeat(Qwen3VLImagePad, counts[index]))
+		prompt.WriteString("<|vision_end|>")
+		embeddings = append(embeddings, output.Embeddings.Data...)
+	}
+	prompt.WriteString(text[len(text)-1])
+	if !history {
+		prompt.WriteString("<|im_end|>\n<|im_start|>assistant\n")
+	}
+	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize MiMo-VL image prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText(Qwen3VLImagePad, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize MiMo-VL placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: MiMo-VL placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := variableTokenRuns(ids, padIDs[0], counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: MiMo-VL image prompt: %w", err)
+	}
+	var indices []uint32
+	for index, start := range starts {
+		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: r.spec.ProjectionDim,
+		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices,
+	}, nil
 }
 
 func (r *Qwen3VLRunner) BuildImagePrompt(

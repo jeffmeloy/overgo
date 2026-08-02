@@ -2432,6 +2432,18 @@ func (b *Builder) AttentionSymmetricWindow(
 	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, false, true, 0, window)
 }
 
+func (b *Builder) AttentionSymmetricWindowWithSinks(
+	query, key, value, sinks *Tensor,
+	scale float32,
+	window uint32,
+) *Tensor {
+	if window == 0 {
+		b.setError(errors.New("attention window must be positive"))
+		return nil
+	}
+	return b.attentionWithWindow(query, key, value, nil, sinks, scale, 0, 0, false, true, 0, window)
+}
+
 func (b *Builder) attentionWithWindow(
 	query, key, value, bias, sinks *Tensor,
 	scale float32,

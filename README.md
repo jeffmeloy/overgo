@@ -6,7 +6,7 @@ through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE,
 gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM text/projected-visual decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4 and Gemma Embedding,
 ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE multimodal-coordinate decoding, GPT-2/GPT-NeoX, Granite/GraniteMoE with Granite 4 vision projection and deepstack injection, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL image projection/text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
-InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniCPM/MiniCPM3, MPT,
+InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2 with MiMo-VL image projection, MiniCPM/MiniCPM3, MPT,
 Mistral 3 dense/MoE, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, PaddleOCR text-coordinate decoding, Qwen2-VL and dense/MoE Qwen3-VL image/video projection and text-coordinate decoding, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,
 RND1 non-causal MoE diffusion generation, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5 encoder-decoder models and UMT5
@@ -176,6 +176,9 @@ projector family from GGUF metadata. Llama 4 runs UHD refined-grid/overview
 tiling, learned-position ViT projection with two-axis RoPE, and its pixel-shuffle
 adapter. Granite 4 Vision runs overview-first UHD tiling, a learned-position
 SigLIP ViT, per-stream window QFormer projection, and decoder deepstack injection.
+MiMo-VL runs dynamic Pillow-bicubic preprocessing, temporal-pair patch
+projection, grouped-query ViT blocks with row/column symmetric windows and
+attention sinks, and a 2x2 GELU merger.
 Hunyuan-VL runs dynamic Pillow-bicubic
 preprocessing, learned-position ViT projection, convolutional spatial merge,
 row-newline prefix construction, and four-axis image coordinates. Qwen3.5 runs the native Qwen3-VL patch
@@ -196,7 +199,7 @@ installation. FFmpeg samples at `-video-fps`; `-video-max-frames` bounds work.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native
-audio turn. `-mmproj-cuda` keeps Granite 4 Vision, Hunyuan-VL, Llama 4, Qwen3-VL, and Gemma 4 projector weights
+audio turn. `-mmproj-cuda` keeps Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, Qwen3-VL, and Gemma 4 projector weights
 resident on the selected `-device` and executes their full image/video graphs
 on CUDA; Gemma 4 audio uses the same path.
 

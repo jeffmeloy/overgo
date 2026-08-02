@@ -1351,6 +1351,31 @@ func TestExecuteSymmetricWindowAttention(t *testing.T) {
 	}
 }
 
+func TestExecuteSymmetricWindowAttentionWithSinks(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(1, 1, 5)
+	query := builder.Input("query", dtype.F32, shape)
+	key := builder.Input("key", dtype.F32, shape)
+	value := builder.Input("value", dtype.F32, shape)
+	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
+	output := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 1, 4)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: shape, Data: make([]float32, 5)},
+		key:   {Shape: shape, Data: make([]float32, 5)},
+		value: {Shape: shape, Data: []float32{1, 2, 4, 8, 16}},
+		sinks: {Shape: sinks.Shape, Data: []float32{0}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{7.0 / 4, 15.0 / 5, 31.0 / 6, 30.0 / 5, 28.0 / 4}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("symmetric sink attention[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
 func TestExecuteChunkedWindowAttention(t *testing.T) {
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(1, 1, 6)

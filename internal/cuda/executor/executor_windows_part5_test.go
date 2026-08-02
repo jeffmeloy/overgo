@@ -1188,7 +1188,9 @@ func TestExecutorSymmetricWindowAttentionMatchesReference(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 7))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 7))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(3, 1, 7))
+	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(2))
 	output := builder.AttentionSymmetricWindow(query, key, value, 0.5, 4)
+	withSinks := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 0.5, 4)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1196,8 +1198,10 @@ func TestExecutorSymmetricWindowAttentionMatchesReference(t *testing.T) {
 		query: patternedValue(query.Shape, 13, 0.8, 0),
 		key:   patternedValue(key.Shape, 17, 0.7, 0),
 		value: patternedValue(value.Shape, 19, 0.2, 0),
+		sinks: {Shape: sinks.Shape, Data: []float32{-0.3, 0.4}},
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	targets := []*tensor.Tensor{output, withSinks}
+	want, err := reference.Execute(targets, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1206,11 +1210,12 @@ func TestExecutorSymmetricWindowAttentionMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	got, err := cuda.Execute(context.Background(), targets, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
 	compare(t, got[output].Data, want[output].Data, 3e-5)
+	compare(t, got[withSinks].Data, want[withSinks].Data, 3e-5)
 }
 
 func TestExecutorChunkedWindowAttentionMatchesReference(t *testing.T) {

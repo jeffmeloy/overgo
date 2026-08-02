@@ -110,7 +110,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `mamba` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `mamba2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `mellum` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `mimo2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | vision-tower-pending |
+| `mimo2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `minicpm` | experimental | model-dependent | pending-fixture | - |
 | `minicpm3` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `minimax-m2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |

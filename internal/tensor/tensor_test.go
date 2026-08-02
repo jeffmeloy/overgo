@@ -65,6 +65,11 @@ func TestBuilderAttentionSinks(t *testing.T) {
 	if !attributes.HasSinks || len(output.Inputs) != 4 || output.Inputs[3] != sinks {
 		t.Fatalf("unexpected sink attention: %+v", attributes)
 	}
+	windowed := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 1, 2)
+	attributes = windowed.Attrs.(AttentionAttributes)
+	if !attributes.HasSinks || !attributes.SymmetricWindow || attributes.Window != 2 || attributes.Causal {
+		t.Fatalf("unexpected symmetric sink attention: %+v", attributes)
+	}
 
 	invalid := NewBuilder()
 	invalid.AttentionWithSinksWithOffset(

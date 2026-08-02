@@ -51,12 +51,12 @@ claims:
         contains: "func TestWorkerMemoryRoundTrip("
   - id: editable-prompt-cache
     status: implemented
-    summary: Bounded prompt caches support selection, eviction, and context edits.
+    summary: Bounded prompt caches support selection, eviction, context edits, and exact media-signed replay.
     evidence:
       - path: internal/inference/prompt_cache.go
         contains: "func (r *Runner) selectPromptCache("
       - path: internal/inference/prompt_cache_test.go
-        contains: "func TestMultiplePromptCacheSelectionAndEviction("
+        contains: "func TestProjectedPromptCacheRequiresExactMediaSignature("
   - id: constrained-generation
     status: implemented
     summary: GBNF and JSON Schema constraints match pinned upstream corpora.
@@ -73,6 +73,14 @@ claims:
         contains: "func (r *Qwen3VLRunner) BuildImagesPrompt("
       - path: internal/server/server_part3_test.go
         contains: "func TestResponsesMultipleImagesPreservesContentOrder("
+  - id: media-history
+    status: implemented
+    summary: Chat and Responses preserve projected images in earlier or final user turns through the complete formatted history.
+    evidence:
+      - path: internal/projector/prompt.go
+        contains: "func (r *Gemma4Runner) BuildImagesHistoryPrompt("
+      - path: internal/server/server_part2_test.go
+        contains: "func TestChatImageHistoryPreservesTurnPositionAndReplay("
   - id: multimodal-token-counting
     status: implemented
     summary: Chat and Responses token counts use the projected media prompt.

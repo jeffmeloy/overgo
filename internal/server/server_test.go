@@ -89,6 +89,47 @@ type fakeQwen3VLProjector struct {
 	text   []string
 }
 
+type fakeHistoryProjector struct {
+	fakeQwen3VLProjector
+	historyText []string
+	historyRuns int
+}
+
+func (f *fakeHistoryProjector) BuildImagesHistoryPrompt(
+	_ context.Context,
+	_ projector.ImageTokenizer,
+	images []image.Image,
+	text []string,
+) (projector.MultimodalPrompt, error) {
+	f.images = len(images)
+	f.historyText = append([]string(nil), text...)
+	f.historyRuns++
+	return projector.MultimodalPrompt{
+		TokenIDs:              []tokenizer.TokenID{7, 8, 8, 9},
+		Embeddings:            make([]float32, 2*2560),
+		EmbeddingWidth:        2560,
+		EmbeddingTokenIndices: []uint32{1, 2},
+		AttentionBlocks:       []projector.AttentionBlock{{Start: 1, End: 3}},
+	}, nil
+}
+
+type historyGenerator struct {
+	*fakeGenerator
+}
+
+func (g *historyGenerator) FormatChat(messages []inference.ChatMessage) (string, error) {
+	if len(messages) == 0 {
+		return "", errors.New("chat message list is empty")
+	}
+	var result strings.Builder
+	result.WriteString("<chat>")
+	for _, message := range messages {
+		fmt.Fprintf(&result, "<%s>%s</%s>", message.Role, message.Content, message.Role)
+	}
+	result.WriteString("<assistant>")
+	return result.String(), nil
+}
+
 func (f *fakeQwen3VLProjector) BuildImagesPrompt(
 	_ context.Context,
 	_ projector.ImageTokenizer,
@@ -1726,8 +1767,9 @@ func TestNativeCompletionMultimodalRequiresProjector(t *testing.T) {
 	}
 }
 
-func TestNativeCompletionProjectedInputsRejectsPromptCache(t *testing.T) {
-	handler := newTestHandler(t, &fakeGenerator{})
+func TestNativeCompletionProjectedInputsAllowSignedPromptCache(t *testing.T) {
+	generator := &fakeGenerator{}
+	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/completion",
@@ -1739,7 +1781,7 @@ func TestNativeCompletionProjectedInputsRejectsPromptCache(t *testing.T) {
 	)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "cannot use cache_prompt") {
+	if response.Code != http.StatusOK || !generator.cachePrompt || generator.projectedInputs == nil {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 }

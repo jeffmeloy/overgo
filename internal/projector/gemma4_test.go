@@ -312,6 +312,21 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 	}
 }
 
+func TestGemma4ResizeTargetMatchesPinnedDynamicResize(t *testing.T) {
+	spec := Gemma4Spec{
+		TeacherPatch: 16, PoolKernel: 3, ModelPatch: 48, PatchWidth: 48 * 48 * 3,
+		Hidden: 3840, PositionCount: 1120, MaxImageTokens: 280,
+		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
+	}
+	height, width, err := gemma4ResizeTarget(480, 832, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if height != 480 || width != 816 || height/spec.ModelPatch*width/spec.ModelPatch != 170 {
+		t.Fatalf("target = %dx%d tokens=%d", width, height, height/spec.ModelPatch*width/spec.ModelPatch)
+	}
+}
+
 func TestGemma4RealFixture(t *testing.T) {
 	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_IMAGE")

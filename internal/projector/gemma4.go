@@ -263,24 +263,22 @@ func gemma4ResizeTarget(height, width int, spec Gemma4Spec) (int, int, error) {
 	if height <= 0 || width <= 0 {
 		return 0, 0, fmt.Errorf("projector: invalid image geometry %dx%d", width, height)
 	}
-	maxPatches := spec.MaxImageTokens * spec.PoolKernel * spec.PoolKernel
-	targetPixels := float64(maxPatches * spec.TeacherPatch * spec.TeacherPatch)
-	factor := math.Sqrt(targetPixels / float64(height*width))
-	resizedH := int(math.Floor(factor*float64(height)/float64(spec.ModelPatch))) * spec.ModelPatch
-	resizedW := int(math.Floor(factor*float64(width)/float64(spec.ModelPatch))) * spec.ModelPatch
-	if resizedH == 0 && resizedW == 0 {
-		return 0, 0, fmt.Errorf("projector: image %dx%d rounds to zero", width, height)
-	}
-	maxSide := spec.MaxImageTokens * spec.ModelPatch
-	if resizedH == 0 {
-		resizedH = spec.ModelPatch
-		resizedW = min((width/height)*spec.ModelPatch, maxSide)
-	} else if resizedW == 0 {
-		resizedW = spec.ModelPatch
-		resizedH = min((height/width)*spec.ModelPatch, maxSide)
-	}
-	if resizedH*resizedW > maxPatches*spec.TeacherPatch*spec.TeacherPatch {
-		return 0, 0, errors.New("projector: Gemma 4 image exceeds token budget")
+	align := spec.ModelPatch
+	round := func(value float64) int { return int(math.Round(value/float64(align))) * align }
+	floor := func(value float64) int { return int(math.Floor(value/float64(align))) * align }
+	ceil := func(value float64) int { return int(math.Ceil(value/float64(align))) * align }
+	resizedH := max(align, round(float64(height)))
+	resizedW := max(align, round(float64(width)))
+	maxPixels := spec.MaxImageTokens * align * align
+	minPixels := min(40, spec.MaxImageTokens) * align * align
+	if resizedH*resizedW > maxPixels {
+		beta := math.Sqrt(float64(height*width) / float64(maxPixels))
+		resizedH = max(align, floor(float64(height)/beta))
+		resizedW = max(align, floor(float64(width)/beta))
+	} else if resizedH*resizedW < minPixels {
+		beta := math.Sqrt(float64(minPixels) / float64(height*width))
+		resizedH = ceil(float64(height) * beta)
+		resizedW = ceil(float64(width) * beta)
 	}
 	return resizedH, resizedW, nil
 }

@@ -255,6 +255,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
 			PromptTokenIDs:  prepared.TokenIDs,
+			CachePrompt:     prepared.ProjectedInputs != nil,
 			ProjectedInputs: prepared.ProjectedInputs,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++
@@ -486,6 +487,7 @@ func (h *Handler) streamResponses(
 			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
 			PromptTokenIDs:  promptIDs,
+			CachePrompt:     projectedInputs != nil,
 			ProjectedInputs: projectedInputs,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++

@@ -1825,7 +1825,7 @@ func TestChatMultimodalValidation(t *testing.T) {
 	}{
 		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[` + imagePart + `]}],"n":2}`, "requires n=1"},
 		{"/v1/chat/completions/input_tokens", `{"messages":[{"role":"user","content":[` + imagePart + `]}],"n":2}`, "requires n=1"},
-		{"/v1/chat/completions", `{"messages":[{"role":"system","content":"x"},{"role":"user","content":[` + imagePart + `]}]}`, "requires one user message"},
+		{"/v1/chat/completions", `{"messages":[{"role":"system","content":"x"},{"role":"user","content":[` + imagePart + `]}]}`, "image 0 is unsupported"},
 		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/x.png"}}]}]}`, "base64 image data URI"},
 	} {
 		response := httptest.NewRecorder()
@@ -1836,6 +1836,90 @@ func TestChatMultimodalValidation(t *testing.T) {
 		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), test.want) {
 			t.Fatalf("%s body %s: status = %d response=%s", test.path, test.body, response.Code, response.Body.String())
 		}
+	}
+}
+
+func TestChatImageHistoryPreservesTurnPositionAndReplay(t *testing.T) {
+	base := &fakeGenerator{}
+	generator := &historyGenerator{fakeGenerator: base}
+	vision := &fakeHistoryProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())
+	body, err := json.Marshal(map[string]any{
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "See "},
+				map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
+				map[string]any{"type": "text", "text": " now"},
+			}},
+			map[string]any{"role": "assistant", "content": "seen"},
+			map[string]any{"role": "user", "content": "recall"},
+		},
+		"max_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantText := []string{
+		"<chat><user>See ",
+		" now</user><assistant>seen</assistant><user>recall</user><assistant>",
+	}
+	for run := 0; run < 2; run++ {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)))
+		if response.Code != http.StatusOK {
+			t.Fatalf("run %d status = %d body=%s", run, response.Code, response.Body.String())
+		}
+		if vision.images != 1 || !slices.Equal(vision.historyText, wantText) {
+			t.Fatalf("run %d projector = images %d text %q", run, vision.images, vision.historyText)
+		}
+		if !slices.Equal(base.promptIDs, []tokenizer.TokenID{7, 8, 8, 9}) ||
+			!base.cachePrompt ||
+			base.projectedInputs == nil || len(base.projectedInputs.EmbeddingOverrides) != 2 ||
+			len(base.projectedInputs.BidirectionalAttentionBlocks) != 1 {
+			t.Fatalf("run %d prompt = %v projected=%+v", run, base.promptIDs, base.projectedInputs)
+		}
+	}
+	if vision.historyRuns != 2 {
+		t.Fatalf("history runs = %d", vision.historyRuns)
+	}
+}
+
+func TestChatImageHistoryOmissionUsesTextPath(t *testing.T) {
+	base := &fakeGenerator{}
+	generator := &historyGenerator{fakeGenerator: base}
+	vision := &fakeHistoryProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(
+		http.MethodPost,
+		"/v1/chat/completions",
+		strings.NewReader(`{"messages":[{"role":"user","content":"See it"},{"role":"assistant","content":"seen"},{"role":"user","content":"recall"}],"max_tokens":1}`),
+	))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if vision.historyRuns != 0 || base.projectedInputs != nil {
+		t.Fatalf("history runs = %d projected=%+v", vision.historyRuns, base.projectedInputs)
 	}
 }
 

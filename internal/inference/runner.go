@@ -167,11 +167,13 @@ type Runner struct {
 }
 
 type cachedPrompt struct {
-	Tokens        []tokenizer.TokenID
-	Hidden        reference.Value
-	Cache         *KVCache
-	Device        *deviceKVCache
-	LoRASignature [32]byte
+	Tokens              []tokenizer.TokenID
+	Hidden              reference.Value
+	Cache               *KVCache
+	Device              *deviceKVCache
+	LoRASignature       [32]byte
+	ProjectionSignature [32]byte
+	HasProjection       bool
 }
 
 type OpenOptions struct {
@@ -3277,9 +3279,6 @@ func (r *Runner) Generate(
 			"inference: post-sampling probability count is negative",
 		)
 	}
-	if options.ProjectedInputs != nil && options.CachePrompt {
-		return nil, "", errors.New("inference: projected inputs cannot use token-only prompt caching")
-	}
 	if err := validateStopSequences(options.StopSequences); err != nil {
 		return nil, "", err
 	}
@@ -3344,6 +3343,10 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
+	var projectionSignature [32]byte
+	if options.ProjectedInputs != nil {
+		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
+	}
 	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 &&
 		r.hasPreloadedWeights() && supportsPersistentDeviceCache(r.spec)
 	defer func() {
@@ -3450,12 +3453,22 @@ func (r *Runner) Generate(
 				hidden, cache, err = r.forwardCachedLocked(ctx, ids[aloraStart:], cache)
 			}
 		} else if options.ProjectedInputs != nil {
-			inputs := *options.ProjectedInputs
-			hidden, cache, err = r.forwardCachedWithEmbeddingOverridesLocked(
-				ctx, ids, nil, inputs.EmbeddingOverrides,
-				inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
-				inputs.BidirectionalAttentionBlocks,
-			)
+			if options.CachePrompt {
+				selectedPromptCache, cached = r.selectProjectedPromptCache(
+					ids, projectionSignature, options.MinCacheReuse,
+				)
+			}
+			if selectedPromptCache != nil {
+				hidden = selectedPromptCache.Hidden
+				cache = selectedPromptCache.Cache
+			} else {
+				inputs := *options.ProjectedInputs
+				hidden, cache, err = r.forwardCachedWithEmbeddingOverridesLocked(
+					ctx, ids, nil, inputs.EmbeddingOverrides,
+					inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
+					inputs.BidirectionalAttentionBlocks,
+				)
+			}
 		} else if options.CachePrompt {
 			selectedPromptCache, cached = r.selectPromptCache(
 				ids,
@@ -3495,11 +3508,13 @@ func (r *Runner) Generate(
 		}
 		if options.CachePrompt {
 			nextPromptCache := &cachedPrompt{
-				Tokens:        append([]tokenizer.TokenID(nil), ids...),
-				Hidden:        hidden,
-				Cache:         cache,
-				Device:        deviceCache,
-				LoRASignature: r.currentLoRASignature(),
+				Tokens:              append([]tokenizer.TokenID(nil), ids...),
+				Hidden:              hidden,
+				Cache:               cache,
+				Device:              deviceCache,
+				LoRASignature:       r.currentLoRASignature(),
+				ProjectionSignature: projectionSignature,
+				HasProjection:       options.ProjectedInputs != nil,
 			}
 			if storeErr := r.storePromptCache(
 				ctx,

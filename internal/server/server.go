@@ -2383,15 +2383,16 @@ type nativePromptProgress struct {
 }
 
 type nativePrompt struct {
-	Text        string
-	TokenIDs    []tokenizer.TokenID
-	Response    any
-	Image       []byte
-	Images      [][]byte
-	MediaText   []string
-	Audio       []float32
-	BeforeMedia string
-	AfterMedia  string
+	Text         string
+	TokenIDs     []tokenizer.TokenID
+	Response     any
+	Image        []byte
+	Images       [][]byte
+	MediaText    []string
+	Audio        []float32
+	BeforeMedia  string
+	AfterMedia   string
+	MediaHistory bool
 }
 
 type preparedPrompt struct {
@@ -2871,7 +2872,17 @@ func (h *Handler) projectNativeMultimodalPrompt(
 		if decodeErr != nil {
 			return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: %w", decodeErr)
 		}
-		if len(images) > 1 {
+		if prompt.MediaHistory {
+			var selected any = h.config.ImageProjector
+			if selected == nil {
+				selected = h.config.Qwen3VLProjector
+			}
+			history, ok := selected.(projector.ImageHistoryProjector)
+			if !ok {
+				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support media history")
+			}
+			projected, err = history.BuildImagesHistoryPrompt(ctx, tokenizerAPI, images, prompt.MediaText)
+		} else if len(images) > 1 {
 			multi, ok := h.config.ImageProjector.(projector.MultiImageProjector)
 			if !ok {
 				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support multiple images")
@@ -2899,6 +2910,7 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	prompt.Images = nil
 	prompt.MediaText = nil
 	prompt.Audio = nil
+	prompt.MediaHistory = false
 	return prompt, inputs, nil
 }
 
@@ -3081,8 +3093,6 @@ func validateNativeCompletionOptions(body nativeCompletionRequest) error {
 		return errors.New("n_cache_reuse is negative")
 	case body.NCacheReuse > 0 && (body.CachePrompt == nil || !*body.CachePrompt):
 		return errors.New("n_cache_reuse requires cache_prompt")
-	case body.ProjectedInputs != nil && body.CachePrompt != nil && *body.CachePrompt:
-		return errors.New("projected_inputs cannot use cache_prompt")
 	case body.NProbs < 0:
 		return errors.New("n_probs must be non-negative")
 	case body.TMaxPredictMS < -1:

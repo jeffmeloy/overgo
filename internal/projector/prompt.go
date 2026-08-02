@@ -48,6 +48,10 @@ type MultiImageProjector interface {
 	BuildImagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, bool) (MultimodalPrompt, error)
 }
 
+type ImageHistoryProjector interface {
+	BuildImagesHistoryPrompt(context.Context, ImageTokenizer, []image.Image, []string) (MultimodalPrompt, error)
+}
+
 type AudioProjector interface {
 	BuildAudioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
 	Close() error
@@ -202,6 +206,64 @@ func (r *Gemma4Runner) BuildImagesPrompt(
 	starts, err := variableTokenRuns(ids, padIDs[0], counts)
 	if err != nil {
 		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 image prompt: %w", err)
+	}
+	indices := make([]uint32, 0)
+	blocks := make([]AttentionBlock, len(starts))
+	for index, start := range starts {
+		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
+		blocks[index] = AttentionBlock{Start: uint32(start), End: uint32(start + counts[index])}
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings,
+		EmbeddingWidth: int(outputs[0].Embeddings.Shape.Dims[0]), EmbeddingStart: starts[0],
+		EmbeddingTokenIndices: indices, AttentionBlocks: blocks,
+	}, nil
+}
+
+func (r *Gemma4Runner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: Gemma 4 history sequence is inconsistent")
+	}
+	outputs := make([]Gemma4Output, len(sources))
+	counts := make([]int, len(sources))
+	var embeddings []float32
+	var prompt strings.Builder
+	for index, source := range sources {
+		prompt.WriteString(text[index])
+		output, err := r.EncodeImage(ctx, source)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode Gemma 4 history image %d: %w", index, err)
+		}
+		outputs[index] = output
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		prompt.WriteString("<|image>")
+		prompt.WriteString(strings.Repeat("<|image|>", counts[index]))
+		prompt.WriteString("<image|>")
+		embeddings = append(embeddings, output.Embeddings.Data...)
+	}
+	prompt.WriteString(text[len(text)-1])
+	ids, err := tokenizer.TokenizeText(prompt.String(), true, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 history: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText("<|image|>", false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 image placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 image placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := variableTokenRuns(ids, padIDs[0], counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 history: %w", err)
 	}
 	indices := make([]uint32, 0)
 	blocks := make([]AttentionBlock, len(starts))
@@ -414,6 +476,69 @@ func (r *Qwen3VLRunner) BuildImagesPrompt(
 		EmbeddingWidth: r.spec.OutputHidden, EmbeddingStart: starts[0],
 		EmbeddingTokenIndices: indices,
 		MultiAxisPositions:    positions,
+	}, nil
+}
+
+func (r *Qwen3VLRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: Qwen3-VL history sequence is inconsistent")
+	}
+	type geometry struct{ rows, columns int }
+	counts := make([]int, len(sources))
+	geometries := make([]geometry, len(sources))
+	var embeddings []float32
+	var prompt strings.Builder
+	for index, source := range sources {
+		prompt.WriteString(text[index])
+		output, err := r.EncodeImage(ctx, source, DefaultQwen3VLPreprocessOptions())
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode Qwen3-VL history image %d: %w", index, err)
+		}
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		geometries[index] = geometry{output.GridH / output.MergeSize, output.GridW / output.MergeSize}
+		prompt.WriteString("<|vision_start|>")
+		prompt.WriteString(strings.Repeat(Qwen3VLImagePad, counts[index]))
+		prompt.WriteString("<|vision_end|>")
+		embeddings = append(embeddings, output.Embeddings.Data...)
+	}
+	prompt.WriteString(text[len(text)-1])
+	ids, err := tokenizer.TokenizeText(prompt.String(), true, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Qwen3-VL history: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText(Qwen3VLImagePad, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize image placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: image placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := variableTokenRuns(ids, padIDs[0], counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Qwen3-VL history: %w", err)
+	}
+	chunks := make([]Qwen3VLPositionChunk, len(starts))
+	var indices []uint32
+	for index, start := range starts {
+		chunks[index] = Qwen3VLPositionChunk{Start: start, Rows: geometries[index].rows, Columns: geometries[index].columns}
+		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
+	}
+	positions, err := Qwen3VLVariableChunkPositions(len(ids), chunks)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings,
+		EmbeddingWidth: r.spec.OutputHidden, EmbeddingStart: starts[0],
+		EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
 	}, nil
 }
 

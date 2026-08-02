@@ -249,13 +249,15 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 	}
 }
 
-func TestGenerateProjectedInputsRejectsTokenOnlyPromptCache(t *testing.T) {
-	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, vocab: &tokenizer.Vocab{}}
-	_, _, err := runner.Generate(context.Background(), "", GenerateOptions{
-		CachePrompt: true, ProjectedInputs: &ProjectedInputs{},
-	})
-	if err == nil || !strings.Contains(err.Error(), "token-only prompt caching") {
-		t.Fatalf("projected prompt-cache error = %v", err)
+func TestProjectedInputsSignatureIncludesMediaPayload(t *testing.T) {
+	first := ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{
+		TokenIndex: 2, Embedding: []float32{1, 2},
+	}}}
+	second := ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{
+		TokenIndex: 2, Embedding: []float32{1, 3},
+	}}}
+	if projectedInputsSignature(first) == projectedInputsSignature(second) {
+		t.Fatal("distinct projected media produced one cache signature")
 	}
 }
 

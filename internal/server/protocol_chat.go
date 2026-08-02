@@ -80,7 +80,7 @@ func chatMediaCount(messages []inference.ChatMessage) int {
 	return count
 }
 
-func (h *Handler) parseChatMultimodalPrompt(
+func (h *Handler) parseChatSingleMultimodalPrompt(
 	body chatCompletionRequest,
 ) (nativePrompt, error) {
 	if body.N != 1 {
@@ -183,13 +183,111 @@ func (h *Handler) parseChatMultimodalPrompt(
 	return prompt, nil
 }
 
+const chatMediaMarkerPrefix = "<__llamacpp2go_media_"
+
+func (h *Handler) parseChatMultimodalPrompt(
+	formatter ChatFormatter,
+	body chatCompletionRequest,
+) (nativePrompt, error) {
+	if len(body.Messages) == 1 {
+		return h.parseChatSingleMultimodalPrompt(body)
+	}
+	if body.N != 1 {
+		return nativePrompt{}, errors.New("multimodal chat requires n=1")
+	}
+	mediaCount := chatMediaCount(body.Messages)
+	if len(body.Messages) == 0 || mediaCount == 0 || mediaCount > 8 {
+		return nativePrompt{}, errors.New("multimodal chat requires one to eight media items")
+	}
+	if len(body.Tools) != 0 || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
+		return nativePrompt{}, errors.New("multimodal chat cannot use tools")
+	}
+	if body.AddPrompt != nil && !*body.AddPrompt {
+		return nativePrompt{}, errors.New("multimodal chat requires add_generation_prompt")
+	}
+	if len(body.TemplateKwargs) != 0 {
+		return nativePrompt{}, errors.New("multimodal chat cannot use chat_template_kwargs")
+	}
+	messages := append([]inference.ChatMessage(nil), body.Messages...)
+	markers := make([]string, 0, mediaCount)
+	images := make([][]byte, 0, mediaCount)
+	for messageIndex := range messages {
+		message := &messages[messageIndex]
+		if strings.Contains(message.Content, chatMediaMarkerPrefix) {
+			return nativePrompt{}, errors.New("multimodal chat content contains a reserved media marker")
+		}
+		if len(message.Media) == 0 {
+			continue
+		}
+		if message.Role != "user" {
+			return nativePrompt{}, errors.New("multimodal chat media is only supported in user messages")
+		}
+		if message.Name != "" || message.ReasoningContent != "" ||
+			message.ToolCallID != "" || message.ToolResultError || len(message.ToolCalls) != 0 {
+			return nativePrompt{}, errors.New("multimodal chat user message contains unsupported fields")
+		}
+		var content strings.Builder
+		cursor := 0
+		for _, media := range message.Media {
+			if media.TextOffset < cursor || media.TextOffset > len(message.Content) {
+				return nativePrompt{}, errors.New("multimodal chat media offsets are invalid")
+			}
+			if media.Type != "image" {
+				return nativePrompt{}, errors.New("multimodal history currently requires image media")
+			}
+			if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
+				return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
+			}
+			if !strings.HasPrefix(media.Data, "data:image/") {
+				return nativePrompt{}, errors.New("image_url.url must use a base64 image data URI")
+			}
+			decoded, err := decodeNativeImageData(media.Data)
+			if err != nil {
+				return nativePrompt{}, err
+			}
+			content.WriteString(message.Content[cursor:media.TextOffset])
+			marker := fmt.Sprintf("%s%08d__>", chatMediaMarkerPrefix, len(markers))
+			content.WriteString(marker)
+			markers = append(markers, marker)
+			images = append(images, decoded)
+			cursor = media.TextOffset
+		}
+		content.WriteString(message.Content[cursor:])
+		message.Content = content.String()
+		message.Media = nil
+	}
+	if err := validateMultimodalImages(images); err != nil {
+		return nativePrompt{}, err
+	}
+	formatted, err := formatChatRequest(formatter, messages, nil, body.AddPrompt, nil)
+	if err != nil {
+		return nativePrompt{}, err
+	}
+	segments := make([]string, len(markers)+1)
+	remainder := formatted
+	for index, marker := range markers {
+		before, after, found := strings.Cut(remainder, marker)
+		if !found {
+			return nativePrompt{}, fmt.Errorf("multimodal chat template dropped media marker %d", index)
+		}
+		segments[index] = before
+		remainder = after
+	}
+	segments[len(segments)-1] = remainder
+	return nativePrompt{
+		Text: formatted, Response: formatted, Image: images[0], Images: images,
+		MediaText: segments, BeforeMedia: segments[0], AfterMedia: segments[1],
+		MediaHistory: true,
+	}, nil
+}
+
 func (h *Handler) normalizeChatPrompt(
 	formatter ChatFormatter,
 	body chatCompletionRequest,
 	promptTools []inference.ChatTool,
 ) (nativePrompt, error) {
 	if chatMediaCount(body.Messages) != 0 {
-		return h.parseChatMultimodalPrompt(body)
+		return h.parseChatMultimodalPrompt(formatter, body)
 	}
 	prompt, err := formatChatRequest(
 		formatter,
@@ -620,6 +718,7 @@ func (h *Handler) completeChat(
 				StopSequences:   stops,
 				ContextShift:    h.config.ContextShift,
 				PromptTokenIDs:  promptIDs,
+				CachePrompt:     projectedInputs != nil,
 				ProjectedInputs: projectedInputs,
 				OnToken: func(event inference.TokenEvent) error {
 					generatedTokens++
@@ -847,6 +946,7 @@ func (h *Handler) streamChatCompletion(
 				StopSequences:   stops,
 				ContextShift:    h.config.ContextShift,
 				PromptTokenIDs:  promptIDs,
+				CachePrompt:     projectedInputs != nil,
 				ProjectedInputs: projectedInputs,
 				OnToken: func(event inference.TokenEvent) error {
 					if !filter.Stopped() {

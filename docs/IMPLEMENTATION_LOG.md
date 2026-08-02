@@ -800,12 +800,13 @@ matrix.
   merges their soft tokens and constructs per-image compressed four-axis MRoPE.
   Multi-sequence recurrent batching remains pending.
 - Gemma 4 unified image projection executes the encoder-free `gemma4uv` GGUF
-  graph: aspect-preserving bicubic resize, 48x48 RGB patch rows, affine patch
-  LayerNorm and dense projection, factorized learned X/Y positions, position
-  LayerNorm, unweighted RMSNorm, and the final 3840-wide projection. The local
-  12B oracle matches no-resize and arbitrary-resize preprocessing, all 304
-  prompt IDs, projector probes/L2, and first token `13666` through native Q8
-  generation. Mixed hard/soft input now scales only hard Gemma token rows.
+  graph: pinned dynamic aspect-preserving bicubic resize, 48x48 RGB patch rows,
+  affine patch LayerNorm and dense projection, factorized learned X/Y
+  positions, position LayerNorm, unweighted RMSNorm, and the final 3840-wide
+  projection. The local
+  12B oracle matches projector probes/L2 and native Q8 generation. Pinned
+  dynamic resizing retains already-budgeted images and uses 40-to-280 visual
+  tokens. Mixed hard/soft input now scales only hard Gemma token rows.
   CLI and native completion server image paths select Qwen or Gemma from GGUF
   projector metadata. Multi-image server requests concatenate images-first
   soft-token blocks and preserve a distinct visual attention block per image.
@@ -820,12 +821,18 @@ matrix.
   frame-major soft tokens, and frame-block visual attention. Optional
   `-mmproj-cuda` execution keeps all Gemma image/audio weights resident on the
   selected device and runs image, video, and audio graphs with explicit BF16
-  stage rounding; the adaptive image/audio projector oracles and image token
-  `13666` remain exact. `gemma4-gguf-convert` now streams the adaptive
+  stage rounding. `gemma4-gguf-convert` now streams the adaptive
   ModelOpt checkpoint into validated BF16 language and multimodal GGUF files,
   including FP8 scale folding, patch-channel permutation, position-axis
-  transposition, tokenizer metadata, and layer-scalar conversion. The emitted
-  BF16 pair reproduces image token `13666` and audio token `24068` exactly.
+  transposition, tokenizer metadata, and layer-scalar conversion. The converter
+  emits the required proportional-RoPE factors and complete
+  unified projector metadata; `-mmproj-f32` supplies a CPU-baseline artifact.
+  Chat and Responses retain images at their exact formatted positions across
+  user/assistant history. The pinned 12B Q8 oracle and the native implementation
+  match at 213 tokens for earlier-turn media and 214 for final-turn media.
+  Prompt-cache entries bind exact projected embeddings, positions, deepstack
+  streams, and attention blocks so equal placeholder IDs cannot alias different
+  images.
 - T5 single-sequence encoder-decoder sessions are supported. `GenerateT5`
   supplies high-level sampling, stop callbacks/sequences, LoRA selection, and
   context shifting; callers can also generate incrementally with `DecodeT5`.

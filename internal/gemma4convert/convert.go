@@ -1,10 +1,13 @@
 package gemma4convert
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,16 +38,18 @@ type modelConfig struct {
 		Rope              map[string]struct {
 			PartialRotary float32 `json:"partial_rotary_factor"`
 			Theta         float32 `json:"rope_theta"`
+			Type          string  `json:"rope_type"`
 		} `json:"rope_parameters"`
 		SlidingWindow uint32 `json:"sliding_window"`
 		Vocabulary    uint32 `json:"vocab_size"`
 		PerLayerInput uint32 `json:"hidden_size_per_layer_input"`
 	} `json:"text_config"`
 	Vision struct {
-		Embedding  uint32  `json:"mm_embed_dim"`
-		Positions  uint32  `json:"mm_posemb_size"`
-		PatchSize  uint32  `json:"patch_size"`
-		RMSEpsilon float32 `json:"rms_norm_eps"`
+		Embedding   uint32  `json:"mm_embed_dim"`
+		Positions   uint32  `json:"mm_posemb_size"`
+		PatchSize   uint32  `json:"patch_size"`
+		PoolingSize uint32  `json:"pooling_kernel_size"`
+		RMSEpsilon  float32 `json:"rms_norm_eps"`
 	} `json:"vision_config"`
 	Audio struct {
 		Embedding  uint32  `json:"audio_embed_dim"`
@@ -69,6 +74,7 @@ type Options struct {
 	Directory  string
 	ModelPath  string
 	MMProjPath string
+	MMProjF32  bool
 	Name       string
 }
 
@@ -121,7 +127,7 @@ func Convert(options Options) (Report, error) {
 		if metadataErr != nil {
 			return report, metadataErr
 		}
-		tensors, tensorErr := modelTensors(source)
+		tensors, tensorErr := modelTensors(source, config)
 		if tensorErr != nil {
 			return report, tensorErr
 		}
@@ -135,7 +141,7 @@ func Convert(options Options) (Report, error) {
 	}
 	if options.MMProjPath != "" {
 		metadata := projectorMetadata(name, config)
-		tensors, tensorErr := projectorTensors(source)
+		tensors, tensorErr := projectorTensors(source, options.MMProjF32)
 		if tensorErr != nil {
 			return report, tensorErr
 		}
@@ -182,11 +188,11 @@ func validateConfig(config modelConfig) error {
 	}
 	full, fullOK := text.Rope["full_attention"]
 	sliding, slidingOK := text.Rope["sliding_attention"]
-	if !fullOK || !slidingOK || full.Theta <= 0 || sliding.Theta <= 0 ||
+	if !fullOK || !slidingOK || full.Type != "proportional" || full.Theta <= 0 || sliding.Theta <= 0 ||
 		full.PartialRotary <= 0 || full.PartialRotary > 1 {
 		return errors.New("Gemma 4 converter: RoPE configuration is incomplete")
 	}
-	if config.Vision.PatchSize == 0 || config.Vision.Embedding != text.HiddenSize ||
+	if config.Vision.PatchSize == 0 || config.Vision.PoolingSize == 0 || config.Vision.Embedding != text.HiddenSize ||
 		config.Vision.Positions == 0 || config.Audio.Embedding == 0 {
 		return errors.New("Gemma 4 converter: multimodal configuration is incomplete")
 	}
@@ -197,7 +203,7 @@ func modelMetadata(directory, name string, config modelConfig) ([]gguf.Metadata,
 	text := config.Text
 	full := text.Rope["full_attention"]
 	sliding := text.Rope["sliding_attention"]
-	fullRope := uint32(float32(text.GlobalHeadDim) * full.PartialRotary)
+	fullRope := text.GlobalHeadDim
 	if fullRope == 0 || fullRope%2 != 0 || text.HeadDim%2 != 0 {
 		return nil, errors.New("Gemma 4 converter: rotary dimensions are invalid")
 	}
@@ -353,8 +359,8 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 var byteTokenPattern = regexp.MustCompile(`^<0x[0-9A-Fa-f]{2}>$`)
 var layerNamePattern = regexp.MustCompile(`^model\.language_model\.layers\.(\d+)\.(.+)$`)
 
-func modelTensors(source *Source) ([]gguf.TensorData, error) {
-	tensors := make([]gguf.TensorData, 0, len(source.Tensors))
+func modelTensors(source *Source, config modelConfig) ([]gguf.TensorData, error) {
+	tensors := make([]gguf.TensorData, 0, len(source.Tensors)+1)
 	for sourceName, tensor := range source.Tensors {
 		destinationName, include := modelTensorName(sourceName)
 		if !include {
@@ -372,11 +378,30 @@ func modelTensors(source *Source) ([]gguf.TensorData, error) {
 			Name: destinationName, Shape: reverseShape(tensor.Shape), Type: dataType, Data: reader,
 		})
 	}
+	tensors = append(tensors, proportionalRopeTensor(config))
 	sort.Slice(tensors, func(i, j int) bool { return tensors[i].Name < tensors[j].Name })
 	if len(tensors) == 0 {
 		return nil, errors.New("Gemma 4 converter: no language tensors found")
 	}
 	return tensors, nil
+}
+
+func proportionalRopeTensor(config modelConfig) gguf.TensorData {
+	full := config.Text.Rope["full_attention"]
+	pairs := config.Text.GlobalHeadDim / 2
+	rotated := uint32(float32(config.Text.GlobalHeadDim)*full.PartialRotary) / 2
+	encoded := make([]byte, pairs*4)
+	for index := uint32(0); index < pairs; index++ {
+		factor := float32(1)
+		if index >= rotated {
+			factor = 1e30
+		}
+		binary.LittleEndian.PutUint32(encoded[index*4:], math.Float32bits(factor))
+	}
+	return gguf.TensorData{
+		Name: "rope_freqs.weight", Shape: []uint64{uint64(pairs)}, Type: gguf.DTypeF32,
+		Data: bytes.NewReader(encoded),
+	}
 }
 
 func modelTensorName(name string) (string, bool) {
@@ -469,18 +494,30 @@ func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
 		stringMetadata("general.name", name+" multimodal projector"),
 		stringMetadata("clip.vision.projector_type", "gemma4uv"),
 		boolMetadata("clip.has_vision_encoder", true),
+		uint32Metadata("clip.vision.image_size", 224),
 		uint32Metadata("clip.vision.patch_size", config.Vision.PatchSize),
+		uint32Metadata("clip.vision.embedding_length", config.Vision.Embedding),
+		uint32Metadata("clip.vision.feed_forward_length", 0),
+		uint32Metadata("clip.vision.block_count", 0),
+		uint32Metadata("clip.vision.attention.head_count", 0),
 		uint32Metadata("clip.vision.projection_dim", config.Vision.Embedding),
 		float32Metadata("clip.vision.attention.layer_norm_epsilon", config.Vision.RMSEpsilon),
+		arrayMetadata("clip.vision.image_mean", gguf.ValueTypeFloat32, []float32{0, 0, 0}),
+		arrayMetadata("clip.vision.image_std", gguf.ValueTypeFloat32, []float32{1, 1, 1}),
+		uint32Metadata("clip.vision.projector_scale_factor", config.Vision.PoolingSize),
 		stringMetadata("clip.audio.projector_type", "gemma4ua"),
 		boolMetadata("clip.has_audio_encoder", true),
 		uint32Metadata("clip.audio.embedding_length", config.Audio.Embedding),
+		uint32Metadata("clip.audio.feed_forward_length", 0),
+		uint32Metadata("clip.audio.block_count", 0),
+		uint32Metadata("clip.audio.attention.head_count", 0),
 		uint32Metadata("clip.audio.projection_dim", config.Text.HiddenSize),
 		float32Metadata("clip.audio.attention.layer_norm_epsilon", config.Audio.RMSEpsilon),
+		uint32Metadata("clip.audio.num_mel_bins", 128),
 	}
 }
 
-func projectorTensors(source *Source) ([]gguf.TensorData, error) {
+func projectorTensors(source *Source, outputF32 bool) ([]gguf.TensorData, error) {
 	mapping := []struct{ source, destination string }{
 		{"model.embed_vision.patch_dense.weight", "v.patch_embd.weight"},
 		{"model.embed_vision.patch_dense.bias", "v.patch_embd.bias"},
@@ -522,8 +559,13 @@ func projectorTensors(source *Source) ([]gguf.TensorData, error) {
 			reader = position
 			shape = []uint64{tensor.Shape[2], tensor.Shape[0], tensor.Shape[1]}
 		}
+		dataType := gguf.DTypeBF16
+		if outputF32 {
+			dataType = gguf.DTypeF32
+			reader = &bf16F32Reader{source: reader}
+		}
 		tensors = append(tensors, gguf.TensorData{
-			Name: item.destination, Shape: shape, Type: gguf.DTypeBF16, Data: reader,
+			Name: item.destination, Shape: shape, Type: dataType, Data: reader,
 		})
 	}
 	return tensors, nil

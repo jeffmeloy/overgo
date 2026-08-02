@@ -2,8 +2,12 @@ package inference
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
+	"math"
 	"slices"
 
 	"llamacpp2go/internal/cuda/executor"
@@ -22,6 +26,7 @@ func (r *Runner) selectPromptCache(
 	signature := r.currentLoRASignature()
 	for index, candidate := range r.promptCaches {
 		if candidate == nil ||
+			candidate.HasProjection ||
 			candidate.LoRASignature != signature ||
 			(device && candidate.Device == nil) ||
 			(!device && candidate.Cache == nil) {
@@ -41,6 +46,30 @@ func (r *Runner) selectPromptCache(
 	return selected, best
 }
 
+func (r *Runner) selectProjectedPromptCache(
+	requested []tokenizer.TokenID,
+	projection [32]byte,
+	minimum int,
+) (*cachedPrompt, int) {
+	if len(requested) < minimum {
+		return nil, 0
+	}
+	lora := r.currentLoRASignature()
+	for index, candidate := range r.promptCaches {
+		if candidate == nil || !candidate.HasProjection || candidate.Cache == nil ||
+			candidate.LoRASignature != lora || candidate.ProjectionSignature != projection ||
+			!slices.Equal(candidate.Tokens, requested) {
+			continue
+		}
+		if index > 0 {
+			copy(r.promptCaches[1:index+1], r.promptCaches[:index])
+			r.promptCaches[0] = candidate
+		}
+		return candidate, len(requested)
+	}
+	return nil, 0
+}
+
 func (r *Runner) selectT5SourceCache(
 	requested []tokenizer.TokenID,
 	minimum int,
@@ -51,6 +80,7 @@ func (r *Runner) selectT5SourceCache(
 	signature := r.currentLoRASignature()
 	for index, candidate := range r.promptCaches {
 		if candidate == nil ||
+			candidate.HasProjection ||
 			candidate.LoRASignature != signature ||
 			candidate.Cache != nil ||
 			candidate.Hidden.Shape.Rank != 2 ||
@@ -92,7 +122,10 @@ func (r *Runner) storePromptCache(
 		if candidate == nil {
 			continue
 		}
-		if candidate.LoRASignature == next.LoRASignature && slices.Equal(candidate.Tokens, next.Tokens) {
+		if candidate.LoRASignature == next.LoRASignature &&
+			candidate.HasProjection == next.HasProjection &&
+			candidate.ProjectionSignature == next.ProjectionSignature &&
+			slices.Equal(candidate.Tokens, next.Tokens) {
 			release = append(release, candidate)
 			continue
 		}
@@ -111,6 +144,55 @@ func (r *Runner) storePromptCache(
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func projectedInputsSignature(inputs ProjectedInputs) [32]byte {
+	digest := sha256.New()
+	hashUint64(digest, uint64(len(inputs.EmbeddingOverrides)))
+	for _, override := range inputs.EmbeddingOverrides {
+		hashUint64(digest, uint64(override.TokenIndex))
+		hashFloat32s(digest, override.Embedding)
+	}
+	if inputs.MultiAxisPositions == nil {
+		hashUint64(digest, 0)
+	} else {
+		hashUint64(digest, 1)
+		for _, axis := range *inputs.MultiAxisPositions {
+			hashUint64(digest, uint64(len(axis)))
+			for _, value := range axis {
+				hashUint64(digest, uint64(value))
+			}
+		}
+	}
+	hashUint64(digest, uint64(len(inputs.DeepstackEmbeddings)))
+	for _, value := range inputs.DeepstackEmbeddings {
+		hashUint64(digest, uint64(value.Shape.Rank))
+		for dimension := range value.Shape.Rank {
+			hashUint64(digest, value.Shape.Dims[dimension])
+		}
+		hashFloat32s(digest, value.Data)
+	}
+	hashUint64(digest, uint64(len(inputs.BidirectionalAttentionBlocks)))
+	for _, block := range inputs.BidirectionalAttentionBlocks {
+		hashUint64(digest, uint64(block.Start))
+		hashUint64(digest, uint64(block.End))
+	}
+	var result [32]byte
+	copy(result[:], digest.Sum(nil))
+	return result
+}
+
+func hashFloat32s(digest hash.Hash, values []float32) {
+	hashUint64(digest, uint64(len(values)))
+	for _, value := range values {
+		hashUint64(digest, uint64(math.Float32bits(value)))
+	}
+}
+
+func hashUint64(digest hash.Hash, value uint64) {
+	var encoded [8]byte
+	binary.LittleEndian.PutUint64(encoded[:], value)
+	_, _ = digest.Write(encoded[:])
 }
 
 func (r *Runner) trimHostPromptCache(

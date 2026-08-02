@@ -84,6 +84,36 @@ func TestMultiplePromptCacheSelectionAndEviction(t *testing.T) {
 	}
 }
 
+func TestProjectedPromptCacheRequiresExactMediaSignature(t *testing.T) {
+	signature := projectedInputsSignature(ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{
+		TokenIndex: 1, Embedding: []float32{1, 2},
+	}}})
+	entry := &cachedPrompt{
+		Tokens: []tokenizer.TokenID{1, 2}, Cache: &KVCache{},
+		HasProjection: true, ProjectionSignature: signature,
+	}
+	runner := &Runner{promptCaches: []*cachedPrompt{entry}}
+	selected, cached := runner.selectProjectedPromptCache(
+		[]tokenizer.TokenID{1, 2}, signature, 2,
+	)
+	if selected != entry || cached != 2 {
+		t.Fatalf("selected/cached = %p/%d", selected, cached)
+	}
+	other := projectedInputsSignature(ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{
+		TokenIndex: 1, Embedding: []float32{1, 3},
+	}}})
+	if selected, cached = runner.selectProjectedPromptCache(
+		[]tokenizer.TokenID{1, 2}, other, 2,
+	); selected != nil || cached != 0 {
+		t.Fatalf("different media reused cache = %p/%d", selected, cached)
+	}
+	if selected, cached = runner.selectProjectedPromptCache(
+		[]tokenizer.TokenID{1, 2, 3}, signature, 2,
+	); selected != nil || cached != 0 {
+		t.Fatalf("projected prefix reused cache = %p/%d", selected, cached)
+	}
+}
+
 func TestT5SourceCacheRequiresExactSequence(t *testing.T) {
 	hidden, err := reference.NewValue(tensor.MustShape(2, 2), []float32{1, 2, 3, 4})
 	if err != nil {

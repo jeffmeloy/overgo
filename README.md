@@ -122,6 +122,7 @@ metadata, accepts split input, never overwrites an existing output, and offers
 `gemma4-gguf-convert` streams a Hugging Face Gemma 4 unified checkpoint into
 runtime-ready language and multimodal GGUF files. ModelOpt `F8_E4M3` MLP
 weights are scale-folded to BF16 by row; existing BF16 tensors remain BF16.
+`-mmproj-f32` emits a CPU-baseline-compatible F32 projector.
 The exporter maps tokenizer/config metadata, converts layer scalars to F32,
 converts interleaved patch channels to the projector's planar layout,
 transposes vision position axes, validates the generated catalog through the

@@ -132,6 +132,58 @@ func TestResponsesMultipleImagesPreservesContentOrder(t *testing.T) {
 	}
 }
 
+func TestResponsesImageHistoryPreservesTurnPosition(t *testing.T) {
+	base := &fakeGenerator{}
+	generator := &historyGenerator{fakeGenerator: base}
+	vision := &fakeHistoryProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())
+	body, err := json.Marshal(map[string]any{
+		"input": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "input_image", "image_url": dataURI},
+				map[string]any{"type": "input_text", "text": "inspect"},
+			}},
+			map[string]any{"role": "assistant", "content": []any{
+				map[string]any{"type": "output_text", "text": "seen"},
+			}},
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "input_text", "text": "recall"},
+			}},
+		},
+		"max_output_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if vision.images != 1 || !slices.Equal(vision.historyText, []string{
+		"<chat><user>",
+		"inspect</user><assistant>seen</assistant><user>recall</user><assistant>",
+	}) {
+		t.Fatalf("projector = images %d text %q", vision.images, vision.historyText)
+	}
+	if !base.cachePrompt {
+		t.Fatal("multimodal Responses prompt cache disabled")
+	}
+}
+
 func TestResponsesMultimodalValidation(t *testing.T) {
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -148,7 +200,7 @@ func TestResponsesMultimodalValidation(t *testing.T) {
 		body string
 		want string
 	}{
-		{"/v1/responses", `{"instructions":"brief","input":[{"role":"user","content":[` + imagePart + `]}]}`, "requires one user message"},
+		{"/v1/responses", `{"instructions":"brief","input":[{"role":"user","content":[` + imagePart + `]}]}`, "image 0 is unsupported"},
 		{"/v1/responses", `{"input":[{"role":"user","content":[` + imagePart + `]}],"tools":[{"type":"function","name":"x","parameters":{}}]}`, "cannot use tools"},
 		{"/v1/responses", `{"input":[{"role":"user","content":[{"type":"input_image","image_url":"https://example.com/x.png"}]}]}`, "base64 image data URI"},
 	} {

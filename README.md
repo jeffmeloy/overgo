@@ -685,7 +685,10 @@ Gemma4 Assistant uses `NewGemma4AssistantSession` to run the target Gemma4
 prefix and retain its final two shared KV layers plus the last normalized target
 hidden row. `AdvanceGemma4Assistant` reads those fixed target caches, reuses the
 target-cache position for every draft token, and carries only the projected
-target-width hidden row between steps.
+target-width hidden row between steps. `DraftGemma4AssistantGreedy` and
+`DraftGemma4AssistantSampled` build bounded proposals; their matching verify
+calls advance the target cache, accept a valid prefix, emit the correction
+token, restore sampler state transactionally, and resynchronize target hidden.
 WavTokenizer decoder execution maps semantic token IDs to audio-feature frames
 through the strict upstream tensor catalog, six-stage PosNet, full non-causal
 single-head attention, dense/depthwise same-padding convolutions, GroupNorm,

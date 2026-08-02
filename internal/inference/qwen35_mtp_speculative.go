@@ -145,6 +145,13 @@ func (r *Runner) qwen35MTPProjectLogits(
 	ctx context.Context,
 	hidden reference.Value,
 ) (reference.Value, error) {
+	return r.projectHiddenLogits(ctx, hidden)
+}
+
+func (r *Runner) projectHiddenLogits(
+	ctx context.Context,
+	hidden reference.Value,
+) (reference.Value, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {

@@ -1463,9 +1463,13 @@ real-model pair validation remains pending local fixtures.
 Gemma4 Assistant now uses an explicit shared-target-context session. Each step
 combines the target token embedding and pending target hidden state, selects the
 target model's final sliding/global K/V caches, runs fixed-position query-only
-attention, and returns logits plus the recurrent next hidden state. Strict
-paired-contract, reference, and CUDA pipeline tests pass; real-model pair
-validation remains pending local fixtures.
+attention, and returns logits plus the recurrent next hidden state. Bounded
+greedy and sampled coordinators now verify proposals against the target, advance
+only the accepted target prefix plus correction, restore sampler checkpoints on
+failure, commit the correction, and replace recurrent draft state with the true
+target hidden row. Strict paired-contract, reference, CUDA pipeline, and
+coordinator validation pass; real-model pair validation remains pending local
+fixtures.
 
 Gemma3n now executes four-stream AltUp prediction/correction, magnitude-matched
 projection and unembedding, Laurel low-rank residuals, first-ten-layer Gaussian

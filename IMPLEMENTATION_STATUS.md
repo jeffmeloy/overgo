@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Gemma 4 Assistant greedy/sampled drafting with target verification, sampler rollback, cache advancement, and hidden-state resynchronization.
 - DeepSeek-OCR v1/v2 SAM image projection with dynamic local tiles, CLIP or masked Qwen2 towers, native history prompts, and CUDA differentials.
 - Gemma 3n MobileNetV5 image projection with multi-scale fusion, 256 soft tokens, native history prompts, and CUDA differential.
 - MiMo-VL dynamic preprocessing, GQA ViT with row/column window attention and sinks, native image prompts, and CUDA differential.

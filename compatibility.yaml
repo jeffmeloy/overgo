@@ -3264,12 +3264,17 @@ models:
       - post-attention-and-ffn-norms
       - recurrent-target-width-hidden-projection
       - tied-assistant-output-embedding
+      - bounded-greedy-draft-and-target-verification
+      - transactional-sampled-speculative-verification
+      - accepted-prefix-cache-advancement
+      - target-hidden-state-resynchronization
+      - sampler-checkpoint-rollback-and-commit
     validation:
       - synthetic-metadata-and-catalog
       - reference-full-pipeline
       - full-cuda-pipeline-differential
+      - env-gated-real-pair-coordinator
     limitations:
-      - external-scheduler-owns-verification-and-acceptance
       - text-only-target-input
       - real-model-pair-pending
   eagle3:

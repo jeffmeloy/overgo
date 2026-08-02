@@ -3294,12 +3294,18 @@ models:
       - draft-or-target-output-projection
       - draft-to-target-vocabulary-remapping
       - autoregressive-pre-norm-feature-carry
+      - bounded-greedy-draft-and-target-verification
+      - transactional-sampled-speculative-verification
+      - accepted-prefix-target-cache-advancement
+      - committed-target-feature-resynchronization
+      - sampler-checkpoint-rollback-and-commit
     validation:
       - synthetic-metadata-and-catalog
       - reference-feature-and-decoder-pipeline
       - full-cuda-pipeline-differential
+      - env-gated-real-pair-coordinator
     limitations:
-      - external-scheduler-owns-verification-and-acceptance
+      - target-feature-resync-recomputes-full-text-prefix
       - real-model-pair-pending
   dflash:
     status: experimental

@@ -1457,7 +1457,11 @@ real-model validation remains pending a local GPT-OSS GGUF fixture.
 Eagle3 now uses an explicit paired target/draft session. Three configured target
 hidden streams pass through the draft feature encoder; target embeddings and
 output projection may be shared. Autoregressive draft advance retains its own
-KV cache. Strict paired-contract, reference, and CUDA pipeline tests pass;
+KV cache. Bounded greedy and sampled coordinators verify against the target,
+advance accepted target/draft caches, restore or commit sampler checkpoints,
+and resynchronize the recurrent feature from committed target-layer inputs.
+The correctness-first resync recomputes the committed text prefix. Strict
+paired-contract, reference, CUDA pipeline, and coordinator validation pass;
 real-model pair validation remains pending local fixtures.
 
 Gemma4 Assistant now uses an explicit shared-target-context session. Each step

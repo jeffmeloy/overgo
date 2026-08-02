@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Eagle3 greedy/sampled drafting with target verification, sampler rollback, target-cache advancement, and feature resynchronization.
 - Gemma 4 Assistant greedy/sampled drafting with target verification, sampler rollback, cache advancement, and hidden-state resynchronization.
 - DeepSeek-OCR v1/v2 SAM image projection with dynamic local tiles, CLIP or masked Qwen2 towers, native history prompts, and CUDA differentials.
 - Gemma 3n MobileNetV5 image projection with multi-scale fusion, 256 soft tokens, native history prompts, and CUDA differential.

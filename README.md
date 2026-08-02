@@ -680,7 +680,10 @@ Eagle3 uses `NewEagle3Session` to extract and fuse exactly three configured
 target-layer inputs while constructing the shifted draft cache. Each
 `AdvanceEagle3` call pairs the next token with the pending feature, returns
 target-vocabulary logits plus the next pre-norm feature, and supports optional
-draft-owned embeddings/output weights and `d2t` vocabulary remapping.
+draft-owned embeddings/output weights and `d2t` vocabulary remapping. Greedy
+and sampled coordinators verify against the target, transactionally restore
+samplers, advance accepted caches, and resynchronize from the committed target
+layer inputs. Feature extraction currently recomputes the committed text prefix.
 Gemma4 Assistant uses `NewGemma4AssistantSession` to run the target Gemma4
 prefix and retain its final two shared KV layers plus the last normalized target
 hidden row. `AdvanceGemma4Assistant` reads those fixed target caches, reuses the

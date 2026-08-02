@@ -18,6 +18,8 @@ import (
 // Eagle3Session: shifted feature plus draft KV.
 type Eagle3Session struct {
 	Cache          *KVCache
+	TargetCache    *KVCache
+	TargetTokens   []tokenizer.TokenID
 	PendingFeature reference.Value
 	Position       uint32
 }
@@ -103,7 +105,14 @@ func (r *Runner) NewEagle3Session(
 		Shape: tensor.MustShape(uint64(width), 1),
 		Data:  append([]float32(nil), fused.Data[(len(tokenIDs)-1)*width:]...),
 	}
-	session := &Eagle3Session{PendingFeature: pending, Position: uint32(len(tokenIDs) - 1)}
+	_, targetCache, err := target.ForwardCached(ctx, tokenIDs, nil)
+	if err != nil {
+		return nil, err
+	}
+	session := &Eagle3Session{
+		TargetCache: targetCache, TargetTokens: append([]tokenizer.TokenID(nil), tokenIDs...),
+		PendingFeature: pending, Position: uint32(len(tokenIDs) - 1),
+	}
 	for index := 0; index+1 < len(tokenIDs); index++ {
 		feature := reference.Value{
 			Shape: tensor.MustShape(uint64(width), 1),
@@ -132,7 +141,11 @@ func (r *Runner) AdvanceEagle3(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	next := &Eagle3Session{Cache: step.Cache, PendingFeature: step.NextFeature, Position: session.Position + 1}
+	next := &Eagle3Session{
+		Cache: step.Cache, TargetCache: session.TargetCache,
+		TargetTokens:   append([]tokenizer.TokenID(nil), session.TargetTokens...),
+		PendingFeature: step.NextFeature, Position: session.Position + 1,
+	}
 	return step.Logits, next, nil
 }
 

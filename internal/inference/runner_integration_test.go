@@ -907,6 +907,78 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	}
 }
 
+func TestEagle3GreedyAndSampledVerification(t *testing.T) {
+	draftPath := os.Getenv("LLAMACPP2GO_EAGLE3_MODEL")
+	targetPath := os.Getenv("LLAMACPP2GO_EAGLE3_TARGET_MODEL")
+	if draftPath == "" || targetPath == "" {
+		t.Skip("LLAMACPP2GO_EAGLE3_MODEL and LLAMACPP2GO_EAGLE3_TARGET_MODEL are not set")
+	}
+	draftRunner, err := OpenWithOptions(draftPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer draftRunner.Close()
+	target, err := OpenWithOptions(targetPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	ctx := context.Background()
+	session, err := draftRunner.NewEagle3Session(ctx, target, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := draftRunner.DraftEagle3Greedy(ctx, target, 0, session, 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification, err := draftRunner.VerifyEagle3Greedy(ctx, target, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
+		verification.Session.Position != session.Position+uint32(verification.Accepted)+1 ||
+		verification.Session.TargetCache.Position != verification.Session.Position+1 {
+		t.Fatalf("unexpected Eagle3 verification: draft=%+v result=%+v", draft, verification)
+	}
+	draftSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampledDraft, err := draftRunner.DraftEagle3Sampled(
+		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(before, after) {
+		t.Fatal("Eagle3 sampled drafting changed caller sampler state")
+	}
+	sampledVerification, err := draftRunner.VerifyEagle3Sampled(
+		ctx, target, sampledDraft, draftSampler, targetSampler,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sampledVerification.Accepted < 0 || sampledVerification.Accepted > len(sampledDraft.Tokens) ||
+		sampledVerification.Session.Position != session.Position+uint32(sampledVerification.Accepted)+1 ||
+		sampledVerification.Session.TargetCache.Position != sampledVerification.Session.Position+1 {
+		t.Fatalf("unexpected sampled Eagle3 verification: draft=%+v result=%+v", sampledDraft, sampledVerification)
+	}
+}
+
 func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_COHERE2_MTP_MODEL")
 	if modelPath == "" {

@@ -67,7 +67,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `dflash` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | target-extraction-recomputes-full-prefix, external-scheduler-owns-verification-and-acceptance, real-model-pair-pending |
 | `dots1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `dream` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `eagle3` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | external-scheduler-owns-verification-and-acceptance, real-model-pair-pending |
+| `eagle3` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | target-feature-resync-recomputes-full-text-prefix, real-model-pair-pending |
 | `ernie4_5` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `ernie4_5-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `exaone` | experimental | model-dependent | pending-fixture | - |

@@ -141,6 +141,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	defer handler.Close()
 	httpServer := &http.Server{
 		Addr:              *address,
 		Handler:           handler,

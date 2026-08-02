@@ -150,6 +150,9 @@ func (b *ContinuousBatch) Step(
 	if r.closed {
 		return nil, errors.New("inference: runner is closed")
 	}
+	if b.options.Device {
+		return b.stepDeviceLocked(ctx, inputs)
+	}
 	candidates := make(map[SequenceID]*continuousSequence, len(inputs))
 	outputs := make([]SequenceBatchOutput, len(inputs))
 	releaseCandidates := func() {
@@ -163,45 +166,6 @@ func (b *ContinuousBatch) Step(
 		current := b.sequences[input.ID]
 		if current == nil {
 			current = &continuousSequence{}
-		}
-		if b.options.Device {
-			working := current.device
-			if working != nil && b.options.ContextShift {
-				var shiftErr error
-				working, shiftErr = r.compactDeviceCacheForAppend(
-					ctx,
-					working,
-					len(input.Tokens),
-					b.options.KeepTokens,
-					b.options.DiscardTokens,
-					true,
-				)
-				if shiftErr != nil {
-					releaseCandidates()
-					return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, shiftErr)
-				}
-			}
-			_, next, err := r.forwardDeviceCachedLocked(ctx, input.Tokens, working)
-			if working != nil && working != current.device {
-				_ = working.Release(context.Background())
-			}
-			if err != nil {
-				releaseCandidates()
-				return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, err)
-			}
-			next.PageTokens = b.options.PageTokens
-			if err := rebuildDeviceCachePages(next, b.options.PageTokens); err != nil {
-				_ = next.Release(context.Background())
-				releaseCandidates()
-				return nil, err
-			}
-			candidates[input.ID] = &continuousSequence{device: next}
-			outputs[index] = SequenceBatchOutput{
-				ID: input.ID, Logits: append([]float32(nil), next.Logits...),
-				Tokens: next.Tokens, Position: next.Position,
-				Pages: sequencePages(next.Tokens, b.options.PageTokens),
-			}
-			continue
 		}
 		cache := current.host
 		var err error
@@ -247,6 +211,72 @@ func (b *ContinuousBatch) Step(
 			_ = current.device.Release(context.Background())
 		}
 		b.sequences[id] = candidate
+	}
+	return outputs, nil
+}
+
+func (b *ContinuousBatch) stepDeviceLocked(
+	ctx context.Context,
+	inputs []SequenceBatchInput,
+) ([]SequenceBatchOutput, error) {
+	r := b.runner
+	appends := make([]deviceBatchAppend, len(inputs))
+	working := make([]*deviceKVCache, len(inputs))
+	cleanupWorking := func() {
+		for index, cache := range working {
+			current := b.sequences[inputs[index].ID]
+			if cache != nil && (current == nil || cache != current.device) {
+				_ = cache.Release(context.Background())
+			}
+		}
+	}
+	for index, input := range inputs {
+		current := b.sequences[input.ID]
+		if current != nil {
+			working[index] = current.device
+		}
+		if working[index] != nil && b.options.ContextShift {
+			shifted, err := r.compactDeviceCacheForAppend(
+				ctx, working[index], len(input.Tokens), b.options.KeepTokens,
+				b.options.DiscardTokens, true,
+			)
+			if err != nil {
+				cleanupWorking()
+				return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, err)
+			}
+			working[index] = shifted
+		}
+		appends[index] = deviceBatchAppend{Tokens: input.Tokens, Past: working[index]}
+	}
+	next, err := r.forwardDeviceCachedBatchLocked(ctx, appends)
+	cleanupWorking()
+	if err != nil {
+		return nil, err
+	}
+	releaseNext := func() {
+		for _, cache := range next {
+			_ = cache.Release(context.Background())
+		}
+	}
+	outputs := make([]SequenceBatchOutput, len(inputs))
+	for index, cache := range next {
+		cache.PageTokens = b.options.PageTokens
+		if err := rebuildDeviceCachePages(cache, b.options.PageTokens); err != nil {
+			releaseNext()
+			return nil, err
+		}
+		input := inputs[index]
+		outputs[index] = SequenceBatchOutput{
+			ID: input.ID, Logits: append([]float32(nil), cache.Logits...),
+			Tokens: cache.Tokens, Position: cache.Position,
+			Pages: sequencePages(cache.Tokens, b.options.PageTokens),
+		}
+	}
+	for index, input := range inputs {
+		if current := b.sequences[input.ID]; current != nil && current.device != nil {
+			_ = current.device.Release(context.Background())
+		}
+		b.sequences[input.ID] = &continuousSequence{device: next[index]}
 	}
 	return outputs, nil
 }

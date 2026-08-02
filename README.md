@@ -141,6 +141,11 @@ Generation modes are:
   including LFM2 short convolution, promote only those source tensors during
   preload. `-native-q8` remains an alias.
 
+The server enables fused continuous batching when `-max-concurrent` is greater
+than one and weights are preloaded with `-preload` or `-native-quant`. Active
+requests share one variable-branch CUDA graph per token step while retaining
+independent caches, samplers, stop state, streaming callbacks, and cancellation.
+
 The Go runner's `ForwardCachedWithMultimodalInputs` accepts projected visual
 token embeddings plus distinct temporal, height, width, and extra MRoPE
 coordinates. It returns the ordinary continuable cache; image encoding,

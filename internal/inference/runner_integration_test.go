@@ -681,6 +681,63 @@ ws ::= [ \t\n\r]*
 	}
 }
 
+func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
+	if modelPath == "" {
+		t.Skip("LLAMACPP2GO_QWEN35_MODEL is not set")
+	}
+	runner, err := OpenWithOptions(modelPath, OpenOptions{
+		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	ids, err := runner.TokenizeText("Hello", true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
+		MaxSequences: 2, Device: true, PageTokens: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer batch.Close(context.Background())
+	outputs, err := batch.Step(context.Background(), []SequenceBatchInput{
+		{ID: 10, Tokens: ids}, {ID: 20, Tokens: ids},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outputs) != 2 || !slices.Equal(outputs[0].Logits, outputs[1].Logits) {
+		t.Fatal("fused identical branches diverged")
+	}
+	next := tokenizer.TokenID(0)
+	for index := 1; index < len(outputs[0].Logits); index++ {
+		if outputs[0].Logits[index] > outputs[0].Logits[next] {
+			next = tokenizer.TokenID(index)
+		}
+	}
+	outputs, err = batch.Step(context.Background(), []SequenceBatchInput{
+		{ID: 10, Tokens: []tokenizer.TokenID{next}},
+		{ID: 20, Tokens: []tokenizer.TokenID{next}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(outputs[0].Logits, outputs[1].Logits) {
+		t.Fatal("fused cached branches diverged")
+	}
+	if err := batch.Remove(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+	states := batch.Snapshot()
+	if len(states) != 1 || states[0].ID != 20 {
+		t.Fatalf("post-remove states = %+v", states)
+	}
+}
+
 func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_QWEN35_MTP_MODEL")
 	if modelPath == "" {

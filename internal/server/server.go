@@ -76,6 +76,12 @@ type Generator interface {
 	) ([]tokenizer.TokenID, string, error)
 }
 
+type ContinuousGeneratorFactory interface {
+	NewContinuousGenerator(
+		inference.ContinuousGeneratorOptions,
+	) (*inference.ContinuousGenerator, error)
+}
+
 type Embedder interface {
 	Embed(context.Context, string) ([]float32, int, error)
 }
@@ -354,6 +360,8 @@ func (stats *slotRuntimeStats) snapshot() (string, string, slotStatusParams) {
 type Handler struct {
 	config             Config
 	generator          Generator
+	generation         Generator
+	continuous         *inference.ContinuousGenerator
 	defaultSampling    sampling.Config
 	slots              chan int
 	slotMu             sync.Mutex
@@ -425,9 +433,27 @@ func New(config Config, generator Generator) (*Handler, error) {
 	for id := range config.MaxConcurrent {
 		slots <- id
 	}
+	generation := generator
+	var continuous *inference.ContinuousGenerator
+	if config.MaxConcurrent > 1 {
+		if factory, ok := generator.(ContinuousGeneratorFactory); ok {
+			candidate, schedulerErr := factory.NewContinuousGenerator(
+				inference.ContinuousGeneratorOptions{
+					MaxSequences: config.MaxConcurrent,
+					ContextShift: config.ContextShift,
+				},
+			)
+			if schedulerErr == nil {
+				continuous = candidate
+				generation = candidate
+			}
+		}
+	}
 	return &Handler{
 		config:          config,
 		generator:       generator,
+		generation:      generation,
+		continuous:      continuous,
 		defaultSampling: defaultSampler.Config(),
 		slots:           slots,
 		slotBusy:        make([]atomic.Bool, config.MaxConcurrent),
@@ -435,6 +461,16 @@ func New(config Config, generator Generator) (*Handler, error) {
 		slotStats:       make([]slotRuntimeStats, config.MaxConcurrent),
 		started:         time.Now(),
 	}, nil
+}
+
+// Close: release fused scheduler state.
+func (h *Handler) Close() error {
+	if h == nil || h.continuous == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return h.continuous.Close(ctx)
 }
 
 func (h *Handler) acquireSlot(requested int) (int, bool) {
@@ -844,6 +880,9 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 			}
 		}
 		predictedNanos := max(totalNanos-promptNanos, 0)
+		if generatedTokens > 0 && predictedNanos == 0 {
+			predictedNanos = 1
+		}
 		promptMS := float64(promptNanos) / float64(time.Millisecond)
 		predictedMS := float64(predictedNanos) / float64(time.Millisecond)
 		promptPerTokenMS, promptPerSecond := perTokenAndRate(processedTokens, promptMS)
@@ -1333,7 +1372,11 @@ func (h *Handler) generate(
 		}
 		return nil
 	}
-	ids, text, err := h.generator.Generate(ctx, prompt, options)
+	generator := h.generation
+	if generator == nil {
+		generator = h.generator
+	}
+	ids, text, err := generator.Generate(ctx, prompt, options)
 	if err != nil {
 		h.generationErrors.Add(1)
 	}

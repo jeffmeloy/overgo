@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/cuda/executor"
@@ -16,7 +17,7 @@ import (
 )
 
 type deviceKVCache struct {
-	Outputs    *executor.RetainedOutputs
+	owner      *deviceCacheOwner
 	Keys       []executor.DeviceValue
 	Values     []executor.DeviceValue
 	Pages      []deviceKVPage
@@ -24,6 +25,35 @@ type deviceKVCache struct {
 	Tokens     uint32
 	Position   uint32
 	Logits     []float32
+}
+
+// deviceCacheOwner: shared fused-execution allocation owner.
+type deviceCacheOwner struct {
+	mu      sync.Mutex
+	outputs *executor.RetainedOutputs
+	refs    int
+}
+
+func newDeviceCacheOwner(outputs *executor.RetainedOutputs, refs int) *deviceCacheOwner {
+	return &deviceCacheOwner{outputs: outputs, refs: refs}
+}
+
+func (o *deviceCacheOwner) release(ctx context.Context) error {
+	if o == nil {
+		return nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.refs <= 0 {
+		return nil
+	}
+	o.refs--
+	if o.refs > 0 || o.outputs == nil {
+		return nil
+	}
+	err := o.outputs.Release(ctx)
+	o.outputs = nil
+	return err
 }
 
 type deviceKVPage struct {
@@ -34,11 +64,11 @@ type deviceKVPage struct {
 }
 
 func (c *deviceKVCache) Release(ctx context.Context) error {
-	if c == nil || c.Outputs == nil {
+	if c == nil || c.owner == nil {
 		return nil
 	}
-	err := c.Outputs.Release(ctx)
-	c.Outputs = nil
+	err := c.owner.release(ctx)
+	c.owner = nil
 	return err
 }
 
@@ -183,7 +213,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 		return nil, err
 	}
 	next := &deviceKVCache{
-		Outputs:    outputs,
+		owner:      newDeviceCacheOwner(outputs, 1),
 		Keys:       make([]executor.DeviceValue, len(cache.Keys)),
 		Values:     make([]executor.DeviceValue, len(cache.Values)),
 		Tokens:     cache.Tokens - discard,
@@ -281,86 +311,187 @@ func (r *Runner) forwardDeviceCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (reference.Value, *deviceKVCache, error) {
+	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
+		Tokens: tokenIDs,
+		Past:   past,
+	}})
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	return reference.Value{}, next[0], nil
+}
+
+type deviceBatchAppend struct {
+	Tokens []tokenizer.TokenID
+	Past   *deviceKVCache
+}
+
+type deviceBatchGraph struct {
+	logits       *tensor.Tensor
+	keys         []*tensor.Tensor
+	values       []*tensor.Tensor
+	pastTokens   uint32
+	nextPosition uint32
+	tokenCount   uint32
+}
+
+// forwardDeviceCachedBatchLocked: one graph, variable independent branches.
+func (r *Runner) forwardDeviceCachedBatchLocked(
+	ctx context.Context,
+	appends []deviceBatchAppend,
+) ([]*deviceKVCache, error) {
+	if len(appends) == 0 {
+		return nil, errors.New("inference: device batch is empty")
+	}
+	builder := r.newGraphBuilder()
+	hostFeeds := make(map[*tensor.Tensor]reference.Value)
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	graphs := make([]deviceBatchGraph, len(appends))
+	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
+	for index, appendInput := range appends {
+		graph, err := r.buildDeviceCachedBatchBranch(
+			builder, index, appendInput.Tokens, appendInput.Past, hostFeeds, deviceFeeds,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
+		}
+		graphs[index] = graph
+		outputs = append(outputs, graph.logits)
+		for layer := range graph.keys {
+			outputs = append(outputs, graph.keys[layer], graph.values[layer])
+		}
+	}
+	if err := builder.Err(); err != nil {
+		return nil, err
+	}
+	retained, err := r.cuda.ExecuteRetainedWithDeviceFeeds(
+		ctx, outputs, hostFeeds, deviceFeeds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	fail := func(cause error) ([]*deviceKVCache, error) {
+		_ = retained.Release(context.Background())
+		return nil, cause
+	}
+	next := make([]*deviceKVCache, len(graphs))
+	for index, graph := range graphs {
+		logits, copyErr := retained.CopyToHost(ctx, graph.logits)
+		if copyErr != nil {
+			return fail(copyErr)
+		}
+		cache := &deviceKVCache{
+			Keys:       make([]executor.DeviceValue, len(graph.keys)),
+			Values:     make([]executor.DeviceValue, len(graph.values)),
+			Tokens:     graph.pastTokens + graph.tokenCount,
+			Position:   graph.nextPosition + graph.tokenCount,
+			PageTokens: r.cachePageTokens,
+			Logits:     r.finalizeLogits(logits.Data),
+		}
+		var ok bool
+		for layer := range graph.keys {
+			cache.Keys[layer], ok = retained.Value(graph.keys[layer])
+			if !ok {
+				return fail(fmt.Errorf("inference: missing retained key for branch %d layer %d", index, layer))
+			}
+			cache.Values[layer], ok = retained.Value(graph.values[layer])
+			if !ok {
+				return fail(fmt.Errorf("inference: missing retained value for branch %d layer %d", index, layer))
+			}
+		}
+		if pageErr := rebuildDeviceCachePages(cache, cache.PageTokens); pageErr != nil {
+			return fail(pageErr)
+		}
+		next[index] = cache
+	}
+	owner := newDeviceCacheOwner(retained, len(next))
+	for _, cache := range next {
+		cache.owner = owner
+	}
+	return next, nil
+}
+
+func (r *Runner) buildDeviceCachedBatchBranch(
+	builder *tensor.Builder,
+	branch int,
+	tokenIDs []tokenizer.TokenID,
+	past *deviceKVCache,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+) (deviceBatchGraph, error) {
+	fail := func(err error) (deviceBatchGraph, error) {
+		return deviceBatchGraph{}, err
+	}
 	if r.spec.NonCausalAttention {
-		return reference.Value{}, nil, errors.New("inference: non-causal models do not support a device KV cache")
+		return fail(errors.New("non-causal models do not support a device KV cache"))
 	}
 	if len(tokenIDs) == 0 {
-		return reference.Value{}, nil, errors.New("inference: token sequence is empty")
+		return fail(errors.New("token sequence is empty"))
 	}
 	var pastTokens, nextPosition uint32
 	if past != nil {
 		pastTokens = past.Tokens
 		nextPosition = past.Position
 		if len(past.Keys) != len(r.weights.Layers) || len(past.Values) != len(r.weights.Layers) {
-			return reference.Value{}, nil, errors.New("inference: device cache layer count differs")
+			return fail(errors.New("device cache layer count differs"))
 		}
 	}
 	if uint64(pastTokens)+uint64(len(tokenIDs)) > uint64(r.spec.ContextLength) {
-		return reference.Value{}, nil, fmt.Errorf(
-			"inference: cached plus new token count %d exceeds context length %d",
-			uint64(pastTokens)+uint64(len(tokenIDs)),
-			r.spec.ContextLength,
-		)
+		return fail(fmt.Errorf(
+			"cached plus new token count %d exceeds context length %d",
+			uint64(pastTokens)+uint64(len(tokenIDs)), r.spec.ContextLength,
+		))
 	}
 	if uint64(nextPosition)+uint64(len(tokenIDs)) > math.MaxUint32 {
-		return reference.Value{}, nil, errors.New("inference: absolute token position exceeds uint32")
+		return fail(errors.New("absolute token position exceeds uint32"))
 	}
 	rows := make([]uint32, len(tokenIDs))
 	positions := make([]uint32, len(tokenIDs))
 	for index, id := range tokenIDs {
 		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", id)
+			return fail(fmt.Errorf("token ID %d is out of range", id))
 		}
 		rows[index] = uint32(id)
 		positions[index] = nextPosition + uint32(index)
 	}
-	builder := r.newGraphBuilder()
+	prefix := fmt.Sprintf("seq.%d.", branch)
 	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
 	if err != nil {
-		return reference.Value{}, nil, err
+		return fail(err)
 	}
 	current := builder.GetRows(embeddingTable, rows)
-	hostFeeds := map[*tensor.Tensor]reference.Value{}
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{embeddingTable: embeddingPointer}
+	deviceFeeds[embeddingTable] = embeddingPointer
 	if r.weights.PositionEmbedding != nil {
 		for _, position := range positions {
 			if position >= r.spec.ContextLength {
-				return reference.Value{}, nil, fmt.Errorf(
-					"inference: learned position %d exceeds context length %d",
-					position,
-					r.spec.ContextLength,
-				)
+				return fail(fmt.Errorf(
+					"learned position %d exceeds context length %d", position, r.spec.ContextLength,
+				))
 			}
 		}
-		positionTable, positionPointer, positionErr := r.deviceInput(
-			builder, *r.weights.PositionEmbedding,
-		)
+		positionTable, pointer, positionErr := r.deviceInput(builder, *r.weights.PositionEmbedding)
 		if positionErr != nil {
-			return reference.Value{}, nil, positionErr
+			return fail(positionErr)
 		}
-		deviceFeeds[positionTable] = positionPointer
+		deviceFeeds[positionTable] = pointer
 		current = builder.Add(current, builder.GetRows(positionTable, positions))
 	}
 	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
 		current = builder.Scale(current, scale)
 	}
 	if r.weights.TokenEmbeddingNorm != nil {
-		normWeight, normPointer, normErr := r.deviceInput(
-			builder, *r.weights.TokenEmbeddingNorm,
-		)
+		normWeight, pointer, normErr := r.deviceInput(builder, *r.weights.TokenEmbeddingNorm)
 		if normErr != nil {
-			return reference.Value{}, nil, normErr
+			return fail(normErr)
 		}
-		deviceFeeds[normWeight] = normPointer
+		deviceFeeds[normWeight] = pointer
 		var normBias *tensor.Tensor
 		if r.weights.TokenEmbeddingNormBias != nil {
-			normBias, normPointer, normErr = r.deviceInput(
-				builder, *r.weights.TokenEmbeddingNormBias,
-			)
+			normBias, pointer, normErr = r.deviceInput(builder, *r.weights.TokenEmbeddingNormBias)
 			if normErr != nil {
-				return reference.Value{}, nil, normErr
+				return fail(normErr)
 			}
-			deviceFeeds[normBias] = normPointer
+			deviceFeeds[normBias] = pointer
 		}
 		current = model.ApplyNormalization(builder, current, normWeight, normBias, r.spec)
 	}
@@ -373,28 +504,28 @@ func (r *Runner) forwardDeviceCachedLocked(
 	if r.spec.Architecture == "gemma4" && r.spec.EmbeddingPerLayer > 0 {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
-			return reference.Value{}, nil, errors.New("inference: Gemma 4 per-layer weights are incomplete")
+			return fail(errors.New("Gemma 4 per-layer weights are incomplete"))
 		}
 		perLayerTable, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerTokenEmbedding)
 		if inputErr != nil {
-			return reference.Value{}, nil, inputErr
+			return fail(inputErr)
 		}
 		deviceFeeds[perLayerTable] = pointer
 		projection, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerModelProjection)
 		if inputErr != nil {
-			return reference.Value{}, nil, inputErr
+			return fail(inputErr)
 		}
 		deviceFeeds[projection] = pointer
 		norm, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerProjectionNorm)
 		if inputErr != nil {
-			return reference.Value{}, nil, inputErr
+			return fail(inputErr)
 		}
 		deviceFeeds[norm] = pointer
 		perLayerInputs, inputErr = model.BuildGemma4PerLayerInputs(
 			builder, current, builder.GetRows(perLayerTable, rows), projection, norm, r.spec,
 		)
 		if inputErr != nil {
-			return reference.Value{}, nil, inputErr
+			return fail(inputErr)
 		}
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
@@ -402,7 +533,7 @@ func (r *Runner) forwardDeviceCachedLocked(
 	for layerIndex, info := range r.weights.Layers {
 		graphWeights, layerFeeds, layerErr := r.layerDeviceInputs(builder, info)
 		if layerErr != nil {
-			return reference.Value{}, nil, layerErr
+			return fail(layerErr)
 		}
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
@@ -419,14 +550,10 @@ func (r *Runner) forwardDeviceCachedLocked(
 				first := past.Keys[layerIndex]
 				second := past.Values[layerIndex]
 				firstInput := builder.Input(
-					fmt.Sprintf("blk.%d.state_0", layerIndex),
-					dtype.F32,
-					first.Shape,
+					fmt.Sprintf("%sblk.%d.state_0", prefix, layerIndex), dtype.F32, first.Shape,
 				)
 				secondInput := builder.Input(
-					fmt.Sprintf("blk.%d.state_1", layerIndex),
-					dtype.F32,
-					second.Shape,
+					fmt.Sprintf("%sblk.%d.state_1", prefix, layerIndex), dtype.F32, second.Shape,
 				)
 				deviceFeeds[firstInput] = first.Pointer
 				deviceFeeds[secondInput] = second.Pointer
@@ -438,51 +565,24 @@ func (r *Runner) forwardDeviceCachedLocked(
 			} else if info.Recurrent {
 				convChannels := uint64(r.spec.SSMInnerSize) +
 					2*uint64(r.spec.SSMStateSize)*uint64(r.spec.SSMGroupCount)
-				convShape := tensor.MustShape(
-					uint64(r.spec.SSMConvKernel-1),
-					convChannels,
-				)
+				convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convChannels)
 				ssmShape := tensor.MustShape(
-					uint64(r.spec.SSMStateSize),
-					uint64(r.spec.SSMStateSize),
-					uint64(r.spec.SSMTimeStepRank),
-					1,
+					uint64(r.spec.SSMStateSize), uint64(r.spec.SSMStateSize),
+					uint64(r.spec.SSMTimeStepRank), 1,
 				)
-				convState = builder.Input(
-					fmt.Sprintf("blk.%d.conv_state", layerIndex),
-					dtype.F32,
-					convShape,
-				)
-				ssmState = builder.Input(
-					fmt.Sprintf("blk.%d.ssm_state", layerIndex),
-					dtype.F32,
-					ssmShape,
-				)
+				convState = builder.Input(prefix+fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convShape)
+				ssmState = builder.Input(prefix+fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmShape)
 				convElements, _ := convShape.Elements()
 				ssmElements, _ := ssmShape.Elements()
-				hostFeeds[convState] = reference.Value{
-					Shape: convShape,
-					Data:  make([]float32, int(convElements)),
-				}
-				hostFeeds[ssmState] = reference.Value{
-					Shape: ssmShape,
-					Data:  make([]float32, int(ssmElements)),
-				}
+				hostFeeds[convState] = reference.Value{Shape: convShape, Data: make([]float32, int(convElements))}
+				hostFeeds[ssmState] = reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmElements))}
 			}
-			result, layerErr := model.BuildQwen35BlockCached(
-				builder,
-				current,
-				r.spec,
-				graphWeights,
-				positions,
-				info.Recurrent,
-				pastKey,
-				pastValue,
-				convState,
-				ssmState,
+			result, buildErr := model.BuildQwen35BlockCached(
+				builder, current, r.spec, graphWeights, positions, info.Recurrent,
+				pastKey, pastValue, convState, ssmState,
 			)
-			if layerErr != nil {
-				return reference.Value{}, nil, layerErr
+			if buildErr != nil {
+				return fail(buildErr)
 			}
 			current = result.Output
 			if info.Recurrent {
@@ -490,49 +590,40 @@ func (r *Runner) forwardDeviceCachedLocked(
 			} else {
 				keys[layerIndex], values[layerIndex] = result.Key, result.Value
 			}
-		} else {
-			var pastKey, pastValue *tensor.Tensor
-			if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
-				source := r.spec.LayerSharedKVSource(uint32(layerIndex))
-				pastKey, pastValue = keys[source], values[source]
-			} else if past != nil {
-				pastKey = builder.Input(
-					fmt.Sprintf("blk.%d.cache_key", layerIndex),
-					dtype.F32,
-					past.Keys[layerIndex].Shape,
-				)
-				pastValue = builder.Input(
-					fmt.Sprintf("blk.%d.cache_value", layerIndex),
-					dtype.F32,
-					past.Values[layerIndex].Shape,
-				)
-				deviceFeeds[pastKey] = past.Keys[layerIndex].Pointer
-				deviceFeeds[pastValue] = past.Values[layerIndex].Pointer
-			}
-			if tempErr := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); tempErr != nil {
-				return reference.Value{}, nil, tempErr
-			}
-			result, layerErr := model.BuildDenseBlockCachedForLayer(
-				builder,
-				current,
-				r.spec,
-				graphWeights,
-				positions,
-				pastKey,
-				pastValue,
-				uint32(layerIndex),
-			)
-			if layerErr != nil {
-				return reference.Value{}, nil, layerErr
-			}
-			current = result.Output
-			keys[layerIndex] = result.Key
-			values[layerIndex] = result.Value
+			continue
 		}
+		var pastKey, pastValue *tensor.Tensor
+		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
+			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
+			pastKey, pastValue = keys[source], values[source]
+		} else if past != nil {
+			pastKey = builder.Input(
+				fmt.Sprintf("%sblk.%d.cache_key", prefix, layerIndex), dtype.F32, past.Keys[layerIndex].Shape,
+			)
+			pastValue = builder.Input(
+				fmt.Sprintf("%sblk.%d.cache_value", prefix, layerIndex), dtype.F32, past.Values[layerIndex].Shape,
+			)
+			deviceFeeds[pastKey] = past.Keys[layerIndex].Pointer
+			deviceFeeds[pastValue] = past.Values[layerIndex].Pointer
+		}
+		if tempErr := addAttentionTemperatureInput(
+			builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights,
+		); tempErr != nil {
+			return fail(tempErr)
+		}
+		result, buildErr := model.BuildDenseBlockCachedForLayer(
+			builder, current, r.spec, graphWeights, positions,
+			pastKey, pastValue, uint32(layerIndex),
+		)
+		if buildErr != nil {
+			return fail(buildErr)
+		}
+		current = result.Output
+		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 	}
 	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {
-		return reference.Value{}, nil, err
+		return fail(err)
 	}
 	outputInfo := r.weights.TokenEmbedding
 	if r.weights.Output != nil {
@@ -540,76 +631,32 @@ func (r *Runner) forwardDeviceCachedLocked(
 	}
 	outputTable, outputPointer, err := r.deviceInput(builder, outputInfo)
 	if err != nil {
-		return reference.Value{}, nil, err
+		return fail(err)
 	}
 	deviceFeeds[outputTable] = outputPointer
 	width := uint64(r.spec.EmbeddingLength)
 	hiddenElements, err := current.Shape.Elements()
 	if err != nil {
-		return reference.Value{}, nil, err
+		return fail(err)
 	}
 	lastHidden := builder.FlatSlice(current, hiddenElements-width, width, 1)
-	logitsTensor := builder.MulMat(outputTable, lastHidden)
+	logits := builder.MulMat(outputTable, lastHidden)
 	if r.weights.OutputBias != nil {
-		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
+		bias, pointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
 		if biasErr != nil {
-			return reference.Value{}, nil, biasErr
+			return fail(biasErr)
 		}
-		deviceFeeds[bias] = biasPointer
-		logitsTensor = builder.Add(logitsTensor, bias)
+		deviceFeeds[bias] = pointer
+		logits = builder.Add(logits, bias)
 	}
 	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
-		logitsTensor = builder.Scale(logitsTensor, scale)
+		logits = builder.Scale(logits, scale)
 	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, nil, err
-	}
-	outputs := make([]*tensor.Tensor, 1, 1+2*len(keys))
-	outputs[0] = logitsTensor
-	for layerIndex := range keys {
-		outputs = append(outputs, keys[layerIndex], values[layerIndex])
-	}
-	retained, err := r.cuda.ExecuteRetainedWithDeviceFeeds(
-		ctx,
-		outputs,
-		hostFeeds,
-		deviceFeeds,
-	)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	fail := func(cause error) (reference.Value, *deviceKVCache, error) {
-		_ = retained.Release(context.Background())
-		return reference.Value{}, nil, cause
-	}
-	next := &deviceKVCache{
-		Outputs:    retained,
-		Keys:       make([]executor.DeviceValue, len(keys)),
-		Values:     make([]executor.DeviceValue, len(values)),
-		Tokens:     pastTokens + uint32(len(tokenIDs)),
-		Position:   nextPosition + uint32(len(tokenIDs)),
-		PageTokens: r.cachePageTokens,
-	}
-	logits, err := retained.CopyToHost(ctx, logitsTensor)
-	if err != nil {
-		return fail(err)
-	}
-	next.Logits = r.finalizeLogits(logits.Data)
-	var ok bool
-	for layerIndex := range keys {
-		next.Keys[layerIndex], ok = retained.Value(keys[layerIndex])
-		if !ok {
-			return fail(fmt.Errorf("inference: missing retained key for layer %d", layerIndex))
-		}
-		next.Values[layerIndex], ok = retained.Value(values[layerIndex])
-		if !ok {
-			return fail(fmt.Errorf("inference: missing retained value for layer %d", layerIndex))
-		}
-	}
-	if err := rebuildDeviceCachePages(next, next.PageTokens); err != nil {
-		return fail(err)
-	}
-	return reference.Value{}, next, nil
+	return deviceBatchGraph{
+		logits: logits, keys: keys, values: values,
+		pastTokens: pastTokens, nextPosition: nextPosition,
+		tokenCount: uint32(len(tokenIDs)),
+	}, nil
 }
 
 func rebuildDeviceCachePages(

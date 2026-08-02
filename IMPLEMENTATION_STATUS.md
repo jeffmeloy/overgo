@@ -23,7 +23,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Model runtime | Experimental breadth | Architecture-specific metadata, catalogs, graphs, cache state, and optional real-model oracles |
 | Generation | Implemented | Cached autoregressive, diffusion, encoder-decoder, embeddings, reranking, and speculative paths |
 | Multimodal | Implemented, constrained | Qwen3-VL and Gemma 4 image/video; Gemma 4 audio; single-turn server media |
-| Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, slots, metrics, LoRA |
+| Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
 
@@ -44,6 +44,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Embedded common, attention, MoE, recurrent, encoder, and multimodal specs.
 - Family-routed graph construction and tensor-catalog validation.
 - Paged retained-device caches and dynamic multi-sequence cache batches.
+- Fused variable-sequence CUDA graphs and continuous HTTP generation scheduling.
 - Padded multi-sequence T5 encoder/decoder batches with explicit lengths.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.

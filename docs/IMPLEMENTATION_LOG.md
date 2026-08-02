@@ -714,8 +714,8 @@ matrix.
   backreferences remain pending. General and infill sampler stages have
   arbitrary configurable ordering.
 - Text and function-tool GGUF Jinja templates are supported. Custom
-  llama.cpp-only Jinja extensions not implemented by gonja and
-  continuous-batching server scheduling remain pending. Tool-enabled streams
+  llama.cpp-only Jinja extensions not implemented by gonja remain pending.
+  Fused continuous-batching server scheduling is supported. Tool-enabled streams
   incrementally parse JSON and Hermes output while retaining complete-output
   schema validation.
 - Chat generation/counting accepts string message bodies, text content-part
@@ -980,15 +980,21 @@ the local GGUF fixtures contains FIM metadata or recognized FIM control-token
 spellings, so end-to-end token/output differential validation remains
 deferred until a compatible model is available.
 
-### Deferred: fused continuous-batching server scheduling
+### Implemented: fused continuous-batching server scheduling
 
 `ContinuousBatch` now supplies sequence-tagged host/device caches, page tables,
 dynamic admission/removal, transactional steps, context compaction, and host
-forks. Graph execution still uses the model-wide lock and the CUDA worker's
-single serial stream. Fusing variable active sequences into one graph and
-integrating per-sequence sampling, stop state, and cancellation into HTTP
-scheduling remain performance/server work; concurrent admission alone is not
-reported as fused batching.
+forks. Each device step builds the variable active sequences as independent
+branches of one CUDA graph submission. Retained outputs use shared reference
+ownership so removing or advancing one sequence cannot invalidate sibling
+caches from the same fused execution.
+
+The HTTP generation scheduler admits queued requests between token steps and
+removes completed or cancelled sequences independently. Samplers, histories,
+stop sequences, callbacks, and token limits remain per sequence. Preloaded
+device modes activate this path when the server has multiple slots; projected
+inputs, per-request LoRA, and incompatible cache policies retain the exact
+single-request fallback.
 
 ### Deferred: RWKV and PLaMo2 tokenizer oracle fixtures
 
@@ -1631,6 +1637,9 @@ append, suffix trim, zero-copy shift, and owned range compaction rebuild the
 table. The continuous-batch session layers sequence ownership on those caches,
 commits multi-sequence steps transactionally, permits sequences to enter and
 leave between steps, clones host branches, and exposes stable page snapshots.
+Preloaded device batches now place all active variable-length sequences in one
+graph execution. The server advances that active set token by token, admitting
+new work between steps and preserving independent stop and cancellation state.
 
 T5 now accepts padded rectangular source and decoder batches with explicit
 per-row lengths. Each active prefix is evaluated as an independent session

@@ -161,6 +161,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = float16Round(gelu)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpGELUErf:
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			output[i] = float32(0.5 * float64(value) * (1 + math.Erf(float64(value)/math.Sqrt2)))
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpReLU:
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {

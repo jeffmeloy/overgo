@@ -64,6 +64,24 @@ func TestExecuteReLUSquared(t *testing.T) {
 	}
 }
 
+func TestExecuteGELUErf(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(5))
+	output := builder.GELUErf(input)
+	values := []float32{-2, -0.5, 0, 1.5, 3}
+	value, _ := NewValue(input.Shape, values)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, item := range results[output].Data {
+		want := float32(0.5 * float64(values[index]) * (1 + math.Erf(float64(values[index])/math.Sqrt2)))
+		if math.Abs(float64(item-want)) > 1e-7 {
+			t.Fatalf("GELU erf[%d] = %v, want %v", index, item, want)
+		}
+	}
+}
+
 func TestExecuteClamp(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(5))

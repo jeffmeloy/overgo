@@ -248,6 +248,17 @@ extern "C" __global__ void gelu_f32(
     }
 }
 
+extern "C" __global__ void gelu_erf_f32(
+        const float * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const float value = input[index];
+        output[index] = 0.5f * value * (1.0f + erff(value * 0.7071067811865475f));
+    }
+}
+
 extern "C" __global__ void xielu_f32(
         const float * input,
         float * output,

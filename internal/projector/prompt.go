@@ -19,6 +19,7 @@ const PaddleOCRImagePad = "<|IMAGE_PLACEHOLDER|>"
 const Llama4ImageStart = "<|image_start|>"
 const Llama4ImageEnd = "<|image_end|>"
 const Llama4ImagePad = "<|image|>"
+const Granite4VisionImageToken = "<image>"
 const HunyuanVLImageStart = "<｜hy_place▁holder▁no▁100｜>"
 const HunyuanVLImageEnd = "<｜hy_place▁holder▁no▁101｜>"
 const HunyuanVLImagePad = "<｜hy_place▁holder▁no▁102｜>"
@@ -113,6 +114,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case granite4VisionProjectorType:
+		return OpenGranite4VisionWithOptions(path, Granite4VisionOpenOptions(options))
 	case llama4ProjectorType:
 		return OpenLlama4VisionWithOptions(path, Llama4VisionOpenOptions(options))
 	case hunyuanVLProjectorType:
@@ -128,6 +131,105 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	default:
 		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
 	}
+}
+
+func (r *Granite4VisionRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+}
+
+func (r *Granite4VisionRunner) BuildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
+}
+
+func (r *Granite4VisionRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+}
+
+func (r *Granite4VisionRunner) buildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	history bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: Granite 4 Vision image/text sequence is inconsistent")
+	}
+	counts := make([]int, len(sources))
+	runCounts := make([]int, len(sources))
+	var embeddings []float32
+	var deepstack [][]float32
+	var prompt strings.Builder
+	if !history {
+		prompt.WriteString("<|start_of_role|>user<|end_of_role|>\n")
+	}
+	for index, source := range sources {
+		prompt.WriteString(text[index])
+		output, err := r.EncodeImage(ctx, source)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode Granite 4 Vision image %d: %w", index, err)
+		}
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		runCounts[index] = counts[index] + 1
+		prompt.WriteString(strings.Repeat(Granite4VisionImageToken, runCounts[index]))
+		embeddings = append(embeddings, output.Embeddings.Data...)
+		if len(deepstack) == 0 {
+			deepstack = make([][]float32, len(output.DeepstackEmbeddings))
+		}
+		if len(deepstack) != len(output.DeepstackEmbeddings) {
+			return MultimodalPrompt{}, errors.New("projector: Granite 4 Vision deepstack stream count changed")
+		}
+		for stream := range deepstack {
+			deepstack[stream] = append(deepstack[stream], output.DeepstackEmbeddings[stream].Data...)
+		}
+	}
+	prompt.WriteString(text[len(text)-1])
+	if !history {
+		prompt.WriteString("<|end_of_text|>\n<|start_of_role|>assistant<|end_of_role|>\n")
+	}
+	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Granite 4 Vision image prompt: %w", err)
+	}
+	imageIDs, err := tokenizer.TokenizeText(Granite4VisionImageToken, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Granite 4 Vision image token: %w", err)
+	}
+	if len(imageIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Granite 4 Vision image token maps to %d tokens", len(imageIDs))
+	}
+	runs, err := variableTokenRuns(ids, imageIDs[0], runCounts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Granite 4 Vision image prompt: %w", err)
+	}
+	var indices []uint32
+	for index, run := range runs {
+		indices = append(indices, sequentialTokenIndices(run+1, counts[index])...)
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings, DeepstackEmbeddings: deepstack,
+		EmbeddingWidth: r.spec.ProjectionDim, EmbeddingStart: runs[0] + 1, EmbeddingTokenIndices: indices,
+	}, nil
 }
 
 func (r *Llama4VisionRunner) BuildImagePrompt(

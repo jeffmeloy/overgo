@@ -681,6 +681,7 @@ type functionSet struct {
 	copy              driver.Function
 	silu              driver.Function
 	gelu              driver.Function
+	geluErf           driver.Function
 	xielu             driver.Function
 	reluSquared       driver.Function
 	relu              driver.Function
@@ -872,6 +873,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"copy_f32", &result.copy},
 		{"silu_f32", &result.silu},
 		{"gelu_f32", &result.gelu},
+		{"gelu_erf_f32", &result.geluErf},
 		{"xielu_f32", &result.xielu},
 		{"relu_squared_f32", &result.reluSquared},
 		{"relu_f32", &result.relu},
@@ -1154,7 +1156,7 @@ func launchNode(
 		err = launch1D(state, functions.bf16Round, count, args)
 		runtime.KeepAlive(args)
 		return err
-	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
+	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
@@ -1168,6 +1170,8 @@ func launchNode(
 		function := functions.silu
 		if node.Op == tensor.OpGELU {
 			function = functions.gelu
+		} else if node.Op == tensor.OpGELUErf {
+			function = functions.geluErf
 		} else if node.Op == tensor.OpReLU {
 			function = functions.relu
 		} else if node.Op == tensor.OpReLUSquared {

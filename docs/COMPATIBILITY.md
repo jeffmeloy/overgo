@@ -87,7 +87,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `gpt2` | experimental | model-dependent | pending-fixture | - |
 | `gptj` | experimental | bounded-host, f32-preload, native-quantized-weights, retained-device-cache | pending-fixture | - |
 | `gptneox` | experimental | model-dependent | pending-fixture | - |
-| `granite` | experimental | model-dependent | pending-fixture | vision-encoder-external, vision-projector-external |
+| `granite` | experimental | model-dependent | pending-fixture | - |
 | `granitehybrid` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `grok` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `grovemoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |

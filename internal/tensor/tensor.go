@@ -66,6 +66,7 @@ const (
 	OpLoRAMerge
 	OpDivide
 	OpBF16Round
+	OpGELUErf
 )
 
 var opNames = [...]string{
@@ -123,6 +124,7 @@ var opNames = [...]string{
 	"lora_merge",
 	"divide",
 	"bf16_round",
+	"gelu_erf",
 }
 
 func (o Op) String() string {
@@ -535,6 +537,10 @@ func (b *Builder) SiLU(input *Tensor) *Tensor {
 
 func (b *Builder) GELU(input *Tensor) *Tensor {
 	return b.unary(OpGELU, input, nil)
+}
+
+func (b *Builder) GELUErf(input *Tensor) *Tensor {
+	return b.unary(OpGELUErf, input, nil)
 }
 
 func (b *Builder) ReLU(input *Tensor) *Tensor {

@@ -2599,9 +2599,16 @@ models:
       - projected-base-embedding-overrides
       - mapped-projector-deepstack-injection
       - zero-filled-token-deepstack
-    limitations:
-      - vision-encoder-external
-      - vision-projector-external
+      - granite4-vision-projector
+      - pillow-bicubic-aspect-fit-padding
+      - overview-first-uhd-grid-tiles
+      - learned-position-siglip-vision-transformer
+      - window-qformer-self-and-cross-attention
+      - spatial-offset-or-average-pool-downsampling
+      - base-and-deepstack-projector-streams
+      - ordered-multi-image-soft-token-merge
+      - native-image-marker-and-slot-tokens
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   maincoder:
     status: experimental

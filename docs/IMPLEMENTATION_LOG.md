@@ -567,10 +567,10 @@ claims.
   and LongRoPE short/long factor selection. Either the Granite or GraniteMoE
   architecture may select normalized softmax top-k gated or ungated SiLU
   experts plus an optional shared SwiGLU expert.
-  Granite Vision 4.1 metadata maps caller-provided projected deepstack streams
-  into decoder layers before attention; token-only calls leave those streams
-  zero-filled. Vision encoding and projection remain external. Real-model
-  validation is pending a local fixture.
+  Granite Vision 4.1 metadata maps projected deepstack streams into decoder
+  layers before attention; token-only calls leave those streams zero-filled.
+  The internal projector supplies the base and mapped deepstack streams.
+  Real-model validation is pending a local fixture.
 - Maincoder dense decoders support normal consecutive-pair RoPE followed by
   per-head Q/K RMSNorm, preserving the upstream operation order, with the
   standard tied-output RMSNorm/SwiGLU catalog. Real-model validation is pending
@@ -1733,6 +1733,18 @@ prompts use the image boundary and slot tokens, preserve history, and retain
 refined-tile-before-overview ordering. Strict catalog, preprocessing, prompt,
 two-axis RoPE, and CPU/CUDA differential tests pass; real-model validation
 remains fixture-gated.
+
+Granite 4 Vision now executes Pillow-bicubic aspect-fit preprocessing with an
+overview followed by selected grid tiles, learned-position SigLIP vision
+blocks, and one window QFormer per selected feature layer. QFormer streams
+support average-pool or spatial-offset downsampling, learned image/query
+positions, self/cross attention, exact GELU-ERF FFNs, raster reconstruction,
+and per-tile newline embeddings. Native single/multi-image prompts retain the
+leading image marker, map later marker tokens to the base stream, and carry
+aligned deepstack streams into configured Granite decoder layers. Strict
+metadata/catalog checks, preprocessing and prompt tests, plus a nonzero
+multi-window CPU/CUDA differential pass; real-model validation remains
+fixture-gated.
 
 ## Working rules
 

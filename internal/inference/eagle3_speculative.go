@@ -115,7 +115,9 @@ func (r *Runner) advanceEagle3Verification(
 	currentToken tokenizer.TokenID,
 	session *Eagle3Session,
 ) (reference.Value, *Eagle3Session, error) {
-	hidden, targetCache, err := target.ForwardCached(ctx, []tokenizer.TokenID{currentToken}, session.TargetCache)
+	hidden, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
+		ctx, []tokenizer.TokenID{currentToken}, session.TargetCache, r.spec.TargetLayers,
+	)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -128,10 +130,6 @@ func (r *Runner) advanceEagle3Verification(
 		return reference.Value{}, nil, err
 	}
 	tokens := append(append([]tokenizer.TokenID(nil), session.TargetTokens...), currentToken)
-	features, err := target.ExtractLayerInputs(ctx, tokens, r.spec.TargetLayers)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
 	fused, err := r.FuseEagle3Features(ctx, features)
 	if err != nil {
 		return reference.Value{}, nil, err

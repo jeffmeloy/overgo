@@ -1759,7 +1759,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	attentionBlocks []AttentionBlock,
 ) (reference.Value, *KVCache, error) {
 	return r.forwardCachedWithEmbeddingOverridesModeLocked(
-		ctx, tokenIDs, cache, overrides, multiPositions, deepstackInputs, attentionBlocks, true,
+		ctx, tokenIDs, cache, overrides, multiPositions, deepstackInputs, attentionBlocks, true, nil,
 	)
 }
 
@@ -1769,7 +1769,7 @@ func (r *Runner) forwardCachedPreOutputNormLocked(
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
 	return r.forwardCachedWithEmbeddingOverridesModeLocked(
-		ctx, tokenIDs, cache, nil, nil, nil, nil, false,
+		ctx, tokenIDs, cache, nil, nil, nil, nil, false, nil,
 	)
 }
 
@@ -1782,6 +1782,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	deepstackInputs []reference.Value,
 	attentionBlocks []AttentionBlock,
 	applyOutputNorm bool,
+	capture *layerInputCapture,
 ) (reference.Value, *KVCache, error) {
 	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
 		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP-only model requires a paired target session")
@@ -1912,6 +1913,9 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		return reference.Value{}, nil, err
 	}
 	if r.spec.Architecture == "gemma3n" {
+		if capture != nil {
+			return reference.Value{}, nil, errors.New("inference: cached Gemma3n layer extraction is unsupported")
+		}
 		return r.forwardGemma3nCachedLocked(
 			ctx, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
@@ -1952,7 +1956,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
 			deepstackBase, deepstackInputs, attentionBlockIDs,
-			cache, nextCache, visualMode, applyOutputNorm,
+			cache, nextCache, visualMode, applyOutputNorm, capture,
 		)
 	}
 	var firstLayerValue, previousTopK *reference.Value
@@ -1963,6 +1967,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 				return reference.Value{}, nil, fmt.Errorf("inference layer %d deepstack input: %w", layerIndex, err)
 			}
 		}
+		capture.set(layerIndex, activation)
 		var past *LayerCache
 		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
 			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
@@ -2196,6 +2201,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	nextCache *KVCache,
 	visualMode bool,
 	applyOutputNorm bool,
+	capture *layerInputCapture,
 ) (reference.Value, *KVCache, error) {
 	builder := r.newGraphBuilder()
 	input := builder.Input("model.input", dtype.F32, activation.Shape)
@@ -2210,6 +2216,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
+	captured := make(map[int32]*tensor.Tensor)
 	for layerIndex, info := range r.weights.Layers {
 		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), false, deepstackBase, deepstackInputs); stream != nil {
 			deepstack := builder.Input(
@@ -2217,6 +2224,9 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			)
 			hostFeeds[deepstack] = *stream
 			current = builder.Add(current, deepstack)
+		}
+		if capture.wants(layerIndex) {
+			captured[int32(layerIndex)] = current
 		}
 		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
 		if err != nil {
@@ -2308,6 +2318,13 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	for layerIndex := range keys {
 		outputs = append(outputs, keys[layerIndex], values[layerIndex])
 	}
+	if capture != nil {
+		for _, layer := range capture.order {
+			if node := captured[layer]; node != nil {
+				outputs = append(outputs, node)
+			}
+		}
+	}
 	results, err := r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -2317,6 +2334,9 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			Key:   results[keys[layerIndex]],
 			Value: results[values[layerIndex]],
 		}
+	}
+	for layer, node := range captured {
+		capture.set(int(layer), results[node])
 	}
 	return results[current], nextCache, nil
 }

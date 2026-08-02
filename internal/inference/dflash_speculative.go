@@ -117,7 +117,9 @@ func (r *Runner) advanceDFlashVerification(
 	currentToken tokenizer.TokenID,
 	session *DFlashSession,
 ) (reference.Value, *DFlashSession, error) {
-	hidden, targetCache, err := target.ForwardCached(ctx, []tokenizer.TokenID{currentToken}, session.TargetCache)
+	hidden, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
+		ctx, []tokenizer.TokenID{currentToken}, session.TargetCache, r.spec.TargetLayers,
+	)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -126,7 +128,11 @@ func (r *Runner) advanceDFlashVerification(
 		return reference.Value{}, nil, err
 	}
 	tokens := append(append([]tokenizer.TokenID(nil), session.TargetTokens...), currentToken)
-	cache, err := r.SyncDFlashPrefix(ctx, target, tokens, session.Cache)
+	fused, err := r.FuseDFlashFeatures(ctx, features)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	cache, err := r.InjectDFlashFeatures(ctx, fused, []uint32{session.Position}, session.Cache)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

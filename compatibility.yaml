@@ -3285,6 +3285,7 @@ models:
       - native-quantized-linear-weights
     features:
       - exactly-three-target-layer-inputs
+      - single-pass-cached-target-layer-input-capture
       - target-hidden-to-draft-feature-fusion
       - shifted-token-feature-cache-construction
       - dual-rmsnorm-concatenated-attention-input
@@ -3298,14 +3299,15 @@ models:
       - transactional-sampled-speculative-verification
       - accepted-prefix-target-cache-advancement
       - committed-target-feature-resynchronization
+      - incremental-target-feature-resynchronization
       - sampler-checkpoint-rollback-and-commit
     validation:
       - synthetic-metadata-and-catalog
       - reference-feature-and-decoder-pipeline
       - full-cuda-pipeline-differential
+      - env-gated-cached-layer-input-differential
       - env-gated-real-pair-coordinator
     limitations:
-      - target-feature-resync-recomputes-full-text-prefix
       - real-model-pair-pending
   dflash:
     status: experimental
@@ -3316,8 +3318,10 @@ models:
     features:
       - strict-target-layer-metadata-and-catalog
       - full-sequence-target-layer-input-extraction
+      - single-pass-cached-target-layer-input-capture
       - target-feature-fusion
       - committed-kv-cache-injection
+      - incremental-committed-feature-injection
       - neox-rope-qk-normalization
       - cache-aware-non-causal-noise-block-attention
       - interleaved-sliding-window-patterns
@@ -3330,9 +3334,10 @@ models:
       - synthetic-metadata-and-catalog
       - reference-feature-injection-noise-pipeline
       - full-cuda-pipeline-differential
+      - env-gated-cached-layer-input-differential
       - env-gated-real-pair-coordinator
     limitations:
-      - target-extraction-recomputes-full-prefix
+      - explicit-prefix-sync-recomputes-target-prefix
       - real-model-pair-pending
   t5:
     status: experimental

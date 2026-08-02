@@ -190,6 +190,54 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	t.Logf("incremental/full max absolute difference = %g", maximum)
 }
 
+func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	if modelPath == "" {
+		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+	}
+	runner, err := OpenWithOptions(modelPath, OpenOptions{
+		DeviceOrdinal:           0,
+		PreloadQuantizedWeights: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	layers := []int32{0, int32(len(runner.weights.Layers) / 2), int32(len(runner.weights.Layers) - 1)}
+	tokens := []tokenizer.TokenID{9707, 27}
+	ctx := context.Background()
+	full, err := runner.ExtractLayerInputs(ctx, tokens, layers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, cache, first, err := runner.ForwardCachedExtractLayerInputs(ctx, tokens[:1], nil, layers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, second, err := runner.ForwardCachedExtractLayerInputs(ctx, tokens[1:], cache, layers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	width := int(full.Shape.Dims[0])
+	assertMaximumDifference(t, "prefix layer inputs", first.Data, full.Data[:width], 1e-2)
+	assertMaximumDifference(t, "incremental layer inputs", second.Data, full.Data[width:], 1e-2)
+}
+
+func assertMaximumDifference(t *testing.T, label string, got, want []float32, tolerance float64) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s length = %d, want %d", label, len(got), len(want))
+	}
+	var maximum float64
+	for index := range got {
+		maximum = max(maximum, math.Abs(float64(got[index]-want[index])))
+	}
+	if maximum > tolerance {
+		t.Fatalf("%s max absolute difference = %g, want <= %g", label, maximum, tolerance)
+	}
+	t.Logf("%s max absolute difference = %g", label, maximum)
+}
+
 func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
 	if modelPath == "" {

@@ -67,10 +67,10 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `deepseek2-ocr` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | real-model-validation-pending-fixture |
 | `deepseek32` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `deepseek4` | experimental | bounded-host-hyper-connections-and-compressed-attention, f32-preload, native-quantized-experts | pending-fixture | - |
-| `dflash` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | target-extraction-recomputes-full-prefix, real-model-pair-pending |
+| `dflash` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | explicit-prefix-sync-recomputes-target-prefix, real-model-pair-pending |
 | `dots1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `dream` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `eagle3` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | target-feature-resync-recomputes-full-text-prefix, real-model-pair-pending |
+| `eagle3` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-pair-pending |
 | `ernie4_5` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `ernie4_5-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `eurobert` | experimental | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |

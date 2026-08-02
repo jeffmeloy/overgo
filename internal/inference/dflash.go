@@ -30,11 +30,21 @@ func (r *Runner) NewDFlashSession(
 	if r == nil || target == nil || len(tokenIDs) == 0 {
 		return nil, errors.New("inference: DFlash session inputs are invalid")
 	}
-	cache, err := r.PrimeDFlash(ctx, target, tokenIDs)
+	_, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
+		ctx, tokenIDs, nil, r.spec.TargetLayers,
+	)
 	if err != nil {
 		return nil, err
 	}
-	_, targetCache, err := target.ForwardCached(ctx, tokenIDs, nil)
+	fused, err := r.FuseDFlashFeatures(ctx, features)
+	if err != nil {
+		return nil, err
+	}
+	positions := make([]uint32, len(tokenIDs))
+	for index := range positions {
+		positions[index] = uint32(index)
+	}
+	cache, err := r.InjectDFlashFeatures(ctx, fused, positions, nil)
 	if err != nil {
 		return nil, err
 	}

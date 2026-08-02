@@ -888,6 +888,10 @@ noise-block mask. Prefix synchronization, bounded draft blocks, reference
 oracles, and CUDA pipeline parity are covered. Greedy and sampled coordinators
 verify target logits, transactionally restore samplers, advance accepted target
 and draft caches, and resynchronize injected features from the committed prefix.
+Session setup and verification now capture configured pre-layer rows during the
+same cached target forward, then fuse and inject only the new rows. The explicit
+`PrimeDFlash` and `SyncDFlashPrefix` helpers retain full-prefix extraction for
+custom scheduler recovery.
 
 ### Implemented: WavTokenizer audio-feature decoder
 
@@ -1466,7 +1470,8 @@ output projection may be shared. Autoregressive draft advance retains its own
 KV cache. Bounded greedy and sampled coordinators verify against the target,
 advance accepted target/draft caches, restore or commit sampler checkpoints,
 and resynchronize the recurrent feature from committed target-layer inputs.
-The correctness-first resync recomputes the committed text prefix. Strict
+The target forward now captures configured pre-layer inputs alongside cache
+advancement, so setup and verification fuse only newly committed rows. Strict
 paired-contract, reference, CUDA pipeline, and coordinator validation pass;
 real-model pair validation remains pending local fixtures.
 

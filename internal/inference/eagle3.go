@@ -92,7 +92,9 @@ func (r *Runner) NewEagle3Session(
 	if r.spec.Architecture != "eagle3" || target.spec.EmbeddingLength != r.spec.TargetHiddenSize {
 		return nil, errors.New("inference: Eagle3 target model is incompatible")
 	}
-	features, err := target.ExtractLayerInputs(ctx, tokenIDs, r.spec.TargetLayers)
+	_, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
+		ctx, tokenIDs, nil, r.spec.TargetLayers,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -104,10 +106,6 @@ func (r *Runner) NewEagle3Session(
 	pending := reference.Value{
 		Shape: tensor.MustShape(uint64(width), 1),
 		Data:  append([]float32(nil), fused.Data[(len(tokenIDs)-1)*width:]...),
-	}
-	_, targetCache, err := target.ForwardCached(ctx, tokenIDs, nil)
-	if err != nil {
-		return nil, err
 	}
 	session := &Eagle3Session{
 		TargetCache: targetCache, TargetTokens: append([]tokenizer.TokenID(nil), tokenIDs...),

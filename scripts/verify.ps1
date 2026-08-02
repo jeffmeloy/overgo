@@ -8,10 +8,13 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 
 Push-Location $repositoryRoot
 try {
-    gofmt -w cmd internal
+	$unformatted = @(gofmt -l cmd internal)
     if ($LASTEXITCODE -ne 0) {
-        throw "gofmt failed"
+		throw "gofmt failed"
     }
+	if ($unformatted.Count -ne 0) {
+		throw "Go formatting check failed:`n$($unformatted -join "`n")"
+	}
     go test ./...
     if ($LASTEXITCODE -ne 0) {
         throw "unit tests failed"

@@ -35,6 +35,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Projection-backed multimodal input-token counting.
 - Bounded multimodal bodies, decoded media, image dimensions, and pixels.
 - Shared native, Chat, and Responses prompt preparation and token counting.
+- Non-mutating Go formatting verification in local and CI gates.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
@@ -63,11 +64,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ### Verification and maintenance
 
-1. Make formatting verification non-mutating and enforce it in CI.
-2. Add a vet gate after isolating the intentional CUDA C-pointer diagnostic.
-3. Add a CGO-enabled race job for server and inference packages.
-4. Split oversized model/server/CUDA test files and centralize CUDA test setup.
-5. Keep implemented claims in `compatibility.yaml`; regenerate and check
+1. Add a vet gate after isolating the intentional CUDA C-pointer diagnostic.
+2. Add a CGO-enabled race job for server and inference packages.
+3. Split oversized model/server/CUDA test files and centralize CUDA test setup.
+4. Keep implemented claims in `compatibility.yaml`; regenerate and check
    `docs/COMPATIBILITY.md` in local verification and CI.
 
 ## Deferred or externally blocked

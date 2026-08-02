@@ -15,6 +15,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+      - name: Verify formatting
+        shell: pwsh
+        run: |
+          $unformatted = @(gofmt -l cmd internal)
+          if ($LASTEXITCODE -ne 0) { throw "gofmt failed" }
+          if ($unformatted.Count -ne 0) {
+            throw "Go formatting check failed:`n$($unformatted -join "`n")"
+          }
       - name: Test
         env:
           CGO_ENABLED: "0"

@@ -1574,6 +1574,10 @@ as generation. Generation receives the prepared token IDs directly, preventing
 usage drift from a second tokenizer pass. Cross-route tests compare reported
 input counts, generation usage, and the exact IDs delivered to the runner.
 
+Formatting verification is now read-only. Local verification and the
+cross-platform CI matrix run `gofmt -l` and fail with the complete unformatted
+file list; neither gate rewrites the worktree.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

@@ -3269,13 +3269,13 @@ models:
       - accepted-prefix-cache-advancement
       - target-hidden-state-resynchronization
       - sampler-checkpoint-rollback-and-commit
+      - projected-image-audio-target-prefix
     validation:
       - synthetic-metadata-and-catalog
       - reference-full-pipeline
       - full-cuda-pipeline-differential
       - env-gated-real-pair-coordinator
     limitations:
-      - text-only-target-input
       - real-model-pair-pending
   eagle3:
     status: experimental
@@ -3415,5 +3415,282 @@ models:
       - full-cuda-decoder-differential
       - waveform-dc-known-answer
       - env-gated-real-waveform-decode
+    limitations:
+      - real-model-fixture-pending
+  bert:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - learned-absolute-position-embeddings
+      - optional-token-type-embeddings
+      - affine-embedding-layernorm
+      - bidirectional-fused-or-separate-qkv-attention
+      - post-attention-and-ffn-layernorm
+      - gelu-ffn
+      - hidden-state-encoder-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - classifier-and-pooler-outside-hidden-state-boundary
+      - real-model-fixture-pending
+  chameleon:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+    features:
+      - per-head-affine-qk-layernorm
+      - standard-or-sandwich-rmsnorm
+      - normal-rope
+      - projected-soft-token-overrides
+      - text-output-image-code-suppression
+      - serializable-prefix-editable-kv-cache
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+      - image-logit-suppression
+    limitations:
+      - vision-projector-absent-from-pinned-upstream
+      - image-token-generation-absent-from-pinned-upstream
+      - real-model-fixture-pending
+  deepseek:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    tokenizers:
+      - deepseek-llm-bpe
+    features:
+      - optional-leading-dense-swiglu
+      - unnormalized-softmax-topk-routing
+      - routed-weight-scaling
+      - shared-swiglu-expert
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    validation:
+      - pinned-46-case-tokenizer-oracle
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  eurobert:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - bidirectional-attention
+      - fused-or-separate-qkv
+      - neox-rope
+      - rmsnorm
+      - swiglu
+      - hidden-state-encoder-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  falcon-h1:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+      - retained-device-cache
+    features:
+      - parallel-neox-rope-gqa-and-mamba2
+      - separate-or-fused-qkv
+      - optional-attention-ssm-and-ffn-biases
+      - optional-ssm-grouped-rmsnorm
+      - parallel-swiglu
+      - named-convolution-and-ssm-state
+      - serializable-prefix-editable-cache
+    validation:
+      - synthetic-metadata-and-catalog
+      - cache-topology-and-editing
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  granitemoe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - embedding-residual-attention-and-inverse-logit-scales
+      - optional-no-rope-or-longrope
+      - normalized-softmax-topk-routing
+      - gated-swiglu-or-ungated-silu-experts
+      - optional-shared-swiglu-expert
+      - serializable-prefix-editable-kv-cache
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  jina-bert-v2:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - bidirectional-alibi-attention
+      - optional-fused-qkv
+      - affine-qk-layernorm
+      - optional-secondary-attention-residual-norm
+      - gelu-or-geglu-ffn
+      - hidden-state-encoder-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  jina-bert-v3:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - bidirectional-neox-rope-attention
+      - optional-fused-qkv
+      - affine-embedding-and-post-norms
+      - dense-gelu-ffn
+      - gate-free-softmax-topk-gelu-experts
+      - hidden-state-encoder-output
+    validation:
+      - synthetic-dense-and-moe-catalogs
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  kimi-linear:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+      - retained-device-cache
+    features:
+      - metadata-selected-kda-and-mla-layers
+      - no-rope-absorbed-mla
+      - gated-delta-recurrent-attention
+      - convolution-and-matrix-state-cache
+      - dense-leading-swiglu
+      - routed-and-shared-experts
+      - serializable-prefix-editable-cache
+    validation:
+      - synthetic-metadata-and-catalog
+      - cache-topology-and-editing
+      - reference-cuda-kda-and-mla-differentials
+    limitations:
+      - real-model-fixture-pending
+  llama-embed:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+    features:
+      - dense-or-mixtral-style-catalog
+      - bidirectional-normal-rope-attention
+      - dense-or-routed-swiglu
+      - final-rmsnorm-hidden-state-output
+      - explicit-vocabulary-logit-rejection
+    validation:
+      - synthetic-dense-and-moe-catalogs
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  modern-bert:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - affine-embedding-layernorm
+      - fused-qkv
+      - bidirectional-neox-rope-attention
+      - periodic-symmetric-local-attention
+      - geglu-swiglu-or-reglu
+      - hidden-state-encoder-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  neo-bert:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - fused-qkv-bidirectional-attention
+      - normal-rope
+      - pre-rmsnorm-residual-blocks
+      - fused-swiglu
+      - final-rmsnorm-hidden-state-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - classifier-outside-hidden-state-boundary
+      - real-model-fixture-pending
+  nomic-bert:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+    features:
+      - optional-fused-qkv
+      - bidirectional-neox-rope-attention
+      - affine-embedding-and-post-norms
+      - gated-swiglu
+      - hidden-state-encoder-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  nomic-bert-moe:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-experts
+    features:
+      - alternating-dense-and-expert-cadence
+      - dense-gelu-blocks
+      - gate-free-softmax-topk-gelu-experts
+      - bidirectional-neox-rope-attention
+      - affine-embedding-and-post-norms
+      - hidden-state-encoder-output
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
+    limitations:
+      - real-model-fixture-pending
+  pangu-embedded:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-linear-weights
+    features:
+      - causal-rmsnorm-swiglu-decoder
+      - separate-or-fused-qkv
+      - required-attention-output-bias
+      - neox-rope
+      - optional-longrope-factors
+      - optional-tied-output
+      - serializable-prefix-editable-kv-cache
+    validation:
+      - synthetic-metadata-and-catalog
+      - reference-cuda-block-differential
     limitations:
       - real-model-fixture-pending

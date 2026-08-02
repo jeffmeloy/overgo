@@ -29,6 +29,8 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Gemma 4 Assistant projected image/audio target-prefix sessions.
+- Exact compatibility-manifest coverage for every registered architecture, enforced by the generator.
 - WavTokenizer pinned inverse-spectral waveform synthesis with 24 kHz mono output.
 - DFlash greedy/sampled block drafting with target verification, sampler rollback, cache advancement, and feature-cache resynchronization.
 - Eagle3 greedy/sampled drafting with target verification, sampler rollback, target-cache advancement, and feature resynchronization.

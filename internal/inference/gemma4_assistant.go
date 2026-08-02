@@ -26,13 +26,39 @@ func (r *Runner) NewGemma4AssistantSession(
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
 ) (*Gemma4AssistantSession, error) {
+	return r.newGemma4AssistantSession(ctx, target, tokenIDs, nil)
+}
+
+// NewGemma4AssistantProjectedSession: media-aware target-prefix setup.
+func (r *Runner) NewGemma4AssistantProjectedSession(
+	ctx context.Context,
+	target *Runner,
+	tokenIDs []tokenizer.TokenID,
+	inputs ProjectedInputs,
+) (*Gemma4AssistantSession, error) {
+	return r.newGemma4AssistantSession(ctx, target, tokenIDs, &inputs)
+}
+
+func (r *Runner) newGemma4AssistantSession(
+	ctx context.Context,
+	target *Runner,
+	tokenIDs []tokenizer.TokenID,
+	inputs *ProjectedInputs,
+) (*Gemma4AssistantSession, error) {
 	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
 		return nil, errors.New("inference: Gemma 4 assistant and target inputs are invalid")
 	}
 	if err := r.validateGemma4AssistantTarget(target); err != nil {
 		return nil, err
 	}
-	hidden, cache, err := target.ForwardCached(ctx, tokenIDs, nil)
+	var hidden reference.Value
+	var cache *KVCache
+	var err error
+	if inputs == nil {
+		hidden, cache, err = target.ForwardCached(ctx, tokenIDs, nil)
+	} else {
+		hidden, cache, err = target.ForwardCachedWithProjectedInputs(ctx, tokenIDs, nil, *inputs)
+	}
 	if err != nil {
 		return nil, err
 	}

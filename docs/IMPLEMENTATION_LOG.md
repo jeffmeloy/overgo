@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The compatibility generator requires exact coverage of the architecture
+  registry. Missing or stale model entries fail verification; the matrix now
+  includes all registered decoder, encoder, hybrid, diffusion, draft, and
+  multimodal families.
 - The local Qwen3 4B GGUF loads a 151,936-token GPT-2/Qwen2 vocabulary and
   tokenizes representative text.
 - The benchmark CLI records JSON load, TTFT, post-first-token decode,
@@ -1475,7 +1479,9 @@ only the accepted target prefix plus correction, restore sampler checkpoints on
 failure, commit the correction, and replace recurrent draft state with the true
 target hidden row. Strict paired-contract, reference, CUDA pipeline, and
 coordinator validation pass; real-model pair validation remains pending local
-fixtures.
+fixtures. Projected-session setup also accepts the Gemma4 image/audio embedding
+overrides and bidirectional media blocks, preserving the media-aware target
+prefix cache before text-only draft continuation.
 
 Gemma3n now executes four-stream AltUp prediction/correction, magnitude-matched
 projection and unembedding, Laurel low-rank residuals, first-ten-layer Gaussian

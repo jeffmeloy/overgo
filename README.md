@@ -694,6 +694,9 @@ target-width hidden row between steps. `DraftGemma4AssistantGreedy` and
 `DraftGemma4AssistantSampled` build bounded proposals; their matching verify
 calls advance the target cache, accept a valid prefix, emit the correction
 token, restore sampler state transactionally, and resynchronize target hidden.
+`NewGemma4AssistantProjectedSession` preserves Gemma 4 projected image/audio
+embeddings and media attention blocks in the target prefix cache before the
+same draft/verify loop continues with text tokens.
 WavTokenizer decoder execution maps semantic token IDs to audio-feature frames
 through the strict upstream tensor catalog, six-stage PosNet, full non-causal
 single-head attention, dense/depthwise same-padding convolutions, GroupNorm,

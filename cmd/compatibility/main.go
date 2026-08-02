@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 
+	"llamacpp2go/internal/model"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -205,6 +207,34 @@ func validateManifest(root string, document manifest) error {
 		if name == "" || item.Status == "" || len(item.Features) == 0 {
 			return fmt.Errorf("compatibility manifest: model %q is incomplete", name)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "internal", "model", "architecture.go")); err == nil {
+		if err := validateModelCoverage(document.Models, model.SupportedArchitectures()); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("compatibility manifest: inspect architecture registry: %w", err)
+	}
+	return nil
+}
+
+func validateModelCoverage(models map[string]modelClaim, supported []string) error {
+	missing := make([]string, 0)
+	for _, name := range supported {
+		if _, ok := models[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	extra := make([]string, 0)
+	for name := range models {
+		if !slices.Contains(supported, name) {
+			extra = append(extra, name)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(extra)
+	if len(missing) > 0 || len(extra) > 0 {
+		return fmt.Errorf("compatibility manifest: model coverage differs: missing=%v extra=%v", missing, extra)
 	}
 	return nil
 }

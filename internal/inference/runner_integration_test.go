@@ -856,6 +856,16 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	projectedSession, err := assistant.NewGemma4AssistantProjectedSession(
+		ctx, target, []tokenizer.TokenID{0}, ProjectedInputs{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projectedSession.Position != session.Position ||
+		projectedSession.PendingHidden.Shape != session.PendingHidden.Shape {
+		t.Fatalf("projected Gemma 4 assistant session mismatch: text=%+v projected=%+v", session, projectedSession)
+	}
 	draft, err := assistant.DraftGemma4AssistantGreedy(ctx, target, 0, session, 2, 0)
 	if err != nil {
 		t.Fatal(err)

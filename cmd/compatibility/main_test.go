@@ -76,6 +76,21 @@ models:
 	}
 }
 
+func TestValidateModelCoverageRejectsMissingAndExtra(t *testing.T) {
+	models := map[string]modelClaim{
+		"alpha": {Status: "experimental", Features: []string{"a"}},
+		"extra": {Status: "experimental", Features: []string{"x"}},
+	}
+	err := validateModelCoverage(models, []string{"alpha", "beta"})
+	if err == nil || !strings.Contains(err.Error(), "missing=[beta]") ||
+		!strings.Contains(err.Error(), "extra=[extra]") {
+		t.Fatalf("coverage error = %v", err)
+	}
+	if err := validateModelCoverage(models, []string{"alpha", "extra"}); err != nil {
+		t.Fatalf("complete coverage error = %v", err)
+	}
+}
+
 func writeTestFile(t *testing.T, root, path, data string) {
 	t.Helper()
 	absolute := filepath.Join(root, filepath.FromSlash(path))

@@ -222,6 +222,11 @@ func TestGemma4RealFixture(t *testing.T) {
 			Positions   [][]int     `json:"image_position_ids"`
 		} `json:"preprocess"`
 		ProjectorIntermediates struct {
+			PatchLN1            probeRecord `json:"patch_ln1"`
+			PatchDense          probeRecord `json:"patch_dense"`
+			PatchLN2            probeRecord `json:"patch_ln2"`
+			PosNorm             probeRecord `json:"pos_norm"`
+			PreProjectionNorm   probeRecord `json:"pre_projection_norm"`
 			EmbeddingProjection probeRecord `json:"embedding_projection"`
 		} `json:"projector_intermediates"`
 	}
@@ -269,7 +274,20 @@ func TestGemma4RealFixture(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_GEMMA4_PROJECTOR_FULL") == "" {
 		return
 	}
-	output, err := runner.EncodeImage(context.Background(), input)
+	stages := map[string]probeRecord{
+		"patch_ln1":            golden.ProjectorIntermediates.PatchLN1,
+		"patch_dense":          golden.ProjectorIntermediates.PatchDense,
+		"patch_ln2":            golden.ProjectorIntermediates.PatchLN2,
+		"pos_norm":             golden.ProjectorIntermediates.PosNorm,
+		"pre_projection_norm":  golden.ProjectorIntermediates.PreProjectionNorm,
+		"embedding_projection": golden.ProjectorIntermediates.EmbeddingProjection,
+	}
+	output, err := runner.encodeWithTrace(context.Background(), processed, func(name string, values []float32) {
+		if name == "patch_ln1" {
+			values = gemma4InterleavePatchRows(values, runner.Spec().PatchWidth)
+		}
+		compareGemma4StageProbes(t, "Gemma 4 "+name, values, stages[name])
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,6 +303,44 @@ func TestGemma4RealFixture(t *testing.T) {
 	if relative := math.Abs(l2-golden.ProjectorIntermediates.EmbeddingProjection.L2) / golden.ProjectorIntermediates.EmbeddingProjection.L2; relative > 0.02 {
 		t.Fatalf("embedding L2 = %g, want %g (relative %g)", l2, golden.ProjectorIntermediates.EmbeddingProjection.L2, relative)
 	}
+}
+
+func compareGemma4StageProbes(t *testing.T, name string, values []float32, record struct {
+	Shape      []int     `json:"shape"`
+	ProbeIndex []int     `json:"probe_index"`
+	ProbeValue []float32 `json:"probe_value"`
+	L2         float64   `json:"l2"`
+}) {
+	t.Helper()
+	if len(record.ProbeIndex) != len(record.ProbeValue) {
+		t.Fatalf("%s probe record is inconsistent", name)
+	}
+	for index, flat := range record.ProbeIndex {
+		if flat < 0 || flat >= len(values) {
+			t.Fatalf("%s probe index %d is out of range", name, flat)
+		}
+		want := record.ProbeValue[index]
+		tolerance := max(float32(0.25), float32(math.Abs(float64(want)))*0.1)
+		if delta := float32(math.Abs(float64(values[flat] - want))); delta > tolerance {
+			t.Fatalf("%s[%d] = %g, want %g (delta %g, tolerance %g)", name, flat, values[flat], want, delta, tolerance)
+		}
+	}
+}
+
+func gemma4InterleavePatchRows(values []float32, width int) []float32 {
+	if width <= 0 || width%3 != 0 || len(values)%width != 0 {
+		return values
+	}
+	result := make([]float32, len(values))
+	area := width / 3
+	for row := 0; row < len(values)/width; row++ {
+		for pixel := 0; pixel < area; pixel++ {
+			for channel := 0; channel < 3; channel++ {
+				result[row*width+pixel*3+channel] = values[row*width+channel*area+pixel]
+			}
+		}
+	}
+	return result
 }
 
 func TestGemma4RealPromptTokens(t *testing.T) {

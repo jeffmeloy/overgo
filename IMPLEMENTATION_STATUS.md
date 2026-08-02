@@ -797,8 +797,14 @@
   PCM16/float32 WAV through the CLI plus WAV data URIs through native
   completion. The local projector matches all adaptive probes/L2 and all 34
   prompt IDs; F16 generation is token-exact at first token `24068` (`Music`),
-  while native Q8 selects a reference top-8 token. Gemma video projection and
-  projector CUDA offload remain pending.
+  while native Q8 selects a reference top-8 token. Gemma video projection uses
+  the encoder-free image path with a 70-token frame budget, timestamped prompt,
+  frame-major soft tokens, and frame-block visual attention. Projector CUDA
+  offload remains pending. `gemma4-gguf-convert` now streams the adaptive
+  ModelOpt checkpoint into validated BF16 language and multimodal GGUF files,
+  including FP8 scale folding, patch-channel permutation, position-axis
+  transposition, tokenizer metadata, and layer-scalar conversion. The emitted
+  BF16 pair reproduces image token `13666` and audio token `24068` exactly.
 - T5 single-sequence encoder-decoder sessions are supported. `GenerateT5`
   supplies high-level sampling, stop callbacks/sequences, LoRA selection, and
   context shifting; callers can also generate incrementally with `DecodeT5`.

@@ -62,6 +62,7 @@ go run ./cmd/inspect-gguf -metadata -tensors <model.gguf>
 go run ./cmd/gguf-hash -all -uuid <model.gguf>
 go run ./cmd/gguf-merge -out merged.gguf <first-split-or-single.gguf>
 go run ./cmd/gguf-quantize <input.gguf> <output.gguf> q4_0
+go run ./cmd/gemma4-gguf-convert -model <gemma4-bf16.gguf> -mmproj <gemma4-mmproj-bf16.gguf> <checkpoint-directory>
 go run ./cmd/gguf-split -out-prefix model-part -max-tensors 128 -max-size 4G <model.gguf>
 go run ./cmd/json-schema-grammar <schema.json>
 go run ./cmd/tokenize <model.gguf> "Hello, world!"
@@ -113,6 +114,15 @@ GGUF or legacy importance matrices, including per-expert normalization and
 llama.cpp-compatible provenance metadata. The tool updates GGUF quantization
 metadata, accepts split input, never overwrites an existing output, and offers
 `-all` for compatible one-dimensional tensors.
+
+`gemma4-gguf-convert` streams a Hugging Face Gemma 4 unified checkpoint into
+runtime-ready language and multimodal GGUF files. ModelOpt `F8_E4M3` MLP
+weights are scale-folded to BF16 by row; existing BF16 tensors remain BF16.
+The exporter maps tokenizer/config metadata, converts layer scalars to F32,
+converts interleaved patch channels to the projector's planar layout,
+transposes vision position axes, validates the generated catalog through the
+runtime loaders, and refuses to overwrite outputs. Either output flag may be
+used independently.
 
 Generation modes are:
 

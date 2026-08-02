@@ -39,9 +39,10 @@ type module struct {
 
 func main() {
 	check := flag.Bool("check", false, "verify SBOM.cdx.json is current")
+	update := flag.Bool("update", false, "write generated SBOM.cdx.json")
 	flag.Parse()
-	if flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: sbom [-check]")
+	if flag.NArg() != 0 || *check && *update {
+		fmt.Fprintln(os.Stderr, "usage: sbom [-check|-update]")
 		os.Exit(1)
 	}
 	data, err := generate(".")
@@ -56,7 +57,14 @@ func main() {
 			os.Exit(1)
 		}
 		if !bytes.Equal(current, data) {
-			fmt.Fprintln(os.Stderr, "SBOM.cdx.json is stale; regenerate with: go run ./cmd/sbom > SBOM.cdx.json")
+			fmt.Fprintln(os.Stderr, "SBOM.cdx.json is stale; regenerate with: go run ./cmd/sbom -update")
+			os.Exit(1)
+		}
+		return
+	}
+	if *update {
+		if err := os.WriteFile(sbomPath, data, 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		return

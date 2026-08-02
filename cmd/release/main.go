@@ -41,6 +41,8 @@ var releaseCommands = []string{
 var releaseDocuments = []string{
 	"README.md",
 	"IMPLEMENTATION_STATUS.md",
+	"docs/COMPATIBILITY.md",
+	"docs/IMPLEMENTATION_LOG.md",
 	"PORT_PLAN.md",
 	"compatibility.yaml",
 	"LICENSES.md",
@@ -85,6 +87,12 @@ func buildRelease(root, output string, verify bool) error {
 	sbomCheck.Env = releaseEnvironment()
 	if output, err := sbomCheck.CombinedOutput(); err != nil {
 		return fmt.Errorf("release: SBOM verification failed: %w\n%s", err, output)
+	}
+	compatibilityCheck := exec.Command("go", "run", "./cmd/compatibility", "-check")
+	compatibilityCheck.Dir = root
+	compatibilityCheck.Env = releaseEnvironment()
+	if output, err := compatibilityCheck.CombinedOutput(); err != nil {
+		return fmt.Errorf("release: compatibility verification failed: %w\n%s", err, output)
 	}
 	first, err := buildArchive(root)
 	if err != nil {

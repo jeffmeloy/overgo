@@ -24,6 +24,10 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "kernel manifest verification failed"
     }
+    go run ./cmd/compatibility -check
+    if ($LASTEXITCODE -ne 0) {
+        throw "compatibility verification failed"
+    }
 
     if ($CUDA) {
         $previous = $env:LLAMACPP2GO_CUDA_TEST

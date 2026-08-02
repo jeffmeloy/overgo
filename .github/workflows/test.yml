@@ -27,3 +27,7 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: go run ./cmd/kernel-manifest
+      - name: Verify compatibility claims
+        env:
+          CGO_ENABLED: "0"
+        run: go run ./cmd/compatibility -check

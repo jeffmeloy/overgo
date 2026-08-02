@@ -23,8 +23,10 @@ only project-owned non-Go runtime components.
 The implementation is currently experimental. See:
 
 - `PORT_PLAN.md` for the architecture and phased plan;
-- `IMPLEMENTATION_STATUS.md` for completed work, active work, and blockers;
-- `compatibility.yaml` for the machine-readable compatibility target.
+- `IMPLEMENTATION_STATUS.md` for the live roadmap and current blockers;
+- `docs/COMPATIBILITY.md` for the generated model/feature matrix;
+- `docs/IMPLEMENTATION_LOG.md` for archived validation history;
+- `compatibility.yaml` for machine-checked compatibility claims;
 - `SBOM.cdx.json` and `LICENSES.md` for dependency/kernel provenance and the
   explicit license inventory.
 
@@ -36,6 +38,7 @@ go run ./cmd/cuda-info
 .\scripts\verify.ps1 -CUDA
 .\scripts\fuzz-smoke.ps1 -Duration 5s
 go run ./cmd/kernel-manifest
+go run ./cmd/compatibility -check
 go run ./cmd/sbom -check
 go run ./cmd/release -out dist -verify-reproducible
 ```

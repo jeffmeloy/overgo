@@ -8,6 +8,79 @@ host:
 go:
   minimum: "1.26"
   cgo: false
+claims:
+  - id: bounded-gguf-parsing
+    status: implemented
+    summary: GGUF parsing applies allocation, count, alignment, and split limits.
+    evidence:
+      - path: internal/gguf/reader.go
+        contains: "func OpenWithOptions("
+      - path: internal/gguf/reader_test.go
+        contains: "func TestParseEnforcesLimits("
+  - id: validated-split-gguf
+    status: implemented
+    summary: Split GGUF models load, validate, write, merge, and round-trip.
+    evidence:
+      - path: internal/gguf/reader.go
+        contains: "func splitPathPrefix("
+      - path: internal/gguf/split_test.go
+        contains: "func TestOpenLoadsAndReadsSplitGGUF("
+  - id: pinned-quantization
+    status: implemented
+    summary: Quantization encoders are checked against pinned GGML references.
+    evidence:
+      - path: internal/quant/quantize.go
+        contains: "func Quantize("
+      - path: internal/quant/quantize_test.go
+        contains: "func TestQuantizeMatchesPinnedGGMLReference("
+  - id: serialized-cuda-worker
+    status: implemented
+    summary: CUDA driver work executes through one locked-thread context owner.
+    evidence:
+      - path: internal/cuda/device/worker.go
+        contains: "func (w *Worker) Do("
+      - path: internal/cuda/device/worker_windows_test.go
+        contains: "func TestWorkerMemoryRoundTrip("
+  - id: editable-prompt-cache
+    status: implemented
+    summary: Bounded prompt caches support selection, eviction, and context edits.
+    evidence:
+      - path: internal/inference/prompt_cache.go
+        contains: "func (r *Runner) selectPromptCache("
+      - path: internal/inference/prompt_cache_test.go
+        contains: "func TestMultiplePromptCacheSelectionAndEviction("
+  - id: constrained-generation
+    status: implemented
+    summary: GBNF and JSON Schema constraints match pinned upstream corpora.
+    evidence:
+      - path: internal/sampling/gbnf.go
+        contains: "func NewGBNFGrammar("
+      - path: internal/sampling/json_schema_test.go
+        contains: "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus("
+  - id: ordered-multi-image
+    status: implemented
+    summary: Native, Chat, and Responses prompts preserve ordered image/text parts.
+    evidence:
+      - path: internal/projector/prompt.go
+        contains: "func (r *Qwen3VLRunner) BuildImagesPrompt("
+      - path: internal/server/server_test.go
+        contains: "func TestResponsesMultipleImagesPreservesContentOrder("
+  - id: multimodal-token-counting
+    status: implemented
+    summary: Chat and Responses token counts use the projected media prompt.
+    evidence:
+      - path: internal/server/server.go
+        contains: "func (h *Handler) responsesInputTokens("
+      - path: internal/server/server_test.go
+        contains: "func TestMultimodalInputTokenCounting("
+  - id: reproducible-release
+    status: implemented
+    summary: Release archives are deterministic and compared across two builds.
+    evidence:
+      - path: cmd/release/main.go
+        contains: "func createArchive("
+      - path: cmd/release/main_test.go
+        contains: "func TestCreateArchiveIsDeterministic("
 gguf:
   versions:
     - 2
@@ -607,8 +680,7 @@ server:
       - /v1/chat/completions/input_tokens
     response_object: response.input_tokens
     shares_generation_formatter: true
-    limitations:
-      - multimodal-content
+    multimodal_projection: true
   chat_completion:
     content_parts:
       - text
@@ -617,7 +689,11 @@ server:
       - image-url-base64-data-uri
       - input-audio-base64-wav
     multimodal:
-      media_per_request: 1
+      images_per_request:
+        minimum: 1
+        maximum: 8
+      audio_items_per_request: 1
+      mixed_image_audio: false
       user_messages: 1
       buffered: true
       streaming: true
@@ -625,7 +701,6 @@ server:
     limitations:
       - multimodal-history
       - multimodal-tools
-      - multimodal-token-counting
       - remote-image-urls
   responses:
     routes:
@@ -639,7 +714,7 @@ server:
       - text-message-array
       - text-content-parts
       - instructions
-      - single-user-input-image-base64-data-uri
+      - single-user-multi-image-base64-data-uri
     buffered: true
     streaming:
       named_sse_events: true
@@ -659,10 +734,10 @@ server:
       - previous-response-continuation
       - hosted-and-custom-tools
       - reasoning-items
-      - multimodal-history-and-multiple-media
+      - multimodal-history-and-mixed-media
       - remote-image-urls-and-file-ids
       - audio-input
-      - multimodal-token-counting
+    multimodal_token_counting: true
   anthropic_messages:
     route: /v1/messages
     token_count_route: /v1/messages/count_tokens
@@ -858,8 +933,9 @@ server:
       minimum_match_field: n_cache_reuse
       reports_cached_and_evaluated_tokens: true
       split_prompt_decode_timings: true
-    limitations:
-      - multimodal-multi-image-prompts
+    multimodal_images_per_request:
+      minimum: 1
+      maximum: 8
   openai_completion:
     route: /v1/completions
     prompt_shapes:
@@ -2402,9 +2478,11 @@ models:
       - last-token-classification-rerank-softmax
       - named-rerank-template-or-eos-sep-pair-format
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - image-encoder-external
-      - image-grid-coordinate-construction-external
+      - qwen3vl-merger-image-projector
+      - ordered-multi-image-soft-token-merge
+      - per-image-compressed-four-axis-mrope
+      - temporal-pair-video-projection
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   qwen3vlmoe:
     status: experimental
@@ -2669,8 +2747,12 @@ models:
       - optional-layer-output-scaling
       - final-logit-softcap
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - multimodal-encoder-external
+      - encoder-free-image-projector
+      - ordered-images-first-soft-token-blocks
+      - per-image-bidirectional-attention-block
+      - frame-block-video-projection
+      - encoder-free-audio-projection
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   llama4:
     status: experimental

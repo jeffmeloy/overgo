@@ -182,6 +182,20 @@
       "version": "v1.0.0"
     },
     {
+      "bom-ref": "pkg:golang/github.com/creack/pty@v1.1.9",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/creack/pty",
+      "purl": "pkg:golang/github.com/creack/pty@v1.1.9",
+      "type": "library",
+      "version": "v1.1.9"
+    },
+    {
       "bom-ref": "pkg:golang/github.com/davecgh/go-spew@v1.1.1",
       "licenses": [
         {
@@ -308,6 +322,34 @@
       "version": "v1.1.12"
     },
     {
+      "bom-ref": "pkg:golang/github.com/kr/pretty@v0.3.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/kr/pretty",
+      "purl": "pkg:golang/github.com/kr/pretty@v0.3.1",
+      "type": "library",
+      "version": "v0.3.1"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/kr/text@v0.2.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/kr/text",
+      "purl": "pkg:golang/github.com/kr/text@v0.2.0",
+      "type": "library",
+      "version": "v0.2.0"
+    },
+    {
       "bom-ref": "pkg:golang/github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd",
       "licenses": [
         {
@@ -378,6 +420,20 @@
       "version": "v1.37.0"
     },
     {
+      "bom-ref": "pkg:golang/github.com/pkg/diff@v0.0.0-20210226163009-20ebb0f2a09e",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/pkg/diff",
+      "purl": "pkg:golang/github.com/pkg/diff@v0.0.0-20210226163009-20ebb0f2a09e",
+      "type": "library",
+      "version": "v0.0.0-20210226163009-20ebb0f2a09e"
+    },
+    {
       "bom-ref": "pkg:golang/github.com/pkg/errors@v0.9.1",
       "licenses": [
         {
@@ -404,6 +460,20 @@
       "purl": "pkg:golang/github.com/pmezard/go-difflib@v1.0.0",
       "type": "library",
       "version": "v1.0.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/rogpeppe/go-internal@v1.9.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "NOASSERTION"
+          }
+        }
+      ],
+      "name": "github.com/rogpeppe/go-internal",
+      "purl": "pkg:golang/github.com/rogpeppe/go-internal@v1.9.0",
+      "type": "library",
+      "version": "v1.9.0"
     },
     {
       "bom-ref": "pkg:golang/github.com/sirupsen/logrus@v1.9.3",
@@ -630,6 +700,7 @@
         "file:kernels/manifest.json",
         "pkg:github/ggml-org/llama.cpp@42fc243060709331ff9b158a9ed2cbe37219ae83",
         "pkg:golang/github.com/MakeNowJust/heredoc@v1.0.0",
+        "pkg:golang/github.com/creack/pty@v1.1.9",
         "pkg:golang/github.com/davecgh/go-spew@v1.1.1",
         "pkg:golang/github.com/dustin/go-humanize@v1.0.1",
         "pkg:golang/github.com/go-logr/logr@v1.4.2",
@@ -639,13 +710,17 @@
         "pkg:golang/github.com/google/pprof@v0.0.0-20250403155104-27863c87afa6",
         "pkg:golang/github.com/hexops/gotextdiff@v1.0.3",
         "pkg:golang/github.com/json-iterator/go@v1.1.12",
+        "pkg:golang/github.com/kr/pretty@v0.3.1",
+        "pkg:golang/github.com/kr/text@v0.2.0",
         "pkg:golang/github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd",
         "pkg:golang/github.com/modern-go/reflect2@v1.0.2",
         "pkg:golang/github.com/nikolalohinski/gonja/v2@v2.9.0",
         "pkg:golang/github.com/onsi/ginkgo/v2@v2.23.4",
         "pkg:golang/github.com/onsi/gomega@v1.37.0",
+        "pkg:golang/github.com/pkg/diff@v0.0.0-20210226163009-20ebb0f2a09e",
         "pkg:golang/github.com/pkg/errors@v0.9.1",
         "pkg:golang/github.com/pmezard/go-difflib@v1.0.0",
+        "pkg:golang/github.com/rogpeppe/go-internal@v1.9.0",
         "pkg:golang/github.com/sirupsen/logrus@v1.9.3",
         "pkg:golang/github.com/stretchr/objx@v0.1.0",
         "pkg:golang/github.com/stretchr/testify@v1.7.0",

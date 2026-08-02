@@ -1,0 +1,300 @@
+package inference
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+
+	"llamacpp2go/internal/cuda/driver"
+	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/dtype"
+	"llamacpp2go/internal/tensor/reference"
+	"llamacpp2go/internal/tokenizer"
+)
+
+// NextNMTPSession: trunk snapshot plus draft state.
+type NextNMTPSession = Qwen35MTPSession
+
+// NewNextNMTPSession: bundled dense-tail setup.
+func (r *Runner) NewNextNMTPSession(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+) (*NextNMTPSession, error) {
+	if r == nil || len(tokenIDs) == 0 {
+		return nil, errors.New("inference: NextN MTP inputs are invalid")
+	}
+	if err := r.validateNextNMTP(); err != nil {
+		return nil, err
+	}
+	hidden, cache, err := r.ForwardCached(ctx, tokenIDs, nil)
+	if err != nil {
+		return nil, err
+	}
+	width := int(hidden.Shape.Dims[0])
+	last := reference.Value{
+		Shape: tensor.MustShape(uint64(width), 1),
+		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
+	}
+	targetModel, err := r.sessionModelSignature()
+	if err != nil {
+		return nil, err
+	}
+	position := effectiveCachePosition(cache)
+	session := &NextNMTPSession{
+		TrunkCache: cache, PendingHidden: last, MTPStart: position,
+		Position: position, targetModel: targetModel,
+	}
+	if cache.DSATopK != nil {
+		if cache.DSATopK.Shape.Rank != 2 || cache.DSATopK.Shape.Dims[0] != uint64(r.spec.IndexerTopK) ||
+			cache.DSATopK.Shape.Dims[1] == 0 {
+			return nil, errors.New("inference: GLM-DSA trunk top-k handoff is incompatible")
+		}
+		width := int(cache.DSATopK.Shape.Dims[0])
+		value := reference.Value{
+			Shape: tensor.MustShape(uint64(width), 1),
+			Data:  append([]float32(nil), cache.DSATopK.Data[len(cache.DSATopK.Data)-width:]...),
+		}
+		session.Layer.Auxiliary = &value
+	}
+	if err := r.validateNextNMTPSession(session); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// AdvanceNextNMTP: one draft step.
+func (r *Runner) AdvanceNextNMTP(
+	ctx context.Context,
+	tokenID tokenizer.TokenID,
+	session *NextNMTPSession,
+) (reference.Value, *NextNMTPSession, error) {
+	if r == nil || session == nil || session.TrunkCache == nil {
+		return reference.Value{}, nil, errors.New("inference: NextN MTP session is invalid")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return reference.Value{}, nil, errors.New("inference: NextN MTP runner is unavailable")
+	}
+	if err := r.validateNextNMTP(); err != nil {
+		return reference.Value{}, nil, err
+	}
+	if err := r.validateNextNMTPSession(session); err != nil {
+		return reference.Value{}, nil, err
+	}
+	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
+		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
+	}
+	mtp := &r.weights.NextNMTP[0]
+	embeddingInfo := r.weights.TokenEmbedding
+	if mtp.TokenEmbedding != nil {
+		embeddingInfo = *mtp.TokenEmbedding
+	}
+	tokenEmbedding, err := r.loadRows(ctx, embeddingInfo, []uint32{uint32(tokenID)})
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	builder := r.newGraphBuilder()
+	tokenInput := builder.Input("nextn_mtp.token", dtype.F32, tokenEmbedding.Shape)
+	hiddenInput := builder.Input("nextn_mtp.hidden", dtype.F32, session.PendingHidden.Shape)
+	hostFeeds := map[*tensor.Tensor]reference.Value{
+		tokenInput: tokenEmbedding, hiddenInput: session.PendingHidden,
+	}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	graphWeights, layerFeeds, err := r.nextNMTPLayerInputs(ctx, builder, hostFeeds)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	for node, pointer := range layerFeeds {
+		deviceFeeds[node] = pointer
+	}
+	embeddingNorm, pointer, err := r.deviceOrHostTensor(ctx, builder, mtp.EmbeddingNorm, hostFeeds)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	if pointer != 0 {
+		deviceFeeds[embeddingNorm] = pointer
+	}
+	hiddenNorm, pointer, err := r.deviceOrHostTensor(ctx, builder, mtp.HiddenNorm, hostFeeds)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	if pointer != 0 {
+		deviceFeeds[hiddenNorm] = pointer
+	}
+	projection, pointer, err := r.deviceOrHostTensor(ctx, builder, mtp.EHProjection, hostFeeds)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	if pointer != 0 {
+		deviceFeeds[projection] = pointer
+	}
+	current, err := model.BuildNextNMTPInput(
+		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, 0,
+	)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	var pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor
+	if session.Layer.Key.Shape.Rank != 0 {
+		pastKey = builder.Input("nextn_mtp.past_key", dtype.F32, session.Layer.Key.Shape)
+		pastValue = builder.Input("nextn_mtp.past_value", dtype.F32, session.Layer.Value.Shape)
+		hostFeeds[pastKey], hostFeeds[pastValue] = session.Layer.Key, session.Layer.Value
+	}
+	if state, ok := session.Layer.States["indexer_key"]; ok {
+		pastIndexerKey = builder.Input("nextn_mtp.past_indexer_key", dtype.F32, state.Value.Shape)
+		hostFeeds[pastIndexerKey] = state.Value
+	}
+	if session.Layer.Auxiliary != nil {
+		previousTopK = builder.Input("nextn_mtp.previous_top_k", dtype.F32, session.Layer.Auxiliary.Shape)
+		hostFeeds[previousTopK] = *session.Layer.Auxiliary
+	}
+	block, err := model.BuildNextNMTPBlockCachedWithDSA(
+		builder, current, r.spec, graphWeights, []uint32{session.Position},
+		pastKey, pastValue, pastIndexerKey, previousTopK, 0,
+	)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	outputNormInfo := r.weights.OutputNorm
+	if mtp.OutputNorm != nil {
+		outputNormInfo = *mtp.OutputNorm
+	}
+	if mtp.LayerOutputNorm != nil {
+		outputNormInfo = *mtp.LayerOutputNorm
+	}
+	outputNorm, pointer, err := r.deviceOrHostTensor(ctx, builder, outputNormInfo, hostFeeds)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	if pointer != 0 {
+		deviceFeeds[outputNorm] = pointer
+	}
+	outputInfo := r.weights.TokenEmbedding
+	if r.weights.Output != nil {
+		outputInfo = *r.weights.Output
+	}
+	if mtp.Output != nil {
+		outputInfo = *mtp.Output
+	}
+	output, pointer, err := r.deviceOrHostTensor(ctx, builder, outputInfo, hostFeeds)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	if pointer != 0 {
+		deviceFeeds[output] = pointer
+	}
+	logits, nextHidden, err := model.BuildNextNMTPOutputs(builder, block.Output, outputNorm, output, r.spec, 0)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	outputs := []*tensor.Tensor{logits, nextHidden, block.Key, block.Value}
+	indexerKey := block.States["indexer_key"]
+	if indexerKey != nil {
+		outputs = append(outputs, indexerKey)
+	}
+	var results map[*tensor.Tensor]reference.Value
+	if r.hasPreloadedWeights() {
+		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
+	} else {
+		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
+	}
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	logitValue := results[logits]
+	logitValue.Data = r.finalizeLogits(logitValue.Data)
+	nextLayer := LayerCache{Key: results[block.Key], Value: results[block.Value]}
+	if indexerKey != nil {
+		nextLayer.States = map[string]LayerState{
+			"indexer_key": {Mode: CacheStateToken, Value: results[indexerKey]},
+		}
+	}
+	if block.Auxiliary != nil {
+		value := *session.Layer.Auxiliary
+		nextLayer.Auxiliary = &value
+	}
+	next := &NextNMTPSession{
+		TrunkCache:    session.TrunkCache,
+		Layer:         nextLayer,
+		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
+		Position: session.Position + 1, targetModel: session.targetModel,
+	}
+	return logitValue, next, nil
+}
+
+func (r *Runner) validateNextNMTP() error {
+	if r == nil || (r.spec.Architecture != "glm4" && r.spec.Architecture != "glm4moe" && r.spec.Architecture != "exaone4" && r.spec.Architecture != "exaone-moe" && r.spec.Architecture != "mimo2" && r.spec.Architecture != "bailingmoe2" && r.spec.Architecture != "deepseek32" && r.spec.Architecture != "glm-dsa") || r.spec.NextNPredictLayers != 1 ||
+		len(r.weights.NextNMTP) != 1 {
+		return errors.New("inference: model has no supported NextN MTP block")
+	}
+	return nil
+}
+
+func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
+	if session == nil || session.TrunkCache == nil {
+		return errors.New("inference: NextN MTP session is invalid")
+	}
+	if err := r.validateCache(session.TrunkCache); err != nil {
+		return fmt.Errorf("inference: NextN MTP trunk cache: %w", err)
+	}
+	if session.PendingHidden.Shape != tensor.MustShape(uint64(r.spec.EmbeddingLength), 1) ||
+		session.Position == math.MaxUint32 {
+		return errors.New("inference: NextN MTP session state is incompatible")
+	}
+	base := effectiveCachePosition(session.TrunkCache)
+	if session.Position < base || session.Position < session.MTPStart ||
+		session.Layer.Key.Shape.Rank != session.Layer.Value.Shape.Rank ||
+		(session.Layer.Key.Shape.Rank == 0 && session.Position != session.MTPStart) ||
+		(session.Layer.Key.Shape.Rank != 0 &&
+			(session.Layer.Key.Shape != tensor.MustShape(uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), uint64(session.Position-session.MTPStart)) ||
+				session.Layer.Value.Shape != tensor.MustShape(uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), uint64(session.Position-session.MTPStart)))) {
+		return errors.New("inference: NextN MTP layer cache is incompatible")
+	}
+	indexerState, hasIndexerState := session.Layer.States["indexer_key"]
+	if r.spec.Architecture == "deepseek32" {
+		wantTokens := uint64(session.Position - session.MTPStart)
+		if (wantTokens == 0 && hasIndexerState) || (wantTokens > 0 &&
+			(!hasIndexerState || indexerState.Mode != CacheStateToken ||
+				indexerState.Value.Shape != tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, wantTokens))) {
+			return errors.New("inference: NextN MTP indexer cache is incompatible")
+		}
+	} else if hasIndexerState {
+		return errors.New("inference: NextN MTP session has unexpected indexer state")
+	}
+	if r.spec.Architecture == "glm-dsa" {
+		if session.Layer.Auxiliary == nil ||
+			session.Layer.Auxiliary.Shape != tensor.MustShape(uint64(r.spec.IndexerTopK), 1) {
+			return errors.New("inference: GLM-DSA NextN MTP top-k handoff is incompatible")
+		}
+	} else if session.Layer.Auxiliary != nil {
+		return errors.New("inference: NextN MTP session has unexpected auxiliary state")
+	}
+	return nil
+}
+
+func (r *Runner) nextNMTPLayerInputs(
+	ctx context.Context,
+	builder *tensor.Builder,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
+	mtp := &r.weights.NextNMTP[0]
+	if r.hasPreloadedWeights() {
+		return r.layerDeviceInputs(builder, mtp.Layer)
+	}
+	hostLayer, err := model.LoadHostLayer(ctx, r.file, mtp.Layer)
+	if err != nil {
+		return model.LayerGraphWeights{}, nil, err
+	}
+	prefix := fmt.Sprintf("blk.%d.", r.spec.BlockCount)
+	graph, feeds, err := hostLayer.GraphInputs(builder, prefix)
+	if err != nil {
+		return model.LayerGraphWeights{}, nil, err
+	}
+	for node, value := range feeds {
+		hostFeeds[node] = value
+	}
+	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
+}

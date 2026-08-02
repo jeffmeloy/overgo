@@ -31,6 +31,9 @@ func isMLAArchitecture(architecture string) bool {
 
 // LayerHasFullIndexer: DSA full-indexer predicate.
 func (s Spec) LayerHasFullIndexer(layer uint32) bool {
+	if s.Architecture == "deepseek32" && layer < s.BlockCount+s.NextNPredictLayers {
+		return true
+	}
 	return isDSAArchitecture(s.Architecture) && int(layer) < len(s.IndexerFullLayers) && s.IndexerFullLayers[layer]
 }
 
@@ -231,7 +234,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.HeadCountKV = 1
 	} else if architecture == "mamba" || architecture == "mamba2" {
 		spec.HeadCountKV = 0
-	} else if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
+	} else if architecture == "bert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "t5" || architecture == "t5encoder" || architecture == "bloom" || architecture == "gpt2" || architecture == "gptj" || architecture == "jais" || architecture == "mpt" || architecture == "qwen" ||
 		architecture == "starcoder" || architecture == "gptneox" || architecture == "falcon" {
 		spec.HeadCountKV = spec.HeadCount
 		if architecture == "gptneox" || architecture == "falcon" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "mpt" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
@@ -722,7 +725,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 	}
-	if architecture == "phi2" {
+	if architecture == "gptj" || architecture == "phi2" {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values,
 			prefix+"rope.dimension_count",
@@ -2583,7 +2586,11 @@ func (s Spec) UsesRoPE(block uint32) bool {
 		return s.IsSlidingLayer(block)
 	}
 	blockCount := s.BlockCount
-	if s.Architecture == "step35" || s.Architecture == "hy_v3" {
+	if s.Architecture == "step35" || s.Architecture == "hy_v3" ||
+		s.Architecture == "glm4" || s.Architecture == "glm4moe" || s.Architecture == "exaone4" ||
+		s.Architecture == "exaone-moe" || s.Architecture == "mimo2" ||
+		s.Architecture == "bailingmoe2" || s.Architecture == "deepseek32" ||
+		s.Architecture == "glm-dsa" {
 		blockCount += s.NextNPredictLayers
 	}
 	return !s.RopeDisabled &&
@@ -2619,6 +2626,7 @@ func (s Spec) UsesLayerNorm() bool {
 	return s.Architecture == "bert" ||
 		s.Architecture == "dbrx" ||
 		s.Architecture == "falcon" ||
+		s.Architecture == "gptj" ||
 		s.Architecture == "jais" ||
 		s.Architecture == "jina-bert-v2" ||
 		s.Architecture == "jina-bert-v3" ||
@@ -2677,6 +2685,8 @@ func (s Spec) validate() error {
 		return errors.New("attention head count is not divisible by KV head count")
 	case !attentionFree && (s.KeyLength == 0 || s.ValueLength == 0):
 		return errors.New("model attention key/value length is zero")
+	case s.Architecture == "gptj" && (s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0):
+		return errors.New("GPT-J rotary dimension count is invalid")
 	case s.Architecture != "t5encoder" && !s.RopeDisabled && s.RopeFrequencyBase <= 0:
 		return errors.New("model RoPE frequency base must be positive")
 	case (s.UsesLayerNorm() || s.UsesWeightOnlyLayerNorm() || s.UsesUnweightedLayerNorm()) && s.LayerNormEpsilon <= 0:

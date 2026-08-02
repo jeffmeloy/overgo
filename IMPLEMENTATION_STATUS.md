@@ -68,11 +68,10 @@ Work proceeds in dependency order. A blocked item does not stop later rows.
 
 | Priority | Item | Completion boundary |
 | --- | --- | --- |
-| 1 | Model execution gaps | GPT-J and pending NextN MTP variants |
-| 2 | Multimodal model gaps | Internal encoders/projectors/grid construction for models currently requiring external projected inputs |
-| 3 | Speculative, audio, and adapters | Integrated draft verification, WavTokenizer waveform output, and broader aLoRA semantics |
-| 4 | Platform and release breadth | Verified targets beyond the Windows-amd64 CUDA baseline |
-| 5 | Pinned-upstream closure audit | Every upstream architecture, endpoint, option, and negative path implemented or explicitly classified |
+| 1 | Multimodal model gaps | Internal encoders/projectors/grid construction for models currently requiring external projected inputs |
+| 2 | Speculative, audio, and adapters | Integrated draft verification, WavTokenizer waveform output, and broader aLoRA semantics |
+| 3 | Platform and release breadth | Verified targets beyond the Windows-amd64 CUDA baseline |
+| 4 | Pinned-upstream closure audit | Every upstream architecture, endpoint, option, and negative path implemented or explicitly classified |
 
 ## Known implementation boundaries
 
@@ -81,7 +80,7 @@ Work proceeds in dependency order. A blocked item does not stop later rows.
 | Responses | Bounded continuation, reasoning summaries, and typed text/image files; no PDF/non-text documents, hosted/custom tools, encrypted reasoning, or reasoning-with-tools |
 | Multimodal server | Supported image/audio media may use function tools; video remains single-turn/non-mixed and cannot use tools |
 | Anthropic | Manual summarized thinking uses handler-local signatures; adaptive/omitted/redacted/interleaved modes and thinking with tools are explicit exclusions |
-| Architectures | GPT-J is absent; marked model-specific limitations remain in `compatibility.yaml` |
+| Architectures | Declared model graphs execute; marked real-model fixture validation remains in `compatibility.yaml` |
 | Vision | Several decoder graphs require external encoders, projectors, or grid coordinates |
 | Speculation | Some draft graphs leave verification and acceptance to an external coordinator |
 | Audio | WavTokenizer stops at feature frames; waveform postprocessing is absent |

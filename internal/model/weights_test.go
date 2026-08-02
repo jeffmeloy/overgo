@@ -48,6 +48,63 @@ func TestReadWeightsQwen3(t *testing.T) {
 	}
 }
 
+func TestReadWeightsGPTJ(t *testing.T) {
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gptj", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, VocabularySize: 32, LayerNormEpsilon: 1e-5},
+		AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+			RopeDimensionCount: 2, RopeFrequencyBase: 10000}}
+	file := &gguf.File{Tensors: []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8), tensorInfo("output_norm.bias", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("output.bias", 32),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 8),
+		tensorInfo("blk.0.attn_v.weight", 8, 8), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_up.bias", 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8), tensorInfo("blk.0.ffn_down.bias", 8),
+	}}
+	weights, err := ReadWeights(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if weights.Output == nil || weights.OutputBias == nil || weights.OutputNormBias == nil ||
+		layer.AttentionNormBias == nil || layer.FeedForwardNorm.Name != "" || layer.FeedForwardGate.Name != "" ||
+		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil {
+		t.Fatalf("unexpected GPT-J catalog: %+v", weights)
+	}
+}
+
+func TestReadWeightsGPTJRequiresOutputAndFFNBiases(t *testing.T) {
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gptj", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, VocabularySize: 32, LayerNormEpsilon: 1e-5},
+		AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+			RopeDimensionCount: 2, RopeFrequencyBase: 10000}}
+	base := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32),
+		tensorInfo("output_norm.weight", 8), tensorInfo("output_norm.bias", 8),
+		tensorInfo("output.weight", 8, 32), tensorInfo("output.bias", 32),
+		tensorInfo("blk.0.attn_norm.weight", 8), tensorInfo("blk.0.attn_norm.bias", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 8),
+		tensorInfo("blk.0.attn_v.weight", 8, 8), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_up.bias", 12),
+		tensorInfo("blk.0.ffn_down.weight", 12, 8), tensorInfo("blk.0.ffn_down.bias", 8),
+	}
+	for _, missing := range []string{"output.weight", "output.bias", "blk.0.ffn_up.bias", "blk.0.ffn_down.bias"} {
+		t.Run(missing, func(t *testing.T) {
+			tensors := make([]gguf.TensorInfo, 0, len(base)-1)
+			for _, item := range base {
+				if item.Name != missing {
+					tensors = append(tensors, item)
+				}
+			}
+			if _, err := ReadWeights(&gguf.File{Tensors: tensors}, spec); err == nil {
+				t.Fatalf("expected missing %s failure", missing)
+			}
+		})
+	}
+}
+
 func TestReadWeightsNemotronHMoEThreeWayLayers(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "nemotron_h_moe", BlockCount: 3, EmbeddingLength: 8,
 		FeedForwardLength: 6,
@@ -273,7 +330,7 @@ func TestReadWeightsGroveMoE(t *testing.T) {
 
 func TestReadWeightsGLM4MoE(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "glm4moe", BlockCount: 2,
-		EmbeddingLength: 8, FeedForwardLength: 12,
+		NextNPredictLayers: 1, EmbeddingLength: 8, FeedForwardLength: 12,
 
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
@@ -284,7 +341,7 @@ func TestReadWeightsGLM4MoE(t *testing.T) {
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 	}
-	for block := 0; block < 2; block++ {
+	for block := 0; block < 3; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -301,14 +358,24 @@ func TestReadWeightsGLM4MoE(t *testing.T) {
 		tensorInfo("blk.0.ffn_gate.weight", 8, 12),
 		tensorInfo("blk.0.ffn_up.weight", 8, 12),
 		tensorInfo("blk.0.ffn_down.weight", 12, 8),
-		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
-		tensorInfo("blk.1.exp_probs_b.bias", 4),
-		tensorInfo("blk.1.ffn_gate_exps.weight", 8, 6, 4),
-		tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4),
-		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
-		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 12),
-		tensorInfo("blk.1.ffn_up_shexp.weight", 8, 12),
-		tensorInfo("blk.1.ffn_down_shexp.weight", 12, 8),
+	)
+	for block := 1; block < 3; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4),
+			tensorInfo(prefix+"exp_probs_b.bias", 4),
+			tensorInfo(prefix+"ffn_gate_exps.weight", 8, 6, 4),
+			tensorInfo(prefix+"ffn_up_exps.weight", 8, 6, 4),
+			tensorInfo(prefix+"ffn_down_exps.weight", 6, 8, 4),
+			tensorInfo(prefix+"ffn_gate_shexp.weight", 8, 12),
+			tensorInfo(prefix+"ffn_up_shexp.weight", 8, 12),
+			tensorInfo(prefix+"ffn_down_shexp.weight", 12, 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.2.nextn.eh_proj.weight", 16, 8),
+		tensorInfo("blk.2.nextn.enorm.weight", 8),
+		tensorInfo("blk.2.nextn.hnorm.weight", 8),
 	)
 	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
@@ -318,14 +385,15 @@ func TestReadWeightsGLM4MoE(t *testing.T) {
 	if dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardNorm.Name != "blk.1.attn_post_norm.weight" ||
-		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil {
-		t.Fatalf("unexpected GLM4-MoE catalog: dense=%+v moe=%+v", dense, moe)
+		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil || len(weights.NextNMTP) != 1 ||
+		weights.NextNMTP[0].Layer.FeedForwardRouter == nil || weights.NextNMTP[0].EHProjection.Name == "" {
+		t.Fatalf("unexpected GLM4-MoE catalog: dense=%+v moe=%+v mtp=%+v", dense, moe, weights.NextNMTP)
 	}
 }
 
 func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "mimo2", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12,
+		FeedForwardLength: 12, NextNPredictLayers: 1,
 
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV: 1, LayerKVHeadCounts: []uint32{1, 1},
@@ -337,7 +405,7 @@ func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 		tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32),
 	}
-	for block := 0; block < 2; block++ {
+	for block := 0; block < 3; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -356,6 +424,13 @@ func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 		tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4),
 		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
 		tensorInfo("blk.1.exp_probs_b.bias", 4),
+		tensorInfo("blk.2.ffn_gate.weight", 8, 12),
+		tensorInfo("blk.2.ffn_up.weight", 8, 12),
+		tensorInfo("blk.2.ffn_down.weight", 12, 8),
+		tensorInfo("blk.2.nextn.eh_proj.weight", 16, 8),
+		tensorInfo("blk.2.nextn.enorm.weight", 8),
+		tensorInfo("blk.2.nextn.hnorm.weight", 8),
+		tensorInfo("blk.2.layer_output_norm.weight", 8),
 	)
 	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
@@ -366,7 +441,9 @@ func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 		dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
 		moe.AttentionQKV == nil || moe.AttentionSinks != nil || moe.FeedForwardRouter == nil ||
 		moe.FeedForwardExpertBias == nil || moe.FeedForwardGateExperts == nil ||
-		moe.FeedForwardUp.Name != "" {
+		moe.FeedForwardUp.Name != "" || len(weights.NextNMTP) != 1 ||
+		weights.NextNMTP[0].Layer.FeedForwardGate.Name == "" ||
+		weights.NextNMTP[0].LayerOutputNorm == nil {
 		t.Fatalf("unexpected MiMo2 catalog: dense=%+v moe=%+v", dense, moe)
 	}
 	withoutBias := make([]gguf.TensorInfo, 0, len(tensors)-1)
@@ -1035,7 +1112,7 @@ func TestReadWeightsMiniMaxM2(t *testing.T) {
 
 func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "bailingmoe2", BlockCount: 2,
-		EmbeddingLength: 8, FeedForwardLength: 16,
+		EmbeddingLength: 8, FeedForwardLength: 16, NextNPredictLayers: 1,
 
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2,
@@ -1046,7 +1123,7 @@ func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32),
 	}
-	for block := 0; block < 2; block++ {
+	for block := 0; block < 3; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -1061,14 +1138,25 @@ func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 		tensorInfo("blk.0.ffn_gate.weight", 8, 16),
 		tensorInfo("blk.0.ffn_up.weight", 8, 16),
 		tensorInfo("blk.0.ffn_down.weight", 16, 8),
-		tensorInfo("blk.1.ffn_gate_inp.weight", 8, 4),
-		tensorInfo("blk.1.exp_probs_b.bias", 4),
-		tensorInfo("blk.1.ffn_gate_exps.weight", 8, 6, 4),
-		tensorInfo("blk.1.ffn_up_exps.weight", 8, 6, 4),
-		tensorInfo("blk.1.ffn_down_exps.weight", 6, 8, 4),
-		tensorInfo("blk.1.ffn_gate_shexp.weight", 8, 10),
-		tensorInfo("blk.1.ffn_up_shexp.weight", 8, 10),
-		tensorInfo("blk.1.ffn_down_shexp.weight", 10, 8),
+	)
+	for block := 1; block < 3; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"ffn_gate_inp.weight", 8, 4),
+			tensorInfo(prefix+"exp_probs_b.bias", 4),
+			tensorInfo(prefix+"ffn_gate_exps.weight", 8, 6, 4),
+			tensorInfo(prefix+"ffn_up_exps.weight", 8, 6, 4),
+			tensorInfo(prefix+"ffn_down_exps.weight", 6, 8, 4),
+			tensorInfo(prefix+"ffn_gate_shexp.weight", 8, 10),
+			tensorInfo(prefix+"ffn_up_shexp.weight", 8, 10),
+			tensorInfo(prefix+"ffn_down_shexp.weight", 10, 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.2.nextn.eh_proj.weight", 16, 8),
+		tensorInfo("blk.2.nextn.enorm.weight", 8),
+		tensorInfo("blk.2.nextn.hnorm.weight", 8),
+		tensorInfo("blk.2.layer_output_norm.weight", 8),
 	)
 	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
@@ -1080,7 +1168,9 @@ func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 		moe.AttentionQKV == nil || moe.AttentionQNorm == nil || moe.AttentionKNorm == nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardSharedUp == nil ||
-		moe.FeedForwardSharedDown == nil {
+		moe.FeedForwardSharedDown == nil || len(weights.NextNMTP) != 1 ||
+		weights.NextNMTP[0].Layer.FeedForwardRouter == nil ||
+		weights.NextNMTP[0].LayerOutputNorm == nil {
 		t.Fatalf("unexpected BailingMoE2 catalog: %+v", weights)
 	}
 }

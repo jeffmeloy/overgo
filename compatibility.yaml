@@ -1342,6 +1342,25 @@ models:
       - required-projection-biases
       - tied-or-untied-output
     real_model_validation: pending-fixture
+  gptj:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+      - retained-device-cache
+    tokenizers:
+      - gpt2-bpe
+    features:
+      - affine-layernorm
+      - separate-qkv
+      - partial-normal-rope
+      - shared-pre-attention-layernorm
+      - parallel-attention-and-gelu-new-ffn
+      - required-ffn-biases
+      - required-untied-output-and-bias
+      - serializable-prefix-editable-kv-cache
+    real_model_validation: pending-fixture
   gpt-oss:
     status: experimental
     execution:
@@ -1411,10 +1430,10 @@ models:
       - fused-or-separate-expert-gate-up
       - shared-swiglu-expert
       - tied-or-untied-output
-      - nextn-mtp-tensors-preserved-unexecuted
+      - executable-nextn-mtp-layer
+      - stateful-indexer-cache-for-nextn-drafting
+      - stateful-greedy-nextn-draft-and-verification
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   deepseek4:
     status: experimental
@@ -1460,10 +1479,10 @@ models:
       - optional-selection-correction-bias
       - fused-or-separate-expert-gate-up
       - shared-swiglu-expert
-      - preserved-unexecuted-nextn-mtp-layers
+      - executable-nextn-mtp-layer
+      - trunk-top-k-handoff-for-shared-indexer-mtp
+      - stateful-greedy-nextn-draft-and-verification
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   mistral4:
     status: experimental
@@ -1837,11 +1856,10 @@ models:
       - routed-weight-scaling
       - packed-swiglu-experts
       - configurable-always-on-shared-experts
-      - preserved-unexecuted-nextn-mtp-layers
+      - executable-nextn-mtp-layer
+      - stateful-greedy-nextn-draft-and-verification
       - serializable-prefix-editable-kv-cache
       - required-untied-output
-    limitations:
-      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   lfm2:
     status: experimental
@@ -2433,9 +2451,8 @@ models:
       - projected-embedding-overrides
       - fused-gate-up-swiglu
       - tied-or-untied-output
-      - preserved-unexecuted-nextn-mtp-layers
-    limitations:
-      - nextn-mtp-prediction-pending
+      - executable-nextn-mtp-decoder
+      - stateful-nextn-greedy-draft-and-verification
     real_model_validation: pending-fixture
   llama:
     status: experimental
@@ -2492,9 +2509,8 @@ models:
       - periodic-full-attention-without-rope
       - swiglu
       - tied-or-untied-output
-      - preserved-unexecuted-nextn-mtp-layers
-    limitations:
-      - nextn-mtp-prediction-pending
+      - executable-nextn-mtp-decoder
+      - stateful-nextn-greedy-draft-and-verification
     real_model_validation: pending-fixture
   xverse:
     status: experimental
@@ -2792,10 +2808,9 @@ models:
       - routed-weight-scaling
       - packed-swiglu-experts
       - always-on-shared-expert
-      - preserved-unexecuted-nextn-mtp-layers
+      - executable-dense-nextn-mtp-decoder
+      - stateful-nextn-greedy-draft-and-verification
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   qwen35:
     status: experimental
@@ -2893,10 +2908,9 @@ models:
       - optional-selected-weight-normalization
       - packed-swiglu-experts
       - shared-expert
-      - preserved-unexecuted-nextn-mtp-layers
+      - executable-nextn-mtp-layer
+      - stateful-greedy-nextn-draft-and-verification
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - nextn-mtp-prediction-pending
     real_model_validation: pending-fixture
   mimo2:
     status: experimental
@@ -2916,10 +2930,10 @@ models:
       - selection-correction-bias
       - normalized-selected-expert-weights
       - packed-swiglu-experts
-      - preserved-unexecuted-nextn-mtp-layers
+      - executable-nextn-mtp-layer
+      - stateful-greedy-nextn-draft-and-verification
       - serializable-prefix-editable-kv-cache
     limitations:
-      - nextn-mtp-prediction-pending
       - vision-tower-pending
     real_model_validation: pending-fixture
   gemma4:

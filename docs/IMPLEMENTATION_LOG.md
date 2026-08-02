@@ -1037,12 +1037,11 @@ claiming an unverified port; independent compatibility work continues.
 ### Implemented: pinned fused-QKV decoder families
 
 Contiguous fused QKV projection and bias loading/slicing is shared by the dense
-host, preloaded-device, and cache execution paths for every pinned executable
+host, preloaded-device, and cache execution paths for every executable
 architecture that declares the layout, including Phi-2, GPT-NeoX, Falcon,
 BERT, and NeoBERT. Architecture gates retain each family's position encoding,
-residual topology, normalization, and tensor-layout rules. GPT-J remains at the
-separate pinned-oracle boundary because the pinned source defines no loader or
-graph for it.
+residual topology, normalization, and tensor-layout rules. GPT-J uses separate
+Q/K/V projections and the standard GGUF tensor vocabulary.
 
 BERT now adds optional sentence-A token-type row 0 and learned absolute-position
 rows before affine embedding LayerNorm. Its bidirectional no-cache encoder uses
@@ -1436,10 +1435,14 @@ catalogs, chunk-mask reference/CUDA parity, and a complete Llama 4 MoE block
 differential pass. Real-model validation remains pending a local GGUF fixture;
 the multimodal encoder/projector remains external to the text decoder.
 
-GPT-J remains deferred at the pinned-oracle boundary. The pinned tree retains
-its architecture enum and GGUF constants but has no model loader or graph and
-explicitly excludes GPT-J from architecture tests, so there is no executable
-upstream oracle to port against.
+GPT-J now executes separate-Q/K/V attention with partial interleaved normal
+RoPE, affine LayerNorm, a shared pre-attention normalized input, parallel
+attention and GELU-New FFN branches, required FFN biases, and an untied biased
+output projection. Metadata and rotary-width validation, strict catalog tests,
+graph topology checks, and a complete reference/CUDA block differential pass;
+real-model validation remains pending a local GGUF fixture. The implementation
+uses the stable GGUF tensor contract because the pinned tree no longer carries
+an executable GPT-J graph.
 
 GPT-OSS/OpenAI-MoE now executes alternating standard sliding and full causal
 attention with per-head sinks, separate RoPE bases, biased output projection,
@@ -1699,6 +1702,20 @@ left/right padding while retaining same-length output and recurrent-state
 updates. Refact now admits gated and ungated top-k expert tensors. DeepSeek 4
 cache state now carries explicit token positions, preserving middle-edit gaps
 through raw attention, compressed reconstruction, serialization, and append.
+
+GLM4 and EXAONE 4 NextN tails now load as executable full decoder blocks with normalized
+token/target-hidden fusion, private-or-shared heads, independent KV state,
+bounded greedy drafting, and target verification/resync.
+EXAONE-MoE uses the same runtime with its declared dense NextN tail, overriding
+the routed-expert trunk schedule only for the appended draft block.
+GLM4-MoE uses the same runtime while retaining its routed-expert tail schedule.
+BailingMoE2 and MiMo2 add their required tail output norm; BailingMoE2 retains
+its routed/shared-expert tail and MiMo2 admits the checkpoint-selected dense or
+routed tail branch.
+DeepSeek 3.2 executes its MLA/DSA NextN tail with an independent growing
+lightning-indexer key cache alongside the draft KV cache.
+GLM-DSA retains the trunk's final full-indexer top-k selection as transient
+session metadata and reuses it in the shared-indexer MTP tail.
 
 ## Working rules
 

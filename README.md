@@ -10,7 +10,7 @@ InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid
 Mistral 3 dense/MoE, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, PaddleOCR and Qwen2-VL/Qwen3-VL text-coordinate decoders, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,
 RND1 non-causal MoE diffusion generation, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5 encoder-decoder models and UMT5
-encoders, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3
+encoders, GPT-J with partial normal RoPE and parallel GELU-New residual blocks, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3
 per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output
 projection biases and Gemma attention/final-logit softcapping are honored in
 every inference mode. MPT includes fused-QKV clamping, optional full-projection
@@ -603,9 +603,12 @@ hidden state, and direct logit scaling. Greedy and sampled draft/verify plus
 target-bound coordination guarantees as the Qwen3.5 single-block path. Set
 `LLAMACPP2GO_COHERE2_MTP_MODEL` to run the optional native-quantized session,
 state, and coordinator integration test.
-DeepSeek 3.2, GLM-DSA, GLM4/GLM4-MoE, EXAONE 4/EXAONE-MoE, BailingMoE2, and
-MiMo2 retain the declared NextN count while loading only the executable trunk,
-matching pinned upstream's preserved-but-unexecuted treatment of those tails.
+GLM4/GLM4-MoE, EXAONE 4/EXAONE-MoE, BailingMoE2, and MiMo2 load their declared
+single NextN tail as an executable full decoder block with stateful greedy
+drafting and target verification. DeepSeek 3.2 and GLM-DSA retain their
+declared NextN count; DeepSeek 3.2 executes its tail with an independent
+lightning-indexer cache, while GLM-DSA hands the trunk's final full-indexer
+top-k selection into its shared-indexer MTP tail.
 JinaBERT v3 supports optional cadence-selected, gate-free GELU expert layers
 with softmax top-k routing alongside its dense encoder layers.
 GroveMoE metadata, grouped chunk-expert routing, catalog, graph, and CUDA
@@ -613,7 +616,7 @@ differentials use synthetic fixtures until a compatible local GGUF is available.
 GLM4-MoE dense-leading and expert catalogs, text-coordinate MRoPE, norm ordering,
 routing, shared experts, and CUDA differentials are likewise synthetic-fixture validated.
 MiMo2 mixed dense/expert layers, per-layer KV heads and sliding selection, attention
-sinks, value scaling, MTP trimming, and CUDA differentials are synthetic-fixture validated.
+sinks, value scaling, executable MTP tail, and CUDA differentials are synthetic-fixture validated.
 Gemma4 full/sliding head widths, shared KV, absent-V fallback, mixed dense/GELU-MoE
 blocks, expert output scales, projected per-layer inputs, and raw BPE are synthetic-fixture validated.
 Llama4 chunk-aligned attention, periodic temperature-scaled full attention,

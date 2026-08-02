@@ -18,6 +18,59 @@ import (
 	cudatest "llamacpp2go/internal/cuda/testutil"
 )
 
+func TestExecutorGPTJBlockMatchesReference(t *testing.T) {
+	cudatest.Require(t)
+	builder := tensor.NewBuilder()
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	seed := 3
+	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
+		item := builder.Input(name, dtype.F32, shape)
+		feeds[item] = patternedValue(shape, seed, scale, offset)
+		seed += 2
+		return item
+	}
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "gptj", EmbeddingLength: 8,
+		FeedForwardLength: 12, LayerNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000}}
+	weights := model.LayerGraphWeights{
+		AttentionNorm:       input("attn_norm", tensor.MustShape(8), 0.03, 0.9),
+		AttentionNormBias:   input("attn_norm_bias", tensor.MustShape(8), 0.02, -0.03),
+		AttentionQ:          input("q", tensor.MustShape(8, 8), 0.03, -0.1),
+		AttentionK:          input("k", tensor.MustShape(8, 8), 0.03, -0.1),
+		AttentionV:          input("v", tensor.MustShape(8, 8), 0.03, -0.1),
+		AttentionOutput:     input("attn_out", tensor.MustShape(8, 8), 0.03, -0.1),
+		FeedForwardUp:       input("ffn_up", tensor.MustShape(8, 12), 0.03, -0.1),
+		FeedForwardUpBias:   input("ffn_up_bias", tensor.MustShape(12), 0.02, -0.03),
+		FeedForwardDown:     input("ffn_down", tensor.MustShape(12, 8), 0.03, -0.1),
+		FeedForwardDownBias: input("ffn_down_bias", tensor.MustShape(8), 0.02, -0.03),
+	}
+	current := input("current", tensor.MustShape(8, 3), 0.08, -0.1)
+	result, err := model.BuildDenseBlockCachedForLayer(
+		builder, current, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[result.Output].Data, want[result.Output].Data, 2e-3)
+	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
+	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+}
+
 func TestExecutorRND1NonCausalMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"llamacpp2go/internal/gguf"
 
 	"math"
@@ -1130,6 +1131,52 @@ func TestReadPhi2Spec(t *testing.T) {
 		spec.RopeDimensionCount != 32 || !spec.UsesLayerNorm() ||
 		!usesParallelResidual(spec.Architecture) {
 		t.Fatalf("unexpected Phi-2 spec: %+v", spec)
+	}
+}
+
+func TestReadGPTJSpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "gptj"),
+		metadata("gptj.block_count", gguf.ValueTypeUint32, uint32(28)),
+		metadata("gptj.context_length", gguf.ValueTypeUint32, uint32(2048)),
+		metadata("gptj.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("gptj.feed_forward_length", gguf.ValueTypeUint32, uint32(16384)),
+		metadata("gptj.attention.head_count", gguf.ValueTypeUint32, uint32(16)),
+		metadata("gptj.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("gptj.rope.dimension_count", gguf.ValueTypeUint32, uint32(64)),
+		metadata("gptj.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "gptj" || spec.HeadCountKV != 16 || spec.KeyLength != 256 ||
+		spec.RopeDimensionCount != 64 || spec.RopeFrequencyBase != 10000 ||
+		!spec.UsesLayerNorm() || !spec.RequiresLayerNormBias() ||
+		!usesNormalRoPE(spec.Architecture) || !usesParallelResidual(spec.Architecture) ||
+		!usesGELU(spec.Architecture) {
+		t.Fatalf("unexpected GPT-J spec: %+v", spec)
+	}
+}
+
+func TestReadGPTJSpecRejectsInvalidRotaryWidth(t *testing.T) {
+	for _, width := range []uint32{0, 3, 6} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			file := &gguf.File{Metadata: []gguf.Metadata{
+				metadata("general.architecture", gguf.ValueTypeString, "gptj"),
+				metadata("gptj.block_count", gguf.ValueTypeUint32, uint32(1)),
+				metadata("gptj.context_length", gguf.ValueTypeUint32, uint32(16)),
+				metadata("gptj.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+				metadata("gptj.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+				metadata("gptj.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+				metadata("gptj.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+				metadata("gptj.rope.dimension_count", gguf.ValueTypeUint32, width),
+				metadata("gptj.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+			}}
+			if _, err := ReadSpec(file); err == nil {
+				t.Fatal("expected invalid GPT-J rotary width")
+			}
+		})
 	}
 }
 

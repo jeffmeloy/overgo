@@ -498,6 +498,47 @@ func TestBuildDenseGPTNeoXResidualModes(t *testing.T) {
 	}
 }
 
+func TestBuildDenseGPTJParallelResidualNormalRoPEGELU(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gptj", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{
+		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000}}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+	weights := denseBlockInputs(builder, spec)
+	weights.FeedForwardGate = nil
+	weights.FeedForwardUpBias = builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(12))
+	weights.FeedForwardDownBias = builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(8))
+	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layerNorms, normalRoPE, neoXRoPE, gelu int
+	for _, node := range nodes {
+		switch node.Op {
+		case tensor.OpLayerNorm:
+			layerNorms++
+			if node.Inputs[0] != input {
+				t.Fatal("GPT-J FFN does not share attention LayerNorm input")
+			}
+		case tensor.OpRoPENormal:
+			normalRoPE++
+		case tensor.OpRoPENeoX:
+			neoXRoPE++
+		case tensor.OpGELU:
+			gelu++
+		}
+	}
+	if layerNorms != 1 || normalRoPE != 2 || neoXRoPE != 0 || gelu != 1 {
+		t.Fatalf("unexpected GPT-J graph: LayerNorm=%d normalRoPE=%d NeoXRoPE=%d GELU=%d",
+			layerNorms, normalRoPE, neoXRoPE, gelu)
+	}
+}
+
 func TestBuildDenseGLM4(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "glm4", BlockCount: 1, EmbeddingLength: 8,

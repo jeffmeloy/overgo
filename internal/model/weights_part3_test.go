@@ -10,6 +10,47 @@ import (
 	"testing"
 )
 
+func TestReadWeightsGLM4NextNBlock(t *testing.T) {
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "glm4", BlockCount: 1,
+		NextNPredictLayers: 1, EmbeddingLength: 8, FeedForwardLength: 12,
+		VocabularySize: 32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{
+		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("output.weight", 8, 32),
+	}
+	for block := 0; block < 2; block++ {
+		prefix := fmt.Sprintf("blk.%d.", block)
+		tensors = append(tensors,
+			tensorInfo(prefix+"attn_norm.weight", 8),
+			tensorInfo(prefix+"attn_qkv.weight", 8, 16),
+			tensorInfo(prefix+"attn_output.weight", 8, 8),
+			tensorInfo(prefix+"post_attention_norm.weight", 8),
+			tensorInfo(prefix+"ffn_norm.weight", 8),
+			tensorInfo(prefix+"ffn_up.weight", 8, 24),
+			tensorInfo(prefix+"ffn_down.weight", 12, 8),
+			tensorInfo(prefix+"post_ffw_norm.weight", 8),
+		)
+	}
+	tensors = append(tensors,
+		tensorInfo("blk.1.nextn.eh_proj.weight", 16, 8),
+		tensorInfo("blk.1.nextn.enorm.weight", 8),
+		tensorInfo("blk.1.nextn.hnorm.weight", 8),
+		tensorInfo("blk.1.nextn.shared_head_norm.weight", 8),
+	)
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(weights.Layers) != 1 || len(weights.NextNMTP) != 1 ||
+		weights.NextNMTP[0].Layer.AttentionQKV == nil ||
+		weights.NextNMTP[0].OutputNorm == nil {
+		t.Fatalf("unexpected GLM4 NextN catalog: %+v", weights.NextNMTP)
+	}
+}
+
 func TestReadWeightsGraniteDense(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "granite",
 		BlockCount:    1,

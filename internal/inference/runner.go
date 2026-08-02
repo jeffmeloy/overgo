@@ -104,6 +104,8 @@ type LayerState struct {
 
 type KVCache struct {
 	Layers []LayerCache
+	// DSATopK: transient GLM-DSA MTP handoff.
+	DSATopK *reference.Value
 	// Tokens: number of active attention tokens retained in Layers
 	Tokens uint32
 	// Position: absolute position assigned to next appended token
@@ -1923,6 +1925,10 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 			layerCache.Auxiliary = nil
 		}
 		nextCache.Layers[layerIndex] = layerCache
+	}
+	if r.spec.Architecture == "glm-dsa" && previousTopK != nil {
+		value := *previousTopK
+		nextCache.DSATopK = &value
 	}
 	if !r.hasPreloadedWeights() && applyOutputNorm {
 		activation, err = r.runOutputNorm(ctx, activation)
@@ -4271,6 +4277,9 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	for _, mtp := range weights.HYV3MTP {
 		layers = append(layers, mtp.Layer)
 	}
+	for _, mtp := range weights.NextNMTP {
+		layers = append(layers, mtp.Layer)
+	}
 	if weights.Cohere2MTP != nil {
 		layers = append(layers, weights.Cohere2MTP.Layer)
 	}
@@ -4317,6 +4326,16 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			names[info.Name] = struct{}{}
 		}
 		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.OutputNorm, mtp.Output} {
+			if info != nil {
+				names[info.Name] = struct{}{}
+			}
+		}
+	}
+	for _, mtp := range weights.NextNMTP {
+		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
+			names[info.Name] = struct{}{}
+		}
+		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.LayerOutputNorm, mtp.OutputNorm, mtp.Output} {
 			if info != nil {
 				names[info.Name] = struct{}{}
 			}
@@ -4408,7 +4427,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			}
 		}
 	}
-	capacity := len(weights.EncoderLayers) + len(weights.Layers) + len(weights.Step35MTP) + len(weights.HYV3MTP)
+	capacity := len(weights.EncoderLayers) + len(weights.Layers) + len(weights.Step35MTP) + len(weights.HYV3MTP) + len(weights.NextNMTP)
 	if weights.Qwen35MTP != nil {
 		capacity++
 	}
@@ -4425,6 +4444,9 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 		allLayers = append(allLayers, mtp.Layer)
 	}
 	for _, mtp := range weights.HYV3MTP {
+		allLayers = append(allLayers, mtp.Layer)
+	}
+	for _, mtp := range weights.NextNMTP {
 		allLayers = append(allLayers, mtp.Layer)
 	}
 	if weights.Cohere2MTP != nil {

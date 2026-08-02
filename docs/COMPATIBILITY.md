@@ -49,7 +49,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `arwkv7` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `baichuan` | experimental | model-dependent | pending-fixture | - |
 | `bailingmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `bailingmoe2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | nextn-mtp-prediction-pending |
+| `bailingmoe2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `bitnet` | experimental | model-dependent | pending-fixture | - |
 | `bloom` | experimental | model-dependent | pending-fixture | - |
 | `chatglm` | experimental | bounded-host, f32-preload | pending-fixture | - |
@@ -61,7 +61,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `dbrx` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `deci` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `deepseek2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `deepseek32` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | nextn-mtp-prediction-pending |
+| `deepseek32` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `deepseek4` | experimental | bounded-host-hyper-connections-and-compressed-attention, f32-preload, native-quantized-experts | pending-fixture | - |
 | `dflash` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | target-extraction-recomputes-full-prefix, external-scheduler-owns-verification-and-acceptance, real-model-pair-pending |
 | `dots1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
@@ -70,8 +70,8 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `ernie4_5` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `ernie4_5-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `exaone` | experimental | model-dependent | pending-fixture | - |
-| `exaone-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | nextn-mtp-prediction-pending |
-| `exaone4` | experimental | model-dependent | pending-fixture | nextn-mtp-prediction-pending |
+| `exaone-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `exaone4` | experimental | model-dependent | pending-fixture | - |
 | `falcon` | experimental | model-dependent | pending-fixture | - |
 | `gemma` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `gemma-embedding` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
@@ -80,11 +80,12 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `gemma3n` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | multimodal-encoder-external, real-model-validation-pending-fixture |
 | `gemma4` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `gemma4-assistant` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | external-scheduler-owns-verification-and-acceptance, text-only-target-input, real-model-pair-pending |
-| `glm-dsa` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | nextn-mtp-prediction-pending |
-| `glm4` | experimental | model-dependent | pending-fixture | nextn-mtp-prediction-pending |
-| `glm4moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | nextn-mtp-prediction-pending |
+| `glm-dsa` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `glm4` | experimental | model-dependent | pending-fixture | - |
+| `glm4moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `gpt-oss` | experimental | bounded-host, f32-preload, native-quantized-experts, retained-device-cache | pending-fixture | - |
 | `gpt2` | experimental | model-dependent | pending-fixture | - |
+| `gptj` | experimental | bounded-host, f32-preload, native-quantized-weights, retained-device-cache | pending-fixture | - |
 | `gptneox` | experimental | model-dependent | pending-fixture | - |
 | `granite` | experimental | model-dependent | pending-fixture | vision-encoder-external, vision-projector-external |
 | `granitehybrid` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
@@ -109,7 +110,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `mamba` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `mamba2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `mellum` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `mimo2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | nextn-mtp-prediction-pending, vision-tower-pending |
+| `mimo2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | vision-tower-pending |
 | `minicpm` | experimental | model-dependent | pending-fixture | - |
 | `minicpm3` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `minimax-m2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |

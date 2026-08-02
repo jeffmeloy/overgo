@@ -96,7 +96,7 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		dflash dots1 dream eagle3 ernie4_5 ernie4_5-moe eurobert exaone
 		exaone-moe exaone4 falcon falcon-h1 gemma gemma-embedding gemma2 gemma3
 		gemma3n gemma4 gemma4-assistant glm-dsa glm4 glm4moe gpt-oss gpt2
-		gptneox granite granitehybrid granitemoe grok grovemoe hunyuan-dense
+		gptj gptneox granite granitehybrid granitemoe grok grovemoe hunyuan-dense
 		hunyuan-moe hunyuan_vl hy_v3 internlm2 jais jais2 jamba jina-bert-v2
 		jina-bert-v3 kimi-linear laguna lfm2 lfm2moe llama llama-embed llama4
 		llada llada-moe maincoder mamba mamba2 mellum mimo2 minicpm minicpm3
@@ -201,13 +201,13 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		"arcee", "arctic", "baichuan", "bailingmoe", "chameleon", "chatglm",
 		"cogvlm", "cohere2", "cohere2moe", "command-r", "deci", "deepseek",
 		"deepseek4", "eagle3", "ernie4_5", "ernie4_5-moe", "glm4", "glm4moe",
-		"gpt-oss", "granite", "granitehybrid", "granitemoe", "hunyuan-dense",
+		"gpt-oss", "gptj", "granite", "granitehybrid", "granitemoe", "hunyuan-dense",
 		"hunyuan_vl", "internlm2", "llada", "llama", "llama-embed", "llama4",
 		"maincoder", "minicpm", "mistral3", "neo-bert", "olmo", "plamo2",
 		"smollm3", "xverse",
 	)
 	setCapabilities(ArchitectureParallelResidual,
-		"cohere2", "cohere2moe", "command-r", "falcon", "phi2", "plamo",
+		"cohere2", "cohere2moe", "command-r", "falcon", "gptj", "phi2", "plamo",
 	)
 	setCapabilities(ArchitectureSequentialGELU,
 		"bloom", "codeshell", "gpt2", "gptneox", "phi2", "starcoder", "starcoder2",
@@ -221,7 +221,7 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		"phi3", "phimoe", "step35",
 	)
 	setCapabilities(ArchitectureGELU,
-		"bert", "falcon", "jina-bert-v3", "mpt", "nomic-bert-moe",
+		"bert", "falcon", "gptj", "jina-bert-v3", "mpt", "nomic-bert-moe",
 	)
 	setCapabilities(ArchitectureSquaredReLU, "arcee", "jais2", "nemotron", "plm")
 	setCapabilities(ArchitectureQwenGDN, "qwen3next", "qwen35", "qwen35moe")

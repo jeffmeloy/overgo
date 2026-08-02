@@ -240,13 +240,14 @@ type Qwen35MTPWeights struct {
 
 // Step35MTPWeights: one full Step3.5 draft head.
 type Step35MTPWeights struct {
-	Layer          LayerWeights
-	EHProjection   gguf.TensorInfo
-	EmbeddingNorm  gguf.TensorInfo
-	HiddenNorm     gguf.TensorInfo
-	TokenEmbedding *gguf.TensorInfo
-	OutputNorm     *gguf.TensorInfo
-	Output         *gguf.TensorInfo
+	Layer           LayerWeights
+	EHProjection    gguf.TensorInfo
+	EmbeddingNorm   gguf.TensorInfo
+	HiddenNorm      gguf.TensorInfo
+	TokenEmbedding  *gguf.TensorInfo
+	LayerOutputNorm *gguf.TensorInfo
+	OutputNorm      *gguf.TensorInfo
+	Output          *gguf.TensorInfo
 }
 
 // Cohere2MTPWeights: one full Cohere2-MoE draft block.
@@ -291,6 +292,7 @@ type Weights struct {
 	Step35MTP               []Step35MTPWeights
 	HYV3MTP                 []Step35MTPWeights
 	Cohere2MTP              *Cohere2MTPWeights
+	NextNMTP                []Step35MTPWeights
 }
 
 func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
@@ -1124,6 +1126,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		spec.Architecture == "nemotron" ||
 		spec.Architecture == "orion" ||
 		spec.Architecture == "gptneox" ||
+		spec.Architecture == "gptj" ||
 		spec.Architecture == "gpt-oss" ||
 		spec.Architecture == "phi2" ||
 		spec.Architecture == "phimoe" ||
@@ -1162,7 +1165,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			result.ClassifierOutput = &validated
 		}
 	}
-	if (spec.Architecture == "phi2" || spec.Architecture == "phimoe") && result.OutputBias == nil {
+	if (spec.Architecture == "gptj" || spec.Architecture == "phi2" || spec.Architecture == "phimoe") && result.OutputBias == nil {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
 	if spec.Architecture == "gemma-embedding" {
@@ -1239,7 +1242,11 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	}
 
 	trunkBlockCount := spec.BlockCount
-	if spec.Architecture == "step35" || spec.Architecture == "hy_v3" {
+	if spec.Architecture == "step35" || spec.Architecture == "hy_v3" ||
+		spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "exaone4" ||
+		spec.Architecture == "exaone-moe" || spec.Architecture == "mimo2" ||
+		spec.Architecture == "bailingmoe2" || spec.Architecture == "deepseek32" ||
+		spec.Architecture == "glm-dsa" {
 		trunkBlockCount += spec.NextNPredictLayers
 	}
 	cohere2HasMTP := false
@@ -1268,6 +1275,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			continue
 		}
 		prefix := fmt.Sprintf("blk.%d.", block)
+		isNextNBlock := block >= spec.BlockCount
 		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerKeyLength(block))
 		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerKeyLength(block))
 		valueLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerValueLength(block))
@@ -3055,7 +3063,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			(spec.Architecture == "deepseek" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "bailingmoe2" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "lfm2moe" && block >= spec.LeadingDenseBlocks) ||
-			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks) ||
+			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks && !isNextNBlock) ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
 			expertTensors := map[string]struct {
@@ -3668,6 +3676,16 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 		}
+		if spec.Architecture == "gptj" {
+			for name, item := range map[string]*gguf.TensorInfo{
+				"ffn_up.bias":   layer.FeedForwardUpBias,
+				"ffn_down.bias": layer.FeedForwardDownBias,
+			} {
+				if item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				}
+			}
+		}
 		if spec.Architecture == "jais2" {
 			for name, item := range map[string]*gguf.TensorInfo{
 				"attn_q.bias":      layer.AttentionQBias,
@@ -3917,6 +3935,55 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		} else {
 			result.Layers = result.Layers[:spec.BlockCount]
 		}
+	}
+	if (spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "mimo2" || spec.Architecture == "bailingmoe2" || spec.Architecture == "deepseek32" || spec.Architecture == "glm-dsa") && spec.NextNPredictLayers > 0 {
+		result.NextNMTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
+		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
+			block := spec.BlockCount + offset
+			prefix := fmt.Sprintf("blk.%d.", block)
+			mtp := &result.NextNMTP[offset]
+			mtp.Layer = result.Layers[block]
+			for name, item := range map[string]struct {
+				destination *gguf.TensorInfo
+				shape       []uint64
+			}{
+				"nextn.eh_proj.weight": {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
+				"nextn.enorm.weight":   {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
+				"nextn.hnorm.weight":   {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
+			} {
+				loaded, loadErr := required(prefix+name, item.shape...)
+				if loadErr != nil {
+					return Weights{}, loadErr
+				}
+				*item.destination = loaded
+			}
+			for name, destination := range map[string]**gguf.TensorInfo{
+				"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
+				"nextn.shared_head_norm.weight": &mtp.OutputNorm,
+				"nextn.shared_head_head.weight": &mtp.Output,
+			} {
+				if _, ok := tensors[prefix+name]; !ok {
+					continue
+				}
+				shape := []uint64{uint64(spec.EmbeddingLength)}
+				if name != "nextn.shared_head_norm.weight" {
+					shape = append(shape, uint64(spec.VocabularySize))
+				}
+				loaded, loadErr := required(prefix+name, shape...)
+				if loadErr != nil {
+					return Weights{}, loadErr
+				}
+				*destination = &loaded
+			}
+			if spec.Architecture == "mimo2" || spec.Architecture == "bailingmoe2" {
+				loaded, loadErr := required(prefix+"layer_output_norm.weight", uint64(spec.EmbeddingLength))
+				if loadErr != nil {
+					return Weights{}, loadErr
+				}
+				mtp.LayerOutputNorm = &loaded
+			}
+		}
+		result.Layers = result.Layers[:spec.BlockCount]
 	}
 	return result, nil
 }

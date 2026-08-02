@@ -2236,10 +2236,15 @@ models:
       - optional-tied-output
       - projected-embedding-overrides
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - image-encoder-external
-      - image-projection-external
-      - image-grid-coordinate-construction-external
+      - hunyuanvl-dynamic-image-projector
+      - pillow-bicubic-aligned-image-resize
+      - interpolated-learned-vision-positions
+      - fused-or-separate-vision-qkv-with-optional-bias
+      - rmsnorm-convolutional-vision-merger
+      - row-newline-image-prefix
+      - ordered-multi-image-soft-token-merge
+      - per-image-four-axis-grid
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   dots1:
     status: experimental

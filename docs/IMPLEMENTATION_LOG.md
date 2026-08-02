@@ -1718,6 +1718,14 @@ lightning-indexer key cache alongside the draft KV cache.
 GLM-DSA retains the trunk's final full-indexer top-k selection as transient
 session metadata and reuses it in the shared-indexer MTP tail.
 
+Hunyuan-VL now executes its dynamic Pillow-bicubic image preprocessing,
+interpolated learned-position ViT, RMS-normalized convolutional spatial merger,
+row-newline prefix projection, begin/end embeddings, and final RMSNorm. Native
+single/multi-image prompts interleave text and media, preserve history, and emit
+the decoder's time/column/row/image axes for begin, content, newline, and end
+tokens. Tiny catalog, raster-order, prompt-position, and CPU/CUDA differential
+tests pass; real-model validation remains fixture-gated.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

@@ -93,7 +93,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `grovemoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `hunyuan-dense` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `hunyuan-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `hunyuan_vl` | experimental | bounded-host, f32-preload | pending-fixture | image-encoder-external, image-projection-external, image-grid-coordinate-construction-external |
+| `hunyuan_vl` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `hy_v3` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `internlm2` | experimental | model-dependent | pending-fixture | - |
 | `jais` | experimental | model-dependent | pending-fixture | - |

@@ -16,6 +16,9 @@ import (
 const Qwen3VLImagePad = "<|image_pad|>"
 const Qwen3VLVideoPad = "<|video_pad|>"
 const PaddleOCRImagePad = "<|IMAGE_PLACEHOLDER|>"
+const HunyuanVLImageStart = "<｜hy_place▁holder▁no▁100｜>"
+const HunyuanVLImageEnd = "<｜hy_place▁holder▁no▁101｜>"
+const HunyuanVLImagePad = "<｜hy_place▁holder▁no▁102｜>"
 
 type ImageTokenizer interface {
 	TokenizeText(string, bool, bool) ([]tokenizer.TokenID, error)
@@ -107,6 +110,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case hunyuanVLProjectorType:
+		return OpenHunyuanVLWithOptions(path, HunyuanVLOpenOptions(options))
 	case paddleOCRProjectorType:
 		return OpenPaddleOCRWithOptions(path, PaddleOCROpenOptions(options))
 	case qwen2VLProjectorType:
@@ -118,6 +123,106 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	default:
 		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
 	}
+}
+
+func (r *HunyuanVLRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+}
+
+func (r *HunyuanVLRunner) BuildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
+}
+
+func (r *HunyuanVLRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+}
+
+func (r *HunyuanVLRunner) buildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	history bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: Hunyuan-VL image/text sequence is inconsistent")
+	}
+	type geometry struct{ rows, columns int }
+	counts := make([]int, len(sources))
+	geometries := make([]geometry, len(sources))
+	var embeddings []float32
+	var prompt strings.Builder
+	if !history {
+		prompt.WriteString("<｜hy_begin▁of▁sentence｜>")
+	}
+	for index, source := range sources {
+		prompt.WriteString(text[index])
+		output, err := r.EncodeImage(ctx, source, DefaultHunyuanVLPreprocessOptions(r.spec))
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode Hunyuan-VL image %d: %w", index, err)
+		}
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		geometries[index] = geometry{output.GridH / output.MergeSize, output.GridW / output.MergeSize}
+		prompt.WriteString(HunyuanVLImageStart)
+		prompt.WriteString(strings.Repeat(HunyuanVLImagePad, counts[index]))
+		prompt.WriteString(HunyuanVLImageEnd)
+		embeddings = append(embeddings, output.Embeddings.Data...)
+	}
+	prompt.WriteString(text[len(text)-1])
+	if !history {
+		prompt.WriteString("<｜hy_User｜>")
+	}
+	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Hunyuan-VL image prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText(HunyuanVLImagePad, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Hunyuan-VL placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Hunyuan-VL placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := variableTokenRuns(ids, padIDs[0], counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Hunyuan-VL image prompt: %w", err)
+	}
+	chunks := make([]HunyuanVLPositionChunk, len(starts))
+	var indices []uint32
+	for index, start := range starts {
+		chunks[index] = HunyuanVLPositionChunk{
+			Start: start, Rows: geometries[index].rows, Columns: geometries[index].columns, ImageIndex: index,
+		}
+		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
+	}
+	positions, err := HunyuanVLVariableChunkPositions(len(ids), chunks)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
+		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
+	}, nil
 }
 
 func (r *PaddleOCRRunner) BuildImagePrompt(
@@ -1184,6 +1289,62 @@ type Qwen3VLPositionChunk struct {
 	Start   int
 	Rows    int
 	Columns int
+}
+
+type HunyuanVLPositionChunk struct {
+	Start      int
+	Rows       int
+	Columns    int
+	ImageIndex int
+}
+
+func HunyuanVLVariableChunkPositions(tokens int, chunks []HunyuanVLPositionChunk) ([4][]uint32, error) {
+	if tokens <= 0 || len(chunks) == 0 {
+		return [4][]uint32{}, errors.New("projector: invalid Hunyuan-VL media positions")
+	}
+	var positions [4][]uint32
+	for axis := range positions {
+		positions[axis] = make([]uint32, tokens)
+	}
+	next, physical := uint32(0), 0
+	for _, chunk := range chunks {
+		count := chunk.Rows*(chunk.Columns+1) + 2
+		if chunk.Rows <= 0 || chunk.Columns <= 0 || chunk.ImageIndex < 0 || chunk.Start < physical || chunk.Start+count > tokens {
+			return [4][]uint32{}, errors.New("projector: Hunyuan-VL media chunk is invalid")
+		}
+		for physical < chunk.Start {
+			for axis := range positions {
+				positions[axis][physical] = next
+			}
+			next++
+			physical++
+		}
+		base := next
+		for index := 0; index < count; index++ {
+			position := physical + index
+			positions[0][position] = base + uint32(index)
+			if index == 0 || index == count-1 {
+				for axis := 1; axis < 4; axis++ {
+					positions[axis][position] = base + uint32(index)
+				}
+				continue
+			}
+			offset := index - 1
+			positions[1][position] = uint32(offset % (chunk.Columns + 1))
+			positions[2][position] = uint32(offset / (chunk.Columns + 1))
+			positions[3][position] = uint32(chunk.ImageIndex)
+		}
+		physical += count
+		next = base + uint32(count)
+	}
+	for physical < tokens {
+		for axis := range positions {
+			positions[axis][physical] = next
+		}
+		next++
+		physical++
+	}
+	return positions, nil
 }
 
 func Qwen3VLVariableChunkPositions(tokens int, chunks []Qwen3VLPositionChunk) ([4][]uint32, error) {

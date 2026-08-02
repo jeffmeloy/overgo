@@ -5,7 +5,7 @@ Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/Bai
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM text/projected-visual decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4 and Gemma Embedding,
-ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE multimodal-coordinate decoding, GPT-2/GPT-NeoX, Granite/GraniteMoE with projected vision deepstack injection, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
+ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE multimodal-coordinate decoding, GPT-2/GPT-NeoX, Granite/GraniteMoE with projected vision deepstack injection, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL image projection/text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
 InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniCPM/MiniCPM3, MPT,
 Mistral 3 dense/MoE, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
 Orion, PaddleOCR text-coordinate decoding, Qwen2-VL and dense/MoE Qwen3-VL image/video projection and text-coordinate decoding, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,
@@ -172,7 +172,9 @@ four MRoPE coordinate arrays, and GGML-order deepstack tensors:
 ```
 
 For image input, `-mmproj <projector.gguf>` and `-image <path>` select the
-projector family from GGUF metadata. Qwen3.5 runs the native Qwen3-VL patch
+projector family from GGUF metadata. Hunyuan-VL runs dynamic Pillow-bicubic
+preprocessing, learned-position ViT projection, convolutional spatial merge,
+row-newline prefix construction, and four-axis image coordinates. Qwen3.5 runs the native Qwen3-VL patch
 encoder/merger, renders the vision chat turn, and constructs compressed
 four-axis MRoPE positions. `-image-thinking=false` selects its non-thinking
 template branch. Gemma 4 unified runs the merged 48-pixel patch projector,
@@ -190,7 +192,7 @@ installation. FFmpeg samples at `-video-fps`; `-video-max-frames` bounds work.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native
-audio turn. `-mmproj-cuda` keeps Qwen3-VL and Gemma 4 projector weights
+audio turn. `-mmproj-cuda` keeps Hunyuan-VL, Qwen3-VL, and Gemma 4 projector weights
 resident on the selected `-device` and executes their full image/video graphs
 on CUDA; Gemma 4 audio uses the same path.
 

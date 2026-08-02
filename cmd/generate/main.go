@@ -121,7 +121,10 @@ func run() error {
 	audioPath := flag.String("audio", "", "Gemma 4 mono 16 kHz WAV or raw float32-LE audio")
 	videoFrames := stringListFlag{}
 	flag.Var(&videoFrames, "video-frame", "ordered multimodal video frame; repeatable")
+	videoPath := flag.String("video", "", "encoded multimodal video; GIF native, other formats through FFmpeg")
+	videoMaxFrames := flag.Int("video-max-frames", 32, "maximum decoded video frames")
 	videoFPS := flag.Float64("video-fps", 24, "source FPS for multimodal video timestamps")
+	ffmpegPath := flag.String("ffmpeg", os.Getenv("LLAMACPP2GO_FFMPEG"), "FFmpeg executable for non-GIF video input")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	flag.Parse()
 	if flag.NArg() != 2 {
@@ -293,14 +296,23 @@ func run() error {
 	if len(videoFrames) > 0 {
 		mediaInputs++
 	}
+	if *videoPath != "" {
+		mediaInputs++
+	}
 	if *audioPath != "" {
 		mediaInputs++
 	}
 	if mediaInputs > 1 {
-		return errors.New("generate: -image, -audio, and -video-frame are mutually exclusive")
+		return errors.New("generate: -image, -audio, -video, and -video-frame are mutually exclusive")
 	}
 	if (*projectorPath == "") != (mediaInputs == 0) {
-		return errors.New("generate: -mmproj requires -image, -audio, or at least one -video-frame")
+		return errors.New("generate: -mmproj requires -image, -audio, -video, or at least one -video-frame")
+	}
+	if *videoPath != "" && *videoMaxFrames <= 0 {
+		return errors.New("generate: -video-max-frames must be positive")
+	}
+	if (*videoPath != "" || len(videoFrames) > 0) && (*videoFPS <= 0 || math.IsNaN(*videoFPS) || math.IsInf(*videoFPS, 0)) {
+		return errors.New("generate: -video-fps must be finite and positive")
 	}
 	if *projectedInputsFile != "" && *projectorPath != "" {
 		return errors.New("generate: -projected-inputs and -mmproj are mutually exclusive")
@@ -332,7 +344,8 @@ func run() error {
 			)
 		} else {
 			promptIDs, projected, projectedErr = videoProjectedPrompt(
-				context.Background(), runner, *projectorPath, videoFrames, flag.Arg(1), *videoFPS, *imageThinking,
+				context.Background(), runner, *projectorPath, videoFrames, *videoPath, *videoMaxFrames,
+				*ffmpegPath, flag.Arg(1), *videoFPS, *imageThinking,
 				projectorOptions,
 			)
 		}

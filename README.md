@@ -73,6 +73,7 @@ go run ./cmd/generate -native-quant -context-shift -n 8192 <supported-model.gguf
 go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -image <image.png> -n 16 <qwen35.gguf> "Describe this image."
 go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <qwen35.gguf> "Describe this video."
 go run ./cmd/generate -preload -mmproj <gemma4-mmproj.gguf> -mmproj-cuda -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <gemma4.gguf> "Describe this video."
+go run ./cmd/generate -preload -mmproj <gemma4-mmproj.gguf> -mmproj-cuda -video <clip.mp4> -video-fps 2 -video-max-frames 32 -n 16 <gemma4.gguf> "Describe this video."
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -eps 0.001 <dream.gguf> "Hello"
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -block-length 32 <llada.gguf> "Hello"
 go run ./cmd/perplexity -native-quant <supported-model.gguf> "evaluation text"
@@ -171,6 +172,9 @@ Qwen3.5 runs temporal-pair preprocessing, emits timestamped chunks, and builds
 compressed MRoPE grids; odd frame counts repeat the final frame. Gemma 4 uses a
 70-token budget per frame, emits `mm:ss` frame blocks, and applies blockwise
 bidirectional attention only within each frame on sliding layers.
+`-video <path>` decodes animated GIF natively. Other encoded formats use
+FFmpeg from `-ffmpeg`, `LLAMACPP2GO_FFMPEG`, `PATH`, or the detected Windows
+installation. FFmpeg samples at `-video-fps`; `-video-max-frames` bounds work.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native

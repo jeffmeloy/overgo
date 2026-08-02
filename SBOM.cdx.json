@@ -32,7 +32,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "3be4fb78d7275171f5a97e64d83110be404c819f7b7d307c717e2e4f74bd7e85"
+          "content": "95275fb400ddc7c1a7e7ef754b31e7f87fa60225d1d07f0e81b865aae039c85a"
         }
       ],
       "licenses": [
@@ -104,7 +104,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "5d770c9e3b56ea9791f9984eae4cf78546379f1da4dac434ef931de605500ed5"
+          "content": "b8e9a0a9bc7be6356828171bb1d720b45310e40d7e1ce7287dd12b3323a8385a"
         }
       ],
       "licenses": [
@@ -140,7 +140,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "8c003e5196802ad78dbbe781d7178f86b5c25076f68fa2575120133c092aab1e"
+          "content": "fa6c4c96d348c7bb60c787e063a8fbf8f085b8dfccef8bf67c5428ebb0bda554"
         }
       ],
       "licenses": [

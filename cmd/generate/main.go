@@ -118,8 +118,8 @@ func run() error {
 	imagePath := flag.String("image", "", "image input for multimodal generation")
 	audioPath := flag.String("audio", "", "Gemma 4 mono 16 kHz WAV or raw float32-LE audio")
 	videoFrames := stringListFlag{}
-	flag.Var(&videoFrames, "video-frame", "ordered Qwen3-VL video frame; repeatable")
-	videoFPS := flag.Float64("video-fps", 24, "source FPS for Qwen3-VL video timestamps")
+	flag.Var(&videoFrames, "video-frame", "ordered multimodal video frame; repeatable")
+	videoFPS := flag.Float64("video-fps", 24, "source FPS for multimodal video timestamps")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	flag.Parse()
 	if flag.NArg() != 2 {
@@ -326,7 +326,7 @@ func run() error {
 				context.Background(), runner, *projectorPath, *audioPath, flag.Arg(1),
 			)
 		} else {
-			promptIDs, projected, projectedErr = qwen3VLProjectedVideoPrompt(
+			promptIDs, projected, projectedErr = videoProjectedPrompt(
 				context.Background(), runner, *projectorPath, videoFrames, flag.Arg(1), *videoFPS, *imageThinking,
 			)
 		}

@@ -2732,6 +2732,12 @@ func (h *Handler) convertProjectedPrompt(
 		}
 	}
 	inputs := inference.ProjectedInputs{EmbeddingOverrides: overrides}
+	inputs.BidirectionalAttentionBlocks = make([]inference.AttentionBlock, len(projected.AttentionBlocks))
+	for index, block := range projected.AttentionBlocks {
+		inputs.BidirectionalAttentionBlocks[index] = inference.AttentionBlock{
+			Start: block.Start, End: block.End,
+		}
+	}
 	hasMultiAxis := false
 	for _, axis := range projected.MultiAxisPositions {
 		hasMultiAxis = hasMultiAxis || len(axis) > 0

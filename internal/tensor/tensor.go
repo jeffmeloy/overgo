@@ -190,6 +190,7 @@ type AttentionAttributes struct {
 	MaxALiBiBias          float32
 	Causal                bool
 	HasSinks              bool
+	HasBlockMask          bool
 	SymmetricWindow       bool
 	ChunkedWindow         bool
 	QueryStart            uint32
@@ -2321,6 +2322,36 @@ func (b *Builder) AttentionWindowWithOffset(
 		return nil
 	}
 	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, causal, false, queryStart, window)
+}
+
+// AttentionWindowWithBlockMaskWithOffset: causal window plus bidirectional
+// nonnegative block IDs. Negative IDs remain causal.
+func (b *Builder) AttentionWindowWithBlockMaskWithOffset(
+	query, key, value, blockIDs *Tensor,
+	scale float32,
+	queryStart uint32,
+	window uint32,
+) *Tensor {
+	if window == 0 {
+		b.setError(errors.New("attention window must be positive"))
+		return nil
+	}
+	result := b.attentionWithWindow(
+		query, key, value, nil, nil, scale, 0, 0, true, false, queryStart, window,
+	)
+	if result == nil {
+		return nil
+	}
+	if blockIDs == nil || blockIDs.Type != query.Type || blockIDs.Shape.Rank != 1 ||
+		blockIDs.Shape.Dims[0] != key.Shape.Dims[2] {
+		b.setError(errors.New("attention block IDs must have shape [key tokens] and match input type"))
+		return nil
+	}
+	result.Inputs = append(result.Inputs, blockIDs)
+	attributes := result.Attrs.(AttentionAttributes)
+	attributes.HasBlockMask = true
+	result.Attrs = attributes
+	return result
 }
 
 func (b *Builder) AttentionWindowWithSinksWithOffset(

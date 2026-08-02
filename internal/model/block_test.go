@@ -90,6 +90,42 @@ func TestBuildGemma4SharedKVMoEBlock(t *testing.T) {
 	}
 }
 
+func TestBuildGemma4SlidingBlockUsesVisionBlockMask(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{
+		Architecture: "gemma4", BlockCount: 2, EmbeddingLength: 4,
+		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 2, ValueLength: 2, KeyLengthSWA: 2, ValueLengthSWA: 2,
+		RopeDimensionCount: 2, RopeDimensionSWA: 2,
+		RopeFrequencyBase: 10000, RopeFrequencySWA: 10000,
+		RMSNormEpsilon: 1e-6, AttentionScale: 1, SlidingWindow: 4,
+		SlidingLayers: []bool{true, false}, EmbeddingPerLayer: 1,
+	}
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
+	weights := gemma4BlockInputs(builder, spec, true, false)
+	weights.AttentionBlockIDs = builder.Input("attention_blocks", dtype.F32, tensor.MustShape(2))
+	result, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range nodes {
+		if node.Op == tensor.OpAttention {
+			attributes := node.Attrs.(tensor.AttentionAttributes)
+			if !attributes.Causal || !attributes.HasBlockMask || attributes.Window != 4 {
+				t.Fatalf("Gemma 4 attention attributes = %+v", attributes)
+			}
+			return
+		}
+	}
+	t.Fatal("Gemma 4 sliding attention node missing")
+}
+
 func gemma4BlockInputs(builder *tensor.Builder, spec Spec, hasKV, moe bool) LayerGraphWeights {
 	embedding := uint64(spec.EmbeddingLength)
 	key := uint64(spec.KeyLengthSWA)

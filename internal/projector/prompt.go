@@ -28,6 +28,12 @@ type MultimodalPrompt struct {
 	EmbeddingStart        int
 	EmbeddingTokenIndices []uint32
 	MultiAxisPositions    [4][]uint32
+	AttentionBlocks       []AttentionBlock
+}
+
+type AttentionBlock struct {
+	Start uint32
+	End   uint32
 }
 
 type Qwen3VLPrompt = MultimodalPrompt
@@ -40,6 +46,11 @@ type ImageProjector interface {
 
 type AudioProjector interface {
 	BuildAudioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
+	Close() error
+}
+
+type VideoProjector interface {
+	BuildVideoPrompt(context.Context, ImageTokenizer, []image.Image, string, string, float64, bool) (MultimodalPrompt, error)
 	Close() error
 }
 
@@ -84,6 +95,19 @@ func OpenAudioProjector(path string) (AudioProjector, error) {
 	default:
 		return nil, fmt.Errorf("projector: audio projector type %q is unsupported", projectorType)
 	}
+}
+
+func OpenVideoProjector(path string) (VideoProjector, error) {
+	projector, err := OpenImageProjector(path)
+	if err != nil {
+		return nil, err
+	}
+	video, ok := projector.(VideoProjector)
+	if !ok {
+		_ = projector.Close()
+		return nil, errors.New("projector: selected image projector has no video path")
+	}
+	return video, nil
 }
 
 func (r *Qwen3VLRunner) BuildImagePrompt(
@@ -134,6 +158,7 @@ func (r *Gemma4Runner) BuildImagePrompt(
 		TokenIDs: ids, Embeddings: output.Embeddings.Data,
 		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: imageStart,
 		EmbeddingTokenIndices: sequentialTokenIndices(imageStart, imageTokens),
+		AttentionBlocks:       []AttentionBlock{{Start: uint32(imageStart), End: uint32(imageStart + imageTokens)}},
 	}, nil
 }
 
@@ -187,6 +212,75 @@ func Gemma4AudioPromptText(question string, audioTokens int) string {
 	return "<bos><|turn>user\n<|audio>" + strings.Repeat("<|audio|>", audioTokens) +
 		"<audio|>" + strings.TrimSpace(question) +
 		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
+}
+
+func (r *Gemma4Runner) BuildVideoPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	frames []image.Image,
+	beforeVideo, afterVideo string,
+	fps float64,
+	_ bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if strings.TrimSpace(beforeVideo) != "" {
+		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires video before user text")
+	}
+	if fps <= 0 || math.IsNaN(fps) || math.IsInf(fps, 0) {
+		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
+	}
+	output, err := r.EncodeVideoFrames(ctx, frames)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	text := Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps)
+	ids, err := tokenizer.TokenizeText(text, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 video prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText("<|video|>", false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 video placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 video placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := contiguousTokenRuns(ids, padIDs[0], output.TokensPerFrame, output.Frames)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 video prompt: %w", err)
+	}
+	indices := make([]uint32, 0, output.Frames*output.TokensPerFrame)
+	blocks := make([]AttentionBlock, len(starts))
+	for index, start := range starts {
+		indices = append(indices, sequentialTokenIndices(start, output.TokensPerFrame)...)
+		blocks[index] = AttentionBlock{
+			Start: uint32(start), End: uint32(start + output.TokensPerFrame),
+		}
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: output.Embeddings.Data,
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: starts[0],
+		EmbeddingTokenIndices: indices, AttentionBlocks: blocks,
+	}, nil
+}
+
+func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps float64) string {
+	var prompt strings.Builder
+	prompt.WriteString("<bos><|turn>user\n")
+	for frame := 0; frame < frames; frame++ {
+		if frame > 0 {
+			prompt.WriteByte(' ')
+		}
+		seconds := int(float64(frame) / fps)
+		fmt.Fprintf(&prompt, "%02d:%02d <|image>", seconds/60, seconds%60)
+		prompt.WriteString(strings.Repeat("<|video|>", tokensPerFrame))
+		prompt.WriteString("<image|>")
+	}
+	prompt.WriteString(strings.TrimSpace(question))
+	prompt.WriteString("<turn|>\n<|turn>model\n<|channel>thought\n<channel|>")
+	return prompt.String()
 }
 
 func (r *Qwen3VLRunner) BuildQwen35ImagePrompt(
@@ -284,6 +378,17 @@ func (r *Qwen3VLRunner) BuildQwen35VideoPrompt(
 		EmbeddingWidth:        int(output.Embeddings.Shape.Dims[0]),
 		EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
 	}, nil
+}
+
+func (r *Qwen3VLRunner) BuildVideoPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	frames []image.Image,
+	beforeVideo, afterVideo string,
+	fps float64,
+	thinking bool,
+) (MultimodalPrompt, error) {
+	return r.BuildQwen35VideoPrompt(ctx, tokenizer, frames, beforeVideo, afterVideo, fps, thinking)
 }
 
 func Qwen35ImagePromptText(beforeImage, afterImage string, imageTokens int, thinking bool) string {

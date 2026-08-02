@@ -1077,6 +1077,36 @@ func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	}
 }
 
+func TestExecuteWindowAttentionWithBidirectionalBlocks(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(1, 1, 5)
+	query := builder.Input("query", dtype.F32, shape)
+	key := builder.Input("key", dtype.F32, shape)
+	value := builder.Input("value", dtype.F32, shape)
+	blocks := builder.Input("blocks", dtype.F32, tensor.MustShape(5))
+	output := builder.AttentionWindowWithBlockMaskWithOffset(
+		query, key, value, blocks, 1, 0, 3,
+	)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query:  {Shape: shape, Data: make([]float32, 5)},
+		key:    {Shape: shape, Data: make([]float32, 5)},
+		value:  {Shape: shape, Data: []float32{1, 2, 4, 8, 16}},
+		blocks: {Shape: blocks.Shape, Data: []float32{-1, 0, 0, -1, -1}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1, 7.0 / 3, 7.0 / 3, 14.0 / 3, 28.0 / 3}
+	for index, value := range results[output].Data {
+		if math.Abs(float64(value-want[index])) > 1e-6 {
+			t.Fatalf("block attention[%d] = %v, want %v", index, value, want[index])
+		}
+	}
+}
+
 func TestExecuteAttentionSinksAddHiddenLogit(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))

@@ -40,6 +40,12 @@ type Gemma4Output struct {
 	GridW      int
 }
 
+type Gemma4VideoOutput struct {
+	Embeddings     reference.Value
+	Frames         int
+	TokensPerFrame int
+}
+
 type Gemma4Runner struct {
 	file *gguf.File
 	spec Gemma4Spec
@@ -263,6 +269,41 @@ func (r *Gemma4Runner) EncodeImage(ctx context.Context, source image.Image) (Gem
 		return Gemma4Output{}, err
 	}
 	return r.encode(ctx, input)
+}
+
+// EncodeVideoFrames: frame-major Gemma 4 projection with the 70-token frame budget.
+func (r *Gemma4Runner) EncodeVideoFrames(ctx context.Context, frames []image.Image) (Gemma4VideoOutput, error) {
+	if r == nil || r.file == nil {
+		return Gemma4VideoOutput{}, errors.New("projector: runner is closed")
+	}
+	if len(frames) == 0 {
+		return Gemma4VideoOutput{}, errors.New("projector: video has no frames")
+	}
+	videoSpec := r.spec
+	videoSpec.MaxImageTokens = 70
+	var combined Gemma4Image
+	var gridH, gridW int
+	for index, frame := range frames {
+		input, err := PreprocessGemma4Image(frame, videoSpec)
+		if err != nil {
+			return Gemma4VideoOutput{}, fmt.Errorf("projector: preprocess video frame %d: %w", index, err)
+		}
+		if index == 0 {
+			gridH, gridW = input.GridH, input.GridW
+		} else if input.GridH != gridH || input.GridW != gridW {
+			return Gemma4VideoOutput{}, errors.New("projector: Gemma 4 video frames produce inconsistent grids")
+		}
+		combined.PixelValues = append(combined.PixelValues, input.PixelValues...)
+		combined.Positions = append(combined.Positions, input.Positions...)
+	}
+	combined.GridH, combined.GridW = gridH*len(frames), gridW
+	output, err := r.encode(ctx, combined)
+	if err != nil {
+		return Gemma4VideoOutput{}, err
+	}
+	return Gemma4VideoOutput{
+		Embeddings: output.Embeddings, Frames: len(frames), TokensPerFrame: gridH * gridW,
+	}, nil
 }
 
 func (r *Gemma4Runner) encode(ctx context.Context, input Gemma4Image) (Gemma4Output, error) {

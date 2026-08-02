@@ -72,7 +72,7 @@ func (r *Runner) ExtractLayerInputs(
 			extracted[int32(layerIndex)] = activation
 		}
 		activation, _, err = r.runLayerCached(
-			ctx, activation, info, layerIndex, positions, nil, nil, reference.Value{}, nil, nil, false,
+			ctx, activation, info, layerIndex, positions, nil, nil, reference.Value{}, nil, nil, false, nil,
 		)
 		if err != nil {
 			return reference.Value{}, fmt.Errorf("inference extraction layer %d: %w", layerIndex, err)
@@ -368,7 +368,7 @@ func (r *Runner) DecodeDFlashNoiseBlock(
 	}
 	for layerIndex, info := range r.weights.Layers {
 		activation, _, err = r.runLayerCached(
-			ctx, activation, info, layerIndex, positions, nil, &cache.Layers[layerIndex], reference.Value{}, nil, nil, false,
+			ctx, activation, info, layerIndex, positions, nil, &cache.Layers[layerIndex], reference.Value{}, nil, nil, false, nil,
 		)
 		if err != nil {
 			return reference.Value{}, fmt.Errorf("inference DFlash noise layer %d: %w", layerIndex, err)

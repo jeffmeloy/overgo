@@ -81,7 +81,7 @@ func audioProjectedPrompt(
 	return projectedInputsForPrompt(runner, prompt)
 }
 
-func qwen3VLProjectedVideoPrompt(
+func videoProjectedPrompt(
 	ctx context.Context,
 	runner *inference.Runner,
 	projectorPath string,
@@ -90,7 +90,7 @@ func qwen3VLProjectedVideoPrompt(
 	fps float64,
 	thinking bool,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenQwen3VL(projectorPath)
+	vision, err := projector.OpenVideoProjector(projectorPath)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}
@@ -107,7 +107,7 @@ func qwen3VLProjectedVideoPrompt(
 			return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: decode video frame %d: %w", index, openErr)
 		}
 	}
-	prompt, err := vision.BuildQwen35VideoPrompt(ctx, runner, frames, "", question, fps, thinking)
+	prompt, err := vision.BuildVideoPrompt(ctx, runner, frames, "", question, fps, thinking)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode video: %w", err)
 	}
@@ -137,6 +137,12 @@ func projectedInputsForPrompt(
 		}
 	}
 	projected := inference.ProjectedInputs{EmbeddingOverrides: overrides}
+	projected.BidirectionalAttentionBlocks = make([]inference.AttentionBlock, len(prompt.AttentionBlocks))
+	for index, block := range prompt.AttentionBlocks {
+		projected.BidirectionalAttentionBlocks[index] = inference.AttentionBlock{
+			Start: block.Start, End: block.End,
+		}
+	}
 	hasMultiAxis := false
 	for _, axis := range prompt.MultiAxisPositions {
 		hasMultiAxis = hasMultiAxis || len(axis) > 0

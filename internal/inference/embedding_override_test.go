@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -221,6 +222,36 @@ func TestProjectedInputDeepstackAdmission(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
 		t.Fatalf("Granite projected input error = %v", err)
+	}
+}
+
+func TestProjectedAttentionBlockIDs(t *testing.T) {
+	blocks := []AttentionBlock{{Start: 1, End: 3}, {Start: 4, End: 5}}
+	ids, err := projectedAttentionBlockIDs(
+		model.Spec{Architecture: "gemma4"}, 6, false, blocks,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{-1, 0, 0, -1, 1, -1}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("attention block IDs = %v, want %v", ids, want)
+	}
+	if _, err = projectedAttentionBlockIDs(
+		model.Spec{Architecture: "llama"}, 6, false, blocks,
+	); err == nil || !strings.Contains(err.Error(), "does not support") {
+		t.Fatalf("unsupported block error = %v", err)
+	}
+	if _, err = projectedAttentionBlockIDs(
+		model.Spec{Architecture: "gemma4"}, 6, true, blocks,
+	); err == nil || !strings.Contains(err.Error(), "uncached") {
+		t.Fatalf("cached block error = %v", err)
+	}
+	if _, err = projectedAttentionBlockIDs(
+		model.Spec{Architecture: "gemma4"}, 6, false,
+		[]AttentionBlock{{Start: 1, End: 4}, {Start: 3, End: 5}},
+	); err == nil || !strings.Contains(err.Error(), "overlaps") {
+		t.Fatalf("overlap error = %v", err)
 	}
 }
 

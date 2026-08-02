@@ -71,6 +71,7 @@ go run ./cmd/generate -native-quant -n 16 <supported-model.gguf> "Hello"
 go run ./cmd/generate -native-quant -context-shift -n 8192 <supported-model.gguf> "Hello"
 go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -image <image.png> -n 16 <qwen35.gguf> "Describe this image."
 go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <qwen35.gguf> "Describe this video."
+go run ./cmd/generate -preload -mmproj <gemma4-mmproj.gguf> -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <gemma4.gguf> "Describe this video."
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -eps 0.001 <dream.gguf> "Hello"
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -block-length 32 <llada.gguf> "Hello"
 go run ./cmd/perplexity -native-quant <supported-model.gguf> "evaluation text"
@@ -142,7 +143,8 @@ four MRoPE coordinate arrays, and GGML-order deepstack tensors:
 {
   "embedding_overrides": [{"token_index": 3, "embedding": [0.1, 0.2]}],
   "multi_axis_positions": [[0, 1], [0, 0], [0, 1], [0, 1]],
-  "deepstack_embeddings": [{"shape": [2, 2], "data": [0.1, 0.2, 0.3, 0.4]}]
+  "deepstack_embeddings": [{"shape": [2, 2], "data": [0.1, 0.2, 0.3, 0.4]}],
+  "bidirectional_attention_blocks": [{"start": 3, "end": 5}]
 }
 ```
 
@@ -152,10 +154,13 @@ encoder/merger, renders the vision chat turn, and constructs compressed
 four-axis MRoPE positions. `-image-thinking=false` selects its non-thinking
 template branch. Gemma 4 unified runs the merged 48-pixel patch projector,
 factorized learned positions, a 280-token image budget, and unscaled soft-token
-scatter required by its decoder.
-Repeatable `-video-frame` inputs run temporal-pair preprocessing and the same
-projector, emit timestamped video chunks, and construct compressed MRoPE grids
-per chunk. Odd frame counts repeat the final frame.
+scatter required by its decoder. Image soft tokens use Gemma 4's sliding-window
+bidirectional vision block mask while full-attention layers remain causal.
+Repeatable `-video-frame` inputs select the projector family from GGUF metadata.
+Qwen3.5 runs temporal-pair preprocessing, emits timestamped chunks, and builds
+compressed MRoPE grids; odd frame counts repeat the final frame. Gemma 4 uses a
+70-token budget per frame, emits `mm:ss` frame blocks, and applies blockwise
+bidirectional attention only within each frame on sliding layers.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native

@@ -326,15 +326,17 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		if !ok {
 			return Value{}, errors.New("invalid attention attributes")
 		}
-		var bias, sinks *Value
+		var bias, sinks, blockIDs *Value
 		if len(inputs) == 4 {
-			if attributes.HasSinks {
+			if attributes.HasBlockMask {
+				blockIDs = &inputs[3]
+			} else if attributes.HasSinks {
 				sinks = &inputs[3]
 			} else {
 				bias = &inputs[3]
 			}
 		}
-		return attention(node.Shape, inputs[0], inputs[1], inputs[2], bias, sinks, attributes)
+		return attention(node.Shape, inputs[0], inputs[1], inputs[2], bias, sinks, blockIDs, attributes)
 	case tensor.OpConcat:
 		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
 		if !ok {
@@ -1724,7 +1726,7 @@ func indexerScore(
 func attention(
 	shape tensor.Shape,
 	query, key, value Value,
-	bias, sinks *Value,
+	bias, sinks, blockIDs *Value,
 	attributes tensor.AttentionAttributes,
 ) (Value, error) {
 	keyWidth := int(query.Shape.Dims[0])
@@ -1743,6 +1745,9 @@ func attention(
 	if uint64(attributes.QueryStart)+uint64(queryTokens) > uint64(keyValueTokens) {
 		return Value{}, errors.New("attention query range exceeds KV tokens")
 	}
+	if blockIDs != nil && len(blockIDs.Data) != keyValueTokens {
+		return Value{}, errors.New("attention block ID count differs from KV tokens")
+	}
 	output := make([]float32, valueWidth*queryHeads*queryTokens)
 	groupSize := queryHeads / keyValueHeads
 	nHeadLog2 := 1
@@ -1753,9 +1758,14 @@ func attention(
 	m1 := math.Pow(2, -float64(attributes.MaxALiBiBias/2)/float64(nHeadLog2))
 	scores := make([]float64, keyValueTokens)
 	for queryToken := 0; queryToken < queryTokens; queryToken++ {
+		queryPosition := int(attributes.QueryStart) + queryToken
+		causalLimit := queryPosition + 1
 		keyLimit := keyValueTokens
 		if attributes.Causal {
-			keyLimit = int(attributes.QueryStart) + queryToken + 1
+			keyLimit = causalLimit
+			if blockIDs != nil && blockIDs.Data[queryPosition] >= 0 {
+				keyLimit = keyValueTokens
+			}
 		}
 		keyFirst := 0
 		if attributes.ChunkedWindow {
@@ -1766,8 +1776,8 @@ func attention(
 			queryPosition := int(attributes.QueryStart) + queryToken
 			keyFirst = max(0, queryPosition-halfWindow)
 			keyLimit = min(keyValueTokens, queryPosition+halfWindow+1)
-		} else if attributes.Window > 0 && keyLimit > int(attributes.Window) {
-			keyFirst = keyLimit - int(attributes.Window)
+		} else if attributes.Window > 0 && causalLimit > int(attributes.Window) {
+			keyFirst = causalLimit - int(attributes.Window)
 		}
 		for queryHead := 0; queryHead < queryHeads; queryHead++ {
 			keyValueHead := queryHead / groupSize
@@ -1785,6 +1795,9 @@ func attention(
 			}
 			queryOffset := (queryToken*queryHeads + queryHead) * keyWidth
 			for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
+				if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
+					continue
+				}
 				keyOffset := (keyToken*keyValueHeads + keyValueHead) * keyWidth
 				var dot float64
 				for channel := 0; channel < keyWidth; channel++ {
@@ -1818,6 +1831,9 @@ func attention(
 				sum = math.Exp(float64(sinks.Data[queryHead]) - maximum)
 			}
 			for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
+				if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
+					continue
+				}
 				probability := math.Exp(scores[keyToken] - maximum)
 				scores[keyToken] = probability
 				sum += probability
@@ -1826,6 +1842,9 @@ func attention(
 			for channel := 0; channel < valueWidth; channel++ {
 				var weighted float64
 				for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
+					if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
+						continue
+					}
 					valueOffset := (keyToken*keyValueHeads + keyValueHead) * valueWidth
 					weighted += scores[keyToken] * float64(value.Data[valueOffset+channel])
 				}
@@ -1834,6 +1853,10 @@ func attention(
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
+}
+
+func sameAttentionBlock(blockIDs *Value, query, key int) bool {
+	return blockIDs != nil && blockIDs.Data[query] >= 0 && blockIDs.Data[key] == blockIDs.Data[query]
 }
 
 func relativePositionBucket(query, key, buckets int, bidirectional bool) int {

@@ -126,11 +126,18 @@ type EmbeddingOverride struct {
 // MultiAxisPositions: temporal, height, width, extra MRoPE coordinates.
 type MultiAxisPositions [4][]uint32
 
-// ProjectedInputs: projected base/deepstack streams plus optional MRoPE axes.
+// AttentionBlock: half-open prompt range with bidirectional intra-block attention.
+type AttentionBlock struct {
+	Start uint32 `json:"start"`
+	End   uint32 `json:"end"`
+}
+
+// ProjectedInputs: projected streams, positions, and optional attention blocks.
 type ProjectedInputs struct {
-	EmbeddingOverrides  []EmbeddingOverride
-	MultiAxisPositions  *MultiAxisPositions
-	DeepstackEmbeddings []reference.Value
+	EmbeddingOverrides           []EmbeddingOverride
+	MultiAxisPositions           *MultiAxisPositions
+	DeepstackEmbeddings          []reference.Value
+	BidirectionalAttentionBlocks []AttentionBlock
 }
 
 // Runner: correctness-first Llama/Qwen inference runtime with editable
@@ -1100,7 +1107,7 @@ func (r *Runner) ForwardWithEmbeddingOverrides(
 	if r.spec.Architecture == "t5encoder" || r.spec.NonCausalAttention {
 		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
 	}
-	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides, nil, nil)
+	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides, nil, nil, nil)
 	return hidden, err
 }
 
@@ -1576,7 +1583,7 @@ func (r *Runner) ForwardCachedWithEmbeddingOverrides(
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides, nil, nil)
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides, nil, nil, nil)
 }
 
 // ForwardCachedWithMultimodalInputs: projected embeddings plus MRoPE axes.
@@ -1599,7 +1606,7 @@ func (r *Runner) ForwardCachedWithMultimodalInputs(
 		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
 	}
 	return r.forwardCachedWithEmbeddingOverridesLocked(
-		ctx, tokenIDs, cache, overrides, &positions, nil,
+		ctx, tokenIDs, cache, overrides, &positions, nil, nil,
 	)
 }
 
@@ -1624,9 +1631,13 @@ func (r *Runner) ForwardCachedWithProjectedInputs(
 	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec) {
 		return reference.Value{}, nil, errors.New("inference: model does not support deepstack embeddings")
 	}
+	if len(inputs.BidirectionalAttentionBlocks) > 0 && r.spec.Architecture != "gemma4" {
+		return reference.Value{}, nil, errors.New("inference: model does not support bidirectional attention blocks")
+	}
 	return r.forwardCachedWithEmbeddingOverridesLocked(
 		ctx, tokenIDs, cache, inputs.EmbeddingOverrides,
 		inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
+		inputs.BidirectionalAttentionBlocks,
 	)
 }
 
@@ -1635,7 +1646,7 @@ func (r *Runner) forwardCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil, nil, nil)
+	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil, nil, nil, nil)
 }
 
 func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
@@ -1645,9 +1656,10 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
 	overrides []EmbeddingOverride,
 	multiPositions *MultiAxisPositions,
 	deepstackInputs []reference.Value,
+	attentionBlocks []AttentionBlock,
 ) (reference.Value, *KVCache, error) {
 	return r.forwardCachedWithEmbeddingOverridesModeLocked(
-		ctx, tokenIDs, cache, overrides, multiPositions, deepstackInputs, true,
+		ctx, tokenIDs, cache, overrides, multiPositions, deepstackInputs, attentionBlocks, true,
 	)
 }
 
@@ -1657,7 +1669,7 @@ func (r *Runner) forwardCachedPreOutputNormLocked(
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
 	return r.forwardCachedWithEmbeddingOverridesModeLocked(
-		ctx, tokenIDs, cache, nil, nil, nil, false,
+		ctx, tokenIDs, cache, nil, nil, nil, nil, false,
 	)
 }
 
@@ -1668,6 +1680,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	overrides []EmbeddingOverride,
 	multiPositions *MultiAxisPositions,
 	deepstackInputs []reference.Value,
+	attentionBlocks []AttentionBlock,
 	applyOutputNorm bool,
 ) (reference.Value, *KVCache, error) {
 	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
@@ -1722,6 +1735,12 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		}
 	}
 	if err := validateDeepstackInputs(r.spec, len(tokenIDs), deepstackInputs); err != nil {
+		return reference.Value{}, nil, err
+	}
+	attentionBlockIDs, err := projectedAttentionBlockIDs(
+		r.spec, len(tokenIDs), cache != nil, attentionBlocks,
+	)
+	if err != nil {
 		return reference.Value{}, nil, err
 	}
 	rows := make([]uint32, len(tokenIDs))
@@ -1832,7 +1851,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7" {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
-			deepstackBase, deepstackInputs, cache, nextCache, visualMode, applyOutputNorm,
+			deepstackBase, deepstackInputs, attentionBlockIDs,
+			cache, nextCache, visualMode, applyOutputNorm,
 		)
 	}
 	var firstLayerValue, previousTopK *reference.Value
@@ -1873,6 +1893,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 			perLayerInput,
 			multiPositions,
 			visualMode,
+			attentionBlockIDs,
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
@@ -2066,6 +2087,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	multiPositions *MultiAxisPositions,
 	deepstackBase reference.Value,
 	deepstackInputs []reference.Value,
+	attentionBlockIDs []float32,
 	cache *KVCache,
 	nextCache *KVCache,
 	visualMode bool,
@@ -2076,6 +2098,12 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	current := input
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var attentionBlockInput *tensor.Tensor
+	if len(attentionBlockIDs) > 0 {
+		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
+		attentionBlockInput = builder.Input("model.attention_block_ids", dtype.F32, shape)
+		hostFeeds[attentionBlockInput] = reference.Value{Shape: shape, Data: attentionBlockIDs}
+	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
@@ -2100,6 +2128,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		if r.spec.Architecture == "talkie" {
 			graphWeights.EmbeddingSkip = input
 		}
+		graphWeights.AttentionBlockIDs = attentionBlockInput
 		if len(perLayerInputs) > 0 {
 			perLayer := builder.Input(
 				fmt.Sprintf("blk.%d.per_layer_input", layerIndex),
@@ -2437,6 +2466,7 @@ func (r *Runner) runLayerCached(
 	perLayerInput *reference.Value,
 	multiPositions *MultiAxisPositions,
 	visualMode bool,
+	attentionBlockIDs []float32,
 ) (reference.Value, LayerCache, error) {
 	if isQwenGDNArchitecture(r.spec.Architecture) {
 		return r.runQwen35LayerCached(
@@ -2493,6 +2523,12 @@ func (r *Runner) runLayerCached(
 		perLayer := builder.Input("per_layer_input", dtype.F32, perLayerInput.Shape)
 		hostFeeds[perLayer] = *perLayerInput
 		graphWeights.PerLayerInput = perLayer
+	}
+	if len(attentionBlockIDs) > 0 {
+		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
+		blockInput := builder.Input("attention_block_ids", dtype.F32, shape)
+		hostFeeds[blockInput] = reference.Value{Shape: shape, Data: attentionBlockIDs}
+		graphWeights.AttentionBlockIDs = blockInput
 	}
 	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
 		return reference.Value{}, LayerCache{}, err
@@ -3447,6 +3483,7 @@ func (r *Runner) Generate(
 			hidden, cache, err = r.forwardCachedWithEmbeddingOverridesLocked(
 				ctx, ids, nil, inputs.EmbeddingOverrides,
 				inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
+				inputs.BidirectionalAttentionBlocks,
 			)
 		} else if options.CachePrompt {
 			selectedPromptCache, cached = r.selectPromptCache(
@@ -4138,6 +4175,41 @@ func validateDeepstackInputs(spec model.Spec, tokens int, inputs []reference.Val
 		}
 	}
 	return nil
+}
+
+func projectedAttentionBlockIDs(
+	spec model.Spec,
+	tokens int,
+	hasCache bool,
+	blocks []AttentionBlock,
+) ([]float32, error) {
+	if len(blocks) == 0 {
+		return nil, nil
+	}
+	if spec.Architecture != "gemma4" {
+		return nil, errors.New("inference: model does not support bidirectional attention blocks")
+	}
+	if hasCache {
+		return nil, errors.New("inference: bidirectional attention blocks require an uncached prompt prefill")
+	}
+	ids := make([]float32, tokens)
+	for index := range ids {
+		ids[index] = -1
+	}
+	var previousEnd uint32
+	for index, block := range blocks {
+		if block.Start >= block.End || uint64(block.End) > uint64(tokens) {
+			return nil, fmt.Errorf("inference: attention block %d range [%d,%d) is invalid for %d tokens", index, block.Start, block.End, tokens)
+		}
+		if index > 0 && block.Start < previousEnd {
+			return nil, fmt.Errorf("inference: attention block %d overlaps or precedes the prior block", index)
+		}
+		for token := block.Start; token < block.End; token++ {
+			ids[token] = float32(index)
+		}
+		previousEnd = block.End
+	}
+	return ids, nil
 }
 
 func deepstackInputForLayer(

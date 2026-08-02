@@ -3851,6 +3851,44 @@ func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 3e-5)
 }
 
+func TestExecutorWindowAttentionBlockMaskMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(4, 2, 5)
+	query := builder.Input("query", dtype.F32, shape)
+	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 5))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(4, 1, 5))
+	blocks := builder.Input("blocks", dtype.F32, tensor.MustShape(5))
+	output := builder.AttentionWindowWithBlockMaskWithOffset(
+		query, key, value, blocks, 0.5, 0, 3,
+	)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		query:  patternedValue(query.Shape, 131, 0.4, 0),
+		key:    patternedValue(key.Shape, 137, 0.3, 0),
+		value:  patternedValue(value.Shape, 139, 0.2, 0),
+		blocks: {Shape: blocks.Shape, Data: []float32{-1, 0, 0, -1, -1}},
+	}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[output].Data, 3e-5)
+}
+
 func TestExecutorAttentionSinksMatchReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

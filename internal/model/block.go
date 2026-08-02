@@ -43,6 +43,7 @@ type LayerGraphWeights struct {
 	CrossAttentionOutput        *tensor.Tensor
 	AttentionOutputGate         *tensor.Tensor
 	AttentionSinks              *tensor.Tensor
+	AttentionBlockIDs           *tensor.Tensor
 	RopeFactors                 *tensor.Tensor
 	FeedForwardNorm             *tensor.Tensor
 	FeedForwardNormBias         *tensor.Tensor
@@ -4442,9 +4443,16 @@ func buildGemma4BlockCached(
 	}
 	var attention *tensor.Tensor
 	if spec.IsSlidingLayer(layerIndex) {
-		attention = builder.AttentionWindowWithOffset(
-			query, cacheKey, cacheValue, spec.AttentionScale, true, queryStart, spec.SlidingWindow,
-		)
+		if weights.AttentionBlockIDs != nil {
+			attention = builder.AttentionWindowWithBlockMaskWithOffset(
+				query, cacheKey, cacheValue, weights.AttentionBlockIDs,
+				spec.AttentionScale, queryStart, spec.SlidingWindow,
+			)
+		} else {
+			attention = builder.AttentionWindowWithOffset(
+				query, cacheKey, cacheValue, spec.AttentionScale, true, queryStart, spec.SlidingWindow,
+			)
+		}
 	} else {
 		attention = builder.AttentionWithOffset(
 			query, cacheKey, cacheValue, spec.AttentionScale, true, queryStart,

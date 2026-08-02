@@ -156,6 +156,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(
 		ctx, append([]tokenizer.TokenID(nil), input...), nil,
 		inputs.EmbeddingOverrides, inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
+		inputs.BidirectionalAttentionBlocks,
 	)
 	if err != nil {
 		return RankResult{}, err

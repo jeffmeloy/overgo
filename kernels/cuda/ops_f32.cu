@@ -1563,6 +1563,7 @@ extern "C" __global__ void attention_f32(
         const float * value,
         const float * relative_bias,
 		const float * sinks,
+		const float * block_ids,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -1590,11 +1591,16 @@ extern "C" __global__ void attention_f32(
     const unsigned int query_token = row / query_heads;
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
+    const unsigned int query_position = query_start + query_token;
+    const unsigned int causal_limit = query_position + 1;
     unsigned int key_limit = causal
-        ? query_start + query_token + 1
+        ? causal_limit
         : key_value_tokens;
+    if (causal && block_ids != nullptr && block_ids[query_position] >= 0.0f) {
+        key_limit = key_value_tokens;
+    }
     unsigned int key_first =
-        window > 0 && key_limit > window ? key_limit - window : 0;
+        window > 0 && causal_limit > window ? causal_limit - window : 0;
     if (symmetric_window == 2) {
         key_first = ((query_start + query_token) / window) * window;
     } else if (symmetric_window) {
@@ -1625,6 +1631,9 @@ extern "C" __global__ void attention_f32(
 		maximum = sinks[query_head];
 	}
     for (unsigned int key_token = key_first; key_token < key_limit; ++key_token) {
+		if (causal && key_token >= causal_limit && (block_ids == nullptr ||
+			block_ids[query_position] < 0.0f ||
+			block_ids[key_token] != block_ids[query_position])) continue;
         const unsigned int key_offset =
             (key_token * key_value_heads + key_value_head) * key_width;
         float dot = 0.0f;
@@ -1669,6 +1678,9 @@ extern "C" __global__ void attention_f32(
 	float sum = sinks != nullptr ? expf(sinks[query_head] - maximum) : 0.0f;
     float weighted = 0.0f;
     for (unsigned int key_token = key_first; key_token < key_limit; ++key_token) {
+		if (causal && key_token >= causal_limit && (block_ids == nullptr ||
+			block_ids[query_position] < 0.0f ||
+			block_ids[key_token] != block_ids[query_position])) continue;
         const unsigned int key_offset =
             (key_token * key_value_heads + key_value_head) * key_width;
         float dot = 0.0f;

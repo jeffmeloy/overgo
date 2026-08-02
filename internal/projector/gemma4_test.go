@@ -10,11 +10,35 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tokenizer"
 )
+
+type gemma4PromptTokenizer struct{}
+
+func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
+	if text == "<|image|>" {
+		return []tokenizer.TokenID{8}, nil
+	}
+	if text == "<|video|>" {
+		return []tokenizer.TokenID{9}, nil
+	}
+	ids := make([]tokenizer.TokenID, 0, len(text))
+	for len(text) > 0 {
+		switch {
+		case strings.HasPrefix(text, "<|image|>"):
+			ids, text = append(ids, 8), text[len("<|image|>"):]
+		case strings.HasPrefix(text, "<|video|>"):
+			ids, text = append(ids, 9), text[len("<|video|>"):]
+		default:
+			ids, text = append(ids, 1), text[1:]
+		}
+	}
+	return ids, nil
+}
 
 func TestGemma4RunnerTinyFixture(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mmproj.gguf")
@@ -52,6 +76,49 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 		if value != 0 {
 			t.Fatalf("output[%d] = %g", index, value)
 		}
+	}
+}
+
+func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err = file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenGemma4(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	frame := image.NewRGBA(image.Rect(0, 0, 3, 3))
+	prompt, err := runner.BuildVideoPrompt(
+		context.Background(), gemma4PromptTokenizer{}, []image.Image{frame, frame}, "", "Describe.", 2, false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prompt.AttentionBlocks) != 2 {
+		t.Fatalf("attention blocks = %v", prompt.AttentionBlocks)
+	}
+	tokensPerFrame := int(prompt.AttentionBlocks[0].End - prompt.AttentionBlocks[0].Start)
+	if tokensPerFrame <= 0 || tokensPerFrame > 70 ||
+		prompt.AttentionBlocks[1].End-prompt.AttentionBlocks[1].Start != uint32(tokensPerFrame) {
+		t.Fatalf("attention blocks = %v", prompt.AttentionBlocks)
+	}
+	if len(prompt.EmbeddingTokenIndices) != 2*tokensPerFrame ||
+		len(prompt.Embeddings) != 2*tokensPerFrame*prompt.EmbeddingWidth {
+		t.Fatalf("video projection size = indices %d embeddings %d width %d", len(prompt.EmbeddingTokenIndices), len(prompt.Embeddings), prompt.EmbeddingWidth)
+	}
+	text := Gemma4VideoPromptText("Describe.", 2, tokensPerFrame, 2)
+	if !strings.Contains(text, "00:00 <|image>") || strings.Count(text, "<|video|>") != 2*tokensPerFrame {
+		t.Fatalf("video prompt = %q", text)
 	}
 }
 

@@ -10,9 +10,10 @@ import (
 
 // ProjectedInputsJSON: portable projected-prompt payload.
 type ProjectedInputsJSON struct {
-	EmbeddingOverrides  []ProjectedEmbeddingOverrideJSON `json:"embedding_overrides"`
-	MultiAxisPositions  *MultiAxisPositions              `json:"multi_axis_positions"`
-	DeepstackEmbeddings []ProjectedTensorJSON            `json:"deepstack_embeddings"`
+	EmbeddingOverrides           []ProjectedEmbeddingOverrideJSON `json:"embedding_overrides"`
+	MultiAxisPositions           *MultiAxisPositions              `json:"multi_axis_positions"`
+	DeepstackEmbeddings          []ProjectedTensorJSON            `json:"deepstack_embeddings"`
+	BidirectionalAttentionBlocks []AttentionBlock                 `json:"bidirectional_attention_blocks"`
 }
 
 type ProjectedEmbeddingOverrideJSON struct {
@@ -27,7 +28,12 @@ type ProjectedTensorJSON struct {
 
 // ProjectedInputs: validated runtime payload.
 func (document ProjectedInputsJSON) ProjectedInputs() (ProjectedInputs, error) {
-	result := ProjectedInputs{MultiAxisPositions: document.MultiAxisPositions}
+	result := ProjectedInputs{
+		MultiAxisPositions: document.MultiAxisPositions,
+		BidirectionalAttentionBlocks: append(
+			[]AttentionBlock(nil), document.BidirectionalAttentionBlocks...,
+		),
+	}
 	result.EmbeddingOverrides = make([]EmbeddingOverride, len(document.EmbeddingOverrides))
 	for index, item := range document.EmbeddingOverrides {
 		if len(item.Embedding) == 0 || !finiteProjectedFloats(item.Embedding) {

@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "5d770c9e3b56ea9791f9984eae4cf78546379f1da4dac434ef931de605500ed5",
+      "sourceSha256": "b8e9a0a9bc7be6356828171bb1d720b45310e40d7e1ce7287dd12b3323a8385a",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "3be4fb78d7275171f5a97e64d83110be404c819f7b7d307c717e2e4f74bd7e85",
+      "assetSha256": "95275fb400ddc7c1a7e7ef754b31e7f87fa60225d1d07f0e81b865aae039c85a",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -680,6 +680,7 @@
         },
         {
           "parameters": [
+            ".u64",
             ".u64",
             ".u64",
             ".u64",

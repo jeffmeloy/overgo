@@ -74,16 +74,18 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Pinned Jinja globals for bounded exceptions, dates, namespaces, and ranges.
 - Fused recurrent/hybrid continuous batching with named state and device forks.
 
-## Active roadmap
+## Closure roadmap
 
-Work proceeds in dependency order. A blocked item does not stop later rows.
+Pinned internal execution work is complete for the current baseline. Remaining
+rows require an upstream contract, external artifact, or additional platform.
 
-| Priority | Item | Completion boundary |
+| Item | State | Completion boundary |
 | --- | --- | --- |
-| 1 | Multimodal model gaps | Internal encoders/projectors/grid construction for models currently requiring external projected inputs |
-| 2 | Speculative, audio, and adapters | Integrated draft verification, WavTokenizer waveform output, and broader aLoRA semantics |
-| 3 | Platform and release breadth | Verified targets beyond the Windows-amd64 CUDA baseline |
-| 4 | Pinned-upstream closure audit | Every upstream architecture, endpoint, option, and negative path implemented or explicitly classified |
+| Pinned architecture registry | Complete | Exact 135/135 compatibility-manifest coverage enforced in CI |
+| Speculative execution | Complete | Greedy/sampled verification and cache resync for supported draft families |
+| WavTokenizer output | Complete | Feature decoder plus pinned 24 kHz waveform postprocessor |
+| Multimodal gaps | Classified | Only components absent from pinned upstream execution remain |
+| Platform and release breadth | External | Verified targets beyond Windows-amd64 CUDA require those environments |
 
 ## Known implementation boundaries
 
@@ -93,10 +95,10 @@ Work proceeds in dependency order. A blocked item does not stop later rows.
 | Multimodal server | Supported image/audio media may use function tools; video remains single-turn/non-mixed and cannot use tools |
 | Anthropic | Manual summarized thinking uses handler-local signatures; adaptive/omitted/redacted/interleaved modes and thinking with tools are explicit exclusions |
 | Architectures | Declared model graphs execute; marked real-model fixture validation remains in `compatibility.yaml` |
-| Vision | Several decoder graphs require external encoders, projectors, or grid coordinates |
+| Vision | Chameleon accepts projected soft tokens; its encoder/projector and image-token generator are absent from the pinned upstream execution path |
 | Speculation | Integrated greedy/sampled coordinators; real target/draft pair validation remains fixture-gated |
 | Audio | WavTokenizer waveform synthesis complete; Gemma 3n audio remains absent from pinned mtmd execution |
-| Adapters | One aLoRA may be active; non-causal diffusion rejects aLoRA |
+| Adapters | One aLoRA may be active, matching pinned server policy; non-causal diffusion rejects aLoRA |
 | Platforms | Primary supported release remains Windows amd64 with NVIDIA CUDA |
 
 ## Deferred or externally blocked
@@ -107,6 +109,10 @@ Work proceeds in dependency order. A blocked item does not stop later rows.
 | Release signing | No user-controlled signing certificate | Certificate and signing policy supplied |
 | Hosted-tool integration | No repository-wide hosted executor contract | Local bounded defaults implemented or external contract supplied |
 | Real speculative model pairs | Matching target/draft fixtures unavailable | Compatible pair supplied or generated |
+| Gemma 3n audio encoder | Pinned mtmd explicitly skips Gemma 3n audio execution | Upstream executable contract plus GGUF/oracle fixture supplied |
+| Chameleon vision path | Pinned source has decoder-only projected-token execution | Upstream projector/image-token contract plus GGUF/oracle fixture supplied |
+| Optional classifier/rerank heads | Corresponding heads are absent from pinned model graphs | Upstream executable graph and fixture supplied |
+| Non-Windows release validation | Required host/device environments are unavailable in this worktree | Target CI runners or machines supplied |
 
 Blocked fixture work does not stop independent implementation work.
 

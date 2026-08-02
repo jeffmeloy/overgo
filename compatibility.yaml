@@ -3245,7 +3245,7 @@ models:
       - reference-cuda-projector-differential
       - reference-cuda-conv2d-differential
     limitations:
-      - audio-encoder-unimplemented
+      - audio-encoder-absent-from-pinned-mtmd-execution
       - real-model-validation-pending-fixture
   gemma4-assistant:
     status: experimental

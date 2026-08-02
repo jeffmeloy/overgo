@@ -1495,8 +1495,9 @@ universal inverted-residual blocks, downsampled multi-query attention,
 multi-scale fusion, average pooling, spatial normalization, and fixed 256-token
 soft projection. Native multi-image/history prompts preserve raw image
 embeddings through Gemma3n input scaling. Strict synthetic catalogs, pooling
-oracles, and full CPU/CUDA projector differentials pass. Audio encoding remains
-unimplemented; real-model validation awaits a local Gemma3n projector fixture.
+oracles, and full CPU/CUDA projector differentials pass. The pinned mtmd path
+explicitly skips Gemma3n audio execution; implementing it requires a new
+upstream execution contract and matching GGUF/oracle fixture.
 
 Falcon-H1 now executes parallel NeoX-RoPE GQA and Mamba2 in every layer, sums
 both mixer outputs into one residual, then applies the parallel SwiGLU FFN.

@@ -38,6 +38,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Non-mutating Go formatting verification in local and CI gates.
 - Full-repository vet gate and CGO race CI for server/inference.
 - Split oversized server/model/CUDA tests with shared CUDA test setup.
+- Protocol-partitioned Chat, Responses, and Anthropic server implementation.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
@@ -56,13 +57,11 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ### Server and multimodal
 
-1. Split the server implementation by protocol while retaining one handler and
-   shared admission/metrics state.
-2. Add media history after model-specific multi-turn template and cache
+1. Add media history after model-specific multi-turn template and cache
    semantics are defined.
-3. Add mixed image/audio turns only where the projector prompt contract is
+2. Add mixed image/audio turns only where the projector prompt contract is
    validated by an upstream oracle.
-4. Add token-incremental tool-call argument streaming.
+3. Add token-incremental tool-call argument streaming.
 
 ## Deferred or externally blocked
 

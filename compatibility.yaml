@@ -77,7 +77,7 @@ claims:
     status: implemented
     summary: Chat and Responses token counts use the projected media prompt.
     evidence:
-      - path: internal/server/server.go
+      - path: internal/server/protocol_responses.go
         contains: "func (h *Handler) responsesInputTokens("
       - path: internal/server/server_part2_test.go
         contains: "func TestMultimodalInputTokenCounting("

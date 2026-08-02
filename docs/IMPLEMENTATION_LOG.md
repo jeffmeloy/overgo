@@ -1589,6 +1589,12 @@ files are split into bounded source units without changing package boundaries.
 CUDA integration setup is centralized in `internal/cuda/testutil`; 137 device
 tests now share one environment gate and skip contract.
 
+OpenAI Chat, OpenAI Responses, and Anthropic request/response types, parsing,
+buffered generation, streaming, tools, and token-count handlers now live in
+protocol-specific source files. The shared `Handler`, admission slots, metrics,
+sampling, prompt preparation, native routes, and error transport remain in the
+server core.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

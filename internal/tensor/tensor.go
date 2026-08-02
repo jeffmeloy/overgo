@@ -68,6 +68,9 @@ const (
 	OpBF16Round
 	OpGELUErf
 	OpConv2D
+	OpWindowPartition2D
+	OpWindowUnpartition2D
+	OpSAMAttention
 )
 
 var opNames = [...]string{
@@ -127,6 +130,9 @@ var opNames = [...]string{
 	"bf16_round",
 	"gelu_erf",
 	"conv_2d",
+	"window_partition_2d",
+	"window_unpartition_2d",
+	"sam_attention",
 }
 
 func (o Op) String() string {
@@ -213,6 +219,15 @@ type Conv2DAttributes struct {
 	StrideX, StrideY                     uint32
 	PadLeft, PadRight, PadTop, PadBottom uint32
 	Depthwise, HasBias                   bool
+}
+
+type Window2DAttributes struct {
+	Width, Height, Window uint32
+}
+
+type SAMAttentionAttributes struct {
+	Scale, RelativeScale float32
+	SpatialSize          uint32
 }
 
 type GroupNormAttributes struct {
@@ -645,6 +660,84 @@ func (b *Builder) Conv2D(
 		PadTop: padTop, PadBottom: padBottom, Depthwise: depthwise, HasBias: hasBias,
 	}
 	return b.add("", input.Type, shape, OpConv2D, inputs, attributes)
+}
+
+// WindowPartition2D: padded spatial windows.
+func (b *Builder) WindowPartition2D(input *Tensor, window uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Shape.Rank != 3 || window == 0 ||
+		input.Shape.Dims[1] > math.MaxUint32 || input.Shape.Dims[2] > math.MaxUint32 {
+		b.setError(errors.New("WindowPartition2D input is invalid"))
+		return nil
+	}
+	width, height := uint32(input.Shape.Dims[1]), uint32(input.Shape.Dims[2])
+	windowsX, windowsY := (width+window-1)/window, (height+window-1)/window
+	shape, err := NewShape(input.Shape.Dims[0], uint64(window)*uint64(window), uint64(windowsX)*uint64(windowsY))
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", input.Type, shape, OpWindowPartition2D, []*Tensor{input}, Window2DAttributes{
+		Width: width, Height: height, Window: window,
+	})
+}
+
+// WindowUnpartition2D: cropped spatial reconstruction.
+func (b *Builder) WindowUnpartition2D(input *Tensor, width, height uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Shape.Rank != 3 || width == 0 || height == 0 {
+		b.setError(errors.New("WindowUnpartition2D input is invalid"))
+		return nil
+	}
+	window := uint32(math.Sqrt(float64(input.Shape.Dims[1])))
+	windowsX, windowsY := (width+window-1)/window, (height+window-1)/window
+	if window == 0 || uint64(window)*uint64(window) != input.Shape.Dims[1] ||
+		uint64(windowsX)*uint64(windowsY) != input.Shape.Dims[2] {
+		b.setError(errors.New("WindowUnpartition2D shape is incompatible"))
+		return nil
+	}
+	shape, err := NewShape(input.Shape.Dims[0], uint64(width), uint64(height))
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", input.Type, shape, OpWindowUnpartition2D, []*Tensor{input}, Window2DAttributes{
+		Width: width, Height: height, Window: window,
+	})
+}
+
+// SAMAttention: batched decomposed-relative 2D attention.
+func (b *Builder) SAMAttention(query, key, value, relativeW, relativeH *Tensor, scale, relativeScale float32, spatialSize uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if query == nil || key == nil || value == nil || relativeW == nil || relativeH == nil ||
+		query.Shape.Rank != 4 || key.Shape.Rank != 4 || value.Shape.Rank != 4 ||
+		relativeW.Shape.Rank != 2 || relativeH.Shape.Rank != 2 || spatialSize == 0 ||
+		query.Type != key.Type || query.Type != value.Type || query.Type != relativeW.Type || query.Type != relativeH.Type ||
+		query.Shape.Dims[0] != key.Shape.Dims[0] || key.Shape.Dims[1] != value.Shape.Dims[1] ||
+		query.Shape.Dims[2] != key.Shape.Dims[2] || key.Shape.Dims[2] != value.Shape.Dims[2] ||
+		query.Shape.Dims[3] != key.Shape.Dims[3] || key.Shape.Dims[3] != value.Shape.Dims[3] ||
+		query.Shape.Dims[1]%key.Shape.Dims[1] != 0 ||
+		query.Shape.Dims[2] != uint64(spatialSize)*uint64(spatialSize) ||
+		relativeW.Shape.Dims[0] != query.Shape.Dims[0] || relativeH.Shape.Dims[0] != query.Shape.Dims[0] ||
+		relativeW.Shape.Dims[1] == 0 || relativeH.Shape.Dims[1] == 0 ||
+		scale <= 0 || relativeScale <= 0 || math.IsNaN(float64(scale)) || math.IsNaN(float64(relativeScale)) {
+		b.setError(errors.New("SAMAttention shape or attributes are invalid"))
+		return nil
+	}
+	shape, err := NewShape(value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2], query.Shape.Dims[3])
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", query.Type, shape, OpSAMAttention, []*Tensor{query, key, value, relativeW, relativeH}, SAMAttentionAttributes{
+		Scale: scale, RelativeScale: relativeScale, SpatialSize: spatialSize,
+	})
 }
 
 // GroupNorm: channel groups across one sequence.

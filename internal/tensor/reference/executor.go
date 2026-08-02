@@ -191,6 +191,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			bias = inputs[2]
 		}
 		return conv2D(node.Shape, inputs[0], inputs[1], bias, attributes)
+	case tensor.OpWindowPartition2D:
+		return windowPartition2D(node.Shape, inputs[0], node.Attrs.(tensor.Window2DAttributes), false)
+	case tensor.OpWindowUnpartition2D:
+		return windowPartition2D(node.Shape, inputs[0], node.Attrs.(tensor.Window2DAttributes), true)
+	case tensor.OpSAMAttention:
+		return samAttention(node.Shape, inputs, node.Attrs.(tensor.SAMAttentionAttributes))
 	case tensor.OpGroupNorm:
 		attributes, ok := node.Attrs.(tensor.GroupNormAttributes)
 		if !ok {
@@ -474,6 +480,122 @@ func conv2D(shape tensor.Shape, input, weight, bias Value, attributes tensor.Con
 					}
 				}
 				output[channelOut+channelsOut*(x+outputW*y)] = float32(sum)
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func windowPartition2D(shape tensor.Shape, input Value, attributes tensor.Window2DAttributes, reverse bool) (Value, error) {
+	channels := int(shape.Dims[0])
+	width, height, window := int(attributes.Width), int(attributes.Height), int(attributes.Window)
+	if channels <= 0 || width <= 0 || height <= 0 || window <= 0 {
+		return Value{}, errors.New("invalid window partition dimensions")
+	}
+	windowsX := (width + window - 1) / window
+	output := make([]float32, mustElements(shape))
+	if !reverse {
+		for windowY := 0; windowY < (height+window-1)/window; windowY++ {
+			for windowX := 0; windowX < windowsX; windowX++ {
+				batch := windowX + windowsX*windowY
+				for localY := 0; localY < window; localY++ {
+					for localX := 0; localX < window; localX++ {
+						x, y := windowX*window+localX, windowY*window+localY
+						if x >= width || y >= height {
+							continue
+						}
+						for channel := 0; channel < channels; channel++ {
+							output[channel+channels*(localX+window*(localY+window*batch))] =
+								input.Data[channel+channels*(x+width*y)]
+						}
+					}
+				}
+			}
+		}
+		return Value{Shape: shape, Data: output}, nil
+	}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			windowX, windowY := x/window, y/window
+			localX, localY := x%window, y%window
+			batch := windowX + windowsX*windowY
+			for channel := 0; channel < channels; channel++ {
+				output[channel+channels*(x+width*y)] =
+					input.Data[channel+channels*(localX+window*(localY+window*batch))]
+			}
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func mustElements(shape tensor.Shape) int {
+	elements, err := shape.Elements()
+	if err != nil || elements > uint64(^uint(0)>>1) {
+		panic("invalid reference tensor shape")
+	}
+	return int(elements)
+}
+
+func samRelativeValue(table Value, channel, targetIndex, targetLength int) float64 {
+	sourceLength := int(table.Shape.Dims[1])
+	if sourceLength == targetLength {
+		return float64(table.Data[channel+int(table.Shape.Dims[0])*targetIndex])
+	}
+	coordinate := (float64(targetIndex)+0.5)*float64(sourceLength)/float64(targetLength) - 0.5
+	low := max(0, min(sourceLength-1, int(math.Floor(coordinate))))
+	high := max(0, min(sourceLength-1, low+1))
+	weight := max(0.0, min(1.0, coordinate-float64(low)))
+	width := int(table.Shape.Dims[0])
+	return float64(table.Data[channel+width*low])*(1-weight) + float64(table.Data[channel+width*high])*weight
+}
+
+func samAttention(shape tensor.Shape, inputs []Value, attributes tensor.SAMAttentionAttributes) (Value, error) {
+	if len(inputs) != 5 {
+		return Value{}, errors.New("SAMAttention requires five inputs")
+	}
+	query, key, value, relativeW, relativeH := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+	keyWidth, valueWidth := int(query.Shape.Dims[0]), int(value.Shape.Dims[0])
+	queryHeads, keyHeads := int(query.Shape.Dims[1]), int(key.Shape.Dims[1])
+	tokens, batches, spatial := int(query.Shape.Dims[2]), int(query.Shape.Dims[3]), int(attributes.SpatialSize)
+	if keyWidth <= 0 || valueWidth <= 0 || queryHeads <= 0 || keyHeads <= 0 || tokens != spatial*spatial || batches <= 0 {
+		return Value{}, errors.New("invalid SAMAttention dimensions")
+	}
+	group := queryHeads / keyHeads
+	output := make([]float32, mustElements(shape))
+	scores := make([]float64, tokens)
+	for batch := 0; batch < batches; batch++ {
+		for queryToken := 0; queryToken < tokens; queryToken++ {
+			queryX, queryY := queryToken%spatial, queryToken/spatial
+			for head := 0; head < queryHeads; head++ {
+				keyHead := head / group
+				queryBase := keyWidth * (head + queryHeads*(queryToken+tokens*batch))
+				maximum := math.Inf(-1)
+				for keyToken := 0; keyToken < tokens; keyToken++ {
+					keyX, keyY := keyToken%spatial, keyToken/spatial
+					keyBase := keyWidth * (keyHead + keyHeads*(keyToken+tokens*batch))
+					var score float64
+					for channel := 0; channel < keyWidth; channel++ {
+						q := float64(query.Data[queryBase+channel])
+						score += q*float64(key.Data[keyBase+channel])*float64(attributes.Scale) +
+							q*samRelativeValue(relativeW, channel, queryX-keyX+spatial-1, 2*spatial-1)*float64(attributes.RelativeScale) +
+							q*samRelativeValue(relativeH, channel, queryY-keyY+spatial-1, 2*spatial-1)*float64(attributes.RelativeScale)
+					}
+					scores[keyToken] = score
+					maximum = math.Max(maximum, score)
+				}
+				var sum float64
+				for keyToken := range tokens {
+					scores[keyToken] = math.Exp(scores[keyToken] - maximum)
+					sum += scores[keyToken]
+				}
+				for channel := 0; channel < valueWidth; channel++ {
+					var result float64
+					for keyToken := range tokens {
+						valueBase := valueWidth * (keyHead + keyHeads*(keyToken+tokens*batch))
+						result += scores[keyToken] * float64(value.Data[valueBase+channel])
+					}
+					output[channel+valueWidth*(head+queryHeads*(queryToken+tokens*batch))] = float32(result / sum)
+				}
 			}
 		}
 	}

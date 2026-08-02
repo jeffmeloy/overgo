@@ -1427,3 +1427,42 @@ func TestExecutorConv2DMatchesReference(t *testing.T) {
 		compare(t, got[output].Data, want[output].Data, 3e-5)
 	}
 }
+
+func TestExecutorSAMVisionOpsMatchReference(t *testing.T) {
+	cudatest.Require(t)
+	builder := tensor.NewBuilder()
+	spatial := builder.Input("spatial", dtype.F32, tensor.MustShape(2, 3, 2))
+	partitioned := builder.WindowPartition2D(spatial, 2)
+	unpartitioned := builder.WindowUnpartition2D(partitioned, 3, 2)
+	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 4, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(2, 2, 4, 2))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(2, 2, 4, 2))
+	relativeW := builder.Input("relative_w", dtype.F32, tensor.MustShape(2, 5))
+	relativeH := builder.Input("relative_h", dtype.F32, tensor.MustShape(2, 5))
+	attention := builder.SAMAttention(query, key, value, relativeW, relativeH, 0.7, 1, 2)
+	feeds := map[*tensor.Tensor]reference.Value{
+		spatial:   patternedValue(spatial.Shape, 7, 0.1, -0.3),
+		query:     patternedValue(query.Shape, 11, 0.04, -0.2),
+		key:       patternedValue(key.Shape, 13, 0.03, -0.15),
+		value:     patternedValue(value.Shape, 9, 0.05, -0.2),
+		relativeW: patternedValue(relativeW.Shape, 7, 0.02, -0.06),
+		relativeH: patternedValue(relativeH.Shape, 5, 0.03, -0.06),
+	}
+	outputs := []*tensor.Tensor{partitioned, unpartitioned, attention}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 3e-5)
+	}
+}

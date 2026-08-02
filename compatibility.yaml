@@ -1410,6 +1410,34 @@ models:
       - shared-swiglu-expert
       - serializable-prefix-editable-kv-cache
     real_model_validation: pending-fixture
+  deepseek2-ocr:
+    status: experimental
+    execution:
+      - bounded-host
+      - f32-preload
+      - native-quantized-weights
+    features:
+      - separate-qkv
+      - neox-rope
+      - dense-leading-swiglu
+      - softmax-or-sigmoid-routed-experts
+      - optional-selection-correction-bias
+      - fused-or-separate-expert-gate-up
+      - shared-swiglu-expert
+      - projected-embedding-overrides
+      - serializable-prefix-editable-kv-cache
+      - deepseekocr-dynamic-image-projector
+      - pillow-bicubic-local-grid-and-overview
+      - sam-window-and-global-relative-attention
+      - clip-quickgelu-vision-transformer
+      - row-newline-and-view-separator-assembly
+      - ordered-multi-image-soft-token-merge
+      - native-image-history-prompts
+      - optional-cuda-projector-execution
+    limitations:
+      - deepseekocr2-projector-unimplemented
+      - real-model-validation-pending-fixture
+    real_model_validation: pending-fixture
   deepseek32:
     status: experimental
     execution:

@@ -1332,15 +1332,12 @@ RMSNorm, projected embedding overrides, and dense SwiGLU through bounded-host
 and F32-preload CUDA paths. The multimodal runner accepts distinct temporal,
 height, width, and extra coordinates.
 
-Hunyuan-VL now executes the corresponding text decoder with optional fused or
-separate Q/K/V, XDRoPE-adjusted normal or four-axis MRoPE, post-RoPE per-head
-Q/K RMSNorm, dense SwiGLU, projected embedding overrides, and serializable KV
-caching. The multimodal runner accepts distinct temporal, height, width, and
-extra coordinates alongside projected embedding overrides; ordinary text calls
-repeat their coordinate across all axes. Vision encoding, projection, and
-image-grid coordinate construction remain external. Metadata, strict catalog,
-graph ordering, and a reference/CUDA block differential pass; real-model
-validation is pending a local fixture.
+Hunyuan-VL initially landed its text decoder with optional fused or separate
+Q/K/V, XDRoPE-adjusted normal or four-axis MRoPE, post-RoPE per-head Q/K
+RMSNorm, dense SwiGLU, projected embedding overrides, and serializable KV
+caching. Metadata, strict catalog, graph ordering, and a reference/CUDA block
+differential passed. Its image tower and native grid contract were completed
+later in this log; real-model validation remains fixture-gated.
 
 CogVLM now executes text and projected-visual ranges with mandatory contiguous
 fused QKV, normal RoPE with optional per-pair factors, RMSNorm, SwiGLU, optional
@@ -1362,13 +1359,13 @@ catalog preserves the pinned graph's ignored attention-output-bias behavior;
 metadata, mixed-layer catalogs, graph semantics, and reference/CUDA block
 differentials pass. Real-model validation remains pending a local fixture.
 
-DeepSeek2-OCR now executes its text decoder with full split Q/K/V projections,
+DeepSeek2-OCR initially landed its text decoder with full split Q/K/V projections,
 NeoX RoPE, leading dense SwiGLU blocks, and later fused or separate routed
 experts. Softmax or sigmoid routing supports optional F32 selection bias,
 normalization, scaling, and the required shared SwiGLU expert. Metadata, strict
 mixed-layer catalog, graph semantics, and a reference/CUDA block differential
-pass. Image encoding, projection, and soft-embedding construction remain the
-external multimodal boundary; real-model validation is pending a local fixture.
+passed. Its DeepSeek-OCR v1 image tower and native soft-token contract were
+completed later in this log; real-model validation remains fixture-gated.
 
 PaddleOCR now reuses the ERNIE 4.5 dense catalog with its pinned adjacent-pair
 four-axis MRoPE graph and optional attention-output bias. Its internal vision
@@ -1436,8 +1433,8 @@ SwiGLU experts plus the dense shared SwiGLU expert; intervening layers remain
 dense. Bounded-host, F32-preload, native-quantized expert, and retained-device
 cache paths share the graph. GPT-4o/Llama-4 BPE pre-tokenization, strict mixed
 catalogs, chunk-mask reference/CUDA parity, and a complete Llama 4 MoE block
-differential pass. Real-model validation remains pending a local GGUF fixture;
-the multimodal encoder/projector remains external to the text decoder.
+differential pass. Real-model validation remains pending a local GGUF fixture.
+Its multimodal encoder/projector was completed later in this log.
 
 GPT-J now executes separate-Q/K/V attention with partial interleaved normal
 RoPE, affine LayerNorm, a shared pre-attention normalized input, parallel
@@ -1762,6 +1759,14 @@ use the pinned MiMo system turn and vision markers while history prompts retain
 caller formatting. Strict metadata/catalog checks, order round trips, prompt
 coverage, reference/CUDA sink-window differentials, and a nonzero end-to-end
 CPU/CUDA differential pass; real-model validation remains fixture-gated.
+
+DeepSeek-OCR now executes its dynamic Pillow-bicubic local-grid and overview
+preprocessing, SAM patch tower with local/global decomposed-relative attention,
+CLIP QuickGELU tower, concatenated feature projection, row-newline assembly,
+and trailing view separator. Native single/multi-image prompts preserve history
+and bind each produced soft token to the decoder. Strict metadata/catalog and
+preprocessing/prompt tests, tensor primitive parity, plus an end-to-end CPU/CUDA
+differential pass; real-model validation remains fixture-gated.
 
 ## Working rules
 

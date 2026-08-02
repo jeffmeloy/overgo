@@ -1874,3 +1874,46 @@ func TestExecuteIndexerScore(t *testing.T) {
 		t.Fatalf("indexer score = %v, want %v", results[output].Data, want)
 	}
 }
+
+func TestExecuteWindowPartition2DRoundTrip(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1, 3, 2))
+	partitioned := builder.WindowPartition2D(input, 2)
+	output := builder.WindowUnpartition2D(partitioned, 3, 2)
+	value := Value{Shape: input.Shape, Data: []float32{1, 2, 3, 4, 5, 6}}
+	results, err := Execute([]*tensor.Tensor{partitioned, output}, map[*tensor.Tensor]Value{input: value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPartition := []float32{1, 2, 4, 5, 3, 0, 6, 0}
+	if !reflect.DeepEqual(results[partitioned].Data, wantPartition) {
+		t.Fatalf("partition = %v, want %v", results[partitioned].Data, wantPartition)
+	}
+	if !reflect.DeepEqual(results[output].Data, value.Data) {
+		t.Fatalf("round trip = %v, want %v", results[output].Data, value.Data)
+	}
+}
+
+func TestExecuteSAMAttentionUniform(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 4, 2))
+	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 4, 2))
+	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 4, 2))
+	relativeW := builder.Input("relative_w", dtype.F32, tensor.MustShape(1, 3))
+	relativeH := builder.Input("relative_h", dtype.F32, tensor.MustShape(1, 3))
+	output := builder.SAMAttention(query, key, value, relativeW, relativeH, 1, 1, 2)
+	zero := []float32{0, 0, 0, 0, 0, 0, 0, 0}
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		query: {Shape: query.Shape, Data: zero}, key: {Shape: key.Shape, Data: zero},
+		value:     {Shape: value.Shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
+		relativeW: {Shape: relativeW.Shape, Data: []float32{0, 0, 0}},
+		relativeH: {Shape: relativeH.Shape, Data: []float32{0, 0, 0}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{2.5, 2.5, 2.5, 2.5, 6.5, 6.5, 6.5, 6.5}
+	if !reflect.DeepEqual(results[output].Data, want) {
+		t.Fatalf("SAM attention = %v, want %v", results[output].Data, want)
+	}
+}

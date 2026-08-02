@@ -1,7 +1,7 @@
 # llamacpp2go
 
 `llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
-Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
+Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR with DeepSeek-OCR image projection, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM text/projected-visual decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4, Gemma 3n with MobileNetV5 image projection, and Gemma Embedding,
@@ -178,6 +178,9 @@ projector family from GGUF metadata. Llama 4 runs UHD refined-grid/overview
 tiling, learned-position ViT projection with two-axis RoPE, and its pixel-shuffle
 adapter. Granite 4 Vision runs overview-first UHD tiling, a learned-position
 SigLIP ViT, per-stream window QFormer projection, and decoder deepstack injection.
+DeepSeek-OCR runs Pillow-bicubic local-grid/overview preprocessing, SAM window
+and global relative-position attention, its CLIP tower, fused feature projection,
+row-newline assembly, and a trailing view separator.
 MiMo-VL runs dynamic Pillow-bicubic preprocessing, temporal-pair patch
 projection, grouped-query ViT blocks with row/column symmetric windows and
 attention sinks, and a 2x2 GELU merger.
@@ -206,7 +209,7 @@ installation. FFmpeg samples at `-video-fps`; `-video-max-frames` bounds work.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native
-audio turn. `-mmproj-cuda` keeps CogVLM, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4,
+audio turn. `-mmproj-cuda` keeps CogVLM, DeepSeek-OCR, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4,
 MiMo-VL, Qwen3-VL, and Gemma 4 projector weights
 resident on the selected `-device` and executes their full image/video graphs
 on CUDA; Gemma 4 audio uses the same path.

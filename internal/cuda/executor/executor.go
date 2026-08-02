@@ -669,112 +669,115 @@ func allZeroFloat32(values []float32) bool {
 }
 
 type functionSet struct {
-	add               driver.Function
-	multiply          driver.Function
-	divide            driver.Function
-	broadcastAdd      driver.Function
-	broadcastMultiply driver.Function
-	broadcastDivide   driver.Function
-	scale             driver.Function
-	clamp             driver.Function
-	bf16Round         driver.Function
-	copy              driver.Function
-	silu              driver.Function
-	gelu              driver.Function
-	geluErf           driver.Function
-	xielu             driver.Function
-	reluSquared       driver.Function
-	relu              driver.Function
-	conv1DSame        driver.Function
-	conv2D            driver.Function
-	groupNorm         driver.Function
-	sigmoid           driver.Function
-	softplus          driver.Function
-	tanh              driver.Function
-	exp               driver.Function
-	l2Norm            driver.Function
-	ssmConv           driver.Function
-	ssmScan           driver.Function
-	gatedDeltaNet     driver.Function
-	gatedLinearAttn   driver.Function
-	rwkv6             driver.Function
-	sumRows           driver.Function
-	fwht              driver.Function
-	topK              driver.Function
-	gatherLast        driver.Function
-	sparseAttention   driver.Function
-	indexerScore      driver.Function
-	rwkv7             driver.Function
-	moe               driver.Function
-	loraMerge         driver.Function
-	repeatHeads       driver.Function
-	transpose2D       driver.Function
-	groupSlice        driver.Function
-	flatSlice         driver.Function
-	rmsNorm           driver.Function
-	layerNorm         driver.Function
-	softmax           driver.Function
-	mulMat            driver.Function
-	getRows           driver.Function
-	ropeNeoX          driver.Function
-	ropeNormal        driver.Function
-	ropeMulti         driver.Function
-	attention         driver.Function
-	concat            driver.Function
-	getRowsQ8         driver.Function
-	mulMatQ8          driver.Function
-	getRowsQ81        driver.Function
-	mulMatQ81         driver.Function
-	getRowsQ8K        driver.Function
-	mulMatQ8K         driver.Function
-	getRowsQ40        driver.Function
-	mulMatQ40         driver.Function
-	getRowsQ41        driver.Function
-	mulMatQ41         driver.Function
-	getRowsQ50        driver.Function
-	mulMatQ50         driver.Function
-	getRowsQ51        driver.Function
-	mulMatQ51         driver.Function
-	getRowsQ10        driver.Function
-	mulMatQ10         driver.Function
-	getRowsQ20        driver.Function
-	mulMatQ20         driver.Function
-	getRowsTQ20       driver.Function
-	mulMatTQ20        driver.Function
-	getRowsTQ10       driver.Function
-	mulMatTQ10        driver.Function
-	getRowsQ2K        driver.Function
-	mulMatQ2K         driver.Function
-	getRowsQ3K        driver.Function
-	mulMatQ3K         driver.Function
-	getRowsQ4K        driver.Function
-	mulMatQ4K         driver.Function
-	getRowsQ5K        driver.Function
-	mulMatQ5K         driver.Function
-	getRowsIQ4XS      driver.Function
-	mulMatIQ4XS       driver.Function
-	getRowsIQ4NL      driver.Function
-	mulMatIQ4NL       driver.Function
-	getRowsIQ2XXS     driver.Function
-	mulMatIQ2XXS      driver.Function
-	getRowsIQ2XS      driver.Function
-	mulMatIQ2XS       driver.Function
-	getRowsIQ2S       driver.Function
-	mulMatIQ2S        driver.Function
-	getRowsIQ3XXS     driver.Function
-	mulMatIQ3XXS      driver.Function
-	getRowsIQ3S       driver.Function
-	mulMatIQ3S        driver.Function
-	getRowsIQ1S       driver.Function
-	mulMatIQ1S        driver.Function
-	getRowsIQ1M       driver.Function
-	mulMatIQ1M        driver.Function
-	getRowsMXFP4      driver.Function
-	mulMatMXFP4       driver.Function
-	getRowsNVFP4      driver.Function
-	mulMatNVFP4       driver.Function
-	getRowsQ6K        driver.Function
-	mulMatQ6K         driver.Function
+	add                 driver.Function
+	multiply            driver.Function
+	divide              driver.Function
+	broadcastAdd        driver.Function
+	broadcastMultiply   driver.Function
+	broadcastDivide     driver.Function
+	scale               driver.Function
+	clamp               driver.Function
+	bf16Round           driver.Function
+	copy                driver.Function
+	silu                driver.Function
+	gelu                driver.Function
+	geluErf             driver.Function
+	xielu               driver.Function
+	reluSquared         driver.Function
+	relu                driver.Function
+	conv1DSame          driver.Function
+	conv2D              driver.Function
+	windowPartition2D   driver.Function
+	windowUnpartition2D driver.Function
+	samAttention        driver.Function
+	groupNorm           driver.Function
+	sigmoid             driver.Function
+	softplus            driver.Function
+	tanh                driver.Function
+	exp                 driver.Function
+	l2Norm              driver.Function
+	ssmConv             driver.Function
+	ssmScan             driver.Function
+	gatedDeltaNet       driver.Function
+	gatedLinearAttn     driver.Function
+	rwkv6               driver.Function
+	sumRows             driver.Function
+	fwht                driver.Function
+	topK                driver.Function
+	gatherLast          driver.Function
+	sparseAttention     driver.Function
+	indexerScore        driver.Function
+	rwkv7               driver.Function
+	moe                 driver.Function
+	loraMerge           driver.Function
+	repeatHeads         driver.Function
+	transpose2D         driver.Function
+	groupSlice          driver.Function
+	flatSlice           driver.Function
+	rmsNorm             driver.Function
+	layerNorm           driver.Function
+	softmax             driver.Function
+	mulMat              driver.Function
+	getRows             driver.Function
+	ropeNeoX            driver.Function
+	ropeNormal          driver.Function
+	ropeMulti           driver.Function
+	attention           driver.Function
+	concat              driver.Function
+	getRowsQ8           driver.Function
+	mulMatQ8            driver.Function
+	getRowsQ81          driver.Function
+	mulMatQ81           driver.Function
+	getRowsQ8K          driver.Function
+	mulMatQ8K           driver.Function
+	getRowsQ40          driver.Function
+	mulMatQ40           driver.Function
+	getRowsQ41          driver.Function
+	mulMatQ41           driver.Function
+	getRowsQ50          driver.Function
+	mulMatQ50           driver.Function
+	getRowsQ51          driver.Function
+	mulMatQ51           driver.Function
+	getRowsQ10          driver.Function
+	mulMatQ10           driver.Function
+	getRowsQ20          driver.Function
+	mulMatQ20           driver.Function
+	getRowsTQ20         driver.Function
+	mulMatTQ20          driver.Function
+	getRowsTQ10         driver.Function
+	mulMatTQ10          driver.Function
+	getRowsQ2K          driver.Function
+	mulMatQ2K           driver.Function
+	getRowsQ3K          driver.Function
+	mulMatQ3K           driver.Function
+	getRowsQ4K          driver.Function
+	mulMatQ4K           driver.Function
+	getRowsQ5K          driver.Function
+	mulMatQ5K           driver.Function
+	getRowsIQ4XS        driver.Function
+	mulMatIQ4XS         driver.Function
+	getRowsIQ4NL        driver.Function
+	mulMatIQ4NL         driver.Function
+	getRowsIQ2XXS       driver.Function
+	mulMatIQ2XXS        driver.Function
+	getRowsIQ2XS        driver.Function
+	mulMatIQ2XS         driver.Function
+	getRowsIQ2S         driver.Function
+	mulMatIQ2S          driver.Function
+	getRowsIQ3XXS       driver.Function
+	mulMatIQ3XXS        driver.Function
+	getRowsIQ3S         driver.Function
+	mulMatIQ3S          driver.Function
+	getRowsIQ1S         driver.Function
+	mulMatIQ1S          driver.Function
+	getRowsIQ1M         driver.Function
+	mulMatIQ1M          driver.Function
+	getRowsMXFP4        driver.Function
+	mulMatMXFP4         driver.Function
+	getRowsNVFP4        driver.Function
+	mulMatNVFP4         driver.Function
+	getRowsQ6K          driver.Function
+	mulMatQ6K           driver.Function
 }
 
 type blasState struct {
@@ -880,6 +883,9 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"relu_f32", &result.relu},
 		{"conv_1d_same_f32", &result.conv1DSame},
 		{"conv_2d_f32", &result.conv2D},
+		{"window_partition_2d_f32", &result.windowPartition2D},
+		{"window_unpartition_2d_f32", &result.windowUnpartition2D},
+		{"sam_attention_f32", &result.samAttention},
 		{"group_norm_f32", &result.groupNorm},
 		{"sigmoid_f32", &result.sigmoid},
 		{"softplus_f32", &result.softplus},
@@ -1287,6 +1293,61 @@ func launchNode(
 			unsafe.Pointer(&depthwise), unsafe.Pointer(&hasBias), unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.conv2D, count, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpWindowPartition2D, tensor.OpWindowUnpartition2D:
+		attributes, ok := node.Attrs.(tensor.Window2DAttributes)
+		if !ok {
+			return errors.New("invalid window 2D attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		channels := uint32(node.Shape.Dims[0])
+		width, height, window := attributes.Width, attributes.Height, attributes.Window
+		function := functions.windowPartition2D
+		if node.Op == tensor.OpWindowUnpartition2D {
+			function = functions.windowUnpartition2D
+		}
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&channels),
+			unsafe.Pointer(&width), unsafe.Pointer(&height), unsafe.Pointer(&window), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, function, count, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpSAMAttention:
+		attributes, ok := node.Attrs.(tensor.SAMAttentionAttributes)
+		if !ok {
+			return errors.New("invalid SAM attention attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		query, key, value := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
+		relativeW, relativeH := pointers[node.Inputs[3]], pointers[node.Inputs[4]]
+		keyWidth := uint32(node.Inputs[0].Shape.Dims[0])
+		valueWidth := uint32(node.Inputs[2].Shape.Dims[0])
+		queryHeads := uint32(node.Inputs[0].Shape.Dims[1])
+		keyHeads := uint32(node.Inputs[1].Shape.Dims[1])
+		tokens := uint32(node.Inputs[0].Shape.Dims[2])
+		batches := uint32(node.Inputs[0].Shape.Dims[3])
+		spatialSize := attributes.SpatialSize
+		relativeWLength := uint32(node.Inputs[3].Shape.Dims[1])
+		relativeHLength := uint32(node.Inputs[4].Shape.Dims[1])
+		scale, relativeScale := attributes.Scale, attributes.RelativeScale
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&query), unsafe.Pointer(&key), unsafe.Pointer(&value),
+			unsafe.Pointer(&relativeW), unsafe.Pointer(&relativeH), unsafe.Pointer(&output),
+			unsafe.Pointer(&keyWidth), unsafe.Pointer(&valueWidth), unsafe.Pointer(&queryHeads),
+			unsafe.Pointer(&keyHeads), unsafe.Pointer(&tokens), unsafe.Pointer(&batches),
+			unsafe.Pointer(&spatialSize), unsafe.Pointer(&relativeWLength), unsafe.Pointer(&relativeHLength),
+			unsafe.Pointer(&scale), unsafe.Pointer(&relativeScale), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.samAttention, count, args)
 		runtime.KeepAlive(args)
 		return err
 	case tensor.OpGroupNorm:

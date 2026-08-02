@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 28,
+  "abiVersion": 29,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "feec8d72aea58eba4cab4fd7c8e88045c2afacd2cb1aa22df103b0eeb1df4a30",
+      "sourceSha256": "699218e5d1f22a73e6a687f5ab601dd129e7fc4462ac012e0adf9453c4aaa2bc",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "4c5e2bcb7120d366b9a01f3b8d710812cf57dce4f3aa4e92808afe86cd29aa11",
+      "assetSha256": "29ae0ebebc5dec0afa75ad17e024e0fd847e0f011df7df14f7796909cfc4caf2",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -64,6 +64,9 @@
         "relu_f32",
         "conv_1d_same_f32",
         "conv_2d_f32",
+        "window_partition_2d_f32",
+        "window_unpartition_2d_f32",
+        "sam_attention_f32",
         "group_norm_f32",
         "sigmoid_f32",
         "softplus_f32",
@@ -290,6 +293,46 @@
           ],
           "functions": [
             "conv_2d_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "window_partition_2d_f32",
+            "window_unpartition_2d_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".f32",
+            ".u32"
+          ],
+          "functions": [
+            "sam_attention_f32"
           ]
         },
         {

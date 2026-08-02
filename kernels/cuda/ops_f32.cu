@@ -394,6 +394,161 @@ extern "C" __global__ void conv_2d_f32(
 	output[index] = sum;
 }
 
+extern "C" __global__ void window_partition_2d_f32(
+		const float * input,
+		float * output,
+		unsigned int channels,
+		unsigned int width,
+		unsigned int height,
+		unsigned int window,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel = index % channels;
+	unsigned int item = index / channels;
+	const unsigned int local_x = item % window;
+	item /= window;
+	const unsigned int local_y = item % window;
+	const unsigned int batch = item / window;
+	const unsigned int windows_x = (width + window - 1) / window;
+	const unsigned int x = (batch % windows_x) * window + local_x;
+	const unsigned int y = (batch / windows_x) * window + local_y;
+	output[index] = x < width && y < height ? input[channel + channels * (x + width * y)] : 0.0f;
+}
+
+extern "C" __global__ void window_unpartition_2d_f32(
+		const float * input,
+		float * output,
+		unsigned int channels,
+		unsigned int width,
+		unsigned int height,
+		unsigned int window,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel = index % channels;
+	const unsigned int spatial = index / channels;
+	const unsigned int x = spatial % width;
+	const unsigned int y = spatial / width;
+	const unsigned int windows_x = (width + window - 1) / window;
+	const unsigned int batch = x / window + windows_x * (y / window);
+	const unsigned int local_x = x % window;
+	const unsigned int local_y = y % window;
+	output[index] = input[channel + channels * (local_x + window * (local_y + window * batch))];
+}
+
+__device__ float sam_relative_value(
+		const float * table,
+		unsigned int width,
+		unsigned int source_length,
+		unsigned int channel,
+		unsigned int target_index,
+		unsigned int target_length) {
+	if (source_length == target_length) {
+		return table[channel + width * target_index];
+	}
+	const float coordinate = ((float) target_index + 0.5f) * (float) source_length / (float) target_length - 0.5f;
+	const int raw_low = (int) floorf(coordinate);
+	const unsigned int low = (unsigned int) max(0, min((int) source_length - 1, raw_low));
+	const unsigned int high = min(source_length - 1, low + 1);
+	const float factor = fmaxf(0.0f, fminf(1.0f, coordinate - (float) low));
+	return table[channel + width * low] * (1.0f - factor) + table[channel + width * high] * factor;
+}
+
+__device__ float sam_attention_score(
+		const float * query,
+		const float * key,
+		const float * relative_w,
+		const float * relative_h,
+		unsigned int key_width,
+		unsigned int query_heads,
+		unsigned int key_heads,
+		unsigned int tokens,
+		unsigned int batch,
+		unsigned int query_token,
+		unsigned int key_token,
+		unsigned int query_head,
+		unsigned int key_head,
+		unsigned int spatial_size,
+		unsigned int relative_w_length,
+		unsigned int relative_h_length,
+		float scale,
+		float relative_scale) {
+	const unsigned int query_base = key_width * (query_head + query_heads * (query_token + tokens * batch));
+	const unsigned int key_base = key_width * (key_head + key_heads * (key_token + tokens * batch));
+	const unsigned int query_x = query_token % spatial_size;
+	const unsigned int query_y = query_token / spatial_size;
+	const unsigned int key_x = key_token % spatial_size;
+	const unsigned int key_y = key_token / spatial_size;
+	const unsigned int target_length = 2 * spatial_size - 1;
+	float score = 0.0f;
+	for (unsigned int channel = 0; channel < key_width; ++channel) {
+		const float q = query[query_base + channel];
+		score += q * key[key_base + channel] * scale;
+		score += q * sam_relative_value(relative_w, key_width, relative_w_length, channel,
+			query_x - key_x + spatial_size - 1, target_length) * relative_scale;
+		score += q * sam_relative_value(relative_h, key_width, relative_h_length, channel,
+			query_y - key_y + spatial_size - 1, target_length) * relative_scale;
+	}
+	return score;
+}
+
+extern "C" __global__ void sam_attention_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * relative_w,
+		const float * relative_h,
+		float * output,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_heads,
+		unsigned int tokens,
+		unsigned int batches,
+		unsigned int spatial_size,
+		unsigned int relative_w_length,
+		unsigned int relative_h_length,
+		float scale,
+		float relative_scale,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel = index % value_width;
+	unsigned int item = index / value_width;
+	const unsigned int query_head = item % query_heads;
+	item /= query_heads;
+	const unsigned int query_token = item % tokens;
+	const unsigned int batch = item / tokens;
+	if (batch >= batches) {
+		return;
+	}
+	const unsigned int key_head = query_head / (query_heads / key_heads);
+	float maximum = -3.402823466e+38F;
+	for (unsigned int key_token = 0; key_token < tokens; ++key_token) {
+		maximum = fmaxf(maximum, sam_attention_score(query, key, relative_w, relative_h,
+			key_width, query_heads, key_heads, tokens, batch, query_token, key_token,
+			query_head, key_head, spatial_size, relative_w_length, relative_h_length, scale, relative_scale));
+	}
+	float sum = 0.0f;
+	float result = 0.0f;
+	for (unsigned int key_token = 0; key_token < tokens; ++key_token) {
+		const float probability = expf(sam_attention_score(query, key, relative_w, relative_h,
+			key_width, query_heads, key_heads, tokens, batch, query_token, key_token,
+			query_head, key_head, spatial_size, relative_w_length, relative_h_length, scale, relative_scale) - maximum);
+		const unsigned int value_base = value_width * (key_head + key_heads * (key_token + tokens * batch));
+		sum += probability;
+		result += probability * value[value_base + channel];
+	}
+	output[index] = result / sum;
+}
+
 extern "C" __global__ void group_norm_f32(
 		const float * input,
 		const float * weight,

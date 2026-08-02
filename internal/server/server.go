@@ -2287,6 +2287,8 @@ type nativePrompt struct {
 	TokenIDs    []tokenizer.TokenID
 	Response    any
 	Image       []byte
+	Images      [][]byte
+	MediaText   []string
 	Audio       []float32
 	BeforeMedia string
 	AfterMedia  string
@@ -2587,15 +2589,19 @@ func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt
 	if document.PromptString == "" {
 		return nativePrompt{}, errors.New("prompt_string must not be empty")
 	}
-	if len(document.MultimodalData) != 1 {
-		return nativePrompt{}, errors.New("multimodal prompt requires exactly one media item")
+	if len(document.MultimodalData) == 0 || len(document.MultimodalData) > 8 {
+		return nativePrompt{}, errors.New("multimodal prompt requires one to eight media items")
 	}
 	const marker = "<__media__>"
-	if strings.Count(document.PromptString, marker) != 1 {
-		return nativePrompt{}, errors.New("prompt_string must contain exactly one <__media__> marker")
+	if strings.Count(document.PromptString, marker) != len(document.MultimodalData) {
+		return nativePrompt{}, errors.New("prompt_string media marker count must match multimodal_data")
 	}
-	before, after, _ := strings.Cut(document.PromptString, marker)
+	segments := strings.Split(document.PromptString, marker)
+	before, after := segments[0], segments[1]
 	if strings.HasPrefix(document.MultimodalData[0], "data:audio/") {
+		if len(document.MultimodalData) != 1 {
+			return nativePrompt{}, errors.New("audio cannot be combined with other media")
+		}
 		if h.config.AudioProjector == nil {
 			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
 		}
@@ -2611,13 +2617,20 @@ func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt
 	if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil {
 		return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
 	}
-	imageData, err := decodeNativeImageData(document.MultimodalData[0])
-	if err != nil {
-		return nativePrompt{}, err
+	images := make([][]byte, len(document.MultimodalData))
+	for index, encoded := range document.MultimodalData {
+		if strings.HasPrefix(encoded, "data:audio/") {
+			return nativePrompt{}, errors.New("audio cannot be combined with image media")
+		}
+		imageData, err := decodeNativeImageData(encoded)
+		if err != nil {
+			return nativePrompt{}, fmt.Errorf("multimodal_data image %d: %w", index, err)
+		}
+		images[index] = imageData
 	}
 	return nativePrompt{
 		Text: document.PromptString, Response: document.PromptString,
-		Image: imageData, BeforeMedia: before, AfterMedia: after,
+		Image: images[0], Images: images, MediaText: segments, BeforeMedia: before, AfterMedia: after,
 	}, nil
 }
 
@@ -2679,17 +2692,31 @@ func (h *Handler) projectNativeMultimodalPrompt(
 			ctx, tokenizerAPI, prompt.Audio, prompt.BeforeMedia, prompt.AfterMedia,
 		)
 	} else {
-		input, _, decodeErr := image.Decode(bytes.NewReader(prompt.Image))
-		if decodeErr != nil {
-			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: multimodal_data is not a supported image")
+		imageData := prompt.Images
+		if len(imageData) == 0 && len(prompt.Image) > 0 {
+			imageData = [][]byte{prompt.Image}
 		}
-		if h.config.ImageProjector != nil {
+		images := make([]image.Image, len(imageData))
+		for index, data := range imageData {
+			input, _, decodeErr := image.Decode(bytes.NewReader(data))
+			if decodeErr != nil {
+				return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: multimodal_data image %d is unsupported", index)
+			}
+			images[index] = input
+		}
+		if len(images) > 1 {
+			multi, ok := h.config.ImageProjector.(projector.MultiImageProjector)
+			if !ok {
+				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support multiple images")
+			}
+			projected, err = multi.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, true)
+		} else if h.config.ImageProjector != nil {
 			projected, err = h.config.ImageProjector.BuildImagePrompt(
-				ctx, tokenizerAPI, input, prompt.BeforeMedia, prompt.AfterMedia, true,
+				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, true,
 			)
 		} else {
 			projected, err = h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
-				ctx, tokenizerAPI, input, prompt.BeforeMedia, prompt.AfterMedia, true,
+				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, true,
 			)
 		}
 	}
@@ -2702,6 +2729,8 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	}
 	prompt.TokenIDs = projected.TokenIDs
 	prompt.Image = nil
+	prompt.Images = nil
+	prompt.MediaText = nil
 	prompt.Audio = nil
 	return prompt, inputs, nil
 }
@@ -3811,8 +3840,8 @@ func (h *Handler) parseChatMultimodalPrompt(
 	}
 	if len(body.Messages) != 1 ||
 		body.Messages[0].Role != "user" ||
-		len(body.Messages[0].Media) != 1 {
-		return nativePrompt{}, errors.New("multimodal chat requires one user message with one media item")
+		len(body.Messages[0].Media) == 0 || len(body.Messages[0].Media) > 8 {
+		return nativePrompt{}, errors.New("multimodal chat requires one user message with one to eight media items")
 	}
 	if len(body.Tools) != 0 || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
 		return nativePrompt{}, errors.New("multimodal chat cannot use tools")
@@ -3829,16 +3858,45 @@ func (h *Handler) parseChatMultimodalPrompt(
 		len(message.ToolCalls) != 0 {
 		return nativePrompt{}, errors.New("multimodal chat user message contains unsupported fields")
 	}
-	media := message.Media[0]
-	if media.TextOffset < 0 || media.TextOffset > len(message.Content) {
-		return nativePrompt{}, errors.New("multimodal chat media offset is invalid")
+	segments := make([]string, len(message.Media)+1)
+	cursor := 0
+	for index, media := range message.Media {
+		if media.TextOffset < cursor || media.TextOffset > len(message.Content) {
+			return nativePrompt{}, errors.New("multimodal chat media offsets are invalid")
+		}
+		segments[index] = message.Content[cursor:media.TextOffset]
+		cursor = media.TextOffset
 	}
+	segments[len(segments)-1] = message.Content[cursor:]
 	prompt := nativePrompt{
 		Text:        message.Content,
 		Response:    message.Content,
-		BeforeMedia: message.Content[:media.TextOffset],
-		AfterMedia:  message.Content[media.TextOffset:],
+		BeforeMedia: segments[0],
+		AfterMedia:  segments[1],
+		MediaText:   segments,
 	}
+	if len(message.Media) > 1 {
+		prompt.Images = make([][]byte, len(message.Media))
+		for index, media := range message.Media {
+			if media.Type != "image" {
+				return nativePrompt{}, errors.New("multiple media items must all be images")
+			}
+			if h.config.ImageProjector == nil {
+				return nativePrompt{}, errors.New("multiple images require a multi-image projector")
+			}
+			if !strings.HasPrefix(media.Data, "data:image/") {
+				return nativePrompt{}, errors.New("image_url.url must use a base64 image data URI")
+			}
+			decoded, err := decodeNativeImageData(media.Data)
+			if err != nil {
+				return nativePrompt{}, err
+			}
+			prompt.Images[index] = decoded
+		}
+		prompt.Image = prompt.Images[0]
+		return prompt, nil
+	}
+	media := message.Media[0]
 	switch media.Type {
 	case "image":
 		if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
@@ -3852,6 +3910,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 			return nativePrompt{}, err
 		}
 		prompt.Image = decoded
+		prompt.Images = [][]byte{decoded}
 	case "audio":
 		if h.config.AudioProjector == nil {
 			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")

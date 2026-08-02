@@ -79,6 +79,44 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 	}
 }
 
+func TestGemma4MultipleImagePrompt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenGemma4(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
+	prompt, err := runner.BuildImagesPrompt(
+		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
+		[]string{"", "", "Compare."}, false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prompt.AttentionBlocks) != 2 || len(prompt.EmbeddingTokenIndices) == 0 ||
+		len(prompt.Embeddings) != len(prompt.EmbeddingTokenIndices)*prompt.EmbeddingWidth {
+		t.Fatalf("multi-image prompt = blocks %v indices %d embeddings %d", prompt.AttentionBlocks, len(prompt.EmbeddingTokenIndices), len(prompt.Embeddings))
+	}
+	if _, err := runner.BuildImagesPrompt(
+		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
+		[]string{"text", "", "Compare."}, false,
+	); err == nil {
+		t.Fatal("Gemma 4 accepted text before images")
+	}
+}
+
 func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

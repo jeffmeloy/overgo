@@ -64,6 +64,28 @@ type fakeGenerator struct {
 type fakeQwen3VLProjector struct {
 	before string
 	after  string
+	images int
+	text   []string
+}
+
+func (f *fakeQwen3VLProjector) BuildImagesPrompt(
+	_ context.Context,
+	_ projector.ImageTokenizer,
+	images []image.Image,
+	text []string,
+	_ bool,
+) (projector.MultimodalPrompt, error) {
+	f.images = len(images)
+	f.text = append([]string(nil), text...)
+	positions := [4][]uint32{
+		{0, 1, 1, 2, 3, 3, 4}, {0, 1, 1, 2, 3, 3, 4},
+		{0, 1, 2, 2, 3, 4, 4}, {0, 0, 0, 2, 0, 0, 4},
+	}
+	return projector.MultimodalPrompt{
+		TokenIDs:   []tokenizer.TokenID{1, 2, 2, 3, 4, 4, 5},
+		Embeddings: make([]float32, 4*2560), EmbeddingWidth: 2560,
+		EmbeddingTokenIndices: []uint32{1, 2, 4, 5}, MultiAxisPositions: positions,
+	}, nil
 }
 
 type fakeAudioProjector struct {
@@ -1441,6 +1463,45 @@ func TestNativeCompletionImageProjectorMultimodalPrompt(t *testing.T) {
 	}
 	if result.GenerationSettings["multimodal"] != true || result.Prompt != "Look <__media__> now" {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestNativeCompletionMultipleImagesPreservesOrder(t *testing.T) {
+	generator := &fakeGenerator{}
+	vision := &fakeQwen3VLProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	value := base64.StdEncoding.EncodeToString(encoded.Bytes())
+	body, err := json.Marshal(map[string]any{
+		"prompt": map[string]any{
+			"prompt_string": "A<__media__>B<__media__>C", "multimodal_data": []string{value, value},
+		},
+		"n_predict": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/completion", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if vision.images != 2 || !slices.Equal(vision.text, []string{"A", "B", "C"}) {
+		t.Fatalf("projector sequence = images %d text %q", vision.images, vision.text)
+	}
+	if generator.projectedInputs == nil || len(generator.projectedInputs.EmbeddingOverrides) != 4 ||
+		generator.projectedInputs.MultiAxisPositions == nil {
+		t.Fatalf("projected = %+v", generator.projectedInputs)
 	}
 }
 
@@ -3534,6 +3595,46 @@ func TestChatImageContentPartProjectsPrompt(t *testing.T) {
 	}
 }
 
+func TestChatMultipleImagesPreservesContentOrder(t *testing.T) {
+	generator := &fakeGenerator{}
+	vision := &fakeQwen3VLProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())
+	body, err := json.Marshal(map[string]any{
+		"messages": []any{map[string]any{
+			"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "A"},
+				map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
+				map[string]any{"type": "text", "text": "B"},
+				map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
+				map[string]any{"type": "text", "text": "C"},
+			},
+		}}, "max_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if vision.images != 2 || !slices.Equal(vision.text, []string{"A", "B", "C"}) {
+		t.Fatalf("projector sequence = images %d text %q", vision.images, vision.text)
+	}
+}
+
 func TestStreamingChatAudioContentPartProjectsPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	audio := &fakeAudioProjector{}
@@ -3820,6 +3921,51 @@ func TestResponsesImageContentPartProjectsPrompt(t *testing.T) {
 			generator.projectedInputs.MultiAxisPositions == nil {
 			t.Fatalf("prompt IDs = %v, projected = %+v", generator.promptIDs, generator.projectedInputs)
 		}
+	}
+}
+
+func TestResponsesMultipleImagesPreservesContentOrder(t *testing.T) {
+	generator := &fakeGenerator{}
+	vision := &fakeQwen3VLProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())
+	body, err := json.Marshal(map[string]any{
+		"input": []any{map[string]any{
+			"role": "user", "content": []any{
+				map[string]any{"type": "input_text", "text": "A"},
+				map[string]any{"type": "input_image", "image_url": dataURI},
+				map[string]any{"type": "input_text", "text": "B"},
+				map[string]any{"type": "input_image", "image_url": dataURI},
+				map[string]any{"type": "input_text", "text": "C"},
+			},
+		}}, "max_output_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if vision.images != 2 || !slices.Equal(vision.text, []string{"A", "B", "C"}) {
+		t.Fatalf("projector sequence = images %d text %q", vision.images, vision.text)
+	}
+	if !slices.Equal(generator.promptIDs, []tokenizer.TokenID{1, 2, 2, 3, 4, 4, 5}) ||
+		generator.projectedInputs == nil || len(generator.projectedInputs.EmbeddingOverrides) != 4 {
+		t.Fatalf("prompt IDs = %v, projected = %+v", generator.promptIDs, generator.projectedInputs)
 	}
 }
 

@@ -1,6 +1,7 @@
 package projector
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -79,5 +80,29 @@ func TestQwen3VLMultiChunkPositions(t *testing.T) {
 				t.Fatalf("axis %d position %d = %d, want %d", axis, index, positions[axis][index], want[axis][index])
 			}
 		}
+	}
+}
+
+func TestQwen3VLVariableChunkPositions(t *testing.T) {
+	positions, err := Qwen3VLVariableChunkPositions(11, []Qwen3VLPositionChunk{
+		{Start: 2, Rows: 2, Columns: 2},
+		{Start: 7, Rows: 1, Columns: 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [4][]uint32{
+		{0, 1, 2, 2, 2, 2, 4, 5, 5, 7, 8},
+		{0, 1, 2, 2, 3, 3, 4, 5, 5, 7, 8},
+		{0, 1, 2, 3, 2, 3, 4, 5, 6, 7, 8},
+		{0, 1, 0, 0, 0, 0, 4, 0, 0, 7, 8},
+	}
+	for axis := range positions {
+		if !slices.Equal(positions[axis], want[axis]) {
+			t.Fatalf("axis %d positions = %v, want %v", axis, positions[axis], want[axis])
+		}
+	}
+	if _, err := Qwen3VLVariableChunkPositions(4, []Qwen3VLPositionChunk{{Start: 2, Rows: 2, Columns: 2}}); err == nil {
+		t.Fatal("out-of-range variable chunk accepted")
 	}
 }

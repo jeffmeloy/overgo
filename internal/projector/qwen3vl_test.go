@@ -16,7 +16,22 @@ import (
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tokenizer"
 )
+
+type qwen3VLPromptTokenizer struct{}
+
+func (qwen3VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
+	ids := make([]tokenizer.TokenID, 0, len(text))
+	for len(text) > 0 {
+		if strings.HasPrefix(text, Qwen3VLImagePad) {
+			ids, text = append(ids, 8), text[len(Qwen3VLImagePad):]
+		} else {
+			ids, text = append(ids, 1), text[1:]
+		}
+	}
+	return ids, nil
+}
 
 func TestQwen3VLRealFixture(t *testing.T) {
 	projectorPath := os.Getenv("LLAMACPP2GO_QWEN35_MMPROJ")
@@ -156,6 +171,54 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	}
 	if output.GridT != 1 || output.GridH != 2 || output.GridW != 2 || output.MergeSize != 2 {
 		t.Fatalf("output grid = %d,%d,%d merge=%d", output.GridT, output.GridH, output.GridW, output.MergeSize)
+	}
+}
+
+func TestQwen3VLMultipleImagePrompt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	metadata := tinyQwen3VLMetadata()
+	for index := range metadata {
+		switch metadata[index].Key {
+		case "clip.vision.image_size":
+			metadata[index].Value.Data = uint32(256)
+		case "clip.vision.patch_size":
+			metadata[index].Value.Data = uint32(128)
+		}
+	}
+	tensors := tinyQwen3VLTensors()
+	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
+	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenQwen3VL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	prompt, err := runner.BuildImagesPrompt(
+		context.Background(), qwen3VLPromptTokenizer{}, []image.Image{input, input},
+		[]string{"A", "B", "C"}, true,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prompt.EmbeddingTokenIndices) != 2 || len(prompt.Embeddings) != 12 || prompt.EmbeddingWidth != 6 {
+		t.Fatalf("multi-image projection = indices %v embeddings %d width %d", prompt.EmbeddingTokenIndices, len(prompt.Embeddings), prompt.EmbeddingWidth)
+	}
+	for axis := range prompt.MultiAxisPositions {
+		if len(prompt.MultiAxisPositions[axis]) != len(prompt.TokenIDs) {
+			t.Fatalf("axis %d positions = %d, tokens %d", axis, len(prompt.MultiAxisPositions[axis]), len(prompt.TokenIDs))
+		}
 	}
 }
 

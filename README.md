@@ -188,15 +188,17 @@ invocation-activated LoRA are rejected with projected payloads; ordinary LoRA
 scaling and generated-token continuation remain supported.
 With server `-mmproj`, the pinned llama.cpp native multimodal prompt object is
 also accepted: `{"prompt_string":"<__media__>Describe it.",
-"multimodal_data":["BASE64_IMAGE"]}`. One image and one media marker are
-supported per request; raw base64 and `data:image/...;base64,...` are accepted.
+"multimodal_data":["BASE64_IMAGE"]}`. One to eight ordered images are
+supported per request, with one `<__media__>` marker per image; raw base64 and
+`data:image/...;base64,...` are accepted.
 Gemma audio uses the same object with a mono 16 kHz WAV
 `data:audio/wav;base64,...` payload.
-OpenAI `/v1/chat/completions` and `/chat/completions` accept one media part in
-one user message when the server has `-mmproj`. Images use an
+OpenAI `/v1/chat/completions` and `/chat/completions` accept one to eight image
+parts in one user message when the server has `-mmproj`. Images use an
 `image_url` part with a base64 `data:image/...` URL. Audio uses an
 `input_audio` part with raw base64 mono 16 kHz WAV data and `"format":"wav"`.
-Text parts before and after the media retain their input order. Multimodal chat
+Audio remains limited to one part and cannot be mixed with images. Text and
+image parts retain their input order. Multimodal chat
 currently requires `n=1`, the default generation prompt, no tools or chat
 history, and generation rather than the input-token counting route.
 
@@ -384,7 +386,7 @@ Authenticated `/chat/completions` aliases `/v1/chat/completions`.
 format and tokenize the request exactly like generation, returning the pinned
 `response.input_tokens` envelope without running the model.
 Text-only OpenAI content-part arrays are flattened through the same formatter;
-single-image and single-audio user arrays use native projected generation.
+one-to-eight-image and single-audio user arrays use native projected generation.
 Authenticated `/responses` and `/v1/responses` convert text inputs and message
 arrays into chat prompts and return the pinned Responses object/output/usage
 envelope. Streaming emits the named Responses lifecycle events through
@@ -393,9 +395,9 @@ auto/none/required/named choice, replayable call/output history, constrained
 generation, single/parallel call constraints, buffered function-call items,
 and call-complete argument SSE events are supported. `/responses/input_tokens` and
 `/v1/responses/input_tokens` expose the corresponding tool-aware
-no-generation count. A single user `input_image` part with a base64 data URL
-uses native projected generation in buffered and streaming Responses requests;
-instructions, history, tools, multiple media, remote URLs, file IDs, and token
+no-generation count. One to eight user `input_image` parts with base64 data
+URLs use native projected generation in buffered and streaming Responses
+requests; instructions, history, tools, remote URLs, file IDs, and token
 counting remain excluded for that path. Continuation IDs, hosted/custom tools,
 reasoning items, Responses audio/file inputs, and token-incremental
 function-argument deltas remain explicit exclusions.

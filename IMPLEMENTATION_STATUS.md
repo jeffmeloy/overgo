@@ -246,16 +246,16 @@
   enter `EmbedTokens` directly; on real Qwen3 Q8, `[9707]` is byte-for-byte
   identical to textual `Hello` and retains unit L2 norm.
 - Chat messages accept string bodies and bounded OpenAI content-part arrays.
-  One image or WAV-audio part in a single user turn uses native projected
-  generation for buffered and streaming Chat requests; unsupported history,
-  multiple media, remote image URLs, tools, and multimodal token counting fail
-  explicitly. Public `/v1/health` aliases
+  One to eight ordered images or one WAV-audio part in a single user turn use
+  native projected generation for buffered and streaming Chat requests;
+  unsupported history, mixed media, remote image URLs, tools, and multimodal
+  token counting fail explicitly. Public `/v1/health` aliases
   the existing health probe. Authenticated `/responses` and
   `/v1/responses` convert text or text-message inputs through the same native
-  formatter and accept one base64 `input_image` user part through projected
-  generation. They return pinned Responses output/usage objects. Streaming emits
-  the named created/in-progress/item/content/delta/done/completed SSE
-  lifecycle without a `[DONE]` marker. Flat function definitions,
+  formatter and accept one to eight base64 `input_image` user parts through
+  projected generation. They return pinned Responses output/usage objects.
+  Streaming emits the named created/in-progress/item/content/delta/done/
+  completed SSE lifecycle without a `[DONE]` marker. Flat function definitions,
   auto/none/required/named selection, replayable `function_call` and
   `function_call_output` items, schema-constrained generation, buffered
   function-call output, single/parallel call constraints, and call-complete
@@ -712,13 +712,13 @@
   arrays, tool schemas, assistant calls/results, and the implemented
   system/user/assistant/tool role families. Buffered and complete-call SSE
   OpenAI function calls plus tool-aware token counting are supported;
-  single-turn projected image/audio generation is supported. Media history,
-  multiple media, remote images, files, tools with media, and multimodal token
-  counting remain pending.
+  Single-turn projected multi-image or single-image/audio generation is supported.
+  Media history, mixed media, remote images, files, tools with media, and
+  multimodal token counting remain pending.
 - OpenAI Responses generation, streaming, token counting, function
-  tools/history, and single-turn projected base64 image input are supported.
+  tools/history, and single-turn projected base64 multi-image input are supported.
   Continuation IDs, hosted/custom tools, reasoning items, media history,
-  multiple media, remote images, audio/file inputs, and token-incremental
+  mixed media, remote images, audio/file inputs, and token-incremental
   function-argument deltas remain pending.
 - Text-only Anthropic generation, streaming, counting, tool use/results, and
   tool-aware Jinja contexts are supported. Thinking blocks, images, and
@@ -786,8 +786,10 @@
   nonzero image and multi-pair video fixtures match the CPU graph. A real
   Qwen projector GGUF is not present locally for the CUDA oracle. Encoded video
   input composites animated GIF natively and uses bounded, FPS-selected FFmpeg
-  PNG streaming for MP4/WebM/MOV and other installed-codec formats. Multi-image
-  turns and multi-sequence recurrent batching remain pending.
+  PNG streaming for MP4/WebM/MOV and other installed-codec formats. Native,
+  Chat, and Responses requests accept up to eight ordered images; the projector
+  merges their soft tokens and constructs per-image compressed four-axis MRoPE.
+  Multi-sequence recurrent batching remains pending.
 - Gemma 4 unified image projection executes the encoder-free `gemma4uv` GGUF
   graph: aspect-preserving bicubic resize, 48x48 RGB patch rows, affine patch
   LayerNorm and dense projection, factorized learned X/Y positions, position
@@ -796,7 +798,9 @@
   prompt IDs, projector probes/L2, and first token `13666` through native Q8
   generation. Mixed hard/soft input now scales only hard Gemma token rows.
   CLI and native completion server image paths select Qwen or Gemma from GGUF
-  projector metadata. The encoder-free `gemma4ua` path pads mono 16 kHz audio
+  projector metadata. Multi-image server requests concatenate images-first
+  soft-token blocks and preserve a distinct visual attention block per image.
+  The encoder-free `gemma4ua` path pads mono 16 kHz audio
   into 640-sample rows, applies BF16-compatible unweighted RMSNorm and the
   640-to-3840 projection, renders the exact audio turn, and accepts raw F32 or
   PCM16/float32 WAV through the CLI plus WAV data URIs through native

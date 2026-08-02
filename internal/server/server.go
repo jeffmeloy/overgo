@@ -5189,7 +5189,27 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		return
 	}
 	if chatMediaCount(messages) != 0 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal Responses token counting is unavailable")
+		if rawJSONConfigured(body.Tools) || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal Responses input cannot use tools")
+			return
+		}
+		mediaPrompt, parseErr := h.parseChatMultimodalPrompt(chatCompletionRequest{
+			Messages: messages,
+			N:        1,
+		})
+		if parseErr != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", parseErr.Error())
+			return
+		}
+		projected, _, projectErr := h.projectNativeMultimodalPrompt(request.Context(), mediaPrompt)
+		if projectErr != nil {
+			writeGenerationError(response, projectErr)
+			return
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"object":       "response.input_tokens",
+			"input_tokens": len(projected.TokenIDs),
+		})
 		return
 	}
 	var prompt string
@@ -5244,7 +5264,23 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 		return
 	}
 	if chatMediaCount(body.Messages) != 0 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal chat token counting is unavailable")
+		if body.N == 0 {
+			body.N = 1
+		}
+		mediaPrompt, err := h.parseChatMultimodalPrompt(body)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
+		projected, _, err := h.projectNativeMultimodalPrompt(request.Context(), mediaPrompt)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"object":       "response.input_tokens",
+			"input_tokens": len(projected.TokenIDs),
+		})
 		return
 	}
 	prompt, err := formatChatRequest(

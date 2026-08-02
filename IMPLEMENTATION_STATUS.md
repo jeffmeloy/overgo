@@ -249,8 +249,9 @@
   One to eight ordered images or one WAV-audio part in a single user turn use
   native projected generation for buffered and streaming Chat requests;
   unsupported history, mixed media, remote image URLs, tools, and multimodal
-  token counting fail explicitly. Public `/v1/health` aliases
-  the existing health probe. Authenticated `/responses` and
+  generation options fail explicitly. Matching input-token routes run the
+  projector and report the complete hard/soft-token prompt length. Public
+  `/v1/health` aliases the existing health probe. Authenticated `/responses` and
   `/v1/responses` convert text or text-message inputs through the same native
   formatter and accept one to eight base64 `input_image` user parts through
   projected generation. They return pinned Responses output/usage objects.
@@ -712,9 +713,9 @@
   arrays, tool schemas, assistant calls/results, and the implemented
   system/user/assistant/tool role families. Buffered and complete-call SSE
   OpenAI function calls plus tool-aware token counting are supported;
-  Single-turn projected multi-image or single-image/audio generation is supported.
-  Media history, mixed media, remote images, files, tools with media, and
-  multimodal token counting remain pending.
+  single-turn projected multi-image or single-image/audio generation is supported.
+  Projected multimodal input-token counting uses the same prompt path. Media
+  history, mixed media, remote images, files, and tools with media remain pending.
 - OpenAI Responses generation, streaming, token counting, function
   tools/history, and single-turn projected base64 multi-image input are supported.
   Continuation IDs, hosted/custom tools, reasoning items, media history,
@@ -737,9 +738,9 @@
   both in generation settings and slot state. Pure-attention prompt caches
   reuse their longest common prefix through host or zero-copy device suffix
   rollback; recurrent models retain exact-prefix-only reuse. A configurable
-  bounded LRU retains independent host or CUDA prompt states. Single-media
-  multimodal prompt objects project images or WAV audio after slot admission;
-  multiple media remain rejected explicitly.
+  bounded LRU retains independent host or CUDA prompt states. Native multimodal
+  prompt objects project up to eight images or one WAV audio item after slot
+  admission.
   Per-request LoRA arrays replace scales for one generation without mutating
   global control-plane state. Positive `n_probs`
   reports selected and top-N raw-logit softmax log probabilities with token

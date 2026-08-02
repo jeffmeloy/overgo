@@ -200,7 +200,8 @@ parts in one user message when the server has `-mmproj`. Images use an
 Audio remains limited to one part and cannot be mixed with images. Text and
 image parts retain their input order. Multimodal chat
 currently requires `n=1`, the default generation prompt, no tools or chat
-history, and generation rather than the input-token counting route.
+history, and no mixed image/audio input. The input-token route projects the
+same media prompt and reports its complete hard/soft-token length.
 
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,
@@ -397,8 +398,9 @@ and call-complete argument SSE events are supported. `/responses/input_tokens` a
 `/v1/responses/input_tokens` expose the corresponding tool-aware
 no-generation count. One to eight user `input_image` parts with base64 data
 URLs use native projected generation in buffered and streaming Responses
-requests; instructions, history, tools, remote URLs, file IDs, and token
-counting remain excluded for that path. Continuation IDs, hosted/custom tools,
+requests. The Responses input-token route reports the corresponding projected
+prompt length. Instructions, history, tools, remote URLs, and file IDs remain
+excluded for that path. Continuation IDs, hosted/custom tools,
 reasoning items, Responses audio/file inputs, and token-incremental
 function-argument deltas remain explicit exclusions.
 Text-only Anthropic-compatible `/v1/messages` supports buffered and named-SSE

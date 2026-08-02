@@ -3715,9 +3715,9 @@ func TestChatMultimodalValidation(t *testing.T) {
 		want string
 	}{
 		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[` + imagePart + `]}],"n":2}`, "requires n=1"},
+		{"/v1/chat/completions/input_tokens", `{"messages":[{"role":"user","content":[` + imagePart + `]}],"n":2}`, "requires n=1"},
 		{"/v1/chat/completions", `{"messages":[{"role":"system","content":"x"},{"role":"user","content":[` + imagePart + `]}]}`, "requires one user message"},
 		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/x.png"}}]}]}`, "base64 image data URI"},
-		{"/v1/chat/completions/input_tokens", `{"messages":[{"role":"user","content":[` + imagePart + `]}]}`, "token counting is unavailable"},
 	} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(
@@ -3726,6 +3726,70 @@ func TestChatMultimodalValidation(t *testing.T) {
 		)
 		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), test.want) {
 			t.Fatalf("%s body %s: status = %d response=%s", test.path, test.body, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestMultimodalInputTokenCounting(t *testing.T) {
+	vision := &fakeQwen3VLProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision,
+	}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, input); err != nil {
+		t.Fatal(err)
+	}
+	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())
+	requests := []struct {
+		path string
+		body map[string]any
+	}{
+		{
+			path: "/v1/chat/completions/input_tokens",
+			body: map[string]any{"messages": []any{map[string]any{
+				"role": "user", "content": []any{
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
+					map[string]any{"type": "text", "text": "B"},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
+				},
+			}}},
+		},
+		{
+			path: "/v1/responses/input_tokens",
+			body: map[string]any{"input": []any{map[string]any{
+				"role": "user", "content": []any{
+					map[string]any{"type": "input_image", "image_url": dataURI},
+					map[string]any{"type": "input_text", "text": "B"},
+					map[string]any{"type": "input_image", "image_url": dataURI},
+				},
+			}}},
+		},
+	}
+	for _, test := range requests {
+		body, err := json.Marshal(test.body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, test.path, bytes.NewReader(body)))
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body=%s", test.path, response.Code, response.Body.String())
+		}
+		var result struct {
+			Object      string `json:"object"`
+			InputTokens int    `json:"input_tokens"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Object != "response.input_tokens" || result.InputTokens != 7 {
+			t.Fatalf("%s response = %+v", test.path, result)
 		}
 	}
 }
@@ -3988,7 +4052,6 @@ func TestResponsesMultimodalValidation(t *testing.T) {
 		{"/v1/responses", `{"instructions":"brief","input":[{"role":"user","content":[` + imagePart + `]}]}`, "requires one user message"},
 		{"/v1/responses", `{"input":[{"role":"user","content":[` + imagePart + `]}],"tools":[{"type":"function","name":"x","parameters":{}}]}`, "cannot use tools"},
 		{"/v1/responses", `{"input":[{"role":"user","content":[{"type":"input_image","image_url":"https://example.com/x.png"}]}]}`, "base64 image data URI"},
-		{"/v1/responses/input_tokens", `{"input":[{"role":"user","content":[` + imagePart + `]}]}`, "token counting is unavailable"},
 	} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(

@@ -264,6 +264,7 @@ type Config struct {
 	Qwen3VLProjector   Qwen3VLProjector
 	ImageProjector     ImageProjector
 	AudioProjector     AudioProjector
+	RemoteMediaPolicy  *RemoteMediaPolicy
 }
 
 type slotRuntimeStats struct {
@@ -376,6 +377,7 @@ type Handler struct {
 	generationRequests atomic.Uint64
 	generationErrors   atomic.Uint64
 	generatedTokens    atomic.Uint64
+	mediaFetcher       *remoteMediaFetcher
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
@@ -421,6 +423,10 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.InfillBatchSize < 0 {
 		return nil, errors.New("server: infill batch size must be positive")
 	}
+	mediaFetcher, err := newRemoteMediaFetcher(config.RemoteMediaPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("server remote media policy: %w", err)
+	}
 	defaultSampler, err := sampling.New(sampling.Config{
 		Temperature: config.DefaultTemperature,
 		TopK:        config.DefaultTopK,
@@ -460,6 +466,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 		slotTasks:       make([]atomic.Uint64, config.MaxConcurrent),
 		slotStats:       make([]slotRuntimeStats, config.MaxConcurrent),
 		started:         time.Now(),
+		mediaFetcher:    mediaFetcher,
 	}, nil
 }
 
@@ -1639,7 +1646,7 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 		)
 		return
 	}
-	inputs, err := h.parseNativePrompts(body.Input)
+	inputs, err := h.parseNativePrompts(request.Context(), body.Input)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "embedding input: "+err.Error())
 		return
@@ -1754,7 +1761,7 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 	if len(raw) == 0 {
 		raw = body.Content
 	}
-	inputs, err := h.parseNativePrompts(raw)
+	inputs, err := h.parseNativePrompts(request.Context(), raw)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "embedding input: "+err.Error())
 		return
@@ -2004,7 +2011,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prompts, err := h.parseNativePrompts(body.Prompt)
+	prompts, err := h.parseNativePrompts(request.Context(), body.Prompt)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -2393,6 +2400,13 @@ type nativePrompt struct {
 	BeforeMedia  string
 	AfterMedia   string
 	MediaHistory bool
+	Media        []nativeMedia
+}
+
+type nativeMedia struct {
+	Kind  projector.MediaKind
+	Image []byte
+	Audio []float32
 }
 
 type preparedPrompt struct {
@@ -2411,7 +2425,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
-	prompts, err := h.parseNativePrompts(body.Prompt)
+	prompts, err := h.parseNativePrompts(request.Context(), body.Prompt)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -2621,13 +2635,13 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	writeJSON(response, http.StatusOK, results)
 }
 
-func (h *Handler) parseNativePrompts(raw json.RawMessage) ([]nativePrompt, error) {
+func (h *Handler) parseNativePrompts(ctx context.Context, raw json.RawMessage) ([]nativePrompt, error) {
 	if len(raw) == 0 {
 		return nil, errors.New("prompt is required")
 	}
 	trimmedRaw := bytes.TrimSpace(raw)
 	if len(trimmedRaw) > 0 && trimmedRaw[0] == '{' {
-		prompt, err := h.parseNativeMultimodalPrompt(trimmedRaw)
+		prompt, err := h.parseNativeMultimodalPrompt(ctx, trimmedRaw)
 		if err != nil {
 			return nil, err
 		}
@@ -2682,7 +2696,7 @@ func (h *Handler) parseNativePrompts(raw json.RawMessage) ([]nativePrompt, error
 	return result, nil
 }
 
-func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt, error) {
+func (h *Handler) parseNativeMultimodalPrompt(ctx context.Context, raw json.RawMessage) (nativePrompt, error) {
 	if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil && h.config.AudioProjector == nil {
 		return nativePrompt{}, errors.New("multimodal data provided, but the server has no multimodal projector")
 	}
@@ -2707,38 +2721,52 @@ func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt
 	}
 	segments := strings.Split(document.PromptString, marker)
 	before, after := segments[0], segments[1]
-	if strings.HasPrefix(document.MultimodalData[0], "data:audio/") {
-		if len(document.MultimodalData) != 1 {
-			return nativePrompt{}, errors.New("audio cannot be combined with other media")
-		}
-		if h.config.AudioProjector == nil {
-			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
-		}
-		audio, err := decodeNativeAudioData(document.MultimodalData[0])
-		if err != nil {
-			return nativePrompt{}, err
-		}
-		return nativePrompt{
-			Text: document.PromptString, Response: document.PromptString,
-			Audio: audio, BeforeMedia: before, AfterMedia: after,
-		}, nil
-	}
-	if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil {
-		return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
-	}
-	images := make([][]byte, len(document.MultimodalData))
+	images := make([][]byte, 0, len(document.MultimodalData))
+	media := make([]nativeMedia, 0, len(document.MultimodalData))
+	hasAudio := false
 	for index, encoded := range document.MultimodalData {
 		if strings.HasPrefix(encoded, "data:audio/") {
-			return nativePrompt{}, errors.New("audio cannot be combined with image media")
+			if h.config.AudioProjector == nil {
+				return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
+			}
+			audio, err := decodeNativeAudioData(encoded)
+			if err != nil {
+				return nativePrompt{}, fmt.Errorf("multimodal_data audio %d: %w", index, err)
+			}
+			hasAudio = true
+			media = append(media, nativeMedia{Kind: projector.MediaAudio, Audio: audio})
+			continue
 		}
-		imageData, err := decodeNativeImageData(encoded)
+		if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil {
+			return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
+		}
+		imageData, err := h.resolveImageData(ctx, encoded)
 		if err != nil {
 			return nativePrompt{}, fmt.Errorf("multimodal_data image %d: %w", index, err)
 		}
-		images[index] = imageData
+		images = append(images, imageData)
+		media = append(media, nativeMedia{Kind: projector.MediaImage, Image: imageData})
 	}
-	if err := validateMultimodalImages(images); err != nil {
-		return nativePrompt{}, err
+	if len(images) != 0 {
+		if err := validateMultimodalImages(images); err != nil {
+			return nativePrompt{}, err
+		}
+	}
+	if hasAudio && len(media) == 1 {
+		return nativePrompt{
+			Text: document.PromptString, Response: document.PromptString,
+			Audio: media[0].Audio, BeforeMedia: before, AfterMedia: after,
+		}, nil
+	}
+	if hasAudio {
+		return nativePrompt{
+			Text: document.PromptString, Response: document.PromptString,
+			Media: media, MediaText: segments, BeforeMedia: before, AfterMedia: after,
+			MediaHistory: true,
+		}, nil
+	}
+	if len(images) == 0 {
+		return nativePrompt{}, errors.New("multimodal media data is empty")
 	}
 	return nativePrompt{
 		Text: document.PromptString, Response: document.PromptString,
@@ -2761,6 +2789,16 @@ func decodeNativeAudioData(encoded string) ([]float32, error) {
 	if len(decoded) > maxMediaBytes {
 		return nil, errors.New("multimodal_data audio exceeds decoded media limit")
 	}
+	return decodeNativeAudioBytes(decoded)
+}
+
+func decodeNativeAudioBytes(decoded []byte) ([]float32, error) {
+	if len(decoded) == 0 {
+		return nil, errors.New("multimodal_data audio is empty")
+	}
+	if len(decoded) > maxMediaBytes {
+		return nil, errors.New("multimodal_data audio exceeds decoded media limit")
+	}
 	samples, sampleRate, err := projector.DecodeWAV(decoded)
 	if err != nil {
 		return nil, fmt.Errorf("multimodal_data audio: %w", err)
@@ -2769,6 +2807,37 @@ func decodeNativeAudioData(encoded string) ([]float32, error) {
 		return nil, fmt.Errorf("multimodal_data audio sample rate %d Hz; want 16000 Hz", sampleRate)
 	}
 	return samples, nil
+}
+
+func (h *Handler) resolveAudioData(ctx context.Context, source, format string) ([]float32, int, error) {
+	if isRemoteMediaSource(source) {
+		if format != "" && !strings.EqualFold(format, "wav") {
+			return nil, 0, errors.New("input_audio.format must be wav")
+		}
+		data, err := h.mediaFetcher.fetch(ctx, source, "audio")
+		if err != nil {
+			return nil, 0, err
+		}
+		samples, err := decodeNativeAudioBytes(data)
+		return samples, len(data), err
+	}
+	if !strings.EqualFold(format, "wav") {
+		return nil, 0, errors.New("input_audio.format must be wav")
+	}
+	if strings.HasPrefix(source, "data:audio/") {
+		samples, err := decodeNativeAudioData(source)
+		return samples, encodedMediaSize(source), err
+	}
+	samples, err := decodeNativeAudioData("data:audio/wav;base64," + source)
+	return samples, base64.StdEncoding.DecodedLen(len(source)), err
+}
+
+func encodedMediaSize(source string) int {
+	_, payload, ok := strings.Cut(source, ",")
+	if !ok {
+		return 0
+	}
+	return base64.StdEncoding.DecodedLen(len(payload))
 }
 
 func decodeNativeImageData(encoded string) ([]byte, error) {
@@ -2796,6 +2865,25 @@ func decodeNativeImageData(encoded string) ([]byte, error) {
 		return nil, errors.New("multimodal_data image exceeds decoded image limit")
 	}
 	return decoded, nil
+}
+
+func (h *Handler) resolveImageData(ctx context.Context, source string) ([]byte, error) {
+	if !isRemoteMediaSource(source) {
+		return decodeNativeImageData(source)
+	}
+	data, err := h.mediaFetcher.fetch(ctx, source, "image")
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxImageBytes {
+		return nil, errors.New("multimodal_data image exceeds decoded image limit")
+	}
+	return data, nil
+}
+
+func isRemoteMediaSource(source string) bool {
+	lower := strings.ToLower(strings.TrimSpace(source))
+	return strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://")
 }
 
 func validateMultimodalImages(data [][]byte) error {
@@ -2856,7 +2944,41 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	}
 	var projected projector.MultimodalPrompt
 	var err error
-	if len(prompt.Audio) > 0 {
+	if len(prompt.Media) > 0 {
+		mixed, ok := any(h.config.ImageProjector).(projector.MediaHistoryProjector)
+		if !ok {
+			mixed, ok = any(h.config.AudioProjector).(projector.MediaHistoryProjector)
+		}
+		if !ok {
+			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support ordered mixed media")
+		}
+		imageData := make([][]byte, 0, len(prompt.Media))
+		for _, item := range prompt.Media {
+			if item.Kind == projector.MediaImage {
+				imageData = append(imageData, item.Image)
+			}
+		}
+		var images []image.Image
+		if len(imageData) != 0 {
+			var decodeErr error
+			images, decodeErr = decodeMultimodalImages(imageData)
+			if decodeErr != nil {
+				return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: %w", decodeErr)
+			}
+		}
+		inputs := make([]projector.MediaInput, len(prompt.Media))
+		imageIndex := 0
+		for index, item := range prompt.Media {
+			inputs[index].Kind = item.Kind
+			if item.Kind == projector.MediaImage {
+				inputs[index].Image = images[imageIndex]
+				imageIndex++
+			} else {
+				inputs[index].Audio = item.Audio
+			}
+		}
+		projected, err = mixed.BuildMediaHistoryPrompt(ctx, tokenizerAPI, inputs, prompt.MediaText)
+	} else if len(prompt.Audio) > 0 {
 		if h.config.AudioProjector == nil {
 			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: audio projector is unavailable")
 		}
@@ -2911,11 +3033,12 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	prompt.MediaText = nil
 	prompt.Audio = nil
 	prompt.MediaHistory = false
+	prompt.Media = nil
 	return prompt, inputs, nil
 }
 
 func nativePromptHasMedia(prompt nativePrompt) bool {
-	return len(prompt.Image) != 0 || len(prompt.Images) != 0 || len(prompt.Audio) != 0
+	return len(prompt.Image) != 0 || len(prompt.Images) != 0 || len(prompt.Audio) != 0 || len(prompt.Media) != 0
 }
 
 func (h *Handler) preparePrompt(

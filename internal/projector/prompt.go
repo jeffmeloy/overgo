@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/gguf"
@@ -50,6 +51,23 @@ type MultiImageProjector interface {
 
 type ImageHistoryProjector interface {
 	BuildImagesHistoryPrompt(context.Context, ImageTokenizer, []image.Image, []string) (MultimodalPrompt, error)
+}
+
+type MediaKind uint8
+
+const (
+	MediaImage MediaKind = iota + 1
+	MediaAudio
+)
+
+type MediaInput struct {
+	Kind  MediaKind
+	Image image.Image
+	Audio []float32
+}
+
+type MediaHistoryProjector interface {
+	BuildMediaHistoryPrompt(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
 }
 
 type AudioProjector interface {
@@ -274,6 +292,113 @@ func (r *Gemma4Runner) BuildImagesHistoryPrompt(
 	return MultimodalPrompt{
 		TokenIDs: ids, Embeddings: embeddings,
 		EmbeddingWidth: int(outputs[0].Embeddings.Shape.Dims[0]), EmbeddingStart: starts[0],
+		EmbeddingTokenIndices: indices, AttentionBlocks: blocks,
+	}, nil
+}
+
+func (r *Gemma4Runner) BuildMediaHistoryPrompt(
+	ctx context.Context,
+	tokenizerAPI ImageTokenizer,
+	media []MediaInput,
+	text []string,
+) (MultimodalPrompt, error) {
+	if tokenizerAPI == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(media) == 0 || len(text) != len(media)+1 {
+		return MultimodalPrompt{}, errors.New("projector: Gemma 4 media history sequence is inconsistent")
+	}
+	type mediaRun struct {
+		token tokenizer.TokenID
+		count int
+		image bool
+	}
+	runs := make([]mediaRun, len(media))
+	var embeddings []float32
+	var prompt strings.Builder
+	embeddingWidth := 0
+	imagePadIDs, err := tokenizerAPI.TokenizeText("<|image|>", false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 image placeholder: %w", err)
+	}
+	if len(imagePadIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 image placeholder maps to %d tokens", len(imagePadIDs))
+	}
+	audioPadIDs, err := tokenizerAPI.TokenizeText("<|audio|>", false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 audio placeholder: %w", err)
+	}
+	if len(audioPadIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 audio placeholder maps to %d tokens", len(audioPadIDs))
+	}
+	for index, input := range media {
+		prompt.WriteString(text[index])
+		switch input.Kind {
+		case MediaImage:
+			if input.Image == nil {
+				return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 history image %d is nil", index)
+			}
+			output, encodeErr := r.EncodeImage(ctx, input.Image)
+			if encodeErr != nil {
+				return MultimodalPrompt{}, fmt.Errorf("projector: encode Gemma 4 history image %d: %w", index, encodeErr)
+			}
+			width := int(output.Embeddings.Shape.Dims[0])
+			if embeddingWidth != 0 && width != embeddingWidth {
+				return MultimodalPrompt{}, errors.New("projector: Gemma 4 media embedding widths differ")
+			}
+			embeddingWidth = width
+			runs[index] = mediaRun{token: imagePadIDs[0], count: int(output.Embeddings.Shape.Dims[1]), image: true}
+			prompt.WriteString("<|image>")
+			prompt.WriteString(strings.Repeat("<|image|>", runs[index].count))
+			prompt.WriteString("<image|>")
+			embeddings = append(embeddings, output.Embeddings.Data...)
+		case MediaAudio:
+			if len(input.Audio) == 0 {
+				return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 history audio %d is empty", index)
+			}
+			output, encodeErr := r.EncodeAudio(ctx, input.Audio)
+			if encodeErr != nil {
+				return MultimodalPrompt{}, fmt.Errorf("projector: encode Gemma 4 history audio %d: %w", index, encodeErr)
+			}
+			width := int(output.Embeddings.Shape.Dims[0])
+			if embeddingWidth != 0 && width != embeddingWidth {
+				return MultimodalPrompt{}, errors.New("projector: Gemma 4 media embedding widths differ")
+			}
+			embeddingWidth = width
+			runs[index] = mediaRun{token: audioPadIDs[0], count: int(output.Embeddings.Shape.Dims[1])}
+			prompt.WriteString("<|audio>")
+			prompt.WriteString(strings.Repeat("<|audio|>", runs[index].count))
+			prompt.WriteString("<audio|>")
+			embeddings = append(embeddings, output.Embeddings.Data...)
+		default:
+			return MultimodalPrompt{}, fmt.Errorf("projector: unsupported Gemma 4 media kind %d", input.Kind)
+		}
+	}
+	prompt.WriteString(text[len(text)-1])
+	ids, err := tokenizerAPI.TokenizeText(prompt.String(), true, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 media history: %w", err)
+	}
+	expectedTokens := make([]tokenizer.TokenID, len(runs))
+	counts := make([]int, len(runs))
+	for index, run := range runs {
+		expectedTokens[index], counts[index] = run.token, run.count
+	}
+	starts, err := orderedVariableTokenRuns(ids, expectedTokens, counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 media history: %w", err)
+	}
+	indices := make([]uint32, 0)
+	blocks := make([]AttentionBlock, 0, len(runs))
+	for index, start := range starts {
+		indices = append(indices, sequentialTokenIndices(start, runs[index].count)...)
+		if runs[index].image {
+			blocks = append(blocks, AttentionBlock{Start: uint32(start), End: uint32(start + runs[index].count)})
+		}
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings,
+		EmbeddingWidth: embeddingWidth, EmbeddingStart: starts[0],
 		EmbeddingTokenIndices: indices, AttentionBlocks: blocks,
 	}, nil
 }
@@ -694,6 +819,40 @@ func variableTokenRuns(ids []tokenizer.TokenID, token tokenizer.TokenID, counts 
 	}
 	if len(starts) != len(counts) {
 		return nil, fmt.Errorf("placeholder runs = %d, want %d", len(starts), len(counts))
+	}
+	return starts, nil
+}
+
+func orderedVariableTokenRuns(
+	ids []tokenizer.TokenID,
+	tokens []tokenizer.TokenID,
+	counts []int,
+) ([]int, error) {
+	if len(tokens) == 0 || len(tokens) != len(counts) {
+		return nil, errors.New("media token run specification is inconsistent")
+	}
+	mediaTokens := make(map[tokenizer.TokenID]struct{}, len(tokens))
+	for _, token := range tokens {
+		mediaTokens[token] = struct{}{}
+	}
+	starts := make([]int, 0, len(tokens))
+	foundTokens := make([]tokenizer.TokenID, 0, len(tokens))
+	foundCounts := make([]int, 0, len(tokens))
+	for index := 0; index < len(ids); {
+		if _, ok := mediaTokens[ids[index]]; !ok {
+			index++
+			continue
+		}
+		start, token := index, ids[index]
+		for index < len(ids) && ids[index] == token {
+			index++
+		}
+		starts = append(starts, start)
+		foundTokens = append(foundTokens, token)
+		foundCounts = append(foundCounts, index-start)
+	}
+	if !slices.Equal(foundTokens, tokens) || !slices.Equal(foundCounts, counts) {
+		return nil, fmt.Errorf("placeholder runs tokens/counts = %v/%v, want %v/%v", foundTokens, foundCounts, tokens, counts)
 	}
 	return starts, nil
 }

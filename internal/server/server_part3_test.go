@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"encoding/base64"
+	"encoding/binary"
 
 	"encoding/json"
 
@@ -17,6 +18,7 @@ import (
 
 	"image/png"
 
+	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/tokenizer"
 
 	"net/http"
@@ -184,6 +186,65 @@ func TestResponsesImageHistoryPreservesTurnPosition(t *testing.T) {
 	}
 }
 
+func TestResponsesMixedImageAudioPreservesChunkOrder(t *testing.T) {
+	base := &fakeGenerator{}
+	generator := &historyGenerator{fakeGenerator: base}
+	vision := &fakeHistoryProjector{}
+	audio := &fakeAudioProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision, AudioProjector: audio,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var encodedImage bytes.Buffer
+	if err := png.Encode(&encodedImage, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	wav := make([]byte, 48)
+	copy(wav[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:8], 40)
+	copy(wav[8:12], "WAVE")
+	copy(wav[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(wav[16:20], 16)
+	binary.LittleEndian.PutUint16(wav[20:22], 1)
+	binary.LittleEndian.PutUint16(wav[22:24], 1)
+	binary.LittleEndian.PutUint32(wav[24:28], 16000)
+	binary.LittleEndian.PutUint32(wav[28:32], 32000)
+	binary.LittleEndian.PutUint16(wav[32:34], 2)
+	binary.LittleEndian.PutUint16(wav[34:36], 16)
+	copy(wav[36:40], "data")
+	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	body, err := json.Marshal(map[string]any{
+		"input": []any{map[string]any{
+			"role": "user", "content": []any{
+				map[string]any{"type": "input_text", "text": "A"},
+				map[string]any{"type": "input_image", "image_url": "data:image/png;base64," + base64.StdEncoding.EncodeToString(encodedImage.Bytes())},
+				map[string]any{"type": "input_text", "text": "B"},
+				map[string]any{"type": "input_audio", "input_audio": map[string]any{
+					"data": base64.StdEncoding.EncodeToString(wav), "format": "wav",
+				}},
+				map[string]any{"type": "input_text", "text": "C"},
+			},
+		}},
+		"max_output_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if !slices.Equal(vision.mediaKinds, []projector.MediaKind{projector.MediaImage, projector.MediaAudio}) ||
+		!base.cachePrompt {
+		t.Fatalf("media = %v cache=%v", vision.mediaKinds, base.cachePrompt)
+	}
+}
+
 func TestResponsesMultimodalValidation(t *testing.T) {
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -202,7 +263,7 @@ func TestResponsesMultimodalValidation(t *testing.T) {
 	}{
 		{"/v1/responses", `{"instructions":"brief","input":[{"role":"user","content":[` + imagePart + `]}]}`, "image 0 is unsupported"},
 		{"/v1/responses", `{"input":[{"role":"user","content":[` + imagePart + `]}],"tools":[{"type":"function","name":"x","parameters":{}}]}`, "cannot use tools"},
-		{"/v1/responses", `{"input":[{"role":"user","content":[{"type":"input_image","image_url":"https://example.com/x.png"}]}]}`, "base64 image data URI"},
+		{"/v1/responses", `{"input":[{"role":"user","content":[{"type":"input_image","image_url":"https://example.com/x.png"}]}]}`, "remote media URLs are disabled"},
 	} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(

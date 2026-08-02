@@ -22,6 +22,7 @@ import (
 	"image/png"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/projector"
 
 	"llamacpp2go/internal/sampling"
 
@@ -1826,7 +1827,7 @@ func TestChatMultimodalValidation(t *testing.T) {
 		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[` + imagePart + `]}],"n":2}`, "requires n=1"},
 		{"/v1/chat/completions/input_tokens", `{"messages":[{"role":"user","content":[` + imagePart + `]}],"n":2}`, "requires n=1"},
 		{"/v1/chat/completions", `{"messages":[{"role":"system","content":"x"},{"role":"user","content":[` + imagePart + `]}]}`, "image 0 is unsupported"},
-		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/x.png"}}]}]}`, "base64 image data URI"},
+		{"/v1/chat/completions", `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/x.png"}}]}]}`, "remote media URLs are disabled"},
 	} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(
@@ -1894,6 +1895,111 @@ func TestChatImageHistoryPreservesTurnPositionAndReplay(t *testing.T) {
 	}
 	if vision.historyRuns != 2 {
 		t.Fatalf("history runs = %d", vision.historyRuns)
+	}
+}
+
+func TestChatMixedImageAudioPreservesChunkOrder(t *testing.T) {
+	base := &fakeGenerator{}
+	generator := &historyGenerator{fakeGenerator: base}
+	vision := &fakeHistoryProjector{}
+	audio := &fakeAudioProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision, AudioProjector: audio,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var encodedImage bytes.Buffer
+	if err := png.Encode(&encodedImage, input); err != nil {
+		t.Fatal(err)
+	}
+	wav := make([]byte, 48)
+	copy(wav[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:8], 40)
+	copy(wav[8:12], "WAVE")
+	copy(wav[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(wav[16:20], 16)
+	binary.LittleEndian.PutUint16(wav[20:22], 1)
+	binary.LittleEndian.PutUint16(wav[22:24], 1)
+	binary.LittleEndian.PutUint32(wav[24:28], 16000)
+	binary.LittleEndian.PutUint32(wav[28:32], 32000)
+	binary.LittleEndian.PutUint16(wav[32:34], 2)
+	binary.LittleEndian.PutUint16(wav[34:36], 16)
+	copy(wav[36:40], "data")
+	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	body, err := json.Marshal(map[string]any{
+		"messages": []any{map[string]any{
+			"role": "user",
+			"content": []any{
+				map[string]any{"type": "text", "text": "A"},
+				map[string]any{"type": "image_url", "image_url": map[string]any{
+					"url": "data:image/png;base64," + base64.StdEncoding.EncodeToString(encodedImage.Bytes()),
+				}},
+				map[string]any{"type": "text", "text": "B"},
+				map[string]any{"type": "input_audio", "input_audio": map[string]any{
+					"data": base64.StdEncoding.EncodeToString(wav), "format": "wav",
+				}},
+				map[string]any{"type": "text", "text": "C"},
+			},
+		}},
+		"max_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if !slices.Equal(vision.mediaKinds, []projector.MediaKind{projector.MediaImage, projector.MediaAudio}) ||
+		!slices.Equal(vision.historyText, []string{"<chat><user>A", "B", "C</user><assistant>"}) {
+		t.Fatalf("media = %v text=%q", vision.mediaKinds, vision.historyText)
+	}
+	if base.projectedInputs == nil || len(base.projectedInputs.EmbeddingOverrides) != 2 ||
+		len(base.projectedInputs.BidirectionalAttentionBlocks) != 1 || !base.cachePrompt {
+		t.Fatalf("projected = %+v cache=%v", base.projectedInputs, base.cachePrompt)
+	}
+}
+
+func TestChatRemoteImageUsesExplicitPolicy(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	mediaServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		response.Header().Set("Content-Type", "image/png")
+		_, _ = response.Write(encoded.Bytes())
+	}))
+	defer mediaServer.Close()
+	vision := &fakeQwen3VLProjector{}
+	generator := &fakeGenerator{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision, RemoteMediaPolicy: testRemoteMediaPolicy(t, mediaServer.URL),
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"messages": []any{map[string]any{
+			"role": "user", "content": []any{map[string]any{
+				"type": "image_url", "image_url": map[string]any{"url": mediaServer.URL + "/image.png"},
+			}},
+		}},
+		"max_tokens": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)))
+	if response.Code != http.StatusOK || generator.projectedInputs == nil {
+		t.Fatalf("status = %d body=%s projected=%+v", response.Code, response.Body.String(), generator.projectedInputs)
 	}
 }
 

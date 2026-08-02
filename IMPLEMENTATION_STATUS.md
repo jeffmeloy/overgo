@@ -22,7 +22,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Tensor graph | Implemented, expanding | Reference and CUDA execution for dense, MoE, recurrent, diffusion, encoder, and multimodal primitives |
 | Model runtime | Experimental breadth | Architecture-specific metadata, catalogs, graphs, cache state, and optional real-model oracles |
 | Generation | Implemented | Cached autoregressive, diffusion, encoder-decoder, embeddings, reranking, and speculative paths |
-| Multimodal | Implemented, constrained | Qwen3-VL and Gemma 4 image/video; Gemma 4 audio; ordered multi-turn image history |
+| Multimodal | Implemented, constrained | Qwen3-VL and Gemma 4 image/video; Gemma 4 ordered image/audio history |
 | Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
@@ -48,6 +48,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Padded multi-sequence T5 encoder/decoder batches with explicit lengths.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Pinned Gemma 4 multi-turn image history and media-signed prompt caching.
+- Pinned mixed image/audio chunks and policy-bounded remote media fetching.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
 ## Active roadmap
@@ -62,8 +63,6 @@ external fixture, policy, certificate, or model/projector contract.
 | Real-model validation for marked architectures | Local GGUF/oracle fixture unavailable | Fixture supplied or generated |
 | Release signing | No user-controlled signing certificate | Certificate and signing policy supplied |
 | ECMAScript regex lookaround/backreferences | Go RE2 does not implement them | Compatible bounded engine selected |
-| Remote media URLs | Fetch policy and SSRF boundary undefined | Explicit allowlist, size, redirect, and timeout policy |
-| Mixed image/audio turns | No upstream-validated projector prompt contract covers interleaved modalities | Mixed-modality projector contract and oracle fixture supplied |
 
 Blocked fixture work does not stop independent implementation work.
 

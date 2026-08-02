@@ -197,22 +197,29 @@ invocation-activated LoRA are rejected with projected payloads; ordinary LoRA
 scaling and generated-token continuation remain supported.
 With server `-mmproj`, the pinned llama.cpp native multimodal prompt object is
 also accepted: `{"prompt_string":"<__media__>Describe it.",
-"multimodal_data":["BASE64_IMAGE"]}`. One to eight ordered images are
-supported per request, with one `<__media__>` marker per image; raw base64 and
-`data:image/...;base64,...` are accepted.
-Gemma audio uses the same object with a mono 16 kHz WAV
-`data:audio/wav;base64,...` payload.
-OpenAI `/v1/chat/completions` and `/chat/completions` accept one to eight image
-parts in one user message when the server has `-mmproj`. Images use an
-`image_url` part with a base64 `data:image/...` URL. Audio uses an
-`input_audio` part with raw base64 mono 16 kHz WAV data and `"format":"wav"`.
-Audio remains limited to one part and cannot be mixed with images. Text and
-image parts retain their input order. Multimodal chat
-currently requires `n=1`, the default generation prompt, no tools or chat
-history, and no mixed image/audio input. The input-token route projects the
-same prepared prompt used by generation and reports its exact hard/soft-token
-length. Text requests also share formatting and tokenization across generation
-and counting.
+"multimodal_data":["BASE64_IMAGE"]}`. One to eight ordered images or Gemma 4
+image/audio items are supported, with one `<__media__>` marker per item. Images
+accept raw base64 or `data:image/...;base64,...`; audio uses mono 16 kHz WAV
+`data:audio/wav;base64,...`.
+OpenAI `/v1/chat/completions`, `/chat/completions`, and Responses accept one to
+eight ordered image/audio parts across user-message history when the loaded
+projector supports them. Images use `image_url`; audio uses `input_audio` with
+raw base64 mono 16 kHz WAV data and `"format":"wav"`. Gemma 4 preserves
+interleaved image/audio positions, applies bidirectional attention only to
+image embedding ranges, and retains causal audio ranges. The pinned and Go
+Gemma 4 paths both produce 221 prompt tokens for the validated image/audio
+fixture in either order. Multimodal generation requires `n=1`, the default
+generation prompt, and no tools. Input-token routes project the same prompt
+used by generation and report its exact hard/soft-token length.
+
+Remote `image_url` and `input_audio.url` fetching is controlled by
+[`media_policy.yaml`](media_policy.yaml), loaded through `-media-policy`. The
+shipped policy disables URLs. Enabling it requires an explicit scheme, host,
+and port allowlist. DNS results, every redirect target, private/reserved
+networks, MIME types, concurrent fetches, response bytes, and connect/header/
+total timeouts remain bounded. Environment proxies and connection reuse are
+disabled for media fetches. Set `allow_private_networks: true` only for an
+explicitly allowlisted trusted internal service.
 Ordinary JSON bodies are capped at 1 MiB. Media-capable routes allow 32 MiB,
 then cap decoded input at 16 MiB per image and 24 MiB per request. Images are
 also capped at 16,384 in either dimension, 16 MiPixels each, and 32 MiPixels
@@ -411,12 +418,11 @@ auto/none/required/named choice, replayable call/output history, constrained
 generation, single/parallel call constraints, buffered function-call items,
 and call-complete argument SSE events are supported. `/responses/input_tokens` and
 `/v1/responses/input_tokens` expose the corresponding tool-aware
-no-generation count. One to eight user `input_image` parts with base64 data
-URLs use native projected generation in buffered and streaming Responses
-requests. The Responses input-token route reports the corresponding projected
-prompt length. Instructions, history, tools, remote URLs, and file IDs remain
-excluded for that path. Continuation IDs, hosted/custom tools,
-reasoning items, Responses audio/file inputs, and token-incremental
+no-generation count. One to eight ordered user `input_image`/`input_audio`
+parts use native projected generation through buffered, streaming, history,
+and input-token Responses paths. Policy-allowed remote URLs share the same
+bounded fetcher. Multimodal tools and file IDs remain excluded. Continuation
+IDs, hosted/custom tools, reasoning items, file inputs, and token-incremental
 function-argument deltas remain explicit exclusions.
 Text-only Anthropic-compatible `/v1/messages` supports buffered and named-SSE
 streaming replies with Anthropic text/tool-use content blocks, stop fields,

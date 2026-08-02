@@ -81,6 +81,22 @@ claims:
         contains: "func (r *Gemma4Runner) BuildImagesHistoryPrompt("
       - path: internal/server/server_part2_test.go
         contains: "func TestChatImageHistoryPreservesTurnPositionAndReplay("
+  - id: mixed-media-history
+    status: implemented
+    summary: Gemma 4 preserves ordered image/audio chunks through native, Chat, and Responses history.
+    evidence:
+      - path: internal/projector/prompt.go
+        contains: "func (r *Gemma4Runner) BuildMediaHistoryPrompt("
+      - path: internal/server/server_part2_test.go
+        contains: "func TestChatMixedImageAudioPreservesChunkOrder("
+  - id: bounded-remote-media
+    status: implemented
+    summary: Remote media is opt-in through explicit scheme, host, port, network, redirect, timeout, MIME, concurrency, and byte policy.
+    evidence:
+      - path: internal/server/media_policy.go
+        contains: "func (f *remoteMediaFetcher) fetch("
+      - path: internal/server/media_policy_test.go
+        contains: "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault("
   - id: multimodal-token-counting
     status: implemented
     summary: Chat and Responses token counts use the projected media prompt.

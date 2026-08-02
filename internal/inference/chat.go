@@ -168,17 +168,25 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						Type       string `json:"type"`
 						InputAudio struct {
 							Data   string `json:"data"`
+							URL    string `json:"url"`
 							Format string `json:"format"`
 						} `json:"input_audio"`
 					}
 					if err := decodeChatContentPart(raw, &part); err != nil {
 						return fmt.Errorf("inference: chat content part %d: %w", index, err)
 					}
-					if part.InputAudio.Data == "" || part.InputAudio.Format == "" {
-						return fmt.Errorf("inference: chat content part %d input_audio data and format are required", index)
+					if (part.InputAudio.Data == "") == (part.InputAudio.URL == "") {
+						return fmt.Errorf("inference: chat content part %d input_audio requires exactly one of data or url", index)
+					}
+					if part.InputAudio.Data != "" && part.InputAudio.Format == "" {
+						return fmt.Errorf("inference: chat content part %d input_audio data requires format", index)
+					}
+					source := part.InputAudio.Data
+					if source == "" {
+						source = part.InputAudio.URL
 					}
 					media = append(media, ChatMediaPart{
-						Type: "audio", Data: part.InputAudio.Data,
+						Type: "audio", Data: source,
 						Format: part.InputAudio.Format, TextOffset: joined.Len(),
 					})
 				default:

@@ -833,6 +833,15 @@ matrix.
   Prompt-cache entries bind exact projected embeddings, positions, deepstack
   streams, and attention blocks so equal placeholder IDs cannot alias different
   images.
+  The MTMD-style heterogeneous path now preserves ordered image/audio chunks
+  across native, Chat, and Responses history. Gemma 4 image ranges remain
+  bidirectional while audio ranges remain causal. Pinned llama.cpp and native
+  Go both produce 221 prompt tokens for the same one-second audio plus image
+  fixture in either order. Remote image/audio URLs are opt-in through the
+  top-level `media_policy.yaml`; exact scheme/host/port allowlists, DNS and
+  redirect revalidation, private/reserved-network rejection, independent
+  connect/header/total timeouts, MIME checks, response and aggregate byte
+  limits, and a fetch-concurrency bound define the SSRF boundary.
 - T5 single-sequence encoder-decoder sessions are supported. `GenerateT5`
   supplies high-level sampling, stop callbacks/sequences, LoRA selection, and
   context shifting; callers can also generate incrementally with `DecodeT5`.

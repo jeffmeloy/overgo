@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 
 	"encoding/json"
 
@@ -12,6 +13,7 @@ import (
 	"io"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/projector"
 
 	"llamacpp2go/internal/sampling"
 
@@ -81,6 +83,7 @@ func chatMediaCount(messages []inference.ChatMessage) int {
 }
 
 func (h *Handler) parseChatSingleMultimodalPrompt(
+	ctx context.Context,
 	body chatCompletionRequest,
 ) (nativePrompt, error) {
 	if body.N != 1 {
@@ -132,10 +135,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 			if h.config.ImageProjector == nil {
 				return nativePrompt{}, errors.New("multiple images require a multi-image projector")
 			}
-			if !strings.HasPrefix(media.Data, "data:image/") {
-				return nativePrompt{}, errors.New("image_url.url must use a base64 image data URI")
-			}
-			decoded, err := decodeNativeImageData(media.Data)
+			decoded, err := h.resolveImageData(ctx, media.Data)
 			if err != nil {
 				return nativePrompt{}, err
 			}
@@ -153,10 +153,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
 			return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
 		}
-		if !strings.HasPrefix(media.Data, "data:image/") {
-			return nativePrompt{}, errors.New("image_url.url must use a base64 image data URI")
-		}
-		decoded, err := decodeNativeImageData(media.Data)
+		decoded, err := h.resolveImageData(ctx, media.Data)
 		if err != nil {
 			return nativePrompt{}, err
 		}
@@ -169,10 +166,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		if h.config.AudioProjector == nil {
 			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
 		}
-		if !strings.EqualFold(media.Format, "wav") {
-			return nativePrompt{}, errors.New("input_audio.format must be wav")
-		}
-		decoded, err := decodeNativeAudioData("data:audio/wav;base64," + media.Data)
+		decoded, _, err := h.resolveAudioData(ctx, media.Data, media.Format)
 		if err != nil {
 			return nativePrompt{}, err
 		}
@@ -186,11 +180,12 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 const chatMediaMarkerPrefix = "<__llamacpp2go_media_"
 
 func (h *Handler) parseChatMultimodalPrompt(
+	ctx context.Context,
 	formatter ChatFormatter,
 	body chatCompletionRequest,
 ) (nativePrompt, error) {
-	if len(body.Messages) == 1 {
-		return h.parseChatSingleMultimodalPrompt(body)
+	if len(body.Messages) == 1 && chatSingleMediaCompatible(body.Messages[0].Media) {
+		return h.parseChatSingleMultimodalPrompt(ctx, body)
 	}
 	if body.N != 1 {
 		return nativePrompt{}, errors.New("multimodal chat requires n=1")
@@ -211,6 +206,9 @@ func (h *Handler) parseChatMultimodalPrompt(
 	messages := append([]inference.ChatMessage(nil), body.Messages...)
 	markers := make([]string, 0, mediaCount)
 	images := make([][]byte, 0, mediaCount)
+	mediaInputs := make([]nativeMedia, 0, mediaCount)
+	hasAudio := false
+	totalMediaBytes := 0
 	for messageIndex := range messages {
 		message := &messages[messageIndex]
 		if strings.Contains(message.Content, chatMediaMarkerPrefix) {
@@ -232,24 +230,39 @@ func (h *Handler) parseChatMultimodalPrompt(
 			if media.TextOffset < cursor || media.TextOffset > len(message.Content) {
 				return nativePrompt{}, errors.New("multimodal chat media offsets are invalid")
 			}
-			if media.Type != "image" {
-				return nativePrompt{}, errors.New("multimodal history currently requires image media")
-			}
-			if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
-				return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
-			}
-			if !strings.HasPrefix(media.Data, "data:image/") {
-				return nativePrompt{}, errors.New("image_url.url must use a base64 image data URI")
-			}
-			decoded, err := decodeNativeImageData(media.Data)
-			if err != nil {
-				return nativePrompt{}, err
-			}
 			content.WriteString(message.Content[cursor:media.TextOffset])
 			marker := fmt.Sprintf("%s%08d__>", chatMediaMarkerPrefix, len(markers))
 			content.WriteString(marker)
 			markers = append(markers, marker)
-			images = append(images, decoded)
+			switch media.Type {
+			case "image":
+				if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
+					return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
+				}
+				decoded, err := h.resolveImageData(ctx, media.Data)
+				if err != nil {
+					return nativePrompt{}, err
+				}
+				images = append(images, decoded)
+				mediaInputs = append(mediaInputs, nativeMedia{Kind: projector.MediaImage, Image: decoded})
+				totalMediaBytes += len(decoded)
+			case "audio":
+				if h.config.AudioProjector == nil {
+					return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
+				}
+				decoded, mediaBytes, err := h.resolveAudioData(ctx, media.Data, media.Format)
+				if err != nil {
+					return nativePrompt{}, err
+				}
+				hasAudio = true
+				mediaInputs = append(mediaInputs, nativeMedia{Kind: projector.MediaAudio, Audio: decoded})
+				totalMediaBytes += mediaBytes
+			default:
+				return nativePrompt{}, fmt.Errorf("unsupported multimodal chat media type %q", media.Type)
+			}
+			if totalMediaBytes > maxMediaBytes {
+				return nativePrompt{}, errors.New("multimodal media exceeds aggregate byte limit")
+			}
 			cursor = media.TextOffset
 		}
 		content.WriteString(message.Content[cursor:])
@@ -274,20 +287,42 @@ func (h *Handler) parseChatMultimodalPrompt(
 		remainder = after
 	}
 	segments[len(segments)-1] = remainder
-	return nativePrompt{
-		Text: formatted, Response: formatted, Image: images[0], Images: images,
+	prompt := nativePrompt{
+		Text: formatted, Response: formatted, Images: images,
 		MediaText: segments, BeforeMedia: segments[0], AfterMedia: segments[1],
 		MediaHistory: true,
-	}, nil
+	}
+	if len(images) != 0 {
+		prompt.Image = images[0]
+	}
+	if hasAudio {
+		prompt.Image = nil
+		prompt.Images = nil
+		prompt.Media = mediaInputs
+	}
+	return prompt, nil
+}
+
+func chatSingleMediaCompatible(media []inference.ChatMediaPart) bool {
+	if len(media) == 1 {
+		return true
+	}
+	for _, item := range media {
+		if item.Type != "image" {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *Handler) normalizeChatPrompt(
+	ctx context.Context,
 	formatter ChatFormatter,
 	body chatCompletionRequest,
 	promptTools []inference.ChatTool,
 ) (nativePrompt, error) {
 	if chatMediaCount(body.Messages) != 0 {
-		return h.parseChatMultimodalPrompt(formatter, body)
+		return h.parseChatMultimodalPrompt(ctx, formatter, body)
 	}
 	prompt, err := formatChatRequest(
 		formatter,
@@ -356,7 +391,7 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	normalized, err := h.normalizeChatPrompt(formatter, body, toolSelection.prompt)
+	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -412,7 +447,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		)
 		return
 	}
-	normalizedPrompt, err := h.normalizeChatPrompt(formatter, body, toolSelection.prompt)
+	normalizedPrompt, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return

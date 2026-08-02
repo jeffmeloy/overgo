@@ -144,6 +144,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": false}
 	}
 	normalizedPrompt, err := h.normalizeChatPrompt(
+		request.Context(),
 		formatter,
 		normalizedBody,
 		toolSelection.prompt,
@@ -728,7 +729,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	if len(toolSelection.prompt) != 0 {
 		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": false}
 	}
-	normalized, err := h.normalizeChatPrompt(formatter, normalizedBody, toolSelection.prompt)
+	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return

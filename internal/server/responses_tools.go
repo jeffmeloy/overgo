@@ -304,6 +304,31 @@ func parseResponsesMessageContent(
 			media = append(media, inference.ChatMediaPart{
 				Type: "image", Data: part.ImageURL, TextOffset: result.Len(),
 			})
+		case "input_audio":
+			var part struct {
+				Type       string `json:"type"`
+				InputAudio struct {
+					Data   string `json:"data"`
+					URL    string `json:"url"`
+					Format string `json:"format"`
+				} `json:"input_audio"`
+			}
+			if err := decodeResponsesItem(rawPart, &part); err != nil {
+				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
+			}
+			if (part.InputAudio.Data == "") == (part.InputAudio.URL == "") {
+				return "", nil, fmt.Errorf("%s part %d input_audio requires exactly one of data or url", label, index)
+			}
+			if part.InputAudio.Data != "" && part.InputAudio.Format == "" {
+				return "", nil, fmt.Errorf("%s part %d input_audio data requires format", label, index)
+			}
+			source := part.InputAudio.Data
+			if source == "" {
+				source = part.InputAudio.URL
+			}
+			media = append(media, inference.ChatMediaPart{
+				Type: "audio", Data: source, Format: part.InputAudio.Format, TextOffset: result.Len(),
+			})
 		default:
 			return "", nil, fmt.Errorf(
 				"%s part %d has unsupported type %q",

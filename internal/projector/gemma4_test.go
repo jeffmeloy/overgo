@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -324,6 +325,27 @@ func TestGemma4ResizeTargetMatchesPinnedDynamicResize(t *testing.T) {
 	}
 	if height != 480 || width != 816 || height/spec.ModelPatch*width/spec.ModelPatch != 170 {
 		t.Fatalf("target = %dx%d tokens=%d", width, height, height/spec.ModelPatch*width/spec.ModelPatch)
+	}
+}
+
+func TestOrderedVariableTokenRunsPreserveMediaKinds(t *testing.T) {
+	starts, err := orderedVariableTokenRuns(
+		[]tokenizer.TokenID{1, 2, 2, 3, 4, 4, 4, 5},
+		[]tokenizer.TokenID{2, 4},
+		[]int{2, 3},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(starts, []int{1, 4}) {
+		t.Fatalf("starts = %v", starts)
+	}
+	if _, err := orderedVariableTokenRuns(
+		[]tokenizer.TokenID{1, 4, 4, 4, 3, 2, 2, 5},
+		[]tokenizer.TokenID{2, 4},
+		[]int{2, 3},
+	); err == nil {
+		t.Fatal("reordered mixed-media placeholders accepted")
 	}
 }
 

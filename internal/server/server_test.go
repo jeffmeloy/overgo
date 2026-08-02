@@ -93,6 +93,7 @@ type fakeHistoryProjector struct {
 	fakeQwen3VLProjector
 	historyText []string
 	historyRuns int
+	mediaKinds  []projector.MediaKind
 }
 
 func (f *fakeHistoryProjector) BuildImagesHistoryPrompt(
@@ -110,6 +111,27 @@ func (f *fakeHistoryProjector) BuildImagesHistoryPrompt(
 		EmbeddingWidth:        2560,
 		EmbeddingTokenIndices: []uint32{1, 2},
 		AttentionBlocks:       []projector.AttentionBlock{{Start: 1, End: 3}},
+	}, nil
+}
+
+func (f *fakeHistoryProjector) BuildMediaHistoryPrompt(
+	_ context.Context,
+	_ projector.ImageTokenizer,
+	media []projector.MediaInput,
+	text []string,
+) (projector.MultimodalPrompt, error) {
+	f.historyText = append([]string(nil), text...)
+	f.historyRuns++
+	f.mediaKinds = f.mediaKinds[:0]
+	for _, item := range media {
+		f.mediaKinds = append(f.mediaKinds, item.Kind)
+	}
+	return projector.MultimodalPrompt{
+		TokenIDs:              []tokenizer.TokenID{7, 8, 9, 10},
+		Embeddings:            make([]float32, 2*2560),
+		EmbeddingWidth:        2560,
+		EmbeddingTokenIndices: []uint32{1, 2},
+		AttentionBlocks:       []projector.AttentionBlock{{Start: 1, End: 2}},
 	}, nil
 }
 
@@ -1750,6 +1772,60 @@ func TestNativeCompletionAudioProjectorMultimodalPrompt(t *testing.T) {
 	if !slices.Equal(generator.promptIDs, []tokenizer.TokenID{1, 4, 4, 3}) ||
 		generator.projectedInputs == nil || len(generator.projectedInputs.EmbeddingOverrides) != 2 {
 		t.Fatalf("prompt IDs = %v, projected = %+v", generator.promptIDs, generator.projectedInputs)
+	}
+}
+
+func TestNativeCompletionMixedMediaPreservesChunkOrder(t *testing.T) {
+	generator := &fakeGenerator{}
+	vision := &fakeHistoryProjector{}
+	audio := &fakeAudioProjector{}
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: vision, AudioProjector: audio,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var encodedImage bytes.Buffer
+	if err := png.Encode(&encodedImage, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	wav := make([]byte, 48)
+	copy(wav[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:8], 40)
+	copy(wav[8:12], "WAVE")
+	copy(wav[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(wav[16:20], 16)
+	binary.LittleEndian.PutUint16(wav[20:22], 1)
+	binary.LittleEndian.PutUint16(wav[22:24], 1)
+	binary.LittleEndian.PutUint32(wav[24:28], 16000)
+	binary.LittleEndian.PutUint32(wav[28:32], 32000)
+	binary.LittleEndian.PutUint16(wav[32:34], 2)
+	binary.LittleEndian.PutUint16(wav[34:36], 16)
+	copy(wav[36:40], "data")
+	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	body, err := json.Marshal(map[string]any{
+		"prompt": map[string]any{
+			"prompt_string": "A<__media__>B<__media__>C",
+			"multimodal_data": []string{
+				"data:image/png;base64," + base64.StdEncoding.EncodeToString(encodedImage.Bytes()),
+				"data:audio/wav;base64," + base64.StdEncoding.EncodeToString(wav),
+			},
+		},
+		"n_predict": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/completion", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if !slices.Equal(vision.mediaKinds, []projector.MediaKind{projector.MediaImage, projector.MediaAudio}) ||
+		!slices.Equal(vision.historyText, []string{"A", "B", "C"}) {
+		t.Fatalf("media = %v text=%q", vision.mediaKinds, vision.historyText)
 	}
 }
 

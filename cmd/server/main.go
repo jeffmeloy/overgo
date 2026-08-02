@@ -76,6 +76,7 @@ func run() error {
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
+	mediaPolicyPath := flag.String("media-policy", "media_policy.yaml", "remote-media YAML policy; empty disables URLs")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
@@ -122,6 +123,13 @@ func run() error {
 			return errors.New("API key file is empty")
 		}
 	}
+	var mediaPolicy *llamaserver.RemoteMediaPolicy
+	if *mediaPolicyPath != "" {
+		mediaPolicy, err = llamaserver.LoadRemoteMediaPolicy(*mediaPolicyPath)
+		if err != nil {
+			return err
+		}
+	}
 	handler, err := llamaserver.New(llamaserver.Config{
 		ModelID:            *modelID,
 		MaxTokens:          *maxTokens,
@@ -137,6 +145,7 @@ func run() error {
 		SPMInfill:          *spmInfill,
 		ImageProjector:     vision,
 		AudioProjector:     audio,
+		RemoteMediaPolicy:  mediaPolicy,
 	}, runner)
 	if err != nil {
 		return err

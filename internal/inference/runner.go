@@ -4118,11 +4118,13 @@ func addOutputBias(logits, bias []float32) error {
 }
 
 func isQwenGDNArchitecture(architecture string) bool {
-	return architecture == "qwen3next" || architecture == "qwen35" || architecture == "qwen35moe"
+	profile, ok := model.LookupArchitecture(architecture)
+	return ok && profile.Has(model.ArchitectureQwenGDN)
 }
 
 func isLFM2Architecture(architecture string) bool {
-	return architecture == "lfm2" || architecture == "lfm2moe"
+	profile, ok := model.LookupArchitecture(architecture)
+	return ok && profile.Has(model.ArchitectureLFM2)
 }
 
 func supportsMultiAxisPositions(spec model.Spec) bool {
@@ -4133,21 +4135,20 @@ func supportsMultiAxisPositions(spec model.Spec) bool {
 	if !sections {
 		return false
 	}
-	switch spec.Architecture {
-	case "glm4", "glm4moe":
-		return spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0
-	case "hunyuan-dense", "hunyuan_vl":
-		return spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0
-	case "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe", "qwen35", "qwen35moe":
-		return true
-	default:
+	profile := spec.Profile()
+	if !profile.Has(model.ArchitectureMultiAxisPositions) {
 		return false
+	}
+	switch spec.Architecture {
+	case "glm4", "glm4moe", "hunyuan-dense", "hunyuan_vl":
+		return spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0
+	default:
+		return true
 	}
 }
 
 func supportsDeepstackInputs(spec model.Spec) bool {
-	return spec.DeepstackLayerCount > 0 &&
-		(spec.Architecture == "granite" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe")
+	return spec.DeepstackLayerCount > 0 && spec.Profile().Has(model.ArchitectureDeepstack)
 }
 
 func validateDeepstackInputs(spec model.Spec, tokens int, inputs []reference.Value) error {
@@ -4260,7 +4261,8 @@ func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Val
 }
 
 func isDSAArchitecture(architecture string) bool {
-	return architecture == "deepseek32" || architecture == "glm-dsa"
+	profile, ok := model.LookupArchitecture(architecture)
+	return ok && profile.Has(model.ArchitectureDSA)
 }
 
 func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {

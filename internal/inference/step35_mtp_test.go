@@ -15,7 +15,7 @@ import (
 
 func TestValidateStep35MTP(t *testing.T) {
 	runner := &Runner{
-		spec:    model.Spec{Architecture: "step35", NextNPredictLayers: 2},
+		spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: "step35", NextNPredictLayers: 2}},
 		weights: model.Weights{Step35MTP: make([]model.Step35MTPWeights, 2)},
 	}
 	if err := runner.validateStep35MTP(); err != nil {
@@ -29,7 +29,7 @@ func TestValidateStep35MTP(t *testing.T) {
 
 func TestValidateHYV3MTP(t *testing.T) {
 	runner := &Runner{
-		spec:    model.Spec{Architecture: "hy_v3", NextNPredictLayers: 2},
+		spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: "hy_v3", NextNPredictLayers: 2}},
 		weights: model.Weights{HYV3MTP: make([]model.Step35MTPWeights, 2)},
 	}
 	if err := runner.validateHYV3MTP(); err != nil {

@@ -21,11 +21,10 @@ import (
 func TestExecutorRND1NonCausalMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "rnd1", EmbeddingLength: 8, FeedForwardLength: 24,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 1_000_000, RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "rnd1", EmbeddingLength: 8, FeedForwardLength: 24,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 1_000_000, NonCausalAttention: true}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -82,11 +81,10 @@ func TestExecutorRND1NonCausalMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorLLaDAMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "llada-moe", EmbeddingLength: 8, FeedForwardLength: 12,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6, NonCausalAttention: true,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "llada-moe", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, NonCausalAttention: true}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -142,16 +140,16 @@ func TestExecutorLLaDAMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorLagunaYaRNMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "laguna", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 16, LeadingDenseBlocks: 1,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12,
-		SharedExpertFF: 10, ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
-		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "laguna", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2, 4},
 		LayerKVHeadCounts: []uint32{1, 1}, KeyLength: 4, ValueLength: 4,
 		RopeFrequencyBase: 500000, RopeDimensionCount: 4, RopeScalingType: "yarn",
 		RopeScalingFactor: 4, OriginalContextLength: 2048, YaRNExtFactor: 1,
-		YaRNAttentionFactor: 1, YaRNBetaFast: 32, YaRNBetaSlow: 1, RMSNormEpsilon: 1e-6,
+		YaRNAttentionFactor: 1, YaRNBetaFast: 32, YaRNBetaSlow: 1}, MoESpec: model.MoESpec{LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12,
+		SharedExpertFF: 10, ExpertWeightsScale: 1.25, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -212,15 +210,14 @@ func TestExecutorLagunaYaRNMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorAFMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "afmoe", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, SharedExpertCount: 2, SharedExpertFF: 12,
-		ExpertWeightsScale: 2.826, ExpertWeightsNorm: true,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "afmoe", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeFrequencyBase: 10000, RopeDimensionCount: 4, NoRopeLayerStep: 4,
-		SlidingWindow: 64, SlidingPattern: 4, RopeFrequencySWA: 10000,
-		RMSNormEpsilon: 1e-6,
+		SlidingWindow: 64, SlidingPattern: 4, RopeFrequencySWA: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, SharedExpertCount: 2, SharedExpertFF: 12,
+		ExpertWeightsScale: 2.826, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -285,11 +282,10 @@ func TestExecutorAFMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorOLMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "olmoe", EmbeddingLength: 8, FeedForwardLength: 12,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
-		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "olmoe", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -347,11 +343,10 @@ func TestExecutorOLMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorMixtralBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "llama", EmbeddingLength: 8, FeedForwardLength: 12,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -407,13 +402,14 @@ func TestExecutorMixtralBlockMatchesReference(t *testing.T) {
 func TestExecutorPhiMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "phimoe", BlockCount: 1, ContextLength: 128,
-		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 12,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "phimoe", BlockCount: 1, ContextLength: 128,
+		EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{OriginalContextLength: 32,
+
 		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
-		RopeScalingType: "longrope", RopeAttentionFactor: 1.1, RMSNormEpsilon: 1e-5,
+		RopeScalingType: "longrope", RopeAttentionFactor: 1.1}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -483,13 +479,12 @@ func TestExecutorPhiMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorEXAOneMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "exaone-moe", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 16,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.5,
-		SharedExpertFF: 12, ExpertGatingFunc: 2, ExpertWeightsNorm: true,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "exaone-moe", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 16,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 500000,
-		SlidingWindow: 128, SlidingPattern: 4, RMSNormEpsilon: 1e-6,
+		SlidingWindow: 128, SlidingPattern: 4}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.5,
+		SharedExpertFF: 12, ExpertGatingFunc: 2, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -551,12 +546,11 @@ func TestExecutorEXAOneMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorBailingMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "bailingmoe", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 16,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.25,
-		SharedExpertCount: 2, SharedExpertFF: 12, ExpertWeightsNorm: true,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "bailingmoe", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 16,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.25,
+		SharedExpertCount: 2, SharedExpertFF: 12, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -612,12 +606,11 @@ func TestExecutorBailingMoEBlockMatchesReference(t *testing.T) {
 func TestExecutorDeepSeekMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "deepseek", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 16,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.3,
-		SharedExpertCount: 2, SharedExpertFF: 12,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 16,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.3,
+		SharedExpertCount: 2, SharedExpertFF: 12},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -675,12 +668,13 @@ func TestExecutorGraniteMoEUngatedBlockMatchesReference(t *testing.T) {
 	for _, architecture := range []string{"granitemoe", "granite"} {
 		t.Run(architecture, func(t *testing.T) {
 			builder := tensor.NewBuilder()
-			spec := model.Spec{
-				Architecture: architecture, BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,
-				ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1,
-				ExpertWeightsNorm: true, SharedExpertFF: 5, ResidualScale: 0.5,
-				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-				RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+			spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture, BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,
+
+				ResidualScale: 0.5,
+
+				RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+				RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1,
+				ExpertWeightsNorm: true, SharedExpertFF: 5},
 			}
 			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 			weights := model.LayerGraphWeights{
@@ -745,13 +739,12 @@ func TestExecutorGraniteMoEUngatedBlockMatchesReference(t *testing.T) {
 func TestExecutorSmallThinkerBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "smallthinker", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 6,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "smallthinker", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 6,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
-		SlidingWindow: 128, SlidingPattern: 4, NoRopeLayerStep: 4, RMSNormEpsilon: 1e-6,
+		SlidingWindow: 128, SlidingPattern: 4, NoRopeLayerStep: 4}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -802,13 +795,14 @@ func TestExecutorSmallThinkerBlockMatchesReference(t *testing.T) {
 func TestExecutorDOTS1BlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "dots1", BlockCount: 2, LeadingDenseBlocks: 1,
-		EmbeddingLength: 8, FeedForwardLength: 12, ExpertCount: 4, ExpertUsedCount: 2,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "dots1", BlockCount: 2,
+		EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{LeadingDenseBlocks: 1,
+		ExpertCount: 4, ExpertUsedCount: 2,
 		ExpertFeedForward: 6, SharedExpertCount: 2, SharedExpertFF: 12,
-		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2,
-		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -871,12 +865,12 @@ func TestExecutorDOTS1BlockMatchesReference(t *testing.T) {
 func TestExecutorMiniMaxM2BlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "minimax-m2", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 6, ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "minimax-m2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 6,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -943,15 +937,14 @@ func TestExecutorGrokBlockMatchesReference(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			builder := tensor.NewBuilder()
-			spec := model.Spec{
-				Architecture: "grok", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 12,
-				ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-				ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
-				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+			spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "grok", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 12,
+
+				RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 				RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeScalingType: "yarn",
 				RopeScalingFactor: 4, OriginalContextLength: 2048, YaRNExtFactor: 1,
 				YaRNAttentionFactor: 1.25, YaRNBetaFast: 8, YaRNBetaSlow: 1,
-				AttentionScale: 0.25, AttentionSoftcap: 30, RMSNormEpsilon: 1e-6,
+				AttentionScale: 0.25, AttentionSoftcap: 30}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+				ExpertWeightsScale: 1.25, ExpertWeightsNorm: true},
 			}
 			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 			weights := model.LayerGraphWeights{
@@ -1025,15 +1018,14 @@ func TestExecutorGrokBlockMatchesReference(t *testing.T) {
 func TestExecutorMellumBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "mellum", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 12,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertWeightsScale: 1, ExpertWeightsNorm: true,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "mellum", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeScalingType: "yarn",
 		RopeScalingFactor: 4, OriginalContextLength: 2048, YaRNExtFactor: 1,
 		YaRNAttentionFactor: 1.25, YaRNBetaFast: 32, YaRNBetaSlow: 1,
-		SlidingWindow: 128, SlidingPattern: 4, RMSNormEpsilon: 1e-6,
+		SlidingWindow: 128, SlidingPattern: 4}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -1091,9 +1083,10 @@ func TestExecutorMellumBlockMatchesReference(t *testing.T) {
 func TestExecutorQwenBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	b := tensor.NewBuilder()
-	s := model.Spec{Architecture: "qwen", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
-		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6}
+	s := model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000}}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{
 		AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)), AttentionQKVBias: b.Input("qkvb", dtype.F32, tensor.MustShape(24)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8)),
@@ -1131,7 +1124,7 @@ func TestExecutorQwenBlockMatchesReference(t *testing.T) {
 func TestExecutorChatGLMBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	b := tensor.NewBuilder()
-	s := model.Spec{Architecture: "chatglm", EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6}
+	s := model.Spec{CommonSpec: model.CommonSpec{Architecture: "chatglm", EmbeddingLength: 8, FeedForwardLength: 12, RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000}}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 24)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
@@ -1175,7 +1168,7 @@ func TestExecutorHunyuanVLBlockMatchesReference(t *testing.T) {
 func testExecutorHunyuanBlockMatchesReference(t *testing.T, architecture string, sections [4]int32) {
 	cudatest.Require(t)
 	b := tensor.NewBuilder()
-	s := model.Spec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: sections, RopeFrequencyBase: 40000, RMSNormEpsilon: 1e-6}
+	s := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12, RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: sections, RopeFrequencyBase: 40000}}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
@@ -1211,7 +1204,7 @@ func testExecutorHunyuanBlockMatchesReference(t *testing.T, architecture string,
 func TestExecutorCogVLMTokenBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	b := tensor.NewBuilder()
-	s := model.Spec{Architecture: "cogvlm", EmbeddingLength: 8, FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6}
+	s := model.Spec{CommonSpec: model.CommonSpec{Architecture: "cogvlm", EmbeddingLength: 8, FeedForwardLength: 12, RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000}}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
@@ -1247,12 +1240,11 @@ func TestExecutorCogVLMTokenBlockMatchesReference(t *testing.T) {
 func TestExecutorDBRXBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "dbrx", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		AttentionClamp: 0.35, RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "dbrx", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 6,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		AttentionClamp: 0.35, RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{
@@ -1301,11 +1293,10 @@ func TestExecutorDBRXBlockMatchesReference(t *testing.T) {
 func TestExecutorArcticBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{
-		Architecture: "arctic", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 12,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "arctic", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000}, MoESpec: model.MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := model.LayerGraphWeights{

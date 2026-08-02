@@ -56,12 +56,12 @@ func TestRankPairPromptUsesConfiguredSeparators(t *testing.T) {
 
 func TestRankAdmission(t *testing.T) {
 	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "zero"}}}
-	unsupported := &Runner{vocab: vocab, spec: model.Spec{Architecture: "llama"}}
+	unsupported := &Runner{vocab: vocab, spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}
 	if _, err := unsupported.RankTokens(nil, []tokenizer.TokenID{0}); err == nil ||
 		!strings.Contains(err.Error(), "no pinned Qwen rank graph") {
 		t.Fatalf("unsupported error = %v", err)
 	}
-	missing := &Runner{vocab: vocab, spec: model.Spec{Architecture: "qwen3"}}
+	missing := &Runner{vocab: vocab, spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3"}}}
 	if _, err := missing.RankTokens(nil, []tokenizer.TokenID{0}); err == nil ||
 		!strings.Contains(err.Error(), "tensor is missing") {
 		t.Fatalf("missing-head error = %v", err)

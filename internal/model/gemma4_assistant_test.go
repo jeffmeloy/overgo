@@ -10,14 +10,15 @@ import (
 
 func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "gemma4-assistant", BlockCount: 1, EmbeddingLength: 2,
-		TargetHiddenSize: 3, FeedForwardLength: 4, HeadCount: 1, HeadCountKV: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gemma4-assistant", BlockCount: 1, EmbeddingLength: 2,
+		TargetHiddenSize: 3, FeedForwardLength: 4,
+
+		RMSNormEpsilon: 1e-6,
+		VocabularySize: 4}, AttentionSpec: AttentionSpec{HeadCount: 1, HeadCountKV: 1,
 		KeyLength: 2, ValueLength: 2, KeyLengthSWA: 2, ValueLengthSWA: 2,
 		RopeDimensionCount: 2, RopeDimensionSWA: 2,
 		RopeFrequencyBase: 10000, RopeFrequencySWA: 10000,
-		RMSNormEpsilon: 1e-6, SlidingWindow: 4, SlidingLayers: []bool{false},
-		VocabularySize: 4,
+		SlidingWindow: 4, SlidingLayers: []bool{false}},
 	}
 	input := func(name string, shape ...uint64) *tensor.Tensor {
 		return builder.Input(name, dtype.F32, tensor.MustShape(shape...))

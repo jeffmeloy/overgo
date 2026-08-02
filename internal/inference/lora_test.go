@@ -100,7 +100,7 @@ func TestLoRAScaleBindsSessionSignature(t *testing.T) {
 			B: reference.Value{Shape: tensor.MustShape(1, 1), Data: []float32{3}},
 		},
 	}}
-	runner := &Runner{spec: model.Spec{Architecture: "llama"}, loraAdapters: []loadedLoRA{{
+	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, loraAdapters: []loadedLoRA{{
 		adapter: adapter, scale: 1, signature: loRAStaticSignature(adapter),
 	}}}
 	before, err := runner.sessionModelSignature()
@@ -121,7 +121,7 @@ func TestLoRAScaleBindsSessionSignature(t *testing.T) {
 
 func TestGenerateRestoresPerRequestLoRA(t *testing.T) {
 	runner := &Runner{
-		spec:         model.Spec{Architecture: "llama", ContextLength: 8},
+		spec:         model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 8}},
 		vocab:        &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "x", Type: tokenizer.TokenNormal}}},
 		loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{Path: "adapter.gguf"}, scale: 1}},
 	}

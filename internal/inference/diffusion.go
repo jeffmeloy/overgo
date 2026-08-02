@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -128,12 +129,8 @@ func (r *Runner) GenerateDiffusion(
 }
 
 func diffusionArchitecture(architecture string) bool {
-	switch architecture {
-	case "dream", "llada", "llada-moe", "rnd1":
-		return true
-	default:
-		return false
-	}
+	profile, ok := model.LookupArchitecture(architecture)
+	return ok && profile.Has(model.ArchitectureDiffusion)
 }
 
 func (r *Runner) diffusionPromptTokens(

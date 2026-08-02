@@ -33,7 +33,7 @@ func TestGemma3nPredictCoefficientLayout(t *testing.T) {
 		{Shape: tensor.MustShape(2, 1), Data: []float32{1, 0}},
 		{Shape: tensor.MustShape(2, 1), Data: []float32{0, 1}},
 	}
-	spec := model.Spec{EmbeddingLength: 2, AltUpActive: 0, RMSNormEpsilon: 1e-6}
+	spec := model.Spec{CommonSpec: model.CommonSpec{EmbeddingLength: 2, RMSNormEpsilon: 1e-6}, MultimodalSpec: model.MultimodalSpec{AltUpActive: 0}}
 	got, err := gemma3nPredict(states, layer, spec)
 	if err != nil {
 		t.Fatal(err)

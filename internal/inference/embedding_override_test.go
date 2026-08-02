@@ -177,9 +177,7 @@ func TestApplyEmbeddingOverridesRejectsInvalidInput(t *testing.T) {
 
 func TestMultimodalInputAdmission(t *testing.T) {
 	for _, architecture := range []string{"qwen3vl", "glm4", "hunyuan-dense"} {
-		supported := &Runner{spec: model.Spec{
-			Architecture: architecture, RopeSections: [4]int32{2, 2, 0, 0},
-		}}
+		supported := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{2, 2, 0, 0}}}}
 		_, _, err := supported.ForwardCachedWithMultimodalInputs(
 			context.Background(), nil, nil, MultiAxisPositions{}, nil,
 		)
@@ -188,7 +186,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 		}
 	}
 
-	unsupported := &Runner{spec: model.Spec{Architecture: "llama"}}
+	unsupported := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}
 	_, _, err := unsupported.ForwardCachedWithMultimodalInputs(
 		context.Background(), nil, nil, MultiAxisPositions{}, nil,
 	)
@@ -198,10 +196,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 }
 
 func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
-	runner := &Runner{spec: model.Spec{
-		Architecture: "qwen3vl", ContextLength: 4,
-		RopeSections: [4]int32{1, 1, 0, 0},
-	}}
+	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3vl", ContextLength: 4}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{1, 1, 0, 0}}}}
 	positions := MultiAxisPositions{{0}, {0}, nil, {0}}
 	_, _, err := runner.ForwardCachedWithMultimodalInputs(
 		context.Background(), []tokenizer.TokenID{0}, nil, positions, nil,
@@ -212,9 +207,8 @@ func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
 }
 
 func TestProjectedInputDeepstackAdmission(t *testing.T) {
-	runner := &Runner{spec: model.Spec{
-		Architecture: "granite", EmbeddingLength: 2, DeepstackLayerCount: 1,
-		DeepstackMapping: []int32{0, 1},
+	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "granite", EmbeddingLength: 2}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 1,
+		DeepstackMapping: []int32{0, 1}},
 	}}
 	_, _, err := runner.ForwardCachedWithProjectedInputs(
 		context.Background(), nil, nil,
@@ -228,7 +222,7 @@ func TestProjectedInputDeepstackAdmission(t *testing.T) {
 func TestProjectedAttentionBlockIDs(t *testing.T) {
 	blocks := []AttentionBlock{{Start: 1, End: 3}, {Start: 4, End: 5}}
 	ids, err := projectedAttentionBlockIDs(
-		model.Spec{Architecture: "gemma4"}, 6, false, blocks,
+		model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4"}}, 6, false, blocks,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -238,17 +232,17 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 		t.Fatalf("attention block IDs = %v, want %v", ids, want)
 	}
 	if _, err = projectedAttentionBlockIDs(
-		model.Spec{Architecture: "llama"}, 6, false, blocks,
+		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, 6, false, blocks,
 	); err == nil || !strings.Contains(err.Error(), "does not support") {
 		t.Fatalf("unsupported block error = %v", err)
 	}
 	if _, err = projectedAttentionBlockIDs(
-		model.Spec{Architecture: "gemma4"}, 6, true, blocks,
+		model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4"}}, 6, true, blocks,
 	); err == nil || !strings.Contains(err.Error(), "uncached") {
 		t.Fatalf("cached block error = %v", err)
 	}
 	if _, err = projectedAttentionBlockIDs(
-		model.Spec{Architecture: "gemma4"}, 6, false,
+		model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4"}}, 6, false,
 		[]AttentionBlock{{Start: 1, End: 4}, {Start: 3, End: 5}},
 	); err == nil || !strings.Contains(err.Error(), "overlaps") {
 		t.Fatalf("overlap error = %v", err)
@@ -256,7 +250,7 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 }
 
 func TestGenerateProjectedInputsRejectsTokenOnlyPromptCache(t *testing.T) {
-	runner := &Runner{spec: model.Spec{Architecture: "llama"}, vocab: &tokenizer.Vocab{}}
+	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, vocab: &tokenizer.Vocab{}}
 	_, _, err := runner.Generate(context.Background(), "", GenerateOptions{
 		CachePrompt: true, ProjectedInputs: &ProjectedInputs{},
 	})
@@ -271,9 +265,8 @@ func TestDeepstackLayerMapping(t *testing.T) {
 		{Shape: base.Shape, Data: []float32{20}},
 		{Shape: base.Shape, Data: []float32{30}},
 	}
-	granite := model.Spec{
-		Architecture: "granite", DeepstackLayerCount: 2,
-		DeepstackMapping: []int32{0, 2, -1, 1},
+	granite := model.Spec{CommonSpec: model.CommonSpec{Architecture: "granite"}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2,
+		DeepstackMapping: []int32{0, 2, -1, 1}},
 	}
 	for _, test := range []struct {
 		layer uint32
@@ -290,7 +283,7 @@ func TestDeepstackLayerMapping(t *testing.T) {
 			t.Fatalf("Granite layer %d stream = %v, want %v/%v", test.layer, got, test.want, test.ok)
 		}
 	}
-	qwen := model.Spec{Architecture: "qwen3vl", DeepstackLayerCount: 2}
+	qwen := model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3vl"}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2}}
 	for layer, want := range []float32{20, 30} {
 		got := deepstackInputForLayer(qwen, uint32(layer), true, base, streams)
 		if got == nil || got.Data[0] != want {

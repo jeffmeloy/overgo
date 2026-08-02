@@ -13,9 +13,7 @@ func TestMistral3AttentionTemperatureInput(t *testing.T) {
 	builder := tensor.NewBuilder()
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	weights := model.LayerGraphWeights{}
-	spec := model.Spec{
-		Architecture: "mistral3", AttentionTempScale: 0.1, AttentionTempFloor: 8,
-	}
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "mistral3"}, AttentionSpec: model.AttentionSpec{AttentionTempScale: 0.1, AttentionTempFloor: 8}}
 	if err := addAttentionTemperatureInput(
 		builder, spec, []uint32{0, 7, 8, 16}, 0, feeds, &weights,
 	); err != nil {

@@ -97,6 +97,14 @@ claims:
         contains: "func (s *chatOutputStream) Accept("
       - path: internal/server/server_part3_test.go
         contains: "func TestStreamingResponsesFunctionCallLifecycle("
+  - id: architecture-profiles
+    status: implemented
+    summary: Model architectures use a central family and capability registry with grouped specifications.
+    evidence:
+      - path: internal/model/architecture.go
+        contains: "func LookupArchitecture("
+      - path: internal/model/architecture_test.go
+        contains: "func TestArchitectureRegistryProfiles("
   - id: reproducible-release
     status: implemented
     summary: Release archives are deterministic and compared across two builds.

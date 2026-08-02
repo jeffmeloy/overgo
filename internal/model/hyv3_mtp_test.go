@@ -9,11 +9,11 @@ import (
 
 func TestBuildHYV3MTPPipeline(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "hy_v3", BlockCount: 1, NextNPredictLayers: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "hy_v3", BlockCount: 1, NextNPredictLayers: 1,
 		EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4, RopeFrequencyBase: 10000},
 	}
 	token := builder.Input("token", dtype.F32, tensor.MustShape(8, 1))
 	hidden := builder.Input("hidden", dtype.F32, tensor.MustShape(8, 1))

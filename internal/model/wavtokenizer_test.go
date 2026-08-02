@@ -24,11 +24,12 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 		feeds[item] = reference.Value{Shape: shape, Data: data}
 		return item
 	}
-	spec := Spec{
-		Architecture: "wavtokenizer-dec", EmbeddingLength: 2, OutputEmbeddingLength: 3,
-		PosNetEmbeddingLength: 2, PosNetBlockCount: 6,
-		ConvNextEmbeddingLength: 2, ConvNextBlockCount: 1, FeedForwardLength: 4,
-		GroupNormGroups: 1, GroupNormEpsilon: 1e-5, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "wavtokenizer-dec", EmbeddingLength: 2, OutputEmbeddingLength: 3,
+
+		FeedForwardLength: 4,
+		LayerNormEpsilon:  1e-5}, MultimodalSpec: MultimodalSpec{PosNetEmbeddingLength: 2, PosNetBlockCount: 6,
+		ConvNextEmbeddingLength: 2, ConvNextBlockCount: 1,
+		GroupNormGroups: 1, GroupNormEpsilon: 1e-5},
 	}
 	weights := WavTokenizerGraphWeights{
 		InputConv:      input("conv1d.weight", tensor.MustShape(7, 2, 2), 0),

@@ -14,12 +14,11 @@ func TestBuildNormalRoPELongRoPEUsesFactorsAndAttentionScale(t *testing.T) {
 	for _, architecture := range []string{"llama", "llama-embed", "minicpm", "mistral3"} {
 		t.Run(architecture, func(t *testing.T) {
 			builder := tensor.NewBuilder()
-			spec := Spec{
-				Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
-				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+			spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
+
+				RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 				RopeDimensionCount: 4, RopeFrequencyBase: 10000,
-				RopeScalingType: "longrope", RopeAttentionFactor: 1.25,
-				RMSNormEpsilon: 1e-6,
+				RopeScalingType: "longrope", RopeAttentionFactor: 1.25},
 			}
 			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 			weights := denseBlockInputs(builder, spec)
@@ -57,13 +56,12 @@ func TestBuildNormalRoPEYaRNUsesFactors(t *testing.T) {
 	for _, architecture := range []string{"llama", "llama-embed", "minicpm", "mistral3"} {
 		t.Run(architecture, func(t *testing.T) {
 			builder := tensor.NewBuilder()
-			spec := Spec{
-				Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
-				HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+			spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
+
+				RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 				RopeDimensionCount: 4, RopeFrequencyBase: 10000,
 				RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 16,
-				YaRNExtFactor: 1, YaRNAttentionFactor: 0.9, YaRNBetaFast: 16, YaRNBetaSlow: 2,
-				RMSNormEpsilon: 1e-6,
+				YaRNExtFactor: 1, YaRNAttentionFactor: 0.9, YaRNBetaFast: 16, YaRNBetaSlow: 2},
 			}
 			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 			weights := denseBlockInputs(builder, spec)
@@ -101,12 +99,12 @@ func TestBuildNormalRoPEYaRNUsesFactors(t *testing.T) {
 
 func TestBuildDenseOLMo2PostNormalizedSlidingBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "olmo2",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "olmo2",
 		BlockCount:        4,
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
@@ -114,9 +112,9 @@ func TestBuildDenseOLMo2PostNormalizedSlidingBlock(t *testing.T) {
 		RopeFrequencySWA:  10000,
 		RopeScalingType:   "linear",
 		RopeScalingFactor: 4,
-		RMSNormEpsilon:    1e-6,
-		SlidingWindow:     1024,
-		SlidingPattern:    4,
+
+		SlidingWindow:  1024,
+		SlidingPattern: 4},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -202,19 +200,19 @@ func TestBuildDenseSmolLM3SkipsPeriodicRoPE(t *testing.T) {
 		{3, 0},
 	} {
 		builder := tensor.NewBuilder()
-		spec := Spec{
-			Architecture:      "smollm3",
+		spec := Spec{CommonSpec: CommonSpec{Architecture: "smollm3",
 			BlockCount:        36,
 			EmbeddingLength:   8,
 			FeedForwardLength: 12,
-			HeadCount:         2,
+
+			RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
 			HeadCountKV:       1,
 			KeyLength:         4,
 			ValueLength:       4,
 			RopeFrequencyBase: 10000,
 			AttentionScale:    0.25,
-			RMSNormEpsilon:    1e-6,
-			NoRopeLayerStep:   4,
+
+			NoRopeLayerStep: 4},
 		}
 		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 		weights := denseBlockInputs(builder, spec)
@@ -257,17 +255,16 @@ func TestBuildDenseSmolLM3SkipsPeriodicRoPE(t *testing.T) {
 
 func TestBuildDenseMiniCPMScalesResidualBranches(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "minicpm",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "minicpm",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		ResidualScale:  0.25,
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-		ResidualScale:     0.25,
-		RMSNormEpsilon:    1e-6,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -295,19 +292,19 @@ func TestBuildDenseMiniCPMScalesResidualBranches(t *testing.T) {
 
 func TestBuildDenseGraniteHonorsRoPESwitchAndScales(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "granite",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "granite",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		ResidualScale:  0.5,
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
 		RopeFrequencyBase: 10000,
 		AttentionScale:    0.25,
-		ResidualScale:     0.5,
-		RMSNormEpsilon:    1e-6,
-		RopeDisabled:      true,
+
+		RopeDisabled: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -342,16 +339,15 @@ func TestBuildDenseGraniteHonorsRoPESwitchAndScales(t *testing.T) {
 
 func TestBuildDenseMaincoderNormalizesQKAfterRoPE(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "maincoder",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "maincoder",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-		RMSNormEpsilon:    1e-6,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -382,16 +378,15 @@ func TestBuildDenseMaincoderNormalizesQKAfterRoPE(t *testing.T) {
 
 func TestBuildDenseOrionUsesAffineLayerNorm(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "orion",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "orion",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-		LayerNormEpsilon:  1e-5,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -423,16 +418,15 @@ func TestBuildDenseOrionUsesAffineLayerNorm(t *testing.T) {
 
 func TestBuildDenseStarCoder2UsesSequentialGELU(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "starcoder2",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "starcoder2",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-		LayerNormEpsilon:  1e-5,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -482,16 +476,15 @@ func TestBuildDenseStarCoder2UsesSequentialGELU(t *testing.T) {
 
 func TestBuildDenseCodeShellUsesSequentialGELU(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "codeshell",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "codeshell",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-		LayerNormEpsilon:  1e-5,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1))
 	weights := denseBlockInputs(builder, spec)
@@ -522,16 +515,15 @@ func TestBuildDenseCodeShellUsesSequentialGELU(t *testing.T) {
 
 func TestBuildDenseBaichuan7BUsesNormalRoPE(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "baichuan",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "baichuan",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       2,
 		KeyLength:         4,
 		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-		RMSNormEpsilon:    1e-6,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	output, err := BuildDenseBlock(
@@ -564,10 +556,10 @@ func TestBuildDenseBaichuan7BUsesNormalRoPE(t *testing.T) {
 
 func TestBuildDenseBaichuan13BUsesALiBi(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "baichuan", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
-		RMSNormEpsilon: 1e-6, RopeDisabled: true, MaxALiBiBias: 8,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "baichuan", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDisabled: true, MaxALiBiBias: 8},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	output, err := BuildDenseBlock(
@@ -597,17 +589,17 @@ func TestBuildDenseBaichuan13BUsesALiBi(t *testing.T) {
 
 func TestBuildDenseArceeUsesSquaredReLU(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "arcee",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "arcee",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
 		RopeFrequencyBase: 10000,
-		RMSNormEpsilon:    1e-5,
-		AttentionScale:    0.25,
+
+		AttentionScale: 0.25},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -642,16 +634,15 @@ func TestBuildDenseArceeUsesSquaredReLU(t *testing.T) {
 
 func TestBuildDenseNemotronUsesAffineNormAndSquaredReLU(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture:      "nemotron",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "nemotron",
 		EmbeddingLength:   8,
 		FeedForwardLength: 12,
-		HeadCount:         2,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
 		HeadCountKV:       1,
 		KeyLength:         4,
 		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-		LayerNormEpsilon:  1e-5,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -689,10 +680,10 @@ func TestBuildDenseNemotronUsesAffineNormAndSquaredReLU(t *testing.T) {
 
 func TestBuildDenseJais2UsesBiasesAndSquaredReLU(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "jais2", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "jais2", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -731,10 +722,10 @@ func TestBuildDenseJais2UsesBiasesAndSquaredReLU(t *testing.T) {
 
 func TestBuildDenseJaisUsesBiasedFusedQKVAndALiBi(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "jais", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
-		RopeDisabled: true, AttentionScale: 0.25, MaxALiBiBias: 8, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "jais", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+		RopeDisabled: true, AttentionScale: 0.25, MaxALiBiBias: 8},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -779,10 +770,10 @@ func TestBuildDenseJaisUsesBiasedFusedQKVAndALiBi(t *testing.T) {
 
 func TestBuildDenseOLMoUsesUnweightedLayerNorm(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "olmo", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "olmo", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -820,10 +811,10 @@ func TestBuildDenseOLMoUsesUnweightedLayerNorm(t *testing.T) {
 
 func TestBuildDenseSeedOSSUsesNeoXAndAttentionScale(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "seed_oss", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5, AttentionScale: 0.25,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "seed_oss", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeFrequencyBase: 10000, AttentionScale: 0.25},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	output, err := BuildDenseBlock(builder, input, spec, denseBlockInputs(builder, spec), []uint32{0, 1})
@@ -858,13 +849,14 @@ func TestBuildDenseCohere2UsesParallelResidualAndPartialSlidingRoPE(t *testing.T
 		{layer: 3, wantRoPE: 0, wantWindow: 0},
 	} {
 		builder := tensor.NewBuilder()
-		spec := Spec{
-			Architecture: "cohere2", BlockCount: 4, EmbeddingLength: 8,
-			FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		spec := Spec{CommonSpec: CommonSpec{Architecture: "cohere2", BlockCount: 4, EmbeddingLength: 8,
+			FeedForwardLength: 12,
+
+			LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
 			RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
-			LayerNormEpsilon: 1e-5, SlidingWindow: 128,
-			SlidingPattern: 4, NoRopeLayerStep: 4,
+			SlidingWindow:  128,
+			SlidingPattern: 4, NoRopeLayerStep: 4},
 		}
 		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 		weights := denseBlockInputs(builder, spec)
@@ -918,16 +910,17 @@ func TestBuildDenseCohere2UsesParallelResidualAndPartialSlidingRoPE(t *testing.T
 
 func TestBuildCohere2MoEBlockFusedExpertsAndSharedBranch(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "cohere2moe", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "cohere2moe", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
-		RMSNormEpsilon: 1e-5, SlidingWindow: 128,
-		SlidingLayers: []bool{false, true}, LeadingDenseBlocks: 1,
+		SlidingWindow: 128,
+		SlidingLayers: []bool{false, true}}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
 		ExpertGatingFunc: 2, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
-		SharedExpertCount: 1, SharedExpertFF: 6,
+		SharedExpertCount: 1, SharedExpertFF: 6},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -990,14 +983,14 @@ func TestBuildCohere2MoEBlockFusedExpertsAndSharedBranch(t *testing.T) {
 
 func TestBuildHYV3MoEBlockFusedExpertsAndPreRoPEQKNorm(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "hy_v3", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "hy_v3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
 		ExpertGatingFunc: 2, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
-		SharedExpertFF: 6,
+		SharedExpertFF: 6},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -1051,13 +1044,13 @@ func TestBuildHYV3MoEBlockFusedExpertsAndPreRoPEQKNorm(t *testing.T) {
 
 func TestBuildDeepSeek2OCRMoEBlockUsesSplitQKVAndSharedExpert(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "deepseek2-ocr", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "deepseek2-ocr", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertGatingFunc: 1, ExpertWeightsScale: 1, SharedExpertFF: 12,
+		RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		ExpertGatingFunc: 1, ExpertWeightsScale: 1, SharedExpertFF: 12},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -1112,14 +1105,14 @@ func TestBuildDeepSeek2OCRMoEBlockUsesSplitQKVAndSharedExpert(t *testing.T) {
 
 func TestBuildErnie45MoEBlockUsesBiasedUngatedExpertsAndSharedBranch(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
 		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
-		LeadingDenseBlocks: 1, MoELayerStep: 2, SharedExpertFF: 5,
+		LeadingDenseBlocks: 1, MoELayerStep: 2, SharedExpertFF: 5},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -1182,11 +1175,11 @@ func TestBuildQwen3VLBlockUsesQKNormAndMRoPE(t *testing.T) {
 
 func TestBuildQwen3VLBlockUsesDistinctMRoPEPositions(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "qwen3vl", EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "qwen3vl", EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-6,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1223,13 +1216,11 @@ func TestBuildQwen3VLBlockUsesDistinctMRoPEPositions(t *testing.T) {
 
 func TestBuildQwen3VLMoEBlockUsesQKNormMRoPEAndNormalizedExperts(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "qwen3vlmoe", EmbeddingLength: 8, FeedForwardLength: 24,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1.25,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "qwen3vlmoe", EmbeddingLength: 8, FeedForwardLength: 24,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
-		RopeFrequencyBase: 10000, RopeScalingType: "linear", RopeScalingFactor: 4,
-		RMSNormEpsilon: 1e-6,
+		RopeFrequencyBase: 10000, RopeScalingType: "linear", RopeScalingFactor: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1.25},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1272,12 +1263,11 @@ func TestBuildQwen3VLMoEBlockUsesQKNormMRoPEAndNormalizedExperts(t *testing.T) {
 
 func testBuildMRoPETextDecoderBlock(t *testing.T, architecture string) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
-		RopeFrequencyBase: 10000, RopeScalingType: "linear", RopeScalingFactor: 4,
-		RMSNormEpsilon: 1e-6,
+		RopeFrequencyBase: 10000, RopeScalingType: "linear", RopeScalingFactor: 4},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1319,11 +1309,11 @@ func testBuildMRoPETextDecoderBlock(t *testing.T, architecture string) {
 
 func TestBuildDenseCommandR64UsesParallelResidualAndQKNorms(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "command-r", BlockCount: 64, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 8000000,
-		LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "command-r", BlockCount: 64, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 8000000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1366,11 +1356,11 @@ func TestBuildDenseCommandR64UsesParallelResidualAndQKNorms(t *testing.T) {
 
 func TestBuildDensePLaMoUsesParallelResidualAndNeoX(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "plamo", BlockCount: 40, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10000,
-		RMSNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "plamo", BlockCount: 40, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1410,14 +1400,14 @@ func TestBuildDensePLaMoUsesParallelResidualAndNeoX(t *testing.T) {
 
 func TestBuildDensePLaMo3UsesPreRoPEQKNormPostNormAndFusedSwiGLU(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "plamo3", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "plamo3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 2, ValueLength: 2, RopeDimensionCount: 2,
 		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
-		RMSNormEpsilon: 1e-6, SlidingWindow: 128, SlidingPattern: 2,
-		LayerHeadCounts: []uint32{2, 4}, LayerKVHeadCounts: []uint32{1, 2},
-		LayerFeedForward: []uint32{12, 16},
+		SlidingWindow: 128, SlidingPattern: 2,
+		LayerHeadCounts: []uint32{2, 4}, LayerKVHeadCounts: []uint32{1, 2}}, MoESpec: MoESpec{LayerFeedForward: []uint32{12, 16}},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -1470,11 +1460,12 @@ func TestBuildDensePLaMo3UsesPreRoPEQKNormPostNormAndFusedSwiGLU(t *testing.T) {
 func TestBuildDenseStableLMOptionalNormLayouts(t *testing.T) {
 	for _, sequential := range []bool{false, true} {
 		builder := tensor.NewBuilder()
-		spec := Spec{
-			Architecture: "stablelm", BlockCount: 40, EmbeddingLength: 8,
-			FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
+		spec := Spec{CommonSpec: CommonSpec{Architecture: "stablelm", BlockCount: 40, EmbeddingLength: 8,
+			FeedForwardLength: 12,
+
+			LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
-			RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+			RopeFrequencyBase: 10000},
 		}
 		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 		weights := denseBlockInputs(builder, spec)
@@ -1530,11 +1521,12 @@ func TestBuildDenseStableLMOptionalNormLayouts(t *testing.T) {
 
 func TestBuildDensePhi2FusedQKVAndQueryScale(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "phi2", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "phi2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
-		RopeFrequencyBase: 10000, LayerNormEpsilon: 1e-5,
+		RopeFrequencyBase: 10000},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1600,12 +1592,13 @@ func TestBuildDensePhi2FusedQKVAndQueryScale(t *testing.T) {
 
 func TestBuildDensePhi3FusedProjectionsAndLongRoPE(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "phi3", BlockCount: 1, ContextLength: 128,
-		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 12,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "phi3", BlockCount: 1, ContextLength: 128,
+		EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{OriginalContextLength: 32,
 		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
-		RopeScalingType: "longrope", RopeAttentionFactor: 1.25, RMSNormEpsilon: 1e-5,
+		RopeScalingType: "longrope", RopeAttentionFactor: 1.25},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1654,13 +1647,14 @@ func TestBuildDensePhi3FusedProjectionsAndLongRoPE(t *testing.T) {
 
 func TestBuildDensePhiMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "phimoe", BlockCount: 1, ContextLength: 128,
-		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 12,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "phimoe", BlockCount: 1, ContextLength: 128,
+		EmbeddingLength: 8, FeedForwardLength: 12,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{OriginalContextLength: 32,
+
 		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000,
-		RopeScalingType: "longrope", RopeAttentionFactor: 1.25, RMSNormEpsilon: 1e-5,
+		RopeScalingType: "longrope", RopeAttentionFactor: 1.25}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 12, ExpertWeightsScale: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	attentionNormBias := builder.Input("attn_norm_bias", dtype.F32, tensor.MustShape(8))
@@ -1714,13 +1708,12 @@ func TestBuildDensePhiMoEBlock(t *testing.T) {
 
 func TestBuildDenseEXAOneMoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "exaone-moe", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 16,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.5,
-		SharedExpertFF: 12, ExpertGatingFunc: 2, ExpertWeightsNorm: true,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "exaone-moe", BlockCount: 4, EmbeddingLength: 8, FeedForwardLength: 16,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 500000,
-		SlidingWindow: 128, SlidingPattern: 4, RMSNormEpsilon: 1e-6,
+		SlidingWindow: 128, SlidingPattern: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.5,
+		SharedExpertFF: 12, ExpertGatingFunc: 2, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -1770,15 +1763,15 @@ func TestBuildDenseEXAOneMoEBlock(t *testing.T) {
 
 func TestBuildSmallThinkerUsesSplitRouterReGLUAndSlidingRoPE(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "smallthinker", BlockCount: 4, EmbeddingLength: 8,
-		FeedForwardLength: 6, ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2,
-		ExpertWeightsNorm: true, HeadCount: 2, HeadCountKV: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "smallthinker", BlockCount: 4, EmbeddingLength: 8,
+		FeedForwardLength: 6,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
-		SlidingWindow: 128, SlidingPattern: 4, NoRopeLayerStep: 4,
-		RMSNormEpsilon: 1e-6,
+		SlidingWindow: 128, SlidingPattern: 4, NoRopeLayerStep: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2,
+		ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{

@@ -41,11 +41,12 @@ func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 		seed += 2
 		return item
 	}
-	spec := model.Spec{
-		Architecture: "wavtokenizer-dec", EmbeddingLength: 2, OutputEmbeddingLength: 3,
-		PosNetEmbeddingLength: 2, PosNetBlockCount: 6,
-		ConvNextEmbeddingLength: 2, ConvNextBlockCount: 1, FeedForwardLength: 4,
-		GroupNormGroups: 1, GroupNormEpsilon: 1e-5, LayerNormEpsilon: 1e-5,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "wavtokenizer-dec", EmbeddingLength: 2, OutputEmbeddingLength: 3,
+
+		FeedForwardLength: 4,
+		LayerNormEpsilon:  1e-5}, MultimodalSpec: model.MultimodalSpec{PosNetEmbeddingLength: 2, PosNetBlockCount: 6,
+		ConvNextEmbeddingLength: 2, ConvNextBlockCount: 1,
+		GroupNormGroups: 1, GroupNormEpsilon: 1e-5},
 	}
 	weights := model.WavTokenizerGraphWeights{
 		InputConv:      input(tensor.MustShape(7, 2, 2), 0.03, -0.1),
@@ -117,11 +118,12 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 		seed += 2
 		return item
 	}
-	spec := model.Spec{
-		Architecture: "dflash", EmbeddingLength: 4, FeedForwardLength: 6,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
-		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
-		NonCausalAttention: true, TargetLayers: []int32{1, 3},
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "dflash", EmbeddingLength: 4, FeedForwardLength: 6,
+
+		RMSNormEpsilon: 1e-5,
+		TargetLayers:   []int32{1, 3}}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		NonCausalAttention: true},
 	}
 	features := input("features", tensor.MustShape(8, 2), 0.08, -0.1)
 	projection := input("fc", tensor.MustShape(8, 4), 0.03, -0.1)
@@ -182,11 +184,11 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 		seed += 2
 		return item
 	}
-	spec := model.Spec{
-		Architecture: "eagle3", EmbeddingLength: 4, TargetHiddenSize: 3,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "eagle3", EmbeddingLength: 4, TargetHiddenSize: 3,
 		TargetLayers: []int32{1, 3, 5}, FeedForwardLength: 6,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
-		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000},
 	}
 	features := input("features", tensor.MustShape(9, 3), 0.08, -0.1)
 	projection := input("fc", tensor.MustShape(9, 4), 0.03, -0.1)
@@ -241,14 +243,15 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 		seed += 2
 		return item
 	}
-	spec := model.Spec{
-		Architecture: "gemma4-assistant", BlockCount: 2, EmbeddingLength: 4,
-		TargetHiddenSize: 6, FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4-assistant", BlockCount: 2, EmbeddingLength: 4,
+		TargetHiddenSize: 6, FeedForwardLength: 6,
+
+		RMSNormEpsilon: 1e-5,
+		VocabularySize: 8}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, KeyLengthSWA: 2, ValueLengthSWA: 2,
 		RopeDimensionCount: 4, RopeDimensionSWA: 2,
 		RopeFrequencyBase: 10000, RopeFrequencySWA: 1000,
-		RMSNormEpsilon: 1e-5, SlidingWindow: 2, SlidingLayers: []bool{true, false},
-		VocabularySize: 8,
+		SlidingWindow: 2, SlidingLayers: []bool{true, false}},
 	}
 	targetToken := input("target_token", tensor.MustShape(6, 1), 0.06, -0.1)
 	targetHidden := input("target_hidden", tensor.MustShape(6, 1), 0.05, 0.2)
@@ -320,12 +323,12 @@ func TestExecutorGemma3nActiveStageMatchesReference(t *testing.T) {
 		seed += 2
 		return item
 	}
-	spec := model.Spec{
-		Architecture: "gemma3n", BlockCount: 21, EmbeddingLength: 4,
-		FeedForwardLength: 6, HeadCount: 2, HeadCountKV: 1,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma3n", BlockCount: 21, EmbeddingLength: 4,
+		FeedForwardLength: 6,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 2, ValueLength: 2, RopeDimensionCount: 2,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
-		KVFromStart: 20, SharedKVLayers: 1,
+		RopeFrequencyBase: 10000}, MultimodalSpec: model.MultimodalSpec{KVFromStart: 20, SharedKVLayers: 1},
 	}
 	weights := model.LayerGraphWeights{
 		AttentionNorm:       input("attn_norm", tensor.MustShape(4), 0.03, 0.9),

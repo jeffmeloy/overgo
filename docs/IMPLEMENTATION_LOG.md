@@ -1600,6 +1600,19 @@ and argument fragments as generation pieces arrive across OpenAI Chat,
 OpenAI Responses, and Anthropic protocols. The complete parser still validates
 the final function names, JSON, schemas, and call sequence before completion.
 
+Architecture support now has one registry covering every accepted GGUF
+architecture. Profiles expose primary attention, MoE, recurrent, hybrid,
+encoder, encoder-decoder, diffusion, and draft families plus orthogonal
+position, normalization, multimodal, and execution capabilities. Spec parsing
+and shared inference predicates use the profiles instead of duplicated family
+lists.
+
+Model metadata is grouped into embedded common, attention, MoE, recurrent,
+encoder, and multimodal sub-specifications. Promoted field access preserves
+runtime behavior, while keyed internal construction names the owning sub-spec
+explicitly. The complete model, inference, server, and CUDA executor suites
+pass the migration.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

@@ -8,6 +8,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 
 | ID | State | Claim | Evidence |
 | --- | --- | --- | --- |
+| `architecture-profiles` | implemented | Model architectures use a central family and capability registry with grouped specifications. | [`func LookupArchitecture(`](../internal/model/architecture.go)<br>[`func TestArchitectureRegistryProfiles(`](../internal/model/architecture_test.go) |
 | `bounded-gguf-parsing` | implemented | GGUF parsing applies allocation, count, alignment, and split limits. | [`func OpenWithOptions(`](../internal/gguf/reader.go)<br>[`func TestParseEnforcesLimits(`](../internal/gguf/reader_test.go) |
 | `bounded-server-media` | implemented | Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels. | [`func validateMultimodalImages(`](../internal/server/server.go)<br>[`func TestValidateMultimodalImagesEnforcesGeometryBudgets(`](../internal/server/server_test.go) |
 | `constrained-generation` | implemented | GBNF and JSON Schema constraints match pinned upstream corpora. | [`func NewGBNFGrammar(`](../internal/sampling/gbnf.go)<br>[`func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(`](../internal/sampling/json_schema_test.go) |

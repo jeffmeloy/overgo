@@ -9,16 +9,18 @@ import (
 
 func TestBuildCohere2MTPPipeline(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "cohere2moe", BlockCount: 2, NextNPredictLayers: 1,
-		EmbeddingLength: 8, HeadCount: 2, HeadCountKV: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "cohere2moe", BlockCount: 2, NextNPredictLayers: 1,
+		EmbeddingLength: 8,
+
+		RMSNormEpsilon: 1e-5,
+
+		VocabularySize: 32, LogitScale: 0.5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
-		RMSNormEpsilon: 1e-5, SlidingWindow: 128,
-		SlidingLayers: []bool{false, true}, LeadingDenseBlocks: 1,
+		SlidingWindow: 128,
+		SlidingLayers: []bool{false, true}}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertGatingFunc: 2, ExpertWeightsScale: 1, SharedExpertCount: 1, SharedExpertFF: 6,
-		VocabularySize: 32, LogitScale: 0.5,
+		ExpertGatingFunc: 2, ExpertWeightsScale: 1, SharedExpertCount: 1, SharedExpertFF: 6},
 	}
 	input := builder.Input("token", dtype.F32, tensor.MustShape(8, 2))
 	hidden := builder.Input("hidden", dtype.F32, tensor.MustShape(8, 2))

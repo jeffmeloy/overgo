@@ -8,153 +8,6 @@ import (
 	"llamacpp2go/internal/gguf"
 )
 
-// Spec: contains common transformer metadata needed to construct model
-type Spec struct {
-	Architecture            string
-	Name                    string
-	BlockCount              uint32
-	ContextLength           uint32
-	EmbeddingLength         uint32
-	FeedForwardLength       uint32
-	HeadCount               uint32
-	HeadCountKV             uint32
-	KeyLength               uint32
-	ValueLength             uint32
-	KeyLengthSWA            uint32
-	ValueLengthSWA          uint32
-	RopeFrequencyBase       float32
-	RopeFrequencySWA        float32
-	RopeScalingType         string
-	RopeScalingFactor       float32
-	RopeAttentionFactor     float32
-	RopeYaRNLogMultiplier   float32
-	OriginalContextLength   uint32
-	AttentionScale          float32
-	AttentionTempScale      float32
-	AttentionTempFloor      uint32
-	AttentionTempOffset     float32
-	AttentionValueScale     float32
-	AttentionClamp          float32
-	MaxALiBiBias            float32
-	EmbeddingScale          float32
-	ResidualScale           float32
-	LogitScale              float32
-	AttentionSoftcap        float32
-	FinalLogitSoftcap       float32
-	RMSNormEpsilon          float32
-	LayerNormEpsilon        float32
-	VocabularySize          uint32
-	TokenTypeCount          uint32
-	ExpertCount             uint32
-	ExpertUsedCount         uint32
-	ExpertFeedForward       uint32
-	MoELatentSize           uint32
-	ExpertChunkFeedForward  uint32
-	ExpertWeightsScale      float32
-	ExpertGroupScale        float32
-	ExpertsPerGroup         uint32
-	LeadingDenseBlocks      uint32
-	MoELayerStep            uint32
-	SharedExpertFF          uint32
-	SharedExpertCount       uint32
-	ExpertGatingFunc        uint32
-	ExpertWeightsNorm       bool
-	ShortConvCacheLength    uint32
-	QLoRARank               uint32
-	KVLoRARank              uint32
-	QKNormEpsilon           float32
-	SlidingWindow           uint32
-	SlidingPattern          uint32
-	RelativeBuckets         uint32
-	DecoderBlockCount       uint32
-	DecoderStartTokenID     uint32
-	OutputEmbeddingLength   uint32
-	PosNetEmbeddingLength   uint32
-	PosNetBlockCount        uint32
-	ConvNextEmbeddingLength uint32
-	ConvNextBlockCount      uint32
-	GroupNormGroups         uint32
-	GroupNormEpsilon        float32
-	DFlashBlockSize         uint32
-	NextNPredictLayers      uint32
-	TargetLayers            []int32
-	TargetHiddenSize        uint32
-	NormBeforeResidual      bool
-	NoRopeLayerStep         uint32
-	HiddenActivation        string
-	Dense2FeatureIn         uint32
-	Dense2FeatureOut        uint32
-	Dense3FeatureIn         uint32
-	Dense3FeatureOut        uint32
-	PoolingType             uint32
-	ClassifierLabels        []string
-	RopeDisabled            bool
-	ParallelResidual        bool
-	NonCausalAttention      bool
-	SandwichNorm            bool
-	YaRNExtFactor           float32
-	YaRNAttentionFactor     float32
-	YaRNBetaFast            float32
-	YaRNBetaSlow            float32
-	RopeDimensionSWA        uint32
-	LayerHeadCounts         []uint32
-	LayerKVHeadCounts       []uint32
-	LayerFeedForward        []uint32
-	SlidingLayers           []bool
-	LayerSwiGLUClamp        []float32
-	LayerSharedSwiGLUClamp  []float32
-	XIELUAlphaN             []float32
-	XIELUAlphaP             []float32
-	XIELUBeta               []float32
-	XIELUEpsilon            []float32
-
-	// Qwen3.5 hybrid recurrent-attention metadata
-	RopeDimensionCount    uint32
-	RopeSections          [4]int32
-	SSMConvKernel         uint32
-	SSMInnerSize          uint32
-	SSMStateSize          uint32
-	SSMTimeStepRank       uint32
-	SSMGroupCount         uint32
-	KDAHeadDim            uint32
-	SSMDtBCNorm           bool
-	FullAttentionInterval uint32
-	DeepstackLayerCount   uint32
-	DeepstackMapping      []int32
-	EmbeddingPerLayer     uint32
-	SharedKVLayers        uint32
-	KVFromStart           uint32
-	AltUpCount            uint32
-	AltUpActive           uint32
-	LaurelRank            uint32
-	SparseLayerCount      uint32
-	SparsityStdMultiplier float32
-	RecurrentLayers       []bool
-	IndexerHeadCount      uint32
-	IndexerKeyLength      uint32
-	IndexerTopK           uint32
-	IndexerFullLayers     []bool
-	AttentionOutputGroups uint32
-	AttentionOutputRank   uint32
-	CompressRopeBase      float32
-	CompressRatios        []uint32
-	HyperConnectionCount  uint32
-	HyperSinkhornIters    uint32
-	HyperConnectionEps    float32
-	HashLayerCount        uint32
-
-	// RWKV recurrent metadata
-	WKVHeadSize       uint32
-	TimeMixExtraDim   uint32
-	TimeDecayExtraDim uint32
-	RescaleEvery      uint32
-	TokenShiftCount   uint32
-	DecayLoRARank     uint32
-	ICLRLoRARank      uint32
-	ValueMixLoRARank  uint32
-	GateLoRARank      uint32
-}
-
 // UnsupportedArchitectureError: identifies valid GGUF architecture that
 // runtime cannot execute yet
 type UnsupportedArchitectureError struct {
@@ -162,16 +15,18 @@ type UnsupportedArchitectureError struct {
 }
 
 func isDeepSeek2Family(architecture string) bool {
-	return architecture == "deepseek2" || architecture == "deepseek32" || architecture == "mistral4"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureDeepSeek2)
 }
 
 func isDSAArchitecture(architecture string) bool {
-	return architecture == "deepseek32" || architecture == "glm-dsa"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureDSA)
 }
 
 func isMLAArchitecture(architecture string) bool {
-	return architecture == "plm" || architecture == "minicpm3" ||
-		isDeepSeek2Family(architecture) || architecture == "glm-dsa"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureMLA)
 }
 
 // LayerHasFullIndexer: DSA full-indexer predicate.
@@ -197,140 +52,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
-	if architecture != "llama" && architecture != "llama4" && architecture != "llama-embed" && architecture != "internlm2" && architecture != "jais" &&
-		architecture != "arcee" &&
-		architecture != "apertus" &&
-		architecture != "arctic" &&
-		architecture != "baichuan" &&
-		architecture != "bailingmoe" &&
-		architecture != "bailingmoe2" &&
-		architecture != "bert" &&
-		architecture != "bitnet" &&
-		architecture != "bloom" &&
-		architecture != "codeshell" &&
-		architecture != "chameleon" &&
-		architecture != "chatglm" &&
-		architecture != "cogvlm" &&
-		architecture != "dream" &&
-		architecture != "deepseek" &&
-		architecture != "deepseek2" &&
-		architecture != "deepseek32" &&
-		architecture != "deepseek4" &&
-		architecture != "deepseek2-ocr" &&
-		architecture != "glm-dsa" &&
-		architecture != "deci" &&
-		architecture != "dbrx" &&
-		architecture != "dots1" &&
-		architecture != "ernie4_5" &&
-		architecture != "ernie4_5-moe" &&
-		architecture != "eurobert" &&
-		architecture != "cohere2" &&
-		architecture != "cohere2moe" &&
-		architecture != "command-r" &&
-		architecture != "jais2" &&
-		architecture != "afmoe" &&
-		architecture != "laguna" &&
-		architecture != "lfm2" &&
-		architecture != "lfm2moe" &&
-		architecture != "llada" &&
-		architecture != "llada-moe" &&
-		architecture != "xverse" &&
-		architecture != "exaone" && architecture != "olmo2" &&
-		architecture != "exaone4" &&
-		architecture != "exaone-moe" &&
-		architecture != "smollm3" &&
-		architecture != "smallthinker" &&
-		architecture != "minicpm" &&
-		architecture != "minicpm3" &&
-		architecture != "minimax-m2" &&
-		architecture != "mimo2" &&
-		architecture != "step35" &&
-		architecture != "granite" &&
-		architecture != "granitehybrid" &&
-		architecture != "granitemoe" &&
-		architecture != "glm4" &&
-		architecture != "glm4moe" &&
-		architecture != "gpt2" &&
-		architecture != "gpt-oss" &&
-		architecture != "gptneox" &&
-		architecture != "grovemoe" &&
-		architecture != "grok" &&
-		architecture != "hunyuan-dense" &&
-		architecture != "hunyuan_vl" &&
-		architecture != "hunyuan-moe" &&
-		architecture != "hy_v3" &&
-		architecture != "jamba" &&
-		architecture != "jina-bert-v2" &&
-		architecture != "jina-bert-v3" &&
-		architecture != "maincoder" &&
-		architecture != "mamba" &&
-		architecture != "mamba2" &&
-		architecture != "mellum" &&
-		architecture != "mistral3" &&
-		architecture != "mistral4" &&
-		architecture != "modern-bert" &&
-		architecture != "mpt" &&
-		architecture != "nemotron" &&
-		architecture != "nemotron_h" &&
-		architecture != "nemotron_h_moe" &&
-		architecture != "neo-bert" &&
-		architecture != "nomic-bert" &&
-		architecture != "nomic-bert-moe" &&
-		architecture != "olmo" &&
-		architecture != "olmoe" &&
-		architecture != "openelm" &&
-		architecture != "orion" &&
-		architecture != "paddleocr" &&
-		architecture != "pangu-embedded" &&
-		architecture != "phi2" &&
-		architecture != "phi3" &&
-		architecture != "phimoe" &&
-		architecture != "plamo" &&
-		architecture != "plamo2" &&
-		architecture != "plamo3" &&
-		architecture != "plm" &&
-		architecture != "qwen" &&
-		architecture != "seed_oss" &&
-		architecture != "stablelm" &&
-		architecture != "starcoder" &&
-		architecture != "starcoder2" &&
-		architecture != "qwen2" &&
-		architecture != "qwen3" &&
-		architecture != "qwen3moe" &&
-		architecture != "qwen2moe" &&
-		architecture != "qwen2vl" &&
-		architecture != "qwen3vl" &&
-		architecture != "qwen3vlmoe" &&
-		architecture != "qwen3next" && architecture != "qwen35" && architecture != "qwen35moe" && architecture != "gemma" && architecture != "gemma-embedding" &&
-		architecture != "kimi-linear" &&
-		architecture != "refact" &&
-		architecture != "rnd1" &&
-		architecture != "rwkv6" &&
-		architecture != "rwkv6qwen2" &&
-		architecture != "rwkv7" &&
-		architecture != "arwkv7" &&
-		architecture != "gemma2" &&
-		architecture != "gemma3" && architecture != "gemma3n" && architecture != "gemma4" && architecture != "gemma4-assistant" &&
-		architecture != "falcon" &&
-		architecture != "falcon-h1" &&
-		architecture != "talkie" &&
-		architecture != "t5" &&
-		architecture != "t5encoder" &&
-		architecture != "wavtokenizer-dec" &&
-		architecture != "dflash" &&
-		architecture != "eagle3" {
+	profile, supported := LookupArchitecture(architecture)
+	if !supported {
 		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
 	}
-	spec := Spec{Architecture: architecture}
-	if architecture == "bert" || architecture == "dream" || architecture == "eurobert" || architecture == "gemma-embedding" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "llada" || architecture == "llada-moe" || architecture == "llama-embed" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "rnd1" || architecture == "wavtokenizer-dec" || architecture == "dflash" {
-		spec.NonCausalAttention = true
-	}
-	if architecture == "bert" || architecture == "jina-bert-v2" {
-		spec.RopeDisabled = true
-	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "rwkv6" || architecture == "rwkv6qwen2" || architecture == "rwkv7" || architecture == "arwkv7" || architecture == "t5" || architecture == "wavtokenizer-dec" ||
-		architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
-		spec.RopeDisabled = true
+	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture}, AttentionSpec: AttentionSpec{NonCausalAttention: profile.Has(ArchitectureNonCausal),
+		RopeDisabled: profile.Has(ArchitectureRoPEDisabled)},
 	}
 	if architecture == "chameleon" {
 		spec.QKNormEpsilon = 1e-5
@@ -2872,14 +2599,7 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) IsEncoderOnly() bool {
-	return s.Architecture == "bert" || s.Architecture == "eurobert" || s.Architecture == "jina-bert-v2" || s.Architecture == "jina-bert-v3" ||
-		s.Architecture == "gemma-embedding" ||
-		s.Architecture == "llama-embed" ||
-		s.Architecture == "modern-bert" ||
-		s.Architecture == "neo-bert" || s.Architecture == "nomic-bert" ||
-		s.Architecture == "nomic-bert-moe" ||
-		s.Architecture == "t5encoder" ||
-		s.Architecture == "wavtokenizer-dec"
+	return s.Profile().Has(ArchitectureEncoderOnly)
 }
 
 func (s Spec) UsesLayerNorm() bool {
@@ -4226,70 +3946,38 @@ func (s Spec) validate() error {
 }
 
 func isGemmaArchitecture(architecture string) bool {
-	return architecture == "gemma" || architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureGemma)
 }
 
 func hasPostNorm(architecture string) bool {
-	return architecture == "afmoe" || architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4" || architecture == "gemma2" ||
-		architecture == "gemma-embedding" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "glm4" || architecture == "grok" || architecture == "plamo2" || architecture == "plamo3"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitecturePostNorm)
 }
 
 func usesSlidingAttention(architecture string) bool {
-	return architecture == "afmoe" || (architecture == "gemma-embedding" || architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "gemma4-assistant") ||
-		architecture == "exaone4" || architecture == "exaone-moe" || architecture == "gpt-oss" || architecture == "llama4" || architecture == "olmo2" ||
-		architecture == "cohere2" || architecture == "cohere2moe" || architecture == "mellum" || architecture == "mimo2" ||
-		architecture == "plamo3" || architecture == "smallthinker" || architecture == "step35" || architecture == "dflash"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureSlidingAttention)
 }
 
 func usesPostOnlyNorm(architecture string) bool {
-	return architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" || architecture == "exaone4"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitecturePostOnlyNorm)
 }
 
 func usesNormalRoPE(architecture string) bool {
-	return architecture == "llama" || architecture == "llama4" || architecture == "gpt-oss" || architecture == "llama-embed" || architecture == "eagle3" ||
-		architecture == "arctic" ||
-		architecture == "deci" ||
-		architecture == "llada" ||
-		architecture == "internlm2" ||
-		architecture == "arcee" ||
-		architecture == "baichuan" ||
-		architecture == "bailingmoe" ||
-		architecture == "deepseek" ||
-		architecture == "deepseek4" ||
-		architecture == "ernie4_5" ||
-		architecture == "ernie4_5-moe" ||
-		architecture == "cohere2" ||
-		architecture == "cohere2moe" ||
-		architecture == "command-r" ||
-		architecture == "chameleon" ||
-		architecture == "chatglm" ||
-		architecture == "cogvlm" ||
-		architecture == "granite" ||
-		architecture == "granitehybrid" ||
-		architecture == "granitemoe" ||
-		architecture == "hunyuan-dense" ||
-		architecture == "hunyuan_vl" ||
-		architecture == "glm4" ||
-		architecture == "glm4moe" ||
-		architecture == "minicpm" ||
-		architecture == "olmo" ||
-		architecture == "maincoder" ||
-		architecture == "neo-bert" ||
-		architecture == "mistral3" ||
-		architecture == "plamo2" ||
-		architecture == "smollm3" ||
-		architecture == "xverse"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureNormalRoPE)
 }
 
 func usesParallelResidual(architecture string) bool {
-	return architecture == "cohere2" || architecture == "cohere2moe" || architecture == "command-r" || architecture == "falcon" ||
-		architecture == "phi2" || architecture == "plamo"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureParallelResidual)
 }
 
 func usesSequentialGELU(architecture string) bool {
-	return architecture == "bloom" || architecture == "codeshell" || architecture == "gpt2" ||
-		architecture == "gptneox" || architecture == "phi2" ||
-		architecture == "starcoder" || architecture == "starcoder2"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureSequentialGELU)
 }
 
 func usesGateFreeFFN(architecture string) bool {
@@ -4298,13 +3986,13 @@ func usesGateFreeFFN(architecture string) bool {
 }
 
 func usesFusedGateUp(architecture string) bool {
-	return architecture == "chatglm" || architecture == "glm4" || architecture == "modern-bert" || architecture == "neo-bert" || architecture == "phi3" || architecture == "plamo2" || architecture == "plamo3"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureFusedGateUp)
 }
 
 func supportsLongRoPE(architecture string) bool {
-	return architecture == "apertus" || architecture == "deci" || architecture == "granite" || architecture == "granitehybrid" || architecture == "granitemoe" ||
-		architecture == "llama" || architecture == "llama-embed" || architecture == "minicpm" || architecture == "minicpm3" || architecture == "mistral3" ||
-		architecture == "pangu-embedded" || architecture == "phi3" || architecture == "phimoe" || architecture == "step35"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureLongRoPE)
 }
 
 func firstPositive(values []uint32) uint32 {
@@ -4317,11 +4005,13 @@ func firstPositive(values []uint32) uint32 {
 }
 
 func usesGELU(architecture string) bool {
-	return architecture == "bert" || architecture == "falcon" || architecture == "jina-bert-v3" || architecture == "nomic-bert-moe" || architecture == "mpt" || usesSequentialGELU(architecture)
+	profile, ok := LookupArchitecture(architecture)
+	return ok && (profile.Has(ArchitectureGELU) || profile.Has(ArchitectureSequentialGELU))
 }
 
 func usesSquaredReLU(architecture string) bool {
-	return architecture == "arcee" || architecture == "jais2" || architecture == "nemotron" || architecture == "plm"
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.Has(ArchitectureSquaredReLU)
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

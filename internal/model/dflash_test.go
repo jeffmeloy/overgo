@@ -24,11 +24,12 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 		feeds[item] = reference.Value{Shape: shape, Data: data}
 		return item
 	}
-	spec := Spec{
-		Architecture: "dflash", EmbeddingLength: 4, FeedForwardLength: 6,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
-		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
-		NonCausalAttention: true, TargetLayers: []int32{1, 3},
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "dflash", EmbeddingLength: 4, FeedForwardLength: 6,
+
+		RMSNormEpsilon: 1e-5,
+		TargetLayers:   []int32{1, 3}}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000,
+		NonCausalAttention: true},
 	}
 	features := input("features", tensor.MustShape(8, 2), 0.1)
 	projection := input("fc", tensor.MustShape(8, 4), 0.02)

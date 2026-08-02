@@ -31,7 +31,7 @@ func TestLoadLoRAValidatesProjectionAndEmbeddingPairs(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer base.Close()
-	adapter, err := LoadLoRA(context.Background(), adapterPath, base, Spec{Architecture: "llama"})
+	adapter, err := LoadLoRA(context.Background(), adapterPath, base, Spec{CommonSpec: CommonSpec{Architecture: "llama"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestLoadLoRARejectsIncompletePair(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer base.Close()
-	_, err = LoadLoRA(context.Background(), adapterPath, base, Spec{Architecture: "llama"})
+	_, err = LoadLoRA(context.Background(), adapterPath, base, Spec{CommonSpec: CommonSpec{Architecture: "llama"}})
 	if err == nil || !strings.Contains(err.Error(), "incomplete") {
 		t.Fatalf("error = %v", err)
 	}

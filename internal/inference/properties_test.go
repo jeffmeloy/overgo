@@ -32,16 +32,15 @@ func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
 				{Dimensions: 1, Shape: [gguf.MaxDimensions]uint64{4}, Size: 8},
 			},
 		},
-		spec: model.Spec{
-			Name:              "fixture",
+		spec: model.Spec{CommonSpec: model.CommonSpec{Name: "fixture",
 			Architecture:      "qwen3",
 			ContextLength:     32768,
 			EmbeddingLength:   2560,
 			FeedForwardLength: 9728,
 			BlockCount:        36,
-			HeadCount:         32,
-			HeadCountKV:       8,
-			VocabularySize:    3,
+
+			VocabularySize: 3}, AttentionSpec: model.AttentionSpec{HeadCount: 32,
+			HeadCountKV: 8},
 		},
 		vocab: &tokenizer.Vocab{
 			Model: "gpt2",
@@ -118,7 +117,7 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 func TestModelPropertiesHandlesUnavailableOptionalMetadata(t *testing.T) {
 	runner := &Runner{
 		file: &gguf.File{},
-		spec: model.Spec{VocabularySize: 0},
+		spec: model.Spec{CommonSpec: model.CommonSpec{VocabularySize: 0}},
 		vocab: &tokenizer.Vocab{
 			Tokens: []tokenizer.Token{{Text: "x"}},
 			BOS:    tokenizer.NullToken,

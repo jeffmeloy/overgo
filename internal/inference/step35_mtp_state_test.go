@@ -91,14 +91,13 @@ func TestStep35MTPSessionStateRejectsCorruption(t *testing.T) {
 }
 
 func step35MTPStateRunner() *Runner {
-	spec := model.Spec{
-		Architecture: "step35", Name: "state-test", BlockCount: 1, NextNPredictLayers: 2,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "step35", Name: "state-test", BlockCount: 1, NextNPredictLayers: 2,
 		ContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 16,
-		HeadCount: 2, HeadCountKV: 1,
+
+		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		LayerHeadCounts: []uint32{2, 4, 2}, LayerKVHeadCounts: []uint32{1, 2, 1},
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		SlidingWindow: 16, SlidingLayers: []bool{false, true, false},
-		RMSNormEpsilon: 1e-6,
+		SlidingWindow: 16, SlidingLayers: []bool{false, true, false}},
 	}
 	return &Runner{
 		spec: spec,

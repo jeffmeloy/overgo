@@ -11,20 +11,21 @@ import (
 )
 
 func TestReadWeightsGraniteDense(t *testing.T) {
-	spec := Spec{
-		Architecture:          "granite",
-		BlockCount:            1,
-		ContextLength:         4,
-		OriginalContextLength: 2,
-		EmbeddingLength:       8,
-		FeedForwardLength:     16,
-		HeadCount:             2,
-		HeadCountKV:           1,
-		KeyLength:             4,
-		ValueLength:           4,
-		RopeDimensionCount:    4,
-		RopeScalingType:       "longrope",
-		VocabularySize:        32,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "granite",
+		BlockCount:    1,
+		ContextLength: 4,
+
+		EmbeddingLength:   8,
+		FeedForwardLength: 16,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{OriginalContextLength: 2,
+
+		HeadCount:          2,
+		HeadCountKV:        1,
+		KeyLength:          4,
+		ValueLength:        4,
+		RopeDimensionCount: 4,
+		RopeScalingType:    "longrope"},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -59,16 +60,15 @@ func TestReadWeightsGraniteDense(t *testing.T) {
 }
 
 func TestReadWeightsMaincoder(t *testing.T) {
-	spec := Spec{
-		Architecture:      "maincoder",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "maincoder",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -97,16 +97,15 @@ func TestReadWeightsMaincoder(t *testing.T) {
 }
 
 func TestReadWeightsDenseMistral3(t *testing.T) {
-	spec := Spec{
-		Architecture:      "mistral3",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "mistral3",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -140,12 +139,11 @@ func TestReadWeightsDenseMistral3(t *testing.T) {
 }
 
 func TestReadWeightsMistral3MoE(t *testing.T) {
-	spec := Spec{
-		Architecture: "mistral3", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 16,
-		ExpertWeightsScale: 1, ExpertWeightsNorm: true,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "mistral3", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		VocabularySize:    32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 16,
+		ExpertWeightsScale: 1, ExpertWeightsNorm: true},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -175,17 +173,16 @@ func TestReadWeightsMistral3MoE(t *testing.T) {
 }
 
 func TestReadWeightsOrion(t *testing.T) {
-	spec := Spec{
-		Architecture:      "orion",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "orion",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
-		LayerNormEpsilon:  1e-5,
+
+		VocabularySize:   32,
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -218,17 +215,16 @@ func TestReadWeightsOrion(t *testing.T) {
 }
 
 func TestReadWeightsStarCoder2(t *testing.T) {
-	spec := Spec{
-		Architecture:      "starcoder2",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "starcoder2",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
-		LayerNormEpsilon:  1e-5,
+
+		VocabularySize:   32,
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -264,17 +260,16 @@ func TestReadWeightsStarCoder2(t *testing.T) {
 }
 
 func TestReadWeightsCodeShellFallsBackToOutputEmbedding(t *testing.T) {
-	spec := Spec{
-		Architecture:      "codeshell",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "codeshell",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
-		LayerNormEpsilon:  1e-5,
+
+		VocabularySize:   32,
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("output.weight", 8, 32),
@@ -307,17 +302,16 @@ func TestReadWeightsCodeShellFallsBackToOutputEmbedding(t *testing.T) {
 }
 
 func TestReadWeightsBaichuan7B(t *testing.T) {
-	spec := Spec{
-		Architecture:      "baichuan",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "baichuan",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       2,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
-		RMSNormEpsilon:    1e-6,
+
+		VocabularySize: 32,
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 2,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -345,17 +339,16 @@ func TestReadWeightsBaichuan7B(t *testing.T) {
 }
 
 func TestReadWeightsArcee(t *testing.T) {
-	spec := Spec{
-		Architecture:      "arcee",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "arcee",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
-		RMSNormEpsilon:    1e-5,
+
+		VocabularySize: 32,
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -381,17 +374,16 @@ func TestReadWeightsArcee(t *testing.T) {
 }
 
 func TestReadWeightsNemotron(t *testing.T) {
-	spec := Spec{
-		Architecture:      "nemotron",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "nemotron",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
-		LayerNormEpsilon:  1e-5,
+
+		VocabularySize:   32,
+		LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -428,10 +420,10 @@ func TestReadWeightsNemotron(t *testing.T) {
 }
 
 func TestReadWeightsJais2(t *testing.T) {
-	spec := Spec{
-		Architecture: "jais2", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "jais2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		VocabularySize:    32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -459,10 +451,10 @@ func TestReadWeightsJais2(t *testing.T) {
 }
 
 func TestReadWeightsJais(t *testing.T) {
-	spec := Spec{
-		Architecture: "jais", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "jais", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+		VocabularySize:    32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -491,10 +483,10 @@ func TestReadWeightsJais(t *testing.T) {
 }
 
 func TestReadWeightsOLMoWithoutNormTensors(t *testing.T) {
-	spec := Spec{
-		Architecture: "olmo", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "olmo", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		VocabularySize:    32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -518,10 +510,10 @@ func TestReadWeightsOLMoWithoutNormTensors(t *testing.T) {
 }
 
 func TestReadWeightsSeedOSSMapsPostAttentionNorm(t *testing.T) {
-	spec := Spec{
-		Architecture: "seed_oss", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "seed_oss", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		VocabularySize:    32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -547,11 +539,11 @@ func TestReadWeightsSeedOSSMapsPostAttentionNorm(t *testing.T) {
 }
 
 func TestReadWeightsCohere2UsesOneNormPerBlock(t *testing.T) {
-	spec := Spec{
-		Architecture: "cohere2", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
-		VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "cohere2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+
+		VocabularySize: 32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -579,13 +571,13 @@ func TestReadWeightsCohere2UsesOneNormPerBlock(t *testing.T) {
 }
 
 func TestReadWeightsCohere2MoEDensePrefixAndFusedExperts(t *testing.T) {
-	spec := Spec{
-		Architecture: "cohere2moe", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
-		RMSNormEpsilon: 1e-5, LeadingDenseBlocks: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "cohere2moe", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+		VocabularySize:    32,
+		RMSNormEpsilon:    1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertCount: 1, SharedExpertFF: 6,
+		SharedExpertCount: 1, SharedExpertFF: 6},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -623,13 +615,12 @@ func TestReadWeightsCohere2MoEDensePrefixAndFusedExperts(t *testing.T) {
 }
 
 func TestReadWeightsCohere2MoEMTP(t *testing.T) {
-	spec := Spec{
-		Architecture: "cohere2moe", BlockCount: 1, NextNPredictLayers: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "cohere2moe", BlockCount: 1, NextNPredictLayers: 1,
 		EmbeddingLength: 8, FeedForwardLength: 12, VocabularySize: 32,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RMSNormEpsilon: 1e-5, LeadingDenseBlocks: 1,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertCount: 1, SharedExpertFF: 6,
+		SharedExpertCount: 1, SharedExpertFF: 6},
 	}
 	common := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -671,13 +662,12 @@ func TestReadWeightsCohere2MoEMTP(t *testing.T) {
 }
 
 func TestReadWeightsHYV3DetectsDenseAndFusedMoELayers(t *testing.T) {
-	spec := Spec{
-		Architecture: "hy_v3", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		VocabularySize: 32, RMSNormEpsilon: 1e-5,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertFF: 6, ExpertGatingFunc: 2,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "hy_v3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		VocabularySize: 32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertFF: 6, ExpertGatingFunc: 2},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -722,11 +712,9 @@ func TestReadWeightsHYV3DetectsDenseAndFusedMoELayers(t *testing.T) {
 }
 
 func TestReadWeightsHYV3MTPHeads(t *testing.T) {
-	spec := Spec{
-		Architecture: "hy_v3", BlockCount: 1, NextNPredictLayers: 1,
-		EmbeddingLength: 8, FeedForwardLength: 12, VocabularySize: 32,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeDimensionCount: 4,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "hy_v3", BlockCount: 1, NextNPredictLayers: 1,
+		EmbeddingLength: 8, FeedForwardLength: 12, VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
+		RopeDimensionCount: 4},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -766,13 +754,13 @@ func TestReadWeightsHYV3MTPHeads(t *testing.T) {
 }
 
 func TestReadWeightsDeepSeek2OCRDensePrefixAndFusedExperts(t *testing.T) {
-	spec := Spec{
-		Architecture: "deepseek2-ocr", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		VocabularySize: 32, RMSNormEpsilon: 1e-6, LeadingDenseBlocks: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "deepseek2-ocr", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		VocabularySize: 32, RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertCount: 2, SharedExpertFF: 12, ExpertGatingFunc: 1,
+		SharedExpertCount: 2, SharedExpertFF: 12, ExpertGatingFunc: 1},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -817,10 +805,10 @@ func TestReadWeightsDeepSeek2OCRDensePrefixAndFusedExperts(t *testing.T) {
 }
 
 func TestReadWeightsCommandR64UsesPerHeadQKNorms(t *testing.T) {
-	spec := Spec{
-		Architecture: "command-r", BlockCount: 64, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "command-r", BlockCount: 64, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		VocabularySize:    32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -854,10 +842,10 @@ func TestReadWeightsCommandR64UsesPerHeadQKNorms(t *testing.T) {
 }
 
 func TestReadWeightsPLaMoUsesOneNormPerBlock(t *testing.T) {
-	spec := Spec{
-		Architecture: "plamo", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "plamo", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		VocabularySize:    32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -877,12 +865,11 @@ func TestReadWeightsPLaMoUsesOneNormPerBlock(t *testing.T) {
 }
 
 func TestReadWeightsPLaMo3PerLayerWidths(t *testing.T) {
-	spec := Spec{
-		Architecture: "plamo3", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 2, ValueLength: 2, VocabularySize: 32, RMSNormEpsilon: 1e-6,
-		LayerHeadCounts: []uint32{2, 4}, LayerKVHeadCounts: []uint32{1, 2},
-		LayerFeedForward: []uint32{12, 16},
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "plamo3", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+		VocabularySize:    32, RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 2, ValueLength: 2,
+		LayerHeadCounts: []uint32{2, 4}, LayerKVHeadCounts: []uint32{1, 2}}, MoESpec: MoESpec{LayerFeedForward: []uint32{12, 16}},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -922,11 +909,11 @@ func TestReadWeightsPLaMo3PerLayerWidths(t *testing.T) {
 
 func TestReadWeightsStableLMOptionalNormLayouts(t *testing.T) {
 	for _, sequential := range []bool{false, true} {
-		spec := Spec{
-			Architecture: "stablelm", BlockCount: 1, EmbeddingLength: 8,
-			FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
-			VocabularySize: 32, LayerNormEpsilon: 1e-5,
+		spec := Spec{CommonSpec: CommonSpec{Architecture: "stablelm", BlockCount: 1, EmbeddingLength: 8,
+			FeedForwardLength: 16,
+
+			VocabularySize: 32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2},
 		}
 		tensors := []gguf.TensorInfo{
 			tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -961,11 +948,11 @@ func TestReadWeightsStableLMOptionalNormLayouts(t *testing.T) {
 }
 
 func TestReadWeightsPhi2FusedQKV(t *testing.T) {
-	spec := Spec{
-		Architecture: "phi2", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
-		VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "phi2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+
+		VocabularySize: 32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -993,12 +980,13 @@ func TestReadWeightsPhi2FusedQKV(t *testing.T) {
 }
 
 func TestReadWeightsPhi3LongRoPEAndFusedFFN(t *testing.T) {
-	spec := Spec{
-		Architecture: "phi3", BlockCount: 1, ContextLength: 128,
-		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 16,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "phi3", BlockCount: 1, ContextLength: 128,
+		EmbeddingLength: 8, FeedForwardLength: 16,
+
+		VocabularySize: 32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{OriginalContextLength: 32,
 		HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeScalingType: "longrope",
-		RopeAttentionFactor: 1.1, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+		RopeAttentionFactor: 1.1},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1033,12 +1021,13 @@ func TestReadWeightsPhi3LongRoPEAndFusedFFN(t *testing.T) {
 }
 
 func TestReadWeightsApertus(t *testing.T) {
-	spec := Spec{
-		Architecture: "apertus", BlockCount: 1, ContextLength: 128,
-		OriginalContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 16,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "apertus", BlockCount: 1, ContextLength: 128,
+		EmbeddingLength: 8, FeedForwardLength: 16,
+
+		VocabularySize: 32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{OriginalContextLength: 32,
 		HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeScalingType: "longrope",
-		RopeAttentionFactor: 1.1, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+		RopeAttentionFactor: 1.1},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1065,11 +1054,11 @@ func TestReadWeightsApertus(t *testing.T) {
 }
 
 func TestReadWeightsGPTNeoX(t *testing.T) {
-	spec := Spec{
-		Architecture: "gptneox", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 2,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2,
-		VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gptneox", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+
+		VocabularySize: 32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 2},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -1097,11 +1086,11 @@ func TestReadWeightsGPTNeoX(t *testing.T) {
 }
 
 func TestReadWeightsGLM4(t *testing.T) {
-	spec := Spec{
-		Architecture: "glm4", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		VocabularySize: 32, RMSNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "glm4", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		VocabularySize: 32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1127,11 +1116,11 @@ func TestReadWeightsGLM4(t *testing.T) {
 }
 
 func TestReadWeightsEXAONE4(t *testing.T) {
-	spec := Spec{
-		Architecture: "exaone4", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		VocabularySize: 32, RMSNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "exaone4", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		VocabularySize: 32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1158,11 +1147,11 @@ func TestReadWeightsEXAONE4(t *testing.T) {
 }
 
 func TestReadWeightsFalcon40B(t *testing.T) {
-	spec := Spec{
-		Architecture: "falcon", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		VocabularySize: 32, LayerNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "falcon", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+
+		VocabularySize: 32, LayerNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -1189,10 +1178,10 @@ func TestReadWeightsFalcon40B(t *testing.T) {
 }
 
 func TestReadWeightsBitNetSubNormsAndScales(t *testing.T) {
-	spec := Spec{
-		Architecture: "bitnet", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32, RMSNormEpsilon: 1e-5,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "bitnet", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		VocabularySize:    32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1224,16 +1213,15 @@ func TestReadWeightsBitNetSubNormsAndScales(t *testing.T) {
 }
 
 func TestReadWeightsGemma2(t *testing.T) {
-	spec := Spec{
-		Architecture:      "gemma2",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gemma2",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -1264,16 +1252,15 @@ func TestReadWeightsGemma2(t *testing.T) {
 }
 
 func TestReadWeightsGemma(t *testing.T) {
-	spec := Spec{
-		Architecture:      "gemma",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gemma",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -1302,16 +1289,15 @@ func TestReadWeightsGemma(t *testing.T) {
 }
 
 func TestReadWeightsRejectsRoPEFactorShape(t *testing.T) {
-	spec := Spec{
-		Architecture:      "llama",
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama",
 		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
-		HeadCount:         2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		VocabularySize:    32,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -1334,7 +1320,7 @@ func TestReadWeightsRejectsRoPEFactorShape(t *testing.T) {
 }
 
 func TestReadWeightsRejectsShape(t *testing.T) {
-	spec := Spec{EmbeddingLength: 8, VocabularySize: 32}
+	spec := Spec{CommonSpec: CommonSpec{EmbeddingLength: 8, VocabularySize: 32}}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 7, 32),
 	}}
@@ -1345,22 +1331,20 @@ func TestReadWeightsRejectsShape(t *testing.T) {
 }
 
 func TestReadWeightsQwen35Hybrid(t *testing.T) {
-	spec := Spec{
-		Architecture:          "qwen35",
-		BlockCount:            4,
-		EmbeddingLength:       8,
-		FeedForwardLength:     16,
-		HeadCount:             2,
-		HeadCountKV:           1,
-		KeyLength:             4,
-		ValueLength:           4,
-		VocabularySize:        32,
-		SSMConvKernel:         3,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "qwen35",
+		BlockCount:        4,
+		EmbeddingLength:   8,
+		FeedForwardLength: 16,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1,
+		KeyLength:   4,
+		ValueLength: 4}, RecurrentSpec: RecurrentSpec{SSMConvKernel: 3,
 		SSMInnerSize:          8,
 		SSMStateSize:          2,
 		SSMTimeStepRank:       4,
 		SSMGroupCount:         2,
-		FullAttentionInterval: 4,
+		FullAttentionInterval: 4},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32),
@@ -1409,12 +1393,11 @@ func TestReadWeightsQwen35Hybrid(t *testing.T) {
 }
 
 func TestReadWeightsQwen35MTP(t *testing.T) {
-	spec := Spec{
-		Architecture: "qwen35", BlockCount: 1, NextNPredictLayers: 1,
-		EmbeddingLength: 8, FeedForwardLength: 16, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, VocabularySize: 32,
-		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2,
-		SSMTimeStepRank: 4, SSMGroupCount: 2, FullAttentionInterval: 1,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "qwen35", BlockCount: 1, NextNPredictLayers: 1,
+		EmbeddingLength: 8, FeedForwardLength: 16,
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4}, RecurrentSpec: RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2,
+		SSMTimeStepRank: 4, SSMGroupCount: 2, FullAttentionInterval: 1},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1469,14 +1452,15 @@ func TestReadWeightsQwen35MTP(t *testing.T) {
 }
 
 func TestReadWeightsKimiLinearHybrid(t *testing.T) {
-	spec := Spec{
-		Architecture: "kimi-linear", BlockCount: 2, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1, KeyLength: 4,
-		ValueLength: 2, VocabularySize: 32, KVLoRARank: 3, RopeDimensionCount: 2,
-		KDAHeadDim: 2, SSMConvKernel: 3, SSMInnerSize: 4,
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertFF: 6, LeadingDenseBlocks: 1,
-		RecurrentLayers: []bool{true, false}, LayerKVHeadCounts: []uint32{0, 1},
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "kimi-linear", BlockCount: 2, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+		VocabularySize:    32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4,
+		ValueLength: 2, KVLoRARank: 3, RopeDimensionCount: 2,
+
+		LayerKVHeadCounts: []uint32{0, 1}}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertFF: 6, LeadingDenseBlocks: 1}, RecurrentSpec: RecurrentSpec{KDAHeadDim: 2, SSMConvKernel: 3, SSMInnerSize: 4,
+
+		RecurrentLayers: []bool{true, false}},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1514,11 +1498,10 @@ func TestReadWeightsKimiLinearHybrid(t *testing.T) {
 }
 
 func TestReadWeightsRWKV6Qwen2(t *testing.T) {
-	spec := Spec{
-		Architecture: "rwkv6qwen2", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 1,
-		WKVHeadSize: 4, TimeMixExtraDim: 3, TimeDecayExtraDim: 2,
-		VocabularySize: 32,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "rwkv6qwen2", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1}, RecurrentSpec: RecurrentSpec{WKVHeadSize: 4, TimeMixExtraDim: 3, TimeDecayExtraDim: 2},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1555,11 +1538,10 @@ func TestReadWeightsRWKV6Qwen2(t *testing.T) {
 }
 
 func TestReadWeightsRWKV6(t *testing.T) {
-	spec := Spec{
-		Architecture: "rwkv6", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 12, HeadCount: 2, HeadCountKV: 2,
-		WKVHeadSize: 4, TimeMixExtraDim: 3, TimeDecayExtraDim: 2,
-		VocabularySize: 32,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "rwkv6", BlockCount: 1, EmbeddingLength: 8,
+		FeedForwardLength: 12,
+
+		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2}, RecurrentSpec: RecurrentSpec{WKVHeadSize: 4, TimeMixExtraDim: 3, TimeDecayExtraDim: 2},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_embd_norm.weight", 8),

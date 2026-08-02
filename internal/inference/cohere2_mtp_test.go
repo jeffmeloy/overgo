@@ -41,10 +41,9 @@ func TestSelectedModelTensorsIncludesCohere2MTP(t *testing.T) {
 }
 
 func TestCohere2MTPOnlyRequiresCompatibleTarget(t *testing.T) {
-	spec := model.Spec{
-		Architecture: "cohere2moe", BlockCount: 2, NextNPredictLayers: 1,
-		EmbeddingLength: 8, VocabularySize: 2, HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "cohere2moe", BlockCount: 2, NextNPredictLayers: 1,
+		EmbeddingLength: 8, VocabularySize: 2}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
 	}
 	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "b"}}}
 	draft := &Runner{

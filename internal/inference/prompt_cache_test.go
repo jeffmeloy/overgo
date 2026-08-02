@@ -179,7 +179,7 @@ func TestTrimDeviceCacheSuffix(t *testing.T) {
 
 func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
 	runner := &Runner{
-		spec:    model.Spec{ContextLength: 2},
+		spec:    model.Spec{CommonSpec: model.CommonSpec{ContextLength: 2}},
 		weights: model.Weights{Layers: make([]model.LayerWeights, 1)},
 	}
 	shape := tensor.MustShape(2, 3, 2)
@@ -210,7 +210,7 @@ func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
 
 func TestShiftDeviceCachePreservesRecurrentState(t *testing.T) {
 	runner := &Runner{
-		spec: model.Spec{Architecture: "qwen35", ContextLength: 2},
+		spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", ContextLength: 2}},
 		weights: model.Weights{Layers: []model.LayerWeights{{
 			Recurrent: true,
 		}}},

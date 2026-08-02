@@ -14,7 +14,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 		tokens[index] = tokenizer.Token{Text: string(rune('a' + index))}
 	}
 	runner := &Runner{
-		spec: model.Spec{ContextLength: 32},
+		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 32}},
 		vocab: &tokenizer.Vocab{
 			Model:  "gpt2",
 			Tokens: tokens,
@@ -75,7 +75,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 	tokens := make([]tokenizer.Token, 32)
 	runner := &Runner{
-		spec: model.Spec{ContextLength: 32},
+		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 32}},
 		vocab: &tokenizer.Vocab{
 			Tokens: tokens,
 			BOS:    tokenizer.NullToken,
@@ -107,7 +107,7 @@ func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 
 func TestFormatInfillTokensRequiresControlTokens(t *testing.T) {
 	runner := &Runner{
-		spec: model.Spec{ContextLength: 8},
+		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 8}},
 		vocab: &tokenizer.Vocab{
 			Tokens: make([]tokenizer.Token, 4),
 			FIMPre: tokenizer.NullToken,

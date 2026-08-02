@@ -11,14 +11,14 @@ import (
 
 func TestBuildStep35MTPPipeline(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{
-		Architecture: "step35", BlockCount: 1, NextNPredictLayers: 2,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "step35", BlockCount: 1, NextNPredictLayers: 2,
 		EmbeddingLength: 8, FeedForwardLength: 12,
-		HeadCount: 2, HeadCountKV: 1,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		LayerHeadCounts: []uint32{2, 4, 2}, LayerKVHeadCounts: []uint32{1, 2, 1},
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
-		SlidingWindow: 32, SlidingLayers: []bool{false, true, false},
+		RopeFrequencyBase: 10000,
+		SlidingWindow:     32, SlidingLayers: []bool{false, true, false}},
 	}
 	token := builder.Input("token", dtype.F32, tensor.MustShape(8, 1))
 	hidden := builder.Input("hidden", dtype.F32, tensor.MustShape(8, 1))

@@ -103,7 +103,7 @@ func TestGreedyLogitProbability(t *testing.T) {
 
 func TestValidateQwen35MTP(t *testing.T) {
 	runner := &Runner{
-		spec:    model.Spec{Architecture: "qwen35", NextNPredictLayers: 1},
+		spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", NextNPredictLayers: 1}},
 		weights: model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{}},
 	}
 	if err := runner.validateQwen35MTP(); err != nil {
@@ -116,13 +116,11 @@ func TestValidateQwen35MTP(t *testing.T) {
 }
 
 func TestQwen35MTPOnlyRequiresCompatibleTarget(t *testing.T) {
-	spec := model.Spec{
-		Architecture: "qwen35", BlockCount: 2, NextNPredictLayers: 1,
-		EmbeddingLength: 8, VocabularySize: 2, HeadCount: 2, HeadCountKV: 1,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", BlockCount: 2, NextNPredictLayers: 1,
+		EmbeddingLength: 8, VocabularySize: 2}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		RopeSections:  [4]int32{1, 1, 0, 0},
-		SSMConvKernel: 3, SSMInnerSize: 4, SSMStateSize: 2,
-		SSMTimeStepRank: 2, SSMGroupCount: 1, FullAttentionInterval: 2,
+		RopeSections: [4]int32{1, 1, 0, 0}}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 4, SSMStateSize: 2,
+		SSMTimeStepRank: 2, SSMGroupCount: 1, FullAttentionInterval: 2},
 	}
 	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "b"}}}
 	draft := &Runner{

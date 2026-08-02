@@ -24,11 +24,11 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 		feeds[item] = reference.Value{Shape: shape, Data: data}
 		return item
 	}
-	spec := Spec{
-		Architecture: "eagle3", EmbeddingLength: 4, TargetHiddenSize: 3,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "eagle3", EmbeddingLength: 4, TargetHiddenSize: 3,
 		TargetLayers: []int32{1, 3, 5}, FeedForwardLength: 6,
-		HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
-		RopeDimensionCount: 2, RopeFrequencyBase: 10000, RMSNormEpsilon: 1e-5,
+
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
+		RopeDimensionCount: 2, RopeFrequencyBase: 10000},
 	}
 	features := input("features", tensor.MustShape(9, 3), 0.1)
 	projection := input("fc", tensor.MustShape(9, 4), 0.02)

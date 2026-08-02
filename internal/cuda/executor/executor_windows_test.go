@@ -30,6 +30,37 @@ func TestAllZeroFloat32(t *testing.T) {
 	}
 }
 
+func TestExecutorBF16RoundMatchesReference(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(6))
+	output := builder.BF16Round(input)
+	value := reference.Value{Shape: input.Shape, Data: []float32{
+		1, 1.00390625, 1.01171875, -1.01171875, float32(math.Inf(1)), float32(math.NaN()),
+	}}
+	feeds := map[*tensor.Tensor]reference.Value{input: value}
+	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, item := range got[output].Data {
+		if math.Float32bits(item) != math.Float32bits(want[output].Data[index]) {
+			t.Fatalf("BF16 round[%d] = %08x, want %08x", index, math.Float32bits(item), math.Float32bits(want[output].Data[index]))
+		}
+	}
+}
+
 func TestExecutorLoRAMatchesReference(t *testing.T) {
 	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
 		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")

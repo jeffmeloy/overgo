@@ -81,6 +81,24 @@ func TestExecuteClamp(t *testing.T) {
 	}
 }
 
+func TestExecuteBF16Round(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(6))
+	output := builder.BF16Round(input)
+	values := []float32{1, 1.00390625, 1.01171875, -1.01171875, float32(math.Inf(1)), float32(math.NaN())}
+	value, _ := NewValue(input.Shape, values)
+	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1, 1, 1.015625, -1.015625, float32(math.Inf(1)), values[5]}
+	for index, item := range results[output].Data {
+		if math.Float32bits(item) != math.Float32bits(want[index]) {
+			t.Fatalf("BF16 round[%d] = %08x, want %08x", index, math.Float32bits(item), math.Float32bits(want[index]))
+		}
+	}
+}
+
 func TestExecuteXIELU(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(5))

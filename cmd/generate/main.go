@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -115,6 +116,7 @@ func run() error {
 	seed := flag.Int64("seed", 0, "sampling RNG seed")
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
+	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
 	imagePath := flag.String("image", "", "image input for multimodal generation")
 	audioPath := flag.String("audio", "", "Gemma 4 mono 16 kHz WAV or raw float32-LE audio")
 	videoFrames := stringListFlag{}
@@ -317,17 +319,21 @@ func run() error {
 		var promptIDs []tokenizer.TokenID
 		var projected inference.ProjectedInputs
 		var projectedErr error
+		projectorOptions := projector.OpenOptions{CUDA: *projectorCUDA, DeviceOrdinal: *deviceOrdinal}
 		if *imagePath != "" {
 			promptIDs, projected, projectedErr = imageProjectedPrompt(
 				context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
+				projectorOptions,
 			)
 		} else if *audioPath != "" {
 			promptIDs, projected, projectedErr = audioProjectedPrompt(
 				context.Background(), runner, *projectorPath, *audioPath, flag.Arg(1),
+				projectorOptions,
 			)
 		} else {
 			promptIDs, projected, projectedErr = videoProjectedPrompt(
 				context.Background(), runner, *projectorPath, videoFrames, flag.Arg(1), *videoFPS, *imageThinking,
+				projectorOptions,
 			)
 		}
 		if projectedErr != nil {

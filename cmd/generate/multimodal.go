@@ -21,9 +21,9 @@ func imageProjectedPrompt(
 	ctx context.Context,
 	runner *inference.Runner,
 	projectorPath, imagePath, question string,
-	thinking bool,
+	thinking bool, projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenImageProjector(projectorPath)
+	vision, err := projector.OpenImageProjectorWithOptions(projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}
@@ -48,8 +48,9 @@ func audioProjectedPrompt(
 	ctx context.Context,
 	runner *inference.Runner,
 	projectorPath, audioPath, question string,
+	projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	audio, err := projector.OpenAudioProjector(projectorPath)
+	audio, err := projector.OpenAudioProjectorWithOptions(projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open audio projector: %w", err)
 	}
@@ -88,9 +89,9 @@ func videoProjectedPrompt(
 	framePaths []string,
 	question string,
 	fps float64,
-	thinking bool,
+	thinking bool, projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenVideoProjector(projectorPath)
+	vision, err := projector.OpenVideoProjectorWithOptions(projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}

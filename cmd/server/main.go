@@ -75,6 +75,7 @@ func run() error {
 		"read the /v1 bearer token from this file (or LLAMACPP2GO_API_KEY)",
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
+	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
@@ -101,7 +102,9 @@ func run() error {
 	var vision projector.ImageProjector
 	var audio projector.AudioProjector
 	if *projectorPath != "" {
-		vision, err = projector.OpenImageProjector(*projectorPath)
+		vision, err = projector.OpenImageProjectorWithOptions(*projectorPath, projector.OpenOptions{
+			CUDA: *projectorCUDA, DeviceOrdinal: *deviceOrdinal,
+		})
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}

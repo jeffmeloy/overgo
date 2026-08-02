@@ -72,7 +72,7 @@ go run ./cmd/generate -native-quant -n 16 <supported-model.gguf> "Hello"
 go run ./cmd/generate -native-quant -context-shift -n 8192 <supported-model.gguf> "Hello"
 go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -image <image.png> -n 16 <qwen35.gguf> "Describe this image."
 go run ./cmd/generate -preload -mmproj <qwen3vl-mmproj.gguf> -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <qwen35.gguf> "Describe this video."
-go run ./cmd/generate -preload -mmproj <gemma4-mmproj.gguf> -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <gemma4.gguf> "Describe this video."
+go run ./cmd/generate -preload -mmproj <gemma4-mmproj.gguf> -mmproj-cuda -video-frame <frame0.png> -video-frame <frame1.png> -video-fps 24 -n 16 <gemma4.gguf> "Describe this video."
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -eps 0.001 <dream.gguf> "Hello"
 go run ./cmd/diffusion -native-quant -length 512 -steps 128 -block-length 32 <llada.gguf> "Hello"
 go run ./cmd/perplexity -native-quant <supported-model.gguf> "evaluation text"
@@ -174,7 +174,9 @@ bidirectional attention only within each frame on sliding layers.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native
-audio turn.
+audio turn. `-mmproj-cuda` keeps Gemma 4 image, video, and audio projector
+weights resident on the selected `-device` and executes the full projector
+graph on CUDA. Other projector families reject this switch.
 
 The native `/completion` route accepts the same object as `projected_inputs`
 for a single prompt and completion. Token-only prompt caching and

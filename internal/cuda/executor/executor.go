@@ -677,6 +677,7 @@ type functionSet struct {
 	broadcastDivide   driver.Function
 	scale             driver.Function
 	clamp             driver.Function
+	bf16Round         driver.Function
 	copy              driver.Function
 	silu              driver.Function
 	gelu              driver.Function
@@ -867,6 +868,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"broadcast_divide_f32", &result.broadcastDivide},
 		{"scale_f32", &result.scale},
 		{"clamp_f32", &result.clamp},
+		{"bf16_round_f32", &result.bf16Round},
 		{"copy_f32", &result.copy},
 		{"silu_f32", &result.silu},
 		{"gelu_f32", &result.gelu},
@@ -1139,6 +1141,18 @@ func launchNode(
 		runtime.KeepAlive(minimum)
 		runtime.KeepAlive(maximum)
 		runtime.KeepAlive(count)
+		return err
+	case tensor.OpBF16Round:
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.bf16Round, count, args)
+		runtime.KeepAlive(args)
 		return err
 	case tensor.OpSiLU, tensor.OpGELU, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
 		count, err := elementCount32(node.Shape)

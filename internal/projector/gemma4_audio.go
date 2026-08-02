@@ -130,6 +130,9 @@ func (r *Gemma4Runner) EncodeAudio(ctx context.Context, samples []float32) (Gemm
 	if err := ctx.Err(); err != nil {
 		return Gemma4AudioOutput{}, err
 	}
+	if r.cuda != nil {
+		return r.encodeAudioCUDA(ctx, frames, rows, spec)
+	}
 	bf16RoundSlice(frames)
 	normed := make([]float32, len(frames))
 	rmsNormNoWeight(normed, frames, rows, spec.SamplesPerToken, spec.RMSNormEpsilon)

@@ -79,6 +79,80 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 	}
 }
 
+func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cpu, err := OpenGemma4(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cpu.Close()
+	cuda, err := OpenGemma4WithOptions(path, Gemma4OpenOptions{CUDA: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
+	for y := 0; y < 3; y++ {
+		for x := 0; x < 3; x++ {
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: 255})
+		}
+	}
+	wantImage, err := cpu.EncodeImage(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotImage, err := cuda.EncodeImage(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compareExactFloat32(t, "image", gotImage.Embeddings.Data, wantImage.Embeddings.Data)
+	wantVideo, err := cpu.EncodeVideoFrames(context.Background(), []image.Image{input, input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotVideo, err := cuda.EncodeVideoFrames(context.Background(), []image.Image{input, input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compareExactFloat32(t, "video", gotVideo.Embeddings.Data, wantVideo.Embeddings.Data)
+	samples := []float32{1, 2, 3, 4}
+	wantAudio, err := cpu.EncodeAudio(context.Background(), samples)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotAudio, err := cuda.EncodeAudio(context.Background(), samples)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compareExactFloat32(t, "audio", gotAudio.Embeddings.Data, wantAudio.Embeddings.Data)
+}
+
+func compareExactFloat32(t *testing.T, name string, got, want []float32) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s values = %d, want %d", name, len(got), len(want))
+	}
+	for index := range want {
+		if math.Float32bits(got[index]) != math.Float32bits(want[index]) {
+			t.Fatalf("%s[%d] = %g, want %g", name, index, got[index], want[index])
+		}
+	}
+}
+
 func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	file, err := os.Create(path)
@@ -246,7 +320,7 @@ func TestGemma4RealFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenGemma4(projectorPath)
+	runner, err := openGemma4Fixture(projectorPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -421,7 +495,7 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 	for index := range samples {
 		samples[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[index*4:]))
 	}
-	runner, err := OpenGemma4(projectorPath)
+	runner, err := openGemma4Fixture(projectorPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +604,7 @@ func TestGemma4RealResizeFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenGemma4(projectorPath)
+	runner, err := openGemma4Fixture(projectorPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,6 +649,12 @@ func tinyGemma4Metadata() []gguf.Metadata {
 		{Key: "clip.audio.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
 		{Key: "clip.audio.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 	}
+}
+
+func openGemma4Fixture(path string) (*Gemma4Runner, error) {
+	return OpenGemma4WithOptions(path, Gemma4OpenOptions{
+		CUDA: os.Getenv("LLAMACPP2GO_GEMMA4_PROJECTOR_CUDA") != "",
+	})
 }
 
 func tinyGemma4Tensors() []gguf.TensorData {

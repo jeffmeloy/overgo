@@ -799,8 +799,11 @@
   prompt IDs; F16 generation is token-exact at first token `24068` (`Music`),
   while native Q8 selects a reference top-8 token. Gemma video projection uses
   the encoder-free image path with a 70-token frame budget, timestamped prompt,
-  frame-major soft tokens, and frame-block visual attention. Projector CUDA
-  offload remains pending. `gemma4-gguf-convert` now streams the adaptive
+  frame-major soft tokens, and frame-block visual attention. Optional
+  `-mmproj-cuda` execution keeps all Gemma image/audio weights resident on the
+  selected device and runs image, video, and audio graphs with explicit BF16
+  stage rounding; the adaptive image/audio projector oracles and image token
+  `13666` remain exact. `gemma4-gguf-convert` now streams the adaptive
   ModelOpt checkpoint into validated BF16 language and multimodal GGUF files,
   including FP8 scale folding, patch-channel permutation, position-axis
   transposition, tokenizer metadata, and layer-scalar conversion. The emitted

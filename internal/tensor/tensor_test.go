@@ -469,6 +469,18 @@ func TestBuilderClamp(t *testing.T) {
 	}
 }
 
+func TestBuilderBF16Round(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(3, 2))
+	output := builder.BF16Round(input)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Op != OpBF16Round || output.Type != dtype.F32 || !output.Shape.Equal(input.Shape) {
+		t.Fatalf("unexpected BF16 round graph: %+v", output)
+	}
+}
+
 func TestBuilderQ8MoE(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(32, 1))

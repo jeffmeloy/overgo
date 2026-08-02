@@ -65,6 +65,7 @@ const (
 	OpDeepSeek4Attention
 	OpLoRAMerge
 	OpDivide
+	OpBF16Round
 )
 
 var opNames = [...]string{
@@ -121,6 +122,7 @@ var opNames = [...]string{
 	"deepseek4_attention",
 	"lora_merge",
 	"divide",
+	"bf16_round",
 }
 
 func (o Op) String() string {
@@ -491,6 +493,10 @@ func (b *Builder) Clamp(input *Tensor, minimum, maximum float32) *Tensor {
 		return nil
 	}
 	return b.unary(OpClamp, input, ClampAttributes{Minimum: minimum, Maximum: maximum})
+}
+
+func (b *Builder) BF16Round(input *Tensor) *Tensor {
+	return b.unary(OpBF16Round, input, nil)
 }
 
 func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {

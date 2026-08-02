@@ -54,7 +54,16 @@ type VideoProjector interface {
 	Close() error
 }
 
+type OpenOptions struct {
+	CUDA          bool
+	DeviceOrdinal int
+}
+
 func OpenImageProjector(path string) (ImageProjector, error) {
+	return OpenImageProjectorWithOptions(path, OpenOptions{})
+}
+
+func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProjector, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, err
@@ -71,15 +80,22 @@ func OpenImageProjector(path string) (ImageProjector, error) {
 	_ = file.Close()
 	switch projectorType {
 	case qwen3VLProjectorType:
+		if options.CUDA {
+			return nil, errors.New("projector: CUDA offload is unavailable for Qwen3-VL")
+		}
 		return OpenQwen3VL(path)
 	case gemma4UVProjectorType:
-		return OpenGemma4(path)
+		return OpenGemma4WithOptions(path, Gemma4OpenOptions(options))
 	default:
 		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
 	}
 }
 
 func OpenAudioProjector(path string) (AudioProjector, error) {
+	return OpenAudioProjectorWithOptions(path, OpenOptions{})
+}
+
+func OpenAudioProjectorWithOptions(path string, options OpenOptions) (AudioProjector, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, err
@@ -91,14 +107,18 @@ func OpenAudioProjector(path string) (AudioProjector, error) {
 	_ = file.Close()
 	switch projectorType {
 	case gemma4UAProjectorType:
-		return OpenGemma4(path)
+		return OpenGemma4WithOptions(path, Gemma4OpenOptions(options))
 	default:
 		return nil, fmt.Errorf("projector: audio projector type %q is unsupported", projectorType)
 	}
 }
 
 func OpenVideoProjector(path string) (VideoProjector, error) {
-	projector, err := OpenImageProjector(path)
+	return OpenVideoProjectorWithOptions(path, OpenOptions{})
+}
+
+func OpenVideoProjectorWithOptions(path string, options OpenOptions) (VideoProjector, error) {
+	projector, err := OpenImageProjectorWithOptions(path, options)
 	if err != nil {
 		return nil, err
 	}

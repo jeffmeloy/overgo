@@ -77,6 +77,21 @@ extern "C" __global__ void clamp_f32(
     }
 }
 
+extern "C" __global__ void bf16_round_f32(
+        const float * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        unsigned int raw = __float_as_uint(input[index]);
+        if ((raw & 0x7f800000u) != 0x7f800000u) {
+            raw += 0x7fffu + ((raw >> 16) & 1u);
+            raw &= 0xffff0000u;
+        }
+        output[index] = __uint_as_float(raw);
+    }
+}
+
 __device__ unsigned int broadcast_index(
         unsigned int index,
         unsigned int input_0,

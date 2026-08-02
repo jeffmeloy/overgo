@@ -49,9 +49,19 @@ type Gemma4VideoOutput struct {
 type Gemma4Runner struct {
 	file *gguf.File
 	spec Gemma4Spec
+	cuda *gemma4CUDA
 }
 
 func OpenGemma4(path string) (*Gemma4Runner, error) {
+	return OpenGemma4WithOptions(path, Gemma4OpenOptions{})
+}
+
+type Gemma4OpenOptions struct {
+	CUDA          bool
+	DeviceOrdinal int
+}
+
+func OpenGemma4WithOptions(path string, options Gemma4OpenOptions) (*Gemma4Runner, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, err
@@ -67,16 +77,31 @@ func OpenGemma4(path string) (*Gemma4Runner, error) {
 	if err := validateGemma4Catalog(file, spec); err != nil {
 		return fail(err)
 	}
-	return &Gemma4Runner{file: file, spec: spec}, nil
+	runner := &Gemma4Runner{file: file, spec: spec}
+	if options.CUDA {
+		runner.cuda, err = openGemma4CUDA(context.Background(), file, options.DeviceOrdinal)
+		if err != nil {
+			return fail(fmt.Errorf("projector: initialize Gemma 4 CUDA: %w", err))
+		}
+	}
+	return runner, nil
 }
 
 func (r *Gemma4Runner) Close() error {
-	if r == nil || r.file == nil {
+	if r == nil {
 		return nil
+	}
+	var closeErr error
+	if r.cuda != nil {
+		closeErr = r.cuda.Close()
+		r.cuda = nil
+	}
+	if r.file == nil {
+		return closeErr
 	}
 	file := r.file
 	r.file = nil
-	return file.Close()
+	return errors.Join(closeErr, file.Close())
 }
 
 func (r *Gemma4Runner) Spec() Gemma4Spec {
@@ -313,6 +338,9 @@ func (r *Gemma4Runner) encode(ctx context.Context, input Gemma4Image) (Gemma4Out
 type gemma4Trace func(string, []float32)
 
 func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, trace gemma4Trace) (Gemma4Output, error) {
+	if r.cuda != nil {
+		return r.encodeCUDAWithTrace(ctx, input, trace)
+	}
 	rows := input.GridH * input.GridW
 	if len(input.PixelValues) != rows*r.spec.PatchWidth || len(input.Positions) != rows*2 {
 		return Gemma4Output{}, errors.New("projector: Gemma 4 input shape is inconsistent")

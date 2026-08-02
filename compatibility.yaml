@@ -3010,8 +3010,16 @@ models:
       - packed-swiglu-experts
       - dense-shared-expert-branch
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - multimodal-encoder-external
+      - llama4-uhd-image-projector
+      - refined-grid-then-overview-tiles
+      - bicubic-aspect-fit-padding
+      - class-and-learned-position-vision-input
+      - two-axis-vision-rope
+      - fused-or-separate-vision-qkv-with-optional-bias
+      - pixel-shuffle-vision-adapter
+      - ordered-multi-image-soft-token-merge
+      - native-image-boundary-and-slot-tokens
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   step35:
     status: experimental

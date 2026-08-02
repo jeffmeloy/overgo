@@ -172,7 +172,9 @@ four MRoPE coordinate arrays, and GGML-order deepstack tensors:
 ```
 
 For image input, `-mmproj <projector.gguf>` and `-image <path>` select the
-projector family from GGUF metadata. Hunyuan-VL runs dynamic Pillow-bicubic
+projector family from GGUF metadata. Llama 4 runs UHD refined-grid/overview
+tiling, learned-position ViT projection with two-axis RoPE, and its pixel-shuffle
+adapter. Hunyuan-VL runs dynamic Pillow-bicubic
 preprocessing, learned-position ViT projection, convolutional spatial merge,
 row-newline prefix construction, and four-axis image coordinates. Qwen3.5 runs the native Qwen3-VL patch
 encoder/merger, renders the vision chat turn, and constructs compressed
@@ -192,7 +194,7 @@ installation. FFmpeg samples at `-video-fps`; `-video-max-frames` bounds work.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native
-audio turn. `-mmproj-cuda` keeps Hunyuan-VL, Qwen3-VL, and Gemma 4 projector weights
+audio turn. `-mmproj-cuda` keeps Hunyuan-VL, Llama 4, Qwen3-VL, and Gemma 4 projector weights
 resident on the selected `-device` and executes their full image/video graphs
 on CUDA; Gemma 4 audio uses the same path.
 

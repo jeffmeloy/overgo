@@ -16,6 +16,9 @@ import (
 const Qwen3VLImagePad = "<|image_pad|>"
 const Qwen3VLVideoPad = "<|video_pad|>"
 const PaddleOCRImagePad = "<|IMAGE_PLACEHOLDER|>"
+const Llama4ImageStart = "<|image_start|>"
+const Llama4ImageEnd = "<|image_end|>"
+const Llama4ImagePad = "<|image|>"
 const HunyuanVLImageStart = "<｜hy_place▁holder▁no▁100｜>"
 const HunyuanVLImageEnd = "<｜hy_place▁holder▁no▁101｜>"
 const HunyuanVLImagePad = "<｜hy_place▁holder▁no▁102｜>"
@@ -110,6 +113,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case llama4ProjectorType:
+		return OpenLlama4VisionWithOptions(path, Llama4VisionOpenOptions(options))
 	case hunyuanVLProjectorType:
 		return OpenHunyuanVLWithOptions(path, HunyuanVLOpenOptions(options))
 	case paddleOCRProjectorType:
@@ -123,6 +128,95 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	default:
 		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
 	}
+}
+
+func (r *Llama4VisionRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+}
+
+func (r *Llama4VisionRunner) BuildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
+}
+
+func (r *Llama4VisionRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+}
+
+func (r *Llama4VisionRunner) buildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	history bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: Llama-4 image/text sequence is inconsistent")
+	}
+	counts := make([]int, len(sources))
+	var embeddings []float32
+	var prompt strings.Builder
+	if !history {
+		prompt.WriteString("<|begin_of_text|><|header_start|>user<|header_end|>\n\n")
+	}
+	for index, source := range sources {
+		prompt.WriteString(text[index])
+		output, err := r.EncodeImage(ctx, source)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode Llama-4 image %d: %w", index, err)
+		}
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		prompt.WriteString(Llama4ImageStart)
+		prompt.WriteString(strings.Repeat(Llama4ImagePad, counts[index]))
+		prompt.WriteString(Llama4ImageEnd)
+		embeddings = append(embeddings, output.Embeddings.Data...)
+	}
+	prompt.WriteString(text[len(text)-1])
+	if !history {
+		prompt.WriteString("<|eot|><|header_start|>assistant<|header_end|>\n\n")
+	}
+	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Llama-4 image prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText(Llama4ImagePad, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Llama-4 placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Llama-4 placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := variableTokenRuns(ids, padIDs[0], counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Llama-4 image prompt: %w", err)
+	}
+	var indices []uint32
+	for index, start := range starts {
+		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
+		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices,
+	}, nil
 }
 
 func (r *HunyuanVLRunner) BuildImagePrompt(

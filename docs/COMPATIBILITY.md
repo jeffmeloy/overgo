@@ -105,7 +105,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `llada` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `llada-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `llama` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `llama4` | experimental | bounded-host, f32-preload, native-quantized-experts, retained-device-cache | pending-fixture | multimodal-encoder-external |
+| `llama4` | experimental | bounded-host, f32-preload, native-quantized-experts, retained-device-cache | pending-fixture | - |
 | `maincoder` | experimental | model-dependent | pending-fixture | - |
 | `mamba` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `mamba2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |

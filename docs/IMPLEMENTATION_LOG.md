@@ -1726,6 +1726,14 @@ the decoder's time/column/row/image axes for begin, content, newline, and end
 tokens. Tiny catalog, raster-order, prompt-position, and CPU/CUDA differential
 tests pass; real-model validation remains fixture-gated.
 
+Llama 4 now executes its llava-UHD refined-grid and overview preprocessing,
+class/learned-position vision transformer, width/height rotary attention,
+pixel-shuffle adapter MLP, and final projection. Native single/multi-image
+prompts use the image boundary and slot tokens, preserve history, and retain
+refined-tile-before-overview ordering. Strict catalog, preprocessing, prompt,
+two-axis RoPE, and CPU/CUDA differential tests pass; real-model validation
+remains fixture-gated.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

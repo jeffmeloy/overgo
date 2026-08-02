@@ -1,0 +1,693 @@
+package projector
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"image"
+	"math"
+
+	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/reference"
+)
+
+const llama4ProjectorType = "llama4"
+
+type llama4VisionActivation uint8
+
+const (
+	llama4QuickGELU llama4VisionActivation = iota
+	llama4GELU
+	llama4SiLU
+)
+
+type Llama4VisionSpec struct {
+	ImageSize           int
+	PatchSize           int
+	Hidden              int
+	Intermediate        int
+	OutputHidden        int
+	AdapterIntermediate int
+	AdapterHidden       int
+	Layers              int
+	Heads               int
+	MergeSize           int
+	LayerNormEpsilon    float32
+	RopeTheta           float32
+	ImageMean           [3]float32
+	ImageStd            [3]float32
+	Activation          llama4VisionActivation
+	PreLayerNorm        bool
+	PostLayerNorm       bool
+	FusedQKV            []bool
+}
+
+type Llama4VisionTile struct {
+	PixelValues []float32
+	GridH       int
+	GridW       int
+}
+
+type Llama4VisionInput struct {
+	Tiles []Llama4VisionTile
+	GridH int
+	GridW int
+}
+
+type Llama4VisionOutput struct {
+	Embeddings reference.Value
+	TileCount  int
+	GridH      int
+	GridW      int
+}
+
+type Llama4VisionRunner struct {
+	file *gguf.File
+	spec Llama4VisionSpec
+	cuda *llama4VisionCUDA
+}
+
+type Llama4VisionOpenOptions struct {
+	CUDA          bool
+	DeviceOrdinal int
+}
+
+func OpenLlama4Vision(path string) (*Llama4VisionRunner, error) {
+	return OpenLlama4VisionWithOptions(path, Llama4VisionOpenOptions{})
+}
+
+func OpenLlama4VisionWithOptions(path string, options Llama4VisionOpenOptions) (*Llama4VisionRunner, error) {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	fail := func(cause error) (*Llama4VisionRunner, error) {
+		_ = file.Close()
+		return nil, cause
+	}
+	spec, err := ReadLlama4VisionSpec(file)
+	if err != nil {
+		return fail(err)
+	}
+	if err := validateLlama4VisionCatalog(file, spec); err != nil {
+		return fail(err)
+	}
+	runner := &Llama4VisionRunner{file: file, spec: spec}
+	if options.CUDA {
+		runner.cuda, err = openLlama4VisionCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		if err != nil {
+			return fail(fmt.Errorf("projector: initialize Llama-4 CUDA: %w", err))
+		}
+	}
+	return runner, nil
+}
+
+func (r *Llama4VisionRunner) Close() error {
+	if r == nil {
+		return nil
+	}
+	var closeErr error
+	if r.cuda != nil {
+		closeErr = r.cuda.Close()
+		r.cuda = nil
+	}
+	if r.file == nil {
+		return closeErr
+	}
+	file := r.file
+	r.file = nil
+	return errors.Join(closeErr, file.Close())
+}
+
+func (r *Llama4VisionRunner) Spec() Llama4VisionSpec {
+	if r == nil {
+		return Llama4VisionSpec{}
+	}
+	return r.spec
+}
+
+func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
+	if file == nil {
+		return Llama4VisionSpec{}, errors.New("projector: GGUF file is nil")
+	}
+	architecture, err := metadataString(file, "general.architecture")
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	if architecture != "clip" {
+		return Llama4VisionSpec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
+	}
+	projectorType, err := metadataString(file, "clip.projector_type")
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	if projectorType != llama4ProjectorType {
+		return Llama4VisionSpec{}, fmt.Errorf("projector: type %q is not %s", projectorType, llama4ProjectorType)
+	}
+	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	if !hasVision {
+		return Llama4VisionSpec{}, errors.New("projector: vision encoder is disabled")
+	}
+	values := make([]int, 7)
+	for index, key := range []string{
+		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
+		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
+		"clip.vision.attention.head_count",
+	} {
+		value, valueErr := metadataUint32(file, key)
+		if valueErr != nil {
+			return Llama4VisionSpec{}, valueErr
+		}
+		values[index] = int(value)
+	}
+	merge, ok, err := optionalMetadataUint32(file, "clip.vision.projector.scale_factor")
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	if !ok {
+		merge = 2
+	}
+	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	mlp1, ok := file.Tensor("mm.model.mlp.1.weight")
+	if !ok || mlp1.Dimensions != 2 {
+		return Llama4VisionSpec{}, errors.New("projector: Llama-4 first adapter tensor is unavailable or invalid")
+	}
+	mlp2, ok := file.Tensor("mm.model.mlp.2.weight")
+	if !ok || mlp2.Dimensions != 2 {
+		return Llama4VisionSpec{}, errors.New("projector: Llama-4 second adapter tensor is unavailable or invalid")
+	}
+	spec := Llama4VisionSpec{
+		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
+		OutputHidden: values[4], AdapterIntermediate: int(mlp1.Shape[1]), AdapterHidden: int(mlp2.Shape[1]),
+		Layers: values[5], Heads: values[6], MergeSize: int(merge), LayerNormEpsilon: epsilon,
+		RopeTheta: 10000, PreLayerNorm: hasTensor(file, "v.pre_ln.weight"), PostLayerNorm: hasTensor(file, "v.post_ln.weight"),
+		FusedQKV: make([]bool, values[5]),
+	}
+	copy(spec.ImageMean[:], mean)
+	copy(spec.ImageStd[:], std)
+	for layer := range spec.FusedQKV {
+		spec.FusedQKV[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.attn_qkv.weight", layer))
+	}
+	useGELU, err := optionalMetadataBool(file, "clip.use_gelu")
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	useSiLU, err := optionalMetadataBool(file, "clip.use_silu")
+	if err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	if useGELU && useSiLU {
+		return Llama4VisionSpec{}, errors.New("projector: Llama-4 GELU and SiLU flags conflict")
+	}
+	if useGELU {
+		spec.Activation = llama4GELU
+	} else if useSiLU {
+		spec.Activation = llama4SiLU
+	}
+	if err := spec.validate(); err != nil {
+		return Llama4VisionSpec{}, err
+	}
+	return spec, nil
+}
+
+func (s Llama4VisionSpec) validate() error {
+	headWidth := 0
+	if s.Heads > 0 {
+		headWidth = s.Hidden / s.Heads
+	}
+	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 || s.OutputHidden <= 0 ||
+		s.AdapterIntermediate <= 0 || s.AdapterHidden <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.MergeSize <= 0 ||
+		s.Hidden%s.Heads != 0 || headWidth%4 != 0 || s.ImageSize%s.PatchSize != 0 ||
+		(s.ImageSize/s.PatchSize)%s.MergeSize != 0 || s.LayerNormEpsilon <= 0 || s.RopeTheta <= 0 || len(s.FusedQKV) != s.Layers {
+		return fmt.Errorf("projector: invalid Llama-4 vision metadata: %+v", s)
+	}
+	for channel := range s.ImageStd {
+		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
+			return fmt.Errorf("projector: invalid Llama-4 normalization channel %d", channel)
+		}
+	}
+	return nil
+}
+
+func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) error {
+	patches := spec.ImageSize / spec.PatchSize
+	shuffleWidth := spec.Hidden * spec.MergeSize * spec.MergeSize
+	required := map[string][]uint64{
+		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
+		"v.class_embd":           {uint64(spec.Hidden)},
+		"v.position_embd.weight": {uint64(spec.Hidden), uint64(patches*patches + 1)},
+		"mm.model.mlp.1.weight":  {uint64(shuffleWidth), uint64(spec.AdapterIntermediate)},
+		"mm.model.mlp.2.weight":  {uint64(spec.AdapterIntermediate), uint64(spec.AdapterHidden)},
+		"mm.model.fc.weight":     {uint64(spec.AdapterHidden), uint64(spec.OutputHidden)},
+	}
+	if hasTensor(file, "v.patch_embd.bias") {
+		required["v.patch_embd.bias"] = []uint64{uint64(spec.Hidden)}
+	}
+	for _, prefix := range []string{"v.pre_ln", "v.post_ln"} {
+		hasWeight, hasBias := hasTensor(file, prefix+".weight"), hasTensor(file, prefix+".bias")
+		if hasWeight != hasBias {
+			return fmt.Errorf("projector: tensors %q and %q must be paired", prefix+".weight", prefix+".bias")
+		}
+		if hasWeight {
+			required[prefix+".weight"], required[prefix+".bias"] = []uint64{uint64(spec.Hidden)}, []uint64{uint64(spec.Hidden)}
+		}
+	}
+	for layer := 0; layer < spec.Layers; layer++ {
+		prefix := fmt.Sprintf("v.blk.%d.", layer)
+		for name, shape := range map[string][]uint64{
+			"attn_out.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
+			"ffn_up.weight":   {uint64(spec.Hidden), uint64(spec.Intermediate)},
+			"ffn_down.weight": {uint64(spec.Intermediate), uint64(spec.Hidden)},
+			"ln1.weight":      {uint64(spec.Hidden)}, "ln1.bias": {uint64(spec.Hidden)},
+			"ln2.weight": {uint64(spec.Hidden)}, "ln2.bias": {uint64(spec.Hidden)},
+		} {
+			required[prefix+name] = shape
+		}
+		if spec.FusedQKV[layer] {
+			required[prefix+"attn_qkv.weight"] = []uint64{uint64(spec.Hidden), uint64(3 * spec.Hidden)}
+		} else {
+			for _, part := range []string{"q", "k", "v"} {
+				required[prefix+"attn_"+part+".weight"] = []uint64{uint64(spec.Hidden), uint64(spec.Hidden)}
+			}
+		}
+		for _, name := range []string{"attn_qkv", "attn_q", "attn_k", "attn_v", "attn_out", "ffn_up", "ffn_down"} {
+			full := prefix + name + ".bias"
+			if hasTensor(file, full) {
+				width := spec.Hidden
+				if name == "attn_qkv" {
+					width = 3 * spec.Hidden
+				}
+				if name == "ffn_up" {
+					width = spec.Intermediate
+				}
+				required[full] = []uint64{uint64(width)}
+			}
+		}
+	}
+	for name, shape := range required {
+		info, ok := file.Tensor(name)
+		if !ok {
+			return fmt.Errorf("projector: missing tensor %q", name)
+		}
+		if int(info.Dimensions) != len(shape) {
+			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
+		}
+		for dimension, want := range shape {
+			if info.Shape[dimension] != want {
+				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
+			}
+		}
+	}
+	return nil
+}
+
+func PreprocessLlama4VisionImage(source image.Image, spec Llama4VisionSpec) (Llama4VisionInput, error) {
+	if source == nil {
+		return Llama4VisionInput{}, errors.New("projector: image is nil")
+	}
+	if err := spec.validate(); err != nil {
+		return Llama4VisionInput{}, err
+	}
+	bounds := source.Bounds()
+	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+		return Llama4VisionInput{}, errors.New("projector: image bounds are empty")
+	}
+	images := make([]image.Image, 0, 10)
+	gridW, gridH := 0, 0
+	if bounds.Dx() > spec.ImageSize || bounds.Dy() > spec.ImageSize {
+		gridW, gridH = llama4BestGrid(bounds.Dx(), bounds.Dy(), spec.ImageSize)
+		refined := resizeFitBicubic(source, gridW*spec.ImageSize, gridH*spec.ImageSize)
+		for y := 0; y < gridH; y++ {
+			for x := 0; x < gridW; x++ {
+				images = append(images, cropImage(refined, image.Rect(x*spec.ImageSize, y*spec.ImageSize, (x+1)*spec.ImageSize, (y+1)*spec.ImageSize)))
+			}
+		}
+	}
+	images = append(images, resizeFitBicubic(source, spec.ImageSize, spec.ImageSize))
+	tiles := make([]Llama4VisionTile, len(images))
+	for index, current := range images {
+		tiles[index] = llama4TilePixels(current, spec)
+	}
+	return Llama4VisionInput{Tiles: tiles, GridH: gridH, GridW: gridW}, nil
+}
+
+func llama4BestGrid(width, height, size int) (int, int) {
+	bestW, bestH := 1, 2
+	bestEffective, bestWaste := -1, math.MaxInt
+	for gridW := 1; gridW <= 3; gridW++ {
+		for gridH := 1; gridH <= 3; gridH++ {
+			if gridW == 1 && gridH == 1 {
+				continue
+			}
+			candidateW, candidateH := gridW*size, gridH*size
+			scale := math.Min(float64(candidateW)/float64(width), float64(candidateH)/float64(height))
+			targetW, targetH := int(float64(width)*scale), int(float64(height)*scale)
+			effective := min(targetW*targetH, width*height)
+			waste := candidateW*candidateH - effective
+			if effective > bestEffective || effective == bestEffective && waste < bestWaste {
+				bestW, bestH, bestEffective, bestWaste = gridW, gridH, effective, waste
+			}
+		}
+	}
+	return bestW, bestH
+}
+
+func resizeFitBicubic(source image.Image, width, height int) image.Image {
+	bounds := source.Bounds()
+	scale := math.Min(float64(width)/float64(bounds.Dx()), float64(height)/float64(bounds.Dy()))
+	resizedW := max(1, min(width, int(math.Ceil(float64(bounds.Dx())*scale))))
+	resizedH := max(1, min(height, int(math.Ceil(float64(bounds.Dy())*scale))))
+	resized := resizeImageBicubic(source, resizedW, resizedH)
+	output := image.NewRGBA(image.Rect(0, 0, width, height))
+	offsetX, offsetY := (width-resizedW)/2, (height-resizedH)/2
+	for y := 0; y < resizedH; y++ {
+		for x := 0; x < resizedW; x++ {
+			output.Set(offsetX+x, offsetY+y, resized.At(x, y))
+		}
+	}
+	return output
+}
+
+func cropImage(source image.Image, rectangle image.Rectangle) image.Image {
+	output := image.NewRGBA(image.Rect(0, 0, rectangle.Dx(), rectangle.Dy()))
+	for y := 0; y < rectangle.Dy(); y++ {
+		for x := 0; x < rectangle.Dx(); x++ {
+			output.Set(x, y, source.At(rectangle.Min.X+x, rectangle.Min.Y+y))
+		}
+	}
+	return output
+}
+
+func llama4TilePixels(source image.Image, spec Llama4VisionSpec) Llama4VisionTile {
+	grid := spec.ImageSize / spec.PatchSize
+	patchArea := spec.PatchSize * spec.PatchSize
+	pixels := make([]float32, grid*grid*3*patchArea)
+	for patchY := 0; patchY < grid; patchY++ {
+		for patchX := 0; patchX < grid; patchX++ {
+			row := (patchY*grid + patchX) * 3 * patchArea
+			for channel := 0; channel < 3; channel++ {
+				position := row + channel*patchArea
+				for y := 0; y < spec.PatchSize; y++ {
+					for x := 0; x < spec.PatchSize; x++ {
+						r, g, b, _ := source.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
+						value := [3]uint32{r, g, b}[channel]
+						pixels[position] = (float32(value>>8)/255 - spec.ImageMean[channel]) / spec.ImageStd[channel]
+						position++
+					}
+				}
+			}
+		}
+	}
+	return Llama4VisionTile{PixelValues: pixels, GridH: grid, GridW: grid}
+}
+
+func (r *Llama4VisionRunner) EncodeImage(ctx context.Context, source image.Image) (Llama4VisionOutput, error) {
+	if r == nil || r.file == nil {
+		return Llama4VisionOutput{}, errors.New("projector: runner is closed")
+	}
+	input, err := PreprocessLlama4VisionImage(source, r.spec)
+	if err != nil {
+		return Llama4VisionOutput{}, err
+	}
+	var embeddings []float32
+	rows := 0
+	for index, tile := range input.Tiles {
+		var value reference.Value
+		var tileErr error
+		if r.cuda != nil {
+			value, tileErr = r.encodeTileCUDA(ctx, tile)
+		} else {
+			value, tileErr = r.encodeTile(ctx, tile)
+		}
+		if tileErr != nil {
+			return Llama4VisionOutput{}, fmt.Errorf("projector: encode Llama-4 tile %d: %w", index, tileErr)
+		}
+		embeddings = append(embeddings, value.Data...)
+		rows += int(value.Shape.Dims[1])
+	}
+	value, err := reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(rows)), embeddings)
+	if err != nil {
+		return Llama4VisionOutput{}, err
+	}
+	return Llama4VisionOutput{Embeddings: value, TileCount: len(input.Tiles), GridH: input.GridH, GridW: input.GridW}, nil
+}
+
+func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionTile) (reference.Value, error) {
+	patchRows := input.GridH * input.GridW
+	patchWidth := 3 * r.spec.PatchSize * r.spec.PatchSize
+	if patchRows <= 0 || input.GridH != input.GridW || input.GridH%r.spec.MergeSize != 0 || len(input.PixelValues) != patchRows*patchWidth {
+		return reference.Value{}, errors.New("projector: Llama-4 tile shape is inconsistent")
+	}
+	patchWeight, err := r.load(ctx, "v.patch_embd.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	patchBias, err := r.optionalBias(ctx, "v.patch_embd.bias")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	hidden := linear(input.PixelValues, patchWeight.Data, patchBias, patchRows, patchWidth, r.spec.Hidden)
+	classEmbedding, err := r.load(ctx, "v.class_embd")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	hidden = append(hidden, classEmbedding.Data...)
+	rows := patchRows + 1
+	positions, err := r.load(ctx, "v.position_embd.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	for index := range hidden {
+		hidden[index] += positions.Data[index]
+	}
+	if r.spec.PreLayerNorm {
+		hidden, err = r.affineNormalize(ctx, hidden, rows, "v.pre_ln")
+		if err != nil {
+			return reference.Value{}, err
+		}
+	}
+	for layer := 0; layer < r.spec.Layers; layer++ {
+		if err := r.runLayer(ctx, hidden, input.GridH, input.GridW, layer); err != nil {
+			return reference.Value{}, err
+		}
+	}
+	if r.spec.PostLayerNorm {
+		hidden, err = r.affineNormalize(ctx, hidden, rows, "v.post_ln")
+		if err != nil {
+			return reference.Value{}, err
+		}
+	}
+	hidden = hidden[:patchRows*r.spec.Hidden]
+	mergedH, mergedW := input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize
+	shuffleWidth := r.spec.Hidden * r.spec.MergeSize * r.spec.MergeSize
+	shuffled := make([]float32, mergedH*mergedW*shuffleWidth)
+	for blockY := 0; blockY < mergedH; blockY++ {
+		for blockX := 0; blockX < mergedW; blockX++ {
+			destination := (blockY*mergedW + blockX) * shuffleWidth
+			for y := 0; y < r.spec.MergeSize; y++ {
+				for x := 0; x < r.spec.MergeSize; x++ {
+					source := ((blockY*r.spec.MergeSize+y)*input.GridW + blockX*r.spec.MergeSize + x) * r.spec.Hidden
+					copy(shuffled[destination:], hidden[source:source+r.spec.Hidden])
+					destination += r.spec.Hidden
+				}
+			}
+		}
+	}
+	mlp1, err := r.load(ctx, "mm.model.mlp.1.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	adapted := linear(shuffled, mlp1.Data, nil, mergedH*mergedW, shuffleWidth, r.spec.AdapterIntermediate)
+	for index, value := range adapted {
+		adapted[index] = geluTanh(value)
+	}
+	mlp2, err := r.load(ctx, "mm.model.mlp.2.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	adapted = linear(adapted, mlp2.Data, nil, mergedH*mergedW, r.spec.AdapterIntermediate, r.spec.AdapterHidden)
+	for index, value := range adapted {
+		adapted[index] = geluTanh(value)
+	}
+	projection, err := r.load(ctx, "mm.model.fc.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	output := linear(adapted, projection.Data, nil, mergedH*mergedW, r.spec.AdapterHidden, r.spec.OutputHidden)
+	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(mergedH*mergedW)), output)
+}
+
+func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gridH, gridW, layer int) error {
+	rows := gridH*gridW + 1
+	prefix := fmt.Sprintf("v.blk.%d.", layer)
+	norm, err := r.affineNormalize(ctx, hidden, rows, prefix+"ln1")
+	if err != nil {
+		return err
+	}
+	qkv, err := r.projectQKV(ctx, norm, rows, prefix, layer)
+	if err != nil {
+		return err
+	}
+	llama4VisionRoPE(qkv, gridH, gridW, r.spec.Hidden, r.spec.Heads, r.spec.RopeTheta)
+	attention := visionAttention(qkv, rows, r.spec.Hidden, r.spec.Heads)
+	outWeight, err := r.load(ctx, prefix+"attn_out.weight")
+	if err != nil {
+		return err
+	}
+	outBias, err := r.optionalBias(ctx, prefix+"attn_out.bias")
+	if err != nil {
+		return err
+	}
+	projected := linear(attention, outWeight.Data, outBias, rows, r.spec.Hidden, r.spec.Hidden)
+	for index := range hidden {
+		hidden[index] += projected[index]
+	}
+	norm, err = r.affineNormalize(ctx, hidden, rows, prefix+"ln2")
+	if err != nil {
+		return err
+	}
+	upWeight, err := r.load(ctx, prefix+"ffn_up.weight")
+	if err != nil {
+		return err
+	}
+	upBias, err := r.optionalBias(ctx, prefix+"ffn_up.bias")
+	if err != nil {
+		return err
+	}
+	up := linear(norm, upWeight.Data, upBias, rows, r.spec.Hidden, r.spec.Intermediate)
+	for index, value := range up {
+		up[index] = r.activate(value)
+	}
+	downWeight, err := r.load(ctx, prefix+"ffn_down.weight")
+	if err != nil {
+		return err
+	}
+	downBias, err := r.optionalBias(ctx, prefix+"ffn_down.bias")
+	if err != nil {
+		return err
+	}
+	down := linear(up, downWeight.Data, downBias, rows, r.spec.Intermediate, r.spec.Hidden)
+	for index := range hidden {
+		hidden[index] += down[index]
+	}
+	return nil
+}
+
+func llama4VisionRoPE(qkv []float32, gridH, gridW, hidden, heads int, theta float32) {
+	rows, headWidth := gridH*gridW+1, hidden/heads
+	half := headWidth / 2
+	for token := 0; token < rows; token++ {
+		positionW, positionH := 0, 0
+		if token < rows-1 {
+			positionW, positionH = token%gridW+1, token/gridW+1
+		}
+		for head := 0; head < heads; head++ {
+			for _, part := range []int{0, 1} {
+				base := token*3*hidden + part*hidden + head*headWidth
+				for section, position := range []int{positionW, positionH} {
+					sectionBase := base + section*half
+					for pair := 0; pair < half/2; pair++ {
+						frequency := math.Pow(float64(theta), -2*float64(pair)/float64(half))
+						angle := float64(position) * frequency
+						cosine, sine := float32(math.Cos(angle)), float32(math.Sin(angle))
+						index := sectionBase + pair*2
+						left, right := qkv[index], qkv[index+1]
+						qkv[index], qkv[index+1] = left*cosine-right*sine, left*sine+right*cosine
+					}
+				}
+			}
+		}
+	}
+}
+
+func (r *Llama4VisionRunner) activate(value float32) float32 {
+	switch r.spec.Activation {
+	case llama4GELU:
+		return geluTanh(value)
+	case llama4SiLU:
+		return value / (1 + float32(math.Exp(float64(-value))))
+	default:
+		return value / (1 + float32(math.Exp(float64(-1.702*value))))
+	}
+}
+
+func (r *Llama4VisionRunner) affineNormalize(ctx context.Context, input []float32, rows int, prefix string) ([]float32, error) {
+	weight, bias, err := r.loadPair(ctx, prefix+".weight", prefix+".bias")
+	if err != nil {
+		return nil, err
+	}
+	output := make([]float32, len(input))
+	layerNorm(output, input, weight.Data, bias.Data, rows, len(input)/rows, r.spec.LayerNormEpsilon)
+	return output, nil
+}
+
+func (r *Llama4VisionRunner) projectQKV(ctx context.Context, input []float32, rows int, prefix string, layer int) ([]float32, error) {
+	if r.spec.FusedQKV[layer] {
+		weight, err := r.load(ctx, prefix+"attn_qkv.weight")
+		if err != nil {
+			return nil, err
+		}
+		bias, err := r.optionalBias(ctx, prefix+"attn_qkv.bias")
+		if err != nil {
+			return nil, err
+		}
+		return linear(input, weight.Data, bias, rows, r.spec.Hidden, 3*r.spec.Hidden), nil
+	}
+	qkv := make([]float32, rows*3*r.spec.Hidden)
+	for partIndex, part := range []string{"q", "k", "v"} {
+		weight, err := r.load(ctx, prefix+"attn_"+part+".weight")
+		if err != nil {
+			return nil, err
+		}
+		bias, err := r.optionalBias(ctx, prefix+"attn_"+part+".bias")
+		if err != nil {
+			return nil, err
+		}
+		projected := linear(input, weight.Data, bias, rows, r.spec.Hidden, r.spec.Hidden)
+		for row := 0; row < rows; row++ {
+			copy(qkv[row*3*r.spec.Hidden+partIndex*r.spec.Hidden:], projected[row*r.spec.Hidden:(row+1)*r.spec.Hidden])
+		}
+	}
+	return qkv, nil
+}
+
+func (r *Llama4VisionRunner) optionalBias(ctx context.Context, name string) ([]float32, error) {
+	if !hasTensor(r.file, name) {
+		return nil, nil
+	}
+	value, err := r.load(ctx, name)
+	return value.Data, err
+}
+
+func (r *Llama4VisionRunner) load(ctx context.Context, name string) (reference.Value, error) {
+	info, ok := r.file.Tensor(name)
+	if !ok {
+		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
+	}
+	return model.LoadHostTensor(ctx, r.file, info)
+}
+
+func (r *Llama4VisionRunner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
+	a, err := r.load(ctx, first)
+	if err != nil {
+		return reference.Value{}, reference.Value{}, err
+	}
+	b, err := r.load(ctx, second)
+	return a, b, err
+}

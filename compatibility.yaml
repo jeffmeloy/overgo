@@ -1431,11 +1431,13 @@ models:
       - sam-window-and-global-relative-attention
       - clip-quickgelu-vision-transformer
       - row-newline-and-view-separator-assembly
+      - deepseekocr2-gqa-qwen2-resampler
+      - bidirectional-image-and-causal-query-mask
+      - independent-local-tile-streams
       - ordered-multi-image-soft-token-merge
       - native-image-history-prompts
       - optional-cuda-projector-execution
     limitations:
-      - deepseekocr2-projector-unimplemented
       - real-model-validation-pending-fixture
     real_model_validation: pending-fixture
   deepseek32:

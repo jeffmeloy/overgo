@@ -116,6 +116,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case deepSeekOCR2ProjectorType:
+		return OpenDeepSeekOCR2WithOptions(path, DeepSeekOCR2OpenOptions(options))
 	case deepSeekOCRProjectorType:
 		return OpenDeepSeekOCRWithOptions(path, DeepSeekOCROpenOptions(options))
 	case cogVLMProjectorType:

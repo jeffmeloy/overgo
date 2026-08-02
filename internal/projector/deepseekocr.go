@@ -137,6 +137,18 @@ func (r *DeepSeekOCRRunner) Spec() DeepSeekOCRSpec {
 }
 
 func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
+	spec, err := readDeepSeekOCRBaseSpec(file, deepSeekOCRProjectorType, 640, 9)
+	if err != nil {
+		return DeepSeekOCRSpec{}, err
+	}
+	spec.TensorNames = deepSeekOCRTensorNames(spec)
+	if err := validateDeepSeekOCRCatalog(file, spec); err != nil {
+		return DeepSeekOCRSpec{}, err
+	}
+	return spec, nil
+}
+
+func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, maxTiles int) (DeepSeekOCRSpec, error) {
 	if file == nil {
 		return DeepSeekOCRSpec{}, errors.New("projector: GGUF file is nil")
 	}
@@ -148,8 +160,8 @@ func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	if architecture != "clip" || projectorType != deepSeekOCRProjectorType {
-		return DeepSeekOCRSpec{}, fmt.Errorf("projector: architecture/type %q/%q is not clip/%s", architecture, projectorType, deepSeekOCRProjectorType)
+	if architecture != "clip" || projectorType != expectedType {
+		return DeepSeekOCRSpec{}, fmt.Errorf("projector: architecture/type %q/%q is not clip/%s", architecture, projectorType, expectedType)
 	}
 	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
 	if err != nil || !hasVision {
@@ -180,13 +192,13 @@ func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
 			return DeepSeekOCRSpec{}, err
 		}
 	}
-	spec.TileSize = 640
+	spec.TileSize = tileSize
 	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.preproc_image_size"); valueErr != nil {
 		return DeepSeekOCRSpec{}, valueErr
 	} else if ok {
 		spec.TileSize = int(value)
 	}
-	spec.MinTiles, spec.MaxTiles = 2, 9
+	spec.MinTiles, spec.MaxTiles = 2, maxTiles
 	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.preproc_min_tiles"); valueErr != nil {
 		return DeepSeekOCRSpec{}, valueErr
 	} else if ok {
@@ -219,10 +231,6 @@ func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
 	if err := spec.validate(); err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	spec.TensorNames = deepSeekOCRTensorNames(spec)
-	if err := validateDeepSeekOCRCatalog(file, spec); err != nil {
-		return DeepSeekOCRSpec{}, err
-	}
 	return spec, nil
 }
 
@@ -243,13 +251,29 @@ func (s DeepSeekOCRSpec) validate() error {
 }
 
 func deepSeekOCRTensorNames(spec DeepSeekOCRSpec) []string {
+	names := deepSeekOCRSAMTensorNames(spec)
+	names = append(names,
+		"v.class_embd", "v.position_embd.weight",
+		"mm.model.fc.weight", "mm.model.fc.bias", "v.image_newline", "v.view_seperator",
+	)
+	for layer := 0; layer < spec.Layers; layer++ {
+		prefix := fmt.Sprintf("v.blk.%d.", layer)
+		for _, suffix := range []string{
+			"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias", "attn_qkv.weight", "attn_qkv.bias",
+			"attn_out.weight", "attn_out.bias", "ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
+		} {
+			names = append(names, prefix+suffix)
+		}
+	}
+	return names
+}
+
+func deepSeekOCRSAMTensorNames(spec DeepSeekOCRSpec) []string {
 	names := []string{
 		"v.sam.pos_embd.weight", "v.sam.patch_embd.weight", "v.sam.patch_embd.bias",
 		"v.sam.neck.0.weight", "v.sam.neck.1.weight", "v.sam.neck.1.bias",
 		"v.sam.neck.2.weight", "v.sam.neck.3.weight", "v.sam.neck.3.bias",
 		"v.sam.net_2.weight", "v.sam.net_3.weight",
-		"v.class_embd", "v.position_embd.weight",
-		"mm.model.fc.weight", "mm.model.fc.bias", "v.image_newline", "v.view_seperator",
 	}
 	for layer := 0; layer < spec.SAMLayers; layer++ {
 		prefix := fmt.Sprintf("v.sam.blk.%d.", layer)
@@ -258,15 +282,6 @@ func deepSeekOCRTensorNames(spec DeepSeekOCRSpec) []string {
 			"attn.pos_h.weight", "attn.pos_w.weight", "attn.qkv.weight", "attn.qkv.bias",
 			"attn.out.weight", "attn.out.bias", "mlp.lin1.weight", "mlp.lin1.bias",
 			"mlp.lin2.weight", "mlp.lin2.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias", "attn_qkv.weight", "attn_qkv.bias",
-			"attn_out.weight", "attn_out.bias", "ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
 		} {
 			names = append(names, prefix+suffix)
 		}
@@ -349,15 +364,17 @@ func openDeepSeekOCRCuda(ctx context.Context, file *gguf.File, spec DeepSeekOCRS
 		return fail(err)
 	}
 	infos := make([]gguf.TensorInfo, len(spec.TensorNames))
+	included := make(map[string]bool, len(spec.TensorNames))
 	for index, name := range spec.TensorNames {
 		info, ok := file.Tensor(name)
 		if !ok {
 			return fail(fmt.Errorf("tensor %q is unavailable", name))
 		}
 		infos[index] = info
+		included[name] = true
 	}
 	for _, name := range []string{"v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias"} {
-		if info, ok := file.Tensor(name); ok {
+		if info, ok := file.Tensor(name); ok && !included[name] {
 			infos = append(infos, info)
 		}
 	}
@@ -523,7 +540,7 @@ func (r *DeepSeekOCRRunner) encodeTile(ctx context.Context, source image.Image) 
 	return results[output], nil
 }
 
-func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Tensor, size int, weight func(string) *tensor.Tensor, hostFeeds map[*tensor.Tensor]reference.Value) *tensor.Tensor {
+func (r *DeepSeekOCRRunner) buildSAMGraph(builder *tensor.Builder, input *tensor.Tensor, size int, weight func(string) *tensor.Tensor, hostFeeds map[*tensor.Tensor]reference.Value) *tensor.Tensor {
 	cur := builder.Conv2D(input, weight("v.sam.patch_embd.weight"), builder.Reshape(weight("v.sam.patch_embd.bias"), uint64(r.spec.SAMHidden)),
 		uint32(r.spec.PatchSize), uint32(r.spec.PatchSize), 0, 0, 0, 0, false)
 	spatial := size / r.spec.PatchSize
@@ -580,6 +597,11 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 	cur = deepSeekOCRSpatialLayerNorm(builder, cur, weight("v.sam.neck.3.weight"), weight("v.sam.neck.3.bias"), 1e-6)
 	cur = builder.Conv2D(cur, weight("v.sam.net_2.weight"), nil, 2, 2, 1, 1, 1, 1, false)
 	cur = builder.Conv2D(cur, weight("v.sam.net_3.weight"), nil, 2, 2, 1, 1, 1, 1, false)
+	return cur
+}
+
+func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Tensor, size int, weight func(string) *tensor.Tensor, hostFeeds map[*tensor.Tensor]reference.Value) *tensor.Tensor {
+	cur := r.buildSAMGraph(builder, input, size, weight, hostFeeds)
 	patches := cur.Shape.Dims[1] * cur.Shape.Dims[2]
 	sam := builder.Reshape(cur, cur.Shape.Dims[0], patches)
 	hidden := builder.Concat(builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1), sam, 1)

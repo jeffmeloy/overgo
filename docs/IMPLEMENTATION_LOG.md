@@ -1768,6 +1768,14 @@ and bind each produced soft token to the decoder. Strict metadata/catalog and
 preprocessing/prompt tests, tensor primitive parity, plus an end-to-end CPU/CUDA
 differential pass; real-model validation remains fixture-gated.
 
+DeepSeek-OCR-2 reuses the SAM tower with 768-pixel independent local tiles and
+the 1024-pixel overview, then concatenates size-specific learned queries into
+its GQA Qwen2 encoder. Image prefixes attend bidirectionally while resampler
+queries attend the complete image prefix and their causal query prefix. Only
+query outputs enter the final projection; the overview receives the trailing
+view separator. Tiny overview/grid/prompt contracts and a nonzero end-to-end
+CPU/CUDA differential pass; real-model validation remains fixture-gated.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

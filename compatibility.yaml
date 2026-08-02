@@ -2670,9 +2670,15 @@ models:
       - swiglu
       - projected-embedding-overrides
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - image-encoder-external
-      - image-grid-coordinate-construction-external
+      - qwen2vl-merger-image-video-projector
+      - temporal-pair-patch-projection
+      - separate-biased-vision-qkv
+      - vision-mrope
+      - ordered-multi-image-soft-token-merge
+      - compressed-four-axis-image-grid
+      - temporal-four-axis-video-grid
+      - standard-and-legacy-ffn-catalogs
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   qwen3vl:
     status: experimental

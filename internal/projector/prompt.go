@@ -105,6 +105,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case qwen2VLProjectorType:
+		return OpenQwen2VLWithOptions(path, Qwen2VLOpenOptions(options))
 	case qwen3VLProjectorType:
 		return OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions(options))
 	case gemma4UVProjectorType:
@@ -161,6 +163,155 @@ func (r *Qwen3VLRunner) BuildImagePrompt(
 	thinking bool,
 ) (MultimodalPrompt, error) {
 	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, thinking)
+}
+
+func (r *Qwen2VLRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+}
+
+func (r *Qwen2VLRunner) BuildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
+}
+
+func (r *Qwen2VLRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+}
+
+func (r *Qwen2VLRunner) buildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	history bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: Qwen2-VL image/text sequence is inconsistent")
+	}
+	type geometry struct{ rows, columns int }
+	counts := make([]int, len(sources))
+	geometries := make([]geometry, len(sources))
+	var embeddings []float32
+	var prompt strings.Builder
+	if !history {
+		prompt.WriteString("<|im_start|>user\n")
+	}
+	for index, source := range sources {
+		prompt.WriteString(text[index])
+		output, err := r.EncodeImage(ctx, source, DefaultQwen3VLPreprocessOptions())
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode Qwen2-VL image %d: %w", index, err)
+		}
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		geometries[index] = geometry{output.GridH / output.MergeSize, output.GridW / output.MergeSize}
+		prompt.WriteString("<|vision_start|>")
+		prompt.WriteString(strings.Repeat(Qwen3VLImagePad, counts[index]))
+		prompt.WriteString("<|vision_end|>")
+		embeddings = append(embeddings, output.Embeddings.Data...)
+	}
+	prompt.WriteString(text[len(text)-1])
+	if !history {
+		prompt.WriteString("<|im_end|>\n<|im_start|>assistant\n")
+	}
+	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Qwen2-VL image prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText(Qwen3VLImagePad, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize image placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: image placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := variableTokenRuns(ids, padIDs[0], counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Qwen2-VL image prompt: %w", err)
+	}
+	chunks := make([]Qwen3VLPositionChunk, len(starts))
+	var indices []uint32
+	for index, start := range starts {
+		chunks[index] = Qwen3VLPositionChunk{Start: start, Rows: geometries[index].rows, Columns: geometries[index].columns}
+		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
+	}
+	positions, err := Qwen3VLVariableChunkPositions(len(ids), chunks)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
+		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
+	}, nil
+}
+
+func (r *Qwen2VLRunner) BuildVideoPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	frames []image.Image,
+	beforeVideo, afterVideo string,
+	_ float64,
+	_ bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	count := int(output.Embeddings.Shape.Dims[1])
+	var prompt strings.Builder
+	prompt.WriteString("<|im_start|>user\n")
+	prompt.WriteString(beforeVideo)
+	prompt.WriteString("<|vision_start|>")
+	prompt.WriteString(strings.Repeat(Qwen3VLVideoPad, count))
+	prompt.WriteString("<|vision_end|>")
+	prompt.WriteString(afterVideo)
+	prompt.WriteString("<|im_end|>\n<|im_start|>assistant\n")
+	ids, err := tokenizer.TokenizeText(prompt.String(), false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Qwen2-VL video prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText(Qwen3VLVideoPad, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize video placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: video placeholder maps to %d tokens", len(padIDs))
+	}
+	start, err := contiguousTokenRun(ids, padIDs[0], count)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: Qwen2-VL video prompt: %w", err)
+	}
+	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
+	positions, err := Qwen2VLVideoPositions(len(ids), start, output.GridT, rows, columns)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
+		EmbeddingStart: start, EmbeddingTokenIndices: sequentialTokenIndices(start, count),
+		MultiAxisPositions: positions,
+	}, nil
 }
 
 func (r *Gemma4Runner) BuildImagePrompt(
@@ -964,6 +1115,40 @@ func Qwen3VLMultiChunkPositions(tokens int, starts []int, tokensPerChunk, rows, 
 		}
 		next++
 		physical++
+	}
+	return positions, nil
+}
+
+func Qwen2VLVideoPositions(tokens, start, temporal, rows, columns int) ([4][]uint32, error) {
+	count := temporal * rows * columns
+	if tokens <= 0 || start < 0 || temporal <= 0 || rows <= 0 || columns <= 0 || start+count > tokens {
+		return [4][]uint32{}, errors.New("projector: invalid Qwen2-VL video position geometry")
+	}
+	var positions [4][]uint32
+	for axis := range positions {
+		positions[axis] = make([]uint32, tokens)
+	}
+	next := uint32(0)
+	for index := 0; index < start; index++ {
+		for axis := range positions {
+			positions[axis][index] = next
+		}
+		next++
+	}
+	base := next
+	spatial := rows * columns
+	for index := 0; index < count; index++ {
+		positions[0][start+index] = base + uint32(index/spatial)
+		positions[1][start+index] = base + uint32((index%spatial)/columns)
+		positions[2][start+index] = base + uint32(index%columns)
+		positions[3][start+index] = 0
+	}
+	next = base + uint32(max(temporal, rows, columns))
+	for index := start + count; index < tokens; index++ {
+		for axis := range positions {
+			positions[axis][index] = next
+		}
+		next++
 	}
 	return positions, nil
 }

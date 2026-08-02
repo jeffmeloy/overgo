@@ -1374,14 +1374,15 @@ repeats the token coordinate across all axes. Reference/CUDA block
 differentials pass. The vision projector and grid construction remain external;
 real-model validation is pending fixtures.
 
-Qwen2-VL now executes its dense text decoder with fused or separate Q/K/V,
-optional projection/output biases, scaled four-axis adjacent-pair MRoPE, SwiGLU,
-and serializable KV caching. Projected visual token embeddings can enter through
-the multimodal input API with caller-supplied four-axis grid coordinates; text
-tokens use repeated coordinates across all axes. Image encoding and grid
-construction remain external multimodal boundaries. Metadata, strict catalog,
-graph semantics, and a complete reference/CUDA block differential pass;
-real-model validation is pending a local text-model fixture.
+Qwen2-VL now executes its dense text decoder and internal image/video projector.
+The visual tower implements temporal-pair patch projection, optional pre/post
+LayerNorm, separate biased Q/K/V attention with visual MRoPE, affine LayerNorm,
+GELU FFN blocks, and the two-layer merger. Native prompt construction supplies
+ordered projected embeddings plus compressed four-axis image or temporal video
+coordinates. The catalog accepts both standard and historical swapped FFN names
+and defaults the spatial merge size to two when old files omit the metadata.
+Host/CUDA projector differentials and decoder block differentials pass;
+real-model validation is pending a local fixture.
 
 Qwen3-VL now adds mandatory per-head Q/K RMSNorm before scaled four-axis MRoPE,
 plus its optional deepstack layers, over the same dense text-decoder and KV-cache

@@ -136,7 +136,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `qwen` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `qwen2` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `qwen2moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `qwen2vl` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | image-encoder-external, image-grid-coordinate-construction-external |
+| `qwen2vl` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `qwen3` | experimental | bounded-host, f32-preload, native-q8, native-k-quant, native-iq4-xs | validated: Qwen3-4B-UD-Q8_K_XL.gguf | - |
 | `qwen35` | experimental | native-q8 | validated: Qwen3.5-9B-Q8_0.gguf, Bonsai-27B-Q1_0.gguf, Qwen3.5-4B-F16.gguf, qwen35_video_golden.json | - |
 | `qwen35moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |

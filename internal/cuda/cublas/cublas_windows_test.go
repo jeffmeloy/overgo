@@ -4,8 +4,8 @@ package cublas
 
 import (
 	"context"
+	cudatest "llamacpp2go/internal/cuda/testutil"
 	"math"
-	"os"
 	"testing"
 	"unsafe"
 
@@ -14,9 +14,7 @@ import (
 )
 
 func TestSGEMMIntegration(t *testing.T) {
-	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
-		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
-	}
+	cudatest.Require(t)
 	worker, err := device.New(0)
 	if err != nil {
 		t.Fatal(err)

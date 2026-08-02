@@ -4,16 +4,14 @@ package kernel
 
 import (
 	"context"
-	"os"
+	cudatest "llamacpp2go/internal/cuda/testutil"
 	"testing"
 
 	"llamacpp2go/internal/cuda/device"
 )
 
 func TestVectorAddIntegration(t *testing.T) {
-	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
-		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
-	}
+	cudatest.Require(t)
 
 	worker, err := device.New(0)
 	if err != nil {

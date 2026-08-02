@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	cudatest "llamacpp2go/internal/cuda/testutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -223,9 +224,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 }
 
 func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
-	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
-		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
-	}
+	cudatest.Require(t)
 	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	file, err := os.Create(path)
 	if err != nil {

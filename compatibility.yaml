@@ -71,7 +71,7 @@ claims:
     evidence:
       - path: internal/projector/prompt.go
         contains: "func (r *Qwen3VLRunner) BuildImagesPrompt("
-      - path: internal/server/server_test.go
+      - path: internal/server/server_part3_test.go
         contains: "func TestResponsesMultipleImagesPreservesContentOrder("
   - id: multimodal-token-counting
     status: implemented
@@ -79,7 +79,7 @@ claims:
     evidence:
       - path: internal/server/server.go
         contains: "func (h *Handler) responsesInputTokens("
-      - path: internal/server/server_test.go
+      - path: internal/server/server_part2_test.go
         contains: "func TestMultimodalInputTokenCounting("
   - id: unified-prompt-preparation
     status: implemented
@@ -87,7 +87,7 @@ claims:
     evidence:
       - path: internal/server/server.go
         contains: "func (h *Handler) preparePrompt("
-      - path: internal/server/server_test.go
+      - path: internal/server/server_part2_test.go
         contains: "func TestPreparedPromptGenerationAndTokenCountParity("
   - id: reproducible-release
     status: implemented

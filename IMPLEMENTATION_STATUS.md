@@ -37,6 +37,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Shared native, Chat, and Responses prompt preparation and token counting.
 - Non-mutating Go formatting verification in local and CI gates.
 - Full-repository vet gate and CGO race CI for server/inference.
+- Split oversized server/model/CUDA tests with shared CUDA test setup.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
@@ -62,10 +63,6 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 3. Add mixed image/audio turns only where the projector prompt contract is
    validated by an upstream oracle.
 4. Add token-incremental tool-call argument streaming.
-
-### Verification and maintenance
-
-1. Split oversized model/server/CUDA test files and centralize CUDA test setup.
 
 ## Deferred or externally blocked
 

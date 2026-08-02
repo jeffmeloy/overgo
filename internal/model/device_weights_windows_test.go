@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"os"
+	cudatest "llamacpp2go/internal/cuda/testutil"
 	"testing"
 
 	"llamacpp2go/internal/cuda/device"
@@ -15,9 +15,7 @@ import (
 )
 
 func TestDeviceWeightsIntegration(t *testing.T) {
-	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
-		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
-	}
+	cudatest.Require(t)
 	data := weightFixture(t)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {

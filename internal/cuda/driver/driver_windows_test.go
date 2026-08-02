@@ -3,14 +3,12 @@
 package driver
 
 import (
-	"os"
+	cudatest "llamacpp2go/internal/cuda/testutil"
 	"testing"
 )
 
 func TestDriverIntegration(t *testing.T) {
-	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
-		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
-	}
+	cudatest.Require(t)
 
 	lib, err := Open()
 	if err != nil {

@@ -1584,6 +1584,11 @@ Local and CI verification enforce `go vet ./...`. A separate Ubuntu CGO job
 runs the race detector over server and inference packages without changing the
 normal cgo-free runtime contract.
 
+The largest server, model specification/catalog/graph, and CUDA executor test
+files are split into bounded source units without changing package boundaries.
+CUDA integration setup is centralized in `internal/cuda/testutil`; 137 device
+tests now share one environment gate and skip contract.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

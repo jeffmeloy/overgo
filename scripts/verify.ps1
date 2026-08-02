@@ -15,7 +15,11 @@ try {
 	if ($unformatted.Count -ne 0) {
 		throw "Go formatting check failed:`n$($unformatted -join "`n")"
 	}
-    go test ./...
+	go vet ./...
+	if ($LASTEXITCODE -ne 0) {
+		throw "go vet failed"
+	}
+	go test ./...
     if ($LASTEXITCODE -ne 0) {
         throw "unit tests failed"
     }

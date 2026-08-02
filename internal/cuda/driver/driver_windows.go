@@ -12,6 +12,12 @@ import (
 	"unsafe"
 )
 
+var (
+	kernel32      = syscall.NewLazyDLL("kernel32.dll")
+	lstrlenA      = kernel32.NewProc("lstrlenA")
+	rtlMoveMemory = kernel32.NewProc("RtlMoveMemory")
+)
+
 // Library: dynamically loaded CUDA Driver API library
 type Library struct {
 	dll *syscall.DLL
@@ -561,22 +567,22 @@ func (l *Library) result(operation string, value uintptr) error {
 	return err
 }
 
-// readCString receives process-local C pointer returned by CUDA driver
-// pointer necessarily crosses syscall boundary as uintptr and remains
-// owned by driver for duration of this bounded read
-//
-//go:nocheckptr
+// readCString: bounded copy from driver-owned C string
 func readCString(pointer uintptr, limit int) string {
 	if pointer == 0 || limit <= 0 {
 		return ""
 	}
-	bytes := make([]byte, 0, 64)
-	for i := 0; i < limit; i++ {
-		value := *(*byte)(unsafe.Pointer(pointer + uintptr(i)))
-		if value == 0 {
-			break
-		}
-		bytes = append(bytes, value)
+	length, _, _ := lstrlenA.Call(pointer)
+	length = min(length, uintptr(limit))
+	if length == 0 {
+		return ""
 	}
-	return string(bytes)
+	data := make([]byte, length)
+	_, _, _ = rtlMoveMemory.Call(
+		uintptr(unsafe.Pointer(&data[0])),
+		pointer,
+		length,
+	)
+	runtime.KeepAlive(data)
+	return string(data)
 }

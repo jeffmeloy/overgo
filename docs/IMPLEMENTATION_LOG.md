@@ -1578,6 +1578,12 @@ Formatting verification is now read-only. Local verification and the
 cross-platform CI matrix run `gofmt -l` and fail with the complete unformatted
 file list; neither gate rewrites the worktree.
 
+The CUDA driver now copies driver-owned error strings through `lstrlenA` and
+`RtlMoveMemory`, eliminating the process-pointer arithmetic that blocked vet.
+Local and CI verification enforce `go vet ./...`. A separate Ubuntu CGO job
+runs the race detector over server and inference packages without changing the
+normal cgo-free runtime contract.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

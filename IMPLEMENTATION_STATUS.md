@@ -36,6 +36,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Bounded multimodal bodies, decoded media, image dimensions, and pixels.
 - Shared native, Chat, and Responses prompt preparation and token counting.
 - Non-mutating Go formatting verification in local and CI gates.
+- Full-repository vet gate and CGO race CI for server/inference.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
@@ -64,11 +65,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ### Verification and maintenance
 
-1. Add a vet gate after isolating the intentional CUDA C-pointer diagnostic.
-2. Add a CGO-enabled race job for server and inference packages.
-3. Split oversized model/server/CUDA test files and centralize CUDA test setup.
-4. Keep implemented claims in `compatibility.yaml`; regenerate and check
-   `docs/COMPATIBILITY.md` in local verification and CI.
+1. Split oversized model/server/CUDA test files and centralize CUDA test setup.
 
 ## Deferred or externally blocked
 
@@ -76,8 +73,6 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | --- | --- | --- |
 | Real-model validation for marked architectures | Local GGUF/oracle fixture unavailable | Fixture supplied or generated |
 | Release signing | No user-controlled signing certificate | Certificate and signing policy supplied |
-| Standard Go race detector in normal builds | Runtime contract uses `CGO_ENABLED=0` | Separate CGO-enabled verification job |
-| Full repository vet | CUDA driver returns process-local C pointers as `uintptr` | Isolate or validate the interop diagnostic |
 | ECMAScript regex lookaround/backreferences | Go RE2 does not implement them | Compatible bounded engine selected |
 | Remote media URLs | Fetch policy and SSRF boundary undefined | Explicit allowlist, size, redirect, and timeout policy |
 

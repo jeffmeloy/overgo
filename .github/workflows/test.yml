@@ -27,6 +27,10 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: go test ./...
+      - name: Vet
+        env:
+          CGO_ENABLED: "0"
+        run: go vet ./...
       - name: Verify SBOM
         env:
           CGO_ENABLED: "0"
@@ -39,3 +43,15 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: go run ./cmd/compatibility -check
+
+  race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Server and inference race detector
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./internal/server ./internal/inference

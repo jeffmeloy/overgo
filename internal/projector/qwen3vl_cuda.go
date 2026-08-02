@@ -53,6 +53,14 @@ func openQwen3VLCUDA(ctx context.Context, file *gguf.File, spec Qwen3VLSpec, ord
 		} {
 			names = append(names, prefix+suffix)
 		}
+		if len(spec.DeepstackLayers) > layer && spec.DeepstackLayers[layer] {
+			prefix = fmt.Sprintf("v.deepstack.%d.", layer)
+			for _, suffix := range []string{
+				"norm.weight", "norm.bias", "fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias",
+			} {
+				names = append(names, prefix+suffix)
+			}
+		}
 	}
 	infos := make([]gguf.TensorInfo, len(names))
 	for index, name := range names {
@@ -133,6 +141,10 @@ func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwe
 		positionsY[row] = uint32(rowOrder[row%spatial])
 		positionsX[row] = uint32(columnOrder[row%spatial])
 	}
+	var deepstack []*tensor.Tensor
+	mergeFactor := r.spec.MergeSize * r.spec.MergeSize
+	mergedRows := rows / mergeFactor
+	mergedWidth := r.spec.Hidden * mergeFactor
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		norm := builder.AffineLayerNorm(hidden, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)
@@ -165,9 +177,16 @@ func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwe
 		up = qwen3VLGELUTanh(builder, up, hostFeeds)
 		down := builder.Add(builder.MulMat(weight(prefix+"ffn_down.weight"), up), weight(prefix+"ffn_down.bias"))
 		hidden = builder.Add(hidden, down)
+		if len(r.spec.DeepstackLayers) > layer && r.spec.DeepstackLayers[layer] {
+			prefix = fmt.Sprintf("v.deepstack.%d.", layer)
+			merged := builder.Reshape(hidden, uint64(mergedWidth), uint64(mergedRows))
+			norm = builder.AffineLayerNorm(merged, weight(prefix+"norm.weight"), weight(prefix+"norm.bias"), r.spec.LayerNormEpsilon)
+			fc1 := builder.Add(builder.MulMat(weight(prefix+"fc1.weight"), norm), weight(prefix+"fc1.bias"))
+			fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
+			deepstack = append(deepstack, builder.Add(builder.MulMat(weight(prefix+"fc2.weight"), fc1), weight(prefix+"fc2.bias")))
+		}
 	}
 	normalized := builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
-	mergedRows := rows / 4
 	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*4), uint64(mergedRows))
 	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
@@ -178,11 +197,19 @@ func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwe
 	if err := builder.Err(); err != nil {
 		return Qwen3VLOutput{}, fmt.Errorf("projector: build Qwen3-VL CUDA graph: %w", err)
 	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
+	targets := append([]*tensor.Tensor{output}, deepstack...)
+	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, targets, hostFeeds, deviceFeeds)
 	if err != nil {
 		return Qwen3VLOutput{}, fmt.Errorf("projector: execute Qwen3-VL CUDA graph: %w", err)
 	}
-	return Qwen3VLOutput{Embeddings: results[output], GridT: input.GridT, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
+	streams := make([]reference.Value, len(deepstack))
+	for index, target := range deepstack {
+		streams[index] = results[target]
+	}
+	return Qwen3VLOutput{
+		Embeddings: results[output], DeepstackEmbeddings: streams,
+		GridT: input.GridT, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize,
+	}, nil
 }
 
 func (r *Qwen3VLRunner) qwen3VLPositionGraph(

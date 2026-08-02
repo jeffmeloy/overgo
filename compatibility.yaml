@@ -2703,6 +2703,8 @@ models:
       - per-image-compressed-four-axis-mrope
       - temporal-pair-video-projection
       - optional-cuda-projector-execution
+      - vision-layer-deepstack-projection
+      - prompt-aligned-deepstack-injection
     real_model_validation: pending-fixture
   qwen3vlmoe:
     status: experimental
@@ -2723,9 +2725,14 @@ models:
       - zero-filled-or-projected-deepstack
       - projected-embedding-overrides
       - serializable-prefix-editable-kv-cache
+      - qwen3vl-merger-image-projector
+      - ordered-multi-image-soft-token-merge
+      - per-image-compressed-four-axis-mrope
+      - temporal-pair-video-projection
+      - vision-layer-deepstack-projection
+      - prompt-aligned-deepstack-injection
+      - optional-cuda-projector-execution
     limitations:
-      - image-encoder-external
-      - image-grid-coordinate-construction-external
       - classification-rerank-head-absent-from-pinned-graph
     real_model_validation: pending-fixture
   qwen3:

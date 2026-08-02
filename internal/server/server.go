@@ -26,6 +26,8 @@ import (
 	"llamacpp2go/internal/inference"
 
 	"llamacpp2go/internal/projector"
+	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/reference"
 
 	"llamacpp2go/internal/sampling"
 
@@ -3258,6 +3260,26 @@ func (h *Handler) convertProjectedPrompt(
 		}
 	}
 	inputs := inference.ProjectedInputs{EmbeddingOverrides: overrides}
+	inputs.DeepstackEmbeddings = make([]reference.Value, len(projected.DeepstackEmbeddings))
+	for streamIndex, stream := range projected.DeepstackEmbeddings {
+		if len(stream) != imageTokens*projected.EmbeddingWidth {
+			return inference.ProjectedInputs{}, fmt.Errorf(
+				"server: projector deepstack stream %d has invalid length", streamIndex,
+			)
+		}
+		data := make([]float32, len(projected.TokenIDs)*projected.EmbeddingWidth)
+		for index, tokenIndex := range projected.EmbeddingTokenIndices {
+			if uint64(tokenIndex) >= uint64(len(projected.TokenIDs)) {
+				return inference.ProjectedInputs{}, errors.New("server: projector embedding index exceeds prompt")
+			}
+			source := stream[index*projected.EmbeddingWidth : (index+1)*projected.EmbeddingWidth]
+			copy(data[int(tokenIndex)*projected.EmbeddingWidth:], source)
+		}
+		inputs.DeepstackEmbeddings[streamIndex] = reference.Value{
+			Shape: tensor.MustShape(uint64(projected.EmbeddingWidth), uint64(len(projected.TokenIDs))),
+			Data:  data,
+		}
+	}
 	inputs.BidirectionalAttentionBlocks = make([]inference.AttentionBlock, len(projected.AttentionBlocks))
 	for index, block := range projected.AttentionBlocks {
 		inputs.BidirectionalAttentionBlocks[index] = inference.AttentionBlock{

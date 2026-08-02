@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -175,9 +176,89 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	}
 }
 
+func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	metadata := slices.DeleteFunc(tinyQwen3VLDeepstackMetadata(), func(item gguf.Metadata) bool {
+		return item.Key == "clip.vision.is_deepstack_layers"
+	})
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, metadata, tinyQwen3VLDeepstackTensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenQwen3VL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	if len(runner.Spec().DeepstackLayers) != 1 || !runner.Spec().DeepstackLayers[0] {
+		t.Fatalf("deepstack flags = %v", runner.Spec().DeepstackLayers)
+	}
+	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	output, err := runner.EncodeImage(context.Background(), input, Qwen3VLPreprocessOptions{
+		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output.DeepstackEmbeddings) != 1 || !output.DeepstackEmbeddings[0].Shape.Equal(mustShape(6, 1)) {
+		t.Fatalf("deepstack output = %+v", output.DeepstackEmbeddings)
+	}
+	want := []float32{7, 8, 9, 10, 11, 12}
+	if !slices.Equal(output.DeepstackEmbeddings[0].Data, want) {
+		t.Fatalf("deepstack output = %v, want %v", output.DeepstackEmbeddings[0].Data, want)
+	}
+}
+
+func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
+	cudatest.Require(t)
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cpu, err := OpenQwen3VL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cpu.Close()
+	cuda, err := OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{CUDA: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	options := Qwen3VLPreprocessOptions{MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10}
+	want, err := cpu.EncodeImage(context.Background(), input, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := cuda.EncodeImage(context.Background(), input, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.DeepstackEmbeddings) != 1 || len(want.DeepstackEmbeddings) != 1 {
+		t.Fatalf("deepstack streams = %d/%d", len(got.DeepstackEmbeddings), len(want.DeepstackEmbeddings))
+	}
+	compareFloat32Tolerance(t, "Qwen3-VL deepstack", got.DeepstackEmbeddings[0].Data, want.DeepstackEmbeddings[0].Data, 2e-3)
+}
+
 func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	metadata := tinyQwen3VLMetadata()
+	metadata := tinyQwen3VLDeepstackMetadata()
 	for index := range metadata {
 		switch metadata[index].Key {
 		case "clip.vision.image_size":
@@ -186,7 +267,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 			metadata[index].Value.Data = uint32(128)
 		}
 	}
-	tensors := tinyQwen3VLTensors()
+	tensors := tinyQwen3VLDeepstackTensors()
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	file, err := os.Create(path)
@@ -215,6 +296,9 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	}
 	if len(prompt.EmbeddingTokenIndices) != 2 || len(prompt.Embeddings) != 12 || prompt.EmbeddingWidth != 6 {
 		t.Fatalf("multi-image projection = indices %v embeddings %d width %d", prompt.EmbeddingTokenIndices, len(prompt.Embeddings), prompt.EmbeddingWidth)
+	}
+	if len(prompt.DeepstackEmbeddings) != 1 || len(prompt.DeepstackEmbeddings[0]) != 12 {
+		t.Fatalf("multi-image deepstack streams = %v", prompt.DeepstackEmbeddings)
 	}
 	for axis := range prompt.MultiAxisPositions {
 		if len(prompt.MultiAxisPositions[axis]) != len(prompt.TokenIDs) {
@@ -454,6 +538,16 @@ func tinyQwen3VLMetadata() []gguf.Metadata {
 	}
 }
 
+func tinyQwen3VLDeepstackMetadata() []gguf.Metadata {
+	metadata := tinyQwen3VLMetadata()
+	for index := range metadata {
+		if metadata[index].Key == "clip.vision.is_deepstack_layers" {
+			metadata[index].Value.Data = []bool{true}
+		}
+	}
+	return metadata
+}
+
 func tinyQwen3VLTensors() []gguf.TensorData {
 	tensors := []gguf.TensorData{
 		f32Tensor("v.patch_embd.weight", []uint64{2, 2, 3, 4}, nil),
@@ -480,6 +574,19 @@ func tinyQwen3VLTensors() []gguf.TensorData {
 		}
 		tensors = append(tensors, f32Tensor("v.blk.0."+name, shape, values))
 	}
+	return tensors
+}
+
+func tinyQwen3VLDeepstackTensors() []gguf.TensorData {
+	tensors := tinyQwen3VLTensors()
+	tensors = append(tensors,
+		f32Tensor("v.deepstack.0.norm.weight", []uint64{16}, slices.Repeat([]float32{1}, 16)),
+		f32Tensor("v.deepstack.0.norm.bias", []uint64{16}, nil),
+		f32Tensor("v.deepstack.0.fc1.weight", []uint64{16, 16}, nil),
+		f32Tensor("v.deepstack.0.fc1.bias", []uint64{16}, nil),
+		f32Tensor("v.deepstack.0.fc2.weight", []uint64{16, 6}, nil),
+		f32Tensor("v.deepstack.0.fc2.bias", []uint64{6}, []float32{7, 8, 9, 10, 11, 12}),
+	)
 	return tensors
 }
 

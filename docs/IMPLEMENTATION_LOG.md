@@ -25,7 +25,7 @@ claims.
 | GGUF format | In progress | Bounds-checked parser, automatic validated split-file loading, bounded tensor ranges, streamed device weights, and canonical streaming single-file writer validated |
 | Tensor graph | In progress | Typed IR, layout transforms, head broadcasting, grouped/batched matmul, clamp, RMSNorm/affine LayerNorm, channel-group normalization, dense/depthwise same-padding Conv1D, token/learned-position embeddings, scaled and YaRN normal/NeoX RoPE, scaled multi-axis RoPE, ALiBi, causal and symmetric sliding/softcapped/gated GQA with per-head sink logits, bidirectional and causal cached T5 relative-position attention, gated linear attention and WKV6/WKV7 recurrence, legacy and absorbed MLA decomposition, DeepSeek 4 Sinkhorn hyper-connections and compressed sparse attention, softmax/sigmoid/sqrt-softplus top-k routed gated or ungated SiLU/ReLU/GELU MoE with fixed expert selection, separate or fused gate/up expert storage, split router inputs, grouped expert-bank indices, correction bias, and per-expert output scales, ReLU/GELU/xIELU/SwiGLU/squared-ReLU, SSM convolution, Mamba selective scan, fused gated delta net, reference/CUDA executors, and arena planner |
 | Quantization | In progress | F32/F16/BF16/F64, I8/I16/I32/I64, Q8_0, Q2_K-Q6_K, every pinned IQ1/IQ2/IQ3/IQ4 layout, Q1_0/Q2_0, TQ1_0/TQ2_0, MXFP4/NVFP4, Q4_0/Q4_1, and Q5_0/Q5_1 decoding |
-| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE with single-block MTP drafting, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek 3.2/DeepSeek 4/DeepSeek2-OCR, DFlash paired-target block drafting, Eagle3 paired-target autoregressive drafting, ERNIE 4.5-MoE, Gemma3n AltUp/Laurel, Gemma4 with unified image/audio projection plus shared-context Gemma4 Assistant drafting, GLM-DSA/GLM4-MoE, Granite Hybrid/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3 with greedy/stochastic multi-head MTP drafting, Jamba, Kimi Linear KDA/no-RoPE MLA, Mamba v1/v2, Falcon-H1 parallel attention/Mamba2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniMax-M2, Mistral 3/Mistral 3 MoE/Mistral 4, PLaMo2, SmallThinker, Step3.5 with greedy/stochastic multi-head MTP drafting, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE with greedy and stochastic Qwen3.5 single-block MTP drafting plus Qwen3.5 image projection, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3 MoE/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, T5 encoder-decoder sessions, WavTokenizer semantic-token audio-feature decoding, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR/Qwen2-VL/Qwen3-VL text-coordinate decoding, CogVLM text/projected-visual decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, MPT, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
+| Model runtime | In progress | Incremental dense Qwen 2/3, bounded-host/F32-preload/native-quantized Mixtral, Arctic, BailingMoE/BailingMoE2, Cohere2-MoE with single-block MTP drafting, DBRX, Deci, DOTS1, DeepSeek v1/DeepSeek2/DeepSeek 3.2/DeepSeek 4/DeepSeek2-OCR, DFlash paired-target block drafting, Eagle3 paired-target autoregressive drafting, ERNIE 4.5-MoE, Gemma3n AltUp/Laurel, Gemma4 with unified image/audio projection plus shared-context Gemma4 Assistant drafting, GLM-DSA/GLM4-MoE, Granite Hybrid/GraniteMoE, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE, HY-V3 with greedy/stochastic multi-head MTP drafting, Jamba, Kimi Linear KDA/no-RoPE MLA, Mamba v1/v2, Falcon-H1 parallel attention/Mamba2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2, MiniMax-M2, Mistral 3/Mistral 3 MoE/Mistral 4, PLaMo2, SmallThinker, Step3.5 with greedy/stochastic multi-head MTP drafting, Qwen2-MoE, Qwen3-MoE, Qwen3-VL-MoE, AFMoE, Laguna MoE, OLMoE, PhiMoE, EXAONE-MoE, and LLaDA-MoE, hybrid Qwen3-Next/Qwen3.5/Qwen3.5-MoE with greedy and stochastic Qwen3.5 single-block MTP drafting plus Qwen3.5 image projection, non-causal no-cache Dream, LLaDA, and RND1 MoE, hybrid LFM2/LFM2-MoE, PLM/MiniCPM3/DeepSeek2/Mistral 4 MLA, BERT/EuroBERT/Gemma Embedding/JinaBERT v2/v3 MoE/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, T5 encoder-decoder sessions, WavTokenizer semantic-token audio-feature decoding, Chameleon decoders with projected soft-token overrides, Hunyuan-VL/PaddleOCR text-coordinate decoding, Qwen2-VL and dense/MoE Qwen3-VL image/video projection and text-coordinate decoding, CogVLM text/projected-visual decoding, Apertus, Arcee, Baichuan 7B, BitNet, Bloom, CodeShell, dense Cohere2/Command R/ERNIE 4.5, Falcon, Gemma 1/2/3, GLM4, GPT-2/GPT-NeoX, Granite, InternLM2, EXAONE/EXAONE 4, XVERSE, Jais/Jais2, Maincoder, MiniCPM, MPT, Nemotron, OLMo/OLMo2/OLMoE, OpenELM, Orion, Pangu Embedded, Phi-2/Phi-3, PLaMo/PLaMo 3, dense Refact, Seed-OSS, StableLM, StarCoder/StarCoder2, SmolLM3, Talkie, and constrained Llama-family CUDA execution with serializable, prefix-editable attention/recurrent cache |
 | Tokenizer and sampling | In progress | Seven tokenizer corpora match 326 upstream cases; Gemma4 raw UTF-8 BPE, BERT WordPiece, and real-model T5 UGM are validated; ordered/repeatable top-k/p, min-p, typical, top-n-sigma, XTC, penalties, DRY, infill, Mirostat v1/v2, GBNF, and JSON-Schema conversion implemented |
 | CLI and server | In progress | Inspect/tokenize/block-check/generate/perplexity/embedding/benchmark/JSON-Schema CLIs plus bounded completion, streaming, embedding, literal-choice, GBNF, JSON-Schema, and native/OpenAI projected image/audio HTTP paths |
 | Local verification | Complete | Unit and optional CUDA integration script |
@@ -1384,24 +1384,22 @@ and defaults the spatial merge size to two when old files omit the metadata.
 Host/CUDA projector differentials and decoder block differentials pass;
 real-model validation is pending a local fixture.
 
-Qwen3-VL now adds mandatory per-head Q/K RMSNorm before scaled four-axis MRoPE,
-plus its optional deepstack layers, over the same dense text-decoder and KV-cache
-paths. Ordinary token input exactly matches upstream's zero-filled deepstack
-stream. The projected-input API accepts base visual embeddings, grid coordinates,
-and one projected stream per deepstack layer, injected after each target layer.
-Vision encoding, grid construction, and the optional classification/rerank head
-remain external boundaries. Metadata, strict catalog, graph topology, and a
-complete reference/CUDA block differential pass; real-model validation is
-pending a local fixture.
+Qwen3-VL adds mandatory per-head Q/K RMSNorm before scaled four-axis MRoPE and
+vision-layer DeepStack injection over the dense text-decoder and KV-cache paths.
+Its image/video tower produces the base merger output plus one projected stream
+for each selected vision layer. Native prompts align those sparse visual streams
+to full decoder token grids and inject them after the corresponding early text
+layers. Host/CUDA tower differentials, multi-image assembly, metadata, strict
+catalog, graph topology, and reference/CUDA decoder differentials pass. The
+optional classification/rerank head and real-model fixture validation remain
+pending.
 
-Qwen3-VL-MoE now composes the Qwen3-VL text attention path with packed routed
+Qwen3-VL-MoE composes the Qwen3-VL attention and image/video projector paths with packed routed
 SwiGLU experts. It supports fused or separate Q/K/V, per-head Q/K RMSNorm,
 scaled four-axis MRoPE, normalized softmax top-k routing, routed-weight scaling,
-native-quantized experts, zero-filled or caller-projected deepstack, and
-serializable KV caching. Vision encoding, image-grid construction, and the
-optional classification/rerank head remain external; base projected embeddings,
-four-axis coordinates, and projected deepstack streams enter through the
-projected-input API.
+native-quantized experts, internal base/deepstack vision projection, prompt-aligned
+DeepStack injection, and serializable KV caching. The optional
+classification/rerank head and real-model fixture validation remain pending.
 Metadata, strict catalog, graph topology, and reference/CUDA block differential
 tests pass; real-model validation is pending a local fixture.
 

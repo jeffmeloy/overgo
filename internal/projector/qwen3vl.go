@@ -30,6 +30,7 @@ type Qwen3VLSpec struct {
 	LayerNormEpsilon   float32
 	ImageMean          [3]float32
 	ImageStd           [3]float32
+	DeepstackLayers    []bool
 }
 
 type Qwen3VLPreprocessOptions struct {
@@ -46,11 +47,12 @@ type Qwen3VLImage struct {
 }
 
 type Qwen3VLOutput struct {
-	Embeddings reference.Value
-	GridT      int
-	GridH      int
-	GridW      int
-	MergeSize  int
+	Embeddings          reference.Value
+	DeepstackEmbeddings []reference.Value
+	GridT               int
+	GridH               int
+	GridW               int
+	MergeSize           int
 }
 
 type Qwen3VLRunner struct {
@@ -164,16 +166,13 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	} else if !useGELU {
 		return Qwen3VLSpec{}, errors.New("projector: Qwen3VL GELU is disabled")
 	}
+	var deepstackLayers []bool
 	if deepstack, ok := file.MetadataValue("clip.vision.is_deepstack_layers"); ok {
 		layers, storageOK := deepstack.Data.([]bool)
 		if deepstack.Type != gguf.ValueTypeArray || deepstack.ArrayType != gguf.ValueTypeBool || !storageOK {
 			return Qwen3VLSpec{}, errors.New("projector: deepstack metadata must be a bool array")
 		}
-		for _, enabled := range layers {
-			if enabled {
-				return Qwen3VLSpec{}, errors.New("projector: Qwen3VL deepstack projector layers are unsupported")
-			}
-		}
+		deepstackLayers = append([]bool(nil), layers...)
 	}
 	values := make([]int, 8)
 	for index, key := range []string{
@@ -204,10 +203,39 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	if err != nil {
 		return Qwen3VLSpec{}, err
 	}
+	tensorDeepstack := make([]bool, values[5])
+	for layer := range tensorDeepstack {
+		prefix := fmt.Sprintf("v.deepstack.%d.", layer)
+		count := 0
+		for _, suffix := range []string{"norm.weight", "norm.bias", "fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias"} {
+			if _, ok := file.Tensor(prefix + suffix); ok {
+				count++
+			}
+		}
+		if count != 0 && count != 6 {
+			return Qwen3VLSpec{}, fmt.Errorf("projector: deepstack layer %d has %d of 6 tensors", layer, count)
+		}
+		tensorDeepstack[layer] = count == 6
+	}
+	if len(deepstackLayers) == 0 {
+		for _, enabled := range tensorDeepstack {
+			if enabled {
+				deepstackLayers = tensorDeepstack
+				break
+			}
+		}
+	} else if len(deepstackLayers) == values[5] {
+		for layer := range tensorDeepstack {
+			if deepstackLayers[layer] != tensorDeepstack[layer] {
+				return Qwen3VLSpec{}, fmt.Errorf("projector: deepstack metadata differs from layer %d tensors", layer)
+			}
+		}
+	}
 	spec := Qwen3VLSpec{
 		ImageSize: values[0], PatchSize: values[1], Hidden: values[2],
 		Intermediate: values[3], OutputHidden: values[4], Layers: values[5],
 		Heads: values[6], MergeSize: values[7], LayerNormEpsilon: epsilon,
+		DeepstackLayers: deepstackLayers,
 	}
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
@@ -228,6 +256,9 @@ func (s Qwen3VLSpec) validate() error {
 		s.Hidden%s.Heads != 0 || (s.Hidden/s.Heads)%4 != 0 || s.ImageSize%s.PatchSize != 0 || s.MergeSize != 2 ||
 		s.LayerNormEpsilon <= 0 {
 		return fmt.Errorf("projector: invalid Qwen3VL metadata: %+v", s)
+	}
+	if len(s.DeepstackLayers) != 0 && len(s.DeepstackLayers) != s.Layers {
+		return fmt.Errorf("projector: deepstack flags = %d, want %d", len(s.DeepstackLayers), s.Layers)
 	}
 	for channel := range s.ImageStd {
 		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
@@ -267,6 +298,20 @@ func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) error {
 			"ln2.bias":        {uint64(spec.Hidden)},
 		} {
 			required[prefix+name] = shape
+		}
+		if len(spec.DeepstackLayers) > layer && spec.DeepstackLayers[layer] {
+			deepstackPrefix := fmt.Sprintf("v.deepstack.%d.", layer)
+			mergedWidth := uint64(spec.Hidden * spec.MergeSize * spec.MergeSize)
+			for name, shape := range map[string][]uint64{
+				"norm.weight": {mergedWidth},
+				"norm.bias":   {mergedWidth},
+				"fc1.weight":  {mergedWidth, mergedWidth},
+				"fc1.bias":    {mergedWidth},
+				"fc2.weight":  {mergedWidth, uint64(spec.OutputHidden)},
+				"fc2.bias":    {uint64(spec.OutputHidden)},
+			} {
+				required[deepstackPrefix+name] = shape
+			}
 		}
 	}
 	for name, shape := range required {
@@ -414,6 +459,7 @@ func (r *Qwen3VLRunner) encode(ctx context.Context, input Qwen3VLImage) (Qwen3VL
 	if err := r.addPositions(ctx, hidden, input.GridT, input.GridH, input.GridW, rowOrder, columnOrder); err != nil {
 		return Qwen3VLOutput{}, err
 	}
+	var deepstack []reference.Value
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		if err := ctx.Err(); err != nil {
 			return Qwen3VLOutput{}, err
@@ -421,15 +467,53 @@ func (r *Qwen3VLRunner) encode(ctx context.Context, input Qwen3VLImage) (Qwen3VL
 		if err := r.runLayer(ctx, hidden, rows, input.GridH*input.GridW, rowOrder, columnOrder, layer); err != nil {
 			return Qwen3VLOutput{}, err
 		}
+		if len(r.spec.DeepstackLayers) > layer && r.spec.DeepstackLayers[layer] {
+			stream, err := r.mergeDeepstack(ctx, hidden, rows, layer)
+			if err != nil {
+				return Qwen3VLOutput{}, err
+			}
+			deepstack = append(deepstack, stream)
+		}
 	}
 	embeddings, err := r.merge(ctx, hidden, rows)
 	if err != nil {
 		return Qwen3VLOutput{}, err
 	}
 	return Qwen3VLOutput{
-		Embeddings: embeddings, GridT: input.GridT, GridH: input.GridH,
+		Embeddings: embeddings, DeepstackEmbeddings: deepstack,
+		GridT: input.GridT, GridH: input.GridH,
 		GridW: input.GridW, MergeSize: r.spec.MergeSize,
 	}, nil
+}
+
+func (r *Qwen3VLRunner) mergeDeepstack(ctx context.Context, hidden []float32, rows, layer int) (reference.Value, error) {
+	mergeFactor := r.spec.MergeSize * r.spec.MergeSize
+	if rows%mergeFactor != 0 {
+		return reference.Value{}, errors.New("projector: deepstack rows are not merge aligned")
+	}
+	mergedRows := rows / mergeFactor
+	mergedWidth := r.spec.Hidden * mergeFactor
+	prefix := fmt.Sprintf("v.deepstack.%d.", layer)
+	normWeight, normBias, err := r.loadPair(ctx, prefix+"norm.weight", prefix+"norm.bias")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	normalized := make([]float32, len(hidden))
+	layerNorm(normalized, hidden, normWeight.Data, normBias.Data, mergedRows, mergedWidth, r.spec.LayerNormEpsilon)
+	fc1Weight, fc1Bias, err := r.loadPair(ctx, prefix+"fc1.weight", prefix+"fc1.bias")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	fc1 := linear(normalized, fc1Weight.Data, fc1Bias.Data, mergedRows, mergedWidth, mergedWidth)
+	for index, value := range fc1 {
+		fc1[index] = geluTanh(value)
+	}
+	fc2Weight, fc2Bias, err := r.loadPair(ctx, prefix+"fc2.weight", prefix+"fc2.bias")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	output := linear(fc1, fc2Weight.Data, fc2Bias.Data, mergedRows, mergedWidth, r.spec.OutputHidden)
+	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(mergedRows)), output)
 }
 
 func (r *Qwen3VLRunner) patchEmbedding(ctx context.Context, input Qwen3VLImage) ([]float32, error) {

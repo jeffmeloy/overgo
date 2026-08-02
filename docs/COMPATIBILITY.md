@@ -143,7 +143,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `qwen3moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `qwen3next` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `qwen3vl` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `qwen3vlmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | image-encoder-external, image-grid-coordinate-construction-external, classification-rerank-head-absent-from-pinned-graph |
+| `qwen3vlmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | classification-rerank-head-absent-from-pinned-graph |
 | `refact` | experimental | model-dependent | pending-fixture | - |
 | `rnd1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `rwkv6` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |

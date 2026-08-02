@@ -285,15 +285,17 @@ func TestDeepstackLayerMapping(t *testing.T) {
 			t.Fatalf("Granite layer %d stream = %v, want %v/%v", test.layer, got, test.want, test.ok)
 		}
 	}
-	qwen := model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3vl"}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2}}
-	for layer, want := range []float32{20, 30} {
-		got := deepstackInputForLayer(qwen, uint32(layer), true, base, streams)
-		if got == nil || got.Data[0] != want {
-			t.Fatalf("Qwen layer %d stream = %v, want %v", layer, got, want)
+	for _, architecture := range []string{"qwen3vl", "qwen3vlmoe"} {
+		qwen := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2}}
+		for layer, want := range []float32{20, 30} {
+			got := deepstackInputForLayer(qwen, uint32(layer), true, base, streams)
+			if got == nil || got.Data[0] != want {
+				t.Fatalf("%s layer %d stream = %v, want %v", architecture, layer, got, want)
+			}
 		}
-	}
-	if got := deepstackInputForLayer(qwen, 0, false, base, streams); got != nil {
-		t.Fatalf("Qwen pre-layer stream = %v", got)
+		if got := deepstackInputForLayer(qwen, 0, false, base, streams); got != nil {
+			t.Fatalf("%s pre-layer stream = %v", architecture, got)
+		}
 	}
 }
 

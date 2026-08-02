@@ -25,6 +25,7 @@ type Qwen3VLTokenizer = ImageTokenizer
 type MultimodalPrompt struct {
 	TokenIDs              []tokenizer.TokenID
 	Embeddings            []float32
+	DeepstackEmbeddings   [][]float32
 	EmbeddingWidth        int
 	EmbeddingStart        int
 	EmbeddingTokenIndices []uint32
@@ -702,6 +703,7 @@ func (r *Qwen3VLRunner) BuildImagesPrompt(
 	counts := make([]int, len(sources))
 	geometries := make([]geometry, len(sources))
 	var embeddings []float32
+	var deepstack [][]float32
 	var prompt strings.Builder
 	prompt.WriteString("<|im_start|>user\n")
 	for index, source := range sources {
@@ -716,6 +718,9 @@ func (r *Qwen3VLRunner) BuildImagesPrompt(
 		prompt.WriteString(strings.Repeat(Qwen3VLImagePad, counts[index]))
 		prompt.WriteString("<|vision_end|>")
 		embeddings = append(embeddings, output.Embeddings.Data...)
+		if err := appendQwen3VLDeepstack(&deepstack, output); err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: collect Qwen3-VL image %d deepstack: %w", index, err)
+		}
 	}
 	prompt.WriteString(text[len(text)-1])
 	prompt.WriteString("<|im_end|>\n<|im_start|>assistant\n<think>\n")
@@ -748,7 +753,7 @@ func (r *Qwen3VLRunner) BuildImagesPrompt(
 		return MultimodalPrompt{}, err
 	}
 	return MultimodalPrompt{
-		TokenIDs: ids, Embeddings: embeddings,
+		TokenIDs: ids, Embeddings: embeddings, DeepstackEmbeddings: deepstack,
 		EmbeddingWidth: r.spec.OutputHidden, EmbeddingStart: starts[0],
 		EmbeddingTokenIndices: indices,
 		MultiAxisPositions:    positions,
@@ -771,6 +776,7 @@ func (r *Qwen3VLRunner) BuildImagesHistoryPrompt(
 	counts := make([]int, len(sources))
 	geometries := make([]geometry, len(sources))
 	var embeddings []float32
+	var deepstack [][]float32
 	var prompt strings.Builder
 	for index, source := range sources {
 		prompt.WriteString(text[index])
@@ -784,6 +790,9 @@ func (r *Qwen3VLRunner) BuildImagesHistoryPrompt(
 		prompt.WriteString(strings.Repeat(Qwen3VLImagePad, counts[index]))
 		prompt.WriteString("<|vision_end|>")
 		embeddings = append(embeddings, output.Embeddings.Data...)
+		if err := appendQwen3VLDeepstack(&deepstack, output); err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: collect Qwen3-VL history image %d deepstack: %w", index, err)
+		}
 	}
 	prompt.WriteString(text[len(text)-1])
 	ids, err := tokenizer.TokenizeText(prompt.String(), true, true)
@@ -812,7 +821,7 @@ func (r *Qwen3VLRunner) BuildImagesHistoryPrompt(
 		return MultimodalPrompt{}, err
 	}
 	return MultimodalPrompt{
-		TokenIDs: ids, Embeddings: embeddings,
+		TokenIDs: ids, Embeddings: embeddings, DeepstackEmbeddings: deepstack,
 		EmbeddingWidth: r.spec.OutputHidden, EmbeddingStart: starts[0],
 		EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
 	}, nil
@@ -862,11 +871,37 @@ func (r *Qwen3VLRunner) BuildQwen35VideoPrompt(
 	for _, start := range starts {
 		indices = append(indices, sequentialTokenIndices(start, perGroup)...)
 	}
+	var deepstack [][]float32
+	if err := appendQwen3VLDeepstack(&deepstack, output); err != nil {
+		return Qwen3VLPrompt{}, err
+	}
 	return Qwen3VLPrompt{
-		TokenIDs: ids, Embeddings: output.Embeddings.Data,
+		TokenIDs: ids, Embeddings: output.Embeddings.Data, DeepstackEmbeddings: deepstack,
 		EmbeddingWidth:        int(output.Embeddings.Shape.Dims[0]),
 		EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
 	}, nil
+}
+
+func appendQwen3VLDeepstack(target *[][]float32, output Qwen3VLOutput) error {
+	if len(output.DeepstackEmbeddings) == 0 {
+		if len(*target) != 0 {
+			return errors.New("deepstack stream count changed")
+		}
+		return nil
+	}
+	if len(*target) == 0 {
+		*target = make([][]float32, len(output.DeepstackEmbeddings))
+	}
+	if len(*target) != len(output.DeepstackEmbeddings) {
+		return fmt.Errorf("deepstack streams = %d, want %d", len(output.DeepstackEmbeddings), len(*target))
+	}
+	for index, stream := range output.DeepstackEmbeddings {
+		if !stream.Shape.Equal(output.Embeddings.Shape) {
+			return fmt.Errorf("deepstack stream %d shape differs from base embeddings", index)
+		}
+		(*target)[index] = append((*target)[index], stream.Data...)
+	}
+	return nil
 }
 
 func (r *Qwen3VLRunner) BuildVideoPrompt(

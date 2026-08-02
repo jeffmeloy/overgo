@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
@@ -733,6 +734,46 @@ func newTestHandler(t testing.TB, generator Generator) *Handler {
 		t.Fatal(err)
 	}
 	return handler
+}
+
+func pngConfigFixture(width, height uint32) []byte {
+	data := make([]byte, 33)
+	copy(data, []byte("\x89PNG\r\n\x1a\n"))
+	binary.BigEndian.PutUint32(data[8:12], 13)
+	copy(data[12:16], "IHDR")
+	binary.BigEndian.PutUint32(data[16:20], width)
+	binary.BigEndian.PutUint32(data[20:24], height)
+	data[24] = 8
+	data[25] = 2
+	binary.BigEndian.PutUint32(data[29:33], crc32.ChecksumIEEE(data[12:29]))
+	return data
+}
+
+func TestJSONRequestBudgets(t *testing.T) {
+	body := `{"value":"` + strings.Repeat("x", maxRequestBytes) + `"}`
+	var ordinary struct {
+		Value string `json:"value"`
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	if newTestHandler(t, &fakeGenerator{}).decodeBoundedJSON(response, request, &ordinary) {
+		t.Fatal("ordinary request accepted oversized JSON")
+	}
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("ordinary status = %d body=%s", response.Code, response.Body.String())
+	}
+
+	var multimodal struct {
+		Value string `json:"value"`
+	}
+	response = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	if !newTestHandler(t, &fakeGenerator{}).decodeMultimodalJSON(response, request, &multimodal) {
+		t.Fatalf("multimodal status = %d body=%s", response.Code, response.Body.String())
+	}
+	if multimodal.Value != strings.Repeat("x", maxRequestBytes) {
+		t.Fatalf("multimodal value length = %d", len(multimodal.Value))
+	}
 }
 
 func TestHealth(t *testing.T) {
@@ -1502,6 +1543,89 @@ func TestNativeCompletionMultipleImagesPreservesOrder(t *testing.T) {
 	if generator.projectedInputs == nil || len(generator.projectedInputs.EmbeddingOverrides) != 4 ||
 		generator.projectedInputs.MultiAxisPositions == nil {
 		t.Fatalf("projected = %+v", generator.projectedInputs)
+	}
+}
+
+func TestValidateMultimodalImagesEnforcesGeometryBudgets(t *testing.T) {
+	oversizedImage := make([]byte, maxImageBytes+1)
+	aggregateImage := func() []byte {
+		data := make([]byte, maxMediaBytes/2+1)
+		copy(data, pngConfigFixture(1, 1))
+		return data
+	}
+	tests := []struct {
+		name   string
+		images [][]byte
+		want   string
+	}{
+		{
+			name:   "per-image bytes",
+			images: [][]byte{oversizedImage},
+			want:   "decoded image limit",
+		},
+		{
+			name:   "aggregate bytes",
+			images: [][]byte{aggregateImage(), aggregateImage()},
+			want:   "decoded media limit",
+		},
+		{
+			name:   "dimension",
+			images: [][]byte{pngConfigFixture(maxImageDimension+1, 1)},
+			want:   "dimensions exceed limit",
+		},
+		{
+			name:   "per-image pixels",
+			images: [][]byte{pngConfigFixture(4096, 4097)},
+			want:   "pixel count exceeds limit",
+		},
+		{
+			name: "aggregate pixels",
+			images: [][]byte{
+				pngConfigFixture(4096, 4096),
+				pngConfigFixture(4096, 4096),
+				pngConfigFixture(4096, 4096),
+			},
+			want: "aggregate pixel limit",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateMultimodalImages(test.images)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v; want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestNativeCompletionRejectsOversizedImageGeometry(t *testing.T) {
+	handler, err := New(Config{
+		ModelID: "test-model", MaxTokens: 8,
+		DefaultTemperature: 1, DefaultTopP: 1,
+		ImageProjector: &fakeQwen3VLProjector{},
+	}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"prompt": map[string]any{
+			"prompt_string": "Look <__media__>",
+			"multimodal_data": []string{
+				base64.StdEncoding.EncodeToString(pngConfigFixture(maxImageDimension+1, 1)),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/completion", bytes.NewReader(body)),
+	)
+	if response.Code != http.StatusBadRequest ||
+		!strings.Contains(response.Body.String(), "dimensions exceed limit") {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 }
 

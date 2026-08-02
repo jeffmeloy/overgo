@@ -33,6 +33,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Encoded video input through native GIF decoding or FFmpeg.
 - Ordered multi-image native, Chat Completions, and Responses prompts.
 - Projection-backed multimodal input-token counting.
+- Bounded multimodal bodies, decoded media, image dimensions, and pixels.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
@@ -51,17 +52,15 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ### Server and multimodal
 
-1. Bound decoded image dimensions before allocation; separate JSON and media
-   request budgets.
-2. Normalize native, Chat, and Responses requests through one prepared-prompt
+1. Normalize native, Chat, and Responses requests through one prepared-prompt
    pipeline shared by generation and token counting.
-3. Split the server implementation by protocol while retaining one handler and
+2. Split the server implementation by protocol while retaining one handler and
    shared admission/metrics state.
-4. Add media history after model-specific multi-turn template and cache
+3. Add media history after model-specific multi-turn template and cache
    semantics are defined.
-5. Add mixed image/audio turns only where the projector prompt contract is
+4. Add mixed image/audio turns only where the projector prompt contract is
    validated by an upstream oracle.
-6. Add token-incremental tool-call argument streaming.
+5. Add token-incremental tool-call argument streaming.
 
 ### Verification and maintenance
 

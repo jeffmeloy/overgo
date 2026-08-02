@@ -1557,6 +1557,15 @@ updates, cache resynchronization, bounded state serialization, native-quantized
 preload, and optional fixture integration. Real-model validation remains
 pending a local Cohere2-MoE MTP GGUF fixture.
 
+Server media ingestion now uses a separate bounded body envelope for
+media-capable native, Chat, and Responses routes. Base64 decoding enforces
+per-image and aggregate decoded-byte limits. Image headers are decoded first,
+with per-dimension, per-image-pixel, and aggregate-pixel limits enforced before
+full allocation. Invalid media geometry returns a request error before
+generation. Unit coverage includes ordinary/media body-budget separation,
+dimension bombs, per-image pixel overflow, aggregate pixel overflow, and the
+normal ordered multi-image paths.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

@@ -32,7 +32,15 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
-const maxRequestBytes = 1 << 20
+const (
+	maxRequestBytes           = 1 << 20
+	maxMultimodalRequestBytes = 32 << 20
+	maxImageBytes             = 16 << 20
+	maxMediaBytes             = 24 << 20
+	maxImageDimension         = 16384
+	maxImagePixels            = 16 << 20
+	maxRequestImagePixels     = 32 << 20
+)
 
 type Generator interface {
 	Generate(
@@ -1076,7 +1084,24 @@ func (h *Handler) decodeBoundedJSON(
 	request *http.Request,
 	target any,
 ) bool {
-	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
+	return h.decodeJSONWithLimit(response, request, target, maxRequestBytes)
+}
+
+func (h *Handler) decodeMultimodalJSON(
+	response http.ResponseWriter,
+	request *http.Request,
+	target any,
+) bool {
+	return h.decodeJSONWithLimit(response, request, target, maxMultimodalRequestBytes)
+}
+
+func (h *Handler) decodeJSONWithLimit(
+	response http.ResponseWriter,
+	request *http.Request,
+	target any,
+	limit int64,
+) bool {
+	request.Body = http.MaxBytesReader(response, request.Body, limit)
 	decoder := json.NewDecoder(request.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
@@ -2301,7 +2326,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		return
 	}
 	var body nativeCompletionRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
 	prompts, err := h.parseNativePrompts(body.Prompt)
@@ -2628,6 +2653,9 @@ func (h *Handler) parseNativeMultimodalPrompt(raw json.RawMessage) (nativePrompt
 		}
 		images[index] = imageData
 	}
+	if err := validateMultimodalImages(images); err != nil {
+		return nativePrompt{}, err
+	}
 	return nativePrompt{
 		Text: document.PromptString, Response: document.PromptString,
 		Image: images[0], Images: images, MediaText: segments, BeforeMedia: before, AfterMedia: after,
@@ -2639,9 +2667,15 @@ func decodeNativeAudioData(encoded string) ([]float32, error) {
 	if !ok || !strings.HasPrefix(header, "data:audio/") || !strings.HasSuffix(header, ";base64") {
 		return nil, errors.New("multimodal_data audio must use a base64 data URI")
 	}
+	if base64.StdEncoding.DecodedLen(len(payload)) > maxMediaBytes+2 {
+		return nil, errors.New("multimodal_data audio exceeds decoded media limit")
+	}
 	decoded, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil || len(decoded) == 0 {
 		return nil, errors.New("multimodal_data audio is not valid base64")
+	}
+	if len(decoded) > maxMediaBytes {
+		return nil, errors.New("multimodal_data audio exceeds decoded media limit")
 	}
 	samples, sampleRate, err := projector.DecodeWAV(decoded)
 	if err != nil {
@@ -2664,6 +2698,9 @@ func decodeNativeImageData(encoded string) ([]byte, error) {
 	if encoded == "" {
 		return nil, errors.New("multimodal_data image is empty")
 	}
+	if base64.StdEncoding.DecodedLen(len(encoded)) > maxImageBytes+2 {
+		return nil, errors.New("multimodal_data image exceeds decoded image limit")
+	}
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return nil, errors.New("multimodal_data image is not valid base64")
@@ -2671,7 +2708,58 @@ func decodeNativeImageData(encoded string) ([]byte, error) {
 	if len(decoded) == 0 {
 		return nil, errors.New("multimodal_data image is empty")
 	}
+	if len(decoded) > maxImageBytes {
+		return nil, errors.New("multimodal_data image exceeds decoded image limit")
+	}
 	return decoded, nil
+}
+
+func validateMultimodalImages(data [][]byte) error {
+	if len(data) == 0 {
+		return errors.New("multimodal image data is empty")
+	}
+	var totalBytes, totalPixels uint64
+	for index, encoded := range data {
+		if len(encoded) > maxImageBytes {
+			return fmt.Errorf("multimodal_data image %d exceeds decoded image limit", index)
+		}
+		totalBytes += uint64(len(encoded))
+		if totalBytes > maxMediaBytes {
+			return errors.New("multimodal images exceed decoded media limit")
+		}
+		config, _, err := image.DecodeConfig(bytes.NewReader(encoded))
+		if err != nil {
+			return fmt.Errorf("multimodal_data image %d is unsupported", index)
+		}
+		if config.Width <= 0 || config.Height <= 0 ||
+			config.Width > maxImageDimension || config.Height > maxImageDimension {
+			return fmt.Errorf("multimodal_data image %d dimensions exceed limit", index)
+		}
+		pixels := uint64(config.Width) * uint64(config.Height)
+		if pixels > maxImagePixels {
+			return fmt.Errorf("multimodal_data image %d pixel count exceeds limit", index)
+		}
+		totalPixels += pixels
+		if totalPixels > maxRequestImagePixels {
+			return errors.New("multimodal images exceed aggregate pixel limit")
+		}
+	}
+	return nil
+}
+
+func decodeMultimodalImages(data [][]byte) ([]image.Image, error) {
+	if err := validateMultimodalImages(data); err != nil {
+		return nil, err
+	}
+	images := make([]image.Image, len(data))
+	for index, encoded := range data {
+		input, _, err := image.Decode(bytes.NewReader(encoded))
+		if err != nil {
+			return nil, fmt.Errorf("multimodal_data image %d is unsupported", index)
+		}
+		images[index] = input
+	}
+	return images, nil
 }
 
 func (h *Handler) projectNativeMultimodalPrompt(
@@ -2696,13 +2784,9 @@ func (h *Handler) projectNativeMultimodalPrompt(
 		if len(imageData) == 0 && len(prompt.Image) > 0 {
 			imageData = [][]byte{prompt.Image}
 		}
-		images := make([]image.Image, len(imageData))
-		for index, data := range imageData {
-			input, _, decodeErr := image.Decode(bytes.NewReader(data))
-			if decodeErr != nil {
-				return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: multimodal_data image %d is unsupported", index)
-			}
-			images[index] = input
+		images, decodeErr := decodeMultimodalImages(imageData)
+		if decodeErr != nil {
+			return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: %w", decodeErr)
 		}
 		if len(images) > 1 {
 			multi, ok := h.config.ImageProjector.(projector.MultiImageProjector)
@@ -3893,6 +3977,9 @@ func (h *Handler) parseChatMultimodalPrompt(
 			}
 			prompt.Images[index] = decoded
 		}
+		if err := validateMultimodalImages(prompt.Images); err != nil {
+			return nativePrompt{}, err
+		}
 		prompt.Image = prompt.Images[0]
 		return prompt, nil
 	}
@@ -3911,6 +3998,9 @@ func (h *Handler) parseChatMultimodalPrompt(
 		}
 		prompt.Image = decoded
 		prompt.Images = [][]byte{decoded}
+		if err := validateMultimodalImages(prompt.Images); err != nil {
+			return nativePrompt{}, err
+		}
 	case "audio":
 		if h.config.AudioProjector == nil {
 			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
@@ -4650,7 +4740,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	var body responsesRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
 	if body.Model != "" && body.Model != h.config.ModelID {
@@ -5158,7 +5248,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		return
 	}
 	var body responsesTokenCountRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
 	if body.Model != "" && body.Model != h.config.ModelID {
@@ -5256,7 +5346,7 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 		return
 	}
 	var body chatCompletionRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
 	if body.Model != "" && body.Model != h.config.ModelID {
@@ -5316,16 +5406,8 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
-	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
-	decoder := json.NewDecoder(request.Body)
-	decoder.DisallowUnknownFields()
 	var body chatCompletionRequest
-	if err := decoder.Decode(&body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
-		return
-	}
-	if err := requireEOF(decoder); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
 	if body.Model != "" && body.Model != h.config.ModelID {

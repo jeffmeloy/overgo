@@ -17,6 +17,14 @@ claims:
         contains: "func OpenWithOptions("
       - path: internal/gguf/reader_test.go
         contains: "func TestParseEnforcesLimits("
+  - id: bounded-server-media
+    status: implemented
+    summary: Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels.
+    evidence:
+      - path: internal/server/server.go
+        contains: "func validateMultimodalImages("
+      - path: internal/server/server_test.go
+        contains: "func TestValidateMultimodalImagesEnforcesGeometryBudgets("
   - id: validated-split-gguf
     status: implemented
     summary: Split GGUF models load, validate, write, merge, and round-trip.
@@ -429,6 +437,14 @@ server:
   context_shift: optional
   graceful_shutdown_seconds: 30
   request_timeout: optional
+  request_budgets:
+    json_bytes: 1048576
+    multimodal_json_bytes: 33554432
+    decoded_image_bytes: 16777216
+    decoded_media_bytes: 25165824
+    image_dimension: 16384
+    image_pixels: 16777216
+    request_image_pixels: 33554432
   prometheus_metrics:
     - readiness
     - request-count-and-concurrency

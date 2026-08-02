@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tokenizer"
@@ -173,6 +174,47 @@ func TestFormatChatUsesGGUFJinjaTemplateWithoutFilesystemIncludes(t *testing.T) 
 		Content: "hello",
 	}}); err == nil {
 		t.Fatal("GGUF chat template read a filesystem include")
+	}
+}
+
+func TestFormatJinjaChatSupportsPinnedRuntimeExtensions(t *testing.T) {
+	runner := jinjaChatTestRunner(t,
+		`{{ strftime_now('%Y-%m-%d')|length }}:`+
+			`{% set ns = namespace(hit=false) %}`+
+			`{% for index in range(3) %}`+
+			`{% if index == 2 %}{% set ns.hit = true %}{% endif %}`+
+			`{% endfor %}{{ ns.hit }}`,
+	)
+	got, err := runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "10:True" {
+		t.Fatalf("extension prompt = %q, want %q", got, "10:True")
+	}
+
+	runner = jinjaChatTestRunner(t, `{{ raise_exception('roles must alternate') }}`)
+	if _, err := runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}}); err == nil ||
+		!strings.Contains(err.Error(), "roles must alternate") {
+		t.Fatalf("raise_exception error = %v", err)
+	}
+}
+
+func TestFormatChatTemplateTimeMatchesPinnedDirectives(t *testing.T) {
+	value := time.Date(2026, time.August, 2, 17, 4, 5, 0, time.FixedZone("EDT", -4*60*60))
+	got, err := formatChatTemplateTime(
+		value,
+		"%a|%A|%b|%B|%c|%d|%e|%H|%I|%j|%m|%M|%p|%S|%u|%w|%x|%X|%y|%Y|%z|%Z|%%",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "Sun|Sunday|Aug|August|Sun Aug 02 17:04:05 2026|02| 2|17|05|214|08|04|PM|05|7|0|08/02/26|17:04:05|26|2026|-0400|EDT|%"
+	if got != want {
+		t.Fatalf("strftime_now = %q, want %q", got, want)
+	}
+	if _, err := formatChatTemplateTime(value, "%Q"); err == nil {
+		t.Fatal("strftime_now accepted unsupported directive")
 	}
 }
 

@@ -89,6 +89,31 @@ type fakeQwen3VLProjector struct {
 	text   []string
 }
 
+type fakeVideoProjector struct {
+	fakeQwen3VLProjector
+	frames int
+	fps    float64
+}
+
+func (f *fakeVideoProjector) BuildVideoPrompt(
+	_ context.Context,
+	_ projector.ImageTokenizer,
+	frames []image.Image,
+	before, after string,
+	fps float64,
+	_ bool,
+) (projector.MultimodalPrompt, error) {
+	f.frames = len(frames)
+	f.fps = fps
+	f.before, f.after = before, after
+	return projector.MultimodalPrompt{
+		TokenIDs: []tokenizer.TokenID{1, 2, 3}, Embeddings: make([]float32, 2560),
+		EmbeddingWidth: 2560, EmbeddingTokenIndices: []uint32{1},
+	}, nil
+}
+
+func (*fakeVideoProjector) Close() error { return nil }
+
 type fakeHistoryProjector struct {
 	fakeQwen3VLProjector
 	historyText []string
@@ -137,6 +162,25 @@ func (f *fakeHistoryProjector) BuildMediaHistoryPrompt(
 
 type historyGenerator struct {
 	*fakeGenerator
+}
+
+type reasoningGenerator struct {
+	*fakeGenerator
+}
+
+func (g *reasoningGenerator) ParseChatOutput(
+	output string,
+	tools []inference.ChatTool,
+) (inference.ChatMessage, error) {
+	if len(tools) != 0 {
+		return g.fakeGenerator.ParseChatOutput(output, tools)
+	}
+	message := inference.ChatMessage{Role: "assistant", Content: output}
+	if closeIndex := strings.Index(output, "</think>"); closeIndex >= 0 {
+		message.ReasoningContent = strings.TrimSpace(output[:closeIndex])
+		message.Content = strings.TrimSpace(output[closeIndex+len("</think>"):])
+	}
+	return message, nil
 }
 
 func (g *historyGenerator) FormatChat(messages []inference.ChatMessage) (string, error) {
@@ -579,6 +623,9 @@ func (f *fakeGenerator) FormatChat(messages []inference.ChatMessage) (string, er
 	if len(messages) == 0 {
 		return "", errors.New("chat message list is empty")
 	}
+	f.mu.Lock()
+	f.chatMessages = cloneResponseMessages(messages)
+	f.mu.Unlock()
 	return "formatted-chat", nil
 }
 

@@ -2056,11 +2056,13 @@ func BuildDeepSeek4BlockCached(
 	positions, tokenRows []uint32,
 	pastKV *tensor.Tensor,
 	pastStates map[string]*tensor.Tensor,
+	currentPositions *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
 	if spec.Architecture != "deepseek4" || builder == nil || input == nil ||
 		(input.Shape.Rank != 2 && input.Shape.Rank != 3) || layerIndex >= spec.BlockCount || len(positions) == 0 ||
-		uint64(len(positions)) != input.Shape.Dims[input.Shape.Rank-1] {
+		uint64(len(positions)) != input.Shape.Dims[input.Shape.Rank-1] ||
+		currentPositions == nil || currentPositions.Shape != tensor.MustShape(1, 1, uint64(len(positions))) {
 		return DenseBlockResult{}, errors.New("DeepSeek 4 block input is invalid")
 	}
 	if layerIndex == 0 {
@@ -2157,6 +2159,11 @@ func BuildDeepSeek4BlockCached(
 		cacheKV = builder.Concat(pastKV, kv, 2)
 	}
 	states := make(map[string]*tensor.Tensor)
+	cachePositions := currentPositions
+	if previous := pastStates["positions"]; previous != nil {
+		cachePositions = builder.Concat(previous, currentPositions, 2)
+	}
+	states["positions"] = cachePositions
 	appendState := func(name string, current *tensor.Tensor) *tensor.Tensor {
 		if current == nil {
 			return nil
@@ -2201,7 +2208,7 @@ func BuildDeepSeek4BlockCached(
 		OriginalContext: originalContext, ExtFactor: extFactor, AttentionFactor: attentionFactor,
 		BetaFast: betaFast, BetaSlow: betaSlow, NormEpsilon: spec.RMSNormEpsilon,
 	}
-	attention := builder.DeepSeek4Attention(query, cacheKV, weights.AttentionSinks,
+	attention := builder.DeepSeek4Attention(query, cacheKV, cachePositions, weights.AttentionSinks,
 		compressorKV, compressorScore, weights.AttentionCompressorNorm,
 		indexerQuery, indexerWeights, indexerKV, indexerScore, weights.IndexerCompressorNorm, attributes)
 	groupDimension := uint64(spec.HeadCount/spec.AttentionOutputGroups) * headWidth
@@ -2849,15 +2856,19 @@ func BuildLFM2BlockCached(
 	projected := builder.Transpose2D(builder.Multiply(b, x))
 	convInput := builder.Concat(pastKey, projected, 0)
 	if spec.NonCausalAttention {
-		kernel := uint64(spec.ShortConvCacheLength)
-		if kernel%2 == 0 {
-			return LFM2BlockResult{}, errors.New("LFM2 centered convolution requires an odd kernel")
+		leftPad := window / 2
+		rightPad := window - leftPad
+		convInput = projected
+		if leftPad > 0 {
+			left := builder.GroupSlice(pastKey, window-leftPad, leftPad, 1, window)
+			left = builder.Reshape(left, leftPad, embedding)
+			convInput = builder.Concat(left, convInput, 0)
 		}
-		pad := window / 2
-		left := builder.GroupSlice(pastKey, window-pad, pad, 1, window)
-		left = builder.Reshape(left, pad, embedding)
-		right := builder.Scale(left, 0)
-		convInput = builder.Concat(builder.Concat(left, projected, 0), right, 0)
+		if rightPad > 0 {
+			right := builder.GroupSlice(pastKey, window-rightPad, rightPad, 1, window)
+			right = builder.Scale(builder.Reshape(right, rightPad, embedding), 0)
+			convInput = builder.Concat(convInput, right, 0)
+		}
 	}
 	nextState := builder.GroupSlice(convInput, tokens, window, 1, window)
 	nextState = builder.Reshape(nextState, window, embedding)
@@ -3057,6 +3068,7 @@ func buildDenseBlockCachedForLayer(
 	isArctic := spec.Architecture == "arctic"
 	isLLaDAMoE := spec.Architecture == "llada-moe"
 	isQwen2MoE := spec.Architecture == "qwen2moe"
+	isRefactMoE := spec.Architecture == "refact" && spec.ExpertCount > 0
 	if isGroveMoE && (spec.ExpertsPerGroup == 0 || spec.ExpertCount == 0 ||
 		spec.ExpertCount%spec.ExpertsPerGroup != 0) {
 		return DenseBlockResult{}, errors.New("GroveMoE expert grouping is invalid")
@@ -3078,14 +3090,14 @@ func buildDenseBlockCachedForLayer(
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isJamba && !isLlama4 && !isMistral3MoE && !isGPTOSS && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE {
+		if !((spec.Architecture == "llama" || spec.Architecture == "llama-embed") && spec.ExpertCount > 0) && spec.Architecture != "qwen3moe" && spec.Architecture != "qwen3vlmoe" && spec.Architecture != "rnd1" && !isArctic && !isLLaDAMoE && !isBailingMoE && !isBailingMoE2 && !isCohere2MoE && !isDeepSeek && !isDeepSeek2OCR && !isDBRX && !isDOTS1 && !isErnieMoE && !isGLM4MoE && !isGraniteMoE && !isGroveMoE && !isGrok && !isHunyuanMoE && !isHYV3 && !isJamba && !isLlama4 && !isMistral3MoE && !isGPTOSS && !isMellum && !isMiMo2 && !isStep35 && !isSmallThinker && !isMiniMaxM2 && !isLFM2MoE && !isLaguna && !isAFMoE && !isQwen2MoE && !isOLMoE && !isPhiMoE && !isEXAOneMoE && !isRefactMoE {
 			return DenseBlockResult{}, errors.New("dense block expert weights require a supported MoE architecture")
 		}
 		required["feed-forward router"] = weights.FeedForwardRouter
 		if (isCohere2MoE || isDeepSeek2OCR || isHYV3) && weights.FeedForwardGateUpExperts != nil {
 			required["feed-forward fused expert gate/up"] = weights.FeedForwardGateUpExperts
 		} else {
-			if (!isGraniteMoE && !isGrok && !isErnieMoE) || weights.FeedForwardGateExperts != nil {
+			if (!isGraniteMoE && !isGrok && !isErnieMoE && !isRefactMoE) || weights.FeedForwardGateExperts != nil {
 				required["feed-forward expert gate"] = weights.FeedForwardGateExperts
 			}
 			required["feed-forward expert up"] = weights.FeedForwardUpExperts
@@ -3836,7 +3848,20 @@ func buildDenseBlockCachedForLayer(
 	// Cohere: shared normalized input; parallel attention/FFN.
 	if usesExperts {
 		var feedForward *tensor.Tensor
-		if isErnieMoE {
+		if isRefactMoE {
+			if weights.FeedForwardGateExperts == nil {
+				feedForward = builder.MoEUngated(
+					normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
+					weights.FeedForwardDownExperts, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+				)
+			} else {
+				feedForward = builder.MoE(
+					normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
+					weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
+					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
+				)
+			}
+		} else if isErnieMoE {
 			if weights.FeedForwardGateExperts == nil {
 				if weights.FeedForwardExpertBias != nil {
 					feedForward = builder.MoEUngatedWithSelectionBias(

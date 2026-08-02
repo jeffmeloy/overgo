@@ -265,6 +265,13 @@ type Config struct {
 	ImageProjector     ImageProjector
 	AudioProjector     AudioProjector
 	RemoteMediaPolicy  *RemoteMediaPolicy
+	ResponseFiles      ResponseFileResolver
+	ResponseToolPolicy ResponseToolPolicy
+	MaxStoredResponses int
+	ResponseStoreBytes int
+	FFmpegPath         string
+	VideoFPS           float64
+	VideoMaxFrames     int
 }
 
 type slotRuntimeStats struct {
@@ -378,6 +385,9 @@ type Handler struct {
 	generationErrors   atomic.Uint64
 	generatedTokens    atomic.Uint64
 	mediaFetcher       *remoteMediaFetcher
+	responseHistory    *responseHistoryStore
+	responseFiles      ResponseFileResolver
+	thinkingSigner     *anthropicThinkingSigner
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
@@ -423,9 +433,41 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.InfillBatchSize < 0 {
 		return nil, errors.New("server: infill batch size must be positive")
 	}
+	if (config.ResponseToolPolicy.Hosted != "" && config.ResponseToolPolicy.Hosted != "deny") ||
+		(config.ResponseToolPolicy.Custom != "" && config.ResponseToolPolicy.Custom != "deny") {
+		return nil, errors.New("server: response tool policy requires an external executor for non-deny modes")
+	}
+	if config.MaxStoredResponses == 0 {
+		config.MaxStoredResponses = defaultStoredResponses
+	}
+	if config.MaxStoredResponses < 0 || config.MaxStoredResponses > 1<<16 {
+		return nil, errors.New("server: stored response count must be in [1,65536]")
+	}
+	if config.ResponseStoreBytes == 0 {
+		config.ResponseStoreBytes = defaultResponseStoreBytes
+	}
+	if config.ResponseStoreBytes < 0 || config.ResponseStoreBytes > 1<<30 {
+		return nil, errors.New("server: response store bytes must be in [1,1073741824]")
+	}
+	if config.VideoFPS == 0 {
+		config.VideoFPS = 2
+	}
+	if config.VideoFPS <= 0 || math.IsNaN(config.VideoFPS) || math.IsInf(config.VideoFPS, 0) {
+		return nil, errors.New("server: video FPS must be finite and positive")
+	}
+	if config.VideoMaxFrames == 0 {
+		config.VideoMaxFrames = 32
+	}
+	if config.VideoMaxFrames < 0 || config.VideoMaxFrames > 256 {
+		return nil, errors.New("server: video frame limit must be in [1,256]")
+	}
 	mediaFetcher, err := newRemoteMediaFetcher(config.RemoteMediaPolicy)
 	if err != nil {
 		return nil, fmt.Errorf("server remote media policy: %w", err)
+	}
+	thinkingSigner, err := newAnthropicThinkingSigner()
+	if err != nil {
+		return nil, err
 	}
 	defaultSampler, err := sampling.New(sampling.Config{
 		Temperature: config.DefaultTemperature,
@@ -467,6 +509,12 @@ func New(config Config, generator Generator) (*Handler, error) {
 		slotStats:       make([]slotRuntimeStats, config.MaxConcurrent),
 		started:         time.Now(),
 		mediaFetcher:    mediaFetcher,
+		responseHistory: newResponseHistoryStore(
+			config.MaxStoredResponses,
+			config.ResponseStoreBytes,
+		),
+		responseFiles:  config.ResponseFiles,
+		thinkingSigner: thinkingSigner,
 	}, nil
 }
 
@@ -2401,6 +2449,9 @@ type nativePrompt struct {
 	AfterMedia   string
 	MediaHistory bool
 	Media        []nativeMedia
+	Video        []byte
+	VideoFPS     float64
+	Thinking     *bool
 }
 
 type nativeMedia struct {
@@ -2737,6 +2788,22 @@ func (h *Handler) parseNativeMultimodalPrompt(ctx context.Context, raw json.RawM
 			media = append(media, nativeMedia{Kind: projector.MediaAudio, Audio: audio})
 			continue
 		}
+		if strings.HasPrefix(encoded, "data:video/") {
+			if len(document.MultimodalData) != 1 {
+				return nativePrompt{}, errors.New("encoded video cannot be combined with other media")
+			}
+			if _, ok := h.config.ImageProjector.(projector.VideoProjector); !ok {
+				return nativePrompt{}, errors.New("video data provided, but the server has no video projector")
+			}
+			video, err := h.resolveVideoData(ctx, encoded)
+			if err != nil {
+				return nativePrompt{}, fmt.Errorf("multimodal_data video: %w", err)
+			}
+			return nativePrompt{
+				Text: document.PromptString, Response: document.PromptString,
+				Video: video, BeforeMedia: before, AfterMedia: after,
+			}, nil
+		}
 		if h.config.Qwen3VLProjector == nil && h.config.ImageProjector == nil {
 			return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
 		}
@@ -2881,6 +2948,41 @@ func (h *Handler) resolveImageData(ctx context.Context, source string) ([]byte, 
 	return data, nil
 }
 
+func (h *Handler) resolveVideoData(ctx context.Context, source string) ([]byte, error) {
+	if isRemoteMediaSource(source) {
+		data, err := h.mediaFetcher.fetch(ctx, source, "video")
+		if err != nil {
+			return nil, err
+		}
+		if len(data) > maxMediaBytes {
+			return nil, errors.New("video exceeds decoded media limit")
+		}
+		return data, nil
+	}
+	comma := strings.IndexByte(source, ',')
+	if comma >= 0 {
+		metadata := strings.ToLower(source[:comma])
+		if !strings.HasPrefix(metadata, "data:video/") || !strings.HasSuffix(metadata, ";base64") {
+			return nil, errors.New("video data URI must contain base64 video")
+		}
+		source = source[comma+1:]
+	}
+	if base64.StdEncoding.DecodedLen(len(source)) > maxMediaBytes+2 {
+		return nil, errors.New("video exceeds decoded media limit")
+	}
+	data, err := base64.StdEncoding.DecodeString(source)
+	if err != nil {
+		return nil, errors.New("video is not valid base64")
+	}
+	if len(data) == 0 {
+		return nil, errors.New("video is empty")
+	}
+	if len(data) > maxMediaBytes {
+		return nil, errors.New("video exceeds decoded media limit")
+	}
+	return data, nil
+}
+
 func isRemoteMediaSource(source string) bool {
 	lower := strings.ToLower(strings.TrimSpace(source))
 	return strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://")
@@ -2944,7 +3046,32 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	}
 	var projected projector.MultimodalPrompt
 	var err error
-	if len(prompt.Media) > 0 {
+	thinking := true
+	if prompt.Thinking != nil {
+		thinking = *prompt.Thinking
+	}
+	if len(prompt.Video) > 0 {
+		video, ok := h.config.ImageProjector.(projector.VideoProjector)
+		if !ok {
+			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: video projector is unavailable")
+		}
+		fps := prompt.VideoFPS
+		if fps == 0 {
+			fps = h.config.VideoFPS
+		}
+		frames, decodeErr := projector.DecodeEncodedVideo(
+			ctx, prompt.Video, h.config.FFmpegPath, fps, h.config.VideoMaxFrames,
+		)
+		if decodeErr != nil {
+			return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: decode video: %w", decodeErr)
+		}
+		if validationErr := validateVideoFrames(frames); validationErr != nil {
+			return nativePrompt{}, inference.ProjectedInputs{}, validationErr
+		}
+		projected, err = video.BuildVideoPrompt(
+			ctx, tokenizerAPI, frames, prompt.BeforeMedia, prompt.AfterMedia, fps, thinking,
+		)
+	} else if len(prompt.Media) > 0 {
 		mixed, ok := any(h.config.ImageProjector).(projector.MediaHistoryProjector)
 		if !ok {
 			mixed, ok = any(h.config.AudioProjector).(projector.MediaHistoryProjector)
@@ -3009,14 +3136,14 @@ func (h *Handler) projectNativeMultimodalPrompt(
 			if !ok {
 				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support multiple images")
 			}
-			projected, err = multi.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, true)
+			projected, err = multi.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, thinking)
 		} else if h.config.ImageProjector != nil {
 			projected, err = h.config.ImageProjector.BuildImagePrompt(
-				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, true,
+				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, thinking,
 			)
 		} else {
 			projected, err = h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
-				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, true,
+				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, thinking,
 			)
 		}
 	}
@@ -3034,11 +3161,39 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	prompt.Audio = nil
 	prompt.MediaHistory = false
 	prompt.Media = nil
+	prompt.Video = nil
 	return prompt, inputs, nil
 }
 
 func nativePromptHasMedia(prompt nativePrompt) bool {
-	return len(prompt.Image) != 0 || len(prompt.Images) != 0 || len(prompt.Audio) != 0 || len(prompt.Media) != 0
+	return len(prompt.Image) != 0 || len(prompt.Images) != 0 || len(prompt.Audio) != 0 ||
+		len(prompt.Media) != 0 || len(prompt.Video) != 0
+}
+
+func validateVideoFrames(frames []image.Image) error {
+	if len(frames) == 0 {
+		return errors.New("server: video has no frames")
+	}
+	var totalPixels uint64
+	for index, frame := range frames {
+		if frame == nil {
+			return fmt.Errorf("server: video frame %d is nil", index)
+		}
+		bounds := frame.Bounds()
+		width, height := bounds.Dx(), bounds.Dy()
+		if width <= 0 || height <= 0 || width > maxImageDimension || height > maxImageDimension {
+			return fmt.Errorf("server: video frame %d dimensions exceed limit", index)
+		}
+		pixels := uint64(width) * uint64(height)
+		if pixels > maxImagePixels {
+			return fmt.Errorf("server: video frame %d pixel count exceeds limit", index)
+		}
+		totalPixels += pixels
+		if totalPixels > maxRequestImagePixels {
+			return errors.New("server: video frames exceed aggregate pixel limit")
+		}
+	}
+	return nil
 }
 
 func (h *Handler) preparePrompt(

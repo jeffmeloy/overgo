@@ -69,6 +69,16 @@ func run() error {
 		0,
 		"maximum end-to-end request duration; zero disables",
 	)
+	responseStoreEntries := flag.Int(
+		"response-store-entries",
+		128,
+		"maximum Responses continuation histories retained in memory",
+	)
+	responseStoreBytes := flag.Int(
+		"response-store-bytes",
+		64<<20,
+		"maximum aggregate bytes retained for Responses continuation",
+	)
 	apiKeyFile := flag.String(
 		"api-key-file",
 		"",
@@ -77,6 +87,10 @@ func run() error {
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
 	mediaPolicyPath := flag.String("media-policy", "media_policy.yaml", "remote-media YAML policy; empty disables URLs")
+	resourcePolicyPath := flag.String("resource-policy", "resource_policy.yaml", "Responses file-ID YAML policy; empty disables file IDs")
+	ffmpegPath := flag.String("ffmpeg", os.Getenv("LLAMACPP2GO_FFMPEG"), "FFmpeg executable for encoded video")
+	videoFPS := flag.Float64("video-fps", 2, "video frame sampling rate")
+	videoMaxFrames := flag.Int("video-max-frames", 32, "maximum decoded video frames")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
@@ -130,6 +144,15 @@ func run() error {
 			return err
 		}
 	}
+	var resourcePolicy *llamaserver.ResponseFilePolicy
+	var responseToolPolicy llamaserver.ResponseToolPolicy
+	if *resourcePolicyPath != "" {
+		resourcePolicy, err = llamaserver.LoadResponseFilePolicy(*resourcePolicyPath)
+		if err != nil {
+			return err
+		}
+		responseToolPolicy = resourcePolicy.ResponseTools
+	}
 	handler, err := llamaserver.New(llamaserver.Config{
 		ModelID:            *modelID,
 		MaxTokens:          *maxTokens,
@@ -146,6 +169,13 @@ func run() error {
 		ImageProjector:     vision,
 		AudioProjector:     audio,
 		RemoteMediaPolicy:  mediaPolicy,
+		ResponseFiles:      resourcePolicy,
+		ResponseToolPolicy: responseToolPolicy,
+		MaxStoredResponses: *responseStoreEntries,
+		ResponseStoreBytes: *responseStoreBytes,
+		FFmpegPath:         *ffmpegPath,
+		VideoFPS:           *videoFPS,
+		VideoMaxFrames:     *videoMaxFrames,
 	}, runner)
 	if err != nil {
 		return err

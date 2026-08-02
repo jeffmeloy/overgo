@@ -8,6 +8,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/nikolalohinski/gonja/v2"
 	"github.com/nikolalohinski/gonja/v2/config"
@@ -44,6 +45,7 @@ type ChatMediaPart struct {
 	Data       string
 	Format     string
 	TextOffset int
+	FPS        float64
 }
 
 type ChatToolCall struct {
@@ -188,6 +190,28 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 					media = append(media, ChatMediaPart{
 						Type: "audio", Data: source,
 						Format: part.InputAudio.Format, TextOffset: joined.Len(),
+					})
+				case "input_video":
+					var part struct {
+						Type       string `json:"type"`
+						InputVideo struct {
+							Data string  `json:"data"`
+							URL  string  `json:"url"`
+							FPS  float64 `json:"fps,omitempty"`
+						} `json:"input_video"`
+					}
+					if err := decodeChatContentPart(raw, &part); err != nil {
+						return fmt.Errorf("inference: chat content part %d: %w", index, err)
+					}
+					if (part.InputVideo.Data == "") == (part.InputVideo.URL == "") {
+						return fmt.Errorf("inference: chat content part %d input_video requires exactly one of data or url", index)
+					}
+					source := part.InputVideo.Data
+					if source == "" {
+						source = part.InputVideo.URL
+					}
+					media = append(media, ChatMediaPart{
+						Type: "video", Data: source, FPS: part.InputVideo.FPS, TextOffset: joined.Len(),
 					})
 				default:
 					return fmt.Errorf(
@@ -568,6 +592,9 @@ func (f chatTemplateToolFunction) GetItem(key any) (*exec.Value, bool) {
 func newChatTemplateEnvironment() *exec.Environment {
 	filters := exec.NewFilterSet(map[string]exec.FilterFunction{}).
 		Update(gonja.DefaultEnvironment.Filters)
+	context := exec.EmptyContext().Update(gonja.DefaultEnvironment.Context)
+	context.Set("raise_exception", chatTemplateRaiseException)
+	context.Set("strftime_now", newChatTemplateStrftime(time.Now()))
 	fallback, _ := filters.Get("tojson")
 	_ = filters.Replace(
 		"tojson",
@@ -585,7 +612,7 @@ func newChatTemplateEnvironment() *exec.Environment {
 		},
 	)
 	return &exec.Environment{
-		Context:           gonja.DefaultEnvironment.Context,
+		Context:           context,
 		Filters:           filters,
 		Tests:             gonja.DefaultEnvironment.Tests,
 		ControlStructures: gonja.DefaultEnvironment.ControlStructures,
@@ -672,18 +699,13 @@ func writeChatTemplateJSON(output *strings.Builder, value any) {
 }
 
 func normalizeChatTemplateSource(source string) string {
-	// gonja v2.9 supports Jinja inline conditionals but currently rejects one
-	// parenthesized form used by pinned Gemma template when it appears as
-	// right operand of string concatenation; equivalent boolean form
-	// safe here because both false and empty-prefix outcomes are empty
+	// Gemma: normalize parenthesized inline conditional.
 	source = strings.ReplaceAll(
 		source,
 		`(first_user_prefix if loop.first else "")`,
 		`((loop.first and first_user_prefix) or "")`,
 	)
-	// gonja's precedence for this Qwen expression differs from Jinja's
-	// Express non-blank test through filters so empty reasoning block
-	// does not get emitted for historical assistant tool calls
+	// Qwen: normalize method-call precedence.
 	source = strings.ReplaceAll(
 		source,
 		`(not loop.last and (not reasoning_content.strip() == ''))`,

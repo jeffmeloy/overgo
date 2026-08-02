@@ -97,6 +97,30 @@ claims:
         contains: "func (f *remoteMediaFetcher) fetch("
       - path: internal/server/media_policy_test.go
         contains: "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault("
+  - id: responses-file-inputs
+    status: implemented
+    summary: Responses accepts bounded typed inline, policy-mapped file-ID, allowlisted URL, and image file-ID inputs.
+    evidence:
+      - path: internal/server/resource_policy.go
+        contains: "func LoadResponseFilePolicy("
+      - path: internal/server/resource_policy_test.go
+        contains: "func TestResponsesInputFileSources("
+  - id: explicit-response-tool-policy
+    status: implemented
+    summary: Hosted, MCP, and free-form custom Responses tools are classified and denied unless an external executor contract is added.
+    evidence:
+      - path: internal/server/responses_tools.go
+        contains: "by response_tools.%s policy"
+      - path: internal/server/resource_policy_test.go
+        contains: "func TestResponsesHostedAndCustomToolsUseExplicitPolicy("
+  - id: server-encoded-video
+    status: implemented
+    summary: Chat and Responses decode bounded single-turn encoded video through native GIF or FFmpeg paths.
+    evidence:
+      - path: internal/projector/encoded_video.go
+        contains: "func DecodeEncodedVideo("
+      - path: internal/server/server_part3_test.go
+        contains: "func TestChatAndResponsesEncodedVideoProjection("
   - id: multimodal-token-counting
     status: implemented
     summary: Chat and Responses token counts use the projected media prompt.
@@ -121,6 +145,46 @@ claims:
         contains: "func (s *chatOutputStream) Accept("
       - path: internal/server/server_part3_test.go
         contains: "func TestStreamingResponsesFunctionCallLifecycle("
+  - id: multimodal-function-tools
+    status: implemented
+    summary: Chat, Responses, and Anthropic preserve projected image/audio history while formatting and streaming function tools.
+    evidence:
+      - path: internal/server/protocol_chat.go
+        contains: "promptTools []inference.ChatTool"
+      - path: internal/server/server_part3_test.go
+        contains: "func TestChatAndResponsesMultimodalFunctionTools("
+  - id: anthropic-image-input
+    status: implemented
+    summary: Anthropic image blocks support bounded base64, allowlisted URL, and mapped file-ID projection with token-count parity.
+    evidence:
+      - path: internal/server/anthropic_tools.go
+        contains: "case \"image\":"
+      - path: internal/server/server_part3_test.go
+        contains: "func TestAnthropicImageToolsAndTokenCounting("
+  - id: anthropic-local-thinking
+    status: implemented
+    summary: Manual summarized thinking supports buffered/SSE output, projected images, handler-local signed replay, and tamper rejection.
+    evidence:
+      - path: internal/server/anthropic_thinking.go
+        contains: "func validateAnthropicThinking("
+      - path: internal/server/server_part3_test.go
+        contains: "func TestAnthropicThinkingBufferedStreamingImageAndReplay("
+  - id: responses-continuation
+    status: implemented
+    summary: Bounded handler-local response history supports text, media, tool-call, streaming, and token-count continuations.
+    evidence:
+      - path: internal/server/response_history.go
+        contains: "func (s *responseHistoryStore) put("
+      - path: internal/server/server_part2_test.go
+        contains: "func TestResponsesPreviousResponseContinuation("
+  - id: responses-reasoning
+    status: implemented
+    summary: Responses reasoning summaries support input replay, buffered output, streaming lifecycle events, and continuation retention.
+    evidence:
+      - path: internal/server/protocol_responses.go
+        contains: "func validateResponsesReasoning("
+      - path: internal/server/server_part3_test.go
+        contains: "func TestResponsesReasoningItemsBufferedAndStreaming("
   - id: architecture-profiles
     status: implemented
     summary: Model architectures use a central family and capability registry with grouped specifications.
@@ -141,12 +205,12 @@ claims:
         contains: "func TestArchitectureBlockDispatchRoutesFamilies("
   - id: paged-continuous-cache
     status: implemented
-    summary: Retained CUDA cache pages and transactional multi-sequence cache steps support dynamic admission.
+    summary: Retained CUDA cache pages and transactional attention/recurrent/hybrid multi-sequence steps support dynamic admission and forks.
     evidence:
       - path: internal/inference/continuous_batch.go
         contains: "func (b *ContinuousBatch) Step("
       - path: internal/inference/device_cache_paging_test.go
-        contains: "func TestRebuildDeviceCachePagesCreatesPointerViews("
+        contains: "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState("
   - id: padded-t5-batches
     status: implemented
     summary: Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state.
@@ -391,10 +455,11 @@ sampling:
       - inverse-token-terminals
       - lazy-token-triggers
       - lazy-regex-triggers
+      - bounded-ecmascript-regex-triggers
+      - lookahead-and-lookbehind-triggers
+      - backreference-triggers
       - overlapping-token-replay
       - serialized-state
-    limitations:
-      - ecmascript-lookaround-and-backreferences
   state_version: 4
   loads_legacy_state_versions:
     - 2
@@ -516,6 +581,7 @@ server:
     multimodal_json_bytes: 33554432
     decoded_image_bytes: 16777216
     decoded_media_bytes: 25165824
+    response_resource_bytes: 16777216
     image_dimension: 16384
     image_pixels: 16777216
     request_image_pixels: 33554432
@@ -548,6 +614,13 @@ server:
     loader: memory-only
     template_max_bytes: 1048576
     output_max_bytes: 16777216
+    extensions:
+      - raise_exception
+      - strftime_now
+      - namespace
+      - range
+    function_input_max_bytes: 4096
+    function_output_max_bytes: 4096
     context:
       - messages
       - bos_token
@@ -600,11 +673,10 @@ server:
       empty_content: "null"
     buffered: true
     streaming:
-      complete_call_deltas_after_validation: true
+      incremental_argument_deltas: true
       template_syntax_hidden: true
       final_finish_reason: tool_calls
     limitations:
-      - token-incremental-streaming-tool-call-argument-deltas
       - arbitrary-unknown-template-output-syntax
   structured_output:
     converter: ordered-json-schema-to-gbnf
@@ -777,21 +849,24 @@ server:
       - input-text
       - output-text
       - image-url-base64-data-uri
+      - image-url-policy-allowed-remote-url
       - input-audio-base64-wav
+      - input-audio-policy-allowed-remote-url
+      - input-video-base64-data-uri
+      - input-video-policy-allowed-remote-url
     multimodal:
-      images_per_request:
+      media_items_per_request:
         minimum: 1
         maximum: 8
-      audio_items_per_request: 1
-      mixed_image_audio: false
-      user_messages: 1
+      ordered_mixed_image_audio: true
+      history: true
       buffered: true
       streaming: true
       projection_after_slot_admission: true
+      exact_media_signed_prompt_cache: true
     limitations:
-      - multimodal-history
-      - multimodal-tools
-      - remote-image-urls
+      - video-with-tools
+      - video-history-and-mixed-video-media
   responses:
     routes:
       - /responses
@@ -804,7 +879,14 @@ server:
       - text-message-array
       - text-content-parts
       - instructions
-      - single-user-multi-image-base64-data-uri
+      - ordered-multi-turn-image-audio-parts
+      - base64-data-uris
+      - policy-allowed-remote-media-urls
+      - single-turn-encoded-video
+      - typed-inline-text-files
+      - policy-mapped-text-file-ids
+      - policy-allowed-text-file-urls
+      - policy-mapped-image-file-ids
     buffered: true
     streaming:
       named_sse_events: true
@@ -820,13 +902,33 @@ server:
         - response.completed
       openai_done_marker: false
     output: response-object-with-message-and-usage
+    reasoning:
+      effort:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+      summary:
+        - auto
+        - concise
+        - detailed
+      input_replay: summary-or-reasoning-text
+      streaming_summary_events: true
+    previous_response_continuation:
+      storage: bounded-handler-local
+      default_maximum_entries: 128
+      default_maximum_bytes: 67108864
+      store_false: true
     limitations:
-      - previous-response-continuation
-      - hosted-and-custom-tools
-      - reasoning-items
-      - multimodal-history-and-mixed-media
-      - remote-image-urls-and-file-ids
-      - audio-input
+      - hosted-mcp-and-custom-tools-explicitly-denied-without-external-executor
+      - pdf-and-nontext-document-inputs
+      - video-with-tools
+      - video-history-and-mixed-video-media
+      - encrypted-reasoning
+      - reasoning-summary-with-tools
     multimodal_token_counting: true
   anthropic_messages:
     route: /v1/messages
@@ -836,6 +938,12 @@ server:
       - text-block-system
       - string-messages
       - text-block-messages
+      - function-tools
+      - assistant-tool-use
+      - user-tool-results
+      - base64-image-blocks
+      - policy-allowed-image-urls
+      - policy-mapped-image-file-ids
     buffered: true
     streaming:
       named_sse_events: true
@@ -848,13 +956,14 @@ server:
         - message_stop
     response:
       - text-content-blocks
+      - local-signed-thinking-content-blocks
       - stop-reason-and-sequence
       - cache-input-output-usage
+      - tool-use-content-blocks
     limitations:
-      - tools-and-tool-results
-      - thinking-blocks
-      - images
-      - tool-aware-jinja-context
+      - adaptive-omitted-and-redacted-thinking
+      - thinking-with-tools-and-interleaved-thinking
+      - local-thinking-signatures-are-handler-scoped-not-anthropic-portable
   lora_adapters:
     startup:
       flag: --lora
@@ -928,8 +1037,8 @@ server:
     multimodal_prompt:
       shape: prompt-string-plus-multimodal-data
       media_marker: <__media__>
-      images_per_request: 1
-      audio_per_request: 1
+      media_items_per_request: 8
+      ordered_mixed_image_audio: true
       encodings:
         - raw-base64
         - data-image-base64-uri
@@ -1061,9 +1170,13 @@ cache:
     fallbacks:
       - editable-session-state
       - streamed-weight-execution
-  limitations:
-    - device-cache-paging
-    - multiple-device-sequences
+    paged_retained_cache: true
+    multiple_device_sequences: true
+    recurrent_and_hybrid_sequences: true
+    retained_device_forks: shared-until-advance
+    named_state_modes:
+      - fixed
+      - token-aligned
 cuda:
   toolkit_tested: "12.9"
   driver_tested: "595.79"
@@ -1323,8 +1436,7 @@ models:
       - per-layer-routed-and-shared-swiglu-clamps
       - native-mxfp4-expert-storage
       - serializable-compressor-and-kv-cache
-    limitations:
-      - noncontiguous-middle-range-cache-edit
+      - explicit-gapped-cache-positions
     real_model_validation: pending-fixture
   glm-dsa:
     status: experimental
@@ -1542,16 +1654,14 @@ models:
     real_model_validation: pending-fixture
   refact:
     status: experimental
-    constraints:
-      - dense
     features:
       - rmsnorm
       - llama-cpp-compatible-alibi
       - fused-or-separate-qkv
       - parallel-swiglu
+      - softmax-top-k-experts
+      - gated-or-ungated-expert-silu
       - tied-or-untied-output
-    limitations:
-      - expert-layers-rejected
     real_model_validation: pending-fixture
   codeshell:
     status: experimental
@@ -1745,11 +1855,10 @@ models:
       - optional-sliding-attention
       - gated-channel-wise-short-convolution
       - centered-non-causal-short-convolution
+      - asymmetric-even-kernel-centered-convolution
       - quantized-short-convolution-kernel-f32-promotion
       - serializable-hybrid-cache
       - swiglu
-    limitations:
-      - even-kernel-centered-convolution-rejected
     real_model_validation: pending-fixture
   lfm2moe:
     status: experimental
@@ -1764,6 +1873,7 @@ models:
       - optional-sliding-attention
       - gated-channel-wise-short-convolution
       - centered-non-causal-short-convolution
+      - asymmetric-even-kernel-centered-convolution
       - quantized-short-convolution-kernel-f32-promotion
       - optional-leading-dense-swiglu-blocks
       - softmax-or-sigmoid-top-k-routing
@@ -1772,8 +1882,6 @@ models:
       - routed-weight-scaling
       - packed-swiglu-experts
       - serializable-hybrid-cache
-    limitations:
-      - even-kernel-centered-convolution-rejected
     real_model_validation: pending-fixture
   jais:
     status: experimental
@@ -3136,7 +3244,6 @@ models:
       - cache-and-session-round-trip
       - cuda-block-differential
     limitations:
-      - no-padded-multisequence-mask
       - real-decoder-fixture-pending
   t5encoder:
     status: experimental

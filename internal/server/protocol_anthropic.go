@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"llamacpp2go/internal/inference"
 
 	"llamacpp2go/internal/sampling"
+	"llamacpp2go/internal/tokenizer"
 
 	"net/http"
 
@@ -35,11 +37,13 @@ type anthropicTokenCountRequest struct {
 }
 
 type anthropicContentBlock struct {
-	Type  string          `json:"type"`
-	Text  string          `json:"text,omitempty"`
-	ID    string          `json:"id,omitempty"`
-	Name  string          `json:"name,omitempty"`
-	Input json.RawMessage `json:"input,omitempty"`
+	Type      string          `json:"type"`
+	Text      string          `json:"text,omitempty"`
+	Thinking  string          `json:"thinking,omitempty"`
+	Signature string          `json:"signature,omitempty"`
+	ID        string          `json:"id,omitempty"`
+	Name      string          `json:"name,omitempty"`
+	Input     json.RawMessage `json:"input,omitempty"`
 }
 
 type anthropicUsage struct {
@@ -71,7 +75,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		return
 	}
 	var body anthropicTokenCountRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
 	if body.Model != "" && body.Model != h.config.ModelID {
@@ -91,19 +95,25 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		)
 		return
 	}
-	if rawJSONConfigured(body.Thinking) {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"Anthropic thinking blocks are not supported",
-		)
+	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
 	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
+	}
+	if thinkingEnabled && len(toolSelection.active) != 0 {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
+		return
+	}
+	if thinkingEnabled {
+		if _, ok := h.generator.(ChatOutputParser); !ok {
+			writeError(response, http.StatusNotImplemented, "unsupported_operation", "thinking output parsing is unavailable")
+			return
+		}
 	}
 	if len(toolSelection.active) != 0 {
 		if _, ok := h.generator.(ChatOutputParser); !ok {
@@ -116,23 +126,19 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			return
 		}
 	}
-	messages, err := parseAnthropicMessages(body.System, body.Messages)
+	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	var prompt string
-	if len(toolSelection.prompt) == 0 {
-		prompt, err = formatter.FormatChat(messages)
-	} else {
-		prompt, err = formatChatRequest(
-			formatter,
-			messages,
-			toolSelection.prompt,
-			nil,
-			map[string]any{"enable_thinking": false},
-		)
+	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
+	if len(toolSelection.prompt) != 0 || thinkingEnabled {
+		normalizedBody.Tools = toolSelection.active
+		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
 	}
+	normalized, err := h.normalizeChatPrompt(
+		request.Context(), formatter, normalizedBody, toolSelection.prompt,
+	)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -180,34 +186,44 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		return
 	}
 	defer h.releaseSlot(slotID)
+	prepared, err := h.preparePrompt(request.Context(), normalized, true)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
 	messageID := "msg_" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
 		h.streamAnthropicMessages(
 			response,
 			request,
 			slotID,
-			prompt,
+			prepared.Text,
+			prepared.TokenIDs,
+			prepared.ProjectedInputs,
 			sampler,
 			*body.MaxTokens,
 			body.StopSequences,
 			messageID,
 			toolSelection.active,
+			thinkingEnabled,
 		)
 		return
 	}
 	var output strings.Builder
 	filter := newStopFilter(body.StopSequences)
 	generatedTokens := 0
-	ids, _, err := h.generate(
+	_, _, err = h.generate(
 		request.Context(),
 		slotID,
-		prompt,
+		prepared.Text,
 		inference.GenerateOptions{
-			MaxNewTokens:  *body.MaxTokens,
-			Sampler:       sampler,
-			ParseSpecial:  true,
-			StopSequences: body.StopSequences,
-			ContextShift:  h.config.ContextShift,
+			MaxNewTokens:    *body.MaxTokens,
+			Sampler:         sampler,
+			ParseSpecial:    true,
+			StopSequences:   body.StopSequences,
+			ContextShift:    h.config.ContextShift,
+			PromptTokenIDs:  prepared.TokenIDs,
+			ProjectedInputs: prepared.ProjectedInputs,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++
 				output.WriteString(filter.Accept(event.Piece))
@@ -230,7 +246,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		stopSequence = &value
 	}
 	message := inference.ChatMessage{Role: "assistant", Content: output.String()}
-	if len(toolSelection.active) != 0 {
+	if len(toolSelection.active) != 0 || thinkingEnabled {
 		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
 			output.String(),
 			toolSelection.active,
@@ -239,8 +255,12 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			writeGenerationError(response, err)
 			return
 		}
+		if thinkingEnabled && message.ReasoningContent == "" {
+			writeGenerationError(response, errors.New("model output omitted required thinking content"))
+			return
+		}
 	}
-	content, err := anthropicBlocks(message, "toolu_"+strings.TrimPrefix(messageID, "msg_"))
+	content, err := h.anthropicBlocks(message, "toolu_"+strings.TrimPrefix(messageID, "msg_"))
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -259,7 +279,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		StopSequence: stopSequence,
 		Usage: anthropicUsage{
 			CacheReadInputTokens: 0,
-			InputTokens:          len(ids) - generatedTokens,
+			InputTokens:          len(prepared.TokenIDs),
 			OutputTokens:         generatedTokens,
 		},
 	})
@@ -270,25 +290,18 @@ func (h *Handler) streamAnthropicMessages(
 	request *http.Request,
 	slotID int,
 	prompt string,
+	promptIDs []tokenizer.TokenID,
+	projectedInputs *inference.ProjectedInputs,
 	sampler *sampling.Sampler,
 	maxTokens int,
 	stops []string,
 	messageID string,
 	tools []inference.ChatTool,
+	thinkingEnabled bool,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
 		writeError(response, http.StatusInternalServerError, "server_error", "streaming is unavailable")
-		return
-	}
-	tokenizerAPI, ok := h.generator.(TokenizationAPI)
-	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "token counting is unavailable")
-		return
-	}
-	promptIDs, err := tokenizerAPI.TokenizeText(prompt, true, true)
-	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
 	response.Header().Set("Content-Type", "text/event-stream")
@@ -327,6 +340,7 @@ func (h *Handler) streamAnthropicMessages(
 	textStopped := false
 	var buffered strings.Builder
 	var toolStream inference.ChatOutputStream
+	var err error
 	streamedToolNames := make([]string, 0, 1)
 	streamedToolArguments := make([]strings.Builder, 0, 1)
 	if len(tools) != 0 {
@@ -434,19 +448,70 @@ func (h *Handler) streamAnthropicMessages(
 		}
 		return nil
 	}
+	emitCompletedBlock := func(index int, block anthropicContentBlock) error {
+		switch block.Type {
+		case "thinking":
+			if err := writeEvent("content_block_start", map[string]any{
+				"type": "content_block_start", "index": index,
+				"content_block": map[string]any{"type": "thinking", "thinking": "", "signature": ""},
+			}); err != nil {
+				return err
+			}
+			if block.Thinking != "" {
+				if err := writeEvent("content_block_delta", map[string]any{
+					"type": "content_block_delta", "index": index,
+					"delta": map[string]any{"type": "thinking_delta", "thinking": block.Thinking},
+				}); err != nil {
+					return err
+				}
+			}
+			if err := writeEvent("content_block_delta", map[string]any{
+				"type": "content_block_delta", "index": index,
+				"delta": map[string]any{"type": "signature_delta", "signature": block.Signature},
+			}); err != nil {
+				return err
+			}
+		case "text":
+			if err := writeEvent("content_block_start", map[string]any{
+				"type": "content_block_start", "index": index,
+				"content_block": map[string]any{"type": "text", "text": ""},
+			}); err != nil {
+				return err
+			}
+			if block.Text != "" {
+				if err := writeEvent("content_block_delta", map[string]any{
+					"type": "content_block_delta", "index": index,
+					"delta": map[string]any{"type": "text_delta", "text": block.Text},
+				}); err != nil {
+					return err
+				}
+			}
+		default:
+			return fmt.Errorf("unsupported completed Anthropic block %q", block.Type)
+		}
+		return writeEvent("content_block_stop", map[string]any{
+			"type": "content_block_stop", "index": index,
+		})
+	}
 	_, _, err = h.generate(
 		request.Context(),
 		slotID,
 		prompt,
 		inference.GenerateOptions{
-			MaxNewTokens:  maxTokens,
-			Sampler:       sampler,
-			ParseSpecial:  true,
-			StopSequences: stops,
-			ContextShift:  h.config.ContextShift,
+			MaxNewTokens:    maxTokens,
+			Sampler:         sampler,
+			ParseSpecial:    true,
+			StopSequences:   stops,
+			ContextShift:    h.config.ContextShift,
+			PromptTokenIDs:  promptIDs,
+			ProjectedInputs: projectedInputs,
 			OnToken: func(event inference.TokenEvent) error {
 				generatedTokens++
 				piece := filter.Accept(event.Piece)
+				if thinkingEnabled {
+					buffered.WriteString(piece)
+					return request.Context().Err()
+				}
 				if len(tools) != 0 {
 					if streamErr := emitToolPiece(piece); streamErr != nil {
 						return streamErr
@@ -465,7 +530,9 @@ func (h *Handler) streamAnthropicMessages(
 		return
 	}
 	flushed := filter.Flush()
-	if len(tools) != 0 {
+	if thinkingEnabled {
+		buffered.WriteString(flushed)
+	} else if len(tools) != 0 {
 		if err := emitToolPiece(flushed); err != nil {
 			_ = writeEvent("error", map[string]any{
 				"type":  "error",
@@ -482,7 +549,32 @@ func (h *Handler) streamAnthropicMessages(
 	if !filter.Stopped() && generatedTokens >= maxTokens {
 		stopReason = "max_tokens"
 	}
-	if len(tools) != 0 {
+	if thinkingEnabled {
+		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(buffered.String(), nil)
+		if parseErr != nil || message.ReasoningContent == "" {
+			if parseErr == nil {
+				parseErr = errors.New("model output omitted required thinking content")
+			}
+			_ = writeEvent("error", map[string]any{
+				"type": "error", "error": errorEnvelope("generation_error", parseErr.Error()).Error,
+			})
+			return
+		}
+		blocks, blockErr := h.anthropicBlocks(message, "")
+		if blockErr != nil {
+			_ = writeEvent("error", map[string]any{
+				"type": "error", "error": errorEnvelope("generation_error", blockErr.Error()).Error,
+			})
+			return
+		}
+		for index, block := range blocks {
+			if emitErr := emitCompletedBlock(index, block); emitErr != nil {
+				return
+			}
+		}
+		textStarted = true
+		textStopped = true
+	} else if len(tools) != 0 {
 		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(
 			buffered.String(),
 			tools,
@@ -494,7 +586,7 @@ func (h *Handler) streamAnthropicMessages(
 			})
 			return
 		}
-		blocks, blockErr := anthropicBlocks(
+		blocks, blockErr := h.anthropicBlocks(
 			message,
 			"toolu_"+strings.TrimPrefix(messageID, "msg_"),
 		)
@@ -605,26 +697,22 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
-	tokenizerAPI, ok := h.generator.(TokenizationAPI)
+	_, ok = h.generator.(TokenizationAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, "unsupported_operation", "token counting is unavailable")
 		return
 	}
 	var body anthropicTokenCountRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
 	if body.Model != "" && body.Model != h.config.ModelID {
 		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
 		return
 	}
-	if rawJSONConfigured(body.Thinking) {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"Anthropic thinking blocks are not supported",
-		)
+	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
 	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
@@ -632,36 +720,37 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	messages, err := parseAnthropicMessages(body.System, body.Messages)
+	if thinkingEnabled && len(toolSelection.active) != 0 {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
+		return
+	}
+	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	var prompt string
-	if len(toolSelection.prompt) == 0 {
-		prompt, err = formatter.FormatChat(messages)
-	} else {
-		prompt, err = formatChatRequest(
-			formatter,
-			messages,
-			toolSelection.prompt,
-			nil,
-			map[string]any{"enable_thinking": false},
-		)
+	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
+	if len(toolSelection.prompt) != 0 || thinkingEnabled {
+		normalizedBody.Tools = toolSelection.active
+		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
 	}
+	normalized, err := h.normalizeChatPrompt(
+		request.Context(), formatter, normalizedBody, toolSelection.prompt,
+	)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	tokens, err := tokenizerAPI.TokenizeText(prompt, true, true)
+	prepared, err := h.preparePrompt(request.Context(), normalized, true)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]int{"input_tokens": len(tokens)})
+	writeJSON(response, http.StatusOK, map[string]int{"input_tokens": len(prepared.TokenIDs)})
 }
 
-func parseAnthropicMessages(
+func (h *Handler) parseAnthropicMessages(
+	ctx context.Context,
 	rawSystem, rawMessages json.RawMessage,
 ) ([]inference.ChatMessage, error) {
 	messages := make([]inference.ChatMessage, 0, 4)
@@ -701,7 +790,8 @@ func parseAnthropicMessages(
 		if item.Role != "user" && item.Role != "assistant" {
 			return nil, fmt.Errorf("message %d has unsupported role %q", index, item.Role)
 		}
-		parsed, err := parseAnthropicMessage(
+		parsed, err := h.parseAnthropicMessage(
+			ctx,
 			item.Role,
 			item.Content,
 			fmt.Sprintf("message %d", index),
@@ -712,6 +802,12 @@ func parseAnthropicMessages(
 		messages = append(messages, parsed...)
 	}
 	return messages, nil
+}
+
+func parseAnthropicMessages(
+	rawSystem, rawMessages json.RawMessage,
+) ([]inference.ChatMessage, error) {
+	return (&Handler{}).parseAnthropicMessages(context.Background(), rawSystem, rawMessages)
 }
 
 func parseAnthropicContent(raw json.RawMessage, label string) (string, error) {

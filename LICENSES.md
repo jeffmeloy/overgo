@@ -11,6 +11,7 @@ The machine-readable inventory is `SBOM.cdx.json`.
 | Go standard library | BSD-3-Clause |
 | `golang.org/x/text` Unicode normalization tables/runtime | BSD-3-Clause |
 | `github.com/nikolalohinski/gonja/v2` Jinja runtime | MIT |
+| `github.com/dlclark/regexp2/v2` bounded ECMAScript regex runtime | MIT |
 | `github.com/dustin/go-humanize` | MIT |
 | `github.com/json-iterator/go` | MIT |
 | `github.com/modern-go/concurrent` and `reflect2` | Apache-2.0 |

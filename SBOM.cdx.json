@@ -210,6 +210,20 @@
       "version": "v1.1.1"
     },
     {
+      "bom-ref": "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/dlclark/regexp2/v2",
+      "purl": "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
+      "type": "library",
+      "version": "v2.5.2"
+    },
+    {
       "bom-ref": "pkg:golang/github.com/dustin/go-humanize@v1.0.1",
       "licenses": [
         {
@@ -702,6 +716,7 @@
         "pkg:golang/github.com/MakeNowJust/heredoc@v1.0.0",
         "pkg:golang/github.com/creack/pty@v1.1.9",
         "pkg:golang/github.com/davecgh/go-spew@v1.1.1",
+        "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
         "pkg:golang/github.com/dustin/go-humanize@v1.0.1",
         "pkg:golang/github.com/go-logr/logr@v1.4.2",
         "pkg:golang/github.com/go-task/slim-sprig/v3@v3.0.0",

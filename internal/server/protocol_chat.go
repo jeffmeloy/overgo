@@ -100,8 +100,9 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 	if body.AddPrompt != nil && !*body.AddPrompt {
 		return nativePrompt{}, errors.New("multimodal chat requires add_generation_prompt")
 	}
-	if len(body.TemplateKwargs) != 0 {
-		return nativePrompt{}, errors.New("multimodal chat cannot use chat_template_kwargs")
+	thinking, err := chatThinkingEnabled(body.TemplateKwargs)
+	if err != nil {
+		return nativePrompt{}, err
 	}
 	message := body.Messages[0]
 	if message.Name != "" || message.ReasoningContent != "" ||
@@ -125,6 +126,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		BeforeMedia: segments[0],
 		AfterMedia:  segments[1],
 		MediaText:   segments,
+		Thinking:    &thinking,
 	}
 	if len(message.Media) > 1 {
 		prompt.Images = make([][]byte, len(message.Media))
@@ -171,6 +173,16 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 			return nativePrompt{}, err
 		}
 		prompt.Audio = decoded
+	case "video":
+		if _, ok := h.config.ImageProjector.(projector.VideoProjector); !ok {
+			return nativePrompt{}, errors.New("video data provided, but the server has no video projector")
+		}
+		decoded, err := h.resolveVideoData(ctx, media.Data)
+		if err != nil {
+			return nativePrompt{}, err
+		}
+		prompt.Video = decoded
+		prompt.VideoFPS = media.FPS
 	default:
 		return nativePrompt{}, fmt.Errorf("unsupported multimodal chat media type %q", media.Type)
 	}
@@ -183,8 +195,11 @@ func (h *Handler) parseChatMultimodalPrompt(
 	ctx context.Context,
 	formatter ChatFormatter,
 	body chatCompletionRequest,
+	promptTools []inference.ChatTool,
 ) (nativePrompt, error) {
-	if len(body.Messages) == 1 && chatSingleMediaCompatible(body.Messages[0].Media) {
+	hasToolConfig := len(body.Tools) != 0 || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil
+	if len(body.Messages) == 1 && chatSingleMediaCompatible(body.Messages[0].Media) &&
+		!hasToolConfig && len(promptTools) == 0 {
 		return h.parseChatSingleMultimodalPrompt(ctx, body)
 	}
 	if body.N != 1 {
@@ -194,14 +209,8 @@ func (h *Handler) parseChatMultimodalPrompt(
 	if len(body.Messages) == 0 || mediaCount == 0 || mediaCount > 8 {
 		return nativePrompt{}, errors.New("multimodal chat requires one to eight media items")
 	}
-	if len(body.Tools) != 0 || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
-		return nativePrompt{}, errors.New("multimodal chat cannot use tools")
-	}
 	if body.AddPrompt != nil && !*body.AddPrompt {
 		return nativePrompt{}, errors.New("multimodal chat requires add_generation_prompt")
-	}
-	if len(body.TemplateKwargs) != 0 {
-		return nativePrompt{}, errors.New("multimodal chat cannot use chat_template_kwargs")
 	}
 	messages := append([]inference.ChatMessage(nil), body.Messages...)
 	markers := make([]string, 0, mediaCount)
@@ -272,7 +281,13 @@ func (h *Handler) parseChatMultimodalPrompt(
 	if err := validateMultimodalImages(images); err != nil {
 		return nativePrompt{}, err
 	}
-	formatted, err := formatChatRequest(formatter, messages, nil, body.AddPrompt, nil)
+	formatted, err := formatChatRequest(
+		formatter,
+		messages,
+		promptTools,
+		body.AddPrompt,
+		body.TemplateKwargs,
+	)
 	if err != nil {
 		return nativePrompt{}, err
 	}
@@ -322,7 +337,7 @@ func (h *Handler) normalizeChatPrompt(
 	promptTools []inference.ChatTool,
 ) (nativePrompt, error) {
 	if chatMediaCount(body.Messages) != 0 {
-		return h.parseChatMultimodalPrompt(ctx, formatter, body)
+		return h.parseChatMultimodalPrompt(ctx, formatter, body, promptTools)
 	}
 	prompt, err := formatChatRequest(
 		formatter,

@@ -146,6 +146,9 @@ The server enables fused continuous batching when `-max-concurrent` is greater
 than one and weights are preloaded with `-preload` or `-native-quant`. Active
 requests share one variable-branch CUDA graph per token step while retaining
 independent caches, samplers, stop state, streaming callbacks, and cancellation.
+Attention, recurrent, and hybrid families retain per-sequence KV, convolution,
+SSM, WKV, short-convolution, and named fixed/token-aligned state. Device-cache
+forks share immutable retained allocations until either branch advances.
 
 The Go runner's `ForwardCachedWithMultimodalInputs` accepts projected visual
 token embeddings plus distinct temporal, height, width, and extra MRoPE
@@ -256,6 +259,8 @@ Text-only chat formatting executes `tokenizer.chat_template` with a pure-Go,
 memory-only Jinja loader. It supplies llama.cpp-compatible message,
 BOS/EOS, generation-prompt, thinking, tool-schema, assistant tool-call, and
 tool-result variables while bounding template and rendered output sizes.
+Pinned `raise_exception`, `strftime_now`, `namespace`, and `range` runtime
+extensions are supported; date formatting and exception text are bounded.
 Default and named `tool_use` metadata templates are selected as appropriate.
 Local Qwen3, Qwen3.5, Gemma 3, and Bonsai text and tool-history prompts match
 pinned `/apply-template` output byte-for-byte; token-boundary native formatters
@@ -264,9 +269,9 @@ Buffered and streaming OpenAI chat support `auto`, `required`, `none`, and
 named function choices. Auto calls use delimiter-triggered lazy GBNF;
 required/named calls use schema-derived forced GBNF. Qwen JSON-in-XML and
 Qwen3.5/Bonsai Hermes XML outputs are parsed into validated `tool_calls` with
-generated IDs and `finish_reason:"tool_calls"`. Tool-enabled streams buffer
-template syntax until the complete output is validated, then emit one
-structured delta per call; token-incremental argument deltas remain pending.
+generated IDs and `finish_reason:"tool_calls"`. Tool-enabled streams hide
+template syntax while incrementally emitting validated function-argument
+deltas, then finish with `finish_reason:"tool_calls"`.
 Exact literal completion alternatives can be enforced with repeated
 `-grammar-choice` flags; the equivalent experimental HTTP request field is
 `"grammar_choices":[" first"," second"]`. Grammar state is included in
@@ -284,8 +289,10 @@ only after the root rule accepts. Lazy activation is available with
 `-grammar-trigger-token` flags. Regex capture groups select where buffered
 token-piece replay begins, including matches that start partway through a
 token. HTTP uses `grammar_lazy`, `grammar_trigger_patterns`, and
-`grammar_trigger_tokens`. Trigger regexes currently use Go RE2 syntax, so
-ECMAScript lookaround and backreferences are rejected explicitly.
+`grammar_trigger_tokens`. Trigger patterns use bounded ECMAScript Unicode
+semantics with lookahead, lookbehind, and backreferences. Pattern count,
+source length, buffered input, backtracking stack, and match time are capped;
+limit failures reject the candidate token.
 `cmd/json-schema-grammar` converts an ordered JSON Schema from a file or stdin
 to deterministic GBNF. Native `/completion` and `/completions` requests accept
 the same schema in `json_schema`; it is compiled with root `root` before
@@ -418,21 +425,52 @@ auto/none/required/named choice, replayable call/output history, constrained
 generation, single/parallel call constraints, buffered function-call items,
 and call-complete argument SSE events are supported. `/responses/input_tokens` and
 `/v1/responses/input_tokens` expose the corresponding tool-aware
-no-generation count. One to eight ordered user `input_image`/`input_audio`
+no-generation count. `previous_response_id` continues bounded handler-local
+history across buffered, streaming, token-counting, and function-result requests;
+`store:false` disables retention. The default store retains at most 128 responses
+and 64 MiB, configurable through `MaxStoredResponses` and `ResponseStoreBytes`.
+One to eight ordered user `input_image`/`input_audio`
 parts use native projected generation through buffered, streaming, history,
 and input-token Responses paths. Policy-allowed remote URLs share the same
-bounded fetcher. Multimodal tools and file IDs remain excluded. Continuation
-IDs, hosted/custom tools, reasoning items, file inputs, and token-incremental
-function-argument deltas remain explicit exclusions.
-Text-only Anthropic-compatible `/v1/messages` supports buffered and named-SSE
+bounded fetcher. Responses `input_file` accepts typed base64 text data, mapped
+`file_id` text, or policy-allowed text URLs; `input_image.file_id` accepts mapped
+images. [`resource_policy.yaml`](resource_policy.yaml), loaded through
+`-resource-policy`, supplies disabled-by-default file-ID mappings under explicit
+canonicalized roots with eager byte and MIME validation. Files become labeled
+user text, not instructions. PDF/non-text documents, video with tools, and
+hosted/MCP/custom tools remain explicit exclusions. The same resource policy
+sets `response_tools.hosted` and `response_tools.custom` to `deny`; non-deny
+configuration fails at startup until an external executor contract exists,
+and rejected requests identify the applicable policy category.
+Single-turn Chat and Responses `input_video` parts accept bounded base64/data-URI
+or policy-allowed remote encoded video. GIF is decoded natively; other installed
+formats use FFmpeg from `-ffmpeg`, `LLAMACPP2GO_FFMPEG`, or PATH. `-video-fps`
+defaults to 2 and `-video-max-frames` defaults to 32. Video history and mixing a
+video with other media remain explicit exclusions.
+Responses reasoning accepts `effort` values from `none` through `max` and
+`summary`/legacy `generate_summary` values `auto`, `concise`, or `detailed`.
+Local `<think>` output becomes a `reasoning` item with `summary_text`; streaming
+emits the reasoning-summary part/text lifecycle before visible output text.
+Reasoning summary/content input items replay through continuation history.
+Encrypted reasoning and reasoning summaries combined with tools remain excluded.
+Anthropic-compatible `/v1/messages` supports buffered and named-SSE
 streaming replies with Anthropic text/tool-use content blocks, stop fields,
-and usage. Tool definitions, auto/any/named choice, assistant `tool_use`,
+and usage. User image blocks accept base64, policy-allowed URL, or mapped
+file-ID sources and share projected generation and exact input-token counting.
+Tool definitions, auto/any/named choice, assistant `tool_use`,
 user `tool_result`, schema-constrained generation, call-complete streaming
 `input_json_delta`, single/parallel call constraints, and tool-aware token
 counting share the GGUF Jinja formatter used by OpenAI chat.
 `/v1/messages/count_tokens` accepts the same string or multipart text
-system/message forms. Anthropic thinking and image blocks remain rejected
-until their template/runtime semantics are available.
+system/message forms. Function tools may accompany supported images when the
+projector supports history. Manual `thinking: {"type":"enabled",` uses the
+Anthropic 1,024-token minimum and requires `budget_tokens < max_tokens`.
+Buffered replies emit a signed `thinking` block before text; streams emit
+`thinking_delta`, one `signature_delta`, then text. Signatures are per-handler
+HMAC integrity tokens: replay on the same handler is accepted only byte-for-byte,
+while edits, restarts, and foreign Anthropic signatures fail closed. Thinking
+works with supported images. Adaptive, omitted, redacted, interleaved, and
+thinking-plus-tools modes remain explicit exclusions.
 Repeatable `--lora <adapter.gguf>` loads pinned-format LoRA adapters for the
 server, generator, diffusion, perplexity, embedding, and benchmark commands. Server
 adapters start at scale 1 unless `--lora-init-without-apply` is set.

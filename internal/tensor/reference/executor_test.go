@@ -1406,16 +1406,18 @@ func TestExecuteDeepSeek4RawAttention(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 1))
 	cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, 1))
+	positions := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 1))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	output := builder.DeepSeek4Attention(query, cache, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
+	output := builder.DeepSeek4Attention(query, cache, positions, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
 		tensor.DeepSeek4AttentionAttributes{
 			Positions: []uint32{0}, Window: 4, Heads: 1, RotaryDimensions: 2,
 			FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
 		})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
-		query: {Shape: query.Shape, Data: []float32{1, 0}},
-		cache: {Shape: cache.Shape, Data: []float32{3, 4}},
-		sinks: {Shape: sinks.Shape, Data: []float32{-100}},
+		query:     {Shape: query.Shape, Data: []float32{1, 0}},
+		cache:     {Shape: cache.Shape, Data: []float32{3, 4}},
+		positions: {Shape: positions.Shape, Data: []float32{0}},
+		sinks:     {Shape: sinks.Shape, Data: []float32{-100}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1424,6 +1426,55 @@ func TestExecuteDeepSeek4RawAttention(t *testing.T) {
 		if difference := math.Abs(float64(results[output].Data[index] - want)); difference > 1e-6 {
 			t.Fatalf("DeepSeek 4 raw attention[%d] = %v, want %v", index, results[output].Data[index], want)
 		}
+	}
+}
+
+func TestExecuteDeepSeek4RawAttentionHonorsPositionGaps(t *testing.T) {
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 1))
+	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
+	cacheWithGap := builder.Input("cache_with_gap", dtype.F32, tensor.MustShape(2, 1, 3))
+	positionsWithGap := builder.Input("positions_with_gap", dtype.F32, tensor.MustShape(1, 1, 3))
+	cacheWithoutOld := builder.Input("cache_without_old", dtype.F32, tensor.MustShape(2, 1, 2))
+	positionsWithoutOld := builder.Input("positions_without_old", dtype.F32, tensor.MustShape(1, 1, 2))
+	attributes := tensor.DeepSeek4AttentionAttributes{
+		Positions: []uint32{3}, Window: 3, Heads: 1, RotaryDimensions: 2,
+		FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
+	}
+	withGap := builder.DeepSeek4Attention(query, cacheWithGap, positionsWithGap, sinks,
+		nil, nil, nil, nil, nil, nil, nil, nil, attributes)
+	withoutOld := builder.DeepSeek4Attention(query, cacheWithoutOld, positionsWithoutOld, sinks,
+		nil, nil, nil, nil, nil, nil, nil, nil, attributes)
+	results, err := Execute([]*tensor.Tensor{withGap, withoutOld}, map[*tensor.Tensor]Value{
+		query:               {Shape: query.Shape, Data: []float32{0, 0}},
+		sinks:               {Shape: sinks.Shape, Data: []float32{-100}},
+		cacheWithGap:        {Shape: cacheWithGap.Shape, Data: []float32{100, 25, 2, 1, 4, 3}},
+		positionsWithGap:    {Shape: positionsWithGap.Shape, Data: []float32{0, 2, 3}},
+		cacheWithoutOld:     {Shape: cacheWithoutOld.Shape, Data: []float32{2, 1, 4, 3}},
+		positionsWithoutOld: {Shape: positionsWithoutOld.Shape, Data: []float32{2, 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, want := range results[withoutOld].Data {
+		if difference := math.Abs(float64(results[withGap].Data[index] - want)); difference > 1e-6 {
+			t.Fatalf("DeepSeek 4 gapped attention[%d] = %v, want %v", index, results[withGap].Data[index], want)
+		}
+	}
+}
+
+func TestDeepSeek4CompressedBlocksSkipIncompletePositionGroup(t *testing.T) {
+	shape := tensor.MustShape(2, 1, 4)
+	kv := Value{Shape: shape, Data: make([]float32, 8)}
+	score := Value{Shape: shape, Data: make([]float32, 8)}
+	norm := Value{Shape: tensor.MustShape(1), Data: []float32{1}}
+	attributes := tensor.DeepSeek4AttentionAttributes{RotaryDimensions: 0, NormEpsilon: 1e-5}
+	blocks, err := deepSeek4CompressedBlocks(kv, score, norm, 4, 1, []uint32{0, 1, 3, 4}, attributes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocks) != 0 {
+		t.Fatalf("incomplete DeepSeek 4 compressed blocks = %d", len(blocks))
 	}
 }
 
@@ -1438,6 +1489,7 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 			position := ratio - 1
 			query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 1))
 			cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, uint64(ratio)))
+			positions := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, uint64(ratio)))
 			sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
 			coefficient := uint64(1)
 			if ratio == 4 {
@@ -1455,7 +1507,7 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 				indexerNorm = builder.Input("indexer_norm", dtype.F32, tensor.MustShape(2))
 			}
 			output := builder.DeepSeek4Attention(
-				query, cache, sinks, compressorKV, compressorScore, compressorNorm,
+				query, cache, positions, sinks, compressorKV, compressorScore, compressorNorm,
 				indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm,
 				tensor.DeepSeek4AttentionAttributes{
 					Positions: []uint32{position}, Ratio: ratio, Window: 1, Heads: 1,
@@ -1481,6 +1533,11 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 				compressorScore: {Shape: compressorScore.Shape, Data: make([]float32, len(compressorData))},
 				compressorNorm:  {Shape: compressorNorm.Shape, Data: []float32{1, 1}},
 			}
+			positionData := make([]float32, ratio)
+			for index := range positionData {
+				positionData[index] = float32(index)
+			}
+			feeds[positions] = Value{Shape: positions.Shape, Data: positionData}
 			if ratio == 4 {
 				feeds[indexerQuery] = Value{Shape: indexerQuery.Shape, Data: []float32{0, 0}}
 				feeds[indexerWeights] = Value{Shape: indexerWeights.Shape, Data: []float32{1}}

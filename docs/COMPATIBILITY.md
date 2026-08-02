@@ -8,6 +8,8 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 
 | ID | State | Claim | Evidence |
 | --- | --- | --- | --- |
+| `anthropic-image-input` | implemented | Anthropic image blocks support bounded base64, allowlisted URL, and mapped file-ID projection with token-count parity. | [`case "image":`](../internal/server/anthropic_tools.go)<br>[`func TestAnthropicImageToolsAndTokenCounting(`](../internal/server/server_part3_test.go) |
+| `anthropic-local-thinking` | implemented | Manual summarized thinking supports buffered/SSE output, projected images, handler-local signed replay, and tamper rejection. | [`func validateAnthropicThinking(`](../internal/server/anthropic_thinking.go)<br>[`func TestAnthropicThinkingBufferedStreamingImageAndReplay(`](../internal/server/server_part3_test.go) |
 | `architecture-family-dispatch` | implemented | Graph construction and tensor catalog validation route through architecture families. | [`func BuildArchitectureBlockCached(`](../internal/model/graph_dispatch.go)<br>[`func ReadWeights(`](../internal/model/weights_dispatch.go)<br>[`func TestArchitectureBlockDispatchRoutesFamilies(`](../internal/model/graph_dispatch_test.go) |
 | `architecture-profiles` | implemented | Model architectures use a central family and capability registry with grouped specifications. | [`func LookupArchitecture(`](../internal/model/architecture.go)<br>[`func TestArchitectureRegistryProfiles(`](../internal/model/architecture_test.go) |
 | `bounded-gguf-parsing` | implemented | GGUF parsing applies allocation, count, alignment, and split limits. | [`func OpenWithOptions(`](../internal/gguf/reader.go)<br>[`func TestParseEnforcesLimits(`](../internal/gguf/reader_test.go) |
@@ -15,16 +17,22 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `bounded-server-media` | implemented | Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels. | [`func validateMultimodalImages(`](../internal/server/server.go)<br>[`func TestValidateMultimodalImagesEnforcesGeometryBudgets(`](../internal/server/server_test.go) |
 | `constrained-generation` | implemented | GBNF and JSON Schema constraints match pinned upstream corpora. | [`func NewGBNFGrammar(`](../internal/sampling/gbnf.go)<br>[`func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(`](../internal/sampling/json_schema_test.go) |
 | `editable-prompt-cache` | implemented | Bounded prompt caches support selection, eviction, context edits, and exact media-signed replay. | [`func (r *Runner) selectPromptCache(`](../internal/inference/prompt_cache.go)<br>[`func TestProjectedPromptCacheRequiresExactMediaSignature(`](../internal/inference/prompt_cache_test.go) |
+| `explicit-response-tool-policy` | implemented | Hosted, MCP, and free-form custom Responses tools are classified and denied unless an external executor contract is added. | [`by response_tools.%s policy`](../internal/server/responses_tools.go)<br>[`func TestResponsesHostedAndCustomToolsUseExplicitPolicy(`](../internal/server/resource_policy_test.go) |
 | `incremental-tool-streaming` | implemented | Chat, Responses, and Anthropic stream JSON and Hermes function arguments incrementally. | [`func (s *chatOutputStream) Accept(`](../internal/inference/chat_stream.go)<br>[`func TestStreamingResponsesFunctionCallLifecycle(`](../internal/server/server_part3_test.go) |
 | `media-history` | implemented | Chat and Responses preserve projected images in earlier or final user turns through the complete formatted history. | [`func (r *Gemma4Runner) BuildImagesHistoryPrompt(`](../internal/projector/prompt.go)<br>[`func TestChatImageHistoryPreservesTurnPositionAndReplay(`](../internal/server/server_part2_test.go) |
 | `mixed-media-history` | implemented | Gemma 4 preserves ordered image/audio chunks through native, Chat, and Responses history. | [`func (r *Gemma4Runner) BuildMediaHistoryPrompt(`](../internal/projector/prompt.go)<br>[`func TestChatMixedImageAudioPreservesChunkOrder(`](../internal/server/server_part2_test.go) |
+| `multimodal-function-tools` | implemented | Chat, Responses, and Anthropic preserve projected image/audio history while formatting and streaming function tools. | [`promptTools []inference.ChatTool`](../internal/server/protocol_chat.go)<br>[`func TestChatAndResponsesMultimodalFunctionTools(`](../internal/server/server_part3_test.go) |
 | `multimodal-token-counting` | implemented | Chat and Responses token counts use the projected media prompt. | [`func (h *Handler) responsesInputTokens(`](../internal/server/protocol_responses.go)<br>[`func TestMultimodalInputTokenCounting(`](../internal/server/server_part2_test.go) |
 | `ordered-multi-image` | implemented | Native, Chat, and Responses prompts preserve ordered image/text parts. | [`func (r *Qwen3VLRunner) BuildImagesPrompt(`](../internal/projector/prompt.go)<br>[`func TestResponsesMultipleImagesPreservesContentOrder(`](../internal/server/server_part3_test.go) |
 | `padded-t5-batches` | implemented | Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state. | [`func (r *Runner) NewT5BatchSession(`](../internal/inference/t5_batch.go)<br>[`func TestValidatePaddedTokenBatchMasksSuffixes(`](../internal/inference/t5_batch_test.go) |
-| `paged-continuous-cache` | implemented | Retained CUDA cache pages and transactional multi-sequence cache steps support dynamic admission. | [`func (b *ContinuousBatch) Step(`](../internal/inference/continuous_batch.go)<br>[`func TestRebuildDeviceCachePagesCreatesPointerViews(`](../internal/inference/device_cache_paging_test.go) |
+| `paged-continuous-cache` | implemented | Retained CUDA cache pages and transactional attention/recurrent/hybrid multi-sequence steps support dynamic admission and forks. | [`func (b *ContinuousBatch) Step(`](../internal/inference/continuous_batch.go)<br>[`func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(`](../internal/inference/device_cache_paging_test.go) |
 | `pinned-quantization` | implemented | Quantization encoders are checked against pinned GGML references. | [`func Quantize(`](../internal/quant/quantize.go)<br>[`func TestQuantizeMatchesPinnedGGMLReference(`](../internal/quant/quantize_test.go) |
 | `reproducible-release` | implemented | Release archives are deterministic and compared across two builds. | [`func createArchive(`](../cmd/release/main.go)<br>[`func TestCreateArchiveIsDeterministic(`](../cmd/release/main_test.go) |
+| `responses-continuation` | implemented | Bounded handler-local response history supports text, media, tool-call, streaming, and token-count continuations. | [`func (s *responseHistoryStore) put(`](../internal/server/response_history.go)<br>[`func TestResponsesPreviousResponseContinuation(`](../internal/server/server_part2_test.go) |
+| `responses-file-inputs` | implemented | Responses accepts bounded typed inline, policy-mapped file-ID, allowlisted URL, and image file-ID inputs. | [`func LoadResponseFilePolicy(`](../internal/server/resource_policy.go)<br>[`func TestResponsesInputFileSources(`](../internal/server/resource_policy_test.go) |
+| `responses-reasoning` | implemented | Responses reasoning summaries support input replay, buffered output, streaming lifecycle events, and continuation retention. | [`func validateResponsesReasoning(`](../internal/server/protocol_responses.go)<br>[`func TestResponsesReasoningItemsBufferedAndStreaming(`](../internal/server/server_part3_test.go) |
 | `serialized-cuda-worker` | implemented | CUDA driver work executes through one locked-thread context owner. | [`func (w *Worker) Do(`](../internal/cuda/device/worker.go)<br>[`func TestWorkerMemoryRoundTrip(`](../internal/cuda/device/worker_windows_test.go) |
+| `server-encoded-video` | implemented | Chat and Responses decode bounded single-turn encoded video through native GIF or FFmpeg paths. | [`func DecodeEncodedVideo(`](../internal/projector/encoded_video.go)<br>[`func TestChatAndResponsesEncodedVideoProjection(`](../internal/server/server_part3_test.go) |
 | `unified-prompt-preparation` | implemented | Native, Chat, and Responses generation share prepared prompts with token counting. | [`func (h *Handler) preparePrompt(`](../internal/server/server.go)<br>[`func TestPreparedPromptGenerationAndTokenCountParity(`](../internal/server/server_part2_test.go) |
 | `validated-split-gguf` | implemented | Split GGUF models load, validate, write, merge, and round-trip. | [`func splitPathPrefix(`](../internal/gguf/reader.go)<br>[`func TestOpenLoadsAndReadsSplitGGUF(`](../internal/gguf/split_test.go) |
 
@@ -54,7 +62,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `deci` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `deepseek2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `deepseek32` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | nextn-mtp-prediction-pending |
-| `deepseek4` | experimental | bounded-host-hyper-connections-and-compressed-attention, f32-preload, native-quantized-experts | pending-fixture | noncontiguous-middle-range-cache-edit |
+| `deepseek4` | experimental | bounded-host-hyper-connections-and-compressed-attention, f32-preload, native-quantized-experts | pending-fixture | - |
 | `dflash` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | target-extraction-recomputes-full-prefix, external-scheduler-owns-verification-and-acceptance, real-model-pair-pending |
 | `dots1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `dream` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
@@ -91,8 +99,8 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `jais2` | experimental | model-dependent | pending-fixture | - |
 | `jamba` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `laguna` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `lfm2` | experimental | bounded-host, f32-preload, native-quantized-projections | pending-fixture | even-kernel-centered-convolution-rejected |
-| `lfm2moe` | experimental | bounded-host, f32-preload, native-quantized-projections, native-quantized-experts | pending-fixture | even-kernel-centered-convolution-rejected |
+| `lfm2` | experimental | bounded-host, f32-preload, native-quantized-projections | pending-fixture | - |
+| `lfm2moe` | experimental | bounded-host, f32-preload, native-quantized-projections, native-quantized-experts | pending-fixture | - |
 | `llada` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `llada-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `llama` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
@@ -135,7 +143,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `qwen3next` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `qwen3vl` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `qwen3vlmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | image-encoder-external, image-grid-coordinate-construction-external, classification-rerank-head-absent-from-pinned-graph |
-| `refact` | experimental | model-dependent | pending-fixture | expert-layers-rejected |
+| `refact` | experimental | model-dependent | pending-fixture | - |
 | `rnd1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `rwkv6` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `rwkv6qwen2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
@@ -147,7 +155,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `starcoder` | experimental | model-dependent | pending-fixture | - |
 | `starcoder2` | experimental | model-dependent | pending-fixture | - |
 | `step35` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `t5` | experimental | bounded-host, f32-preload, native-k-quant | pending-fixture | no-padded-multisequence-mask, real-decoder-fixture-pending |
+| `t5` | experimental | bounded-host, f32-preload, native-k-quant | pending-fixture | real-decoder-fixture-pending |
 | `t5encoder` | experimental | bounded-host, f32-preload, native-k-quant | validated: umt5-xxl-encoder-Q5_K_S.gguf | encoder-only, no-cross-attention |
 | `talkie` | experimental | bounded-host, f32-preload, native-quant, retained-device-cache | pending-fixture | - |
 | `wavtokenizer-dec` | experimental | host-f32-staging, f32-preload | pending-fixture | no-waveform-postprocessor, real-model-fixture-pending |

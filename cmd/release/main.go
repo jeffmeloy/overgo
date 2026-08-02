@@ -46,6 +46,7 @@ var releaseDocuments = []string{
 	"PORT_PLAN.md",
 	"compatibility.yaml",
 	"media_policy.yaml",
+	"resource_policy.yaml",
 	"LICENSES.md",
 	"SBOM.cdx.json",
 	"kernels/manifest.json",

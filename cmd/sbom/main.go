@@ -158,6 +158,7 @@ func generate(root string) ([]byte, error) {
 func moduleLicense(path string) string {
 	switch path {
 	case "github.com/dustin/go-humanize",
+		"github.com/dlclark/regexp2/v2",
 		"github.com/json-iterator/go",
 		"github.com/nikolalohinski/gonja/v2",
 		"github.com/sirupsen/logrus":

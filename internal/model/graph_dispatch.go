@@ -8,22 +8,23 @@ import (
 
 // BlockDispatchOptions: family-dispatch graph inputs.
 type BlockDispatchOptions struct {
-	Builder        *tensor.Builder
-	Input          *tensor.Tensor
-	Spec           Spec
-	Weights        LayerGraphWeights
-	Positions      []uint32
-	MultiPositions *[4][]uint32
-	TokenRows      []uint32
-	PastKey        *tensor.Tensor
-	PastValue      *tensor.Tensor
-	PastIndexerKey *tensor.Tensor
-	PastConvState  *tensor.Tensor
-	PastSSMState   *tensor.Tensor
-	PastStates     map[string]*tensor.Tensor
-	PerLayerInput  *tensor.Tensor
-	Layer          uint32
-	Recurrent      bool
+	Builder          *tensor.Builder
+	Input            *tensor.Tensor
+	Spec             Spec
+	Weights          LayerGraphWeights
+	Positions        []uint32
+	MultiPositions   *[4][]uint32
+	TokenRows        []uint32
+	PastKey          *tensor.Tensor
+	PastValue        *tensor.Tensor
+	PastIndexerKey   *tensor.Tensor
+	PastConvState    *tensor.Tensor
+	PastSSMState     *tensor.Tensor
+	PastStates       map[string]*tensor.Tensor
+	CurrentPositions *tensor.Tensor
+	PerLayerInput    *tensor.Tensor
+	Layer            uint32
+	Recurrent        bool
 }
 
 // BuildArchitectureBlockCached: family-routed graph construction.
@@ -138,7 +139,7 @@ func buildMoEFamilyBlock(
 		result, err := BuildDeepSeek4BlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.TokenRows, options.PastKey,
-			options.PastStates, options.Layer,
+			options.PastStates, options.CurrentPositions, options.Layer,
 		)
 		return result, true, err
 	}

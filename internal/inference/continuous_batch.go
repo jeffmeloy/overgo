@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 
+	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -299,7 +300,7 @@ func (b *ContinuousBatch) Remove(ctx context.Context, id SequenceID) error {
 	return nil
 }
 
-// Fork: clones one host-cache sequence.
+// Fork: clones one sequence cache.
 func (b *ContinuousBatch) Fork(source, destination SequenceID) error {
 	if b == nil {
 		return errors.New("inference: continuous batch is nil")
@@ -320,10 +321,42 @@ func (b *ContinuousBatch) Fork(source, destination SequenceID) error {
 		return fmt.Errorf("inference: sequence ID %d is not active", source)
 	}
 	if sequence.device != nil {
-		return errors.New("inference: retained device sequence cannot be forked")
+		fork, err := cloneDeviceCache(sequence.device)
+		if err != nil {
+			return err
+		}
+		b.sequences[destination] = &continuousSequence{device: fork}
+		return nil
 	}
 	b.sequences[destination] = &continuousSequence{host: cloneCache(sequence.host)}
 	return nil
+}
+
+func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
+	if source == nil || source.owner == nil || !source.owner.retain() {
+		return nil, errors.New("inference: retained device cache is unavailable")
+	}
+	result := *source
+	result.Keys = append([]executor.DeviceValue(nil), source.Keys...)
+	result.Values = append([]executor.DeviceValue(nil), source.Values...)
+	result.Logits = append([]float32(nil), source.Logits...)
+	result.Pages = make([]deviceKVPage, len(source.Pages))
+	for index, page := range source.Pages {
+		result.Pages[index] = page
+		result.Pages[index].Keys = append([]executor.DeviceValue(nil), page.Keys...)
+		result.Pages[index].Values = append([]executor.DeviceValue(nil), page.Values...)
+	}
+	result.States = make([]map[string]deviceLayerState, len(source.States))
+	for layer, states := range source.States {
+		if states == nil {
+			continue
+		}
+		result.States[layer] = make(map[string]deviceLayerState, len(states))
+		for name, state := range states {
+			result.States[layer][name] = state
+		}
+	}
+	return &result, nil
 }
 
 // Snapshot: sorted sequence-cache metadata.
@@ -392,9 +425,6 @@ func supportsPersistentDeviceCache(spec model.Spec) bool {
 	if !ok {
 		return false
 	}
-	return profile.Has(model.ArchitectureQwenGDN) ||
-		!profile.Has(model.ArchitectureRecurrent) &&
-			!profile.Has(model.ArchitectureMLA) &&
-			spec.Architecture != "gemma3n" &&
-			spec.Architecture != "lfm2" && spec.Architecture != "lfm2moe"
+	return !profile.Has(model.ArchitectureMLA) &&
+		spec.Architecture != "gemma3n"
 }

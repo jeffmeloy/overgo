@@ -29,6 +29,7 @@ import (
 	"llamacpp2go/internal/tokenizer"
 
 	"math"
+	"reflect"
 
 	"net/http"
 
@@ -2227,5 +2228,142 @@ func TestBufferedResponsesAliases(t *testing.T) {
 			result.Usage.TotalTokens != 4 {
 			t.Fatalf("%s response = %+v body=%s", path, result, response.Body.String())
 		}
+	}
+}
+
+func TestResponsesPreviousResponseContinuation(t *testing.T) {
+	generator := &fakeGenerator{}
+	handler := newTestHandler(t, generator)
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(
+		first,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(`{"instructions":"old","input":"hello","max_output_tokens":1}`),
+		),
+	)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status = %d body=%s", first.Code, first.Body.String())
+	}
+	var initial responsesResponse
+	if err := json.Unmarshal(first.Body.Bytes(), &initial); err != nil {
+		t.Fatal(err)
+	}
+	second := httptest.NewRecorder()
+	handler.ServeHTTP(
+		second,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(
+				`{"instructions":"new","input":"next","max_output_tokens":1,"previous_response_id":"`+
+					initial.ID+`"}`,
+			),
+		),
+	)
+	if second.Code != http.StatusOK {
+		t.Fatalf("second status = %d body=%s", second.Code, second.Body.String())
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	want := []inference.ChatMessage{
+		{Role: "system", Content: "new"},
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "A"},
+		{Role: "user", Content: "next"},
+	}
+	if !reflect.DeepEqual(generator.chatMessages, want) {
+		t.Fatalf("continuation messages = %+v, want %+v", generator.chatMessages, want)
+	}
+}
+
+func TestResponsesStoreFalseDisablesContinuation(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(
+		first,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(`{"input":"hello","max_output_tokens":1,"store":false}`),
+		),
+	)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status = %d body=%s", first.Code, first.Body.String())
+	}
+	var initial responsesResponse
+	if err := json.Unmarshal(first.Body.Bytes(), &initial); err != nil {
+		t.Fatal(err)
+	}
+	continuation := httptest.NewRecorder()
+	handler.ServeHTTP(
+		continuation,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(
+				`{"input":"next","previous_response_id":"`+initial.ID+`"}`,
+			),
+		),
+	)
+	if continuation.Code != http.StatusNotFound ||
+		!strings.Contains(continuation.Body.String(), "previous response not found") {
+		t.Fatalf("continuation status = %d body=%s", continuation.Code, continuation.Body.String())
+	}
+}
+
+func TestResponsesContinuationRetainsGeneratedToolCallID(t *testing.T) {
+	generator := &fakeGenerator{pieces: []string{
+		`<tool_call><function=weather><parameter=city>`,
+		`Paris</parameter></function></tool_call>`,
+	}}
+	handler := newTestHandler(t, generator)
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(
+		first,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(
+				`{"input":"weather?","max_output_tokens":2,"tool_choice":"required",`+
+					`"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}]}`,
+			),
+		),
+	)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status = %d body=%s", first.Code, first.Body.String())
+	}
+	var initial responsesResponse
+	if err := json.Unmarshal(first.Body.Bytes(), &initial); err != nil {
+		t.Fatal(err)
+	}
+	if len(initial.Output) != 1 || initial.Output[0].CallID == "" {
+		t.Fatalf("first output = %+v", initial.Output)
+	}
+	second := httptest.NewRecorder()
+	handler.ServeHTTP(
+		second,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/v1/responses",
+			strings.NewReader(
+				`{"input":[{"type":"function_call_output","call_id":"`+
+					initial.Output[0].CallID+`","output":"sunny"}],"max_output_tokens":1,`+
+					`"previous_response_id":"`+initial.ID+`"}`,
+			),
+		),
+	)
+	if second.Code != http.StatusOK {
+		t.Fatalf("second status = %d body=%s", second.Code, second.Body.String())
+	}
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if len(generator.chatMessages) != 3 ||
+		len(generator.chatMessages[1].ToolCalls) != 1 ||
+		generator.chatMessages[1].ToolCalls[0].ID != initial.Output[0].CallID ||
+		generator.chatMessages[2].Role != "tool" ||
+		generator.chatMessages[2].ToolCallID != initial.Output[0].CallID {
+		t.Fatalf("continuation tool history = %+v", generator.chatMessages)
 	}
 }

@@ -227,6 +227,112 @@ func TestLazyGBNFPatternReplaysOverlappingTokenPieces(t *testing.T) {
 	}
 }
 
+func TestLazyGBNFECMAScriptTriggerFeatures(t *testing.T) {
+	tests := []struct {
+		name    string
+		source  string
+		pieces  []string
+		pattern string
+		tokens  []int
+	}{
+		{
+			name:    "lookbehind",
+			source:  `root ::= "JSON:" [0-9]+`,
+			pieces:  []string{"prefix", "JSON:", "42", ""},
+			pattern: `(?<=prefix)(JSON:)`,
+			tokens:  []int{0, 1, 2, 3},
+		},
+		{
+			name:    "lookahead",
+			source:  `root ::= "JSON:" [0-9]+`,
+			pieces:  []string{"prefixJSON:", "42", ""},
+			pattern: `prefix((JSON:))(?=[0-9])`,
+			tokens:  []int{0, 1, 2},
+		},
+		{
+			name:    "backreference",
+			source:  `root ::= "JSON:" "JSON:" [0-9]+`,
+			pieces:  []string{"prefixJSON:", "JSON:42", ""},
+			pattern: `prefix((JSON:))\2`,
+			tokens:  []int{0, 1, 2},
+		},
+		{
+			name:    "unicode-byte-offset",
+			source:  `root ::= "JSON:" [0-9]+`,
+			pieces:  []string{"πrefixJS", "ON:42", ""},
+			pattern: `πrefix(JSON:)`,
+			tokens:  []int{0, 1, 2},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			grammar, err := NewGBNFGrammarWithOptions(
+				test.source,
+				"root",
+				bytePieces(test.pieces...),
+				[]int{len(test.pieces) - 1},
+				nil,
+				GBNFLazyOptions{Enabled: true, Patterns: []string{test.pattern}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !gbnfAcceptsTokens(t, grammar, test.tokens) {
+				t.Fatal("ECMAScript trigger rejected valid sequence")
+			}
+		})
+	}
+}
+
+func TestLazyGBNFTriggerResourceLimits(t *testing.T) {
+	pieces := bytePieces("a", "")
+	tooMany := make([]string, maxGBNFTriggerPatterns+1)
+	for index := range tooMany {
+		tooMany[index] = "a"
+	}
+	for _, options := range []GBNFLazyOptions{
+		{Enabled: true, Patterns: tooMany},
+		{Enabled: true, Patterns: []string{strings.Repeat("a", maxGBNFTriggerPatternBytes+1)}},
+	} {
+		if _, err := NewGBNFGrammarWithOptions(
+			`root ::= "a"`, "root", pieces, []int{1}, nil, options,
+		); err == nil {
+			t.Fatalf("lazy grammar accepted oversized trigger options %+v", options)
+		}
+	}
+
+	grammar, err := NewGBNFGrammarWithOptions(
+		`root ::= "x"`,
+		"root",
+		bytePieces(strings.Repeat("x", maxGBNFTriggerBuffer), "y", ""),
+		[]int{2},
+		nil,
+		GBNFLazyOptions{Enabled: true, Patterns: []string{"trigger"}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := grammar.initialState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, ok := grammar.advanceToken(state, 0)
+	if !ok {
+		t.Fatal("lazy grammar rejected trigger buffer at limit")
+	}
+	if _, ok = grammar.advanceToken(state, 1); ok {
+		t.Fatal("lazy grammar accepted trigger buffer above limit")
+	}
+
+	bounded, err := compileGBNFTriggerRegex(`(?:^){40000}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = bounded.findStart(nil); err == nil {
+		t.Fatal("bounded trigger accepted excessive backtracking stack")
+	}
+}
+
 func TestLazyGBNFTokenTriggerIsIncludedInGrammar(t *testing.T) {
 	grammar, err := NewGBNFGrammarWithOptions(
 		`root ::= <[2]> "x"`,

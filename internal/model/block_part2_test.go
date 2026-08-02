@@ -14,6 +14,42 @@ import (
 	"testing"
 )
 
+func TestBuildRefactExpertBlock(t *testing.T) {
+	for _, gated := range []bool{false, true} {
+		builder := tensor.NewBuilder()
+		spec := Spec{CommonSpec: CommonSpec{Architecture: "refact", BlockCount: 1,
+			EmbeddingLength: 8, FeedForwardLength: 16, RMSNormEpsilon: 1e-5},
+			AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4,
+				ValueLength: 4, RopeDisabled: true, MaxALiBiBias: 8},
+			MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
+				ExpertFeedForward: 16, ExpertWeightsNorm: true, ExpertWeightsScale: 1},
+		}
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
+		weights := denseBlockInputs(builder, spec)
+		weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
+		weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 16, 4))
+		weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(16, 8, 4))
+		if gated {
+			weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 16, 4))
+		}
+		result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes, err := tensor.Topological(result.Output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, node := range nodes {
+			found = found || node.Op == tensor.OpMoE
+		}
+		if !found {
+			t.Fatalf("Refact gated=%v graph has no MoE", gated)
+		}
+	}
+}
+
 func TestBuildBERTMoEBlockUsesGateFreeGELUExperts(t *testing.T) {
 	for _, architecture := range []string{"jina-bert-v3", "nomic-bert-moe"} {
 		t.Run(architecture, func(t *testing.T) {
@@ -402,7 +438,7 @@ func TestBuildLFM2CenteredShortConvolutionBlock(t *testing.T) {
 	}
 }
 
-func TestBuildLFM2CenteredShortConvolutionRejectsEvenKernel(t *testing.T) {
+func TestBuildLFM2CenteredShortConvolutionSupportsEvenKernel(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "lfm2", EmbeddingLength: 4, FeedForwardLength: 6,
 		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{NonCausalAttention: true}, RecurrentSpec: RecurrentSpec{ShortConvCacheLength: 4},
@@ -418,13 +454,26 @@ func TestBuildLFM2CenteredShortConvolutionRejectsEvenKernel(t *testing.T) {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	_, err := BuildLFM2BlockCached(
+	result, err := BuildLFM2BlockCached(
 		builder, input, spec, weights, []uint32{0, 1}, true,
 		builder.Input("conv_state", dtype.F32, tensor.MustShape(3, 4)),
 		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), 0,
 	)
-	if err == nil || !strings.Contains(err.Error(), "odd kernel") {
-		t.Fatalf("centered even-kernel error = %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := tensor.Topological(result.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var convolution *tensor.Tensor
+	for _, node := range nodes {
+		if node.Op == tensor.OpSSMConv {
+			convolution = node
+		}
+	}
+	if convolution == nil || !convolution.Inputs[0].Shape.Equal(tensor.MustShape(5, 4)) {
+		t.Fatalf("centered even-kernel convolution input = %v", convolution)
 	}
 }
 
@@ -1171,7 +1220,8 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 		HyperHeadBase:           builder.Input("hc_head_base", dtype.F32, tensor.MustShape(4)),
 		HyperHeadScale:          builder.Input("hc_head_scale", dtype.F32, tensor.MustShape(1)),
 	}
-	result, err := BuildDeepSeek4BlockCached(builder, input, spec, weights, []uint32{0, 1}, []uint32{3, 4}, nil, nil, 0)
+	positionState := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 2))
+	result, err := BuildDeepSeek4BlockCached(builder, input, spec, weights, []uint32{0, 1}, []uint32{3, 4}, nil, nil, positionState, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1220,6 +1270,7 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 		}
 		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
 	}
+	feeds[positionState] = reference.Value{Shape: positionState.Shape, Data: []float32{0, 1}}
 	hash := feeds[weights.FeedForwardHashExperts]
 	for row := 0; row < 32; row++ {
 		hash.Data[2*row], hash.Data[2*row+1] = 0, 1

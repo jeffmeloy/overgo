@@ -1227,6 +1227,42 @@ func TestReadWeightsDenseRefact(t *testing.T) {
 	}
 }
 
+func TestReadWeightsRefactExperts(t *testing.T) {
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "refact", BlockCount: 1, ContextLength: 16,
+		EmbeddingLength: 8, FeedForwardLength: 16, VocabularySize: 32,
+		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2,
+		HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDisabled: true, MaxALiBiBias: 8},
+		MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 16,
+			ExpertWeightsNorm: true, ExpertWeightsScale: 1},
+	}
+	tensors := []gguf.TensorInfo{
+		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
+		tensorInfo("blk.0.attn_norm.weight", 8),
+		tensorInfo("blk.0.attn_q.weight", 8, 8), tensorInfo("blk.0.attn_k.weight", 8, 4),
+		tensorInfo("blk.0.attn_v.weight", 8, 4), tensorInfo("blk.0.attn_output.weight", 8, 8),
+		tensorInfo("blk.0.ffn_norm.weight", 8), tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
+		tensorInfo("blk.0.ffn_up_exps.weight", 8, 16, 4),
+		tensorInfo("blk.0.ffn_down_exps.weight", 16, 8, 4),
+	}
+	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer := weights.Layers[0]
+	if layer.FeedForwardRouter == nil || layer.FeedForwardUpExperts == nil ||
+		layer.FeedForwardDownExperts == nil || layer.FeedForwardGateExperts != nil {
+		t.Fatalf("unexpected ungated Refact experts: %+v", layer)
+	}
+	tensors = append(tensors, tensorInfo("blk.0.ffn_gate_exps.weight", 8, 16, 4))
+	weights, err = ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weights.Layers[0].FeedForwardGateExperts == nil {
+		t.Fatal("gated Refact experts were not loaded")
+	}
+}
+
 func TestReadWeightsInternLM2EXAONEAndXVERSE(t *testing.T) {
 	for _, architecture := range []string{"internlm2", "exaone", "xverse"} {
 		t.Run(architecture, func(t *testing.T) {

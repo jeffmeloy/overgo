@@ -5,6 +5,7 @@ import (
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/cuda/executor"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 )
 
@@ -55,5 +56,52 @@ func TestRebuildDeviceCachePagesPreservesFixedState(t *testing.T) {
 		if page.Keys[0] != fixed || page.Values[0] != fixed {
 			t.Fatalf("page %d fixed state changed", index)
 		}
+	}
+}
+
+func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
+	runner := &Runner{
+		spec: model.Spec{CommonSpec: model.CommonSpec{
+			Architecture: "falcon-h1", ContextLength: 4,
+		}},
+		weights: model.Weights{Layers: []model.LayerWeights{{}}},
+	}
+	cache := &deviceKVCache{
+		Keys: []executor.DeviceValue{{
+			Pointer: driver.DevicePtr(1000), Shape: tensor.MustShape(2, 1, 4),
+		}},
+		Values: []executor.DeviceValue{{
+			Pointer: driver.DevicePtr(2000), Shape: tensor.MustShape(3, 1, 4),
+		}},
+		States: []map[string]deviceLayerState{{
+			"fixed": {
+				Mode: CacheStateFixed,
+				Value: executor.DeviceValue{
+					Pointer: driver.DevicePtr(3000), Shape: tensor.MustShape(4, 4),
+				},
+			},
+			"token": {
+				Mode: CacheStateToken,
+				Value: executor.DeviceValue{
+					Pointer: driver.DevicePtr(4000), Shape: tensor.MustShape(1, 1, 4),
+				},
+			},
+		}},
+		Tokens: 4,
+	}
+	if err := runner.shiftDeviceCacheForAppendPolicy(cache, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if cache.Tokens != 3 || cache.Keys[0].Pointer != driver.DevicePtr(1008) ||
+		cache.Values[0].Pointer != driver.DevicePtr(2012) {
+		t.Fatalf("shifted primary cache = %+v", cache)
+	}
+	if fixed := cache.States[0]["fixed"].Value; fixed.Pointer != driver.DevicePtr(3000) ||
+		!fixed.Shape.Equal(tensor.MustShape(4, 4)) {
+		t.Fatalf("fixed state = %+v", fixed)
+	}
+	if token := cache.States[0]["token"].Value; token.Pointer != driver.DevicePtr(4004) ||
+		token.Shape.Dims[2] != 3 {
+		t.Fatalf("token state = %+v", token)
 	}
 }

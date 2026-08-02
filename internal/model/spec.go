@@ -446,10 +446,23 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if architecture == "refact" {
-		if expertCount, ok := optional[uint32](
+		spec.ExpertCount, _ = optional[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
-		); ok && expertCount > 0 {
-			return Spec{}, errors.New("Refact expert layers are not supported")
+		)
+		if spec.ExpertCount > 0 {
+			if spec.ExpertUsedCount, err = required[uint32](
+				values, prefix+"expert_used_count", gguf.ValueTypeUint32,
+			); err != nil {
+				return Spec{}, err
+			}
+			spec.ExpertFeedForward = spec.FeedForwardLength
+			if value, ok := optional[uint32](
+				values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
+			); ok {
+				spec.ExpertFeedForward = value
+			}
+			spec.ExpertWeightsNorm = true
+			spec.ExpertWeightsScale = 1
 		}
 	}
 	if architecture == "cohere2moe" {
@@ -3902,6 +3915,13 @@ func (s Spec) validate() error {
 	if s.Architecture == "falcon" && s.RopeDimensionCount > 0 &&
 		s.RopeDimensionCount != s.KeyLength {
 		return errors.New("Falcon rotary dimension count must equal the key length")
+	}
+	if s.Architecture == "refact" && s.ExpertCount > 0 &&
+		(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
+			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
+			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
+			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		return errors.New("Refact expert metadata is invalid")
 	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")

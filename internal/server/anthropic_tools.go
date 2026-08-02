@@ -2,6 +2,8 @@ package server
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -100,7 +102,8 @@ func selectAnthropicTools(
 	return selection, err
 }
 
-func parseAnthropicMessage(
+func (h *Handler) parseAnthropicMessage(
+	ctx context.Context,
 	role string,
 	raw json.RawMessage,
 	label string,
@@ -117,6 +120,8 @@ func parseAnthropicMessage(
 		message := inference.ChatMessage{Role: role}
 		var content strings.Builder
 		seenTool := false
+		seenThinking := false
+		seenVisible := false
 		for index, rawBlock := range blocks {
 			var header struct {
 				Type string `json:"type"`
@@ -125,6 +130,23 @@ func parseAnthropicMessage(
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			switch header.Type {
+			case "thinking":
+				if seenThinking || seenVisible || seenTool {
+					return nil, fmt.Errorf("%s thinking block %d is out of order", label, index)
+				}
+				var block struct {
+					Type      string `json:"type"`
+					Thinking  string `json:"thinking"`
+					Signature string `json:"signature"`
+				}
+				if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
+				}
+				if !h.thinkingSigner.verify(block.Thinking, block.Signature) {
+					return nil, fmt.Errorf("%s content block %d has an invalid local thinking signature", label, index)
+				}
+				message.ReasoningContent = block.Thinking
+				seenThinking = true
 			case "text":
 				if seenTool {
 					return nil, fmt.Errorf("%s text after tool_use is not supported", label)
@@ -137,6 +159,7 @@ func parseAnthropicMessage(
 					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 				}
 				content.WriteString(block.Text)
+				seenVisible = true
 			case "tool_use":
 				seenTool = true
 				var block struct {
@@ -183,15 +206,19 @@ func parseAnthropicMessage(
 		return []inference.ChatMessage{message}, nil
 	}
 
+	_ = ctx
 	messages := make([]inference.ChatMessage, 0, len(blocks))
 	var content strings.Builder
-	flushText := func() {
-		if content.Len() != 0 {
+	var media []inference.ChatMediaPart
+	flushUser := func() {
+		if content.Len() != 0 || len(media) != 0 {
 			messages = append(messages, inference.ChatMessage{
 				Role:    "user",
 				Content: content.String(),
+				Media:   append([]inference.ChatMediaPart(nil), media...),
 			})
 			content.Reset()
+			media = media[:0]
 		}
 	}
 	for index, rawBlock := range blocks {
@@ -211,8 +238,51 @@ func parseAnthropicMessage(
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			content.WriteString(block.Text)
+		case "image":
+			var block struct {
+				Type   string `json:"type"`
+				Source struct {
+					Type      string `json:"type"`
+					MediaType string `json:"media_type"`
+					Data      string `json:"data"`
+					URL       string `json:"url"`
+					FileID    string `json:"file_id"`
+				} `json:"source"`
+			}
+			if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
+			}
+			var source string
+			switch block.Source.Type {
+			case "base64":
+				mediaType := strings.ToLower(strings.TrimSpace(block.Source.MediaType))
+				if !strings.HasPrefix(mediaType, "image/") || block.Source.Data == "" ||
+					block.Source.URL != "" || block.Source.FileID != "" {
+					return nil, fmt.Errorf("%s content block %d has invalid base64 image source", label, index)
+				}
+				source = "data:" + mediaType + ";base64," + block.Source.Data
+			case "url":
+				if block.Source.URL == "" || block.Source.Data != "" || block.Source.FileID != "" || block.Source.MediaType != "" {
+					return nil, fmt.Errorf("%s content block %d has invalid URL image source", label, index)
+				}
+				source = block.Source.URL
+			case "file":
+				if block.Source.FileID == "" || block.Source.Data != "" || block.Source.URL != "" || block.Source.MediaType != "" {
+					return nil, fmt.Errorf("%s content block %d has invalid file image source", label, index)
+				}
+				file, ok := h.resolveResponseFile(block.Source.FileID)
+				if !ok || !strings.HasPrefix(file.MediaType, "image/") {
+					return nil, fmt.Errorf("%s content block %d image file_id is unavailable", label, index)
+				}
+				source = "data:" + file.MediaType + ";base64," + base64.StdEncoding.EncodeToString(file.Data)
+			default:
+				return nil, fmt.Errorf("%s content block %d has unsupported image source %q", label, index, block.Source.Type)
+			}
+			media = append(media, inference.ChatMediaPart{
+				Type: "image", Data: source, TextOffset: content.Len(),
+			})
 		case "tool_result":
-			flushText()
+			flushUser()
 			var block struct {
 				Type      string          `json:"type"`
 				ToolUseID string          `json:"tool_use_id"`
@@ -251,7 +321,7 @@ func parseAnthropicMessage(
 			)
 		}
 	}
-	flushText()
+	flushUser()
 	if len(messages) == 0 {
 		return nil, fmt.Errorf("%s content must not be empty", label)
 	}
@@ -267,8 +337,17 @@ func decodeAnthropicBlock(raw json.RawMessage, destination any) error {
 	return requireEOF(decoder)
 }
 
-func anthropicBlocks(message inference.ChatMessage, idPrefix string) ([]anthropicContentBlock, error) {
-	blocks := make([]anthropicContentBlock, 0, 1+len(message.ToolCalls))
+func (h *Handler) anthropicBlocks(message inference.ChatMessage, idPrefix string) ([]anthropicContentBlock, error) {
+	blocks := make([]anthropicContentBlock, 0, 2+len(message.ToolCalls))
+	if message.ReasoningContent != "" {
+		if h == nil || h.thinkingSigner == nil {
+			return nil, errors.New("Anthropic thinking signer is unavailable")
+		}
+		blocks = append(blocks, anthropicContentBlock{
+			Type: "thinking", Thinking: message.ReasoningContent,
+			Signature: h.thinkingSigner.sign(message.ReasoningContent),
+		})
+	}
 	if message.Content != "" {
 		blocks = append(blocks, anthropicContentBlock{
 			Type: "text",

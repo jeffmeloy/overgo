@@ -2657,7 +2657,7 @@ func (r *Runner) runLayerCached(
 		}
 		if r.spec.Architecture == "deepseek4" {
 			for _, name := range []string{
-				"compressor_kv", "compressor_score", "indexer_compressor_kv", "indexer_compressor_score",
+				"positions", "compressor_kv", "compressor_score", "indexer_compressor_kv", "indexer_compressor_score",
 			} {
 				if state, ok := past.States[name]; ok {
 					value := builder.Input(fmt.Sprintf("blk.%d.%s", layerIndex, name), dtype.F32, state.Value.Shape)
@@ -2676,23 +2676,34 @@ func (r *Runner) runLayerCached(
 		converted := [4][]uint32(*multiPositions)
 		dispatchMultiPositions = &converted
 	}
+	var currentPositionState *tensor.Tensor
+	if r.spec.Architecture == "deepseek4" {
+		values := make([]float32, len(positions))
+		for index, position := range positions {
+			values[index] = float32(position)
+		}
+		shape := tensor.MustShape(1, 1, uint64(len(positions)))
+		currentPositionState = builder.Input(fmt.Sprintf("blk.%d.positions.current", layerIndex), dtype.F32, shape)
+		hostFeeds[currentPositionState] = reference.Value{Shape: shape, Data: values}
+	}
 	result, err = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Builder:        builder,
-		Input:          input,
-		Spec:           r.spec,
-		Weights:        graphWeights,
-		Positions:      positions,
-		MultiPositions: dispatchMultiPositions,
-		TokenRows:      tokenRows,
-		PastKey:        pastKey,
-		PastValue:      pastValue,
-		PastIndexerKey: pastIndexerKey,
-		PastConvState:  pastConvState,
-		PastSSMState:   pastSSMState,
-		PastStates:     pastDeepSeek4States,
-		PerLayerInput:  graphWeights.PerLayerInput,
-		Layer:          uint32(layerIndex),
-		Recurrent:      info.Recurrent,
+		Builder:          builder,
+		Input:            input,
+		Spec:             r.spec,
+		Weights:          graphWeights,
+		Positions:        positions,
+		MultiPositions:   dispatchMultiPositions,
+		TokenRows:        tokenRows,
+		PastKey:          pastKey,
+		PastValue:        pastValue,
+		PastIndexerKey:   pastIndexerKey,
+		PastConvState:    pastConvState,
+		PastSSMState:     pastSSMState,
+		PastStates:       pastDeepSeek4States,
+		CurrentPositions: currentPositionState,
+		PerLayerInput:    graphWeights.PerLayerInput,
+		Layer:            uint32(layerIndex),
+		Recurrent:        info.Recurrent,
 	})
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err

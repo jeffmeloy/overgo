@@ -42,10 +42,36 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if err != nil {
 		return nil, err
 	}
+	if r.spec.Architecture == "deepseek4" {
+		upgradeDeepSeek4CachePositions(cache)
+	}
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
 	}
 	return cache, nil
+}
+
+func upgradeDeepSeek4CachePositions(cache *KVCache) {
+	if cache == nil || cache.Tokens == 0 || effectiveCachePosition(cache) < cache.Tokens {
+		return
+	}
+	start := effectiveCachePosition(cache) - cache.Tokens
+	data := make([]float32, cache.Tokens)
+	for index := range data {
+		data[index] = float32(start + uint32(index))
+	}
+	shape := tensor.MustShape(1, 1, uint64(cache.Tokens))
+	for index := range cache.Layers {
+		if _, present := cache.Layers[index].States["positions"]; present {
+			continue
+		}
+		if cache.Layers[index].States == nil {
+			cache.Layers[index].States = make(map[string]LayerState)
+		}
+		cache.Layers[index].States["positions"] = LayerState{
+			Mode: CacheStateToken, Value: reference.Value{Shape: shape, Data: append([]float32(nil), data...)},
+		}
+	}
 }
 
 func (r *Runner) validateCache(cache *KVCache) error {
@@ -84,6 +110,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			expectedLayers,
 		)
 	}
+	var deepSeekPositions []float32
 	for index, layer := range cache.Layers {
 		if len(layer.States) > maxLayerCacheStates-2 {
 			return fmt.Errorf("inference: KV cache layer %d state count exceeds limit", index)
@@ -106,7 +133,9 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		}
 		if r.spec.Architecture == "deepseek4" {
 			ratio := r.spec.CompressRatios[index]
-			expected := make(map[string]tensor.Shape)
+			expected := map[string]tensor.Shape{
+				"positions": tensor.MustShape(1, 1, uint64(cache.Tokens)),
+			}
 			if ratio != 0 {
 				coefficient := uint64(1)
 				if ratio == 4 {
@@ -130,6 +159,23 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			for name := range layer.States {
 				if _, present := expected[name]; !present {
 					return fmt.Errorf("inference: DeepSeek 4 cache layer %d state %q is unexpected", index, name)
+				}
+			}
+			positions := layer.States["positions"].Value.Data
+			for item, value := range positions {
+				position := uint32(value)
+				if value < 0 || float32(position) != value || position >= effectiveCachePosition(cache) ||
+					(item > 0 && position <= uint32(positions[item-1])) {
+					return fmt.Errorf("inference: DeepSeek 4 cache layer %d positions are invalid", index)
+				}
+			}
+			if index == 0 {
+				deepSeekPositions = append([]float32(nil), positions...)
+			} else {
+				for item := range positions {
+					if positions[item] != deepSeekPositions[item] {
+						return fmt.Errorf("inference: DeepSeek 4 cache layer %d positions differ", index)
+					}
 				}
 			}
 		}
@@ -410,9 +456,6 @@ func (r *Runner) RemoveCacheRange(
 			end,
 			cache.Tokens,
 		)
-	}
-	if r.spec.Architecture == "deepseek4" && start > 0 && end < uint64(cache.Tokens) {
-		return nil, errors.New("inference: DeepSeek 4 middle-range cache editing is unsupported")
 	}
 	remaining := cache.Tokens - discard
 	result := &KVCache{

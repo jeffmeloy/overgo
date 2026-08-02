@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +21,8 @@ const (
 	maxGBNFExpansionSteps   = 1 << 20
 	maxGBNFTokenPieceBytes  = 1 << 20
 	maxGBNFVocabularyPieces = 1 << 24
+	maxGBNFTriggerPatterns  = 128
+	maxGBNFTriggerBuffer    = 1 << 20
 )
 
 type gbnfSymbolKind uint8
@@ -79,7 +80,7 @@ type gbnfState struct {
 
 type gbnfTriggerPattern struct {
 	source string
-	regex  *regexp.Regexp
+	regex  *gbnfTriggerRegex
 }
 
 type gbnfTriggerPosition struct {
@@ -88,9 +89,8 @@ type gbnfTriggerPosition struct {
 	end   int
 }
 
-// GBNFLazyOptions configures deferred grammar activation; Patterns use Go's
-// RE2 syntax; matching begins at first non-empty capture group, or at
-// complete match when no capture participates
+// GBNFLazyOptions: deferred grammar activation.
+// Patterns: bounded ECMAScript regex; first non-empty capture sets replay start.
 type GBNFLazyOptions struct {
 	Enabled  bool
 	Patterns []string
@@ -218,9 +218,15 @@ func NewGBNFGrammarWithOptions(
 		}
 		grammar.triggerTokens[token] = struct{}{}
 	}
+	if len(lazy.Patterns) > maxGBNFTriggerPatterns {
+		return nil, fmt.Errorf(
+			"GBNF trigger patterns exceed %d entries",
+			maxGBNFTriggerPatterns,
+		)
+	}
 	grammar.triggerPatterns = make([]gbnfTriggerPattern, len(lazy.Patterns))
 	for index, pattern := range lazy.Patterns {
-		compiled, compileErr := regexp.Compile(pattern)
+		compiled, compileErr := compileGBNFTriggerRegex(pattern)
 		if compileErr != nil {
 			return nil, fmt.Errorf(
 				"GBNF trigger pattern %d: %w",
@@ -1058,6 +1064,9 @@ func (g *GBNFGrammar) advanceAwaitingTrigger(
 	}
 	buffer := append([]byte(nil), state.triggerBuffer...)
 	positions := append([]gbnfTriggerPosition(nil), state.triggerPositions...)
+	if len(buffer)+len(g.tokenPieces[token]) > maxGBNFTriggerBuffer {
+		return gbnfState{}, false
+	}
 	start := len(buffer)
 	buffer = append(buffer, g.tokenPieces[token]...)
 	positions = append(positions, gbnfTriggerPosition{
@@ -1066,16 +1075,12 @@ func (g *GBNFGrammar) advanceAwaitingTrigger(
 		end:   len(buffer),
 	})
 	for _, trigger := range g.triggerPatterns {
-		match := trigger.regex.FindSubmatchIndex(buffer)
-		if match == nil {
-			continue
+		matchStart, matched, err := trigger.regex.findStart(buffer)
+		if err != nil {
+			return gbnfState{}, false
 		}
-		matchStart := match[0]
-		for group := 2; group+1 < len(match); group += 2 {
-			if match[group] >= 0 && match[group+1] > match[group] {
-				matchStart = match[group]
-				break
-			}
+		if !matched {
+			continue
 		}
 		state.awaitingTrigger = false
 		state.triggerBuffer = nil

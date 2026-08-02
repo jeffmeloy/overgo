@@ -299,52 +299,67 @@ func (f *remoteMediaFetcher) hostAllowed(host string) bool {
 }
 
 func (f *remoteMediaFetcher) fetch(ctx context.Context, source, mediaType string) ([]byte, error) {
+	data, _, err := f.fetchTyped(ctx, source, mediaType+"/*", func(contentType string) bool {
+		return strings.HasPrefix(contentType, mediaType+"/")
+	})
+	return data, err
+}
+
+func (f *remoteMediaFetcher) fetchDocument(ctx context.Context, source string) ([]byte, string, error) {
+	return f.fetchTyped(ctx, source, "text/*, application/json, application/xml", supportedResponseTextType)
+}
+
+func (f *remoteMediaFetcher) fetchTyped(
+	ctx context.Context,
+	source, accept string,
+	acceptType func(string) bool,
+) ([]byte, string, error) {
 	source = strings.TrimSpace(source)
 	target, err := url.Parse(source)
 	if err != nil {
-		return nil, errors.New("remote media URL is invalid")
+		return nil, "", errors.New("remote media URL is invalid")
 	}
 	if err := f.validateURL(target); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	select {
 	case f.slots <- struct{}{}:
 		defer func() { <-f.slots }()
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, "", ctx.Err()
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
-		return nil, errors.New("remote media request is invalid")
+		return nil, "", errors.New("remote media request is invalid")
 	}
-	request.Header.Set("Accept", mediaType+"/*")
+	request.Header.Set("Accept", accept)
 	request.Header.Set("User-Agent", "llamacpp2go-media/1")
 	response, err := f.client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("fetch remote media: %w", err)
+		return nil, "", fmt.Errorf("fetch remote media: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return nil, fmt.Errorf("remote media returned HTTP status %d", response.StatusCode)
+		return nil, "", fmt.Errorf("remote media returned HTTP status %d", response.StatusCode)
 	}
 	contentType := strings.ToLower(strings.TrimSpace(strings.Split(response.Header.Get("Content-Type"), ";")[0]))
-	if !strings.HasPrefix(contentType, mediaType+"/") {
-		return nil, fmt.Errorf("remote media content type %q is not %s", contentType, mediaType)
+	if !acceptType(contentType) {
+		return nil, "", fmt.Errorf("remote media content type %q is unsupported", contentType)
 	}
 	if response.ContentLength > f.policy.MaxResponseBytes {
-		return nil, errors.New("remote media response exceeds byte limit")
+		return nil, "", errors.New("remote media response exceeds byte limit")
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, f.policy.MaxResponseBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("read remote media: %w", err)
+		return nil, "", fmt.Errorf("read remote media: %w", err)
 	}
 	if len(data) == 0 {
-		return nil, errors.New("remote media response is empty")
+		return nil, "", errors.New("remote media response is empty")
 	}
 	if int64(len(data)) > f.policy.MaxResponseBytes {
-		return nil, errors.New("remote media response exceeds byte limit")
+		return nil, "", errors.New("remote media response exceeds byte limit")
 	}
-	return data, nil
+	return data, contentType, nil
 }
 
 func publicMediaIP(address netip.Addr) bool {

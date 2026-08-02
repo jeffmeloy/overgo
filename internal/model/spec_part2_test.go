@@ -714,6 +714,30 @@ func TestReadMPTAndRefactALiBiSpecs(t *testing.T) {
 	}
 }
 
+func TestReadRefactMoESpec(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "refact"),
+		metadata("refact.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("refact.context_length", gguf.ValueTypeUint32, uint32(128)),
+		metadata("refact.embedding_length", gguf.ValueTypeUint32, uint32(16)),
+		metadata("refact.feed_forward_length", gguf.ValueTypeUint32, uint32(64)),
+		metadata("refact.attention.head_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("refact.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
+		metadata("refact.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("refact.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+		metadata("refact.expert_count", gguf.ValueTypeUint32, uint32(8)),
+		metadata("refact.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 ||
+		spec.ExpertFeedForward != 64 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1 {
+		t.Fatalf("unexpected Refact MoE spec: %+v", spec)
+	}
+}
+
 func TestReadInternLM2EXAONEAndXVERSESpecs(t *testing.T) {
 	for _, architecture := range []string{"internlm2", "exaone", "xverse"} {
 		t.Run(architecture, func(t *testing.T) {

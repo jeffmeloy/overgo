@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 
 	"fmt"
 
@@ -21,27 +22,41 @@ import (
 )
 
 type responsesTokenCountRequest struct {
-	Model              string          `json:"model"`
-	Instructions       string          `json:"instructions"`
-	Input              json.RawMessage `json:"input"`
-	PreviousResponseID string          `json:"previous_response_id"`
-	Tools              json.RawMessage `json:"tools"`
-	ToolChoice         json.RawMessage `json:"tool_choice"`
-	ParallelTools      *bool           `json:"parallel_tool_calls"`
+	Model              string                    `json:"model"`
+	Instructions       string                    `json:"instructions"`
+	Input              json.RawMessage           `json:"input"`
+	PreviousResponseID string                    `json:"previous_response_id"`
+	Tools              json.RawMessage           `json:"tools"`
+	ToolChoice         json.RawMessage           `json:"tool_choice"`
+	ParallelTools      *bool                     `json:"parallel_tool_calls"`
+	Reasoning          *responsesReasoningConfig `json:"reasoning"`
 }
 
 type responsesRequest struct {
-	Model              string          `json:"model"`
-	Instructions       string          `json:"instructions"`
-	Input              json.RawMessage `json:"input"`
-	PreviousResponseID string          `json:"previous_response_id"`
-	MaxOutputTokens    *int            `json:"max_output_tokens"`
-	Stop               json.RawMessage `json:"stop"`
-	Stream             bool            `json:"stream"`
-	Tools              json.RawMessage `json:"tools"`
-	ToolChoice         json.RawMessage `json:"tool_choice"`
-	ParallelTools      *bool           `json:"parallel_tool_calls"`
+	Model              string                    `json:"model"`
+	Instructions       string                    `json:"instructions"`
+	Input              json.RawMessage           `json:"input"`
+	PreviousResponseID string                    `json:"previous_response_id"`
+	MaxOutputTokens    *int                      `json:"max_output_tokens"`
+	Stop               json.RawMessage           `json:"stop"`
+	Stream             bool                      `json:"stream"`
+	Tools              json.RawMessage           `json:"tools"`
+	ToolChoice         json.RawMessage           `json:"tool_choice"`
+	ParallelTools      *bool                     `json:"parallel_tool_calls"`
+	Store              *bool                     `json:"store"`
+	Reasoning          *responsesReasoningConfig `json:"reasoning"`
 	samplingParameters
+}
+
+type responsesReasoningConfig struct {
+	Effort          string `json:"effort,omitempty"`
+	Summary         string `json:"summary,omitempty"`
+	GenerateSummary string `json:"generate_summary,omitempty"`
+}
+
+type responseReasoningSummary struct {
+	Text string `json:"text"`
+	Type string `json:"type"`
 }
 
 type responseOutputText struct {
@@ -52,14 +67,15 @@ type responseOutputText struct {
 }
 
 type responseOutputItem struct {
-	Arguments string               `json:"arguments,omitempty"`
-	CallID    string               `json:"call_id,omitempty"`
-	Content   []responseOutputText `json:"content,omitempty"`
-	ID        string               `json:"id"`
-	Name      string               `json:"name,omitempty"`
-	Role      string               `json:"role,omitempty"`
-	Status    string               `json:"status,omitempty"`
-	Type      string               `json:"type"`
+	Arguments string                     `json:"arguments,omitempty"`
+	CallID    string                     `json:"call_id,omitempty"`
+	Content   []responseOutputText       `json:"content,omitempty"`
+	ID        string                     `json:"id"`
+	Name      string                     `json:"name,omitempty"`
+	Role      string                     `json:"role,omitempty"`
+	Status    string                     `json:"status,omitempty"`
+	Summary   []responseReasoningSummary `json:"summary,omitempty"`
+	Type      string                     `json:"type"`
 }
 
 type responseInputTokenDetails struct {
@@ -103,17 +119,27 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
 		return
 	}
-	if body.PreviousResponseID != "" {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "previous_response_id is not supported")
+	previous, ok := h.previousResponseMessages(response, body.PreviousResponseID)
+	if !ok {
+		return
+	}
+	reasoningSummary, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
 	toolSelection, err := selectResponsesTools(
 		body.Tools,
 		body.ToolChoice,
 		body.ParallelTools,
+		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if reasoningSummary && len(toolSelection.active) != 0 {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", "reasoning summaries cannot be combined with tools")
 		return
 	}
 	if len(toolSelection.active) != 0 {
@@ -127,21 +153,26 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			return
 		}
 	}
-	messages, err := parseResponsesMessages(body.Input, body.Instructions)
+	if reasoningSummary {
+		if _, ok := h.generator.(ChatOutputParser); !ok {
+			writeError(response, http.StatusNotImplemented, "unsupported_operation", "reasoning output parsing is unavailable")
+			return
+		}
+	}
+	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	messages := responseRequestMessages(previous, current, body.Instructions)
+	history := append(cloneResponseMessages(previous), current...)
 	multimodal := chatMediaCount(messages) != 0
-	if multimodal {
-		if rawJSONConfigured(body.Tools) || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal Responses input cannot use tools")
-			return
-		}
-	}
 	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 {
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": false}
+	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
+		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": reasoningThinking}
+	}
+	if multimodal {
+		normalizedBody.Tools = toolSelection.active
 	}
 	normalizedPrompt, err := h.normalizeChatPrompt(
 		request.Context(),
@@ -238,6 +269,9 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			toolSelection.active,
 			prepared.TokenIDs,
 			prepared.ProjectedInputs,
+			history,
+			body.Store == nil || *body.Store,
+			reasoningSummary,
 		)
 		return
 	}
@@ -275,7 +309,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Role:    "assistant",
 		Content: output.String(),
 	}
-	if len(toolSelection.active) != 0 {
+	if len(toolSelection.active) != 0 || reasoningSummary {
 		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
 			output.String(),
 			toolSelection.active,
@@ -286,8 +320,12 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		}
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
-	outputItems := responseItems(message, messageID, idSuffix)
+	assignResponseCallIDs(&message, idSuffix)
+	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
 	promptTokens := len(ids) - generatedTokens
+	if body.Store == nil || *body.Store {
+		h.responseHistory.put(responseID, append(history, message))
+	}
 	writeJSON(response, http.StatusOK, responsesResponse{
 		CompletedAt: now,
 		CreatedAt:   now,
@@ -317,6 +355,9 @@ func (h *Handler) streamResponses(
 	tools []inference.ChatTool,
 	promptIDs []tokenizer.TokenID,
 	projectedInputs *inference.ProjectedInputs,
+	history []inference.ChatMessage,
+	store bool,
+	reasoningSummary bool,
 ) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -357,6 +398,7 @@ func (h *Handler) streamResponses(
 	filter := newStopFilter(stops)
 	generatedTokens := 0
 	textStarted := false
+	var reasoningOutput *responseOutputItem
 	var toolStream inference.ChatOutputStream
 	streamedToolNames := make([]string, 0, 1)
 	streamedToolArguments := make([]strings.Builder, 0, 1)
@@ -477,6 +519,57 @@ func (h *Handler) streamResponses(
 		}
 		return nil
 	}
+	emitReasoning := func(text string) error {
+		if text == "" {
+			return nil
+		}
+		idSuffix := strings.TrimPrefix(responseID, "resp_")
+		itemID := "rs_" + idSuffix
+		part := responseReasoningSummary{Type: "summary_text", Text: text}
+		added := responseOutputItem{ID: itemID, Status: "in_progress", Type: "reasoning"}
+		if err := writeEvent("response.output_item.added", map[string]any{
+			"type": "response.output_item.added", "response_id": responseID,
+			"output_index": 0, "item": added,
+		}); err != nil {
+			return err
+		}
+		if err := writeEvent("response.reasoning_summary_part.added", map[string]any{
+			"type": "response.reasoning_summary_part.added", "item_id": itemID,
+			"output_index": 0, "summary_index": 0,
+			"part": responseReasoningSummary{Type: "summary_text", Text: ""},
+		}); err != nil {
+			return err
+		}
+		if err := writeEvent("response.reasoning_summary_text.delta", map[string]any{
+			"type": "response.reasoning_summary_text.delta", "item_id": itemID,
+			"output_index": 0, "summary_index": 0, "delta": text,
+		}); err != nil {
+			return err
+		}
+		if err := writeEvent("response.reasoning_summary_text.done", map[string]any{
+			"type": "response.reasoning_summary_text.done", "item_id": itemID,
+			"output_index": 0, "summary_index": 0, "text": text,
+		}); err != nil {
+			return err
+		}
+		if err := writeEvent("response.reasoning_summary_part.done", map[string]any{
+			"type": "response.reasoning_summary_part.done", "item_id": itemID,
+			"output_index": 0, "summary_index": 0, "part": part,
+		}); err != nil {
+			return err
+		}
+		completed := responseOutputItem{
+			ID: itemID, Status: "completed", Summary: []responseReasoningSummary{part}, Type: "reasoning",
+		}
+		if err := writeEvent("response.output_item.done", map[string]any{
+			"type": "response.output_item.done", "response_id": responseID,
+			"output_index": 0, "item": completed,
+		}); err != nil {
+			return err
+		}
+		reasoningOutput = &completed
+		return nil
+	}
 	ids, _, err := h.generate(
 		request.Context(),
 		slotID,
@@ -497,6 +590,10 @@ func (h *Handler) streamResponses(
 					if streamErr := emitToolPiece(piece); streamErr != nil {
 						return streamErr
 					}
+					return request.Context().Err()
+				}
+				if reasoningSummary {
+					buffered.WriteString(piece)
 					return request.Context().Err()
 				}
 				return emitText(piece)
@@ -536,6 +633,21 @@ func (h *Handler) streamResponses(
 				return
 			}
 		}
+	} else if reasoningSummary {
+		buffered.WriteString(flushed)
+		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(buffered.String(), nil)
+		if err != nil {
+			_ = writeEvent("response.failed", map[string]any{
+				"type": "response.failed", "error": errorEnvelope("generation_error", err.Error()).Error,
+			})
+			return
+		}
+		if err := emitReasoning(parsedMessage.ReasoningContent); err != nil {
+			return
+		}
+		if err := emitText(parsedMessage.Content); err != nil {
+			return
+		}
 	} else {
 		if err := emitText(flushed); err != nil {
 			return
@@ -547,6 +659,9 @@ func (h *Handler) streamResponses(
 	}
 	text := output.String()
 	outputItems := []responseOutputItem{}
+	if reasoningOutput != nil {
+		outputItems = append(outputItems, *reasoningOutput)
+	}
 	if textStarted {
 		part := responseOutputText{
 			Type:        "output_text",
@@ -584,6 +699,7 @@ func (h *Handler) streamResponses(
 		outputItems = append(outputItems, item)
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
+	assignResponseCallIDs(&parsedMessage, idSuffix)
 	callItems := responseItems(
 		inference.ChatMessage{
 			Role:      "assistant",
@@ -591,6 +707,7 @@ func (h *Handler) streamResponses(
 		},
 		messageID,
 		idSuffix,
+		false,
 	)
 	for _, item := range callItems {
 		outputIndex := len(outputItems)
@@ -666,6 +783,9 @@ func (h *Handler) streamResponses(
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: 0},
 		},
 	}
+	if store {
+		h.responseHistory.put(responseID, append(history, parsedMessage))
+	}
 	_ = writeEvent("response.completed", map[string]any{
 		"type":     "response.completed",
 		"response": final,
@@ -696,38 +816,37 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
 		return
 	}
-	if body.PreviousResponseID != "" {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"previous_response_id is not supported",
-		)
+	previous, ok := h.previousResponseMessages(response, body.PreviousResponseID)
+	if !ok {
+		return
+	}
+	_, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
 	toolSelection, err := selectResponsesTools(
 		body.Tools,
 		body.ToolChoice,
 		body.ParallelTools,
+		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	messages, err := parseResponsesMessages(body.Input, body.Instructions)
+	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	if chatMediaCount(messages) != 0 {
-		if rawJSONConfigured(body.Tools) || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal Responses input cannot use tools")
-			return
-		}
-	}
+	messages := responseRequestMessages(previous, current, body.Instructions)
 	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 {
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": false}
+	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
+		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": reasoningThinking}
+	}
+	if chatMediaCount(messages) != 0 {
+		normalizedBody.Tools = toolSelection.active
 	}
 	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt)
 	if err != nil {
@@ -747,4 +866,66 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		"object":       "response.input_tokens",
 		"input_tokens": len(prepared.TokenIDs),
 	})
+}
+
+func (h *Handler) previousResponseMessages(
+	response http.ResponseWriter,
+	id string,
+) ([]inference.ChatMessage, bool) {
+	if id == "" {
+		return nil, true
+	}
+	messages, ok := h.responseHistory.get(id)
+	if !ok {
+		writeError(response, http.StatusNotFound, "not_found_error", "previous response not found")
+		return nil, false
+	}
+	return messages, true
+}
+
+func responseRequestMessages(
+	previous, current []inference.ChatMessage,
+	instructions string,
+) []inference.ChatMessage {
+	capacity := len(previous) + len(current)
+	if instructions != "" {
+		capacity++
+	}
+	messages := make([]inference.ChatMessage, 0, capacity)
+	if instructions != "" {
+		messages = append(messages, inference.ChatMessage{Role: "system", Content: instructions})
+	}
+	messages = append(messages, previous...)
+	messages = append(messages, current...)
+	return messages
+}
+
+func validateResponsesReasoning(
+	config *responsesReasoningConfig,
+) (summary, thinking bool, err error) {
+	if config == nil {
+		return false, true, nil
+	}
+	switch config.Effort {
+	case "", "minimal", "low", "medium", "high", "xhigh", "max":
+		thinking = true
+	case "none":
+		thinking = false
+	default:
+		return false, false, fmt.Errorf("reasoning.effort %q is unsupported", config.Effort)
+	}
+	selected := config.Summary
+	if selected == "" {
+		selected = config.GenerateSummary
+	} else if config.GenerateSummary != "" && config.GenerateSummary != selected {
+		return false, false, errors.New("reasoning.summary conflicts with reasoning.generate_summary")
+	}
+	switch selected {
+	case "":
+		return false, thinking, nil
+	case "auto", "concise", "detailed":
+		return true, thinking, nil
+	default:
+		return false, false, fmt.Errorf("reasoning.summary %q is unsupported", selected)
+	}
 }

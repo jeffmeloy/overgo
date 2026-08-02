@@ -2083,17 +2083,18 @@ func (b *Builder) Attention(query, key, value *Tensor, scale float32, causal boo
 
 // DeepSeek4Attention: raw plus reconstructed compressed attention.
 func (b *Builder) DeepSeek4Attention(
-	query, cacheKV, sinks, compressorKV, compressorScore, compressorNorm,
+	query, cacheKV, cachePositions, sinks, compressorKV, compressorScore, compressorNorm,
 	indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm *Tensor,
 	attributes DeepSeek4AttentionAttributes,
 ) *Tensor {
 	if b.err != nil {
 		return nil
 	}
-	if query == nil || cacheKV == nil || sinks == nil ||
-		query.Type != dtype.F32 || cacheKV.Type != dtype.F32 || sinks.Type != dtype.F32 ||
+	if query == nil || cacheKV == nil || cachePositions == nil || sinks == nil ||
+		query.Type != dtype.F32 || cacheKV.Type != dtype.F32 || cachePositions.Type != dtype.F32 || sinks.Type != dtype.F32 ||
 		query.Shape.Rank != 3 || cacheKV.Shape.Rank != 3 || sinks.Shape.Rank != 1 ||
 		cacheKV.Shape.Dims[0] != query.Shape.Dims[0] || cacheKV.Shape.Dims[1] != 1 ||
+		cachePositions.Shape != MustShape(1, 1, cacheKV.Shape.Dims[2]) ||
 		sinks.Shape.Dims[0] != query.Shape.Dims[1] ||
 		len(attributes.Positions) != int(query.Shape.Dims[2]) ||
 		attributes.Heads != uint32(query.Shape.Dims[1]) || attributes.Window == 0 ||
@@ -2104,7 +2105,7 @@ func (b *Builder) DeepSeek4Attention(
 		b.setError(errors.New("DeepSeek 4 attention metadata or base inputs are invalid"))
 		return nil
 	}
-	inputs := []*Tensor{query, cacheKV, sinks}
+	inputs := []*Tensor{query, cacheKV, cachePositions, sinks}
 	tokens := cacheKV.Shape.Dims[2]
 	if attributes.Ratio != 0 {
 		coefficient := uint64(1)

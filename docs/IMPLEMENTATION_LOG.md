@@ -4,7 +4,9 @@ Archived compatibility and validation record through 2026-08-01. This file is
 append-only historical evidence, not the live roadmap. See
 [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current work
 and [`COMPATIBILITY.md`](COMPATIBILITY.md) for the generated compatibility
-matrix.
+matrix. Statements that work "remains pending" record their point in the
+chronology and may be superseded by later commits and live compatibility
+claims.
 
 ## Compatibility baseline
 
@@ -182,6 +184,8 @@ matrix.
   promoting auto-detected controls.
 - Text-only chat formatting executes the GGUF `tokenizer.chat_template`
   through a pure-Go, in-memory-only Jinja loader with bounded source/output.
+  Pinned `raise_exception`, `strftime_now`, `namespace`, and `range` globals
+  are available; exception/date inputs and rendered date output are bounded.
   Qwen3, Qwen3.5, Gemma 3, and Bonsai prompts are byte-exact against pinned
   `/apply-template`, including the injected `enable_thinking` default and
   single-BOS behavior. Boundary-token native formatters remain the fallback
@@ -196,6 +200,9 @@ matrix.
   `tool_calls` finish reasons. Tool-enabled SSE buffers the template output
   through validation and emits complete structured call deltas without
   leaking XML/JSON wrapper syntax.
+- Lazy GBNF activation uses bounded ECMAScript Unicode trigger patterns with
+  lookahead, lookbehind, backreferences, UTF-8 byte-correct capture replay,
+  and caps on patterns, source, input, backtracking stack, and match time.
 - A real Bonsai-27B-Q1_0 named-tool request on the RTX 4090 D generated the
   Hermes call for `weather`, parsed `{"city":"Boston"}`, assigned a call ID,
   returned null content, and finished with `tool_calls`. Disabling optional
@@ -698,7 +705,7 @@ matrix.
   pinned half-window default. Retained CUDA caches expose fixed-width pointer
   pages rebuilt after append, trim, pointer shift, and owned compaction.
   `ContinuousBatch` owns sequence-tagged host or device caches, supports
-  transactional multi-sequence append, dynamic admission/removal, host-cache
+  transactional multi-sequence append, dynamic admission/removal, host/device
   forks, context shifting, and sorted page/state snapshots.
 - Native device execution currently supports Q1_0/Q2_0, Q4_0/Q4_1,
   Q5_0/Q5_1, Q8_0/Q8_1/Q8_K, Q2_K-Q6_K, TQ1_0/TQ2_0,
@@ -710,11 +717,10 @@ matrix.
 - CUDA memory metrics cover allocations owned by this runtime, not driver
   overhead or allocations made by other processes in the same device context.
 - Character, token-terminal, and lazy-trigger GBNF are supported. Trigger
-  patterns use Go RE2; llama.cpp ECMAScript constructs such as lookaround and
-  backreferences remain pending. General and infill sampler stages have
-  arbitrary configurable ordering.
-- Text and function-tool GGUF Jinja templates are supported. Custom
-  llama.cpp-only Jinja extensions not implemented by gonja remain pending.
+  patterns use bounded ECMAScript Unicode matching with lookaround and
+  backreferences. General and infill sampler stages have arbitrary ordering.
+- Text and function-tool GGUF Jinja templates support the pinned bounded
+  exception, date, namespace, and range globals.
   Fused continuous-batching server scheduling is supported. Tool-enabled streams
   incrementally parse JSON and Hermes output while retaining complete-output
   schema validation.
@@ -798,7 +804,9 @@ matrix.
   PNG streaming for MP4/WebM/MOV and other installed-codec formats. Native,
   Chat, and Responses requests accept up to eight ordered images; the projector
   merges their soft tokens and constructs per-image compressed four-axis MRoPE.
-  Multi-sequence recurrent batching remains pending.
+  Recurrent and hybrid continuous batches retain independent primary and named
+  state within one variable-branch CUDA graph. Real-model family differentials
+  remain fixture-gated.
 - Gemma 4 unified image projection executes the encoder-free `gemma4uv` GGUF
   graph: pinned dynamic aspect-preserving bicubic resize, 48x48 RGB patch rows,
   affine patch LayerNorm and dense projection, factorized learned X/Y
@@ -999,11 +1007,17 @@ deferred until a compatible model is available.
 ### Implemented: fused continuous-batching server scheduling
 
 `ContinuousBatch` now supplies sequence-tagged host/device caches, page tables,
-dynamic admission/removal, transactional steps, context compaction, and host
-forks. Each device step builds the variable active sequences as independent
+dynamic admission/removal, transactional steps, context compaction, and
+host/device forks. Each device step builds variable active sequences as independent
 branches of one CUDA graph submission. Retained outputs use shared reference
 ownership so removing or advancing one sequence cannot invalidate sibling
 caches from the same fused execution.
+
+Recurrent and hybrid branches retain Mamba/GDN/KDA convolution and state-space
+state, RWKV token/WKV state, LFM2 short-convolution state, and Falcon-H1 named
+fixed state. Token-aligned named state compacts with KV rows; fixed and primary
+recurrent state survives context edits. Device forks share immutable retained
+outputs until copy-on-write advance or compaction.
 
 The HTTP generation scheduler admits queued requests between token steps and
 removes completed or cancelled sequences independently. Samplers, histories,
@@ -1615,6 +1629,24 @@ files are split into bounded source units without changing package boundaries.
 CUDA integration setup is centralized in `internal/cuda/testutil`; 137 device
 tests now share one environment gate and skip contract.
 
+Responses resources now use a disabled-by-default top-level YAML contract.
+Mapped file IDs resolve only through canonicalized allowlisted roots and eager
+MIME/byte validation. Typed inline text, policy-allowed remote text URLs, and
+mapped image file IDs share existing request, SSRF, redirect, timeout, and
+projection bounds. Unsupported binary documents fail before formatting.
+Hosted, MCP, and free-form custom Responses tools now use an explicit deny
+policy. Non-deny configuration fails at startup until a bounded external
+executor exists; request errors identify the policy category.
+OpenAI Chat/Responses and Anthropic now route function-tool schemas through
+the full-history media formatter. Anthropic base64, allowlisted URL, and mapped
+file-ID image blocks use the shared projector, projected cache signatures, and
+input-token path. Video/tool combinations remain explicitly rejected.
+Anthropic manual summarized thinking now uses the pinned budget rules, emits
+buffered and named-SSE thinking/signature blocks, works with projected images,
+and replays only byte-exact blocks signed by the same handler. Local signatures
+are integrity tokens, not Anthropic-portable encrypted reasoning. Adaptive,
+omitted, redacted, interleaved, and thinking/tool modes fail explicitly.
+
 OpenAI Chat, OpenAI Responses, and Anthropic request/response types, parsing,
 buffered generation, streaming, tools, and token-count handlers now live in
 protocol-specific source files. The shared `Handler`, admission slots, metrics,
@@ -1652,7 +1684,7 @@ contains layer-specific device pointer views with bounded token extents;
 append, suffix trim, zero-copy shift, and owned range compaction rebuild the
 table. The continuous-batch session layers sequence ownership on those caches,
 commits multi-sequence steps transactionally, permits sequences to enter and
-leave between steps, clones host branches, and exposes stable page snapshots.
+leave between steps, clones host/device branches, and exposes stable page snapshots.
 Preloaded device batches now place all active variable-length sequences in one
 graph execution. The server advances that active set token by token, admitting
 new work between steps and preserving independent stop and cancellation state.
@@ -1661,6 +1693,12 @@ T5 now accepts padded rectangular source and decoder batches with explicit
 per-row lengths. Each active prefix is evaluated as an independent session
 inside one batch transaction, which provides the required padding mask
 semantics without placing padding tokens into any attention graph or cache.
+
+LFM2 centered short convolution now accepts even kernels with asymmetric
+left/right padding while retaining same-length output and recurrent-state
+updates. Refact now admits gated and ungated top-k expert tensors. DeepSeek 4
+cache state now carries explicit token positions, preserving middle-edit gaps
+through raw attention, compressed reconstruction, serialization, and append.
 
 ## Working rules
 

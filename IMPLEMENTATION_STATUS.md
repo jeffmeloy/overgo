@@ -50,11 +50,43 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Pinned Gemma 4 multi-turn image history and media-signed prompt caching.
 - Pinned mixed image/audio chunks and policy-bounded remote media fetching.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
+- Bounded Responses continuation history with stable function-call IDs.
+- Bounded Chat/Responses encoded-video input through native GIF or FFmpeg decode.
+- Responses reasoning summary input/output, streaming events, and continuation replay.
+- Bounded Responses inline, mapped file-ID, remote text-file, and image file-ID inputs.
+- Explicit deny policy for Responses hosted, MCP, and free-form custom tools.
+- Projected image/audio history combined with function tools across OpenAI protocols.
+- Anthropic base64/URL/file-ID images with projection, tools, and token counting.
+- Anthropic manual summarized thinking with SSE, projected images, and handler-local signed replay.
+- Bounded ECMAScript lazy-GBNF triggers with lookaround and backreferences.
+- Pinned Jinja globals for bounded exceptions, dates, namespaces, and ranges.
+- Fused recurrent/hybrid continuous batching with named state and device forks.
 
 ## Active roadmap
 
-No unblocked implementation items remain. Deferred work below requires an
-external fixture, policy, certificate, or model/projector contract.
+Work proceeds in dependency order. A blocked item does not stop later rows.
+
+| Priority | Item | Completion boundary |
+| --- | --- | --- |
+| 1 | Model execution gaps | GPT-J and pending NextN MTP variants |
+| 2 | Multimodal model gaps | Internal encoders/projectors/grid construction for models currently requiring external projected inputs |
+| 3 | Speculative, audio, and adapters | Integrated draft verification, WavTokenizer waveform output, and broader aLoRA semantics |
+| 4 | Platform and release breadth | Verified targets beyond the Windows-amd64 CUDA baseline |
+| 5 | Pinned-upstream closure audit | Every upstream architecture, endpoint, option, and negative path implemented or explicitly classified |
+
+## Known implementation boundaries
+
+| Area | Current boundary |
+| --- | --- |
+| Responses | Bounded continuation, reasoning summaries, and typed text/image files; no PDF/non-text documents, hosted/custom tools, encrypted reasoning, or reasoning-with-tools |
+| Multimodal server | Supported image/audio media may use function tools; video remains single-turn/non-mixed and cannot use tools |
+| Anthropic | Manual summarized thinking uses handler-local signatures; adaptive/omitted/redacted/interleaved modes and thinking with tools are explicit exclusions |
+| Architectures | GPT-J is absent; marked model-specific limitations remain in `compatibility.yaml` |
+| Vision | Several decoder graphs require external encoders, projectors, or grid coordinates |
+| Speculation | Some draft graphs leave verification and acceptance to an external coordinator |
+| Audio | WavTokenizer stops at feature frames; waveform postprocessing is absent |
+| Adapters | One aLoRA may be active; non-causal diffusion rejects aLoRA |
+| Platforms | Primary supported release remains Windows amd64 with NVIDIA CUDA |
 
 ## Deferred or externally blocked
 
@@ -62,7 +94,8 @@ external fixture, policy, certificate, or model/projector contract.
 | --- | --- | --- |
 | Real-model validation for marked architectures | Local GGUF/oracle fixture unavailable | Fixture supplied or generated |
 | Release signing | No user-controlled signing certificate | Certificate and signing policy supplied |
-| ECMAScript regex lookaround/backreferences | Go RE2 does not implement them | Compatible bounded engine selected |
+| Hosted-tool integration | No repository-wide hosted executor contract | Local bounded defaults implemented or external contract supplied |
+| Real speculative model pairs | Matching target/draft fixtures unavailable | Compatible pair supplied or generated |
 
 Blocked fixture work does not stop independent implementation work.
 

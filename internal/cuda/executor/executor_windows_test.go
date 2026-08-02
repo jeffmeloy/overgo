@@ -197,8 +197,9 @@ func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
 	head := builder.DeepSeek4HCHead(hc, headFN, headScale, headBase, 2, 1e-5, 1e-6)
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 2))
 	cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, 3))
+	positions := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 3))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	attention := builder.DeepSeek4Attention(query, cache, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
+	attention := builder.DeepSeek4Attention(query, cache, positions, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
 		tensor.DeepSeek4AttentionAttributes{
 			Positions: []uint32{1, 2}, Window: 3, Heads: 1, RotaryDimensions: 2,
 			FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
@@ -217,10 +218,11 @@ func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
 		hcFN:  patternedValue(hcFN.Shape, 3, 0.1, 0), hcScale: patternedValue(hcScale.Shape, 5, 0.1, 0),
 		hcBase: patternedValue(hcBase.Shape, 7, 0.1, 0), headFN: patternedValue(headFN.Shape, 11, 0.1, 0),
 		headScale: patternedValue(headScale.Shape, 13, 0.1, 0), headBase: patternedValue(headBase.Shape, 17, 0.1, 0),
-		query:  {Shape: query.Shape, Data: []float32{1, 0, 0, 1}},
-		cache:  {Shape: cache.Shape, Data: []float32{1, 0, 0, 1, 1, 1}},
-		sinks:  {Shape: sinks.Shape, Data: []float32{-2}},
-		router: patternedValue(router.Shape, 19, 0.2, 0), gate: patternedValue(gate.Shape, 23, 0.2, 0),
+		query:     {Shape: query.Shape, Data: []float32{1, 0, 0, 1}},
+		cache:     {Shape: cache.Shape, Data: []float32{1, 0, 0, 1, 1, 1}},
+		positions: {Shape: positions.Shape, Data: []float32{0, 1, 2}},
+		sinks:     {Shape: sinks.Shape, Data: []float32{-2}},
+		router:    patternedValue(router.Shape, 19, 0.2, 0), gate: patternedValue(gate.Shape, 23, 0.2, 0),
 		up: patternedValue(up.Shape, 29, 0.2, 0), down: patternedValue(down.Shape, 31, 0.2, 0),
 		selected: {Shape: selected.Shape, Data: []float32{1}},
 	}

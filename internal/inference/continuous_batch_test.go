@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -89,7 +90,11 @@ func TestContinuousBatchAdmission(t *testing.T) {
 
 func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 	tests := map[string]bool{
-		"llama": true, "qwen3next": true, "mamba": false,
+		"llama": true, "qwen3next": true, "qwen35": true,
+		"mamba": true, "mamba2": true, "jamba": true,
+		"rwkv6": true, "rwkv7": true, "falcon-h1": true,
+		"granitehybrid": true, "kimi-linear": true, "plamo2": true,
+		"nemotron_h": true, "lfm2": true, "lfm2moe": true,
 		"deepseek32": false, "gemma3n": false,
 	}
 	for architecture, want := range tests {
@@ -97,5 +102,69 @@ func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 		if got := supportsPersistentDeviceCache(spec); got != want {
 			t.Fatalf("%s support = %t, want %t", architecture, got, want)
 		}
+	}
+}
+
+func TestCloneDeviceCacheSharesOwnerAndCopiesMetadata(t *testing.T) {
+	shape := tensor.MustShape(2, 1, 3)
+	owner := newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)
+	source := &deviceKVCache{
+		owner:  owner,
+		Keys:   []executor.DeviceValue{{Shape: shape}},
+		Values: []executor.DeviceValue{{Shape: shape}},
+		States: []map[string]deviceLayerState{{
+			"fixed": {Mode: CacheStateFixed, Value: executor.DeviceValue{Shape: tensor.MustShape(2)}},
+		}},
+		Tokens: 3, Position: 7, Logits: []float32{1, 2},
+	}
+	fork, err := cloneDeviceCache(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if owner.refs != 2 || fork.owner != owner || fork.Tokens != 3 || fork.Position != 7 {
+		t.Fatalf("fork = %+v, owner refs = %d", fork, owner.refs)
+	}
+	fork.Keys[0].Shape = tensor.MustShape(1)
+	fork.States[0]["other"] = deviceLayerState{Mode: CacheStateFixed}
+	fork.Logits[0] = 9
+	if source.Keys[0].Shape.Equal(fork.Keys[0].Shape) ||
+		len(source.States[0]) != 1 || source.Logits[0] != 1 {
+		t.Fatal("device fork shares mutable metadata")
+	}
+	source.owner = nil
+	fork.owner = nil
+}
+
+func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
+	tests := []struct {
+		architecture string
+		recurrent    bool
+	}{
+		{"mamba", true}, {"mamba2", true}, {"jamba", true},
+		{"granitehybrid", true}, {"plamo2", true}, {"kimi-linear", true},
+		{"rwkv6", true}, {"rwkv6qwen2", true}, {"rwkv7", true},
+		{"arwkv7", true}, {"falcon-h1", false}, {"nemotron_h", false},
+		{"lfm2", true}, {"lfm2moe", true},
+	}
+	for _, test := range tests {
+		t.Run(test.architecture, func(t *testing.T) {
+			spec := model.Spec{CommonSpec: model.CommonSpec{
+				Architecture: test.architecture, EmbeddingLength: 8,
+			}, AttentionSpec: model.AttentionSpec{HeadCount: 2},
+				RecurrentSpec: model.RecurrentSpec{
+					SSMInnerSize: 6, SSMStateSize: 3, SSMGroupCount: 1,
+					SSMConvKernel: 4, WKVHeadSize: 4, TokenShiftCount: 2,
+					KDAHeadDim: 3, ShortConvCacheLength: 4,
+				},
+			}
+			info := model.LayerWeights{Recurrent: test.recurrent}
+			first, second, err := recurrentPrimaryStateShapes(spec, 0, info)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first.Rank == 0 || second.Rank == 0 {
+				t.Fatalf("state shapes = %v, %v", first.Slice(), second.Slice())
+			}
+		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 
 	"llamacpp2go/internal/cuda/driver"
@@ -20,11 +21,17 @@ type deviceKVCache struct {
 	owner      *deviceCacheOwner
 	Keys       []executor.DeviceValue
 	Values     []executor.DeviceValue
+	States     []map[string]deviceLayerState
 	Pages      []deviceKVPage
 	PageTokens uint32
 	Tokens     uint32
 	Position   uint32
 	Logits     []float32
+}
+
+type deviceLayerState struct {
+	Mode  CacheStateMode
+	Value executor.DeviceValue
 }
 
 // deviceCacheOwner: shared fused-execution allocation owner.
@@ -36,6 +43,19 @@ type deviceCacheOwner struct {
 
 func newDeviceCacheOwner(outputs *executor.RetainedOutputs, refs int) *deviceCacheOwner {
 	return &deviceCacheOwner{outputs: outputs, refs: refs}
+}
+
+func (o *deviceCacheOwner) retain() bool {
+	if o == nil {
+		return false
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.refs <= 0 || o.outputs == nil {
+		return false
+	}
+	o.refs++
+	return true
 }
 
 func (o *deviceCacheOwner) release(ctx context.Context) error {
@@ -111,34 +131,59 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
 	for layerIndex := range cache.Keys {
-		recurrent := r.weights.Layers[layerIndex].Recurrent
+		recurrent := layerUsesRecurrentPrimaryCache(
+			r.spec, layerIndex, r.weights.Layers[layerIndex],
+		)
 		if recurrent {
-			continue
+			// Recurrent primary state: position-independent.
+		} else {
+			for _, value := range []*executor.DeviceValue{
+				&cache.Keys[layerIndex],
+				&cache.Values[layerIndex],
+			} {
+				if err := shiftDeviceTokenState(value, cache.Tokens, discard); err != nil {
+					return fmt.Errorf("inference: layer %d device cache: %w", layerIndex, err)
+				}
+			}
 		}
-		for _, value := range []*executor.DeviceValue{
-			&cache.Keys[layerIndex],
-			&cache.Values[layerIndex],
-		} {
-			if value.Shape.Rank != 3 ||
-				value.Shape.Dims[2] != uint64(cache.Tokens) {
-				return fmt.Errorf(
-					"inference: layer %d device cache shape %v does not contain %d tokens",
-					layerIndex,
-					value.Shape.Slice(),
-					cache.Tokens,
-				)
+		if layerIndex < len(cache.States) {
+			for name, state := range cache.States[layerIndex] {
+				if state.Mode != CacheStateToken {
+					continue
+				}
+				if err := shiftDeviceTokenState(&state.Value, cache.Tokens, discard); err != nil {
+					return fmt.Errorf("inference: layer %d state %q: %w", layerIndex, name, err)
+				}
+				cache.States[layerIndex][name] = state
 			}
-			stride := value.Shape.Dims[0] * value.Shape.Dims[1]
-			offset := discard * stride * 4
-			if uint64(value.Pointer) > math.MaxUint64-offset {
-				return errors.New("inference: shifted device cache pointer overflows")
-			}
-			value.Pointer += driver.DevicePtr(offset)
-			value.Shape.Dims[2] = remaining
 		}
 	}
 	cache.Tokens = uint32(remaining)
 	return rebuildDeviceCachePages(cache, cache.PageTokens)
+}
+
+func shiftDeviceTokenState(
+	value *executor.DeviceValue,
+	tokens uint32,
+	discard uint64,
+) error {
+	if value.Shape.Rank != 3 || value.Shape.Dims[2] != uint64(tokens) {
+		return fmt.Errorf(
+			"shape %v does not contain %d tokens",
+			value.Shape.Slice(), tokens,
+		)
+	}
+	stride := value.Shape.Dims[0] * value.Shape.Dims[1]
+	if stride > math.MaxUint64/4 || discard > math.MaxUint64/(stride*4) {
+		return errors.New("shifted device cache offset overflows")
+	}
+	offset := discard * stride * 4
+	if uint64(value.Pointer) > math.MaxUint64-offset {
+		return errors.New("shifted device cache pointer overflows")
+	}
+	value.Pointer += driver.DevicePtr(offset)
+	value.Shape.Dims[2] = uint64(tokens) - discard
+	return nil
 }
 
 func (r *Runner) compactDeviceCacheForAppend(
@@ -181,8 +226,17 @@ func (r *Runner) compactDeviceCacheForAppend(
 		return nil, errors.New("inference: device cache layer count differs")
 	}
 	copies := make([]executor.DeviceCopy, 0, len(cache.Keys)*2)
+	type stateCopyTarget struct {
+		layer int
+		name  string
+		mode  CacheStateMode
+	}
+	stateTargets := make([]stateCopyTarget, 0)
+	stateCopies := make([]executor.DeviceCopy, 0)
 	for layerIndex := range cache.Keys {
-		recurrent := r.weights.Layers[layerIndex].Recurrent
+		recurrent := layerUsesRecurrentPrimaryCache(
+			r.spec, layerIndex, r.weights.Layers[layerIndex],
+		)
 		for _, item := range []struct {
 			label string
 			value executor.DeviceValue
@@ -207,7 +261,32 @@ func (r *Runner) compactDeviceCacheForAppend(
 			}
 			copies = append(copies, copySpec)
 		}
+		if layerIndex < len(cache.States) && len(cache.States[layerIndex]) != 0 {
+			names := make([]string, 0, len(cache.States[layerIndex]))
+			for name := range cache.States[layerIndex] {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				state := cache.States[layerIndex][name]
+				copySpec, copyErr := deviceCacheRangeCopy(
+					state.Value, cache.Tokens, keep, discard,
+					state.Mode == CacheStateFixed,
+				)
+				if copyErr != nil {
+					return nil, fmt.Errorf(
+						"inference: layer %d device cache state %q: %w",
+						layerIndex, name, copyErr,
+					)
+				}
+				stateCopies = append(stateCopies, copySpec)
+				stateTargets = append(stateTargets, stateCopyTarget{
+					layer: layerIndex, name: name, mode: state.Mode,
+				})
+			}
+		}
 	}
+	copies = append(copies, stateCopies...)
 	outputs, values, err := r.cuda.CopyDeviceValues(ctx, copies)
 	if err != nil {
 		return nil, err
@@ -216,6 +295,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 		owner:      newDeviceCacheOwner(outputs, 1),
 		Keys:       make([]executor.DeviceValue, len(cache.Keys)),
 		Values:     make([]executor.DeviceValue, len(cache.Values)),
+		States:     make([]map[string]deviceLayerState, len(cache.States)),
 		Tokens:     cache.Tokens - discard,
 		Position:   cache.Position,
 		PageTokens: cache.PageTokens,
@@ -223,6 +303,15 @@ func (r *Runner) compactDeviceCacheForAppend(
 	for index := range next.Keys {
 		next.Keys[index] = values[2*index]
 		next.Values[index] = values[2*index+1]
+	}
+	stateOffset := 2 * len(next.Keys)
+	for index, target := range stateTargets {
+		if next.States[target.layer] == nil {
+			next.States[target.layer] = make(map[string]deviceLayerState)
+		}
+		next.States[target.layer][target.name] = deviceLayerState{
+			Mode: target.mode, Value: values[stateOffset+index],
+		}
 	}
 	if err := rebuildDeviceCachePages(next, next.PageTokens); err != nil {
 		_ = next.Release(context.Background())
@@ -330,9 +419,15 @@ type deviceBatchGraph struct {
 	logits       *tensor.Tensor
 	keys         []*tensor.Tensor
 	values       []*tensor.Tensor
+	states       []map[string]deviceGraphState
 	pastTokens   uint32
 	nextPosition uint32
 	tokenCount   uint32
+}
+
+type deviceGraphState struct {
+	mode  CacheStateMode
+	value *tensor.Tensor
 }
 
 // forwardDeviceCachedBatchLocked: one graph, variable independent branches.
@@ -359,6 +454,16 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		outputs = append(outputs, graph.logits)
 		for layer := range graph.keys {
 			outputs = append(outputs, graph.keys[layer], graph.values[layer])
+			if len(graph.states[layer]) != 0 {
+				names := make([]string, 0, len(graph.states[layer]))
+				for name := range graph.states[layer] {
+					names = append(names, name)
+				}
+				sort.Strings(names)
+				for _, name := range names {
+					outputs = append(outputs, graph.states[layer][name].value)
+				}
+			}
 		}
 	}
 	if err := builder.Err(); err != nil {
@@ -383,6 +488,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		cache := &deviceKVCache{
 			Keys:       make([]executor.DeviceValue, len(graph.keys)),
 			Values:     make([]executor.DeviceValue, len(graph.values)),
+			States:     make([]map[string]deviceLayerState, len(graph.states)),
 			Tokens:     graph.pastTokens + graph.tokenCount,
 			Position:   graph.nextPosition + graph.tokenCount,
 			PageTokens: r.cachePageTokens,
@@ -397,6 +503,19 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 			cache.Values[layer], ok = retained.Value(graph.values[layer])
 			if !ok {
 				return fail(fmt.Errorf("inference: missing retained value for branch %d layer %d", index, layer))
+			}
+			if len(graph.states[layer]) != 0 {
+				cache.States[layer] = make(map[string]deviceLayerState, len(graph.states[layer]))
+				for name, state := range graph.states[layer] {
+					value, present := retained.Value(state.value)
+					if !present {
+						return fail(fmt.Errorf(
+							"inference: missing retained state %q for branch %d layer %d",
+							name, index, layer,
+						))
+					}
+					cache.States[layer][name] = deviceLayerState{Mode: state.mode, Value: value}
+				}
 			}
 		}
 		if pageErr := rebuildDeviceCachePages(cache, cache.PageTokens); pageErr != nil {
@@ -530,6 +649,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
+	states := make([]map[string]deviceGraphState, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
 		graphWeights, layerFeeds, layerErr := r.layerDeviceInputs(builder, info)
 		if layerErr != nil {
@@ -592,34 +712,73 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			continue
 		}
-		var pastKey, pastValue *tensor.Tensor
+		if r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe" {
+			pastKey, pastValue, _, _, inputErr := r.deviceBatchLayerCacheInputs(
+				builder, prefix, layerIndex, info, past, hostFeeds, deviceFeeds,
+			)
+			if inputErr != nil {
+				return fail(inputErr)
+			}
+			result, buildErr := model.BuildLFM2BlockCached(
+				builder, current, r.spec, graphWeights, positions, info.Recurrent,
+				pastKey, pastValue, uint32(layerIndex),
+			)
+			if buildErr != nil {
+				return fail(buildErr)
+			}
+			current = result.Output
+			keys[layerIndex], values[layerIndex] = result.Key, result.Value
+			continue
+		}
+		var pastKey, pastValue, pastConvState, pastSSMState *tensor.Tensor
 		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
 			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
 			pastKey, pastValue = keys[source], values[source]
-		} else if past != nil {
-			pastKey = builder.Input(
-				fmt.Sprintf("%sblk.%d.cache_key", prefix, layerIndex), dtype.F32, past.Keys[layerIndex].Shape,
-			)
-			pastValue = builder.Input(
-				fmt.Sprintf("%sblk.%d.cache_value", prefix, layerIndex), dtype.F32, past.Values[layerIndex].Shape,
-			)
-			deviceFeeds[pastKey] = past.Keys[layerIndex].Pointer
-			deviceFeeds[pastValue] = past.Values[layerIndex].Pointer
+		} else {
+			pastKey, pastValue, pastConvState, pastSSMState, layerErr =
+				r.deviceBatchLayerCacheInputs(
+					builder, prefix, layerIndex, info, past, hostFeeds, deviceFeeds,
+				)
+			if layerErr != nil {
+				return fail(layerErr)
+			}
 		}
 		if tempErr := addAttentionTemperatureInput(
 			builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights,
 		); tempErr != nil {
 			return fail(tempErr)
 		}
-		result, buildErr := model.BuildDenseBlockCachedForLayer(
-			builder, current, r.spec, graphWeights, positions,
-			pastKey, pastValue, uint32(layerIndex),
+		var (
+			result   model.DenseBlockResult
+			buildErr error
 		)
+		if r.spec.Profile().Has(model.ArchitectureRecurrent) {
+			result, buildErr = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+				Builder: builder, Input: current, Spec: r.spec, Weights: graphWeights,
+				Positions: positions, TokenRows: rows, PastKey: pastKey, PastValue: pastValue,
+				PastConvState: pastConvState, PastSSMState: pastSSMState,
+				Layer: uint32(layerIndex), Recurrent: info.Recurrent,
+			})
+		} else {
+			result, buildErr = model.BuildDenseBlockCachedForLayer(
+				builder, current, r.spec, graphWeights, positions,
+				pastKey, pastValue, uint32(layerIndex),
+			)
+		}
 		if buildErr != nil {
 			return fail(buildErr)
 		}
 		current = result.Output
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
+		if len(result.States)+len(result.FixedStates) != 0 {
+			states[layerIndex] = make(map[string]deviceGraphState, len(result.States)+len(result.FixedStates))
+			for name, value := range result.States {
+				states[layerIndex][name] = deviceGraphState{mode: CacheStateToken, value: value}
+			}
+			for name, value := range result.FixedStates {
+				states[layerIndex][name] = deviceGraphState{mode: CacheStateFixed, value: value}
+			}
+		}
 	}
 	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {
@@ -653,10 +812,139 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		logits = builder.Scale(logits, scale)
 	}
 	return deviceBatchGraph{
-		logits: logits, keys: keys, values: values,
+		logits: logits, keys: keys, values: values, states: states,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(len(tokenIDs)),
 	}, nil
+}
+
+func (r *Runner) deviceBatchLayerCacheInputs(
+	builder *tensor.Builder,
+	prefix string,
+	layerIndex int,
+	info model.LayerWeights,
+	past *deviceKVCache,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, error) {
+	inputDevice := func(name string, value executor.DeviceValue) *tensor.Tensor {
+		input := builder.Input(name, dtype.F32, value.Shape)
+		deviceFeeds[input] = value.Pointer
+		return input
+	}
+	inputZero := func(name string, shape tensor.Shape) *tensor.Tensor {
+		input := builder.Input(name, dtype.F32, shape)
+		elements, _ := shape.Elements()
+		hostFeeds[input] = reference.Value{Shape: shape, Data: make([]float32, int(elements))}
+		return input
+	}
+	name := func(suffix string) string {
+		return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
+	}
+	if r.spec.Architecture == "falcon-h1" {
+		var pastKey, pastValue *tensor.Tensor
+		if past != nil {
+			pastKey = inputDevice(name("cache_key"), past.Keys[layerIndex])
+			pastValue = inputDevice(name("cache_value"), past.Values[layerIndex])
+		}
+		convShape, ssmShape, err := recurrentPrimaryStateShapes(r.spec, layerIndex, info)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		var convState, ssmState *tensor.Tensor
+		if past != nil && layerIndex < len(past.States) {
+			conv, hasConv := past.States[layerIndex]["conv_state"]
+			ssm, hasSSM := past.States[layerIndex]["ssm_state"]
+			if hasConv && hasSSM {
+				convState = inputDevice(name("conv_state"), conv.Value)
+				ssmState = inputDevice(name("ssm_state"), ssm.Value)
+			}
+		}
+		if convState == nil || ssmState == nil {
+			convState = inputZero(name("conv_state"), convShape)
+			ssmState = inputZero(name("ssm_state"), ssmShape)
+		}
+		return pastKey, pastValue, convState, ssmState, nil
+	}
+	if layerUsesRecurrentPrimaryCache(r.spec, layerIndex, info) {
+		if past != nil {
+			return inputDevice(name("state_0"), past.Keys[layerIndex]),
+				inputDevice(name("state_1"), past.Values[layerIndex]), nil, nil, nil
+		}
+		firstShape, secondShape, err := recurrentPrimaryStateShapes(r.spec, layerIndex, info)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		return inputZero(name("state_0"), firstShape),
+			inputZero(name("state_1"), secondShape), nil, nil, nil
+	}
+	if past == nil {
+		return nil, nil, nil, nil, nil
+	}
+	return inputDevice(name("cache_key"), past.Keys[layerIndex]),
+		inputDevice(name("cache_value"), past.Values[layerIndex]), nil, nil, nil
+}
+
+func layerUsesRecurrentPrimaryCache(
+	spec model.Spec,
+	layerIndex int,
+	info model.LayerWeights,
+) bool {
+	switch spec.Architecture {
+	case "mamba", "mamba2", "rwkv6", "rwkv6qwen2", "rwkv7", "arwkv7":
+		return true
+	case "jamba", "granitehybrid", "plamo2", "kimi-linear", "lfm2", "lfm2moe":
+		return info.Recurrent
+	case "nemotron_h", "nemotron_h_moe":
+		return spec.IsRecurrentLayer(uint32(layerIndex))
+	default:
+		return info.Recurrent
+	}
+}
+
+func recurrentPrimaryStateShapes(
+	spec model.Spec,
+	layerIndex int,
+	info model.LayerWeights,
+) (tensor.Shape, tensor.Shape, error) {
+	embedding := uint64(spec.EmbeddingLength)
+	switch spec.Architecture {
+	case "rwkv6":
+		return tensor.MustShape(embedding, 2), tensor.MustShape(
+			uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
+		), nil
+	case "rwkv6qwen2":
+		return tensor.MustShape(embedding), tensor.MustShape(
+			uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
+		), nil
+	case "rwkv7", "arwkv7":
+		return tensor.MustShape(embedding, uint64(spec.TokenShiftCount)), tensor.MustShape(
+			uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
+		), nil
+	case "kimi-linear":
+		if info.Recurrent {
+			return tensor.MustShape(uint64(spec.SSMConvKernel-1), 3*uint64(spec.SSMInnerSize)),
+				tensor.MustShape(
+					uint64(spec.KDAHeadDim), uint64(spec.KDAHeadDim), uint64(spec.HeadCount), 1,
+				), nil
+		}
+	case "falcon-h1", "mamba2", "granitehybrid", "nemotron_h", "nemotron_h_moe":
+		channels := uint64(spec.SSMInnerSize) +
+			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+		return tensor.MustShape(uint64(spec.SSMConvKernel-1), channels),
+			tensor.MustShape(uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)), nil
+	case "mamba", "jamba", "plamo2":
+		return tensor.MustShape(uint64(spec.SSMConvKernel-1), uint64(spec.SSMInnerSize)),
+			tensor.MustShape(uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)), nil
+	case "lfm2", "lfm2moe":
+		return tensor.MustShape(
+			uint64(spec.ShortConvCacheLength-1), uint64(spec.EmbeddingLength),
+		), tensor.MustShape(1), nil
+	}
+	return tensor.Shape{}, tensor.Shape{}, fmt.Errorf(
+		"inference: architecture %s layer %d has no recurrent device-state shape",
+		spec.Architecture, layerIndex,
+	)
 }
 
 func rebuildDeviceCachePages(

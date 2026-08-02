@@ -184,6 +184,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 		return LayerState{Mode: CacheStateToken, Value: value}
 	}
 	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: key, States: map[string]LayerState{
+		"positions":     {Mode: CacheStateToken, Value: reference.Value{Shape: tensor.MustShape(1, 1, 2), Data: []float32{0, 1}}},
 		"compressor_kv": state(8), "compressor_score": state(8),
 		"indexer_compressor_kv": state(16), "indexer_compressor_score": state(16),
 	}}}, Tokens: 2, Position: 2}
@@ -208,11 +209,19 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	cache.Layers[0].Key, cache.Layers[0].Value = key, key
 	for name, state := range cache.Layers[0].States {
 		width := state.Value.Shape.Dims[0]
-		state.Value, _ = reference.NewValue(tensor.MustShape(width, 1, 4), make([]float32, int(4*width)))
+		data := make([]float32, int(4*width))
+		if name == "positions" {
+			data = []float32{0, 1, 2, 3}
+		}
+		state.Value, _ = reference.NewValue(tensor.MustShape(width, 1, 4), data)
 		cache.Layers[0].States[name] = state
 	}
-	if _, err := runner.RemoveCacheRange(cache, 1, 1); err == nil {
-		t.Fatal("DeepSeek 4 middle-range cache edit was accepted")
+	edited, err := runner.RemoveCacheRange(cache, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := edited.Layers[0].States["positions"].Value.Data; !reflect.DeepEqual(got, []float32{0, 2, 3}) {
+		t.Fatalf("DeepSeek 4 edited positions = %v", got)
 	}
 	delete(cache.Layers[0].States, "indexer_compressor_score")
 	if err := runner.validateCache(cache); err == nil {

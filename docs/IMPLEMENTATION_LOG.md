@@ -891,8 +891,10 @@ WavTokenizer maps semantic token IDs to audio-feature frames through the pinned
 same-padded dense/depthwise convolutions, group normalization, PosNet residual
 and attention blocks, ConvNeXt GELU blocks, affine normalization, and output
 projection. The dedicated `DecodeWavTokenizer` API exposes the non-logit output
-contract. Strict weight validation, reference graph tests, and CUDA parity are
-covered.
+contract. `DecodeWavTokenizerWaveform` ports the pinned inverse spectral
+transform, Hann window, overlap-add, and envelope normalization to produce 24
+kHz mono samples. Strict weight validation, reference graph tests, waveform
+known answers, and CUDA parity are covered.
 
 ### Implemented: DeepSeek 4 compressed sparse/hyper-connection graph
 

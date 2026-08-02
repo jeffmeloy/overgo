@@ -3407,10 +3407,13 @@ models:
       - channel-group-normalization
       - convnext-gelu-projection
       - audio-feature-frame-output
+      - pinned-istft-waveform-synthesis
+      - fixed-24khz-mono-output
     validation:
       - synthetic-metadata-and-catalog
       - reference-topology-and-known-answer
       - full-cuda-decoder-differential
+      - waveform-dc-known-answer
+      - env-gated-real-waveform-decode
     limitations:
-      - no-waveform-postprocessor
       - real-model-fixture-pending

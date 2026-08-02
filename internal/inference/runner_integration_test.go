@@ -1057,6 +1057,30 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	}
 }
 
+func TestWavTokenizerDecodeWaveform(t *testing.T) {
+	modelPath := os.Getenv("LLAMACPP2GO_WAVTOKENIZER_MODEL")
+	if modelPath == "" {
+		t.Skip("LLAMACPP2GO_WAVTOKENIZER_MODEL is not set")
+	}
+	runner, err := OpenWithOptions(modelPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	audio, err := runner.DecodeWavTokenizerWaveform(context.Background(), []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(audio) != 320 {
+		t.Fatalf("WavTokenizer waveform length = %d, want 320", len(audio))
+	}
+	for index, sample := range audio {
+		if math.IsNaN(float64(sample)) || math.IsInf(float64(sample), 0) {
+			t.Fatalf("WavTokenizer waveform[%d] is not finite: %g", index, sample)
+		}
+	}
+}
+
 func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_COHERE2_MTP_MODEL")
 	if modelPath == "" {

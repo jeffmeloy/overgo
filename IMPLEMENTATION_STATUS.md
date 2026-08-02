@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- WavTokenizer pinned inverse-spectral waveform synthesis with 24 kHz mono output.
 - DFlash greedy/sampled block drafting with target verification, sampler rollback, cache advancement, and feature-cache resynchronization.
 - Eagle3 greedy/sampled drafting with target verification, sampler rollback, target-cache advancement, and feature resynchronization.
 - Gemma 4 Assistant greedy/sampled drafting with target verification, sampler rollback, cache advancement, and hidden-state resynchronization.
@@ -92,7 +93,7 @@ Work proceeds in dependency order. A blocked item does not stop later rows.
 | Architectures | Declared model graphs execute; marked real-model fixture validation remains in `compatibility.yaml` |
 | Vision | Several decoder graphs require external encoders, projectors, or grid coordinates |
 | Speculation | Integrated greedy/sampled coordinators; real target/draft pair validation remains fixture-gated |
-| Audio | WavTokenizer stops at feature frames; waveform postprocessing is absent |
+| Audio | WavTokenizer waveform synthesis complete; Gemma 3n audio remains absent from pinned mtmd execution |
 | Adapters | One aLoRA may be active; non-causal diffusion rejects aLoRA |
 | Platforms | Primary supported release remains Windows amd64 with NVIDIA CUDA |
 

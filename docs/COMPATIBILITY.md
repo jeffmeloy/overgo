@@ -160,5 +160,5 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `t5` | experimental | bounded-host, f32-preload, native-k-quant | pending-fixture | real-decoder-fixture-pending |
 | `t5encoder` | experimental | bounded-host, f32-preload, native-k-quant | validated: umt5-xxl-encoder-Q5_K_S.gguf | encoder-only, no-cross-attention |
 | `talkie` | experimental | bounded-host, f32-preload, native-quant, retained-device-cache | pending-fixture | - |
-| `wavtokenizer-dec` | experimental | host-f32-staging, f32-preload | pending-fixture | no-waveform-postprocessor, real-model-fixture-pending |
+| `wavtokenizer-dec` | experimental | host-f32-staging, f32-preload | pending-fixture | real-model-fixture-pending |
 | `xverse` | experimental | model-dependent | pending-fixture | - |

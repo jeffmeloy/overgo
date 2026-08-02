@@ -697,8 +697,11 @@ token, restore sampler state transactionally, and resynchronize target hidden.
 WavTokenizer decoder execution maps semantic token IDs to audio-feature frames
 through the strict upstream tensor catalog, six-stage PosNet, full non-causal
 single-head attention, dense/depthwise same-padding convolutions, GroupNorm,
-and ConvNeXt projection blocks. `DecodeWavTokenizer` is the explicit public
-entry point; `Forward` returns the same feature matrix for this architecture.
+and ConvNeXt projection blocks. `DecodeWavTokenizer` returns the feature matrix;
+`DecodeWavTokenizerWaveform` applies the pinned inverse spectral transform and
+overlap-add envelope to return 24 kHz mono samples. The standalone
+`WavTokenizerFeaturesToWaveform` postprocessor accepts an existing feature
+matrix. `Forward` retains the feature-matrix contract for this architecture.
 RWKV6 dual token shifts, WKV6 state, affine normalization, time-first mixing,
 per-head group normalization, and squared-ReLU channel mixing are
 synthetic-fixture and CUDA-differential validated.

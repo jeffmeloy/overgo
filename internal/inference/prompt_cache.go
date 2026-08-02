@@ -177,6 +177,11 @@ func projectedInputsSignature(inputs ProjectedInputs) [32]byte {
 		hashUint64(digest, uint64(block.Start))
 		hashUint64(digest, uint64(block.End))
 	}
+	hashUint64(digest, uint64(len(inputs.VisualExpertBlocks)))
+	for _, block := range inputs.VisualExpertBlocks {
+		hashUint64(digest, uint64(block.Start))
+		hashUint64(digest, uint64(block.End))
+	}
 	var result [32]byte
 	copy(result[:], digest.Sum(nil))
 	return result

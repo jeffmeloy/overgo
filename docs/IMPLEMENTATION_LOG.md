@@ -1342,14 +1342,17 @@ image-grid coordinate construction remain external. Metadata, strict catalog,
 graph ordering, and a reference/CUDA block differential pass; real-model
 validation is pending a local fixture.
 
-CogVLM now executes text or projected-visual batches with mandatory contiguous
+CogVLM now executes text and projected-visual ranges with mandatory contiguous
 fused QKV, normal RoPE with optional per-pair factors, RMSNorm, SwiGLU, optional
-tied output, and serializable KV caching. A visual batch requires one projected
-embedding per token and selects the complete parallel visual attention/FFN bank
-at every layer, matching the pinned whole-batch dispatch. Bounded-host,
-F32-preload, and native-quantized paths share the selection. Image encoding and
-projection remain external; metadata, catalog, admission, graph topology, and
-reference/CUDA block differentials pass.
+tied output, and serializable KV caching. Mixed prompts are split at declared
+visual ranges and retain one KV cache while selecting the complete text or
+visual attention/FFN bank for each chunk. Its internal projector implements
+fixed-size Pillow-bicubic preprocessing, patch/class/learned-position inputs,
+post-attention and post-FFN affine norms, GELU vision blocks, post-FC norm,
+GELU plus gated SiLU projection, and BOI/EOI embeddings. Native question/answer
+prompts place adjacent image streams after BOS. Strict metadata/catalog,
+prompt/routing tests, decoder block differentials, and an end-to-end CPU/CUDA
+projector differential pass; real-model validation remains fixture-gated.
 
 ERNIE 4.5 dense and MoE decoders now execute normal-RoPE attention followed by
 sequential dense or metadata-scheduled expert residuals. The MoE path supports

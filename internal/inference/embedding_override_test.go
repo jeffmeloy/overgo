@@ -41,6 +41,36 @@ func TestCogVLMVisualEmbeddingAdmission(t *testing.T) {
 	}
 }
 
+func TestCogVLMMixedVisualExpertBlockAdmission(t *testing.T) {
+	overrides := []EmbeddingOverride{
+		{TokenIndex: 1, Embedding: []float32{1}},
+		{TokenIndex: 2, Embedding: []float32{2}},
+		{TokenIndex: 4, Embedding: []float32{3}},
+	}
+	blocks, err := validateVisualExpertBlocks(6, []AttentionBlock{{Start: 4, End: 5}, {Start: 1, End: 3}}, overrides)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocks) != 2 || blocks[0] != (AttentionBlock{Start: 1, End: 3}) {
+		t.Fatalf("ordered blocks = %v", blocks)
+	}
+	for _, test := range []struct {
+		name      string
+		blocks    []AttentionBlock
+		overrides []EmbeddingOverride
+	}{
+		{name: "overlap", blocks: []AttentionBlock{{Start: 1, End: 3}, {Start: 2, End: 4}}, overrides: overrides},
+		{name: "missing", blocks: []AttentionBlock{{Start: 1, End: 3}}, overrides: overrides[:1]},
+		{name: "outside", blocks: []AttentionBlock{{Start: 1, End: 3}}, overrides: []EmbeddingOverride{{TokenIndex: 0, Embedding: []float32{1}}, {TokenIndex: 1, Embedding: []float32{2}}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := validateVisualExpertBlocks(6, test.blocks, test.overrides); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 func TestCogVLMVisualGraphWeightSelection(t *testing.T) {
 	builder := tensor.NewBuilder()
 	normal := builder.Input("text_qkv", dtype.F32, tensor.MustShape(2, 6))

@@ -1,10 +1,12 @@
 package inference
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -140,6 +142,7 @@ type ProjectedInputs struct {
 	MultiAxisPositions           *MultiAxisPositions
 	DeepstackEmbeddings          []reference.Value
 	BidirectionalAttentionBlocks []AttentionBlock
+	VisualExpertBlocks           []AttentionBlock
 }
 
 // Runner: correctness-first Llama/Qwen inference runtime with editable
@@ -1646,11 +1649,96 @@ func (r *Runner) ForwardCachedWithProjectedInputs(
 	if len(inputs.BidirectionalAttentionBlocks) > 0 && r.spec.Architecture != "gemma4" {
 		return reference.Value{}, nil, errors.New("inference: model does not support bidirectional attention blocks")
 	}
-	return r.forwardCachedWithEmbeddingOverridesLocked(
-		ctx, tokenIDs, cache, inputs.EmbeddingOverrides,
-		inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
-		inputs.BidirectionalAttentionBlocks,
-	)
+	return r.forwardCachedWithProjectedInputsLocked(ctx, tokenIDs, cache, inputs)
+}
+
+func (r *Runner) forwardCachedWithProjectedInputsLocked(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	cache *KVCache,
+	inputs ProjectedInputs,
+) (reference.Value, *KVCache, error) {
+	if len(inputs.VisualExpertBlocks) == 0 {
+		return r.forwardCachedWithEmbeddingOverridesLocked(
+			ctx, tokenIDs, cache, inputs.EmbeddingOverrides,
+			inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
+			inputs.BidirectionalAttentionBlocks,
+		)
+	}
+	if r.spec.Architecture != "cogvlm" {
+		return reference.Value{}, nil, errors.New("inference: visual expert blocks require CogVLM architecture")
+	}
+	if inputs.MultiAxisPositions != nil || len(inputs.DeepstackEmbeddings) > 0 || len(inputs.BidirectionalAttentionBlocks) > 0 {
+		return reference.Value{}, nil, errors.New("inference: CogVLM visual expert blocks cannot combine with MRoPE, deepstack, or bidirectional blocks")
+	}
+	blocks, err := validateVisualExpertBlocks(len(tokenIDs), inputs.VisualExpertBlocks, inputs.EmbeddingOverrides)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	overrides := make(map[uint32][]float32, len(inputs.EmbeddingOverrides))
+	for _, override := range inputs.EmbeddingOverrides {
+		overrides[override.TokenIndex] = override.Embedding
+	}
+	var hidden reference.Value
+	next := cache
+	start := 0
+	for _, block := range blocks {
+		if start < int(block.Start) {
+			hidden, next, err = r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs[start:int(block.Start)], next, nil, nil, nil, nil)
+			if err != nil {
+				return reference.Value{}, nil, err
+			}
+		}
+		chunk := tokenIDs[int(block.Start):int(block.End)]
+		chunkOverrides := make([]EmbeddingOverride, len(chunk))
+		for index := range chunk {
+			chunkOverrides[index] = EmbeddingOverride{TokenIndex: uint32(index), Embedding: overrides[block.Start+uint32(index)]}
+		}
+		hidden, next, err = r.forwardCachedWithEmbeddingOverridesLocked(ctx, chunk, next, chunkOverrides, nil, nil, nil)
+		if err != nil {
+			return reference.Value{}, nil, err
+		}
+		start = int(block.End)
+	}
+	if start < len(tokenIDs) {
+		hidden, next, err = r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs[start:], next, nil, nil, nil, nil)
+	}
+	return hidden, next, err
+}
+
+func validateVisualExpertBlocks(tokenCount int, blocks []AttentionBlock, overrides []EmbeddingOverride) ([]AttentionBlock, error) {
+	ordered := append([]AttentionBlock(nil), blocks...)
+	slices.SortFunc(ordered, func(a, b AttentionBlock) int { return cmp.Compare(a.Start, b.Start) })
+	expected := 0
+	previousEnd := uint32(0)
+	for index, block := range ordered {
+		if block.Start >= block.End || block.End > uint32(tokenCount) || index > 0 && block.Start < previousEnd {
+			return nil, fmt.Errorf("inference: invalid CogVLM visual expert block [%d,%d)", block.Start, block.End)
+		}
+		expected += int(block.End - block.Start)
+		previousEnd = block.End
+	}
+	if len(overrides) != expected {
+		return nil, fmt.Errorf("inference: CogVLM visual blocks cover %d tokens but have %d embeddings", expected, len(overrides))
+	}
+	seen := make(map[uint32]struct{}, len(overrides))
+	for _, override := range overrides {
+		inside := false
+		for _, block := range ordered {
+			if override.TokenIndex >= block.Start && override.TokenIndex < block.End {
+				inside = true
+				break
+			}
+		}
+		if !inside {
+			return nil, fmt.Errorf("inference: CogVLM visual embedding token %d is outside visual blocks", override.TokenIndex)
+		}
+		if _, ok := seen[override.TokenIndex]; ok {
+			return nil, fmt.Errorf("inference: duplicate CogVLM visual embedding for token index %d", override.TokenIndex)
+		}
+		seen[override.TokenIndex] = struct{}{}
+	}
+	return ordered, nil
 }
 
 func (r *Runner) forwardCachedLocked(
@@ -3480,11 +3568,7 @@ func (r *Runner) Generate(
 				cache = selectedPromptCache.Cache
 			} else {
 				inputs := *options.ProjectedInputs
-				hidden, cache, err = r.forwardCachedWithEmbeddingOverridesLocked(
-					ctx, ids, nil, inputs.EmbeddingOverrides,
-					inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
-					inputs.BidirectionalAttentionBlocks,
-				)
+				hidden, cache, err = r.forwardCachedWithProjectedInputsLocked(ctx, ids, nil, inputs)
 			}
 		} else if options.CachePrompt {
 			selectedPromptCache, cached = r.selectPromptCache(

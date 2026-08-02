@@ -1239,11 +1239,15 @@ models:
       - rmsnorm
       - swiglu
       - strict-parallel-visual-expert-catalog
+      - fixed-size-bicubic-image-projector
+      - post-norm-vision-transformer
+      - gated-boi-eoi-vision-adapter
+      - mixed-text-and-visual-expert-prompt-routing
+      - native-cogvlm-question-answer-prompt
+      - ordered-multi-image-soft-token-merge
+      - optional-cuda-projector-execution
       - optional-tied-output
       - serializable-prefix-editable-kv-cache
-    limitations:
-      - visual-embedding-mode-external
-      - image-encoder-external
     real_model_validation: pending-fixture
   qwen:
     status: experimental

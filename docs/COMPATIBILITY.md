@@ -54,7 +54,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `bloom` | experimental | model-dependent | pending-fixture | - |
 | `chatglm` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `codeshell` | experimental | model-dependent | pending-fixture | - |
-| `cogvlm` | experimental | bounded-host, f32-preload | pending-fixture | visual-embedding-mode-external, image-encoder-external |
+| `cogvlm` | experimental | bounded-host, f32-preload | pending-fixture | - |
 | `cohere2` | experimental | model-dependent | pending-fixture | - |
 | `cohere2moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `command-r` | experimental | model-dependent | pending-fixture | - |

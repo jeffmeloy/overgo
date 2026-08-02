@@ -154,9 +154,10 @@ The Go runner's `ForwardCachedWithMultimodalInputs` accepts projected visual
 token embeddings plus distinct temporal, height, width, and extra MRoPE
 coordinates. It returns the ordinary continuable cache; image encoding,
 projection, and grid construction remain caller-owned boundaries.
-CogVLM projected-visual calls use `ForwardCachedWithEmbeddingOverrides` and
-must replace every token in the chunk; the runtime then selects its visual
-attention and FFN bank for the complete batch.
+CogVLM projected prompts declare `visual_expert_blocks`. The runtime evaluates
+ordinary text and complete projected-visual ranges as consecutive chunks over
+one KV cache, selecting the matching text or visual attention/FFN bank for each
+chunk.
 
 The `generate` CLI accepts the same prompt-only boundary through
 `-projected-inputs <file.json>`. The file may contain embedding replacements,
@@ -167,7 +168,8 @@ four MRoPE coordinate arrays, and GGML-order deepstack tensors:
   "embedding_overrides": [{"token_index": 3, "embedding": [0.1, 0.2]}],
   "multi_axis_positions": [[0, 1], [0, 0], [0, 1], [0, 1]],
   "deepstack_embeddings": [{"shape": [2, 2], "data": [0.1, 0.2, 0.3, 0.4]}],
-  "bidirectional_attention_blocks": [{"start": 3, "end": 5}]
+  "bidirectional_attention_blocks": [{"start": 3, "end": 5}],
+  "visual_expert_blocks": [{"start": 3, "end": 5}]
 }
 ```
 
@@ -179,6 +181,8 @@ SigLIP ViT, per-stream window QFormer projection, and decoder deepstack injectio
 MiMo-VL runs dynamic Pillow-bicubic preprocessing, temporal-pair patch
 projection, grouped-query ViT blocks with row/column symmetric windows and
 attention sinks, and a 2x2 GELU merger.
+CogVLM runs fixed-size bicubic preprocessing, its post-norm vision transformer,
+gated projection, BOI/EOI embeddings, and mixed text/visual expert routing.
 Hunyuan-VL runs dynamic Pillow-bicubic
 preprocessing, learned-position ViT projection, convolutional spatial merge,
 row-newline prefix construction, and four-axis image coordinates. Qwen3.5 runs the native Qwen3-VL patch
@@ -199,7 +203,8 @@ installation. FFmpeg samples at `-video-fps`; `-video-max-frames` bounds work.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native
-audio turn. `-mmproj-cuda` keeps Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, Qwen3-VL, and Gemma 4 projector weights
+audio turn. `-mmproj-cuda` keeps CogVLM, Granite 4 Vision, Hunyuan-VL, Llama 4,
+MiMo-VL, Qwen3-VL, and Gemma 4 projector weights
 resident on the selected `-device` and executes their full image/video graphs
 on CUDA; Gemma 4 audio uses the same path.
 

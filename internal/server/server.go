@@ -3286,6 +3286,10 @@ func (h *Handler) convertProjectedPrompt(
 			Start: block.Start, End: block.End,
 		}
 	}
+	inputs.VisualExpertBlocks = make([]inference.AttentionBlock, len(projected.VisualBlocks))
+	for index, block := range projected.VisualBlocks {
+		inputs.VisualExpertBlocks[index] = inference.AttentionBlock{Start: block.Start, End: block.End}
+	}
 	hasMultiAxis := false
 	for _, axis := range projected.MultiAxisPositions {
 		hasMultiAxis = hasMultiAxis || len(axis) > 0

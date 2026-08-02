@@ -40,7 +40,7 @@ try {
         $previous = $env:LLAMACPP2GO_CUDA_TEST
         try {
             $env:LLAMACPP2GO_CUDA_TEST = "1"
-            go test ./internal/cuda/... -count=1
+            go test ./internal/cuda/... ./internal/model ./internal/projector -count=1
             if ($LASTEXITCODE -ne 0) {
                 throw "CUDA integration tests failed"
             }

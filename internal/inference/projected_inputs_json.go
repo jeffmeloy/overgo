@@ -14,6 +14,7 @@ type ProjectedInputsJSON struct {
 	MultiAxisPositions           *MultiAxisPositions              `json:"multi_axis_positions"`
 	DeepstackEmbeddings          []ProjectedTensorJSON            `json:"deepstack_embeddings"`
 	BidirectionalAttentionBlocks []AttentionBlock                 `json:"bidirectional_attention_blocks"`
+	VisualExpertBlocks           []AttentionBlock                 `json:"visual_expert_blocks"`
 }
 
 type ProjectedEmbeddingOverrideJSON struct {
@@ -33,6 +34,7 @@ func (document ProjectedInputsJSON) ProjectedInputs() (ProjectedInputs, error) {
 		BidirectionalAttentionBlocks: append(
 			[]AttentionBlock(nil), document.BidirectionalAttentionBlocks...,
 		),
+		VisualExpertBlocks: append([]AttentionBlock(nil), document.VisualExpertBlocks...),
 	}
 	result.EmbeddingOverrides = make([]EmbeddingOverride, len(document.EmbeddingOverrides))
 	for index, item := range document.EmbeddingOverrides {

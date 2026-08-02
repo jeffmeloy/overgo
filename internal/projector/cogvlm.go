@@ -1,0 +1,527 @@
+package projector
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"image"
+	"math"
+	"strings"
+
+	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/reference"
+	"llamacpp2go/internal/tokenizer"
+)
+
+const cogVLMProjectorType = "cogvlm"
+
+type CogVLMVisionSpec struct {
+	ImageSize           int
+	PatchSize           int
+	Hidden              int
+	Intermediate        int
+	OutputHidden        int
+	AdapterIntermediate int
+	Layers              int
+	Heads               int
+	LayerNormEpsilon    float32
+	ImageMean           [3]float32
+	ImageStd            [3]float32
+	GatedFFN            []bool
+}
+
+type CogVLMVisionRunner struct {
+	file *gguf.File
+	spec CogVLMVisionSpec
+	cuda *cogVLMVisionCUDA
+}
+
+type CogVLMVisionOpenOptions struct {
+	CUDA          bool
+	DeviceOrdinal int
+}
+
+func OpenCogVLMVision(path string) (*CogVLMVisionRunner, error) {
+	return OpenCogVLMVisionWithOptions(path, CogVLMVisionOpenOptions{})
+}
+
+func OpenCogVLMVisionWithOptions(path string, options CogVLMVisionOpenOptions) (*CogVLMVisionRunner, error) {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	fail := func(cause error) (*CogVLMVisionRunner, error) {
+		_ = file.Close()
+		return nil, cause
+	}
+	spec, err := ReadCogVLMVisionSpec(file)
+	if err != nil {
+		return fail(err)
+	}
+	if err := validateCogVLMVisionCatalog(file, spec); err != nil {
+		return fail(err)
+	}
+	runner := &CogVLMVisionRunner{file: file, spec: spec}
+	if options.CUDA {
+		runner.cuda, err = openCogVLMVisionCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		if err != nil {
+			return fail(fmt.Errorf("projector: initialize CogVLM CUDA: %w", err))
+		}
+	}
+	return runner, nil
+}
+
+func (r *CogVLMVisionRunner) Close() error {
+	if r == nil {
+		return nil
+	}
+	var closeErr error
+	if r.cuda != nil {
+		closeErr = r.cuda.Close()
+		r.cuda = nil
+	}
+	if r.file == nil {
+		return closeErr
+	}
+	file := r.file
+	r.file = nil
+	return errors.Join(closeErr, file.Close())
+}
+
+func (r *CogVLMVisionRunner) Spec() CogVLMVisionSpec {
+	if r == nil {
+		return CogVLMVisionSpec{}
+	}
+	return r.spec
+}
+
+func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
+	if file == nil {
+		return CogVLMVisionSpec{}, errors.New("projector: GGUF file is nil")
+	}
+	architecture, err := metadataString(file, "general.architecture")
+	if err != nil {
+		return CogVLMVisionSpec{}, err
+	}
+	projectorType, err := metadataString(file, "clip.projector_type")
+	if err != nil {
+		return CogVLMVisionSpec{}, err
+	}
+	if architecture != "clip" || projectorType != cogVLMProjectorType {
+		return CogVLMVisionSpec{}, fmt.Errorf("projector: architecture/type %q/%q is not clip/%s", architecture, projectorType, cogVLMProjectorType)
+	}
+	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
+	if err != nil || !hasVision {
+		if err != nil {
+			return CogVLMVisionSpec{}, err
+		}
+		return CogVLMVisionSpec{}, errors.New("projector: vision encoder is disabled")
+	}
+	values := make([]int, 7)
+	for index, key := range []string{
+		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
+		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
+		"clip.vision.attention.head_count",
+	} {
+		value, valueErr := metadataUint32(file, key)
+		if valueErr != nil {
+			return CogVLMVisionSpec{}, valueErr
+		}
+		values[index] = int(value)
+	}
+	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
+	if err != nil {
+		return CogVLMVisionSpec{}, err
+	}
+	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
+	if err != nil {
+		return CogVLMVisionSpec{}, err
+	}
+	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
+	if err != nil {
+		return CogVLMVisionSpec{}, err
+	}
+	up, ok := file.Tensor("mm.up.weight")
+	if !ok || up.Dimensions != 2 {
+		return CogVLMVisionSpec{}, errors.New("projector: CogVLM adapter up tensor is unavailable or invalid")
+	}
+	spec := CogVLMVisionSpec{
+		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
+		OutputHidden: values[4], AdapterIntermediate: int(up.Shape[1]), Layers: values[5], Heads: values[6],
+		LayerNormEpsilon: epsilon, GatedFFN: make([]bool, values[5]),
+	}
+	copy(spec.ImageMean[:], mean)
+	copy(spec.ImageStd[:], std)
+	for layer := range spec.GatedFFN {
+		spec.GatedFFN[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.ffn_gate.weight", layer))
+	}
+	if err := spec.validate(); err != nil {
+		return CogVLMVisionSpec{}, err
+	}
+	return spec, nil
+}
+
+func (s CogVLMVisionSpec) validate() error {
+	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 || s.OutputHidden <= 0 ||
+		s.AdapterIntermediate <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.Hidden%s.Heads != 0 ||
+		s.ImageSize%s.PatchSize != 0 || s.LayerNormEpsilon <= 0 || len(s.GatedFFN) != s.Layers {
+		return fmt.Errorf("projector: invalid CogVLM vision metadata: %+v", s)
+	}
+	for channel := range s.ImageStd {
+		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
+			return fmt.Errorf("projector: invalid CogVLM normalization channel %d", channel)
+		}
+	}
+	return nil
+}
+
+func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) error {
+	grid := spec.ImageSize / spec.PatchSize
+	required := map[string][]uint64{
+		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
+		"v.class_embd":           {uint64(spec.Hidden), 1},
+		"v.position_embd.weight": {uint64(spec.Hidden), uint64(grid*grid + 1)},
+		"mm.model.fc.weight":     {uint64(spec.Hidden), uint64(spec.OutputHidden)},
+		"mm.post_fc_norm.weight": {uint64(spec.OutputHidden)}, "mm.post_fc_norm.bias": {uint64(spec.OutputHidden)},
+		"mm.up.weight":   {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
+		"mm.gate.weight": {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
+		"mm.down.weight": {uint64(spec.AdapterIntermediate), uint64(spec.OutputHidden)},
+		"v.boi":          {uint64(spec.OutputHidden), 1, 1}, "v.eoi": {uint64(spec.OutputHidden), 1, 1},
+	}
+	if hasTensor(file, "v.patch_embd.bias") {
+		required["v.patch_embd.bias"] = []uint64{uint64(spec.Hidden)}
+	}
+	for layer := 0; layer < spec.Layers; layer++ {
+		prefix := fmt.Sprintf("v.blk.%d.", layer)
+		for name, shape := range map[string][]uint64{
+			"attn_qkv.weight": {uint64(spec.Hidden), uint64(3 * spec.Hidden)}, "attn_qkv.bias": {uint64(3 * spec.Hidden)},
+			"attn_out.weight": {uint64(spec.Hidden), uint64(spec.Hidden)}, "attn_out.bias": {uint64(spec.Hidden)},
+			"ffn_up.weight":   {uint64(spec.Hidden), uint64(spec.Intermediate)},
+			"ffn_down.weight": {uint64(spec.Intermediate), uint64(spec.Hidden)},
+			"ln1.weight":      {uint64(spec.Hidden)}, "ln1.bias": {uint64(spec.Hidden)},
+			"ln2.weight": {uint64(spec.Hidden)}, "ln2.bias": {uint64(spec.Hidden)},
+		} {
+			required[prefix+name] = shape
+		}
+		if spec.GatedFFN[layer] {
+			required[prefix+"ffn_gate.weight"] = []uint64{uint64(spec.Hidden), uint64(spec.Intermediate)}
+		}
+		for _, name := range []string{"ffn_up", "ffn_gate", "ffn_down"} {
+			full := prefix + name + ".bias"
+			if hasTensor(file, full) {
+				width := spec.Hidden
+				if name != "ffn_down" {
+					width = spec.Intermediate
+				}
+				required[full] = []uint64{uint64(width)}
+			}
+		}
+	}
+	for name, shape := range required {
+		info, ok := file.Tensor(name)
+		if !ok {
+			return fmt.Errorf("projector: missing tensor %q", name)
+		}
+		if int(info.Dimensions) != len(shape) {
+			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
+		}
+		for dimension, want := range shape {
+			if info.Shape[dimension] != want {
+				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
+			}
+		}
+	}
+	return nil
+}
+
+func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32, error) {
+	if source == nil {
+		return nil, errors.New("projector: image is nil")
+	}
+	if err := spec.validate(); err != nil {
+		return nil, err
+	}
+	bounds := source.Bounds()
+	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+		return nil, errors.New("projector: image bounds are empty")
+	}
+	resized := resizeImageBicubic(source, spec.ImageSize, spec.ImageSize)
+	grid, patchArea := spec.ImageSize/spec.PatchSize, spec.PatchSize*spec.PatchSize
+	pixels := make([]float32, grid*grid*3*patchArea)
+	for patchY := 0; patchY < grid; patchY++ {
+		for patchX := 0; patchX < grid; patchX++ {
+			row := (patchY*grid + patchX) * 3 * patchArea
+			for channel := 0; channel < 3; channel++ {
+				position := row + channel*patchArea
+				for y := 0; y < spec.PatchSize; y++ {
+					for x := 0; x < spec.PatchSize; x++ {
+						r, g, b, _ := resized.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
+						value := [3]uint32{r, g, b}[channel]
+						pixels[position] = (float32(value>>8)/255 - spec.ImageMean[channel]) / spec.ImageStd[channel]
+						position++
+					}
+				}
+			}
+		}
+	}
+	return pixels, nil
+}
+
+func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
+	if r == nil || r.file == nil {
+		return reference.Value{}, errors.New("projector: runner is closed")
+	}
+	pixels, err := PreprocessCogVLMImage(source, r.spec)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	if r.cuda != nil {
+		return r.encodeCUDA(ctx, pixels)
+	}
+	return r.encode(ctx, pixels)
+}
+
+func (r *CogVLMVisionRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizerAPI ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.BuildImagesPrompt(ctx, tokenizerAPI, []image.Image{source}, []string{beforeImage, afterImage}, false)
+}
+
+func (r *CogVLMVisionRunner) BuildImagesPrompt(
+	ctx context.Context,
+	tokenizerAPI ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	if tokenizerAPI == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: CogVLM image/text sequence is inconsistent")
+	}
+	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, "Question: "+strings.Join(text, "")+" Answer:")
+}
+
+func (r *CogVLMVisionRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizerAPI ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	if tokenizerAPI == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: CogVLM history sequence is inconsistent")
+	}
+	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, strings.Join(text, ""))
+}
+
+func (r *CogVLMVisionRunner) buildImagesPrompt(
+	ctx context.Context,
+	tokenizerAPI ImageTokenizer,
+	sources []image.Image,
+	text string,
+) (MultimodalPrompt, error) {
+	var embeddings []float32
+	visualTokens := 0
+	for index, source := range sources {
+		value, err := r.EncodeImage(ctx, source)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode CogVLM image %d: %w", index, err)
+		}
+		embeddings = append(embeddings, value.Data...)
+		visualTokens += int(value.Shape.Dims[1])
+	}
+	ids, err := tokenizerAPI.TokenizeText(text, true, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize CogVLM prompt: %w", err)
+	}
+	if len(ids) == 0 {
+		return MultimodalPrompt{}, errors.New("projector: CogVLM tokenizer returned no BOS token")
+	}
+	tokenIDs := make([]tokenizer.TokenID, 0, len(ids)+visualTokens)
+	tokenIDs = append(tokenIDs, ids[0])
+	tokenIDs = append(tokenIDs, make([]tokenizer.TokenID, visualTokens)...)
+	for index := 1; index <= visualTokens; index++ {
+		tokenIDs[index] = ids[0]
+	}
+	tokenIDs = append(tokenIDs, ids[1:]...)
+	indices := sequentialTokenIndices(1, visualTokens)
+	return MultimodalPrompt{
+		TokenIDs: tokenIDs, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
+		EmbeddingStart: 1, EmbeddingTokenIndices: indices,
+		VisualBlocks: []AttentionBlock{{Start: 1, End: uint32(visualTokens + 1)}},
+	}, nil
+}
+
+func (r *CogVLMVisionRunner) encode(ctx context.Context, pixels []float32) (reference.Value, error) {
+	grid := r.spec.ImageSize / r.spec.PatchSize
+	patchRows, patchWidth := grid*grid, 3*r.spec.PatchSize*r.spec.PatchSize
+	patchWeight, err := r.load(ctx, "v.patch_embd.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	patchBias, err := r.optionalBias(ctx, "v.patch_embd.bias")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	hidden := linear(pixels, patchWeight.Data, patchBias, patchRows, patchWidth, r.spec.Hidden)
+	class, err := r.load(ctx, "v.class_embd")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	hidden = append(hidden, class.Data...)
+	rows := patchRows + 1
+	positions, err := r.load(ctx, "v.position_embd.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	for index := range hidden {
+		hidden[index] += positions.Data[index]
+	}
+	for layer := 0; layer < r.spec.Layers; layer++ {
+		if err := r.runLayer(ctx, hidden, rows, layer); err != nil {
+			return reference.Value{}, err
+		}
+	}
+	hidden = hidden[:patchRows*r.spec.Hidden]
+	projection, err := r.load(ctx, "mm.model.fc.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	hidden = linear(hidden, projection.Data, nil, patchRows, r.spec.Hidden, r.spec.OutputHidden)
+	weight, bias, err := r.loadPair(ctx, "mm.post_fc_norm.weight", "mm.post_fc_norm.bias")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	normalized := make([]float32, len(hidden))
+	layerNorm(normalized, hidden, weight.Data, bias.Data, patchRows, r.spec.OutputHidden, 1e-5)
+	for index, value := range normalized {
+		normalized[index] = geluTanh(value)
+	}
+	up, gate, err := r.loadPair(ctx, "mm.up.weight", "mm.gate.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	upValues := linear(normalized, up.Data, nil, patchRows, r.spec.OutputHidden, r.spec.AdapterIntermediate)
+	gateValues := linear(normalized, gate.Data, nil, patchRows, r.spec.OutputHidden, r.spec.AdapterIntermediate)
+	for index, value := range gateValues {
+		gateValues[index] = value / (1 + float32(math.Exp(float64(-value)))) * upValues[index]
+	}
+	down, err := r.load(ctx, "mm.down.weight")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	projected := linear(gateValues, down.Data, nil, patchRows, r.spec.AdapterIntermediate, r.spec.OutputHidden)
+	boi, eoi, err := r.loadPair(ctx, "v.boi", "v.eoi")
+	if err != nil {
+		return reference.Value{}, err
+	}
+	output := make([]float32, 0, (patchRows+2)*r.spec.OutputHidden)
+	output = append(output, boi.Data...)
+	output = append(output, projected...)
+	output = append(output, eoi.Data...)
+	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(patchRows+2)), output)
+}
+
+func (r *CogVLMVisionRunner) runLayer(ctx context.Context, hidden []float32, rows, layer int) error {
+	prefix := fmt.Sprintf("v.blk.%d.", layer)
+	qkvWeight, qkvBias, err := r.loadPair(ctx, prefix+"attn_qkv.weight", prefix+"attn_qkv.bias")
+	if err != nil {
+		return err
+	}
+	qkv := linear(hidden, qkvWeight.Data, qkvBias.Data, rows, r.spec.Hidden, 3*r.spec.Hidden)
+	attention := visionAttention(qkv, rows, r.spec.Hidden, r.spec.Heads)
+	outWeight, outBias, err := r.loadPair(ctx, prefix+"attn_out.weight", prefix+"attn_out.bias")
+	if err != nil {
+		return err
+	}
+	attention = linear(attention, outWeight.Data, outBias.Data, rows, r.spec.Hidden, r.spec.Hidden)
+	ln1Weight, ln1Bias, err := r.loadPair(ctx, prefix+"ln1.weight", prefix+"ln1.bias")
+	if err != nil {
+		return err
+	}
+	norm := make([]float32, len(attention))
+	layerNorm(norm, attention, ln1Weight.Data, ln1Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
+	for index := range hidden {
+		hidden[index] += norm[index]
+	}
+	upWeight, err := r.load(ctx, prefix+"ffn_up.weight")
+	if err != nil {
+		return err
+	}
+	upBias, err := r.optionalBias(ctx, prefix+"ffn_up.bias")
+	if err != nil {
+		return err
+	}
+	up := linear(hidden, upWeight.Data, upBias, rows, r.spec.Hidden, r.spec.Intermediate)
+	if r.spec.GatedFFN[layer] {
+		gateWeight, err := r.load(ctx, prefix+"ffn_gate.weight")
+		if err != nil {
+			return err
+		}
+		gateBias, err := r.optionalBias(ctx, prefix+"ffn_gate.bias")
+		if err != nil {
+			return err
+		}
+		gate := linear(hidden, gateWeight.Data, gateBias, rows, r.spec.Hidden, r.spec.Intermediate)
+		for index, value := range gate {
+			up[index] *= geluTanh(value)
+		}
+	} else {
+		for index, value := range up {
+			up[index] = geluTanh(value)
+		}
+	}
+	downWeight, err := r.load(ctx, prefix+"ffn_down.weight")
+	if err != nil {
+		return err
+	}
+	downBias, err := r.optionalBias(ctx, prefix+"ffn_down.bias")
+	if err != nil {
+		return err
+	}
+	ffn := linear(up, downWeight.Data, downBias, rows, r.spec.Intermediate, r.spec.Hidden)
+	ln2Weight, ln2Bias, err := r.loadPair(ctx, prefix+"ln2.weight", prefix+"ln2.bias")
+	if err != nil {
+		return err
+	}
+	layerNorm(norm, ffn, ln2Weight.Data, ln2Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
+	for index := range hidden {
+		hidden[index] += norm[index]
+	}
+	return nil
+}
+
+func (r *CogVLMVisionRunner) optionalBias(ctx context.Context, name string) ([]float32, error) {
+	if !hasTensor(r.file, name) {
+		return nil, nil
+	}
+	value, err := r.load(ctx, name)
+	return value.Data, err
+}
+
+func (r *CogVLMVisionRunner) load(ctx context.Context, name string) (reference.Value, error) {
+	info, ok := r.file.Tensor(name)
+	if !ok {
+		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
+	}
+	return model.LoadHostTensor(ctx, r.file, info)
+}
+
+func (r *CogVLMVisionRunner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
+	a, err := r.load(ctx, first)
+	if err != nil {
+		return reference.Value{}, reference.Value{}, err
+	}
+	b, err := r.load(ctx, second)
+	return a, b, err
+}

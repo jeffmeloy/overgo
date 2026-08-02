@@ -40,6 +40,7 @@ type MultimodalPrompt struct {
 	EmbeddingTokenIndices []uint32
 	MultiAxisPositions    [4][]uint32
 	AttentionBlocks       []AttentionBlock
+	VisualBlocks          []AttentionBlock
 }
 
 type AttentionBlock struct {
@@ -115,6 +116,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case cogVLMProjectorType:
+		return OpenCogVLMVisionWithOptions(path, CogVLMVisionOpenOptions(options))
 	case mimoVLProjectorType:
 		return OpenMiMoVLWithOptions(path, MiMoVLOpenOptions(options))
 	case granite4VisionProjectorType:

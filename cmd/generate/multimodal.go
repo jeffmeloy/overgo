@@ -265,6 +265,10 @@ func projectedInputsForPrompt(
 			Start: block.Start, End: block.End,
 		}
 	}
+	projected.VisualExpertBlocks = make([]inference.AttentionBlock, len(prompt.VisualBlocks))
+	for index, block := range prompt.VisualBlocks {
+		projected.VisualExpertBlocks[index] = inference.AttentionBlock{Start: block.Start, End: block.End}
+	}
 	hasMultiAxis := false
 	for _, axis := range prompt.MultiAxisPositions {
 		hasMultiAxis = hasMultiAxis || len(axis) > 0

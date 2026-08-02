@@ -256,19 +256,8 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) error {
 			required[prefix+"attn_sinks"] = []uint64{uint64(spec.Heads)}
 		}
 	}
-	for name, shape := range required {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
-		}
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		for dimension, want := range shape {
-			if info.Shape[dimension] != want {
-				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-			}
-		}
+	if err := validateProjectorTensorShapes(file, required); err != nil {
+		return err
 	}
 	for _, name := range []string{"v.post_ln.bias", "mm.0.bias", "mm.2.bias"} {
 		if err := validateMiMoVLOptionalVector(file, name, map[string]int{

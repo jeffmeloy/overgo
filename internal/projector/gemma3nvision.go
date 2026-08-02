@@ -9,11 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
@@ -59,11 +55,7 @@ type Gemma3nVisionOpenOptions struct {
 	DeviceOrdinal int
 }
 
-type gemma3nVisionCUDA struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type gemma3nVisionCUDA = projectorCUDA
 
 func OpenGemma3nVision(path string) (*Gemma3nVisionRunner, error) {
 	return OpenGemma3nVisionWithOptions(path, Gemma3nVisionOpenOptions{})
@@ -110,26 +102,6 @@ func (r *Gemma3nVisionRunner) Close() error {
 	file := r.file
 	r.file = nil
 	return errors.Join(closeErr, file.Close())
-}
-
-func (c *gemma3nVisionCUDA) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
 }
 
 func (r *Gemma3nVisionRunner) Spec() Gemma3nVisionSpec {
@@ -279,35 +251,7 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 }
 
 func openGemma3nVisionCUDA(ctx context.Context, file *gguf.File, spec Gemma3nVisionSpec, ordinal int) (*gemma3nVisionCUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &gemma3nVisionCUDA{worker: worker}
-	fail := func(cause error) (*gemma3nVisionCUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
-	infos := make([]gguf.TensorInfo, len(spec.TensorNames))
-	for index, name := range spec.TensorNames {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
+	return openProjectorCUDA(ctx, file, spec.TensorNames, nil, ordinal)
 }
 
 func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([]float32, error) {
@@ -341,48 +285,10 @@ func (r *Gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Imag
 	}
 	builder := tensor.NewBuilder()
 	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: pixelsValue(input, pixels)}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		if r.cuda != nil {
-			node, pointer, loadErr := r.cuda.weights.Input(builder, name)
-			if loadErr != nil {
-				weightErr = loadErr
-				return nil
-			}
-			deviceFeeds[node] = pointer
-			return node
-		}
-		info, ok := r.file.Tensor(name)
-		if !ok {
-			weightErr = fmt.Errorf("tensor %q is unavailable", name)
-			return nil
-		}
-		node := builder.Input(name, dtype.F32, tensorInfoShape(info))
-		value, loadErr := model.LoadHostTensor(ctx, r.file, info)
-		if loadErr != nil {
-			weightErr = loadErr
-			return nil
-		}
-		hostFeeds[node] = value
-		return node
-	}
-	output := r.buildGraph(builder, input, weight, hostFeeds)
-	if weightErr != nil {
-		return reference.Value{}, fmt.Errorf("projector: build Gemma 3n graph: %w", weightErr)
-	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, fmt.Errorf("projector: build Gemma 3n graph: %w", err)
-	}
-	if r.cuda != nil {
-		results, executeErr := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-		if executeErr != nil {
-			return reference.Value{}, fmt.Errorf("projector: execute Gemma 3n CUDA graph: %w", executeErr)
-		}
-		return results[output], nil
-	}
-	results, err := reference.Execute([]*tensor.Tensor{output}, hostFeeds)
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	graph.hostFeeds[input] = pixelsValue(input, pixels)
+	output := r.buildGraph(builder, input, graph.weight, graph.hostFeeds)
+	results, err := graph.execute(output)
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("projector: execute Gemma 3n graph: %w", err)
 	}

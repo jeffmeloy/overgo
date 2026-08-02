@@ -6,40 +6,15 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
-type paddleOCRCuda struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type paddleOCRCuda = projectorCUDA
 
 func openPaddleOCRCuda(ctx context.Context, file *gguf.File, spec PaddleOCRSpec, ordinal int) (*paddleOCRCuda, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &paddleOCRCuda{worker: worker}
-	fail := func(cause error) (*paddleOCRCuda, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
 	names := []string{
 		"v.patch_embd.weight", "v.position_embd.weight",
 		"mm.input_norm.weight", "mm.input_norm.bias",
@@ -77,38 +52,7 @@ func openPaddleOCRCuda(ctx context.Context, file *gguf.File, spec PaddleOCRSpec,
 			}
 		}
 	}
-	infos := make([]gguf.TensorInfo, len(names))
-	for index, name := range names {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
-}
-
-func (c *paddleOCRCuda) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
+	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
 func (r *PaddleOCRRunner) encodeCUDA(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {
@@ -125,17 +69,8 @@ func (r *PaddleOCRRunner) encodeCUDA(ctx context.Context, input PaddleOCRImage) 
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		pixels: {Shape: pixels.Shape, Data: input.PixelValues},
 	}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, err := r.cuda.weights.Input(builder, name)
-		if err != nil {
-			weightErr = err
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	binding := r.cuda.bindWeights(builder)
+	weight := binding.weight
 	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
 		if !hasTensor(r.file, name) {
 			return value
@@ -210,8 +145,9 @@ func (r *PaddleOCRRunner) encodeCUDA(ctx context.Context, input PaddleOCRImage) 
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
 	fc1 = r.paddleOCRActivationGraph(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
-	if weightErr != nil {
-		return PaddleOCROutput{}, fmt.Errorf("projector: build PaddleOCR CUDA graph: %w", weightErr)
+	deviceFeeds, err := binding.result()
+	if err != nil {
+		return PaddleOCROutput{}, fmt.Errorf("projector: build PaddleOCR CUDA graph: %w", err)
 	}
 	if err := builder.Err(); err != nil {
 		return PaddleOCROutput{}, fmt.Errorf("projector: build PaddleOCR CUDA graph: %w", err)

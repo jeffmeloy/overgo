@@ -13,22 +13,11 @@ func BuildStep35MTPInput(
 	spec Spec,
 	offset uint32,
 ) (*tensor.Tensor, error) {
-	if builder == nil || tokenEmbedding == nil || targetHidden == nil || embeddingNorm == nil ||
-		hiddenNorm == nil || projection == nil {
-		return nil, errors.New("Step3.5 MTP input is nil")
-	}
-	if spec.Architecture != "step35" || offset >= spec.NextNPredictLayers ||
-		tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
-		tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New("Step3.5 MTP input shape is incompatible")
-	}
-	embedding := builder.WeightedRMSNorm(tokenEmbedding, embeddingNorm, spec.RMSNormEpsilon)
-	hidden := builder.WeightedRMSNorm(targetHidden, hiddenNorm, spec.RMSNormEpsilon)
-	output := builder.MulMat(projection, builder.Concat(embedding, hidden, 0))
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
-	return output, nil
+	return buildMTPInput(
+		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
+		spec.Profile().DraftKind == DraftStep35MTP && offset < spec.NextNPredictLayers, mtpWeightedRMS,
+		"Step3.5 MTP input is nil", "Step3.5 MTP input shape is incompatible",
+	)
 }
 
 // BuildStep35MTPBlockCached: selected full draft block.
@@ -41,7 +30,7 @@ func BuildStep35MTPBlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "step35" || offset >= spec.NextNPredictLayers {
+	if spec.Profile().DraftKind != DraftStep35MTP || offset >= spec.NextNPredictLayers {
 		return DenseBlockResult{}, errors.New("Step3.5 MTP head is invalid")
 	}
 	return BuildDenseBlockCachedForLayer(
@@ -57,20 +46,9 @@ func BuildStep35MTPOutputs(
 	spec Spec,
 	offset uint32,
 ) (logits, nextHidden *tensor.Tensor, err error) {
-	if builder == nil || input == nil || outputNorm == nil || output == nil {
-		return nil, nil, errors.New("Step3.5 MTP output is nil")
-	}
-	if spec.Architecture != "step35" || offset >= spec.NextNPredictLayers ||
-		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, nil, errors.New("Step3.5 MTP output shape is incompatible")
-	}
-	nextHidden = input
-	logits = builder.MulMat(
-		output,
-		builder.WeightedRMSNorm(input, outputNorm, spec.RMSNormEpsilon),
+	return buildMTPOutputs(
+		builder, input, outputNorm, output, spec,
+		spec.Profile().DraftKind == DraftStep35MTP && offset < spec.NextNPredictLayers, true, false, mtpWeightedRMS,
+		"Step3.5 MTP output is nil", "Step3.5 MTP output shape is incompatible",
 	)
-	if buildErr := builder.Err(); buildErr != nil {
-		return nil, nil, buildErr
-	}
-	return logits, nextHidden, nil
 }

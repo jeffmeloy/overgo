@@ -114,22 +114,7 @@ func TestExecutorLoRAMatchesReference(t *testing.T) {
 		moeUp:      {Shape: moeUp.Shape, Data: []float32{0, 0}},
 		moeDown:    {Shape: moeDown.Shape, Data: []float32{1, 2}},
 	}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(t, got[output].Data, want[output].Data, 1e-5)
-	}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 1e-5)...)
 }
 
 func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
@@ -163,22 +148,7 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 		indexerWeights: {Shape: indexerWeights.Shape, Data: []float32{2, 1, 1, 3}},
 	}
 	outputs := []*tensor.Tensor{transformed, indices, gathered, attention, causalAttention, indexerScores}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(t, got[output].Data, want[output].Data, 1e-5)
-	}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 1e-5)...)
 }
 
 func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
@@ -227,22 +197,7 @@ func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
 		selected: {Shape: selected.Shape, Data: []float32{1}},
 	}
 	outputs := []*tensor.Tensor{head, attention, moe}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(t, got[output].Data, want[output].Data, 2e-4)
-	}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 2e-4)...)
 }
 
 func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
@@ -288,22 +243,7 @@ func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
 			feeds[node] = patternedValue(node.Shape, int(node.ID%13)+3, 0.2, 0.1)
 		}
 	}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(t, got[output].Data, want[output].Data, 2e-4)
-	}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 2e-4)...)
 }
 
 func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
@@ -357,22 +297,7 @@ func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
 			feeds[node] = patternedValue(node.Shape, int(node.ID%13)+3, 0.2, 0.1)
 		}
 	}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(t, got[output].Data, want[output].Data, 3e-4)
-	}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 3e-4)...)
 }
 
 func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {

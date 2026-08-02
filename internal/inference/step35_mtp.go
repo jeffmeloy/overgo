@@ -358,27 +358,14 @@ func (r *Runner) multiHeadMTPLayerInputs(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	offset uint32,
 ) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	mtp := r.multiHeadMTPWeights()[offset]
-	if r.hasPreloadedWeights() {
-		return r.layerDeviceInputs(builder, mtp.Layer)
-	}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, mtp.Layer)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	prefix := fmt.Sprintf("blk.%d.", r.spec.BlockCount+offset)
-	graph, feeds, err := hostLayer.GraphInputs(builder, prefix)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	for node, value := range feeds {
-		hostFeeds[node] = value
-	}
-	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
+	return r.mtpLayerInputs(
+		ctx, builder, hostFeeds, r.multiHeadMTPWeights()[offset].Layer,
+		fmt.Sprintf("blk.%d.", r.spec.BlockCount+offset),
+	)
 }
 
 func (r *Runner) validateStep35MTP() error {
-	if r == nil || r.spec.Architecture != "step35" || r.spec.NextNPredictLayers == 0 ||
+	if r == nil || r.spec.Profile().DraftKind != model.DraftStep35MTP || r.spec.NextNPredictLayers == 0 ||
 		len(r.weights.Step35MTP) != int(r.spec.NextNPredictLayers) {
 		return errors.New("inference: model has no supported Step3.5 MTP heads")
 	}
@@ -386,7 +373,7 @@ func (r *Runner) validateStep35MTP() error {
 }
 
 func (r *Runner) validateHYV3MTP() error {
-	if r == nil || r.spec.Architecture != "hy_v3" || r.spec.NextNPredictLayers == 0 ||
+	if r == nil || r.spec.Profile().DraftKind != model.DraftHYV3MTP || r.spec.NextNPredictLayers == 0 ||
 		len(r.weights.HYV3MTP) != int(r.spec.NextNPredictLayers) {
 		return errors.New("inference: model has no supported HY-V3 MTP heads")
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
@@ -32,18 +31,13 @@ func (r *Runner) NewNextNMTPSession(
 	if err != nil {
 		return nil, err
 	}
-	width := int(hidden.Shape.Dims[0])
-	last := reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-	}
 	targetModel, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
 	}
 	position := effectiveCachePosition(cache)
 	session := &NextNMTPSession{
-		TrunkCache: cache, PendingHidden: last, MTPStart: position,
+		TrunkCache: cache, PendingHidden: lastHiddenColumn(hidden), MTPStart: position,
 		Position: position, targetModel: targetModel,
 	}
 	if cache.DSATopK != nil {
@@ -226,7 +220,7 @@ func (r *Runner) AdvanceNextNMTP(
 }
 
 func (r *Runner) validateNextNMTP() error {
-	if r == nil || (r.spec.Architecture != "glm4" && r.spec.Architecture != "glm4moe" && r.spec.Architecture != "exaone4" && r.spec.Architecture != "exaone-moe" && r.spec.Architecture != "mimo2" && r.spec.Architecture != "bailingmoe2" && r.spec.Architecture != "deepseek32" && r.spec.Architecture != "glm-dsa") || r.spec.NextNPredictLayers != 1 ||
+	if r == nil || r.spec.Profile().DraftKind != model.DraftNextNMTP || r.spec.NextNPredictLayers != 1 ||
 		len(r.weights.NextNMTP) != 1 {
 		return errors.New("inference: model has no supported NextN MTP block")
 	}
@@ -234,24 +228,8 @@ func (r *Runner) validateNextNMTP() error {
 }
 
 func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
-	if session == nil || session.TrunkCache == nil {
-		return errors.New("inference: NextN MTP session is invalid")
-	}
-	if err := r.validateCache(session.TrunkCache); err != nil {
-		return fmt.Errorf("inference: NextN MTP trunk cache: %w", err)
-	}
-	if session.PendingHidden.Shape != tensor.MustShape(uint64(r.spec.EmbeddingLength), 1) ||
-		session.Position == math.MaxUint32 {
-		return errors.New("inference: NextN MTP session state is incompatible")
-	}
-	base := effectiveCachePosition(session.TrunkCache)
-	if session.Position < base || session.Position < session.MTPStart ||
-		session.Layer.Key.Shape.Rank != session.Layer.Value.Shape.Rank ||
-		(session.Layer.Key.Shape.Rank == 0 && session.Position != session.MTPStart) ||
-		(session.Layer.Key.Shape.Rank != 0 &&
-			(session.Layer.Key.Shape != tensor.MustShape(uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), uint64(session.Position-session.MTPStart)) ||
-				session.Layer.Value.Shape != tensor.MustShape(uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), uint64(session.Position-session.MTPStart)))) {
-		return errors.New("inference: NextN MTP layer cache is incompatible")
+	if err := r.validateSingleHeadMTPSession(session, "NextN MTP", false); err != nil {
+		return err
 	}
 	indexerState, hasIndexerState := session.Layer.States["indexer_key"]
 	if r.spec.Architecture == "deepseek32" {
@@ -280,21 +258,7 @@ func (r *Runner) nextNMTPLayerInputs(
 	builder *tensor.Builder,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 ) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	mtp := &r.weights.NextNMTP[0]
-	if r.hasPreloadedWeights() {
-		return r.layerDeviceInputs(builder, mtp.Layer)
-	}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, mtp.Layer)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	prefix := fmt.Sprintf("blk.%d.", r.spec.BlockCount)
-	graph, feeds, err := hostLayer.GraphInputs(builder, prefix)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	for node, value := range feeds {
-		hostFeeds[node] = value
-	}
-	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
+	return r.mtpLayerInputs(
+		ctx, builder, hostFeeds, r.weights.NextNMTP[0].Layer, fmt.Sprintf("blk.%d.", r.spec.BlockCount),
+	)
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -105,20 +103,7 @@ func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {
 }
 
 func writeTinyDeepSeekOCR2(t *testing.T, patterned bool) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "deepseekocr2-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyDeepSeekOCR2Metadata(), tinyDeepSeekOCR2Tensors(patterned), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "deepseekocr2-mmproj.gguf", tinyDeepSeekOCR2Metadata(), tinyDeepSeekOCR2Tensors(patterned))
 }
 
 func tinyDeepSeekOCR2Metadata() []gguf.Metadata {

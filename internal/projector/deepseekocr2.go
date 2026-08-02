@@ -8,9 +8,7 @@ import (
 	"math"
 	"strings"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
@@ -152,7 +150,7 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 		}
 	}
 	grid := uint64(spec.ImageSize / spec.PatchSize)
-	for name, shape := range map[string][]uint64{
+	requiredShapes := map[string][]uint64{
 		"v.sam.pos_embd.weight":        {uint64(spec.SAMHidden), grid, grid},
 		"v.sam.patch_embd.weight":      {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.SAMHidden)},
 		"v.sam.patch_embd.bias":        {uint64(spec.SAMHidden)},
@@ -160,16 +158,9 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 		"v.resample_query_1024.weight": {uint64(spec.Hidden), uint64((spec.ImageSize / spec.PatchSize / 4) * (spec.ImageSize / spec.PatchSize / 4))},
 		"mm.model.fc.weight":           {uint64(spec.Hidden), uint64(spec.OutputHidden)},
 		"mm.model.fc.bias":             {uint64(spec.OutputHidden)},
-	} {
-		info, _ := file.Tensor(name)
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		for dimension, want := range shape {
-			if info.Shape[dimension] != want {
-				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-			}
-		}
+	}
+	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
+		return err
 	}
 	separator, _ := file.Tensor("v.view_seperator")
 	elements := uint64(1)
@@ -215,48 +206,10 @@ func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image,
 	builder := tensor.NewBuilder()
 	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(size), uint64(size)))
 	shared := DeepSeekOCRRunner{spec: r.spec.DeepSeekOCRSpec}
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: pixelsValue(input, shared.tilePixels(source))}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		if r.cuda != nil {
-			node, pointer, loadErr := r.cuda.weights.Input(builder, name)
-			if loadErr != nil {
-				weightErr = loadErr
-				return nil
-			}
-			deviceFeeds[node] = pointer
-			return node
-		}
-		info, ok := r.file.Tensor(name)
-		if !ok {
-			weightErr = fmt.Errorf("tensor %q is unavailable", name)
-			return nil
-		}
-		node := builder.Input(name, dtype.F32, tensorInfoShape(info))
-		value, loadErr := model.LoadHostTensor(ctx, r.file, info)
-		if loadErr != nil {
-			weightErr = loadErr
-			return nil
-		}
-		hostFeeds[node] = value
-		return node
-	}
-	output := r.buildGraph(builder, input, size, overview, weight, hostFeeds)
-	if weightErr != nil {
-		return reference.Value{}, weightErr
-	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, err
-	}
-	if r.cuda != nil {
-		results, executeErr := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-		if executeErr != nil {
-			return reference.Value{}, executeErr
-		}
-		return results[output], nil
-	}
-	results, err := reference.Execute([]*tensor.Tensor{output}, hostFeeds)
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	graph.hostFeeds[input] = pixelsValue(input, shared.tilePixels(source))
+	output := r.buildGraph(builder, input, size, overview, graph.weight, graph.hostFeeds)
+	results, err := graph.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}

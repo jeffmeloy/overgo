@@ -780,6 +780,42 @@ type functionSet struct {
 	mulMatQ6K           driver.Function
 }
 
+type quantKernelDescriptor struct {
+	label   string
+	getRows func(functionSet) driver.Function
+	mulMat  func(functionSet) driver.Function
+}
+
+var quantKernels = map[dtype.Type]quantKernelDescriptor{
+	dtype.Q8_0:   {"Q8_0", func(f functionSet) driver.Function { return f.getRowsQ8 }, func(f functionSet) driver.Function { return f.mulMatQ8 }},
+	dtype.Q8_1:   {"Q8_1", func(f functionSet) driver.Function { return f.getRowsQ81 }, func(f functionSet) driver.Function { return f.mulMatQ81 }},
+	dtype.Q8K:    {"Q8_K", func(f functionSet) driver.Function { return f.getRowsQ8K }, func(f functionSet) driver.Function { return f.mulMatQ8K }},
+	dtype.Q4_0:   {"Q4_0", func(f functionSet) driver.Function { return f.getRowsQ40 }, func(f functionSet) driver.Function { return f.mulMatQ40 }},
+	dtype.Q4_1:   {"Q4_1", func(f functionSet) driver.Function { return f.getRowsQ41 }, func(f functionSet) driver.Function { return f.mulMatQ41 }},
+	dtype.Q5_0:   {"Q5_0", func(f functionSet) driver.Function { return f.getRowsQ50 }, func(f functionSet) driver.Function { return f.mulMatQ50 }},
+	dtype.Q5_1:   {"Q5_1", func(f functionSet) driver.Function { return f.getRowsQ51 }, func(f functionSet) driver.Function { return f.mulMatQ51 }},
+	dtype.Q1_0:   {"Q1_0", func(f functionSet) driver.Function { return f.getRowsQ10 }, func(f functionSet) driver.Function { return f.mulMatQ10 }},
+	dtype.Q2_0:   {"Q2_0", func(f functionSet) driver.Function { return f.getRowsQ20 }, func(f functionSet) driver.Function { return f.mulMatQ20 }},
+	dtype.TQ2_0:  {"TQ2_0", func(f functionSet) driver.Function { return f.getRowsTQ20 }, func(f functionSet) driver.Function { return f.mulMatTQ20 }},
+	dtype.TQ1_0:  {"TQ1_0", func(f functionSet) driver.Function { return f.getRowsTQ10 }, func(f functionSet) driver.Function { return f.mulMatTQ10 }},
+	dtype.Q2K:    {"Q2_K", func(f functionSet) driver.Function { return f.getRowsQ2K }, func(f functionSet) driver.Function { return f.mulMatQ2K }},
+	dtype.Q3K:    {"Q3_K", func(f functionSet) driver.Function { return f.getRowsQ3K }, func(f functionSet) driver.Function { return f.mulMatQ3K }},
+	dtype.Q4K:    {"Q4_K", func(f functionSet) driver.Function { return f.getRowsQ4K }, func(f functionSet) driver.Function { return f.mulMatQ4K }},
+	dtype.Q5K:    {"Q5_K", func(f functionSet) driver.Function { return f.getRowsQ5K }, func(f functionSet) driver.Function { return f.mulMatQ5K }},
+	dtype.IQ4XS:  {"IQ4_XS", func(f functionSet) driver.Function { return f.getRowsIQ4XS }, func(f functionSet) driver.Function { return f.mulMatIQ4XS }},
+	dtype.IQ4NL:  {"IQ4_NL", func(f functionSet) driver.Function { return f.getRowsIQ4NL }, func(f functionSet) driver.Function { return f.mulMatIQ4NL }},
+	dtype.IQ2XXS: {"IQ2_XXS", func(f functionSet) driver.Function { return f.getRowsIQ2XXS }, func(f functionSet) driver.Function { return f.mulMatIQ2XXS }},
+	dtype.IQ2XS:  {"IQ2_XS", func(f functionSet) driver.Function { return f.getRowsIQ2XS }, func(f functionSet) driver.Function { return f.mulMatIQ2XS }},
+	dtype.IQ2S:   {"IQ2_S", func(f functionSet) driver.Function { return f.getRowsIQ2S }, func(f functionSet) driver.Function { return f.mulMatIQ2S }},
+	dtype.IQ3XXS: {"IQ3_XXS", func(f functionSet) driver.Function { return f.getRowsIQ3XXS }, func(f functionSet) driver.Function { return f.mulMatIQ3XXS }},
+	dtype.IQ3S:   {"IQ3_S", func(f functionSet) driver.Function { return f.getRowsIQ3S }, func(f functionSet) driver.Function { return f.mulMatIQ3S }},
+	dtype.IQ1S:   {"IQ1_S", func(f functionSet) driver.Function { return f.getRowsIQ1S }, func(f functionSet) driver.Function { return f.mulMatIQ1S }},
+	dtype.IQ1M:   {"IQ1_M", func(f functionSet) driver.Function { return f.getRowsIQ1M }, func(f functionSet) driver.Function { return f.mulMatIQ1M }},
+	dtype.MXFP4:  {"MXFP4", func(f functionSet) driver.Function { return f.getRowsMXFP4 }, func(f functionSet) driver.Function { return f.mulMatMXFP4 }},
+	dtype.NVFP4:  {"NVFP4", func(f functionSet) driver.Function { return f.getRowsNVFP4 }, func(f functionSet) driver.Function { return f.mulMatNVFP4 }},
+	dtype.Q6K:    {"Q6_K", func(f functionSet) driver.Function { return f.getRowsQ6K }, func(f functionSet) driver.Function { return f.mulMatQ6K }},
+}
+
 type blasState struct {
 	library *cublas.Library
 	handle  cublas.Handle
@@ -2282,61 +2318,7 @@ func launchNode(
 				unsafe.Pointer(&leftRows),
 				unsafe.Pointer(&rightRows),
 			}
-			function := functions.mulMatQ8
-			switch leftNode.Type {
-			case dtype.Q8_1:
-				function = functions.mulMatQ81
-			case dtype.Q8K:
-				function = functions.mulMatQ8K
-			case dtype.Q4_0:
-				function = functions.mulMatQ40
-			case dtype.Q4_1:
-				function = functions.mulMatQ41
-			case dtype.Q5_0:
-				function = functions.mulMatQ50
-			case dtype.Q5_1:
-				function = functions.mulMatQ51
-			case dtype.Q1_0:
-				function = functions.mulMatQ10
-			case dtype.Q2_0:
-				function = functions.mulMatQ20
-			case dtype.TQ2_0:
-				function = functions.mulMatTQ20
-			case dtype.TQ1_0:
-				function = functions.mulMatTQ10
-			case dtype.Q2K:
-				function = functions.mulMatQ2K
-			case dtype.Q3K:
-				function = functions.mulMatQ3K
-			case dtype.Q4K:
-				function = functions.mulMatQ4K
-			case dtype.Q5K:
-				function = functions.mulMatQ5K
-			case dtype.IQ4XS:
-				function = functions.mulMatIQ4XS
-			case dtype.IQ4NL:
-				function = functions.mulMatIQ4NL
-			case dtype.IQ2XXS:
-				function = functions.mulMatIQ2XXS
-			case dtype.IQ2XS:
-				function = functions.mulMatIQ2XS
-			case dtype.IQ2S:
-				function = functions.mulMatIQ2S
-			case dtype.IQ3XXS:
-				function = functions.mulMatIQ3XXS
-			case dtype.IQ3S:
-				function = functions.mulMatIQ3S
-			case dtype.IQ1S:
-				function = functions.mulMatIQ1S
-			case dtype.IQ1M:
-				function = functions.mulMatIQ1M
-			case dtype.MXFP4:
-				function = functions.mulMatMXFP4
-			case dtype.NVFP4:
-				function = functions.mulMatNVFP4
-			case dtype.Q6K:
-				function = functions.mulMatQ6K
-			}
+			function := quantKernels[leftNode.Type].mulMat(functions)
 			err = launch1D(state, function, count, args)
 			runtime.KeepAlive(left)
 			runtime.KeepAlive(right)
@@ -2418,61 +2400,7 @@ func launchNode(
 				if !nativeQuantizedType(leftNode.Type) || rightNode.Type != dtype.F32 {
 					return fmt.Errorf("%s grouped_mul_mat inputs are unsupported", leftNode.Type)
 				}
-				function := functions.mulMatQ8
-				switch leftNode.Type {
-				case dtype.Q8_1:
-					function = functions.mulMatQ81
-				case dtype.Q8K:
-					function = functions.mulMatQ8K
-				case dtype.Q4_0:
-					function = functions.mulMatQ40
-				case dtype.Q4_1:
-					function = functions.mulMatQ41
-				case dtype.Q5_0:
-					function = functions.mulMatQ50
-				case dtype.Q5_1:
-					function = functions.mulMatQ51
-				case dtype.Q1_0:
-					function = functions.mulMatQ10
-				case dtype.Q2_0:
-					function = functions.mulMatQ20
-				case dtype.TQ2_0:
-					function = functions.mulMatTQ20
-				case dtype.TQ1_0:
-					function = functions.mulMatTQ10
-				case dtype.Q2K:
-					function = functions.mulMatQ2K
-				case dtype.Q3K:
-					function = functions.mulMatQ3K
-				case dtype.Q4K:
-					function = functions.mulMatQ4K
-				case dtype.Q5K:
-					function = functions.mulMatQ5K
-				case dtype.IQ4XS:
-					function = functions.mulMatIQ4XS
-				case dtype.IQ4NL:
-					function = functions.mulMatIQ4NL
-				case dtype.IQ2XXS:
-					function = functions.mulMatIQ2XXS
-				case dtype.IQ2XS:
-					function = functions.mulMatIQ2XS
-				case dtype.IQ2S:
-					function = functions.mulMatIQ2S
-				case dtype.IQ3XXS:
-					function = functions.mulMatIQ3XXS
-				case dtype.IQ3S:
-					function = functions.mulMatIQ3S
-				case dtype.IQ1S:
-					function = functions.mulMatIQ1S
-				case dtype.IQ1M:
-					function = functions.mulMatIQ1M
-				case dtype.MXFP4:
-					function = functions.mulMatMXFP4
-				case dtype.NVFP4:
-					function = functions.mulMatNVFP4
-				case dtype.Q6K:
-					function = functions.mulMatQ6K
-				}
+				function := quantKernels[leftNode.Type].mulMat(functions)
 				rightRows := uint32(1)
 				args := []unsafe.Pointer{
 					unsafe.Pointer(&left), unsafe.Pointer(&right), unsafe.Pointer(&groupOutput),
@@ -2516,141 +2444,12 @@ func launchNode(
 			unsafe.Pointer(&count),
 		}
 		function := functions.getRows
-		if node.Inputs[0].Type == dtype.Q8_0 {
-			if width%32 != 0 {
-				return errors.New("Q8_0 get_rows width is not block aligned")
+		if descriptor, ok := quantKernels[node.Inputs[0].Type]; ok {
+			traits, _ := node.Inputs[0].Type.Traits()
+			if uint64(width)%traits.BlockSize != 0 {
+				return fmt.Errorf("%s get_rows width is not block aligned", descriptor.label)
 			}
-			function = functions.getRowsQ8
-		} else if node.Inputs[0].Type == dtype.Q8_1 {
-			if width%32 != 0 {
-				return errors.New("Q8_1 get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ81
-		} else if node.Inputs[0].Type == dtype.Q8K {
-			if width%256 != 0 {
-				return errors.New("Q8_K get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ8K
-		} else if node.Inputs[0].Type == dtype.Q4_0 {
-			if width%32 != 0 {
-				return errors.New("Q4_0 get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ40
-		} else if node.Inputs[0].Type == dtype.Q4_1 {
-			if width%32 != 0 {
-				return errors.New("Q4_1 get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ41
-		} else if node.Inputs[0].Type == dtype.Q5_0 {
-			if width%32 != 0 {
-				return errors.New("Q5_0 get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ50
-		} else if node.Inputs[0].Type == dtype.Q5_1 {
-			if width%32 != 0 {
-				return errors.New("Q5_1 get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ51
-		} else if node.Inputs[0].Type == dtype.Q1_0 {
-			if width%128 != 0 {
-				return errors.New("Q1_0 get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ10
-		} else if node.Inputs[0].Type == dtype.Q2_0 {
-			if width%64 != 0 {
-				return errors.New("Q2_0 get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ20
-		} else if node.Inputs[0].Type == dtype.TQ2_0 {
-			if width%256 != 0 {
-				return errors.New("TQ2_0 get_rows width is not block aligned")
-			}
-			function = functions.getRowsTQ20
-		} else if node.Inputs[0].Type == dtype.TQ1_0 {
-			if width%256 != 0 {
-				return errors.New("TQ1_0 get_rows width is not block aligned")
-			}
-			function = functions.getRowsTQ10
-		} else if node.Inputs[0].Type == dtype.Q2K {
-			if width%256 != 0 {
-				return errors.New("Q2_K get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ2K
-		} else if node.Inputs[0].Type == dtype.Q3K {
-			if width%256 != 0 {
-				return errors.New("Q3_K get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ3K
-		} else if node.Inputs[0].Type == dtype.Q4K {
-			if width%256 != 0 {
-				return errors.New("Q4_K get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ4K
-		} else if node.Inputs[0].Type == dtype.Q5K {
-			if width%256 != 0 {
-				return errors.New("Q5_K get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ5K
-		} else if node.Inputs[0].Type == dtype.IQ4XS {
-			if width%256 != 0 {
-				return errors.New("IQ4_XS get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ4XS
-		} else if node.Inputs[0].Type == dtype.IQ4NL {
-			if width%32 != 0 {
-				return errors.New("IQ4_NL get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ4NL
-		} else if node.Inputs[0].Type == dtype.IQ2XXS {
-			if width%256 != 0 {
-				return errors.New("IQ2_XXS get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ2XXS
-		} else if node.Inputs[0].Type == dtype.IQ2XS {
-			if width%256 != 0 {
-				return errors.New("IQ2_XS get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ2XS
-		} else if node.Inputs[0].Type == dtype.IQ2S {
-			if width%256 != 0 {
-				return errors.New("IQ2_S get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ2S
-		} else if node.Inputs[0].Type == dtype.IQ3XXS {
-			if width%256 != 0 {
-				return errors.New("IQ3_XXS get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ3XXS
-		} else if node.Inputs[0].Type == dtype.IQ3S {
-			if width%256 != 0 {
-				return errors.New("IQ3_S get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ3S
-		} else if node.Inputs[0].Type == dtype.IQ1S {
-			if width%256 != 0 {
-				return errors.New("IQ1_S get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ1S
-		} else if node.Inputs[0].Type == dtype.IQ1M {
-			if width%256 != 0 {
-				return errors.New("IQ1_M get_rows width is not block aligned")
-			}
-			function = functions.getRowsIQ1M
-		} else if node.Inputs[0].Type == dtype.MXFP4 {
-			if width%32 != 0 {
-				return errors.New("MXFP4 get_rows width is not block aligned")
-			}
-			function = functions.getRowsMXFP4
-		} else if node.Inputs[0].Type == dtype.NVFP4 {
-			if width%64 != 0 {
-				return errors.New("NVFP4 get_rows width is not block aligned")
-			}
-			function = functions.getRowsNVFP4
-		} else if node.Inputs[0].Type == dtype.Q6K {
-			if width%256 != 0 {
-				return errors.New("Q6_K get_rows width is not block aligned")
-			}
-			function = functions.getRowsQ6K
+			function = descriptor.getRows(functions)
 		}
 		err = launch1D(state, function, count, args)
 		runtime.KeepAlive(table)
@@ -3018,16 +2817,8 @@ func launchReferenceNode(
 }
 
 func nativeQuantizedType(value dtype.Type) bool {
-	switch value {
-	case dtype.Q4_0, dtype.Q4_1, dtype.Q5_0, dtype.Q5_1,
-		dtype.Q8_0, dtype.Q8_1, dtype.Q2K, dtype.Q3K, dtype.Q4K, dtype.Q5K, dtype.Q6K, dtype.Q8K,
-		dtype.IQ2XXS, dtype.IQ2XS, dtype.IQ2S, dtype.IQ3XXS, dtype.IQ3S, dtype.IQ1S, dtype.IQ1M,
-		dtype.IQ4NL, dtype.IQ4XS, dtype.MXFP4, dtype.NVFP4,
-		dtype.Q1_0, dtype.Q2_0, dtype.TQ1_0, dtype.TQ2_0:
-		return true
-	default:
-		return false
-	}
+	_, ok := quantKernels[value]
+	return ok
 }
 
 func launch1D(

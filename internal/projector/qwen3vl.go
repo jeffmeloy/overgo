@@ -314,21 +314,7 @@ func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) error {
 			}
 		}
 	}
-	for name, shape := range required {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
-		}
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		for dimension, want := range shape {
-			if info.Shape[dimension] != want {
-				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-			}
-		}
-	}
-	return nil
+	return validateProjectorTensorShapes(file, required)
 }
 
 func PreprocessQwen3VLImage(source image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {

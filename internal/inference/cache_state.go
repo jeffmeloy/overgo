@@ -527,28 +527,35 @@ func (r *Runner) cacheForAppendKeeping(
 	if cache == nil || incoming <= 0 {
 		return cache, nil
 	}
-	total := uint64(cache.Tokens) + uint64(incoming)
-	if total <= uint64(r.spec.ContextLength) || !contextShift {
-		return cache, nil
-	}
-	if uint64(incoming) > uint64(r.spec.ContextLength) {
-		return nil, fmt.Errorf(
-			"inference: new token count %d exceeds context length %d",
-			incoming,
-			r.spec.ContextLength,
-		)
-	}
-	discard, err := contextDiscardCount(
-		cache.Tokens,
-		incoming,
-		r.spec.ContextLength,
-		keep,
-		requestedDiscard,
+	discard, needed, err := planContextShift(
+		cache.Tokens, incoming, r.spec.ContextLength, keep, requestedDiscard, contextShift,
 	)
 	if err != nil {
 		return nil, err
 	}
+	if !needed {
+		return cache, nil
+	}
 	return r.RemoveCacheRange(cache, keep, discard)
+}
+
+func planContextShift(
+	tokens uint32,
+	incoming int,
+	contextLength, keep uint32,
+	requested int,
+	enabled bool,
+) (discard uint32, needed bool, err error) {
+	if incoming <= 0 || uint64(tokens)+uint64(incoming) <= uint64(contextLength) || !enabled {
+		return 0, false, nil
+	}
+	if uint64(incoming) > uint64(contextLength) {
+		return 0, false, fmt.Errorf(
+			"inference: new token count %d exceeds context length %d", incoming, contextLength,
+		)
+	}
+	discard, err = contextDiscardCount(tokens, incoming, contextLength, keep, requested)
+	return discard, err == nil, err
 }
 
 func contextDiscardCount(

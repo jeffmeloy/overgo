@@ -6,40 +6,15 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
-type mimoVLCUDA struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type mimoVLCUDA = projectorCUDA
 
 func openMiMoVLCUDA(ctx context.Context, file *gguf.File, spec MiMoVLSpec, ordinal int) (*mimoVLCUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &mimoVLCUDA{worker: worker}
-	fail := func(cause error) (*mimoVLCUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
 	names := []string{"v.patch_embd.weight", "v.patch_embd.weight.1", "v.post_ln.weight", "mm.0.weight", "mm.2.weight"}
 	for _, name := range []string{"v.post_ln.bias", "mm.0.bias", "mm.2.bias"} {
 		if hasTensor(file, name) {
@@ -64,38 +39,7 @@ func openMiMoVLCUDA(ctx context.Context, file *gguf.File, spec MiMoVLSpec, ordin
 			names = append(names, prefix+"attn_sinks")
 		}
 	}
-	infos := make([]gguf.TensorInfo, len(names))
-	for index, name := range names {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
-}
-
-func (c *mimoVLCUDA) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
+	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
 func (r *MiMoVLRunner) encodeCUDA(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
@@ -123,17 +67,8 @@ func (r *MiMoVLRunner) encodeCUDA(ctx context.Context, input MiMoVLInput) (MiMoV
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		input0: {Shape: input0.Shape, Data: pixels0}, input1: {Shape: input1.Shape, Data: pixels1},
 	}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, err := r.cuda.weights.Input(builder, name)
-		if err != nil {
-			weightErr = err
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	binding := r.cuda.bindWeights(builder)
+	weight := binding.weight
 	addOptional := func(input *tensor.Tensor, name string) *tensor.Tensor {
 		if hasTensor(r.file, name) {
 			return builder.Add(input, weight(name))
@@ -203,8 +138,9 @@ func (r *MiMoVLRunner) encodeCUDA(ctx context.Context, input MiMoVLInput) (MiMoV
 	fc1 = qwen3VLGELUTanh(builder, addOptional(fc1, "mm.0.bias"), hostFeeds)
 	output := builder.MulMat(weight("mm.2.weight"), fc1)
 	output = addOptional(output, "mm.2.bias")
-	if weightErr != nil {
-		return MiMoVLOutput{}, fmt.Errorf("projector: build MiMo-VL CUDA graph: %w", weightErr)
+	deviceFeeds, err := binding.result()
+	if err != nil {
+		return MiMoVLOutput{}, fmt.Errorf("projector: build MiMo-VL CUDA graph: %w", err)
 	}
 	if err := builder.Err(); err != nil {
 		return MiMoVLOutput{}, fmt.Errorf("projector: build MiMo-VL CUDA graph: %w", err)

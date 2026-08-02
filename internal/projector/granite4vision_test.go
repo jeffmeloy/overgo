@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -155,35 +153,11 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 }
 
 func writeTinyGranite4Vision(t *testing.T, tensors []gguf.TensorData) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "granite4-vision-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyGranite4VisionMetadata(), tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "granite4-vision-mmproj.gguf", tinyGranite4VisionMetadata(), tensors)
 }
 
 func rewriteGranite4VisionMetadata(t *testing.T, path string, metadata []gguf.Metadata, tensors []gguf.TensorData) {
-	t.Helper()
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	rewriteProjectorFixture(t, path, metadata, tensors)
 }
 
 func tinyGranite4VisionMetadata() []gguf.Metadata {

@@ -201,21 +201,7 @@ func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) error {
 		"v.patch_norm.3.bias":        {uint64(spec.Hidden)},
 		"mm.input_projection.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
 	}
-	for name, shape := range required {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
-		}
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		for dimension, want := range shape {
-			if info.Shape[dimension] != want {
-				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-			}
-		}
-	}
-	return nil
+	return validateProjectorTensorShapes(file, required)
 }
 
 func PreprocessGemma4Image(source image.Image, spec Gemma4Spec) (Gemma4Image, error) {

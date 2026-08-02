@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Shared projector CUDA/catalog/graph runtimes, prompt assembly, MTP session/sampling transactions, quant dispatch, server SSE/admission, cache planning, CLI model flags, and test fixtures; 3,000+ duplicate lines removed.
 - Single-pass cached target-layer input capture with incremental Eagle3 and DFlash feature resynchronization.
 - Gemma 4 Assistant projected image/audio target-prefix sessions.
 - Exact compatibility-manifest coverage for every registered architecture, enforced by the generator.

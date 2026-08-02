@@ -2,44 +2,18 @@ package projector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
-type cogVLMVisionCUDA struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type cogVLMVisionCUDA = projectorCUDA
 
 func openCogVLMVisionCUDA(ctx context.Context, file *gguf.File, spec CogVLMVisionSpec, ordinal int) (*cogVLMVisionCUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &cogVLMVisionCUDA{worker: worker}
-	fail := func(cause error) (*cogVLMVisionCUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
 	names := []string{
 		"v.patch_embd.weight", "v.class_embd", "v.position_embd.weight",
 		"mm.model.fc.weight", "mm.post_fc_norm.weight", "mm.post_fc_norm.bias",
@@ -65,58 +39,19 @@ func openCogVLMVisionCUDA(ctx context.Context, file *gguf.File, spec CogVLMVisio
 			}
 		}
 	}
-	infos := make([]gguf.TensorInfo, len(names))
-	for index, name := range names {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
+	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
-func (c *cogVLMVisionCUDA) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
-}
-
-func (r *CogVLMVisionRunner) encodeCUDA(ctx context.Context, pixelsData []float32) (reference.Value, error) {
+func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float32) (reference.Value, error) {
 	grid := r.spec.ImageSize / r.spec.PatchSize
 	patchRows, patchWidth := grid*grid, 3*r.spec.PatchSize*r.spec.PatchSize
 	rows := patchRows + 1
 	builder := tensor.NewBuilder()
 	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(patchRows)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{pixels: pixelsValue(pixels, pixelsData)}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, err := r.cuda.weights.Input(builder, name)
-		if err != nil {
-			weightErr = err
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	graph.hostFeeds[pixels] = pixelsValue(pixels, pixelsData)
+	weight := graph.weight
+	hostFeeds := graph.hostFeeds
 	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
 		if !hasTensor(r.file, name) {
 			return value
@@ -160,15 +95,9 @@ func (r *CogVLMVisionRunner) encodeCUDA(ctx context.Context, pixelsData []float3
 	boi := builder.Reshape(weight("v.boi"), uint64(r.spec.OutputHidden), 1)
 	eoi := builder.Reshape(weight("v.eoi"), uint64(r.spec.OutputHidden), 1)
 	output := builder.Concat(builder.Concat(boi, hidden, 1), eoi, 1)
-	if weightErr != nil {
-		return reference.Value{}, fmt.Errorf("projector: build CogVLM CUDA graph: %w", weightErr)
-	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, fmt.Errorf("projector: build CogVLM CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
+	results, err := graph.execute(output)
 	if err != nil {
-		return reference.Value{}, fmt.Errorf("projector: execute CogVLM CUDA graph: %w", err)
+		return reference.Value{}, fmt.Errorf("projector: execute CogVLM graph: %w", err)
 	}
 	return results[output], nil
 }

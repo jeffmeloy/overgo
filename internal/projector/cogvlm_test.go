@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -112,20 +110,7 @@ func TestCogVLMCUDAMatchesCPU(t *testing.T) {
 }
 
 func writeTinyCogVLM(t *testing.T, patterned bool) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "cogvlm-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyCogVLMMetadata(), tinyCogVLMTensors(patterned), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "cogvlm-mmproj.gguf", tinyCogVLMMetadata(), tinyCogVLMTensors(patterned))
 }
 
 func tinyCogVLMMetadata() []gguf.Metadata {

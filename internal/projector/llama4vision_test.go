@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -159,20 +157,7 @@ func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 }
 
 func writeTinyLlama4Vision(t *testing.T, tensors []gguf.TensorData) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "llama4-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyLlama4VisionMetadata(), tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "llama4-mmproj.gguf", tinyLlama4VisionMetadata(), tensors)
 }
 
 func tinyLlama4VisionMetadata() []gguf.Metadata {

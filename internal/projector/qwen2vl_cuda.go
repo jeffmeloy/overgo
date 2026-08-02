@@ -6,34 +6,13 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
 func openQwen2VLCUDA(ctx context.Context, file *gguf.File, spec Qwen2VLSpec, ordinal int) (*qwen3VLCUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &qwen3VLCUDA{worker: worker}
-	fail := func(cause error) (*qwen3VLCUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
 	names := []string{
 		"v.patch_embd.weight", "v.patch_embd.weight.1",
 		"mm.0.weight", "mm.0.bias", "mm.2.weight", "mm.2.bias",
@@ -55,21 +34,10 @@ func openQwen2VLCUDA(ctx context.Context, file *gguf.File, spec Qwen2VLSpec, ord
 			names = append(names, prefix+suffix)
 		}
 	}
-	infos := make([]gguf.TensorInfo, len(names))
-	for index, name := range names {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
+	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
-func (r *Qwen2VLRunner) encodeCUDA(ctx context.Context, input Qwen2VLImage) (Qwen2VLOutput, error) {
+func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qwen2VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
 	temporalWidth := 3 * patchArea
@@ -88,23 +56,14 @@ func (r *Qwen2VLRunner) encodeCUDA(ctx context.Context, input Qwen2VLImage) (Qwe
 	builder := tensor.NewBuilder()
 	input0 := builder.Input("pixel_values.0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
 	input1 := builder.Input("pixel_values.1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, err := r.cuda.weights.Input(builder, name)
-		if err != nil {
-			weightErr = err
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	weight := graph.weight
 	patch0 := builder.Reshape(weight("v.patch_embd.weight"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	patch1 := builder.Reshape(weight("v.patch_embd.weight.1"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1))
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		input0: {Shape: input0.Shape, Data: pixels0}, input1: {Shape: input1.Shape, Data: pixels1},
-	}
+	graph.hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
+	graph.hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
+	hostFeeds := graph.hostFeeds
 	if r.spec.PreLayerNorm {
 		hidden = builder.AffineLayerNorm(hidden, weight("v.pre_ln.weight"), weight("v.pre_ln.bias"), r.spec.LayerNormEpsilon)
 	}
@@ -163,15 +122,9 @@ func (r *Qwen2VLRunner) encodeCUDA(ctx context.Context, input Qwen2VLImage) (Qwe
 	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
-	if weightErr != nil {
-		return Qwen2VLOutput{}, fmt.Errorf("projector: build Qwen2-VL CUDA graph: %w", weightErr)
-	}
-	if err := builder.Err(); err != nil {
-		return Qwen2VLOutput{}, fmt.Errorf("projector: build Qwen2-VL CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
+	results, err := graph.execute(output)
 	if err != nil {
-		return Qwen2VLOutput{}, fmt.Errorf("projector: execute Qwen2-VL CUDA graph: %w", err)
+		return Qwen2VLOutput{}, fmt.Errorf("projector: execute Qwen2-VL graph: %w", err)
 	}
 	return Qwen2VLOutput{Embeddings: results[output], GridT: input.GridT, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
 }

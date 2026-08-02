@@ -5,12 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"strings"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -219,21 +216,7 @@ func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) error {
 			}
 		}
 	}
-	for name, shape := range required {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
-		}
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		for dimension, want := range shape {
-			if info.Shape[dimension] != want {
-				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-			}
-		}
-	}
-	return nil
+	return validateProjectorTensorShapes(file, required)
 }
 
 func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32, error) {
@@ -277,10 +260,7 @@ func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if r.cuda != nil {
-		return r.encodeCUDA(ctx, pixels)
-	}
-	return r.encode(ctx, pixels)
+	return r.encodeGraph(ctx, pixels)
 }
 
 func (r *CogVLMVisionRunner) BuildImagePrompt(
@@ -360,168 +340,4 @@ func (r *CogVLMVisionRunner) buildImagesPrompt(
 		EmbeddingStart: 1, EmbeddingTokenIndices: indices,
 		VisualBlocks: []AttentionBlock{{Start: 1, End: uint32(visualTokens + 1)}},
 	}, nil
-}
-
-func (r *CogVLMVisionRunner) encode(ctx context.Context, pixels []float32) (reference.Value, error) {
-	grid := r.spec.ImageSize / r.spec.PatchSize
-	patchRows, patchWidth := grid*grid, 3*r.spec.PatchSize*r.spec.PatchSize
-	patchWeight, err := r.load(ctx, "v.patch_embd.weight")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	patchBias, err := r.optionalBias(ctx, "v.patch_embd.bias")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	hidden := linear(pixels, patchWeight.Data, patchBias, patchRows, patchWidth, r.spec.Hidden)
-	class, err := r.load(ctx, "v.class_embd")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	hidden = append(hidden, class.Data...)
-	rows := patchRows + 1
-	positions, err := r.load(ctx, "v.position_embd.weight")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	for index := range hidden {
-		hidden[index] += positions.Data[index]
-	}
-	for layer := 0; layer < r.spec.Layers; layer++ {
-		if err := r.runLayer(ctx, hidden, rows, layer); err != nil {
-			return reference.Value{}, err
-		}
-	}
-	hidden = hidden[:patchRows*r.spec.Hidden]
-	projection, err := r.load(ctx, "mm.model.fc.weight")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	hidden = linear(hidden, projection.Data, nil, patchRows, r.spec.Hidden, r.spec.OutputHidden)
-	weight, bias, err := r.loadPair(ctx, "mm.post_fc_norm.weight", "mm.post_fc_norm.bias")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	normalized := make([]float32, len(hidden))
-	layerNorm(normalized, hidden, weight.Data, bias.Data, patchRows, r.spec.OutputHidden, 1e-5)
-	for index, value := range normalized {
-		normalized[index] = geluTanh(value)
-	}
-	up, gate, err := r.loadPair(ctx, "mm.up.weight", "mm.gate.weight")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	upValues := linear(normalized, up.Data, nil, patchRows, r.spec.OutputHidden, r.spec.AdapterIntermediate)
-	gateValues := linear(normalized, gate.Data, nil, patchRows, r.spec.OutputHidden, r.spec.AdapterIntermediate)
-	for index, value := range gateValues {
-		gateValues[index] = value / (1 + float32(math.Exp(float64(-value)))) * upValues[index]
-	}
-	down, err := r.load(ctx, "mm.down.weight")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	projected := linear(gateValues, down.Data, nil, patchRows, r.spec.AdapterIntermediate, r.spec.OutputHidden)
-	boi, eoi, err := r.loadPair(ctx, "v.boi", "v.eoi")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	output := make([]float32, 0, (patchRows+2)*r.spec.OutputHidden)
-	output = append(output, boi.Data...)
-	output = append(output, projected...)
-	output = append(output, eoi.Data...)
-	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(patchRows+2)), output)
-}
-
-func (r *CogVLMVisionRunner) runLayer(ctx context.Context, hidden []float32, rows, layer int) error {
-	prefix := fmt.Sprintf("v.blk.%d.", layer)
-	qkvWeight, qkvBias, err := r.loadPair(ctx, prefix+"attn_qkv.weight", prefix+"attn_qkv.bias")
-	if err != nil {
-		return err
-	}
-	qkv := linear(hidden, qkvWeight.Data, qkvBias.Data, rows, r.spec.Hidden, 3*r.spec.Hidden)
-	attention := visionAttention(qkv, rows, r.spec.Hidden, r.spec.Heads)
-	outWeight, outBias, err := r.loadPair(ctx, prefix+"attn_out.weight", prefix+"attn_out.bias")
-	if err != nil {
-		return err
-	}
-	attention = linear(attention, outWeight.Data, outBias.Data, rows, r.spec.Hidden, r.spec.Hidden)
-	ln1Weight, ln1Bias, err := r.loadPair(ctx, prefix+"ln1.weight", prefix+"ln1.bias")
-	if err != nil {
-		return err
-	}
-	norm := make([]float32, len(attention))
-	layerNorm(norm, attention, ln1Weight.Data, ln1Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
-	for index := range hidden {
-		hidden[index] += norm[index]
-	}
-	upWeight, err := r.load(ctx, prefix+"ffn_up.weight")
-	if err != nil {
-		return err
-	}
-	upBias, err := r.optionalBias(ctx, prefix+"ffn_up.bias")
-	if err != nil {
-		return err
-	}
-	up := linear(hidden, upWeight.Data, upBias, rows, r.spec.Hidden, r.spec.Intermediate)
-	if r.spec.GatedFFN[layer] {
-		gateWeight, err := r.load(ctx, prefix+"ffn_gate.weight")
-		if err != nil {
-			return err
-		}
-		gateBias, err := r.optionalBias(ctx, prefix+"ffn_gate.bias")
-		if err != nil {
-			return err
-		}
-		gate := linear(hidden, gateWeight.Data, gateBias, rows, r.spec.Hidden, r.spec.Intermediate)
-		for index, value := range gate {
-			up[index] *= geluTanh(value)
-		}
-	} else {
-		for index, value := range up {
-			up[index] = geluTanh(value)
-		}
-	}
-	downWeight, err := r.load(ctx, prefix+"ffn_down.weight")
-	if err != nil {
-		return err
-	}
-	downBias, err := r.optionalBias(ctx, prefix+"ffn_down.bias")
-	if err != nil {
-		return err
-	}
-	ffn := linear(up, downWeight.Data, downBias, rows, r.spec.Intermediate, r.spec.Hidden)
-	ln2Weight, ln2Bias, err := r.loadPair(ctx, prefix+"ln2.weight", prefix+"ln2.bias")
-	if err != nil {
-		return err
-	}
-	layerNorm(norm, ffn, ln2Weight.Data, ln2Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
-	for index := range hidden {
-		hidden[index] += norm[index]
-	}
-	return nil
-}
-
-func (r *CogVLMVisionRunner) optionalBias(ctx context.Context, name string) ([]float32, error) {
-	if !hasTensor(r.file, name) {
-		return nil, nil
-	}
-	value, err := r.load(ctx, name)
-	return value.Data, err
-}
-
-func (r *CogVLMVisionRunner) load(ctx context.Context, name string) (reference.Value, error) {
-	info, ok := r.file.Tensor(name)
-	if !ok {
-		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
-	}
-	return model.LoadHostTensor(ctx, r.file, info)
-}
-
-func (r *CogVLMVisionRunner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
-	a, err := r.load(ctx, first)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, err
-	}
-	b, err := r.load(ctx, second)
-	return a, b, err
 }

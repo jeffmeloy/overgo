@@ -10,8 +10,6 @@ import (
 
 	"fmt"
 
-	"io"
-
 	"llamacpp2go/internal/inference"
 	"llamacpp2go/internal/projector"
 
@@ -551,10 +549,8 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	slotID, acquired := h.acquireSlot(-1)
+	slotID, acquired := h.acquireRequestSlot(response, -1)
 	if !acquired {
-		response.Header().Set("Retry-After", "1")
-		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
 		return
 	}
 	defer h.releaseSlot(slotID)
@@ -885,18 +881,14 @@ func (h *Handler) streamChatCompletion(
 	promptIDs []tokenizer.TokenID,
 	projectedInputs *inference.ProjectedInputs,
 ) {
-	flusher, ok := response.(http.Flusher)
+	flusher, ok := beginSSE(response)
 	if !ok {
-		writeError(response, http.StatusInternalServerError, "server_error", "streaming is unavailable")
 		return
 	}
-	response.Header().Set("Content-Type", "text/event-stream")
-	response.Header().Set("Cache-Control", "no-cache")
-	response.Header().Set("X-Accel-Buffering", "no")
-	response.WriteHeader(http.StatusOK)
+	stream := newSSEEmitter(request.Context(), response, flusher)
 	created := time.Now().Unix()
 	writeChunk := func(index int, delta chatStreamDelta, reason *string) error {
-		return writeSSE(response, chatStreamResponse{
+		return stream.write(chatStreamResponse{
 			ID:      id,
 			Object:  "chat.completion.chunk",
 			Created: created,
@@ -911,13 +903,12 @@ func (h *Handler) streamChatCompletion(
 	for choiceIndex := range n {
 		choiceSampler, err := samplerForChoice(sampler, choiceIndex)
 		if err != nil {
-			_ = writeSSE(response, errorEnvelope("generation_error", err.Error()))
+			_ = stream.write(errorEnvelope("generation_error", err.Error()))
 			break
 		}
 		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
 			return
 		}
-		flusher.Flush()
 		completionTokens := 0
 		filter := newStopFilter(stops)
 		var buffered strings.Builder
@@ -927,8 +918,7 @@ func (h *Handler) streamChatCompletion(
 			if provider, ok := h.generator.(ChatOutputStreamProvider); ok {
 				toolStream, err = provider.NewChatOutputStream(tools)
 				if err != nil {
-					_ = writeSSE(
-						response,
+					_ = stream.write(
 						errorEnvelope("generation_error", err.Error()),
 					)
 					break
@@ -981,7 +971,6 @@ func (h *Handler) streamChatCompletion(
 				}, nil); writeErr != nil {
 					return writeErr
 				}
-				flusher.Flush()
 			}
 			return nil
 		}
@@ -1012,7 +1001,6 @@ func (h *Handler) streamChatCompletion(
 							if writeErr := writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil); writeErr != nil {
 								return writeErr
 							}
-							flusher.Flush()
 						}
 					}
 					return request.Context().Err()
@@ -1020,21 +1008,19 @@ func (h *Handler) streamChatCompletion(
 			},
 		)
 		if err != nil {
-			_ = writeSSE(response, errorEnvelope("generation_error", err.Error()))
+			_ = stream.write(errorEnvelope("generation_error", err.Error()))
 			break
 		}
 		if piece := filter.Flush(); piece != "" {
 			if len(tools) != 0 {
 				if streamErr := emitToolPiece(piece); streamErr != nil {
-					_ = writeSSE(
-						response,
+					_ = stream.write(
 						errorEnvelope("generation_error", streamErr.Error()),
 					)
 					break
 				}
 			} else {
 				_ = writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil)
-				flusher.Flush()
 			}
 		}
 		reason := "stop"
@@ -1045,8 +1031,7 @@ func (h *Handler) streamChatCompletion(
 			parser := h.generator.(ChatOutputParser)
 			message, parseErr := parser.ParseChatOutput(buffered.String(), tools)
 			if parseErr != nil {
-				_ = writeSSE(
-					response,
+				_ = stream.write(
 					errorEnvelope("generation_error", parseErr.Error()),
 				)
 				break
@@ -1057,7 +1042,6 @@ func (h *Handler) streamChatCompletion(
 				}, nil); err != nil {
 					return
 				}
-				flusher.Flush()
 			}
 			if message.Content != "" && !streamedToolCall {
 				if err := writeChunk(choiceIndex, chatStreamDelta{
@@ -1065,7 +1049,6 @@ func (h *Handler) streamChatCompletion(
 				}, nil); err != nil {
 					return
 				}
-				flusher.Flush()
 			}
 			for callIndex, call := range message.ToolCalls {
 				if streamedToolCall {
@@ -1093,15 +1076,12 @@ func (h *Handler) streamChatCompletion(
 				}, nil); err != nil {
 					return
 				}
-				flusher.Flush()
 			}
 			if len(message.ToolCalls) != 0 {
 				reason = "tool_calls"
 			}
 		}
 		_ = writeChunk(choiceIndex, chatStreamDelta{}, &reason)
-		flusher.Flush()
 	}
-	_, _ = io.WriteString(response, "data: [DONE]\n\n")
-	flusher.Flush()
+	_ = stream.done()
 }

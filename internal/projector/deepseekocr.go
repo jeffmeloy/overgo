@@ -9,9 +9,6 @@ import (
 	"math"
 	"strings"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
@@ -49,11 +46,7 @@ type DeepSeekOCROpenOptions struct {
 	DeviceOrdinal int
 }
 
-type deepSeekOCRCuda struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type deepSeekOCRCuda = projectorCUDA
 
 func OpenDeepSeekOCR(path string) (*DeepSeekOCRRunner, error) {
 	return OpenDeepSeekOCRWithOptions(path, DeepSeekOCROpenOptions{})
@@ -105,26 +98,6 @@ func (r *DeepSeekOCRRunner) Close() error {
 	if r.file != nil {
 		errs = append(errs, r.file.Close())
 		r.file = nil
-	}
-	return errors.Join(errs...)
-}
-
-func (c *deepSeekOCRCuda) Close() error {
-	if c == nil {
-		return nil
-	}
-	var errs []error
-	if c.weights != nil {
-		errs = append(errs, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		errs = append(errs, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		errs = append(errs, c.worker.Close())
-		c.worker = nil
 	}
 	return errors.Join(errs...)
 }
@@ -299,23 +272,16 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 			return fmt.Errorf("projector: tensor %q rank %d is invalid", name, info.Dimensions)
 		}
 	}
-	for name, shape := range map[string][]uint64{
+	requiredShapes := map[string][]uint64{
 		"v.sam.pos_embd.weight":   {uint64(spec.SAMHidden), uint64(spec.ImageSize / spec.PatchSize), uint64(spec.ImageSize / spec.PatchSize)},
 		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.SAMHidden)},
 		"v.sam.patch_embd.bias":   {uint64(spec.SAMHidden)},
 		"v.position_embd.weight":  {uint64(spec.Hidden), uint64((spec.ImageSize/spec.PatchSize/4)*(spec.ImageSize/spec.PatchSize/4) + 1)},
 		"mm.model.fc.weight":      {uint64(2 * spec.Hidden), uint64(spec.OutputHidden)},
 		"mm.model.fc.bias":        {uint64(spec.OutputHidden)},
-	} {
-		info, _ := file.Tensor(name)
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		for dimension, want := range shape {
-			if info.Shape[dimension] != want {
-				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-			}
-		}
+	}
+	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
+		return err
 	}
 	for _, name := range []string{"v.image_newline", "v.view_seperator"} {
 		info, _ := file.Tensor(name)
@@ -346,42 +312,9 @@ func loadProjectorHostTensor(ctx context.Context, file *gguf.File, name string) 
 }
 
 func openDeepSeekOCRCuda(ctx context.Context, file *gguf.File, spec DeepSeekOCRSpec, ordinal int) (*deepSeekOCRCuda, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &deepSeekOCRCuda{worker: worker}
-	fail := func(cause error) (*deepSeekOCRCuda, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
-	infos := make([]gguf.TensorInfo, len(spec.TensorNames))
-	included := make(map[string]bool, len(spec.TensorNames))
-	for index, name := range spec.TensorNames {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-		included[name] = true
-	}
-	for _, name := range []string{"v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias"} {
-		if info, ok := file.Tensor(name); ok && !included[name] {
-			infos = append(infos, info)
-		}
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
+	return openProjectorCUDA(ctx, file, spec.TensorNames, []string{
+		"v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias",
+	}, ordinal)
 }
 
 func PreprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec) (DeepSeekOCRInput, error) {
@@ -492,48 +425,10 @@ func (r *DeepSeekOCRRunner) encodeTile(ctx context.Context, source image.Image) 
 	}
 	builder := tensor.NewBuilder()
 	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(size), uint64(size)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: pixelsValue(input, r.tilePixels(source))}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		if r.cuda != nil {
-			node, pointer, loadErr := r.cuda.weights.Input(builder, name)
-			if loadErr != nil {
-				weightErr = loadErr
-				return nil
-			}
-			deviceFeeds[node] = pointer
-			return node
-		}
-		info, ok := r.file.Tensor(name)
-		if !ok {
-			weightErr = fmt.Errorf("tensor %q is unavailable", name)
-			return nil
-		}
-		node := builder.Input(name, dtype.F32, tensorInfoShape(info))
-		value, loadErr := model.LoadHostTensor(ctx, r.file, info)
-		if loadErr != nil {
-			weightErr = loadErr
-			return nil
-		}
-		hostFeeds[node] = value
-		return node
-	}
-	output := r.buildGraph(builder, input, size, weight, hostFeeds)
-	if weightErr != nil {
-		return reference.Value{}, weightErr
-	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, err
-	}
-	if r.cuda != nil {
-		results, executeErr := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-		if executeErr != nil {
-			return reference.Value{}, executeErr
-		}
-		return results[output], nil
-	}
-	results, err := reference.Execute([]*tensor.Tensor{output}, hostFeeds)
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	graph.hostFeeds[input] = pixelsValue(input, r.tilePixels(source))
+	output := r.buildGraph(builder, input, size, graph.weight, graph.hostFeeds)
+	results, err := graph.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}

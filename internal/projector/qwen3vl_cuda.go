@@ -6,40 +6,15 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
-type qwen3VLCUDA struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type qwen3VLCUDA = projectorCUDA
 
 func openQwen3VLCUDA(ctx context.Context, file *gguf.File, spec Qwen3VLSpec, ordinal int) (*qwen3VLCUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &qwen3VLCUDA{worker: worker}
-	fail := func(cause error) (*qwen3VLCUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
 	names := []string{
 		"v.patch_embd.weight", "v.patch_embd.weight.1", "v.patch_embd.bias", "v.position_embd.weight",
 		"v.post_ln.weight", "v.post_ln.bias", "mm.0.weight", "mm.0.bias", "mm.2.weight", "mm.2.bias",
@@ -62,38 +37,7 @@ func openQwen3VLCUDA(ctx context.Context, file *gguf.File, spec Qwen3VLSpec, ord
 			}
 		}
 	}
-	infos := make([]gguf.TensorInfo, len(names))
-	for index, name := range names {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
-}
-
-func (c *qwen3VLCUDA) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
+	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
 func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
@@ -115,17 +59,8 @@ func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwe
 	builder := tensor.NewBuilder()
 	input0 := builder.Input("pixel_values.0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
 	input1 := builder.Input("pixel_values.1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, err := r.cuda.weights.Input(builder, name)
-		if err != nil {
-			weightErr = err
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	binding := r.cuda.bindWeights(builder)
+	weight := binding.weight
 	patch0 := builder.Reshape(weight("v.patch_embd.weight"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	patch1 := builder.Reshape(weight("v.patch_embd.weight.1"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1)), weight("v.patch_embd.bias"))
@@ -191,8 +126,9 @@ func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwe
 	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
-	if weightErr != nil {
-		return Qwen3VLOutput{}, fmt.Errorf("projector: build Qwen3-VL CUDA graph: %w", weightErr)
+	deviceFeeds, err := binding.result()
+	if err != nil {
+		return Qwen3VLOutput{}, fmt.Errorf("projector: build Qwen3-VL CUDA graph: %w", err)
 	}
 	if err := builder.Err(); err != nil {
 		return Qwen3VLOutput{}, fmt.Errorf("projector: build Qwen3-VL CUDA graph: %w", err)

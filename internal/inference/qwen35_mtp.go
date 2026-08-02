@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
-	"slices"
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
@@ -39,24 +37,7 @@ func (r *Runner) NewQwen35MTPSession(
 	if r.weights.Qwen35MTP.MTPOnly {
 		return nil, errors.New("inference: Qwen3.5 MTP-only model requires NewQwen35MTPPairedSession")
 	}
-	hidden, cache, err := r.ForwardCached(ctx, tokenIDs, nil)
-	if err != nil {
-		return nil, err
-	}
-	width := int(hidden.Shape.Dims[0])
-	last := reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-	}
-	targetModel, err := r.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
-	return &Qwen35MTPSession{
-		TrunkCache: cache, PendingHidden: last,
-		MTPStart: effectiveCachePosition(cache), Position: effectiveCachePosition(cache),
-		targetModel: targetModel,
-	}, nil
+	return r.newSingleHeadMTPSession(ctx, tokenIDs)
 }
 
 // NewQwen35MTPPairedSession: sidecar/target prefix setup.
@@ -71,24 +52,7 @@ func (r *Runner) NewQwen35MTPPairedSession(
 	if err := r.validateQwen35MTPTarget(target); err != nil {
 		return nil, err
 	}
-	hidden, cache, err := target.ForwardCached(ctx, tokenIDs, nil)
-	if err != nil {
-		return nil, err
-	}
-	width := int(hidden.Shape.Dims[0])
-	last := reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-	}
-	targetModel, err := target.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
-	return &Qwen35MTPSession{
-		TrunkCache: cache, PendingHidden: last,
-		MTPStart: effectiveCachePosition(cache), Position: effectiveCachePosition(cache),
-		targetModel: targetModel,
-	}, nil
+	return target.newSingleHeadMTPSession(ctx, tokenIDs)
 }
 
 // AdvanceQwen35MTP: one autoregressive draft step.
@@ -229,58 +193,26 @@ func (r *Runner) AdvanceQwen35MTP(
 }
 
 func (r *Runner) validateQwen35MTP() error {
-	if r.spec.NextNPredictLayers != 1 || r.weights.Qwen35MTP == nil ||
-		(r.spec.Architecture != "qwen35" && r.spec.Architecture != "qwen35moe") {
+	if r.spec.Profile().DraftKind != model.DraftQwen35MTP || r.spec.NextNPredictLayers != 1 ||
+		r.weights.Qwen35MTP == nil {
 		return errors.New("inference: model has no supported Qwen3.5 MTP block")
 	}
 	return nil
 }
 
 func (r *Runner) validateQwen35MTPSession(session *Qwen35MTPSession) error {
-	if session == nil || session.TrunkCache == nil {
-		return errors.New("inference: Qwen3.5 MTP session is invalid")
-	}
-	if err := r.validateCache(session.TrunkCache); err != nil {
-		return fmt.Errorf("inference: Qwen3.5 MTP trunk cache: %w", err)
-	}
-	if session.PendingHidden.Shape.Rank != 2 ||
-		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
-		session.PendingHidden.Shape.Dims[1] != 1 || session.Position == math.MaxUint32 {
-		return errors.New("inference: Qwen3.5 MTP session state is incompatible")
-	}
-	basePosition := effectiveCachePosition(session.TrunkCache)
-	if session.Position < basePosition || session.Position < session.MTPStart ||
-		session.Layer.Key.Shape.Rank != session.Layer.Value.Shape.Rank ||
-		(session.Layer.Key.Shape.Rank == 0 && session.Position != session.MTPStart) ||
-		(session.Layer.Key.Shape.Rank != 0 &&
-			(session.Layer.Key.Shape.Rank != 3 || session.Layer.Value.Shape.Rank != 3 ||
-				session.Layer.Key.Shape.Dims[0] != uint64(r.spec.KeyLength) ||
-				session.Layer.Value.Shape.Dims[0] != uint64(r.spec.ValueLength) ||
-				session.Layer.Key.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
-				session.Layer.Value.Shape.Dims[1] != uint64(r.spec.HeadCountKV) ||
-				session.Layer.Key.Shape.Dims[2] != session.Layer.Value.Shape.Dims[2] ||
-				session.Layer.Key.Shape.Dims[2] != uint64(session.Position-session.MTPStart) ||
-				session.Layer.Key.Shape.Dims[2] >= uint64(r.spec.ContextLength))) {
-		return errors.New("inference: Qwen3.5 MTP layer cache is incompatible")
-	}
-	return nil
+	return r.validateSingleHeadMTPSession(session, "Qwen3.5 MTP", true)
 }
 
 func (r *Runner) validateQwen35MTPTarget(target *Runner) error {
 	if err := r.validateQwen35MTP(); err != nil {
 		return err
 	}
-	if !r.weights.Qwen35MTP.MTPOnly || target == nil || target.weights.Qwen35MTP != nil && target.weights.Qwen35MTP.MTPOnly ||
-		r.spec.Architecture != target.spec.Architecture ||
-		r.spec.EmbeddingLength != target.spec.EmbeddingLength ||
-		r.spec.VocabularySize != target.spec.VocabularySize ||
-		r.spec.HeadCount != target.spec.HeadCount || r.spec.HeadCountKV != target.spec.HeadCountKV ||
-		r.spec.KeyLength != target.spec.KeyLength || r.spec.ValueLength != target.spec.ValueLength ||
-		r.spec.RopeDimensionCount != target.spec.RopeDimensionCount ||
-		r.spec.RopeSections != target.spec.RopeSections ||
-		len(target.weights.Layers) != int(target.spec.BlockCount) ||
-		r.vocab == nil || target.vocab == nil || !slices.Equal(r.vocab.Tokens, target.vocab.Tokens) {
-		return errors.New("inference: Qwen3.5 MTP sidecar target is incompatible")
+	targetMTPOnly := target != nil && target.weights.Qwen35MTP != nil && target.weights.Qwen35MTP.MTPOnly
+	if err := r.validateSingleHeadMTPTarget(
+		target, r.weights.Qwen35MTP.MTPOnly, targetMTPOnly, "Qwen3.5 MTP",
+	); err != nil {
+		return err
 	}
 	return nil
 }
@@ -290,21 +222,7 @@ func (r *Runner) qwen35MTPLayerInputs(
 	builder *tensor.Builder,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 ) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	mtp := r.weights.Qwen35MTP
-	if r.hasPreloadedWeights() {
-		return r.layerDeviceInputs(builder, mtp.Layer)
-	}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, mtp.Layer)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	prefix := fmt.Sprintf("blk.%d.", r.spec.BlockCount)
-	graph, feeds, err := hostLayer.GraphInputs(builder, prefix)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	for node, value := range feeds {
-		hostFeeds[node] = value
-	}
-	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
+	return r.mtpLayerInputs(
+		ctx, builder, hostFeeds, r.weights.Qwen35MTP.Layer, fmt.Sprintf("blk.%d.", r.spec.BlockCount),
+	)
 }

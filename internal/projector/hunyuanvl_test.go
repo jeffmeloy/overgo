@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -170,20 +168,7 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 }
 
 func writeTinyHunyuanVL(t *testing.T, tensors []gguf.TensorData) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "hunyuanvl-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyHunyuanVLMetadata(), tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "hunyuanvl-mmproj.gguf", tinyHunyuanVLMetadata(), tensors)
 }
 
 func tinyHunyuanVLMetadata() []gguf.Metadata {

@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -135,20 +133,7 @@ func TestGemma3nAveragePool(t *testing.T) {
 }
 
 func writeTinyGemma3nVision(t *testing.T, patterned bool) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "gemma3n-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyGemma3nVisionMetadata(), tinyGemma3nVisionTensors(patterned), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "gemma3n-mmproj.gguf", tinyGemma3nVisionMetadata(), tinyGemma3nVisionTensors(patterned))
 }
 
 func tinyGemma3nVisionMetadata() []gguf.Metadata {

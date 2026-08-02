@@ -19,6 +19,17 @@ const (
 	ArchitectureFamilyDraft
 )
 
+type DraftKind uint8
+
+const (
+	DraftNone DraftKind = iota
+	DraftQwen35MTP
+	DraftStep35MTP
+	DraftHYV3MTP
+	DraftNextNMTP
+	DraftCohere2MTP
+)
+
 // ArchitectureCapability: orthogonal runtime behavior.
 type ArchitectureCapability uint64
 
@@ -56,6 +67,7 @@ type ArchitectureProfile struct {
 	Family        ArchitectureFamily
 	GraphFamily   ArchitectureFamily
 	CatalogFamily ArchitectureFamily
+	DraftKind     DraftKind
 	Capabilities  ArchitectureCapability
 }
 
@@ -139,6 +151,24 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 			registry[name] = profile
 		}
 	}
+	setDraftKind := func(kind DraftKind, names ...string) {
+		for _, name := range names {
+			profile, ok := registry[name]
+			if !ok {
+				panic("unknown architecture profile: " + name)
+			}
+			profile.DraftKind = kind
+			registry[name] = profile
+		}
+	}
+
+	setDraftKind(DraftQwen35MTP, "qwen35", "qwen35moe")
+	setDraftKind(DraftStep35MTP, "step35")
+	setDraftKind(DraftHYV3MTP, "hy_v3")
+	setDraftKind(DraftCohere2MTP, "cohere2moe")
+	setDraftKind(DraftNextNMTP,
+		"glm4", "glm4moe", "exaone4", "exaone-moe", "mimo2", "bailingmoe2", "deepseek32", "glm-dsa",
+	)
 
 	setCapabilities(ArchitectureNonCausal,
 		"bert", "dream", "eurobert", "gemma-embedding", "jina-bert-v2",

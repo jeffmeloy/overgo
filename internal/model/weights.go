@@ -262,6 +262,98 @@ type Cohere2MTPWeights struct {
 	Output         *gguf.TensorInfo
 }
 
+type weightRequirementLoader func(string, ...uint64) (gguf.TensorInfo, error)
+
+type mtpCommonDestinations struct {
+	ehProjection, embeddingNorm, hiddenNorm *gguf.TensorInfo
+	tokenEmbedding, outputNorm, output      **gguf.TensorInfo
+}
+
+func loadMTPCommonWeights(
+	required weightRequirementLoader,
+	tensors map[string]gguf.TensorInfo,
+	prefix string,
+	spec Spec,
+	destination mtpCommonDestinations,
+) error {
+	for name, target := range map[string]*gguf.TensorInfo{
+		"nextn.eh_proj.weight": destination.ehProjection,
+		"nextn.enorm.weight":   destination.embeddingNorm,
+		"nextn.hnorm.weight":   destination.hiddenNorm,
+	} {
+		shape := []uint64{uint64(spec.EmbeddingLength)}
+		if name == "nextn.eh_proj.weight" {
+			shape = []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}
+		}
+		loaded, err := required(prefix+name, shape...)
+		if err != nil {
+			return err
+		}
+		*target = loaded
+	}
+	for name, target := range map[string]**gguf.TensorInfo{
+		"nextn.embed_tokens.weight":     destination.tokenEmbedding,
+		"nextn.shared_head_norm.weight": destination.outputNorm,
+		"nextn.shared_head_head.weight": destination.output,
+	} {
+		if _, ok := tensors[prefix+name]; !ok {
+			continue
+		}
+		shape := []uint64{uint64(spec.EmbeddingLength)}
+		if name != "nextn.shared_head_norm.weight" {
+			shape = append(shape, uint64(spec.VocabularySize))
+		}
+		loaded, err := required(prefix+name, shape...)
+		if err != nil {
+			return err
+		}
+		*target = &loaded
+	}
+	return nil
+}
+
+func loadSharedExpertWeights(
+	required weightRequirementLoader,
+	prefix string,
+	spec Spec,
+	layer *LayerWeights,
+	withRouter bool,
+) error {
+	return loadSharedExpertWeightsForWidth(required, prefix, uint64(spec.EmbeddingLength), spec, layer, withRouter)
+}
+
+func loadSharedExpertWeightsForWidth(
+	required weightRequirementLoader,
+	prefix string,
+	width uint64,
+	spec Spec,
+	layer *LayerWeights,
+	withRouter bool,
+) error {
+	requirements := map[string]struct {
+		shape       []uint64
+		destination **gguf.TensorInfo
+	}{
+		"ffn_gate_shexp.weight": {[]uint64{width, uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
+		"ffn_up_shexp.weight":   {[]uint64{width, uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
+		"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), width}, &layer.FeedForwardSharedDown},
+	}
+	if withRouter {
+		requirements["ffn_gate_inp_shexp.weight"] = struct {
+			shape       []uint64
+			destination **gguf.TensorInfo
+		}{[]uint64{width}, &layer.FeedForwardSharedRouter}
+	}
+	for name, requirement := range requirements {
+		item, err := required(prefix+name, requirement.shape...)
+		if err != nil {
+			return err
+		}
+		*requirement.destination = &item
+	}
+	return nil
+}
+
 // Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
 	TokenEmbedding          gguf.TensorInfo
@@ -609,15 +701,15 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				"ffn_gate_exps.weight":  {&layer.FeedForwardGateExperts, []uint64{width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}},
 				"ffn_up_exps.weight":    {&layer.FeedForwardUpExperts, []uint64{width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}},
 				"ffn_down_exps.weight":  {&layer.FeedForwardDownExperts, []uint64{uint64(spec.ExpertFeedForward), width, uint64(spec.ExpertCount)}},
-				"ffn_gate_shexp.weight": {&layer.FeedForwardSharedGate, []uint64{width, uint64(spec.SharedExpertFF)}},
-				"ffn_up_shexp.weight":   {&layer.FeedForwardSharedUp, []uint64{width, uint64(spec.SharedExpertFF)}},
-				"ffn_down_shexp.weight": {&layer.FeedForwardSharedDown, []uint64{uint64(spec.SharedExpertFF), width}},
 			} {
 				loaded, itemErr := required(prefix+name, item.shape...)
 				if itemErr != nil {
 					return Weights{}, itemErr
 				}
 				*item.destination = &loaded
+			}
+			if itemErr := loadSharedExpertWeightsForWidth(required, prefix, width, spec, layer, false); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			if block < spec.HashLayerCount {
 				loaded, itemErr := required(prefix+"ffn_gate_tid2eid.weight", uint64(spec.ExpertUsedCount), uint64(spec.VocabularySize))
@@ -1607,20 +1699,20 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					shape       []uint64
 					destination **gguf.TensorInfo
 				}{
-					"ffn_gate_inp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardRouter},
-					"ffn_gate_exps.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardGateExperts},
-					"ffn_up_exps.weight":    {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpExperts},
-					"ffn_down_exps.weight":  {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardDownExperts},
-					"exp_probs_b.bias":      {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias},
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
+					"ffn_gate_inp.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardRouter},
+					"ffn_gate_exps.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardGateExperts},
+					"ffn_up_exps.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpExperts},
+					"ffn_down_exps.weight": {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardDownExperts},
+					"exp_probs_b.bias":     {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias},
 				} {
 					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
 					*shapeAndDestination.destination = &item
+				}
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			continue
@@ -3146,19 +3238,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				}
 			}
 			if spec.Architecture == "llama4" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "gpt-oss" {
@@ -3210,19 +3291,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					layer.FeedForwardGateExperts = &item
 				}
 				if (spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid" || spec.Architecture == "granite") && spec.SharedExpertFF > 0 {
-					for name, shapeAndDestination := range map[string]struct {
-						shape       []uint64
-						destination **gguf.TensorInfo
-					}{
-						"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-						"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-						"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-					} {
-						item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-						if itemErr != nil {
-							return Weights{}, itemErr
-						}
-						*shapeAndDestination.destination = &item
+					if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+						return Weights{}, itemErr
 					}
 				}
 			}
@@ -3234,67 +3304,26 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					layer.FeedForwardExpertBias = &bias
 				}
 				if spec.SharedExpertFF > 0 {
-					for name, shapeAndDestination := range map[string]struct {
-						shape       []uint64
-						destination **gguf.TensorInfo
-					}{
-						"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-						"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-						"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-					} {
-						item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-						if itemErr != nil {
-							return Weights{}, itemErr
-						}
-						*shapeAndDestination.destination = &item
+					if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+						return Weights{}, itemErr
 					}
 				}
 			}
 			if spec.Architecture == "laguna" || spec.Architecture == "afmoe" {
-				shared := map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"exp_probs_b.bias": {
-						[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias,
-					},
+				bias, itemErr := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
+				if itemErr != nil {
+					return Weights{}, itemErr
 				}
+				layer.FeedForwardExpertBias = &bias
 				if spec.SharedExpertFF > 0 {
-					shared["ffn_gate_shexp.weight"] = struct {
-						shape       []uint64
-						destination **gguf.TensorInfo
-					}{[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate}
-					shared["ffn_up_shexp.weight"] = struct {
-						shape       []uint64
-						destination **gguf.TensorInfo
-					}{[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp}
-					shared["ffn_down_shexp.weight"] = struct {
-						shape       []uint64
-						destination **gguf.TensorInfo
-					}{[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown}
-				}
-				for name, shapeAndDestination := range shared {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
+					if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
 						return Weights{}, itemErr
 					}
-					*shapeAndDestination.destination = &item
 				}
 			}
 			if spec.Architecture == "hunyuan-moe" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "glm4moe" {
@@ -3306,35 +3335,13 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					return Weights{}, fmt.Errorf("tensor %q must use F32 selection-bias storage", bias.Name)
 				}
 				layer.FeedForwardExpertBias = &bias
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "cohere2moe" && spec.SharedExpertFF > 0 {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "hy_v3" {
@@ -3348,19 +3355,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.FeedForwardExpertBias = &bias
 				}
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if isDeepSeek2Family(spec.Architecture) || spec.Architecture == "glm-dsa" || spec.Architecture == "deepseek2-ocr" {
@@ -3370,19 +3366,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.FeedForwardExpertBias = &bias
 				}
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "exaone-moe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" {
@@ -3392,85 +3377,28 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.FeedForwardExpertBias = &bias
 				}
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "bailingmoe" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "deepseek" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "qwen2moe" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_inp_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedRouter},
-					"ffn_gate_shexp.weight":     {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":       {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight":     {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, true); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_inp_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedRouter},
-					"ffn_gate_shexp.weight":     {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-					"ffn_up_shexp.weight":       {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-					"ffn_down_shexp.weight":     {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, true); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "lfm2moe" {
@@ -3511,19 +3439,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					layer.FeedForwardExpertBias = &bias
 				}
 				if spec.SharedExpertFF > 0 {
-					for name, shapeAndDestination := range map[string]struct {
-						shape       []uint64
-						destination **gguf.TensorInfo
-					}{
-						"ffn_gate_shexp.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-						"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-						"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-					} {
-						item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-						if itemErr != nil {
-							return Weights{}, itemErr
-						}
-						*shapeAndDestination.destination = &item
+					if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+						return Weights{}, itemErr
 					}
 				}
 			}
@@ -3746,7 +3663,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 	}
-	if spec.NextNPredictLayers == 1 && (spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe") {
+	if spec.NextNPredictLayers == 1 && spec.Profile().DraftKind == DraftQwen35MTP {
 		prefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
 		mtp := &Qwen35MTPWeights{}
 		mtp.MTPOnly = mtpOnly
@@ -3767,9 +3684,6 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			"ffn_gate.weight":            {&mtp.Layer.FeedForwardGate, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
 			"ffn_up.weight":              {&mtp.Layer.FeedForwardUp, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
 			"ffn_down.weight":            {&mtp.Layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}},
-			"nextn.eh_proj.weight":       {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
-			"nextn.enorm.weight":         {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			"nextn.hnorm.weight":         {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
 		} {
 			loaded, loadErr := required(prefix+name, item.shape...)
 			if loadErr != nil {
@@ -3777,24 +3691,11 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			*item.destination = loaded
 		}
-		for name, destination := range map[string]**gguf.TensorInfo{
-			"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
-			"nextn.shared_head_norm.weight": &mtp.OutputNorm,
-			"nextn.shared_head_head.weight": &mtp.Output,
-		} {
-			item, ok := tensors[prefix+name]
-			if !ok {
-				continue
-			}
-			shape := []uint64{uint64(spec.EmbeddingLength)}
-			if name != "nextn.shared_head_norm.weight" {
-				shape = append(shape, uint64(spec.VocabularySize))
-			}
-			validated, loadErr := required(item.Name, shape...)
-			if loadErr != nil {
-				return Weights{}, loadErr
-			}
-			*destination = &validated
+		if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
+			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
+		}); loadErr != nil {
+			return Weights{}, loadErr
 		}
 		qNorm, loadErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
 		if loadErr != nil {
@@ -3807,88 +3708,34 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		mtp.Layer.AttentionQNorm, mtp.Layer.AttentionKNorm = &qNorm, &kNorm
 		result.Qwen35MTP = mtp
 	}
-	if spec.Architecture == "step35" && spec.NextNPredictLayers > 0 {
+	if spec.Profile().DraftKind == DraftStep35MTP && spec.NextNPredictLayers > 0 {
 		result.Step35MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &result.Step35MTP[offset]
 			mtp.Layer = result.Layers[block]
-			for name, item := range map[string]struct {
-				destination *gguf.TensorInfo
-				shape       []uint64
-			}{
-				"nextn.eh_proj.weight": {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
-				"nextn.enorm.weight":   {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
-				"nextn.hnorm.weight":   {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			} {
-				loaded, loadErr := required(prefix+name, item.shape...)
-				if loadErr != nil {
-					return Weights{}, loadErr
-				}
-				*item.destination = loaded
-			}
-			for name, destination := range map[string]**gguf.TensorInfo{
-				"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
-				"nextn.shared_head_norm.weight": &mtp.OutputNorm,
-				"nextn.shared_head_head.weight": &mtp.Output,
-			} {
-				item, ok := tensors[prefix+name]
-				if !ok {
-					continue
-				}
-				shape := []uint64{uint64(spec.EmbeddingLength)}
-				if name != "nextn.shared_head_norm.weight" {
-					shape = append(shape, uint64(spec.VocabularySize))
-				}
-				validated, loadErr := required(item.Name, shape...)
-				if loadErr != nil {
-					return Weights{}, loadErr
-				}
-				*destination = &validated
+			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
+				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
+			}); loadErr != nil {
+				return Weights{}, loadErr
 			}
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
 	}
-	if spec.Architecture == "hy_v3" && spec.NextNPredictLayers > 0 {
+	if spec.Profile().DraftKind == DraftHYV3MTP && spec.NextNPredictLayers > 0 {
 		result.HYV3MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &result.HYV3MTP[offset]
 			mtp.Layer = result.Layers[block]
-			for name, item := range map[string]struct {
-				destination *gguf.TensorInfo
-				shape       []uint64
-			}{
-				"nextn.eh_proj.weight": {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
-				"nextn.enorm.weight":   {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
-				"nextn.hnorm.weight":   {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			} {
-				loaded, loadErr := required(prefix+name, item.shape...)
-				if loadErr != nil {
-					return Weights{}, loadErr
-				}
-				*item.destination = loaded
-			}
-			for name, destination := range map[string]**gguf.TensorInfo{
-				"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
-				"nextn.shared_head_norm.weight": &mtp.OutputNorm,
-				"nextn.shared_head_head.weight": &mtp.Output,
-			} {
-				item, ok := tensors[prefix+name]
-				if !ok {
-					continue
-				}
-				shape := []uint64{uint64(spec.EmbeddingLength)}
-				if name != "nextn.shared_head_norm.weight" {
-					shape = append(shape, uint64(spec.VocabularySize))
-				}
-				validated, loadErr := required(item.Name, shape...)
-				if loadErr != nil {
-					return Weights{}, loadErr
-				}
-				*destination = &validated
+			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
+				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
+			}); loadErr != nil {
+				return Weights{}, loadErr
 			}
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
@@ -3897,37 +3744,11 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		block := spec.BlockCount
 		prefix := fmt.Sprintf("blk.%d.", block)
 		mtp := &Cohere2MTPWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
-		for name, item := range map[string]struct {
-			destination *gguf.TensorInfo
-			shape       []uint64
-		}{
-			"nextn.eh_proj.weight": {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
-			"nextn.enorm.weight":   {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			"nextn.hnorm.weight":   {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
-		} {
-			loaded, loadErr := required(prefix+name, item.shape...)
-			if loadErr != nil {
-				return Weights{}, loadErr
-			}
-			*item.destination = loaded
-		}
-		for name, destination := range map[string]**gguf.TensorInfo{
-			"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
-			"nextn.shared_head_norm.weight": &mtp.OutputNorm,
-			"nextn.shared_head_head.weight": &mtp.Output,
-		} {
-			if _, ok := tensors[prefix+name]; !ok {
-				continue
-			}
-			shape := []uint64{uint64(spec.EmbeddingLength)}
-			if name != "nextn.shared_head_norm.weight" {
-				shape = append(shape, uint64(spec.VocabularySize))
-			}
-			loaded, loadErr := required(prefix+name, shape...)
-			if loadErr != nil {
-				return Weights{}, loadErr
-			}
-			*destination = &loaded
+		if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
+			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
+		}); loadErr != nil {
+			return Weights{}, loadErr
 		}
 		result.Cohere2MTP = mtp
 		if cohere2MTPOnly {
@@ -3936,44 +3757,18 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			result.Layers = result.Layers[:spec.BlockCount]
 		}
 	}
-	if (spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "mimo2" || spec.Architecture == "bailingmoe2" || spec.Architecture == "deepseek32" || spec.Architecture == "glm-dsa") && spec.NextNPredictLayers > 0 {
+	if spec.Profile().DraftKind == DraftNextNMTP && spec.NextNPredictLayers > 0 {
 		result.NextNMTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &result.NextNMTP[offset]
 			mtp.Layer = result.Layers[block]
-			for name, item := range map[string]struct {
-				destination *gguf.TensorInfo
-				shape       []uint64
-			}{
-				"nextn.eh_proj.weight": {&mtp.EHProjection, []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}},
-				"nextn.enorm.weight":   {&mtp.EmbeddingNorm, []uint64{uint64(spec.EmbeddingLength)}},
-				"nextn.hnorm.weight":   {&mtp.HiddenNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			} {
-				loaded, loadErr := required(prefix+name, item.shape...)
-				if loadErr != nil {
-					return Weights{}, loadErr
-				}
-				*item.destination = loaded
-			}
-			for name, destination := range map[string]**gguf.TensorInfo{
-				"nextn.embed_tokens.weight":     &mtp.TokenEmbedding,
-				"nextn.shared_head_norm.weight": &mtp.OutputNorm,
-				"nextn.shared_head_head.weight": &mtp.Output,
-			} {
-				if _, ok := tensors[prefix+name]; !ok {
-					continue
-				}
-				shape := []uint64{uint64(spec.EmbeddingLength)}
-				if name != "nextn.shared_head_norm.weight" {
-					shape = append(shape, uint64(spec.VocabularySize))
-				}
-				loaded, loadErr := required(prefix+name, shape...)
-				if loadErr != nil {
-					return Weights{}, loadErr
-				}
-				*destination = &loaded
+			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
+				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
+			}); loadErr != nil {
+				return Weights{}, loadErr
 			}
 			if spec.Architecture == "mimo2" || spec.Architecture == "bailingmoe2" {
 				loaded, loadErr := required(prefix+"layer_output_norm.weight", uint64(spec.EmbeddingLength))

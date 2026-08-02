@@ -179,10 +179,8 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	slotID, acquired := h.acquireSlot(-1)
+	slotID, acquired := h.acquireRequestSlot(response, -1)
 	if !acquired {
-		response.Header().Set("Retry-After", "1")
-		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
 		return
 	}
 	defer h.releaseSlot(slotID)
@@ -299,22 +297,12 @@ func (h *Handler) streamAnthropicMessages(
 	tools []inference.ChatTool,
 	thinkingEnabled bool,
 ) {
-	flusher, ok := response.(http.Flusher)
+	flusher, ok := beginSSE(response)
 	if !ok {
-		writeError(response, http.StatusInternalServerError, "server_error", "streaming is unavailable")
 		return
 	}
-	response.Header().Set("Content-Type", "text/event-stream")
-	response.Header().Set("Cache-Control", "no-cache")
-	response.Header().Set("X-Accel-Buffering", "no")
-	response.WriteHeader(http.StatusOK)
-	writeEvent := func(name string, value any) error {
-		if err := writeNamedSSE(response, name, value); err != nil {
-			return err
-		}
-		flusher.Flush()
-		return request.Context().Err()
-	}
+	stream := newSSEEmitter(request.Context(), response, flusher)
+	writeEvent := stream.named
 	if err := writeEvent("message_start", map[string]any{
 		"type": "message_start",
 		"message": map[string]any{

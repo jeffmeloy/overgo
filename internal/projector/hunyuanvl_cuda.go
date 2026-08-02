@@ -6,40 +6,15 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
-type hunyuanVLCUDA struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type hunyuanVLCUDA = projectorCUDA
 
 func openHunyuanVLCUDA(ctx context.Context, file *gguf.File, spec HunyuanVLSpec, ordinal int) (*hunyuanVLCUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &hunyuanVLCUDA{worker: worker}
-	fail := func(cause error) (*hunyuanVLCUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
 	names := []string{
 		"v.patch_embd.weight", "v.position_embd.weight", "mm.pre_norm.weight",
 		"mm.0.bias", "mm.2.weight", "mm.2.bias", "v.image_newline",
@@ -74,38 +49,7 @@ func openHunyuanVLCUDA(ctx context.Context, file *gguf.File, spec HunyuanVLSpec,
 			}
 		}
 	}
-	infos := make([]gguf.TensorInfo, len(names))
-	for index, name := range names {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
-}
-
-func (c *hunyuanVLCUDA) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
+	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
 func (r *HunyuanVLRunner) encodeCUDA(ctx context.Context, input HunyuanVLImage) (HunyuanVLOutput, error) {
@@ -136,17 +80,8 @@ func (r *HunyuanVLRunner) encodeCUDA(ctx context.Context, input HunyuanVLImage) 
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		pixels: pixelsValue(pixels, input.PixelValues), conv0Input: pixelsValue(conv0Input, reordered),
 	}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, inputErr := r.cuda.weights.Input(builder, name)
-		if inputErr != nil {
-			weightErr = inputErr
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	binding := r.cuda.bindWeights(builder)
+	weight := binding.weight
 	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
 		if !hasTensor(r.file, name) {
 			return value
@@ -229,8 +164,9 @@ func (r *HunyuanVLRunner) encodeCUDA(ctx context.Context, input HunyuanVLImage) 
 	end := builder.Reshape(weight("mm.image_end"), uint64(r.spec.OutputHidden), 1)
 	output := builder.Concat(builder.Concat(begin, content, 1), end, 1)
 	output = builder.WeightedRMSNorm(output, weight("mm.post_norm.weight"), r.spec.LayerNormEpsilon)
-	if weightErr != nil {
-		return HunyuanVLOutput{}, fmt.Errorf("projector: build Hunyuan-VL CUDA graph: %w", weightErr)
+	deviceFeeds, err := binding.result()
+	if err != nil {
+		return HunyuanVLOutput{}, fmt.Errorf("projector: build Hunyuan-VL CUDA graph: %w", err)
 	}
 	if err := builder.Err(); err != nil {
 		return HunyuanVLOutput{}, fmt.Errorf("projector: build Hunyuan-VL CUDA graph: %w", err)

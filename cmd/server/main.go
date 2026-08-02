@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/inference"
 	"llamacpp2go/internal/projector"
 	llamaserver "llamacpp2go/internal/server"
@@ -28,18 +29,7 @@ func main() {
 func run() error {
 	address := flag.String("listen", "127.0.0.1:8080", "HTTP listen address")
 	modelID := flag.String("model-id", "llamacpp2go", "API model identifier")
-	deviceOrdinal := flag.Int("device", 0, "CUDA device ordinal")
-	preload := flag.Bool("preload", false, "dequantize all model weights once into CUDA memory")
-	nativeQ8 := flag.Bool("native-q8", false, "preload Q8_0 weights without dequantizing them")
-	nativeQuant := flag.Bool("native-quant", false, "preload supported quantized weights without dequantizing them")
-	var loraPaths []string
-	flag.Func("lora", "load GGUF LoRA adapter at global scale 1; repeatable", func(value string) error {
-		if strings.TrimSpace(value) == "" {
-			return errors.New("LoRA path is empty")
-		}
-		loraPaths = append(loraPaths, value)
-		return nil
-	})
+	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at global scale 1; repeatable")
 	loraDisabled := flag.Bool("lora-init-without-apply", false, "load adapters with global scale 0")
 	maxTokens := flag.Int("max-tokens", 4096, "maximum max_tokens accepted per request")
 	contextShift := flag.Bool(
@@ -95,21 +85,13 @@ func run() error {
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
 	}
-	loraAdapters := make([]inference.LoRAConfig, len(loraPaths))
-	for index, path := range loraPaths {
-		scale := float32(1)
-		if *loraDisabled {
-			scale = 0
-		}
-		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: scale}
+	loraScale := float32(1)
+	if *loraDisabled {
+		loraScale = 0
 	}
-	runner, err := inference.OpenWithOptions(flag.Arg(0), inference.OpenOptions{
-		DeviceOrdinal:           *deviceOrdinal,
-		PreloadDeviceWeights:    *preload,
-		PreloadQuantizedWeights: *nativeQ8 || *nativeQuant,
-		PromptCacheEntries:      *promptCacheEntries,
-		LoRAAdapters:            loraAdapters,
-	})
+	openOptions := modelFlags.OpenOptions(loraScale)
+	openOptions.PromptCacheEntries = *promptCacheEntries
+	runner, err := inference.OpenWithOptions(flag.Arg(0), openOptions)
 	if err != nil {
 		return err
 	}
@@ -118,7 +100,7 @@ func run() error {
 	var audio projector.AudioProjector
 	if *projectorPath != "" {
 		vision, err = projector.OpenImageProjectorWithOptions(*projectorPath, projector.OpenOptions{
-			CUDA: *projectorCUDA, DeviceOrdinal: *deviceOrdinal,
+			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
 		})
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)

@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -128,20 +126,7 @@ func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 }
 
 func writeTinyMiMoVL(t *testing.T, tensors []gguf.TensorData) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "mimovl-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyMiMoVLMetadata(), tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "mimovl-mmproj.gguf", tinyMiMoVLMetadata(), tensors)
 }
 
 func tinyMiMoVLMetadata() []gguf.Metadata {

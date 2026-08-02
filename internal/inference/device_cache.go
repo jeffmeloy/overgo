@@ -107,26 +107,14 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	if cache == nil || incoming <= 0 {
 		return nil
 	}
-	total := uint64(cache.Tokens) + uint64(incoming)
-	if total <= uint64(r.spec.ContextLength) {
-		return nil
-	}
-	if uint64(incoming) > uint64(r.spec.ContextLength) {
-		return fmt.Errorf(
-			"inference: new token count %d exceeds context length %d",
-			incoming,
-			r.spec.ContextLength,
-		)
-	}
-	discardCount, err := contextDiscardCount(
-		cache.Tokens,
-		incoming,
-		r.spec.ContextLength,
-		0,
-		requestedDiscard,
+	discardCount, needed, err := planContextShift(
+		cache.Tokens, incoming, r.spec.ContextLength, 0, requestedDiscard, true,
 	)
 	if err != nil {
 		return err
+	}
+	if !needed {
+		return nil
 	}
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
@@ -197,8 +185,13 @@ func (r *Runner) compactDeviceCacheForAppend(
 	if cache == nil || incoming <= 0 {
 		return cache, nil
 	}
-	total := uint64(cache.Tokens) + uint64(incoming)
-	if total <= uint64(r.spec.ContextLength) {
+	discard, needed, err := planContextShift(
+		cache.Tokens, incoming, r.spec.ContextLength, keep, requestedDiscard, true,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !needed {
 		return cache, nil
 	}
 	if keep == 0 && !forceCopy {
@@ -210,16 +203,6 @@ func (r *Runner) compactDeviceCacheForAppend(
 			return nil, err
 		}
 		return cache, nil
-	}
-	discard, err := contextDiscardCount(
-		cache.Tokens,
-		incoming,
-		r.spec.ContextLength,
-		keep,
-		requestedDiscard,
-	)
-	if err != nil {
-		return nil, err
 	}
 	if len(cache.Keys) != len(r.weights.Layers) ||
 		len(cache.Values) != len(r.weights.Layers) {

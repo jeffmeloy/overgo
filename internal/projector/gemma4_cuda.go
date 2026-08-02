@@ -5,11 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
@@ -28,65 +25,12 @@ var gemma4VisionTensorNames = []string{
 	"mm.input_projection.weight",
 }
 
-type gemma4CUDA struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type gemma4CUDA = projectorCUDA
 
 func openGemma4CUDA(ctx context.Context, file *gguf.File, ordinal int) (*gemma4CUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &gemma4CUDA{worker: worker}
-	fail := func(cause error) (*gemma4CUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
-	infos := make([]gguf.TensorInfo, 0, len(gemma4VisionTensorNames)+1)
-	for _, name := range gemma4VisionTensorNames {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos = append(infos, info)
-	}
-	if info, ok := file.Tensor("mm.a.input_projection.weight"); ok {
-		infos = append(infos, info)
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
-}
-
-func (c *gemma4CUDA) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
+	return openProjectorCUDA(
+		ctx, file, gemma4VisionTensorNames, []string{"mm.a.input_projection.weight"}, ordinal,
+	)
 }
 
 func (r *Gemma4Runner) encodeCUDAWithTrace(
@@ -114,17 +58,8 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	pixelInput := builder.Input(
 		"pixel_values", dtype.F32, tensor.MustShape(uint64(r.spec.PatchWidth), uint64(rows)),
 	)
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr, len(gemma4VisionTensorNames))
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, err := r.cuda.weights.Input(builder, name)
-		if err != nil {
-			weightErr = err
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	binding := r.cuda.bindWeights(builder)
+	weight := binding.weight
 	pixelsNode := builder.BF16Round(pixelInput)
 	ln1 := builder.BF16Round(builder.AffineLayerNorm(
 		pixelsNode, weight("v.patch_norm.1.weight"), weight("v.patch_norm.1.bias"), r.spec.LayerNormEpsilon,
@@ -155,8 +90,9 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	))
 	preProjection := builder.BF16Round(builder.RMSNorm(posNorm, r.spec.RMSNormEpsilon))
 	embeddings := builder.BF16Round(builder.MulMat(weight("mm.input_projection.weight"), preProjection))
-	if weightErr != nil {
-		return Gemma4Output{}, fmt.Errorf("projector: build Gemma 4 CUDA graph: %w", weightErr)
+	deviceFeeds, err := binding.result()
+	if err != nil {
+		return Gemma4Output{}, fmt.Errorf("projector: build Gemma 4 CUDA graph: %w", err)
 	}
 	if err := builder.Err(); err != nil {
 		return Gemma4Output{}, fmt.Errorf("projector: build Gemma 4 CUDA graph: %w", err)

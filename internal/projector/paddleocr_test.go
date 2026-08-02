@@ -4,8 +4,6 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -175,20 +173,7 @@ func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 }
 
 func writeTinyPaddleOCR(t *testing.T, tensors []gguf.TensorData) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "paddleocr-mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyPaddleOCRMetadata(), tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return writeProjectorFixture(t, "paddleocr-mmproj.gguf", tinyPaddleOCRMetadata(), tensors)
 }
 
 func tinyPaddleOCRMetadata() []gguf.Metadata {

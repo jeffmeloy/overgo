@@ -6,40 +6,15 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
-type granite4VisionCUDA struct {
-	worker   *device.Worker
-	executor *executor.Executor
-	weights  *model.DeviceF32Weights
-}
+type granite4VisionCUDA = projectorCUDA
 
 func openGranite4VisionCUDA(ctx context.Context, file *gguf.File, spec Granite4VisionSpec, ordinal int) (*granite4VisionCUDA, error) {
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	state := &granite4VisionCUDA{worker: worker}
-	fail := func(cause error) (*granite4VisionCUDA, error) {
-		_ = state.Close()
-		return nil, cause
-	}
-	state.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		return fail(err)
-	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
-	if err != nil {
-		return fail(err)
-	}
 	names := []string{"v.patch_embd.weight", "v.patch_embd.bias", "v.position_embd.weight", "v.image_newline"}
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -68,38 +43,7 @@ func openGranite4VisionCUDA(ctx context.Context, file *gguf.File, spec Granite4V
 			prefix+"ffn_down.weight", prefix+"ffn_down.bias",
 		)
 	}
-	infos := make([]gguf.TensorInfo, len(names))
-	for index, name := range names {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fail(fmt.Errorf("tensor %q is unavailable", name))
-		}
-		infos[index] = info
-	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
-		return fail(err)
-	}
-	return state, nil
-}
-
-func (c *granite4VisionCUDA) Close() error {
-	if c == nil {
-		return nil
-	}
-	var closeErrors []error
-	if c.weights != nil {
-		closeErrors = append(closeErrors, c.weights.Close())
-		c.weights = nil
-	}
-	if c.executor != nil {
-		closeErrors = append(closeErrors, c.executor.Close())
-		c.executor = nil
-	}
-	if c.worker != nil {
-		closeErrors = append(closeErrors, c.worker.Close())
-		c.worker = nil
-	}
-	return errors.Join(closeErrors...)
+	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
 func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4VisionTile) ([]reference.Value, error) {
@@ -111,17 +55,8 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 	builder := tensor.NewBuilder()
 	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	hostFeeds := map[*tensor.Tensor]reference.Value{pixels: pixelsValue(pixels, tile.PixelValues)}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var weightErr error
-	weight := func(name string) *tensor.Tensor {
-		node, pointer, err := r.cuda.weights.Input(builder, name)
-		if err != nil {
-			weightErr = err
-			return nil
-		}
-		deviceFeeds[node] = pointer
-		return node
-	}
+	binding := r.cuda.bindWeights(builder)
+	weight := binding.weight
 	linear := func(input *tensor.Tensor, prefix string) *tensor.Tensor {
 		return builder.Add(builder.MulMat(weight(prefix+".weight"), input), weight(prefix+".bias"))
 	}
@@ -182,8 +117,9 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 		}
 		outputs[block] = output
 	}
-	if weightErr != nil {
-		return nil, fmt.Errorf("projector: build Granite 4 Vision CUDA graph: %w", weightErr)
+	deviceFeeds, err := binding.result()
+	if err != nil {
+		return nil, fmt.Errorf("projector: build Granite 4 Vision CUDA graph: %w", err)
 	}
 	if err := builder.Err(); err != nil {
 		return nil, fmt.Errorf("projector: build Granite 4 Vision CUDA graph: %w", err)

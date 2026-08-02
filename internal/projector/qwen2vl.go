@@ -7,9 +7,6 @@ import (
 	"image"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
 )
 
 const qwen2VLProjectorType = "qwen2vl_merger"
@@ -257,21 +254,7 @@ func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) error {
 			required[prefix+name] = shape
 		}
 	}
-	for name, shape := range required {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
-		}
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		for dimension, want := range shape {
-			if info.Shape[dimension] != want {
-				return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-			}
-		}
-	}
-	return nil
+	return validateProjectorTensorShapes(file, required)
 }
 
 func PreprocessQwen2VLImage(source image.Image, spec Qwen2VLSpec, options Qwen2VLPreprocessOptions) (Qwen2VLImage, error) {
@@ -305,172 +288,5 @@ func (r *Qwen2VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, 
 }
 
 func (r *Qwen2VLRunner) encode(ctx context.Context, input Qwen2VLImage) (Qwen2VLOutput, error) {
-	if r.cuda != nil {
-		return r.encodeCUDA(ctx, input)
-	}
-	hidden, err := r.patchEmbedding(ctx, input)
-	if err != nil {
-		return Qwen2VLOutput{}, err
-	}
-	rows := input.GridT * input.GridH * input.GridW
-	rowOrder, columnOrder := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
-	if r.spec.PreLayerNorm {
-		if hidden, err = r.normalize(ctx, hidden, rows, "v.pre_ln.weight", "v.pre_ln.bias"); err != nil {
-			return Qwen2VLOutput{}, err
-		}
-	}
-	for layer := 0; layer < r.spec.Layers; layer++ {
-		if err := ctx.Err(); err != nil {
-			return Qwen2VLOutput{}, err
-		}
-		if err := r.runLayer(ctx, hidden, rows, input.GridH*input.GridW, rowOrder, columnOrder, layer); err != nil {
-			return Qwen2VLOutput{}, err
-		}
-	}
-	if r.spec.PostLayerNorm {
-		if hidden, err = r.normalize(ctx, hidden, rows, "v.post_ln.weight", "v.post_ln.bias"); err != nil {
-			return Qwen2VLOutput{}, err
-		}
-	}
-	embeddings, err := r.merge(ctx, hidden, rows)
-	if err != nil {
-		return Qwen2VLOutput{}, err
-	}
-	return Qwen2VLOutput{Embeddings: embeddings, GridT: input.GridT, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
-}
-
-func (r *Qwen2VLRunner) patchEmbedding(ctx context.Context, input Qwen2VLImage) ([]float32, error) {
-	weight0, err := r.load(ctx, "v.patch_embd.weight")
-	if err != nil {
-		return nil, err
-	}
-	weight1, err := r.load(ctx, "v.patch_embd.weight.1")
-	if err != nil {
-		return nil, err
-	}
-	rows := input.GridT * input.GridH * input.GridW
-	patchArea := r.spec.PatchSize * r.spec.PatchSize
-	temporalWidth := 3 * patchArea
-	patchWidth := 2 * temporalWidth
-	output := make([]float32, rows*r.spec.Hidden)
-	parallelRows(rows, func(start, end int) {
-		for row := start; row < end; row++ {
-			source := input.PixelValues[row*patchWidth : (row+1)*patchWidth]
-			for channel := 0; channel < r.spec.Hidden; channel++ {
-				acc := 0.0
-				base := channel * temporalWidth
-				for color := 0; color < 3; color++ {
-					for pixel := 0; pixel < patchArea; pixel++ {
-						source0 := color*2*patchArea + pixel
-						source1 := source0 + patchArea
-						weight := base + color*patchArea + pixel
-						acc += float64(source[source0])*float64(weight0.Data[weight]) + float64(source[source1])*float64(weight1.Data[weight])
-					}
-				}
-				output[row*r.spec.Hidden+channel] = float32(acc)
-			}
-		}
-	})
-	return output, nil
-}
-
-func (r *Qwen2VLRunner) normalize(ctx context.Context, input []float32, rows int, weightName, biasName string) ([]float32, error) {
-	weight, bias, err := r.loadPair(ctx, weightName, biasName)
-	if err != nil {
-		return nil, err
-	}
-	output := make([]float32, len(input))
-	layerNorm(output, input, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
-	return output, nil
-}
-
-func (r *Qwen2VLRunner) runLayer(ctx context.Context, hidden []float32, rows, temporalSpan int, rowOrder, columnOrder []int, layer int) error {
-	prefix := fmt.Sprintf("v.blk.%d.", layer)
-	normalized, err := r.normalize(ctx, hidden, rows, prefix+"ln1.weight", prefix+"ln1.bias")
-	if err != nil {
-		return err
-	}
-	qkv := make([]float32, rows*3*r.spec.Hidden)
-	for projection, name := range []string{"attn_q", "attn_k", "attn_v"} {
-		weight, bias, loadErr := r.loadPair(ctx, prefix+name+".weight", prefix+name+".bias")
-		if loadErr != nil {
-			return loadErr
-		}
-		values := linear(normalized, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
-		for row := 0; row < rows; row++ {
-			copy(qkv[row*3*r.spec.Hidden+projection*r.spec.Hidden:], values[row*r.spec.Hidden:(row+1)*r.spec.Hidden])
-		}
-	}
-	attention := qwen3VLAttention(qkv, rows, temporalSpan, r.spec.preprocessSpec(), rowOrder, columnOrder)
-	outWeight, outBias, err := r.loadPair(ctx, prefix+"attn_out.weight", prefix+"attn_out.bias")
-	if err != nil {
-		return err
-	}
-	projected := linear(attention, outWeight.Data, outBias.Data, rows, r.spec.Hidden, r.spec.Hidden)
-	for index := range hidden {
-		hidden[index] += projected[index]
-	}
-	normalized, err = r.normalize(ctx, hidden, rows, prefix+"ln2.weight", prefix+"ln2.bias")
-	if err != nil {
-		return err
-	}
-	upName, downName := "ffn_up", "ffn_down"
-	if r.spec.LegacyFFNSwapped {
-		upName, downName = downName, upName
-	}
-	upWeight, upBias, err := r.loadPair(ctx, prefix+upName+".weight", prefix+upName+".bias")
-	if err != nil {
-		return err
-	}
-	up := linear(normalized, upWeight.Data, upBias.Data, rows, r.spec.Hidden, r.spec.Intermediate)
-	for index, value := range up {
-		up[index] = geluTanh(value)
-	}
-	downWeight, downBias, err := r.loadPair(ctx, prefix+downName+".weight", prefix+downName+".bias")
-	if err != nil {
-		return err
-	}
-	down := linear(up, downWeight.Data, downBias.Data, rows, r.spec.Intermediate, r.spec.Hidden)
-	for index := range hidden {
-		hidden[index] += down[index]
-	}
-	return nil
-}
-
-func (r *Qwen2VLRunner) merge(ctx context.Context, hidden []float32, rows int) (reference.Value, error) {
-	if rows%4 != 0 {
-		return reference.Value{}, errors.New("projector: patch rows are not merge aligned")
-	}
-	mergedRows := rows / 4
-	fc1Weight, fc1Bias, err := r.loadPair(ctx, "mm.0.weight", "mm.0.bias")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	fc1 := linear(hidden, fc1Weight.Data, fc1Bias.Data, mergedRows, r.spec.Hidden*4, r.spec.MergerIntermediate)
-	for index, value := range fc1 {
-		fc1[index] = geluTanh(value)
-	}
-	fc2Weight, fc2Bias, err := r.loadPair(ctx, "mm.2.weight", "mm.2.bias")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	output := linear(fc1, fc2Weight.Data, fc2Bias.Data, mergedRows, r.spec.MergerIntermediate, r.spec.OutputHidden)
-	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(mergedRows)), output)
-}
-
-func (r *Qwen2VLRunner) load(ctx context.Context, name string) (reference.Value, error) {
-	info, ok := r.file.Tensor(name)
-	if !ok {
-		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
-	}
-	return model.LoadHostTensor(ctx, r.file, info)
-}
-
-func (r *Qwen2VLRunner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
-	a, err := r.load(ctx, first)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, err
-	}
-	b, err := r.load(ctx, second)
-	return a, b, err
+	return r.encodeGraph(ctx, input)
 }

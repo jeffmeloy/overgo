@@ -12,22 +12,11 @@ func BuildCohere2MTPInput(
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
 	spec Spec,
 ) (*tensor.Tensor, error) {
-	if builder == nil || tokenEmbedding == nil || targetHidden == nil || embeddingNorm == nil ||
-		hiddenNorm == nil || projection == nil {
-		return nil, errors.New("Cohere2-MoE MTP input is nil")
-	}
-	if spec.Architecture != "cohere2moe" || spec.NextNPredictLayers != 1 ||
-		tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
-		tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New("Cohere2-MoE MTP input shape is incompatible")
-	}
-	embedding := ApplyNormalization(builder, tokenEmbedding, embeddingNorm, nil, spec)
-	hidden := ApplyNormalization(builder, targetHidden, hiddenNorm, nil, spec)
-	output := builder.MulMat(projection, builder.Concat(embedding, hidden, 0))
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
-	return output, nil
+	return buildMTPInput(
+		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
+		spec.Profile().DraftKind == DraftCohere2MTP && spec.NextNPredictLayers == 1, mtpArchitectureNorm,
+		"Cohere2-MoE MTP input is nil", "Cohere2-MoE MTP input shape is incompatible",
+	)
 }
 
 // BuildCohere2MTPBlockCached: full-attention routed draft block.
@@ -39,7 +28,7 @@ func BuildCohere2MTPBlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "cohere2moe" || spec.NextNPredictLayers != 1 ||
+	if spec.Profile().DraftKind != DraftCohere2MTP || spec.NextNPredictLayers != 1 ||
 		weights.FeedForwardRouter == nil {
 		return DenseBlockResult{}, errors.New("Cohere2-MoE MTP block is invalid")
 	}
@@ -58,20 +47,10 @@ func BuildCohere2MTPOutputs(
 	input, outputNorm, output *tensor.Tensor,
 	spec Spec,
 ) (logits, nextHidden *tensor.Tensor, err error) {
-	if builder == nil || input == nil || outputNorm == nil || output == nil {
-		return nil, nil, errors.New("Cohere2-MoE MTP output is nil")
-	}
-	if spec.Architecture != "cohere2moe" || spec.NextNPredictLayers != 1 ||
-		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, nil, errors.New("Cohere2-MoE MTP output shape is incompatible")
-	}
-	nextHidden = ApplyNormalization(builder, input, outputNorm, nil, spec)
-	logits = builder.MulMat(output, nextHidden)
-	if scale := spec.OutputLogitMultiplier(); scale != 1 {
-		logits = builder.Scale(logits, scale)
-	}
-	if buildErr := builder.Err(); buildErr != nil {
-		return nil, nil, buildErr
-	}
-	return logits, nextHidden, nil
+	return buildMTPOutputs(
+		builder, input, outputNorm, output, spec,
+		spec.Profile().DraftKind == DraftCohere2MTP && spec.NextNPredictLayers == 1,
+		false, true, mtpArchitectureNorm,
+		"Cohere2-MoE MTP output is nil", "Cohere2-MoE MTP output shape is incompatible",
+	)
 }

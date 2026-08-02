@@ -564,6 +564,63 @@ func (h *Handler) acquireSlot(requested int) (int, bool) {
 	return id, true
 }
 
+func (h *Handler) acquireRequestSlot(response http.ResponseWriter, requested int) (int, bool) {
+	id, acquired := h.acquireSlot(requested)
+	if acquired {
+		return id, true
+	}
+	response.Header().Set("Retry-After", "1")
+	writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
+	return -1, false
+}
+
+func beginSSE(response http.ResponseWriter) (http.Flusher, bool) {
+	flusher, ok := response.(http.Flusher)
+	if !ok {
+		writeError(response, http.StatusInternalServerError, "server_error", "streaming is unavailable")
+		return nil, false
+	}
+	response.Header().Set("Content-Type", "text/event-stream")
+	response.Header().Set("Cache-Control", "no-cache")
+	response.Header().Set("X-Accel-Buffering", "no")
+	response.WriteHeader(http.StatusOK)
+	return flusher, true
+}
+
+type sseEmitter struct {
+	ctx     context.Context
+	writer  io.Writer
+	flusher http.Flusher
+}
+
+func newSSEEmitter(ctx context.Context, writer io.Writer, flusher http.Flusher) sseEmitter {
+	return sseEmitter{ctx: ctx, writer: writer, flusher: flusher}
+}
+
+func (stream sseEmitter) write(value any) error {
+	if err := writeSSE(stream.writer, value); err != nil {
+		return err
+	}
+	stream.flusher.Flush()
+	return stream.ctx.Err()
+}
+
+func (stream sseEmitter) named(name string, value any) error {
+	if err := writeNamedSSE(stream.writer, name, value); err != nil {
+		return err
+	}
+	stream.flusher.Flush()
+	return stream.ctx.Err()
+}
+
+func (stream sseEmitter) done() error {
+	if _, err := io.WriteString(stream.writer, "data: [DONE]\n\n"); err != nil {
+		return err
+	}
+	stream.flusher.Flush()
+	return stream.ctx.Err()
+}
+
 func (h *Handler) releaseSlot(id int) {
 	if id < 0 || id >= len(h.slotBusy) {
 		return
@@ -1607,10 +1664,8 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 		}
 		topN = min(*body.TopN, len(documents))
 	}
-	slotID, acquired := h.acquireSlot(-1)
+	slotID, acquired := h.acquireRequestSlot(response, -1)
 	if !acquired {
-		response.Header().Set("Retry-After", "1")
-		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
 		return
 	}
 	defer h.releaseSlot(slotID)
@@ -1710,10 +1765,8 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 		)
 		return
 	}
-	slotID, acquired := h.acquireSlot(-1)
+	slotID, acquired := h.acquireRequestSlot(response, -1)
 	if !acquired {
-		response.Header().Set("Retry-After", "1")
-		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
 		return
 	}
 	defer h.releaseSlot(slotID)
@@ -1825,10 +1878,8 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 		)
 		return
 	}
-	slotID, acquired := h.acquireSlot(-1)
+	slotID, acquired := h.acquireRequestSlot(response, -1)
 	if !acquired {
-		response.Header().Set("Retry-After", "1")
-		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
 		return
 	}
 	defer h.releaseSlot(slotID)
@@ -2108,10 +2159,8 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	slotID, acquired := h.acquireSlot(-1)
+	slotID, acquired := h.acquireRequestSlot(response, -1)
 	if !acquired {
-		response.Header().Set("Retry-After", "1")
-		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
 		return
 	}
 	defer h.releaseSlot(slotID)
@@ -2569,10 +2618,8 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	slotID, acquired := h.acquireSlot(requestedSlot)
+	slotID, acquired := h.acquireRequestSlot(response, requestedSlot)
 	if !acquired {
-		response.Header().Set("Retry-After", "1")
-		writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
 		return
 	}
 	defer h.releaseSlot(slotID)
@@ -4137,15 +4184,10 @@ func (h *Handler) streamNativeCompletion(
 	loraConfigured bool,
 	projectedInputs *inference.ProjectedInputs,
 ) {
-	flusher, ok := response.(http.Flusher)
+	flusher, ok := beginSSE(response)
 	if !ok {
-		writeError(response, http.StatusInternalServerError, "server_error", "streaming is unavailable")
 		return
 	}
-	response.Header().Set("Content-Type", "text/event-stream")
-	response.Header().Set("Cache-Control", "no-cache")
-	response.Header().Set("X-Accel-Buffering", "no")
-	response.WriteHeader(http.StatusOK)
 	stream := newSynchronizedSSE(response, flusher)
 	stopHeartbeat := stream.startHeartbeat(
 		request.Context(),
@@ -4697,22 +4739,18 @@ func (h *Handler) streamCompletion(
 	stops []string,
 	n int,
 ) {
-	flusher, ok := response.(http.Flusher)
+	flusher, ok := beginSSE(response)
 	if !ok {
-		writeError(response, http.StatusInternalServerError, "server_error", "streaming is unavailable")
 		return
 	}
-	response.Header().Set("Content-Type", "text/event-stream")
-	response.Header().Set("Cache-Control", "no-cache")
-	response.Header().Set("X-Accel-Buffering", "no")
-	response.WriteHeader(http.StatusOK)
+	stream := newSSEEmitter(request.Context(), response, flusher)
 	created := time.Now().Unix()
 	choiceIndex := 0
 	for _, prompt := range prompts {
 		for range n {
 			choiceSampler, err := samplerForChoice(sampler, choiceIndex)
 			if err != nil {
-				_ = writeSSE(response, errorEnvelope("generation_error", err.Error()))
+				_ = stream.write(errorEnvelope("generation_error", err.Error()))
 				break
 			}
 			completionTokens := 0
@@ -4745,30 +4783,25 @@ func (h *Handler) streamCompletion(
 								Index: choiceIndex,
 							}},
 						}
-						if writeErr := writeSSE(response, chunk); writeErr != nil {
-							return writeErr
-						}
-						flusher.Flush()
-						return request.Context().Err()
+						return stream.write(chunk)
 					},
 				},
 			)
 			if err != nil {
-				_ = writeSSE(response, errorEnvelope("generation_error", err.Error()))
+				_ = stream.write(errorEnvelope("generation_error", err.Error()))
 				break
 			}
 			if piece := filter.Flush(); piece != "" {
-				_ = writeSSE(response, streamResponse{
+				_ = stream.write(streamResponse{
 					ID: id, Object: "text_completion", Created: created, Model: h.config.ModelID,
 					Choices: []streamChoice{{Text: piece, Index: choiceIndex}},
 				})
-				flusher.Flush()
 			}
 			reason := "stop"
 			if !filter.Stopped() && completionTokens == maxTokens {
 				reason = "length"
 			}
-			_ = writeSSE(response, streamResponse{
+			_ = stream.write(streamResponse{
 				ID:      id,
 				Object:  "text_completion",
 				Created: created,
@@ -4778,12 +4811,10 @@ func (h *Handler) streamCompletion(
 					FinishReason: &reason,
 				}},
 			})
-			flusher.Flush()
 			choiceIndex++
 		}
 	}
-	_, _ = io.WriteString(response, "data: [DONE]\n\n")
-	flusher.Flush()
+	_ = stream.done()
 }
 
 func writeGenerationError(response http.ResponseWriter, err error) {

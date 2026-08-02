@@ -1368,11 +1368,13 @@ pass. Image encoding, projection, and soft-embedding construction remain the
 external multimodal boundary; real-model validation is pending a local fixture.
 
 PaddleOCR now reuses the ERNIE 4.5 dense catalog with its pinned adjacent-pair
-four-axis MRoPE graph and optional attention-output bias. Its decoder accepts
-caller-projected embeddings and distinct grid coordinates; text decoding still
-repeats the token coordinate across all axes. Reference/CUDA block
-differentials pass. The vision projector and grid construction remain external;
-real-model validation is pending fixtures.
+four-axis MRoPE graph and optional attention-output bias. Its internal vision
+tower implements bilinear dynamic resize, learned-position interpolation,
+fused or separate Q/K/V attention with raster-order vision MRoPE, affine ViT
+blocks, projector input normalization, padded 2x2 patch merge, and the two-layer
+projector. Native single/multi-image prompts use the Paddle image markers and
+compressed decoder coordinates. Reference/CUDA projector and decoder
+differentials pass; real-model validation is pending a local fixture.
 
 Qwen2-VL now executes its dense text decoder and internal image/video projector.
 The visual tower implements temporal-pair patch projection, optional pre/post

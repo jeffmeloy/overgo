@@ -2101,9 +2101,14 @@ models:
       - optional-attention-output-bias
       - optional-tied-output
       - serializable-prefix-editable-kv-cache
-    constraints:
-      - vision-projector-external
-      - image-grid-position-construction-external
+      - paddleocr-dynamic-image-projector
+      - bilinear-aligned-image-resize
+      - fused-or-separate-vision-qkv-with-optional-bias
+      - raster-vision-mrope
+      - padded-two-by-two-patch-merge
+      - ordered-multi-image-soft-token-merge
+      - compressed-four-axis-image-grid
+      - optional-cuda-projector-execution
     real_model_validation: pending-fixture
   dbrx:
     status: experimental

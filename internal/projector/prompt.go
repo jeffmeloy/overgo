@@ -15,6 +15,7 @@ import (
 
 const Qwen3VLImagePad = "<|image_pad|>"
 const Qwen3VLVideoPad = "<|video_pad|>"
+const PaddleOCRImagePad = "<|IMAGE_PLACEHOLDER|>"
 
 type ImageTokenizer interface {
 	TokenizeText(string, bool, bool) ([]tokenizer.TokenID, error)
@@ -106,6 +107,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	}
 	_ = file.Close()
 	switch projectorType {
+	case paddleOCRProjectorType:
+		return OpenPaddleOCRWithOptions(path, PaddleOCROpenOptions(options))
 	case qwen2VLProjectorType:
 		return OpenQwen2VLWithOptions(path, Qwen2VLOpenOptions(options))
 	case qwen3VLProjectorType:
@@ -115,6 +118,117 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	default:
 		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
 	}
+}
+
+func (r *PaddleOCRRunner) BuildImagePrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	source image.Image,
+	beforeImage, afterImage string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+}
+
+func (r *PaddleOCRRunner) BuildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	_ bool,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
+}
+
+func (r *PaddleOCRRunner) BuildImagesHistoryPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+) (MultimodalPrompt, error) {
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+}
+
+func (r *PaddleOCRRunner) buildImagesPrompt(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	history bool,
+) (MultimodalPrompt, error) {
+	if tokenizer == nil {
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	}
+	if len(sources) == 0 || len(text) != len(sources)+1 {
+		return MultimodalPrompt{}, errors.New("projector: PaddleOCR image/text sequence is inconsistent")
+	}
+	type geometry struct{ rows, columns int }
+	counts := make([]int, len(sources))
+	geometries := make([]geometry, len(sources))
+	var embeddings []float32
+	var prompt strings.Builder
+	if !history {
+		prompt.WriteString("<|begin_of_sentence|>User: ")
+	}
+	for index, source := range sources {
+		if history {
+			prompt.WriteString(text[index])
+		}
+		output, err := r.EncodeImage(ctx, source, DefaultPaddleOCRPreprocessOptions(r.spec))
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode PaddleOCR image %d: %w", index, err)
+		}
+		counts[index] = int(output.Embeddings.Shape.Dims[1])
+		geometries[index] = geometry{
+			rows:    (output.GridH + output.MergeSize - 1) / output.MergeSize,
+			columns: (output.GridW + output.MergeSize - 1) / output.MergeSize,
+		}
+		prompt.WriteString("<|IMAGE_START|>")
+		prompt.WriteString(strings.Repeat(PaddleOCRImagePad, counts[index]))
+		prompt.WriteString("<|IMAGE_END|>")
+		embeddings = append(embeddings, output.Embeddings.Data...)
+	}
+	if history {
+		prompt.WriteString(text[len(text)-1])
+	} else {
+		for _, fragment := range text {
+			prompt.WriteString(fragment)
+		}
+	}
+	if !history {
+		prompt.WriteString("\nAssistant: ")
+	}
+	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize PaddleOCR image prompt: %w", err)
+	}
+	padIDs, err := tokenizer.TokenizeText(PaddleOCRImagePad, false, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize PaddleOCR placeholder: %w", err)
+	}
+	if len(padIDs) != 1 {
+		return MultimodalPrompt{}, fmt.Errorf("projector: PaddleOCR placeholder maps to %d tokens", len(padIDs))
+	}
+	starts, err := variableTokenRuns(ids, padIDs[0], counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: PaddleOCR image prompt: %w", err)
+	}
+	chunks := make([]Qwen3VLPositionChunk, len(starts))
+	var indices []uint32
+	for index, start := range starts {
+		chunks[index] = Qwen3VLPositionChunk{
+			Start: start, Rows: geometries[index].rows, Columns: geometries[index].columns,
+		}
+		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
+	}
+	positions, err := Qwen3VLVariableChunkPositions(len(ids), chunks)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
+		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
+	}, nil
 }
 
 func OpenAudioProjector(path string) (AudioProjector, error) {

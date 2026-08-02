@@ -52,9 +52,11 @@ const (
 
 // ArchitectureProfile: registry entry and capability set.
 type ArchitectureProfile struct {
-	Name         string
-	Family       ArchitectureFamily
-	Capabilities ArchitectureCapability
+	Name          string
+	Family        ArchitectureFamily
+	GraphFamily   ArchitectureFamily
+	CatalogFamily ArchitectureFamily
+	Capabilities  ArchitectureCapability
 }
 
 // Has: capability predicate.
@@ -109,8 +111,10 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	registry := make(map[string]ArchitectureProfile, len(names))
 	for _, name := range names {
 		registry[name] = ArchitectureProfile{
-			Name:   name,
-			Family: ArchitectureFamilyAttention,
+			Name:          name,
+			Family:        ArchitectureFamilyAttention,
+			GraphFamily:   ArchitectureFamilyAttention,
+			CatalogFamily: ArchitectureFamilyAttention,
 		}
 	}
 	setCapabilities := func(capabilities ArchitectureCapability, names ...string) {
@@ -130,6 +134,8 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 				panic("unknown architecture profile: " + name)
 			}
 			profile.Family = family
+			profile.GraphFamily = family
+			profile.CatalogFamily = family
 			registry[name] = profile
 		}
 	}

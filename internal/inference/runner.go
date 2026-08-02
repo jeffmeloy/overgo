@@ -2661,58 +2661,29 @@ func (r *Runner) runLayerCached(
 		result model.DenseBlockResult
 		err    error
 	)
-	if r.spec.Architecture == "mamba" {
-		result, err = model.BuildMambaBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
-	} else if r.spec.Architecture == "mamba2" {
-		result, err = model.BuildMamba2BlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
-	} else if r.spec.Architecture == "falcon-h1" {
-		result, err = model.BuildFalconH1BlockCached(
-			builder, input, r.spec, graphWeights, positions,
-			pastKey, pastValue, pastConvState, pastSSMState,
-		)
-	} else if jambaRecurrent {
-		result, err = model.BuildJambaRecurrentBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
-	} else if graniteHybridRecurrent {
-		result, err = model.BuildGraniteHybridRecurrentBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
-	} else if plamo2Recurrent {
-		result, err = model.BuildPLaMo2RecurrentBlockCached(builder, input, r.spec, graphWeights, pastKey, pastValue)
-	} else if r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe" {
-		result, err = model.BuildNemotronHBlockCached(
-			builder, input, r.spec, graphWeights, positions, pastKey, pastValue, uint32(layerIndex),
-		)
-	} else if r.spec.Architecture == "kimi-linear" {
-		result, err = model.BuildKimiLinearBlockCached(
-			builder, input, r.spec, graphWeights, positions, info.Recurrent,
-			pastKey, pastValue, uint32(layerIndex),
-		)
-	} else if r.spec.Architecture == "plm" || r.spec.Architecture == "minicpm3" ||
-		r.spec.Architecture == "deepseek2" || r.spec.Architecture == "mistral4" {
-		result, err = model.BuildMLABlockCachedForLayer(
-			builder, input, r.spec, graphWeights, positions, pastKey, pastValue, uint32(layerIndex),
-		)
-	} else if isDSAArchitecture(r.spec.Architecture) {
-		result, err = model.BuildDSABlockCached(
-			builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
-			pastIndexerKey, graphWeights.PerLayerInput, uint32(layerIndex),
-		)
-	} else if r.spec.Architecture == "deepseek4" {
-		result, err = model.BuildDeepSeek4BlockCached(
-			builder, input, r.spec, graphWeights, positions, tokenRows, pastKey,
-			pastDeepSeek4States, uint32(layerIndex),
-		)
-	} else {
-		if multiPositions != nil {
-			result, err = model.BuildDenseBlockCachedForLayerWithMultiPositions(
-				builder, input, r.spec, graphWeights, [4][]uint32(*multiPositions),
-				pastKey, pastValue, uint32(layerIndex),
-			)
-		} else {
-			result, err = model.BuildDenseBlockCachedForLayer(
-				builder, input, r.spec, graphWeights, positions,
-				pastKey, pastValue, uint32(layerIndex),
-			)
-		}
+	var dispatchMultiPositions *[4][]uint32
+	if multiPositions != nil {
+		converted := [4][]uint32(*multiPositions)
+		dispatchMultiPositions = &converted
 	}
+	result, err = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Builder:        builder,
+		Input:          input,
+		Spec:           r.spec,
+		Weights:        graphWeights,
+		Positions:      positions,
+		MultiPositions: dispatchMultiPositions,
+		TokenRows:      tokenRows,
+		PastKey:        pastKey,
+		PastValue:      pastValue,
+		PastIndexerKey: pastIndexerKey,
+		PastConvState:  pastConvState,
+		PastSSMState:   pastSSMState,
+		PastStates:     pastDeepSeek4States,
+		PerLayerInput:  graphWeights.PerLayerInput,
+		Layer:          uint32(layerIndex),
+		Recurrent:      info.Recurrent,
+	})
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}

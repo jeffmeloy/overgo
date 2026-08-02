@@ -19,6 +19,7 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			profile, ok := LookupArchitecture(test.name)
 			if !ok || profile.Name != test.name || profile.Family != test.family ||
+				profile.GraphFamily != test.family || profile.CatalogFamily != test.family ||
 				profile.Capabilities&test.capability != test.capability {
 				t.Fatalf("profile = %#v", profile)
 			}

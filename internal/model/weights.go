@@ -293,8 +293,7 @@ type Weights struct {
 	Cohere2MTP              *Cohere2MTPWeights
 }
 
-// ReadWeights: validates names and shapes without loading tensor bytes
-func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
+func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	if file == nil {
 		return Weights{}, errors.New("model file is nil")
 	}

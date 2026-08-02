@@ -105,6 +105,16 @@ claims:
         contains: "func LookupArchitecture("
       - path: internal/model/architecture_test.go
         contains: "func TestArchitectureRegistryProfiles("
+  - id: architecture-family-dispatch
+    status: implemented
+    summary: Graph construction and tensor catalog validation route through architecture families.
+    evidence:
+      - path: internal/model/graph_dispatch.go
+        contains: "func BuildArchitectureBlockCached("
+      - path: internal/model/weights_dispatch.go
+        contains: "func ReadWeights("
+      - path: internal/model/graph_dispatch_test.go
+        contains: "func TestArchitectureBlockDispatchRoutesFamilies("
   - id: reproducible-release
     status: implemented
     summary: Release archives are deterministic and compared across two builds.

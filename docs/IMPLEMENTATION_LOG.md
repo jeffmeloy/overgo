@@ -1613,6 +1613,13 @@ runtime behavior, while keyed internal construction names the owning sub-spec
 explicitly. The complete model, inference, server, and CUDA executor suites
 pass the migration.
 
+Graph construction now enters through an architecture-family dispatcher with
+separate recurrent/hybrid, MoE/MLA/DSA, and attention paths. Tensor catalog
+validation uses matching attention, MoE, recurrent, hybrid, encoder,
+encoder-decoder, diffusion, and draft entry points over the shared strict
+shape/name validation core. Family routing is sourced only from the central
+architecture profile.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

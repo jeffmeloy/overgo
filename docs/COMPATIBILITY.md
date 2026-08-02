@@ -8,6 +8,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 
 | ID | State | Claim | Evidence |
 | --- | --- | --- | --- |
+| `architecture-family-dispatch` | implemented | Graph construction and tensor catalog validation route through architecture families. | [`func BuildArchitectureBlockCached(`](../internal/model/graph_dispatch.go)<br>[`func ReadWeights(`](../internal/model/weights_dispatch.go)<br>[`func TestArchitectureBlockDispatchRoutesFamilies(`](../internal/model/graph_dispatch_test.go) |
 | `architecture-profiles` | implemented | Model architectures use a central family and capability registry with grouped specifications. | [`func LookupArchitecture(`](../internal/model/architecture.go)<br>[`func TestArchitectureRegistryProfiles(`](../internal/model/architecture_test.go) |
 | `bounded-gguf-parsing` | implemented | GGUF parsing applies allocation, count, alignment, and split limits. | [`func OpenWithOptions(`](../internal/gguf/reader.go)<br>[`func TestParseEnforcesLimits(`](../internal/gguf/reader_test.go) |
 | `bounded-server-media` | implemented | Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels. | [`func validateMultimodalImages(`](../internal/server/server.go)<br>[`func TestValidateMultimodalImagesEnforcesGeometryBudgets(`](../internal/server/server_test.go) |

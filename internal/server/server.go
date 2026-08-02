@@ -123,6 +123,12 @@ type ChatOutputParser interface {
 	) (inference.ChatMessage, error)
 }
 
+type ChatOutputStreamProvider interface {
+	NewChatOutputStream(
+		[]inference.ChatTool,
+	) (inference.ChatOutputStream, error)
+}
+
 type ChatToolGrammarProvider interface {
 	ChatToolGrammar(
 		[]inference.ChatTool,

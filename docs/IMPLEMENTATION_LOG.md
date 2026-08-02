@@ -711,13 +711,13 @@ matrix.
   backreferences remain pending. General and infill sampler stages have
   arbitrary configurable ordering.
 - Text and function-tool GGUF Jinja templates are supported. Custom
-  llama.cpp-only Jinja extensions not implemented by gonja, token-incremental
-  streaming tool-call argument deltas, and continuous-batching server
-  scheduling remain pending. Tool-enabled streams currently wait for complete
-  validated output before emitting structured call deltas.
+  llama.cpp-only Jinja extensions not implemented by gonja and
+  continuous-batching server scheduling remain pending. Tool-enabled streams
+  incrementally parse JSON and Hermes output while retaining complete-output
+  schema validation.
 - Chat generation/counting accepts string message bodies, text content-part
   arrays, tool schemas, assistant calls/results, and the implemented
-  system/user/assistant/tool role families. Buffered and complete-call SSE
+  system/user/assistant/tool role families. Buffered and token-incremental SSE
   OpenAI function calls plus tool-aware token counting are supported;
   single-turn projected multi-image or single-image/audio generation is supported.
   Projected multimodal input-token counting uses the same prompt path. Media
@@ -725,11 +725,10 @@ matrix.
 - OpenAI Responses generation, streaming, token counting, function
   tools/history, and single-turn projected base64 multi-image input are supported.
   Continuation IDs, hosted/custom tools, reasoning items, media history,
-  mixed media, remote images, audio/file inputs, and token-incremental
-  function-argument deltas remain pending.
+  mixed media, remote images, and audio/file inputs remain pending.
 - Text-only Anthropic generation, streaming, counting, tool use/results, and
-  tool-aware Jinja contexts are supported. Thinking blocks, images, and
-  token-incremental tool-input deltas remain pending.
+  tool-aware Jinja contexts are supported, including incremental tool-input
+  deltas. Thinking blocks and images remain pending.
 - LoRA loading, alpha/rank scaling, graph-wide tensor application, global
   control-plane scaling, prompt-cache invalidation, and session binding are
   implemented. Native per-request overrides restore global scales and isolate
@@ -1594,6 +1593,12 @@ buffered generation, streaming, tools, and token-count handlers now live in
 protocol-specific source files. The shared `Handler`, admission slots, metrics,
 sampling, prompt preparation, native routes, and error transport remain in the
 server core.
+
+Tool-call streams now parse model output incrementally at the inference
+boundary. JSON-in-XML and Hermes parameter-tag templates emit function starts
+and argument fragments as generation pieces arrive across OpenAI Chat,
+OpenAI Responses, and Anthropic protocols. The complete parser still validates
+the final function names, JSON, schemas, and call sequence before completion.
 
 ## Working rules
 

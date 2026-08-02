@@ -552,6 +552,15 @@ func (f *fakeGenerator) ParseChatOutput(
 	return message, nil
 }
 
+func (f *fakeGenerator) NewChatOutputStream(
+	tools []inference.ChatTool,
+) (inference.ChatOutputStream, error) {
+	return inference.NewChatOutputStream(
+		`<function=example_function_name>`,
+		tools,
+	), nil
+}
+
 func (f *fakeGenerator) ChatToolGrammar(
 	_ []inference.ChatTool,
 	required bool,

@@ -89,6 +89,14 @@ claims:
         contains: "func (h *Handler) preparePrompt("
       - path: internal/server/server_part2_test.go
         contains: "func TestPreparedPromptGenerationAndTokenCountParity("
+  - id: incremental-tool-streaming
+    status: implemented
+    summary: Chat, Responses, and Anthropic stream JSON and Hermes function arguments incrementally.
+    evidence:
+      - path: internal/inference/chat_stream.go
+        contains: "func (s *chatOutputStream) Accept("
+      - path: internal/server/server_part3_test.go
+        contains: "func TestStreamingResponsesFunctionCallLifecycle("
   - id: reproducible-release
     status: implemented
     summary: Release archives are deterministic and compared across two builds.

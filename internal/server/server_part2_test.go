@@ -1571,7 +1571,9 @@ func TestChatToolSchemasAreCountedAndBufferedCallsAreStructured(t *testing.T) {
 func TestStreamingChatToolCallsAreStructured(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{
 		pieces: []string{
-			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+			`<tool_call><function=weather><parameter=city>`,
+			`Par`,
+			`is</parameter></function></tool_call>`,
 		},
 	})
 	response := httptest.NewRecorder()
@@ -1584,7 +1586,7 @@ func TestStreamingChatToolCallsAreStructured(t *testing.T) {
 				`{"messages":[{"role":"user","content":"weather?"}],`+
 					`"tools":[{"type":"function","function":{"name":"weather",`+
 					`"parameters":{"type":"object"}}}],`+
-					`"tool_choice":"required","max_tokens":1,"stream":true}`,
+					`"tool_choice":"required","max_tokens":3,"stream":true}`,
 			),
 		),
 	)
@@ -1599,7 +1601,9 @@ func TestStreamingChatToolCallsAreStructured(t *testing.T) {
 	for _, fragment := range []string{
 		`"role":"assistant"`,
 		`"tool_calls":[{"index":0,"id":"call_`,
-		`"type":"function","function":{"name":"weather","arguments":"{\"city\":\"Paris\"}"}`,
+		`"type":"function","function":{"name":"weather","arguments":"{\"city\":\""}`,
+		`"function":{"arguments":"Par"}`,
+		`"function":{"arguments":"is\"}"}`,
 		`"finish_reason":"tool_calls"`,
 		"data: [DONE]",
 	} {

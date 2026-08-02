@@ -324,7 +324,23 @@ func (h *Handler) streamAnthropicMessages(
 	filter := newStopFilter(stops)
 	generatedTokens := 0
 	textStarted := false
+	textStopped := false
 	var buffered strings.Builder
+	var toolStream inference.ChatOutputStream
+	streamedToolNames := make([]string, 0, 1)
+	streamedToolArguments := make([]strings.Builder, 0, 1)
+	if len(tools) != 0 {
+		if provider, ok := h.generator.(ChatOutputStreamProvider); ok {
+			toolStream, err = provider.NewChatOutputStream(tools)
+			if err != nil {
+				_ = writeEvent("error", map[string]any{
+					"type":  "error",
+					"error": errorEnvelope("generation_error", err.Error()).Error,
+				})
+				return
+			}
+		}
+	}
 	emitText := func(piece string) error {
 		if piece == "" {
 			return nil
@@ -351,6 +367,73 @@ func (h *Handler) streamAnthropicMessages(
 			},
 		})
 	}
+	emitToolPiece := func(piece string) error {
+		buffered.WriteString(piece)
+		if toolStream == nil || piece == "" {
+			return nil
+		}
+		deltas, streamErr := toolStream.Accept(piece)
+		if streamErr != nil {
+			return streamErr
+		}
+		idPrefix := "toolu_" + strings.TrimPrefix(messageID, "msg_")
+		for _, delta := range deltas {
+			if delta.Content != "" {
+				if streamErr := emitText(delta.Content); streamErr != nil {
+					return streamErr
+				}
+			}
+			if delta.Started && textStarted && !textStopped {
+				if streamErr := writeEvent("content_block_stop", map[string]any{
+					"type":  "content_block_stop",
+					"index": 0,
+				}); streamErr != nil {
+					return streamErr
+				}
+				textStopped = true
+			}
+			for len(streamedToolNames) <= delta.Index {
+				streamedToolNames = append(streamedToolNames, "")
+				streamedToolArguments = append(
+					streamedToolArguments,
+					strings.Builder{},
+				)
+			}
+			blockIndex := delta.Index
+			if textStarted {
+				blockIndex++
+			}
+			if delta.Started {
+				streamedToolNames[delta.Index] = delta.Name
+				if streamErr := writeEvent("content_block_start", map[string]any{
+					"type":  "content_block_start",
+					"index": blockIndex,
+					"content_block": map[string]any{
+						"type":  "tool_use",
+						"id":    fmt.Sprintf("%s_%d", idPrefix, delta.Index),
+						"name":  delta.Name,
+						"input": map[string]any{},
+					},
+				}); streamErr != nil {
+					return streamErr
+				}
+			}
+			if delta.Arguments != "" {
+				streamedToolArguments[delta.Index].WriteString(delta.Arguments)
+				if streamErr := writeEvent("content_block_delta", map[string]any{
+					"type":  "content_block_delta",
+					"index": blockIndex,
+					"delta": map[string]any{
+						"type":         "input_json_delta",
+						"partial_json": delta.Arguments,
+					},
+				}); streamErr != nil {
+					return streamErr
+				}
+			}
+		}
+		return nil
+	}
 	_, _, err = h.generate(
 		request.Context(),
 		slotID,
@@ -365,7 +448,9 @@ func (h *Handler) streamAnthropicMessages(
 				generatedTokens++
 				piece := filter.Accept(event.Piece)
 				if len(tools) != 0 {
-					buffered.WriteString(piece)
+					if streamErr := emitToolPiece(piece); streamErr != nil {
+						return streamErr
+					}
 					return request.Context().Err()
 				}
 				return emitText(piece)
@@ -381,7 +466,13 @@ func (h *Handler) streamAnthropicMessages(
 	}
 	flushed := filter.Flush()
 	if len(tools) != 0 {
-		buffered.WriteString(flushed)
+		if err := emitToolPiece(flushed); err != nil {
+			_ = writeEvent("error", map[string]any{
+				"type":  "error",
+				"error": errorEnvelope("generation_error", err.Error()).Error,
+			})
+			return
+		}
 	} else {
 		if err := emitText(flushed); err != nil {
 			return
@@ -415,6 +506,23 @@ func (h *Handler) streamAnthropicMessages(
 			return
 		}
 		for index, block := range blocks {
+			if len(streamedToolNames) != 0 {
+				if block.Type == "tool_use" {
+					streamIndex := index
+					if textStarted {
+						streamIndex--
+					}
+					if streamIndex >= 0 && streamIndex < len(streamedToolArguments) {
+						if err := writeEvent("content_block_stop", map[string]any{
+							"type":  "content_block_stop",
+							"index": index,
+						}); err != nil {
+							return
+						}
+					}
+				}
+				continue
+			}
 			startBlock := map[string]any{
 				"type": block.Type,
 			}
@@ -461,7 +569,7 @@ func (h *Handler) streamAnthropicMessages(
 		if len(message.ToolCalls) != 0 {
 			stopReason = "tool_use"
 		}
-	} else if textStarted {
+	} else if textStarted && !textStopped {
 		if err := writeEvent("content_block_stop", map[string]any{
 			"type":  "content_block_stop",
 			"index": 0,

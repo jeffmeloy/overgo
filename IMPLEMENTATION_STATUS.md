@@ -39,6 +39,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Full-repository vet gate and CGO race CI for server/inference.
 - Split oversized server/model/CUDA tests with shared CUDA test setup.
 - Protocol-partitioned Chat, Responses, and Anthropic server implementation.
+- Token-incremental JSON and Hermes tool-call argument streaming.
 - Gemma 4 safetensors/ModelOpt-to-GGUF conversion.
 - Cohere2-MoE, Step3.5, and HY-V3 MTP execution paths.
 
@@ -55,14 +56,6 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
    semantics.
 5. Add padding masks for padded multi-sequence T5 batches.
 
-### Server and multimodal
-
-1. Add media history after model-specific multi-turn template and cache
-   semantics are defined.
-2. Add mixed image/audio turns only where the projector prompt contract is
-   validated by an upstream oracle.
-3. Add token-incremental tool-call argument streaming.
-
 ## Deferred or externally blocked
 
 | Item | Reason | Resume condition |
@@ -71,6 +64,8 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Release signing | No user-controlled signing certificate | Certificate and signing policy supplied |
 | ECMAScript regex lookaround/backreferences | Go RE2 does not implement them | Compatible bounded engine selected |
 | Remote media URLs | Fetch policy and SSRF boundary undefined | Explicit allowlist, size, redirect, and timeout policy |
+| Media history | Model/projector-specific multi-turn prompt ordering and cache semantics lack an upstream oracle | Validated multi-turn template, projector, and cache fixture supplied |
+| Mixed image/audio turns | No upstream-validated projector prompt contract covers interleaved modalities | Mixed-modality projector contract and oracle fixture supplied |
 
 Blocked fixture work does not stop independent implementation work.
 

@@ -355,6 +355,22 @@ func (h *Handler) streamResponses(
 	filter := newStopFilter(stops)
 	generatedTokens := 0
 	textStarted := false
+	var toolStream inference.ChatOutputStream
+	streamedToolNames := make([]string, 0, 1)
+	streamedToolArguments := make([]strings.Builder, 0, 1)
+	if len(tools) != 0 {
+		if provider, ok := h.generator.(ChatOutputStreamProvider); ok {
+			var streamErr error
+			toolStream, streamErr = provider.NewChatOutputStream(tools)
+			if streamErr != nil {
+				_ = writeEvent("response.failed", map[string]any{
+					"type":  "response.failed",
+					"error": errorEnvelope("generation_error", streamErr.Error()).Error,
+				})
+				return
+			}
+		}
+	}
 	emitText := func(piece string) error {
 		if piece == "" {
 			return nil
@@ -391,6 +407,74 @@ func (h *Handler) streamResponses(
 			"delta":   piece,
 		})
 	}
+	emitToolPiece := func(piece string) error {
+		buffered.WriteString(piece)
+		if toolStream == nil || piece == "" {
+			return nil
+		}
+		deltas, streamErr := toolStream.Accept(piece)
+		if streamErr != nil {
+			return streamErr
+		}
+		idSuffix := strings.TrimPrefix(responseID, "resp_")
+		for _, delta := range deltas {
+			if delta.Content != "" {
+				if streamErr := emitText(delta.Content); streamErr != nil {
+					return streamErr
+				}
+			}
+			for len(streamedToolNames) <= delta.Index {
+				streamedToolNames = append(streamedToolNames, "")
+				streamedToolArguments = append(
+					streamedToolArguments,
+					strings.Builder{},
+				)
+			}
+			outputIndex := delta.Index
+			if textStarted {
+				outputIndex++
+			}
+			itemID := fmt.Sprintf("fc_%s_%d", idSuffix, delta.Index)
+			callID := fmt.Sprintf("call_%s_%d", idSuffix, delta.Index)
+			if delta.Started {
+				streamedToolNames[delta.Index] = delta.Name
+				if streamErr := writeEvent(
+					"response.output_item.added",
+					map[string]any{
+						"type":         "response.output_item.added",
+						"response_id":  responseID,
+						"output_index": outputIndex,
+						"item": responseOutputItem{
+							Arguments: "",
+							CallID:    callID,
+							ID:        itemID,
+							Name:      delta.Name,
+							Status:    "in_progress",
+							Type:      "function_call",
+						},
+					},
+				); streamErr != nil {
+					return streamErr
+				}
+			}
+			if delta.Arguments != "" {
+				streamedToolArguments[delta.Index].WriteString(delta.Arguments)
+				if streamErr := writeEvent(
+					"response.function_call_arguments.delta",
+					map[string]any{
+						"type":         "response.function_call_arguments.delta",
+						"response_id":  responseID,
+						"item_id":      itemID,
+						"output_index": outputIndex,
+						"delta":        delta.Arguments,
+					},
+				); streamErr != nil {
+					return streamErr
+				}
+			}
+		}
+		return nil
+	}
 	ids, _, err := h.generate(
 		request.Context(),
 		slotID,
@@ -407,7 +491,9 @@ func (h *Handler) streamResponses(
 				generatedTokens++
 				piece := filter.Accept(event.Piece)
 				if len(tools) != 0 {
-					buffered.WriteString(piece)
+					if streamErr := emitToolPiece(piece); streamErr != nil {
+						return streamErr
+					}
 					return request.Context().Err()
 				}
 				return emitText(piece)
@@ -424,7 +510,13 @@ func (h *Handler) streamResponses(
 	flushed := filter.Flush()
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
-		buffered.WriteString(flushed)
+		if err := emitToolPiece(flushed); err != nil {
+			_ = writeEvent("response.failed", map[string]any{
+				"type":  "response.failed",
+				"error": errorEnvelope("generation_error", err.Error()).Error,
+			})
+			return
+		}
 		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(
 			buffered.String(),
 			tools,
@@ -436,8 +528,10 @@ func (h *Handler) streamResponses(
 			})
 			return
 		}
-		if err := emitText(parsedMessage.Content); err != nil {
-			return
+		if len(streamedToolNames) == 0 {
+			if err := emitText(parsedMessage.Content); err != nil {
+				return
+			}
 		}
 	} else {
 		if err := emitText(flushed); err != nil {
@@ -497,28 +591,38 @@ func (h *Handler) streamResponses(
 	)
 	for _, item := range callItems {
 		outputIndex := len(outputItems)
+		callIndex := outputIndex
+		if textStarted {
+			callIndex--
+		}
+		streamed := callIndex >= 0 && callIndex < len(streamedToolNames)
+		if streamed {
+			item.Arguments = streamedToolArguments[callIndex].String()
+		}
 		added := item
 		added.Arguments = ""
 		added.Status = "in_progress"
-		if err := writeEvent("response.output_item.added", map[string]any{
-			"type":         "response.output_item.added",
-			"response_id":  responseID,
-			"output_index": outputIndex,
-			"item":         added,
-		}); err != nil {
-			return
-		}
-		if err := writeEvent(
-			"response.function_call_arguments.delta",
-			map[string]any{
-				"type":         "response.function_call_arguments.delta",
+		if !streamed {
+			if err := writeEvent("response.output_item.added", map[string]any{
+				"type":         "response.output_item.added",
 				"response_id":  responseID,
-				"item_id":      item.ID,
 				"output_index": outputIndex,
-				"delta":        item.Arguments,
-			},
-		); err != nil {
-			return
+				"item":         added,
+			}); err != nil {
+				return
+			}
+			if err := writeEvent(
+				"response.function_call_arguments.delta",
+				map[string]any{
+					"type":         "response.function_call_arguments.delta",
+					"response_id":  responseID,
+					"item_id":      item.ID,
+					"output_index": outputIndex,
+					"delta":        item.Arguments,
+				},
+			); err != nil {
+				return
+			}
 		}
 		if err := writeEvent(
 			"response.function_call_arguments.done",

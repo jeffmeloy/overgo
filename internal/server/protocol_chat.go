@@ -703,10 +703,15 @@ type chatStreamDelta struct {
 }
 
 type chatStreamToolCall struct {
-	Index    int                        `json:"index"`
-	ID       string                     `json:"id"`
-	Type     string                     `json:"type"`
-	Function inference.ChatToolFunction `json:"function"`
+	Index    int                    `json:"index"`
+	ID       string                 `json:"id,omitempty"`
+	Type     string                 `json:"type,omitempty"`
+	Function chatStreamToolFunction `json:"function"`
+}
+
+type chatStreamToolFunction struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
 }
 
 type chatStreamResponse struct {
@@ -767,6 +772,70 @@ func (h *Handler) streamChatCompletion(
 		completionTokens := 0
 		filter := newStopFilter(stops)
 		var buffered strings.Builder
+		var toolStream inference.ChatOutputStream
+		streamedToolCall := false
+		if len(tools) != 0 {
+			if provider, ok := h.generator.(ChatOutputStreamProvider); ok {
+				toolStream, err = provider.NewChatOutputStream(tools)
+				if err != nil {
+					_ = writeSSE(
+						response,
+						errorEnvelope("generation_error", err.Error()),
+					)
+					break
+				}
+			}
+		}
+		emitToolPiece := func(piece string) error {
+			buffered.WriteString(piece)
+			if toolStream == nil || piece == "" {
+				return nil
+			}
+			deltas, streamErr := toolStream.Accept(piece)
+			if streamErr != nil {
+				return streamErr
+			}
+			for _, delta := range deltas {
+				if delta.ReasoningContent != "" {
+					if writeErr := writeChunk(choiceIndex, chatStreamDelta{
+						ReasoningContent: delta.ReasoningContent,
+					}, nil); writeErr != nil {
+						return writeErr
+					}
+				}
+				if delta.Content != "" {
+					if writeErr := writeChunk(choiceIndex, chatStreamDelta{
+						Content: delta.Content,
+					}, nil); writeErr != nil {
+						return writeErr
+					}
+				}
+				call := chatStreamToolCall{
+					Index: delta.Index,
+					Function: chatStreamToolFunction{
+						Arguments: delta.Arguments,
+					},
+				}
+				if delta.Started {
+					call.ID = fmt.Sprintf(
+						"call_%s_%d_%d",
+						strings.TrimPrefix(id, "chatcmpl-"),
+						choiceIndex,
+						delta.Index,
+					)
+					call.Type = "function"
+					call.Function.Name = delta.Name
+					streamedToolCall = true
+				}
+				if writeErr := writeChunk(choiceIndex, chatStreamDelta{
+					ToolCalls: []chatStreamToolCall{call},
+				}, nil); writeErr != nil {
+					return writeErr
+				}
+				flusher.Flush()
+			}
+			return nil
+		}
 		_, _, err = h.generate(
 			request.Context(),
 			slotID,
@@ -786,7 +855,9 @@ func (h *Handler) streamChatCompletion(
 					piece := filter.Accept(event.Piece)
 					if piece != "" {
 						if len(tools) != 0 {
-							buffered.WriteString(piece)
+							if streamErr := emitToolPiece(piece); streamErr != nil {
+								return streamErr
+							}
 						} else {
 							if writeErr := writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil); writeErr != nil {
 								return writeErr
@@ -804,7 +875,13 @@ func (h *Handler) streamChatCompletion(
 		}
 		if piece := filter.Flush(); piece != "" {
 			if len(tools) != 0 {
-				buffered.WriteString(piece)
+				if streamErr := emitToolPiece(piece); streamErr != nil {
+					_ = writeSSE(
+						response,
+						errorEnvelope("generation_error", streamErr.Error()),
+					)
+					break
+				}
 			} else {
 				_ = writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil)
 				flusher.Flush()
@@ -824,7 +901,7 @@ func (h *Handler) streamChatCompletion(
 				)
 				break
 			}
-			if message.ReasoningContent != "" {
+			if message.ReasoningContent != "" && !streamedToolCall {
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					ReasoningContent: message.ReasoningContent,
 				}, nil); err != nil {
@@ -832,7 +909,7 @@ func (h *Handler) streamChatCompletion(
 				}
 				flusher.Flush()
 			}
-			if message.Content != "" {
+			if message.Content != "" && !streamedToolCall {
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					Content: message.Content,
 				}, nil); err != nil {
@@ -841,6 +918,9 @@ func (h *Handler) streamChatCompletion(
 				flusher.Flush()
 			}
 			for callIndex, call := range message.ToolCalls {
+				if streamedToolCall {
+					break
+				}
 				callID := call.ID
 				if callID == "" {
 					callID = fmt.Sprintf(
@@ -852,10 +932,13 @@ func (h *Handler) streamChatCompletion(
 				}
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					ToolCalls: []chatStreamToolCall{{
-						Index:    callIndex,
-						ID:       callID,
-						Type:     call.Type,
-						Function: call.Function,
+						Index: callIndex,
+						ID:    callID,
+						Type:  call.Type,
+						Function: chatStreamToolFunction{
+							Name:      call.Function.Name,
+							Arguments: call.Function.Arguments,
+						},
 					}},
 				}, nil); err != nil {
 					return

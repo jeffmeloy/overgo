@@ -255,7 +255,9 @@ func TestStreamingResponsesLifecycle(t *testing.T) {
 func TestStreamingResponsesFunctionCallLifecycle(t *testing.T) {
 	generator := &fakeGenerator{
 		pieces: []string{
-			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+			`<tool_call><function=weather><parameter=city>`,
+			`Par`,
+			`is</parameter></function></tool_call>`,
 		},
 	}
 	handler := newTestHandler(t, generator)
@@ -266,7 +268,7 @@ func TestStreamingResponsesFunctionCallLifecycle(t *testing.T) {
 			http.MethodPost,
 			"/v1/responses",
 			strings.NewReader(
-				`{"input":"weather?","max_output_tokens":1,"stream":true,`+
+				`{"input":"weather?","max_output_tokens":3,"stream":true,`+
 					`"tool_choice":"required","parallel_tool_calls":false,`+
 					`"tools":[{"type":"function",`+
 					`"name":"weather","parameters":{"type":"object"}}]}`,
@@ -283,7 +285,9 @@ func TestStreamingResponsesFunctionCallLifecycle(t *testing.T) {
 		"event: response.output_item.added",
 		`"type":"function_call"`,
 		"event: response.function_call_arguments.delta",
-		`"delta":"{\"city\":\"Paris\"}"`,
+		`"delta":"{\"city\":\""`,
+		`"delta":"Par"`,
+		`"delta":"is\"}"`,
 		"event: response.function_call_arguments.done",
 		"event: response.output_item.done",
 		"event: response.completed",
@@ -612,7 +616,9 @@ func TestStreamingAnthropicMessagesLifecycle(t *testing.T) {
 func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
 	generator := &fakeGenerator{
 		pieces: []string{
-			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
+			`<tool_call><function=weather><parameter=city>`,
+			`Par`,
+			`is</parameter></function></tool_call>`,
 		},
 	}
 	handler := newTestHandler(t, generator)
@@ -623,7 +629,7 @@ func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
 			http.MethodPost,
 			"/v1/messages",
 			strings.NewReader(
-				`{"max_tokens":1,"stream":true,"tool_choice":{"type":"tool","name":"weather",`+
+				`{"max_tokens":3,"stream":true,"tool_choice":{"type":"tool","name":"weather",`+
 					`"disable_parallel_tool_use":true},`+
 					`"tools":[{"name":"weather","input_schema":{"type":"object"}}],`+
 					`"messages":[{"role":"user","content":"weather?"}]}`,
@@ -640,7 +646,9 @@ func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
 		`"type":"tool_use"`,
 		`"name":"weather"`,
 		`"type":"input_json_delta"`,
-		`"partial_json":"{\"city\":\"Paris\"}"`,
+		`"partial_json":"{\"city\":\""`,
+		`"partial_json":"Par"`,
+		`"partial_json":"is\"}"`,
 		`"stop_reason":"tool_use"`,
 		"event: message_stop",
 	} {

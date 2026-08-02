@@ -56,6 +56,7 @@ type Qwen3VLOutput struct {
 type Qwen3VLRunner struct {
 	file *gguf.File
 	spec Qwen3VLSpec
+	cuda *qwen3VLCUDA
 }
 
 func DefaultQwen3VLPreprocessOptions() Qwen3VLPreprocessOptions {
@@ -75,6 +76,15 @@ func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
 }
 
 func OpenQwen3VL(path string) (*Qwen3VLRunner, error) {
+	return OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{})
+}
+
+type Qwen3VLOpenOptions struct {
+	CUDA          bool
+	DeviceOrdinal int
+}
+
+func OpenQwen3VLWithOptions(path string, options Qwen3VLOpenOptions) (*Qwen3VLRunner, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, err
@@ -90,16 +100,31 @@ func OpenQwen3VL(path string) (*Qwen3VLRunner, error) {
 	if err := validateQwen3VLCatalog(file, spec); err != nil {
 		return fail(err)
 	}
-	return &Qwen3VLRunner{file: file, spec: spec}, nil
+	runner := &Qwen3VLRunner{file: file, spec: spec}
+	if options.CUDA {
+		runner.cuda, err = openQwen3VLCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		if err != nil {
+			return fail(fmt.Errorf("projector: initialize Qwen3-VL CUDA: %w", err))
+		}
+	}
+	return runner, nil
 }
 
 func (r *Qwen3VLRunner) Close() error {
-	if r == nil || r.file == nil {
+	if r == nil {
 		return nil
+	}
+	var closeErr error
+	if r.cuda != nil {
+		closeErr = r.cuda.Close()
+		r.cuda = nil
+	}
+	if r.file == nil {
+		return closeErr
 	}
 	file := r.file
 	r.file = nil
-	return file.Close()
+	return errors.Join(closeErr, file.Close())
 }
 
 func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
@@ -377,6 +402,9 @@ func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, 
 }
 
 func (r *Qwen3VLRunner) encode(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
+	if r.cuda != nil {
+		return r.encodeCUDA(ctx, input)
+	}
 	hidden, err := r.patchEmbedding(ctx, input)
 	if err != nil {
 		return Qwen3VLOutput{}, err

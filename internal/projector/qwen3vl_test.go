@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"llamacpp2go/internal/gguf"
@@ -155,6 +156,72 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	}
 	if output.GridT != 1 || output.GridH != 2 || output.GridW != 2 || output.MergeSize != 2 {
 		t.Fatalf("output grid = %d,%d,%d merge=%d", output.GridT, output.GridH, output.GridW, output.MergeSize)
+	}
+}
+
+func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
+	if os.Getenv("LLAMACPP2GO_CUDA_TEST") == "" {
+		t.Skip("set LLAMACPP2GO_CUDA_TEST=1 to run CUDA integration tests")
+	}
+	path := filepath.Join(t.TempDir(), "mmproj.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, tinyQwen3VLMetadata(), nonzeroTinyQwen3VLTensors(), gguf.WriteOptions{}); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cpu, err := OpenQwen3VL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cpu.Close()
+	cuda, err := OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{CUDA: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: 255})
+		}
+	}
+	options := Qwen3VLPreprocessOptions{MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10}
+	wantImage, err := cpu.EncodeImage(context.Background(), input, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotImage, err := cuda.EncodeImage(context.Background(), input, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compareFloat32Tolerance(t, "Qwen3-VL image", gotImage.Embeddings.Data, wantImage.Embeddings.Data, 2e-3)
+	frames := []image.Image{input, input, input, input}
+	wantVideo, err := cpu.EncodeFrames(context.Background(), frames, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotVideo, err := cuda.EncodeFrames(context.Background(), frames, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compareFloat32Tolerance(t, "Qwen3-VL video", gotVideo.Embeddings.Data, wantVideo.Embeddings.Data, 2e-3)
+}
+
+func compareFloat32Tolerance(t *testing.T, name string, got, want []float32, tolerance float32) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s values = %d, want %d", name, len(got), len(want))
+	}
+	for index := range want {
+		if delta := float32(math.Abs(float64(got[index] - want[index]))); delta > tolerance {
+			t.Fatalf("%s[%d] = %g, want %g (delta %g)", name, index, got[index], want[index], delta)
+		}
 	}
 }
 
@@ -352,6 +419,29 @@ func tinyQwen3VLTensors() []gguf.TensorData {
 		tensors = append(tensors, f32Tensor("v.blk.0."+name, shape, values))
 	}
 	return tensors
+}
+
+func nonzeroTinyQwen3VLTensors() []gguf.TensorData {
+	base := tinyQwen3VLTensors()
+	result := make([]gguf.TensorData, len(base))
+	for tensorIndex, item := range base {
+		elements := uint64(1)
+		for _, dimension := range item.Shape {
+			elements *= dimension
+		}
+		values := make([]float32, int(elements))
+		isNorm := strings.HasSuffix(item.Name, "ln.weight") || strings.Contains(item.Name, "ln1.weight") ||
+			strings.Contains(item.Name, "ln2.weight")
+		for index := range values {
+			value := float32((index+tensorIndex*3)%13-6) * 0.0075
+			if isNorm {
+				value += 1
+			}
+			values[index] = value
+		}
+		result[tensorIndex] = f32Tensor(item.Name, item.Shape, values)
+	}
+	return result
 }
 
 func f32Tensor(name string, shape []uint64, values []float32) gguf.TensorData {

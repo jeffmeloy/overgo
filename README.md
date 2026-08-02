@@ -174,9 +174,9 @@ bidirectional attention only within each frame on sliding layers.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
 unweighted RMSNorm and the 3840-wide audio projection, then renders the native
-audio turn. `-mmproj-cuda` keeps Gemma 4 image, video, and audio projector
-weights resident on the selected `-device` and executes the full projector
-graph on CUDA. Other projector families reject this switch.
+audio turn. `-mmproj-cuda` keeps Qwen3-VL and Gemma 4 projector weights
+resident on the selected `-device` and executes their full image/video graphs
+on CUDA; Gemma 4 audio uses the same path.
 
 The native `/completion` route accepts the same object as `projected_inputs`
 for a single prompt and completion. Token-only prompt caching and

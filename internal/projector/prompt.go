@@ -80,10 +80,7 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	_ = file.Close()
 	switch projectorType {
 	case qwen3VLProjectorType:
-		if options.CUDA {
-			return nil, errors.New("projector: CUDA offload is unavailable for Qwen3-VL")
-		}
-		return OpenQwen3VL(path)
+		return OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions(options))
 	case gemma4UVProjectorType:
 		return OpenGemma4WithOptions(path, Gemma4OpenOptions(options))
 	default:

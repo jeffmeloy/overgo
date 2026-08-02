@@ -780,9 +780,13 @@
   Repeatable CLI `-video-frame` input adds temporal-pair preprocessing,
   timestamped video chunks, per-chunk compressed MRoPE, and odd-frame padding.
   The local 16-frame oracle matches preprocessing, full ViT/merger output,
-  all 478 prompt IDs, and the first generated token. Projector CUDA offload,
-  encoded-video file decoding, multi-image turns, and multi-sequence recurrent
-  batching remain pending.
+  all 478 prompt IDs, and the first generated token. Optional `-mmproj-cuda`
+  keeps the dual patch embeddings, position table, 24 ViT blocks, and merger
+  resident, with fused 2D vision RoPE and temporal-group non-causal attention;
+  nonzero image and multi-pair video fixtures match the CPU graph. A real
+  Qwen projector GGUF is not present locally for the CUDA oracle. Encoded-video
+  file decoding, multi-image turns, and multi-sequence recurrent batching
+  remain pending.
 - Gemma 4 unified image projection executes the encoder-free `gemma4uv` GGUF
   graph: aspect-preserving bicubic resize, 48x48 RGB patch rows, affine patch
   LayerNorm and dense projection, factorized learned X/Y positions, position

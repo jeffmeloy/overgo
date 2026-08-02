@@ -13,6 +13,41 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
+// DFlashSession: synchronized target and injected-feature caches.
+type DFlashSession struct {
+	Cache        *KVCache
+	TargetCache  *KVCache
+	TargetTokens []tokenizer.TokenID
+	Position     uint32
+}
+
+// NewDFlashSession: full-prefix target and feature-cache construction.
+func (r *Runner) NewDFlashSession(
+	ctx context.Context,
+	target *Runner,
+	tokenIDs []tokenizer.TokenID,
+) (*DFlashSession, error) {
+	if r == nil || target == nil || len(tokenIDs) == 0 {
+		return nil, errors.New("inference: DFlash session inputs are invalid")
+	}
+	cache, err := r.PrimeDFlash(ctx, target, tokenIDs)
+	if err != nil {
+		return nil, err
+	}
+	_, targetCache, err := target.ForwardCached(ctx, tokenIDs, nil)
+	if err != nil {
+		return nil, err
+	}
+	position := uint32(len(tokenIDs))
+	if cache.Position != position || effectiveCachePosition(targetCache) != position {
+		return nil, errors.New("inference: DFlash session cache position is inconsistent")
+	}
+	return &DFlashSession{
+		Cache: cache, TargetCache: targetCache,
+		TargetTokens: append([]tokenizer.TokenID(nil), tokenIDs...), Position: position,
+	}, nil
+}
+
 // ExtractLayerInputs: full-sequence pre-layer hidden rows.
 func (r *Runner) ExtractLayerInputs(
 	ctx context.Context,

@@ -674,8 +674,10 @@ DFlash uses the paired-runner path: `PrimeDFlash` or `SyncDFlashPrefix`
 extracts configured target-layer inputs, fuses them, and injects committed K/V;
 `DraftDFlashBlock` evaluates the last-token plus MASK noise block with
 non-causal cache-aware attention and the target model's embedding/output
-tables. Lower-level fusion, injection, extraction, and explicit noise-block
-methods remain public for schedulers that own verification and acceptance.
+tables. `NewDFlashSession` plus the greedy or sampled draft/verify calls own
+target verification, sampler rollback, accepted-prefix cache advancement, and
+feature-cache resynchronization. Lower-level fusion, injection, extraction,
+and explicit noise-block methods remain available for custom schedulers.
 Eagle3 uses `NewEagle3Session` to extract and fuse exactly three configured
 target-layer inputs while constructing the shifted draft cache. Each
 `AdvanceEagle3` call pairs the next token with the pending feature, returns

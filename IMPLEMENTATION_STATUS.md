@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- DFlash greedy/sampled block drafting with target verification, sampler rollback, cache advancement, and feature-cache resynchronization.
 - Eagle3 greedy/sampled drafting with target verification, sampler rollback, target-cache advancement, and feature resynchronization.
 - Gemma 4 Assistant greedy/sampled drafting with target verification, sampler rollback, cache advancement, and hidden-state resynchronization.
 - DeepSeek-OCR v1/v2 SAM image projection with dynamic local tiles, CLIP or masked Qwen2 towers, native history prompts, and CUDA differentials.
@@ -90,7 +91,7 @@ Work proceeds in dependency order. A blocked item does not stop later rows.
 | Anthropic | Manual summarized thinking uses handler-local signatures; adaptive/omitted/redacted/interleaved modes and thinking with tools are explicit exclusions |
 | Architectures | Declared model graphs execute; marked real-model fixture validation remains in `compatibility.yaml` |
 | Vision | Several decoder graphs require external encoders, projectors, or grid coordinates |
-| Speculation | Some draft graphs leave verification and acceptance to an external coordinator |
+| Speculation | Integrated greedy/sampled coordinators; real target/draft pair validation remains fixture-gated |
 | Audio | WavTokenizer stops at feature frames; waveform postprocessing is absent |
 | Adapters | One aLoRA may be active; non-causal diffusion rejects aLoRA |
 | Platforms | Primary supported release remains Windows amd64 with NVIDIA CUDA |

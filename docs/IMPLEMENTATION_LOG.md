@@ -881,9 +881,9 @@ runner, projects and normalizes the concatenated features, and injects the
 resulting per-layer K/V rows into a serializable draft cache. Paired decoding
 uses target token embeddings and output projection with the pinned non-causal
 noise-block mask. Prefix synchronization, bounded draft blocks, reference
-oracles, and CUDA pipeline parity are covered. Speculative accept/rollback
-policy remains a caller concern, matching the existing Eagle3 coordinator
-boundary.
+oracles, and CUDA pipeline parity are covered. Greedy and sampled coordinators
+verify target logits, transactionally restore samplers, advance accepted target
+and draft caches, and resynchronize injected features from the committed prefix.
 
 ### Implemented: WavTokenizer audio-feature decoder
 

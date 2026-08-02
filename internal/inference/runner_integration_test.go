@@ -979,6 +979,84 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	}
 }
 
+func TestDFlashGreedyAndSampledVerification(t *testing.T) {
+	draftPath := os.Getenv("LLAMACPP2GO_DFLASH_MODEL")
+	targetPath := os.Getenv("LLAMACPP2GO_DFLASH_TARGET_MODEL")
+	if draftPath == "" || targetPath == "" {
+		t.Skip("LLAMACPP2GO_DFLASH_MODEL and LLAMACPP2GO_DFLASH_TARGET_MODEL are not set")
+	}
+	draftRunner, err := OpenWithOptions(draftPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer draftRunner.Close()
+	target, err := OpenWithOptions(targetPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	maximum := min(2, int(draftRunner.spec.DFlashBlockSize)-1)
+	if maximum <= 0 {
+		t.Fatalf("invalid DFlash block size: %d", draftRunner.spec.DFlashBlockSize)
+	}
+	ctx := context.Background()
+	session, err := draftRunner.NewDFlashSession(ctx, target, []tokenizer.TokenID{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := draftRunner.DraftDFlashGreedy(ctx, target, 0, session, maximum, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification, err := draftRunner.VerifyDFlashGreedy(ctx, target, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
+		verification.Session.Position != session.Position+uint32(verification.Accepted)+1 ||
+		verification.Session.Cache.Position != verification.Session.Position ||
+		verification.Session.TargetCache.Position != verification.Session.Position {
+		t.Fatalf("unexpected DFlash verification: draft=%+v result=%+v", draft, verification)
+	}
+	draftSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampledDraft, err := draftRunner.DraftDFlashSampled(
+		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, maximum, 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := draftSampler.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(before, after) {
+		t.Fatal("DFlash sampled drafting changed caller sampler state")
+	}
+	sampledVerification, err := draftRunner.VerifyDFlashSampled(
+		ctx, target, sampledDraft, draftSampler, targetSampler,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sampledVerification.Accepted < 0 || sampledVerification.Accepted > len(sampledDraft.Tokens) ||
+		sampledVerification.Session.Position != session.Position+uint32(sampledVerification.Accepted)+1 ||
+		sampledVerification.Session.Cache.Position != sampledVerification.Session.Position ||
+		sampledVerification.Session.TargetCache.Position != sampledVerification.Session.Position {
+		t.Fatalf("unexpected sampled DFlash verification: draft=%+v result=%+v", sampledDraft, sampledVerification)
+	}
+}
+
 func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	modelPath := os.Getenv("LLAMACPP2GO_COHERE2_MTP_MODEL")
 	if modelPath == "" {

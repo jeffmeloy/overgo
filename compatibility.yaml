@@ -3323,13 +3323,16 @@ models:
       - interleaved-sliding-window-patterns
       - paired-target-embedding-and-output-projection
       - prefix-resynchronization
+      - greedy-block-proposal-and-target-verification
+      - sampled-ratio-verification-and-sampler-rollback
+      - accepted-prefix-target-and-draft-cache-advancement
     validation:
       - synthetic-metadata-and-catalog
       - reference-feature-injection-noise-pipeline
       - full-cuda-pipeline-differential
+      - env-gated-real-pair-coordinator
     limitations:
       - target-extraction-recomputes-full-prefix
-      - external-scheduler-owns-verification-and-acceptance
       - real-model-pair-pending
   t5:
     status: experimental

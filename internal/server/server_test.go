@@ -3483,6 +3483,88 @@ func TestChatCompletionAliasAndInputTokens(t *testing.T) {
 	}
 }
 
+func TestPreparedPromptGenerationAndTokenCountParity(t *testing.T) {
+	tests := []struct {
+		name           string
+		generationPath string
+		generationBody string
+		countPath      string
+		countBody      string
+		responsesUsage bool
+	}{
+		{
+			name:           "chat",
+			generationPath: "/v1/chat/completions",
+			generationBody: `{"messages":[{"role":"user","content":"hi"}],"max_tokens":1}`,
+			countPath:      "/v1/chat/completions/input_tokens",
+			countBody:      `{"messages":[{"role":"user","content":"hi"}]}`,
+		},
+		{
+			name:           "responses",
+			generationPath: "/v1/responses",
+			generationBody: `{"input":"hi","max_output_tokens":1}`,
+			countPath:      "/v1/responses/input_tokens",
+			countBody:      `{"input":"hi"}`,
+			responsesUsage: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			generator := &fakeGenerator{}
+			handler := newTestHandler(t, generator)
+			generated := httptest.NewRecorder()
+			handler.ServeHTTP(
+				generated,
+				httptest.NewRequest(
+					http.MethodPost,
+					test.generationPath,
+					strings.NewReader(test.generationBody),
+				),
+			)
+			if generated.Code != http.StatusOK {
+				t.Fatalf("generation status = %d body=%s", generated.Code, generated.Body.String())
+			}
+			var generation struct {
+				Usage struct {
+					PromptTokens int `json:"prompt_tokens"`
+					InputTokens  int `json:"input_tokens"`
+				} `json:"usage"`
+			}
+			if err := json.Unmarshal(generated.Body.Bytes(), &generation); err != nil {
+				t.Fatal(err)
+			}
+			counted := httptest.NewRecorder()
+			handler.ServeHTTP(
+				counted,
+				httptest.NewRequest(
+					http.MethodPost,
+					test.countPath,
+					strings.NewReader(test.countBody),
+				),
+			)
+			if counted.Code != http.StatusOK {
+				t.Fatalf("count status = %d body=%s", counted.Code, counted.Body.String())
+			}
+			var count struct {
+				InputTokens int `json:"input_tokens"`
+			}
+			if err := json.Unmarshal(counted.Body.Bytes(), &count); err != nil {
+				t.Fatal(err)
+			}
+			used := generation.Usage.PromptTokens
+			if test.responsesUsage {
+				used = generation.Usage.InputTokens
+			}
+			if used != count.InputTokens || count.InputTokens != 3 {
+				t.Fatalf("usage = %v count = %d", generation.Usage, count.InputTokens)
+			}
+			if len(generator.promptIDs) != count.InputTokens {
+				t.Fatalf("prepared prompt IDs = %v count = %d", generator.promptIDs, count.InputTokens)
+			}
+		})
+	}
+}
+
 func TestChatToolSchemasAreCountedAndBufferedCallsAreStructured(t *testing.T) {
 	generator := &fakeGenerator{
 		pieces: []string{
@@ -4047,9 +4129,9 @@ func TestBufferedResponsesAliases(t *testing.T) {
 			len(result.Output) != 1 ||
 			!strings.HasPrefix(result.Output[0].ID, "msg_") ||
 			result.Output[0].Content[0].Text != "A" ||
-			result.Usage.InputTokens != 2 ||
+			result.Usage.InputTokens != 3 ||
 			result.Usage.OutputTokens != 1 ||
-			result.Usage.TotalTokens != 3 {
+			result.Usage.TotalTokens != 4 {
 			t.Fatalf("%s response = %+v body=%s", path, result, response.Body.String())
 		}
 	}
@@ -4272,7 +4354,7 @@ func TestStreamingResponsesLifecycle(t *testing.T) {
 	}
 	if strings.Contains(body, "[DONE]") ||
 		!strings.Contains(body, `"output_tokens":2`) ||
-		!strings.Contains(body, `"total_tokens":4`) {
+		!strings.Contains(body, `"total_tokens":5`) {
 		t.Fatalf("stream body = %s", body)
 	}
 }

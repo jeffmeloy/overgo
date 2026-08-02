@@ -204,7 +204,9 @@ Audio remains limited to one part and cannot be mixed with images. Text and
 image parts retain their input order. Multimodal chat
 currently requires `n=1`, the default generation prompt, no tools or chat
 history, and no mixed image/audio input. The input-token route projects the
-same media prompt and reports its complete hard/soft-token length.
+same prepared prompt used by generation and reports its exact hard/soft-token
+length. Text requests also share formatting and tokenization across generation
+and counting.
 Ordinary JSON bodies are capped at 1 MiB. Media-capable routes allow 32 MiB,
 then cap decoded input at 16 MiB per image and 24 MiB per request. Images are
 also capped at 16,384 in either dimension, 16 MiPixels each, and 32 MiPixels

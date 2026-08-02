@@ -17,6 +17,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `pinned-quantization` | implemented | Quantization encoders are checked against pinned GGML references. | [`func Quantize(`](../internal/quant/quantize.go)<br>[`func TestQuantizeMatchesPinnedGGMLReference(`](../internal/quant/quantize_test.go) |
 | `reproducible-release` | implemented | Release archives are deterministic and compared across two builds. | [`func createArchive(`](../cmd/release/main.go)<br>[`func TestCreateArchiveIsDeterministic(`](../cmd/release/main_test.go) |
 | `serialized-cuda-worker` | implemented | CUDA driver work executes through one locked-thread context owner. | [`func (w *Worker) Do(`](../internal/cuda/device/worker.go)<br>[`func TestWorkerMemoryRoundTrip(`](../internal/cuda/device/worker_windows_test.go) |
+| `unified-prompt-preparation` | implemented | Native, Chat, and Responses generation share prepared prompts with token counting. | [`func (h *Handler) preparePrompt(`](../internal/server/server.go)<br>[`func TestPreparedPromptGenerationAndTokenCountParity(`](../internal/server/server_test.go) |
 | `validated-split-gguf` | implemented | Split GGUF models load, validate, write, merge, and round-trip. | [`func splitPathPrefix(`](../internal/gguf/reader.go)<br>[`func TestOpenLoadsAndReadsSplitGGUF(`](../internal/gguf/split_test.go) |
 
 ## Model families

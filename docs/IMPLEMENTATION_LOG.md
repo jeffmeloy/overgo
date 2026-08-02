@@ -1566,6 +1566,14 @@ generation. Unit coverage includes ordinary/media body-budget separation,
 dimension bombs, per-image pixel overflow, aggregate pixel overflow, and the
 normal ordered multi-image paths.
 
+Native completion, Chat, and Responses prompts now converge on one prepared
+representation containing final text, exact token IDs, projected inputs, and
+media state. Chat and Responses token-count endpoints reuse the same message
+normalization, tool selection, formatting, tokenization, and media projection
+as generation. Generation receives the prepared token IDs directly, preventing
+usage drift from a second tokenizer pass. Cross-route tests compare reported
+input counts, generation usage, and the exact IDs delivered to the runner.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

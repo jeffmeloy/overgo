@@ -81,6 +81,14 @@ claims:
         contains: "func (h *Handler) responsesInputTokens("
       - path: internal/server/server_test.go
         contains: "func TestMultimodalInputTokenCounting("
+  - id: unified-prompt-preparation
+    status: implemented
+    summary: Native, Chat, and Responses generation share prepared prompts with token counting.
+    evidence:
+      - path: internal/server/server.go
+        contains: "func (h *Handler) preparePrompt("
+      - path: internal/server/server_test.go
+        contains: "func TestPreparedPromptGenerationAndTokenCountParity("
   - id: reproducible-release
     status: implemented
     summary: Release archives are deterministic and compared across two builds.

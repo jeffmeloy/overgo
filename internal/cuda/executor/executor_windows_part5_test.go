@@ -1393,3 +1393,37 @@ func TestExecutorAudioConvolutionPrimitivesMatchReference(t *testing.T) {
 		compare(t, got[output].Data, want[output].Data, 3e-5)
 	}
 }
+
+func TestExecutorConv2DMatchesReference(t *testing.T) {
+	cudatest.Require(t)
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(3, 5, 4))
+	denseWeight := builder.Input("dense_weight", dtype.F32, tensor.MustShape(3, 3, 3, 4))
+	denseBias := builder.Input("dense_bias", dtype.F32, tensor.MustShape(4, 1, 1))
+	dense := builder.Conv2D(input, denseWeight, denseBias, 2, 2, 1, 1, 0, 1, false)
+	depthWeight := builder.Input("depth_weight", dtype.F32, tensor.MustShape(3, 3, 1, 3))
+	depthwise := builder.Conv2D(input, depthWeight, nil, 1, 1, 1, 1, 1, 1, true)
+	feeds := map[*tensor.Tensor]reference.Value{
+		input:       patternedValue(input.Shape, 3, 0.1, -0.4),
+		denseWeight: patternedValue(denseWeight.Shape, 5, 0.04, -0.2),
+		denseBias:   patternedValue(denseBias.Shape, 7, 0.03, -0.1),
+		depthWeight: patternedValue(depthWeight.Shape, 11, 0.04, -0.2),
+	}
+	outputs := []*tensor.Tensor{dense, depthwise}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(t, got[output].Data, want[output].Data, 3e-5)
+	}
+}

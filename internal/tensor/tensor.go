@@ -67,6 +67,7 @@ const (
 	OpDivide
 	OpBF16Round
 	OpGELUErf
+	OpConv2D
 )
 
 var opNames = [...]string{
@@ -125,6 +126,7 @@ var opNames = [...]string{
 	"divide",
 	"bf16_round",
 	"gelu_erf",
+	"conv_2d",
 }
 
 func (o Op) String() string {
@@ -205,6 +207,12 @@ type AttentionAttributes struct {
 
 type Conv1DAttributes struct {
 	Depthwise bool
+}
+
+type Conv2DAttributes struct {
+	StrideX, StrideY                     uint32
+	PadLeft, PadRight, PadTop, PadBottom uint32
+	Depthwise, HasBias                   bool
 }
 
 type GroupNormAttributes struct {
@@ -581,6 +589,62 @@ func (b *Builder) Conv1DSame(input, weight, bias *Tensor, depthwise bool) *Tenso
 		return nil
 	}
 	return b.add("", input.Type, shape, OpConv1DSame, []*Tensor{input, weight, bias}, Conv1DAttributes{Depthwise: depthwise})
+}
+
+// Conv2D: channel-first spatial convolution.
+func (b *Builder) Conv2D(
+	input, weight, bias *Tensor,
+	strideX, strideY, padLeft, padRight, padTop, padBottom uint32,
+	depthwise bool,
+) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || weight == nil || strideX == 0 || strideY == 0 ||
+		input.Shape.Rank != 3 || weight.Shape.Rank != 4 || input.Type != weight.Type {
+		b.setError(errors.New("Conv2D tensor shape is invalid"))
+		return nil
+	}
+	channelsIn, width, height := input.Shape.Dims[0], input.Shape.Dims[1], input.Shape.Dims[2]
+	kernelW, kernelH := weight.Shape.Dims[0], weight.Shape.Dims[1]
+	weightChannels, channelsOut := weight.Shape.Dims[2], weight.Shape.Dims[3]
+	if kernelW == 0 || kernelH == 0 ||
+		(depthwise && (weightChannels != 1 || channelsOut != channelsIn)) ||
+		(!depthwise && weightChannels != channelsIn) {
+		b.setError(errors.New("Conv2D channel shape is incompatible"))
+		return nil
+	}
+	paddedW, paddedH := width+uint64(padLeft)+uint64(padRight), height+uint64(padTop)+uint64(padBottom)
+	if paddedW < kernelW || paddedH < kernelH {
+		b.setError(errors.New("Conv2D kernel exceeds padded input"))
+		return nil
+	}
+	outputW := (paddedW-kernelW)/uint64(strideX) + 1
+	outputH := (paddedH-kernelH)/uint64(strideY) + 1
+	inputs := []*Tensor{input, weight}
+	hasBias := bias != nil
+	if hasBias {
+		trailingSingleton := true
+		for dimension := 1; dimension < int(bias.Shape.Rank); dimension++ {
+			trailingSingleton = trailingSingleton && bias.Shape.Dims[dimension] == 1
+		}
+		if bias.Type != input.Type || bias.Shape.Dims[0] != channelsOut || !trailingSingleton ||
+			(bias.Shape.Rank != 1 && bias.Shape.Rank != 2 && bias.Shape.Rank != 3) {
+			b.setError(errors.New("Conv2D bias shape is incompatible"))
+			return nil
+		}
+		inputs = append(inputs, bias)
+	}
+	shape, err := NewShape(channelsOut, outputW, outputH)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	attributes := Conv2DAttributes{
+		StrideX: strideX, StrideY: strideY, PadLeft: padLeft, PadRight: padRight,
+		PadTop: padTop, PadBottom: padBottom, Depthwise: depthwise, HasBias: hasBias,
+	}
+	return b.add("", input.Type, shape, OpConv2D, inputs, attributes)
 }
 
 // GroupNorm: channel groups across one sequence.
@@ -2481,8 +2545,9 @@ func (b *Builder) attentionWithWindow(
 		b.setError(errors.New("attention key/value token counts differ"))
 		return nil
 	}
-	if uint64(queryStart) > key.Shape.Dims[2] ||
-		query.Shape.Dims[2] > key.Shape.Dims[2]-uint64(queryStart) {
+	queryRangeExceeds := uint64(queryStart) > key.Shape.Dims[2] ||
+		uint64(queryStart) <= key.Shape.Dims[2] && query.Shape.Dims[2] > key.Shape.Dims[2]-uint64(queryStart)
+	if queryRangeExceeds && (causal || queryStart != 0) {
 		b.setError(fmt.Errorf(
 			"attention query range [%d,%d) exceeds key/value token count %d",
 			queryStart,

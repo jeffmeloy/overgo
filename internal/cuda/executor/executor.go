@@ -686,6 +686,7 @@ type functionSet struct {
 	reluSquared       driver.Function
 	relu              driver.Function
 	conv1DSame        driver.Function
+	conv2D            driver.Function
 	groupNorm         driver.Function
 	sigmoid           driver.Function
 	softplus          driver.Function
@@ -878,6 +879,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"relu_squared_f32", &result.reluSquared},
 		{"relu_f32", &result.relu},
 		{"conv_1d_same_f32", &result.conv1DSame},
+		{"conv_2d_f32", &result.conv2D},
 		{"group_norm_f32", &result.groupNorm},
 		{"sigmoid_f32", &result.sigmoid},
 		{"softplus_f32", &result.softplus},
@@ -1246,6 +1248,45 @@ func launchNode(
 			unsafe.Pointer(&channelsOut), unsafe.Pointer(&depthwise), unsafe.Pointer(&count),
 		}
 		err = launch1D(state, functions.conv1DSame, count, args)
+		runtime.KeepAlive(args)
+		return err
+	case tensor.OpConv2D:
+		attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
+		if !ok {
+			return errors.New("invalid Conv2D attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input, weight := pointers[node.Inputs[0]], pointers[node.Inputs[1]]
+		bias := input
+		if attributes.HasBias {
+			bias = pointers[node.Inputs[2]]
+		}
+		channelsIn := uint32(node.Inputs[0].Shape.Dims[0])
+		inputW, inputH := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[0].Shape.Dims[2])
+		kernelW, kernelH := uint32(node.Inputs[1].Shape.Dims[0]), uint32(node.Inputs[1].Shape.Dims[1])
+		weightChannels, channelsOut := uint32(node.Inputs[1].Shape.Dims[2]), uint32(node.Shape.Dims[0])
+		outputW, outputH := uint32(node.Shape.Dims[1]), uint32(node.Shape.Dims[2])
+		strideX, strideY := attributes.StrideX, attributes.StrideY
+		padLeft, padTop := attributes.PadLeft, attributes.PadTop
+		var depthwise, hasBias uint32
+		if attributes.Depthwise {
+			depthwise = 1
+		}
+		if attributes.HasBias {
+			hasBias = 1
+		}
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&bias), unsafe.Pointer(&output),
+			unsafe.Pointer(&channelsIn), unsafe.Pointer(&inputW), unsafe.Pointer(&inputH),
+			unsafe.Pointer(&kernelW), unsafe.Pointer(&kernelH), unsafe.Pointer(&weightChannels),
+			unsafe.Pointer(&channelsOut), unsafe.Pointer(&outputW), unsafe.Pointer(&outputH),
+			unsafe.Pointer(&strideX), unsafe.Pointer(&strideY), unsafe.Pointer(&padLeft), unsafe.Pointer(&padTop),
+			unsafe.Pointer(&depthwise), unsafe.Pointer(&hasBias), unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.conv2D, count, args)
 		runtime.KeepAlive(args)
 		return err
 	case tensor.OpGroupNorm:

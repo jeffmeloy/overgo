@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 27,
+  "abiVersion": 28,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "e39e23b0b0987582ae20e79508e8c5170268f7c066e58251ac0b4eb0b95a204d",
+      "sourceSha256": "feec8d72aea58eba4cab4fd7c8e88045c2afacd2cb1aa22df103b0eeb1df4a30",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "86edcc372206eae0f8f91a3e69a047f9541584ba919c4be05b25d043d899c547",
+      "assetSha256": "4c5e2bcb7120d366b9a01f3b8d710812cf57dce4f3aa4e92808afe86cd29aa11",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -63,6 +63,7 @@
         "relu_squared_f32",
         "relu_f32",
         "conv_1d_same_f32",
+        "conv_2d_f32",
         "group_norm_f32",
         "sigmoid_f32",
         "softplus_f32",
@@ -262,6 +263,33 @@
           ],
           "functions": [
             "conv_1d_same_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "conv_2d_f32"
           ]
         },
         {

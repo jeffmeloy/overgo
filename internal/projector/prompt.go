@@ -118,6 +118,8 @@ func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProje
 	switch projectorType {
 	case cogVLMProjectorType:
 		return OpenCogVLMVisionWithOptions(path, CogVLMVisionOpenOptions(options))
+	case gemma3nVisionProjectorType:
+		return OpenGemma3nVisionWithOptions(path, Gemma3nVisionOpenOptions(options))
 	case mimoVLProjectorType:
 		return OpenMiMoVLWithOptions(path, MiMoVLOpenOptions(options))
 	case granite4VisionProjectorType:

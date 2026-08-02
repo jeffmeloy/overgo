@@ -3200,12 +3200,22 @@ models:
       - sliding-and-global-layer-18-or-19-kv-sharing
       - serializable-prefix-editable-kv-cache
       - final-logit-softcap
+      - mobilenetv5-fixed-image-projector
+      - edge-and-universal-inverted-residual-blocks
+      - downsampled-mqa-vision-attention
+      - multi-scale-feature-fusion
+      - fixed-256-image-soft-tokens
+      - native-multi-image-history-prompts
+      - optional-cuda-image-projection
     validation:
       - synthetic-metadata-and-catalog
       - altup-layout-and-formula-tests
       - reference-cuda-active-stage-differential
+      - synthetic-projector-catalog-and-prompt-contract
+      - reference-cuda-projector-differential
+      - reference-cuda-conv2d-differential
     limitations:
-      - multimodal-encoder-external
+      - audio-encoder-unimplemented
       - real-model-validation-pending-fixture
   gemma4-assistant:
     status: experimental

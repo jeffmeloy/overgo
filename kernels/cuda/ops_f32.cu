@@ -338,6 +338,62 @@ extern "C" __global__ void conv_1d_same_f32(
 	output[index] = sum;
 }
 
+extern "C" __global__ void conv_2d_f32(
+		const float * input,
+		const float * weight,
+		const float * bias,
+		float * output,
+		unsigned int channels_in,
+		unsigned int input_w,
+		unsigned int input_h,
+		unsigned int kernel_w,
+		unsigned int kernel_h,
+		unsigned int weight_channels,
+		unsigned int channels_out,
+		unsigned int output_w,
+		unsigned int output_h,
+		unsigned int stride_x,
+		unsigned int stride_y,
+		unsigned int pad_left,
+		unsigned int pad_top,
+		unsigned int depthwise,
+		unsigned int has_bias,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel_out = index % channels_out;
+	const unsigned int spatial = index / channels_out;
+	const unsigned int x = spatial % output_w;
+	const unsigned int y = spatial / output_w;
+	float sum = has_bias ? bias[channel_out] : 0.0f;
+	for (unsigned int ky = 0; ky < kernel_h; ++ky) {
+		const int source_y = (int) (y * stride_y + ky) - (int) pad_top;
+		if (source_y < 0 || source_y >= (int) input_h) {
+			continue;
+		}
+		for (unsigned int kx = 0; kx < kernel_w; ++kx) {
+			const int source_x = (int) (x * stride_x + kx) - (int) pad_left;
+			if (source_x < 0 || source_x >= (int) input_w) {
+				continue;
+			}
+			if (depthwise) {
+				const unsigned int input_offset = channel_out + channels_in * ((unsigned int) source_x + input_w * (unsigned int) source_y);
+				const unsigned int weight_offset = kx + kernel_w * (ky + kernel_h * channel_out);
+				sum += input[input_offset] * weight[weight_offset];
+				continue;
+			}
+			for (unsigned int channel_in = 0; channel_in < channels_in; ++channel_in) {
+				const unsigned int input_offset = channel_in + channels_in * ((unsigned int) source_x + input_w * (unsigned int) source_y);
+				const unsigned int weight_offset = kx + kernel_w * (ky + kernel_h * (channel_in + weight_channels * channel_out));
+				sum += input[input_offset] * weight[weight_offset];
+			}
+		}
+	}
+	output[index] = sum;
+}
+
 extern "C" __global__ void group_norm_f32(
 		const float * input,
 		const float * weight,

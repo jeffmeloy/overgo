@@ -77,7 +77,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `gemma-embedding` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `gemma2` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `gemma3` | experimental | model-dependent | validated: gemma-3-12b-it-IQ4_XS.gguf | - |
-| `gemma3n` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | multimodal-encoder-external, real-model-validation-pending-fixture |
+| `gemma3n` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | audio-encoder-unimplemented, real-model-validation-pending-fixture |
 | `gemma4` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `gemma4-assistant` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | external-scheduler-owns-verification-and-acceptance, text-only-target-input, real-model-pair-pending |
 | `glm-dsa` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |

@@ -181,6 +181,16 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid same Conv1D attributes")
 		}
 		return conv1DSame(node.Shape, inputs[0], inputs[1], inputs[2], attributes.Depthwise)
+	case tensor.OpConv2D:
+		attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid Conv2D attributes")
+		}
+		var bias Value
+		if attributes.HasBias {
+			bias = inputs[2]
+		}
+		return conv2D(node.Shape, inputs[0], inputs[1], bias, attributes)
 	case tensor.OpGroupNorm:
 		attributes, ok := node.Attrs.(tensor.GroupNormAttributes)
 		if !ok {
@@ -422,6 +432,49 @@ func conv1DSame(shape tensor.Shape, input, weight, bias Value, depthwise bool) (
 				}
 			}
 			output[token*channelsOut+channelOut] = float32(sum)
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func conv2D(shape tensor.Shape, input, weight, bias Value, attributes tensor.Conv2DAttributes) (Value, error) {
+	channelsIn, inputW, inputH := int(input.Shape.Dims[0]), int(input.Shape.Dims[1]), int(input.Shape.Dims[2])
+	kernelW, kernelH := int(weight.Shape.Dims[0]), int(weight.Shape.Dims[1])
+	weightChannels, channelsOut := int(weight.Shape.Dims[2]), int(weight.Shape.Dims[3])
+	outputW, outputH := int(shape.Dims[1]), int(shape.Dims[2])
+	output := make([]float32, channelsOut*outputW*outputH)
+	for y := 0; y < outputH; y++ {
+		for x := 0; x < outputW; x++ {
+			for channelOut := 0; channelOut < channelsOut; channelOut++ {
+				var sum float64
+				if attributes.HasBias {
+					sum = float64(bias.Data[channelOut])
+				}
+				for ky := 0; ky < kernelH; ky++ {
+					sourceY := y*int(attributes.StrideY) + ky - int(attributes.PadTop)
+					if sourceY < 0 || sourceY >= inputH {
+						continue
+					}
+					for kx := 0; kx < kernelW; kx++ {
+						sourceX := x*int(attributes.StrideX) + kx - int(attributes.PadLeft)
+						if sourceX < 0 || sourceX >= inputW {
+							continue
+						}
+						if attributes.Depthwise {
+							inputOffset := channelOut + channelsIn*(sourceX+inputW*sourceY)
+							weightOffset := kx + kernelW*(ky+kernelH*channelOut)
+							sum += float64(input.Data[inputOffset]) * float64(weight.Data[weightOffset])
+							continue
+						}
+						for channelIn := 0; channelIn < channelsIn; channelIn++ {
+							inputOffset := channelIn + channelsIn*(sourceX+inputW*sourceY)
+							weightOffset := kx + kernelW*(ky+kernelH*(channelIn+weightChannels*channelOut))
+							sum += float64(input.Data[inputOffset]) * float64(weight.Data[weightOffset])
+						}
+					}
+				}
+				output[channelOut+channelsOut*(x+outputW*y)] = float32(sum)
+			}
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
@@ -1759,7 +1812,7 @@ func attention(
 	if queryHeads%keyValueHeads != 0 {
 		return Value{}, errors.New("attention query heads are not divisible by KV heads")
 	}
-	if uint64(attributes.QueryStart)+uint64(queryTokens) > uint64(keyValueTokens) {
+	if attributes.Causal && uint64(attributes.QueryStart)+uint64(queryTokens) > uint64(keyValueTokens) {
 		return Value{}, errors.New("attention query range exceeds KV tokens")
 	}
 	if blockIDs != nil && len(blockIDs.Data) != keyValueTokens {

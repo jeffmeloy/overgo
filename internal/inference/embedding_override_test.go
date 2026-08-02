@@ -161,12 +161,12 @@ func TestApplyEmbeddingOverrides(t *testing.T) {
 	}
 }
 
-func TestApplyGemma4RawEmbeddingOverridesScalesOnlyTokens(t *testing.T) {
+func TestApplyGemmaRawEmbeddingOverridesScalesOnlyTokens(t *testing.T) {
 	activation := reference.Value{
 		Shape: tensor.MustShape(2, 2),
 		Data:  []float32{1, 2, 3, 4},
 	}
-	err := applyGemma4RawEmbeddingOverrides(&activation, []EmbeddingOverride{
+	err := applyGemmaRawEmbeddingOverrides(&activation, []EmbeddingOverride{
 		{TokenIndex: 1, Embedding: []float32{5, 6}},
 	}, 2)
 	if err != nil {

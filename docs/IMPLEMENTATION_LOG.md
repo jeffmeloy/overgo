@@ -1477,8 +1477,13 @@ layers sharing sliding/global K/V from layers 18/19. Cross-stream reductions
 remain bounded host operations; attention and dense projections use the normal
 reference/CUDA and preloaded-weight paths. Metadata, strict 30/35-layer catalog,
 AltUp formula/layout, cache topology, and CUDA active-stage differential tests
-pass. Multimodal encoding remains external; real-model validation awaits a
-local Gemma3n GGUF fixture.
+pass. The MobileNetV5 projector executes fixed bicubic preprocessing, edge and
+universal inverted-residual blocks, downsampled multi-query attention,
+multi-scale fusion, average pooling, spatial normalization, and fixed 256-token
+soft projection. Native multi-image/history prompts preserve raw image
+embeddings through Gemma3n input scaling. Strict synthetic catalogs, pooling
+oracles, and full CPU/CUDA projector differentials pass. Audio encoding remains
+unimplemented; real-model validation awaits a local Gemma3n projector fixture.
 
 Falcon-H1 now executes parallel NeoX-RoPE GQA and Mamba2 in every layer, sums
 both mixer outputs into one residual, then applies the parallel SwiGLU FFN.

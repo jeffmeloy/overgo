@@ -1878,8 +1878,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
 			return reference.Value{}, nil, err
 		}
-	} else if r.spec.Architecture == "gemma4" && len(overrides) > 0 {
-		if err := applyGemma4RawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
+	} else if (r.spec.Architecture == "gemma4" || r.spec.Architecture == "gemma3n") && len(overrides) > 0 {
+		if err := applyGemmaRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
 			return reference.Value{}, nil, err
 		}
 		embeddingScaleApplied = true
@@ -2027,7 +2027,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	return activation, nextCache, nil
 }
 
-func applyGemma4RawEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride, scale float32) error {
+func applyGemmaRawEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride, scale float32) error {
 	if activation == nil {
 		return errors.New("inference: embedding activation is nil")
 	}

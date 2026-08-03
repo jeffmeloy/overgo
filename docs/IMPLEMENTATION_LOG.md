@@ -1960,6 +1960,18 @@ Prompt-cache reset is one lifecycle operation shared by explicit clearing,
 LoRA-scale changes, and runner closure. Explicit clearing preserves all prepared
 assets and returns retained-device release failures instead of discarding them.
 
+## Protocol execution convergence
+
+Chat Completions, Responses, and Anthropic Messages now share bounded generation
+token selection, formatter/tokenizer capability checks, tool-grammar setup, slot
+admission plus projected prompt preparation, input-token response construction,
+and inference option assembly. Projected Anthropic prompts now use the same
+exact-media prompt-cache contract as Chat and Responses.
+
+One incremental tool-delta stream now owns fallback buffering, parser dispatch,
+function names, argument accumulation, and index validation for all three SSE
+protocols. Protocol encoders retain their distinct event and response shapes.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

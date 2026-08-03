@@ -433,8 +433,11 @@ func TestAnthropicImageToolsAndTokenCounting(t *testing.T) {
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"stop_reason":"tool_use"`) {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
-	if vision.historyRuns != 1 || len(base.chatOptions.Tools) != 1 {
-		t.Fatalf("projection/tools = history=%d options=%+v", vision.historyRuns, base.chatOptions)
+	if vision.historyRuns != 1 || len(base.chatOptions.Tools) != 1 || !base.cachePrompt {
+		t.Fatalf(
+			"projection/tools = history=%d options=%+v cache=%v",
+			vision.historyRuns, base.chatOptions, base.cachePrompt,
+		)
 	}
 
 	countBody := `{"model":"test-model","messages":` + message + `}`

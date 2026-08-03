@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Chat, Responses, and Anthropic now share token bounds, tool grammar, prompt preparation/counting, projected generation options, and incremental tool-call state.
 - Runner ownership now separates prepared model/CUDA assets from mutable LoRA and retained prompt state; cleanup follows the same boundary.
 - Cache validation and range editing now consume one compiled schema; typed profiles/plans own shared-KV, AltUp, per-layer-embedding, and embedding-skip behavior.
 - Model opening now compiles immutable per-layer block/cache policies; host and device cache setup plus graph dispatch consume the same plan.

@@ -68,9 +68,8 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
-	formatter, ok := h.generator.(ChatFormatter)
+	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
 	var body anthropicTokenCountRequest
@@ -80,16 +79,15 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 	if !h.requireModel(response, body.Model) {
 		return
 	}
-	if body.MaxTokens == nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "max_tokens is required")
-		return
-	}
-	if *body.MaxTokens < 0 || *body.MaxTokens > h.config.MaxTokens {
+	maxTokens, err := boundedProtocolTokens(
+		body.MaxTokens, 0, h.config.MaxTokens, "max_tokens", true,
+	)
+	if err != nil {
 		writeError(
 			response,
 			http.StatusBadRequest,
 			"invalid_request_error",
-			fmt.Sprintf("max_tokens must be in [0,%d]", h.config.MaxTokens),
+			err.Error(),
 		)
 		return
 	}
@@ -146,47 +144,26 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		TopP:        body.TopP,
 		TopK:        body.TopK,
 	}
-	if len(toolSelection.active) != 0 {
-		provider, ok := h.generator.(ChatToolGrammarProvider)
-		if !ok {
-			writeError(
-				response,
-				http.StatusNotImplemented,
-				"unsupported_operation",
-				"tool-call grammar generation is unavailable",
-			)
-			return
-		}
-		source, root, patterns, grammarErr := provider.ChatToolGrammar(
-			toolSelection.active,
-			toolSelection.required,
-			false,
-			toolSelection.parallel,
-		)
-		if grammarErr != nil {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", grammarErr.Error())
-			return
-		}
-		samplingParams.Grammar = source
-		samplingParams.GrammarRoot = root
-		samplingParams.GrammarLazy = len(patterns) != 0
-		samplingParams.GrammarTriggerPatterns = patterns
+	if !h.configureChatToolGrammar(
+		response,
+		&samplingParams,
+		toolSelection.active,
+		toolSelection.required,
+		false,
+		toolSelection.parallel,
+	) {
+		return
 	}
 	sampler, err := h.newSampler(samplingParams)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
-	if !acquired {
+	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, normalized)
+	if !ok {
 		return
 	}
 	defer h.releaseSlot(slotID)
-	prepared, err := h.preparePrompt(request.Context(), normalized, true)
-	if err != nil {
-		writeGenerationError(response, err)
-		return
-	}
 	messageID := "msg_" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
 		h.streamAnthropicMessages(
@@ -197,7 +174,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			prepared.TokenIDs,
 			prepared.ProjectedInputs,
 			sampler,
-			*body.MaxTokens,
+			maxTokens,
 			body.StopSequences,
 			messageID,
 			toolSelection.active,
@@ -209,14 +186,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		request.Context(),
 		slotID,
 		prepared.Text,
-		inference.GenerateOptions{
-			MaxNewTokens:    *body.MaxTokens,
-			Sampler:         sampler,
-			ParseSpecial:    true,
-			ContextShift:    h.config.ContextShift,
-			PromptTokenIDs:  prepared.TokenIDs,
-			ProjectedInputs: prepared.ProjectedInputs,
-		},
+		h.protocolGenerationOptions(maxTokens, sampler, prepared.TokenIDs, prepared.ProjectedInputs),
 		body.StopSequences,
 		nil,
 	)
@@ -224,7 +194,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		writeGenerationError(response, err)
 		return
 	}
-	stopReason := pump.finishReason(*body.MaxTokens, "end_turn", "max_tokens")
+	stopReason := pump.finishReason(maxTokens, "end_turn", "max_tokens")
 	var stopSequence *string
 	if pump.stopped() {
 		value := pump.stoppingWord()
@@ -312,21 +282,13 @@ func (h *Handler) streamAnthropicMessages(
 	textStarted := false
 	textStopped := false
 	var buffered strings.Builder
-	var toolStream inference.ChatOutputStream
-	var err error
-	streamedToolNames := make([]string, 0, 1)
-	streamedToolArguments := make([]strings.Builder, 0, 1)
-	if len(tools) != 0 {
-		if provider, ok := h.generator.(ChatOutputStreamProvider); ok {
-			toolStream, err = provider.NewChatOutputStream(tools)
-			if err != nil {
-				_ = writeEvent("error", map[string]any{
-					"type":  "error",
-					"error": errorEnvelope("generation_error", err.Error()).Error,
-				})
-				return
-			}
-		}
+	toolStream, streamErr := newToolDeltaStream(h.generator, tools)
+	if streamErr != nil {
+		_ = writeEvent("error", map[string]any{
+			"type":  "error",
+			"error": errorEnvelope("generation_error", streamErr.Error()).Error,
+		})
+		return
 	}
 	emitText := func(piece string) error {
 		if piece == "" {
@@ -355,11 +317,7 @@ func (h *Handler) streamAnthropicMessages(
 		})
 	}
 	emitToolPiece := func(piece string) error {
-		buffered.WriteString(piece)
-		if toolStream == nil || piece == "" {
-			return nil
-		}
-		deltas, streamErr := toolStream.Accept(piece)
+		deltas, streamErr := toolStream.accept(piece)
 		if streamErr != nil {
 			return streamErr
 		}
@@ -379,19 +337,11 @@ func (h *Handler) streamAnthropicMessages(
 				}
 				textStopped = true
 			}
-			for len(streamedToolNames) <= delta.Index {
-				streamedToolNames = append(streamedToolNames, "")
-				streamedToolArguments = append(
-					streamedToolArguments,
-					strings.Builder{},
-				)
-			}
 			blockIndex := delta.Index
 			if textStarted {
 				blockIndex++
 			}
 			if delta.Started {
-				streamedToolNames[delta.Index] = delta.Name
 				if streamErr := writeEvent("content_block_start", map[string]any{
 					"type":  "content_block_start",
 					"index": blockIndex,
@@ -406,7 +356,6 @@ func (h *Handler) streamAnthropicMessages(
 				}
 			}
 			if delta.Arguments != "" {
-				streamedToolArguments[delta.Index].WriteString(delta.Arguments)
 				if streamErr := writeEvent("content_block_delta", map[string]any{
 					"type":  "content_block_delta",
 					"index": blockIndex,
@@ -470,14 +419,7 @@ func (h *Handler) streamAnthropicMessages(
 		request.Context(),
 		slotID,
 		prompt,
-		inference.GenerateOptions{
-			MaxNewTokens:    maxTokens,
-			Sampler:         sampler,
-			ParseSpecial:    true,
-			ContextShift:    h.config.ContextShift,
-			PromptTokenIDs:  promptIDs,
-			ProjectedInputs: projectedInputs,
-		},
+		h.protocolGenerationOptions(maxTokens, sampler, promptIDs, projectedInputs),
 		stops,
 		func(piece string) error {
 			if thinkingEnabled {
@@ -528,7 +470,7 @@ func (h *Handler) streamAnthropicMessages(
 		textStopped = true
 	} else if len(tools) != 0 {
 		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(
-			buffered.String(),
+			toolStream.text(),
 			tools,
 		)
 		if parseErr != nil {
@@ -550,13 +492,13 @@ func (h *Handler) streamAnthropicMessages(
 			return
 		}
 		for index, block := range blocks {
-			if len(streamedToolNames) != 0 {
+			if toolStream.started {
 				if block.Type == "tool_use" {
 					streamIndex := index
 					if textStarted {
 						streamIndex--
 					}
-					if streamIndex >= 0 && streamIndex < len(streamedToolArguments) {
+					if toolStream.streamed(streamIndex) {
 						if err := writeEvent("content_block_stop", map[string]any{
 							"type":  "content_block_stop",
 							"index": index,
@@ -642,14 +584,11 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
-	formatter, ok := h.generator.(ChatFormatter)
+	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
-	_, ok = h.generator.(TokenizationAPI)
-	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "token counting is unavailable")
+	if !h.requireTokenCounting(response) {
 		return
 	}
 	var body anthropicTokenCountRequest
@@ -690,12 +629,7 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prepared, err := h.preparePrompt(request.Context(), normalized, true)
-	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]int{"input_tokens": len(prepared.TokenIDs)})
+	h.writeProtocolInputTokenCount(response, request, normalized, false)
 }
 
 func (h *Handler) parseAnthropicMessages(

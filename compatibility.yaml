@@ -155,10 +155,12 @@ claims:
         contains: "func TestMultimodalInputTokenCounting("
   - id: unified-prompt-preparation
     status: implemented
-    summary: Native, Chat, and Responses generation share prepared prompts with token counting.
+    summary: Native generation and the Chat, Responses, and Anthropic protocols share prepared prompts with token counting.
     evidence:
       - path: internal/server/server.go
         contains: "func (h *Handler) preparePrompt("
+      - path: internal/server/protocol_common.go
+        contains: "func (h *Handler) prepareProtocolGeneration("
       - path: internal/server/server_part2_test.go
         contains: "func TestPreparedPromptGenerationAndTokenCountParity("
   - id: incremental-tool-streaming

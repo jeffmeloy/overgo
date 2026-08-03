@@ -104,9 +104,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
-	formatter, ok := h.generator.(ChatFormatter)
+	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
 	var body responsesRequest
@@ -181,16 +180,15 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	maxTokens := 16
-	if body.MaxOutputTokens != nil {
-		maxTokens = *body.MaxOutputTokens
-	}
-	if maxTokens < 0 || maxTokens > h.config.MaxTokens {
+	maxTokens, err := boundedProtocolTokens(
+		body.MaxOutputTokens, 16, h.config.MaxTokens, "max_output_tokens", false,
+	)
+	if err != nil {
 		writeError(
 			response,
 			http.StatusBadRequest,
 			"invalid_request_error",
-			fmt.Sprintf("max_output_tokens must be in [0,%d]", h.config.MaxTokens),
+			err.Error(),
 		)
 		return
 	}
@@ -200,53 +198,27 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	samplingParams := body.samplingParameters
-	if len(toolSelection.active) != 0 {
-		provider, ok := h.generator.(ChatToolGrammarProvider)
-		if !ok {
-			writeError(
-				response,
-				http.StatusNotImplemented,
-				"unsupported_operation",
-				"tool-call grammar generation is unavailable",
-			)
-			return
-		}
-		source, root, patterns, grammarErr := provider.ChatToolGrammar(
-			toolSelection.active,
-			toolSelection.required,
-			false,
-			!toolSelection.named &&
-				(body.ParallelTools == nil || *body.ParallelTools),
-		)
-		if grammarErr != nil {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				grammarErr.Error(),
-			)
-			return
-		}
-		samplingParams.Grammar = source
-		samplingParams.GrammarRoot = root
-		samplingParams.GrammarLazy = len(patterns) != 0
-		samplingParams.GrammarTriggerPatterns = patterns
+	if !h.configureChatToolGrammar(
+		response,
+		&samplingParams,
+		toolSelection.active,
+		toolSelection.required,
+		false,
+		!toolSelection.named &&
+			(body.ParallelTools == nil || *body.ParallelTools),
+	) {
+		return
 	}
 	sampler, err := h.newSampler(samplingParams)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
-	if !acquired {
+	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, normalizedPrompt)
+	if !ok {
 		return
 	}
 	defer h.releaseSlot(slotID)
-	prepared, err := h.preparePrompt(request.Context(), normalizedPrompt, true)
-	if err != nil {
-		writeGenerationError(response, err)
-		return
-	}
 	idNumber := h.nextID.Add(1)
 	responseID := "resp_" + strconv.FormatUint(idNumber, 10)
 	messageID := "msg_" + strconv.FormatUint(idNumber, 10)
@@ -275,15 +247,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		request.Context(),
 		slotID,
 		prepared.Text,
-		inference.GenerateOptions{
-			MaxNewTokens:    maxTokens,
-			Sampler:         sampler,
-			ParseSpecial:    true,
-			ContextShift:    h.config.ContextShift,
-			PromptTokenIDs:  prepared.TokenIDs,
-			CachePrompt:     prepared.ProjectedInputs != nil,
-			ProjectedInputs: prepared.ProjectedInputs,
-		},
+		h.protocolGenerationOptions(maxTokens, sampler, prepared.TokenIDs, prepared.ProjectedInputs),
 		stops,
 		nil,
 	)
@@ -374,21 +338,13 @@ func (h *Handler) streamResponses(
 	var buffered strings.Builder
 	textStarted := false
 	var reasoningOutput *responseOutputItem
-	var toolStream inference.ChatOutputStream
-	streamedToolNames := make([]string, 0, 1)
-	streamedToolArguments := make([]strings.Builder, 0, 1)
-	if len(tools) != 0 {
-		if provider, ok := h.generator.(ChatOutputStreamProvider); ok {
-			var streamErr error
-			toolStream, streamErr = provider.NewChatOutputStream(tools)
-			if streamErr != nil {
-				_ = writeEvent("response.failed", map[string]any{
-					"type":  "response.failed",
-					"error": errorEnvelope("generation_error", streamErr.Error()).Error,
-				})
-				return
-			}
-		}
+	toolStream, streamErr := newToolDeltaStream(h.generator, tools)
+	if streamErr != nil {
+		_ = writeEvent("response.failed", map[string]any{
+			"type":  "response.failed",
+			"error": errorEnvelope("generation_error", streamErr.Error()).Error,
+		})
+		return
 	}
 	emitText := func(piece string) error {
 		if piece == "" {
@@ -427,11 +383,7 @@ func (h *Handler) streamResponses(
 		})
 	}
 	emitToolPiece := func(piece string) error {
-		buffered.WriteString(piece)
-		if toolStream == nil || piece == "" {
-			return nil
-		}
-		deltas, streamErr := toolStream.Accept(piece)
+		deltas, streamErr := toolStream.accept(piece)
 		if streamErr != nil {
 			return streamErr
 		}
@@ -442,13 +394,6 @@ func (h *Handler) streamResponses(
 					return streamErr
 				}
 			}
-			for len(streamedToolNames) <= delta.Index {
-				streamedToolNames = append(streamedToolNames, "")
-				streamedToolArguments = append(
-					streamedToolArguments,
-					strings.Builder{},
-				)
-			}
 			outputIndex := delta.Index
 			if textStarted {
 				outputIndex++
@@ -456,7 +401,6 @@ func (h *Handler) streamResponses(
 			itemID := fmt.Sprintf("fc_%s_%d", idSuffix, delta.Index)
 			callID := fmt.Sprintf("call_%s_%d", idSuffix, delta.Index)
 			if delta.Started {
-				streamedToolNames[delta.Index] = delta.Name
 				if streamErr := writeEvent(
 					"response.output_item.added",
 					map[string]any{
@@ -477,7 +421,6 @@ func (h *Handler) streamResponses(
 				}
 			}
 			if delta.Arguments != "" {
-				streamedToolArguments[delta.Index].WriteString(delta.Arguments)
 				if streamErr := writeEvent(
 					"response.function_call_arguments.delta",
 					map[string]any{
@@ -549,15 +492,7 @@ func (h *Handler) streamResponses(
 		request.Context(),
 		slotID,
 		prompt,
-		inference.GenerateOptions{
-			MaxNewTokens:    maxTokens,
-			Sampler:         sampler,
-			ParseSpecial:    true,
-			ContextShift:    h.config.ContextShift,
-			PromptTokenIDs:  promptIDs,
-			CachePrompt:     projectedInputs != nil,
-			ProjectedInputs: projectedInputs,
-		},
+		h.protocolGenerationOptions(maxTokens, sampler, promptIDs, projectedInputs),
 		stops,
 		func(piece string) error {
 			if len(tools) != 0 {
@@ -583,7 +518,7 @@ func (h *Handler) streamResponses(
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
 		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(
-			buffered.String(),
+			toolStream.text(),
 			tools,
 		)
 		if err != nil {
@@ -593,7 +528,7 @@ func (h *Handler) streamResponses(
 			})
 			return
 		}
-		if len(streamedToolNames) == 0 {
+		if !toolStream.started {
 			if err := emitText(parsedMessage.Content); err != nil {
 				return
 			}
@@ -676,9 +611,9 @@ func (h *Handler) streamResponses(
 		if textStarted {
 			callIndex--
 		}
-		streamed := callIndex >= 0 && callIndex < len(streamedToolNames)
+		streamed := toolStream.streamed(callIndex)
 		if streamed {
-			item.Arguments = streamedToolArguments[callIndex].String()
+			item.Arguments = toolStream.argumentText(callIndex)
 		}
 		added := item
 		added.Arguments = ""
@@ -757,14 +692,11 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
-	formatter, ok := h.generator.(ChatFormatter)
+	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
-	_, ok = h.generator.(TokenizationAPI)
-	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "token counting is unavailable")
+	if !h.requireTokenCounting(response) {
 		return
 	}
 	var body responsesTokenCountRequest
@@ -811,19 +743,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prepared, err := h.preparePrompt(request.Context(), normalized, true)
-	if err != nil {
-		if nativePromptHasMedia(normalized) {
-			writeGenerationError(response, err)
-		} else {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
-		}
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{
-		"object":       "response.input_tokens",
-		"input_tokens": len(prepared.TokenIDs),
-	})
+	h.writeProtocolInputTokenCount(response, request, normalized, true)
 }
 
 func (h *Handler) previousResponseMessages(

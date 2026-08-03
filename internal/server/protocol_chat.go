@@ -377,14 +377,11 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
-	formatter, ok := h.generator.(ChatFormatter)
+	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
-	_, ok = h.generator.(TokenizationAPI)
-	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "token counting is unavailable")
+	if !h.requireTokenCounting(response) {
 		return
 	}
 	var body chatCompletionRequest
@@ -407,28 +404,15 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	prepared, err := h.preparePrompt(request.Context(), normalized, true)
-	if err != nil {
-		if nativePromptHasMedia(normalized) {
-			writeGenerationError(response, err)
-		} else {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
-		}
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{
-		"object":       "response.input_tokens",
-		"input_tokens": len(prepared.TokenIDs),
-	})
+	h.writeProtocolInputTokenCount(response, request, normalized, true)
 }
 
 func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
-	formatter, ok := h.generator.(ChatFormatter)
+	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
 	var body chatCompletionRequest
@@ -471,16 +455,15 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 			return
 		}
 	}
-	maxTokens := 16
-	if body.MaxTokens != nil {
-		maxTokens = *body.MaxTokens
-	}
-	if maxTokens < 0 || maxTokens > h.config.MaxTokens {
+	maxTokens, err := boundedProtocolTokens(
+		body.MaxTokens, 16, h.config.MaxTokens, "max_tokens", false,
+	)
+	if err != nil {
 		writeError(
 			response,
 			http.StatusBadRequest,
 			"invalid_request_error",
-			fmt.Sprintf("max_tokens must be in [0,%d]", h.config.MaxTokens),
+			err.Error(),
 		)
 		return
 	}
@@ -498,16 +481,6 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		return
 	}
 	if len(toolSelection.active) != 0 {
-		provider, ok := h.generator.(ChatToolGrammarProvider)
-		if !ok {
-			writeError(
-				response,
-				http.StatusNotImplemented,
-				"unsupported_operation",
-				"tool-call grammar generation is unavailable",
-			)
-			return
-		}
 		enableThinking, err := chatThinkingEnabled(body.TemplateKwargs)
 		if err != nil {
 			writeError(
@@ -518,42 +491,28 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 			)
 			return
 		}
-		source, root, patterns, err := provider.ChatToolGrammar(
+		if !h.configureChatToolGrammar(
+			response,
+			&body.samplingParameters,
 			toolSelection.active,
 			toolSelection.required,
 			enableThinking,
 			!toolSelection.named &&
 				(body.ParallelTools == nil || *body.ParallelTools),
-		)
-		if err != nil {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				err.Error(),
-			)
+		) {
 			return
 		}
-		body.Grammar = source
-		body.GrammarRoot = root
-		body.GrammarLazy = len(patterns) != 0
-		body.GrammarTriggerPatterns = patterns
 	}
 	sampler, err := h.newSampler(body.samplingParameters)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
-	if !acquired {
+	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, normalizedPrompt)
+	if !ok {
 		return
 	}
 	defer h.releaseSlot(slotID)
-	prepared, err := h.preparePrompt(request.Context(), normalizedPrompt, true)
-	if err != nil {
-		writeGenerationError(response, err)
-		return
-	}
 	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
 		h.streamChatCompletion(
@@ -743,15 +702,7 @@ func (h *Handler) completeChat(
 			request.Context(),
 			slotID,
 			prompt,
-			inference.GenerateOptions{
-				MaxNewTokens:    maxTokens,
-				Sampler:         choiceSampler,
-				ParseSpecial:    true,
-				ContextShift:    h.config.ContextShift,
-				PromptTokenIDs:  promptIDs,
-				CachePrompt:     projectedInputs != nil,
-				ProjectedInputs: projectedInputs,
-			},
+			h.protocolGenerationOptions(maxTokens, choiceSampler, promptIDs, projectedInputs),
 			stops,
 			nil,
 		)
@@ -884,26 +835,13 @@ func (h *Handler) streamChatCompletion(
 		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
 			return
 		}
-		var buffered strings.Builder
-		var toolStream inference.ChatOutputStream
-		streamedToolCall := false
-		if len(tools) != 0 {
-			if provider, ok := h.generator.(ChatOutputStreamProvider); ok {
-				toolStream, err = provider.NewChatOutputStream(tools)
-				if err != nil {
-					_ = stream.write(
-						errorEnvelope("generation_error", err.Error()),
-					)
-					break
-				}
-			}
+		toolStream, err := newToolDeltaStream(h.generator, tools)
+		if err != nil {
+			_ = stream.write(errorEnvelope("generation_error", err.Error()))
+			break
 		}
 		emitToolPiece := func(piece string) error {
-			buffered.WriteString(piece)
-			if toolStream == nil || piece == "" {
-				return nil
-			}
-			deltas, streamErr := toolStream.Accept(piece)
+			deltas, streamErr := toolStream.accept(piece)
 			if streamErr != nil {
 				return streamErr
 			}
@@ -937,7 +875,6 @@ func (h *Handler) streamChatCompletion(
 					)
 					call.Type = "function"
 					call.Function.Name = delta.Name
-					streamedToolCall = true
 				}
 				if writeErr := writeChunk(choiceIndex, chatStreamDelta{
 					ToolCalls: []chatStreamToolCall{call},
@@ -951,15 +888,7 @@ func (h *Handler) streamChatCompletion(
 			request.Context(),
 			slotID,
 			prompt,
-			inference.GenerateOptions{
-				MaxNewTokens:    maxTokens,
-				Sampler:         choiceSampler,
-				ParseSpecial:    true,
-				ContextShift:    h.config.ContextShift,
-				PromptTokenIDs:  promptIDs,
-				CachePrompt:     projectedInputs != nil,
-				ProjectedInputs: projectedInputs,
-			},
+			h.protocolGenerationOptions(maxTokens, choiceSampler, promptIDs, projectedInputs),
 			stops,
 			func(piece string) error {
 				if piece != "" {
@@ -983,21 +912,21 @@ func (h *Handler) streamChatCompletion(
 		reason := pump.finishReason(maxTokens, "stop", "length")
 		if len(tools) != 0 {
 			parser := h.generator.(ChatOutputParser)
-			message, parseErr := parser.ParseChatOutput(buffered.String(), tools)
+			message, parseErr := parser.ParseChatOutput(toolStream.text(), tools)
 			if parseErr != nil {
 				_ = stream.write(
 					errorEnvelope("generation_error", parseErr.Error()),
 				)
 				break
 			}
-			if message.ReasoningContent != "" && !streamedToolCall {
+			if message.ReasoningContent != "" && !toolStream.started {
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					ReasoningContent: message.ReasoningContent,
 				}, nil); err != nil {
 					return
 				}
 			}
-			if message.Content != "" && !streamedToolCall {
+			if message.Content != "" && !toolStream.started {
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					Content: message.Content,
 				}, nil); err != nil {
@@ -1005,7 +934,7 @@ func (h *Handler) streamChatCompletion(
 				}
 			}
 			for callIndex, call := range message.ToolCalls {
-				if streamedToolCall {
+				if toolStream.started {
 					break
 				}
 				callID := call.ID

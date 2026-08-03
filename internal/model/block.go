@@ -202,13 +202,17 @@ func ApplyNormalization(
 	input, weight, bias *tensor.Tensor,
 	spec Spec,
 ) *tensor.Tensor {
-	if spec.UsesUnweightedLayerNorm() {
+	norm := spec.NormPlan()
+	if norm.Operation == NormalizationUnweightedLayer {
 		return builder.LayerNorm(input, spec.LayerNormEpsilon)
 	}
-	if spec.UsesWeightOnlyLayerNorm() {
+	if norm.Operation == NormalizationUnweightedRMS {
+		return builder.RMSNorm(input, spec.RMSNormEpsilon)
+	}
+	if norm.Operation == NormalizationWeightOnlyLayer {
 		return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
 	}
-	if spec.UsesLayerNorm() {
+	if norm.Operation == NormalizationLayer {
 		if bias == nil {
 			return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
 		}
@@ -3005,6 +3009,7 @@ func buildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	profile := spec.Profile()
+	normPlan := spec.NormPlan()
 	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
 		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
@@ -3036,7 +3041,7 @@ func buildDenseBlockCachedForLayer(
 	isOLMoE := spec.Architecture == "olmoe"
 	isPhiMoE := spec.Architecture == "phimoe"
 	isEXAOneMoE := spec.Architecture == "exaone-moe"
-	isPostOnlyNorm := profile.Has(ArchitecturePostOnlyNorm)
+	isPostOnlyNorm := !normPlan.PreAttention
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	isChameleon := spec.Architecture == "chameleon"
 	isLaguna := spec.Architecture == "laguna"
@@ -3787,7 +3792,7 @@ func buildDenseBlockCachedForLayer(
 	if spec.SandwichNorm {
 		attention = builder.WeightedRMSNorm(attention, weights.AttentionNorm, spec.RMSNormEpsilon)
 	}
-	if profile.Has(ArchitecturePostNorm) || isOLMo2 {
+	if normPlan.PostAttention {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
 			return DenseBlockResult{}, errors.New("dense post-normalized block requires post norm weights")
 		}
@@ -4330,7 +4335,7 @@ func buildDenseBlockCachedForLayer(
 			feedForward, weights.FeedForwardNorm, spec.RMSNormEpsilon,
 		)
 	}
-	if profile.Has(ArchitecturePostNorm) || isOLMo2 {
+	if normPlan.PostFeedForward {
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)

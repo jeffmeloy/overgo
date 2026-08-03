@@ -1158,15 +1158,6 @@ func (r *Runner) ForwardCachedWithProjectedInputs(
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
 	}
-	if inputs.MultiAxisPositions != nil && !supportsMultiAxisPositions(r.spec) {
-		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
-	}
-	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec) {
-		return reference.Value{}, nil, errors.New("inference: model does not support deepstack embeddings")
-	}
-	if len(inputs.BidirectionalAttentionBlocks) > 0 && r.spec.Architecture != "gemma4" {
-		return reference.Value{}, nil, errors.New("inference: model does not support bidirectional attention blocks")
-	}
 	return r.forwardCachedWithProjectedInputsLocked(ctx, tokenIDs, cache, inputs)
 }
 
@@ -1183,24 +1174,18 @@ func (r *Runner) forwardCachedWithProjectedInputsLocked(
 			inputs.BidirectionalAttentionBlocks,
 		)
 	}
-	if r.spec.Architecture != "cogvlm" {
-		return reference.Value{}, nil, errors.New("inference: visual expert blocks require CogVLM architecture")
-	}
-	if inputs.MultiAxisPositions != nil || len(inputs.DeepstackEmbeddings) > 0 || len(inputs.BidirectionalAttentionBlocks) > 0 {
-		return reference.Value{}, nil, errors.New("inference: CogVLM visual expert blocks cannot combine with MRoPE, deepstack, or bidirectional blocks")
-	}
-	blocks, err := validateVisualExpertBlocks(len(tokenIDs), inputs.VisualExpertBlocks, inputs.EmbeddingOverrides)
+	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, inputs)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	overrides := make(map[uint32][]float32, len(inputs.EmbeddingOverrides))
-	for _, override := range inputs.EmbeddingOverrides {
+	overrides := make(map[uint32][]float32, len(projected.overrides))
+	for _, override := range projected.overrides {
 		overrides[override.TokenIndex] = override.Embedding
 	}
 	var hidden reference.Value
 	next := cache
 	start := 0
-	for _, block := range blocks {
+	for _, block := range projected.visualBlocks {
 		if start < int(block.Start) {
 			hidden, next, err = r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs[start:int(block.Start)], next, nil, nil, nil, nil)
 			if err != nil {
@@ -1314,15 +1299,18 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if r.forwardPolicy() == model.ForwardT5Encoder {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
 	}
-	if len(tokenIDs) == 0 {
-		return reference.Value{}, nil, errors.New("inference: token sequence is empty")
+	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, ProjectedInputs{
+		EmbeddingOverrides: overrides, MultiAxisPositions: multiPositions,
+		DeepstackEmbeddings: deepstackInputs, BidirectionalAttentionBlocks: attentionBlocks,
+	})
+	if err != nil {
+		return reference.Value{}, nil, err
 	}
-	visualMode := r.profile().Overrides == model.EmbeddingOverrideCogVLM && len(overrides) > 0
-	if visualMode {
-		if err := validateCogVLMVisualOverrides(len(tokenIDs), overrides); err != nil {
-			return reference.Value{}, nil, err
-		}
-	}
+	visualMode := projected.visualMode
+	overrides = projected.overrides
+	multiPositions = projected.multiPositions
+	deepstackInputs = projected.deepstackInputs
+	attentionBlockIDs := projected.attentionBlockIDs
 	var pastTokens, nextPosition uint32
 	if cache != nil {
 		if err := r.validateCache(cache); err != nil {
@@ -1343,25 +1331,6 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 			"inference: absolute token position exceeds uint32",
 		)
 	}
-	if multiPositions != nil {
-		for axis := range multiPositions {
-			if len((*multiPositions)[axis]) != len(tokenIDs) {
-				return reference.Value{}, nil, fmt.Errorf(
-					"inference: multi-axis position %d has %d values for %d tokens",
-					axis, len((*multiPositions)[axis]), len(tokenIDs),
-				)
-			}
-		}
-	}
-	if err := validateDeepstackInputs(r.spec, len(tokenIDs), deepstackInputs); err != nil {
-		return reference.Value{}, nil, err
-	}
-	attentionBlockIDs, err := projectedAttentionBlockIDs(
-		r.spec, len(tokenIDs), cache != nil, attentionBlocks,
-	)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
 	rows := make([]uint32, len(tokenIDs))
 	positions := make([]uint32, len(tokenIDs))
 	for index, id := range tokenIDs {
@@ -1380,8 +1349,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	}
 	embeddingScaleApplied := false
 	var deepstackBase reference.Value
-	graniteDeepstack := r.profile().Overrides == model.EmbeddingOverrideDeepstackBase &&
-		len(r.spec.DeepstackMapping) > 0
+	graniteDeepstack := projected.deepstackBase
 	if graniteDeepstack {
 		deepstackBase = reference.Value{
 			Shape: activation.Shape,
@@ -1398,7 +1366,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
 			return reference.Value{}, nil, err
 		}
-	} else if r.profile().Overrides == model.EmbeddingOverrideRawScaled && len(overrides) > 0 {
+	} else if projected.overridePolicy == model.EmbeddingOverrideRawScaled && len(overrides) > 0 {
 		if err := applyGemmaRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
 			return reference.Value{}, nil, err
 		}
@@ -1741,10 +1709,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 				return reference.Value{}, nil, err
 			}
 		}
-		if r.profile().Has(model.ArchitectureEmbeddingSkip) {
-			graphWeights.EmbeddingSkip = input
-		}
-		graphWeights.AttentionBlockIDs = attentionBlockInput
+		sideInputs := layerSideInputs{embeddingSkip: input, attentionBlock: attentionBlockInput}
 		if len(perLayerInputs) > 0 {
 			perLayer := builder.Input(
 				fmt.Sprintf("blk.%d.per_layer_input", layerIndex),
@@ -1752,12 +1717,14 @@ func (r *Runner) forwardDenseLayersPreloaded(
 				perLayerInputs[layerIndex].Shape,
 			)
 			hostFeeds[perLayer] = perLayerInputs[layerIndex]
-			graphWeights.PerLayerInput = perLayer
+			sideInputs.perLayerInput = perLayer
 		}
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
-		if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
+		if _, err := bindLayerSideInputs(
+			builder, r.spec, positions, plan, hostFeeds, &graphWeights, sideInputs,
+		); err != nil {
 			return reference.Value{}, nil, err
 		}
 		var pastKey, pastValue *tensor.Tensor
@@ -1861,7 +1828,9 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
-		if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
+		if _, err := bindLayerSideInputs(
+			builder, r.spec, positions, plan, hostFeeds, &graphWeights, layerSideInputs{},
+		); err != nil {
 			return reference.Value{}, err
 		}
 		result, err := model.BuildDenseBlockCachedForLayer(
@@ -2060,24 +2029,28 @@ func (r *Runner) runLayerCached(
 			return reference.Value{}, LayerCache{}, err
 		}
 	}
-	if r.profile().Has(model.ArchitectureEmbeddingSkip) {
+	sideInputs := layerSideInputs{}
+	if plan.EmbeddingSkip {
 		skip := builder.Input("embedding_skip", dtype.F32, embeddingSkip.Shape)
 		hostFeeds[skip] = embeddingSkip
-		graphWeights.EmbeddingSkip = skip
+		sideInputs.embeddingSkip = skip
 	}
 	if perLayerInput != nil {
 		perLayer := builder.Input("per_layer_input", dtype.F32, perLayerInput.Shape)
 		hostFeeds[perLayer] = *perLayerInput
-		graphWeights.PerLayerInput = perLayer
+		sideInputs.perLayerInput = perLayer
 	}
 	if len(attentionBlockIDs) > 0 {
 		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
 		blockInput := builder.Input("attention_block_ids", dtype.F32, shape)
 		hostFeeds[blockInput] = reference.Value{Shape: shape, Data: attentionBlockIDs}
-		graphWeights.AttentionBlockIDs = blockInput
+		sideInputs.attentionBlock = blockInput
 	}
-	if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
-		return reference.Value{}, LayerCache{}, err
+	boundSideInputs, sideErr := bindLayerSideInputs(
+		builder, r.spec, positions, plan, hostFeeds, &graphWeights, sideInputs,
+	)
+	if sideErr != nil {
+		return reference.Value{}, LayerCache{}, sideErr
 	}
 	cacheInputs, cacheErr := r.hostLayerCacheInputs(builder, layerIndex, info, plan, past, hostFeeds)
 	if cacheErr != nil {
@@ -2091,16 +2064,6 @@ func (r *Runner) runLayerCached(
 	if multiPositions != nil {
 		converted := [4][]uint32(*multiPositions)
 		dispatchMultiPositions = &converted
-	}
-	var currentPositionState *tensor.Tensor
-	if plan.Cache == model.CacheDeepSeek4 {
-		values := make([]float32, len(positions))
-		for index, position := range positions {
-			values[index] = float32(position)
-		}
-		shape := tensor.MustShape(1, 1, uint64(len(positions)))
-		currentPositionState = builder.Input(fmt.Sprintf("blk.%d.positions.current", layerIndex), dtype.F32, shape)
-		hostFeeds[currentPositionState] = reference.Value{Shape: shape, Data: values}
 	}
 	result, err = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
 		Builder:          builder,
@@ -2116,7 +2079,7 @@ func (r *Runner) runLayerCached(
 		PastConvState:    cacheInputs.convState,
 		PastSSMState:     cacheInputs.ssmState,
 		PastStates:       cacheInputs.states,
-		CurrentPositions: currentPositionState,
+		CurrentPositions: boundSideInputs.currentPositions,
 		PerLayerInput:    graphWeights.PerLayerInput,
 		Layer:            uint32(layerIndex),
 		Recurrent:        info.Recurrent,
@@ -2346,7 +2309,9 @@ func (r *Runner) runDenseLayerNoCache(
 	for node, value := range layerFeeds {
 		hostFeeds[node] = value
 	}
-	if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
+	if _, err := bindLayerSideInputs(
+		builder, r.spec, positions, plan, hostFeeds, &graphWeights, layerSideInputs{},
+	); err != nil {
 		return reference.Value{}, err
 	}
 	result, err := model.BuildDenseBlockCachedForLayer(
@@ -2367,33 +2332,6 @@ func (r *Runner) runDenseLayerNoCache(
 		return reference.Value{}, err
 	}
 	return results[result.Output], nil
-}
-
-func addAttentionTemperatureInput(
-	builder *tensor.Builder,
-	spec model.Spec,
-	positions []uint32,
-	plan model.LayerPlan,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	weights *model.LayerGraphWeights,
-) error {
-	if plan.Temperature == model.AttentionTemperatureNone ||
-		plan.Temperature == model.AttentionTemperatureConfigured && spec.AttentionTempScale == 0 {
-		return nil
-	}
-	if builder == nil || weights == nil || spec.AttentionTempFloor == 0 {
-		return fmt.Errorf("%s attention temperature input is invalid", spec.Architecture)
-	}
-	shape := tensor.MustShape(1, 1, uint64(len(positions)))
-	data := make([]float32, len(positions))
-	for index, position := range positions {
-		step := math.Floor((float64(position) + float64(spec.AttentionTempOffset)) / float64(spec.AttentionTempFloor))
-		data[index] = float32(math.Log(step+1))*spec.AttentionTempScale + 1
-	}
-	input := builder.Input("attention_temperature", dtype.F32, shape)
-	hostFeeds[input] = reference.Value{Shape: shape, Data: data}
-	weights.AttentionTemperatureScale = input
-	return builder.Err()
 }
 
 func (r *Runner) runQwen35LayerCached(
@@ -3492,17 +3430,8 @@ func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Val
 func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	result := make(map[string]struct{})
 	layers := slices.Clone(weights.Layers)
-	for _, mtp := range weights.Step35MTP {
-		layers = append(layers, mtp.Layer)
-	}
-	for _, mtp := range weights.HYV3MTP {
-		layers = append(layers, mtp.Layer)
-	}
-	for _, mtp := range weights.NextNMTP {
-		layers = append(layers, mtp.Layer)
-	}
-	if weights.Cohere2MTP != nil {
-		layers = append(layers, weights.Cohere2MTP.Layer)
+	for _, draft := range weights.DraftCatalogs() {
+		layers = append(layers, draft.Layer)
 	}
 	for _, layer := range layers {
 		for _, info := range []*gguf.TensorInfo{
@@ -3522,51 +3451,11 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
 	names := map[string]struct{}{weights.TokenEmbedding.Name: {}}
-	if mtp := weights.Qwen35MTP; mtp != nil {
-		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
-			names[info.Name] = struct{}{}
-		}
-		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.OutputNorm, mtp.Output} {
-			if info != nil {
-				names[info.Name] = struct{}{}
-			}
-		}
-	}
-	for _, mtp := range weights.Step35MTP {
-		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
-			names[info.Name] = struct{}{}
-		}
-		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.OutputNorm, mtp.Output} {
-			if info != nil {
-				names[info.Name] = struct{}{}
-			}
-		}
-	}
-	for _, mtp := range weights.HYV3MTP {
-		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
-			names[info.Name] = struct{}{}
-		}
-		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.OutputNorm, mtp.Output} {
-			if info != nil {
-				names[info.Name] = struct{}{}
-			}
-		}
-	}
-	for _, mtp := range weights.NextNMTP {
+	for _, mtp := range weights.DraftCatalogs() {
 		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
 			names[info.Name] = struct{}{}
 		}
 		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.LayerOutputNorm, mtp.OutputNorm, mtp.Output} {
-			if info != nil {
-				names[info.Name] = struct{}{}
-			}
-		}
-	}
-	if mtp := weights.Cohere2MTP; mtp != nil {
-		for _, info := range []gguf.TensorInfo{mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm} {
-			names[info.Name] = struct{}{}
-		}
-		for _, info := range []*gguf.TensorInfo{mtp.TokenEmbedding, mtp.OutputNorm, mtp.Output} {
 			if info != nil {
 				names[info.Name] = struct{}{}
 			}
@@ -3648,31 +3537,7 @@ func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorI
 			}
 		}
 	}
-	capacity := len(weights.EncoderLayers) + len(weights.Layers) + len(weights.Step35MTP) + len(weights.HYV3MTP) + len(weights.NextNMTP)
-	if weights.Qwen35MTP != nil {
-		capacity++
-	}
-	if weights.Cohere2MTP != nil {
-		capacity++
-	}
-	allLayers := make([]model.LayerWeights, 0, capacity)
-	allLayers = append(allLayers, weights.EncoderLayers...)
-	allLayers = append(allLayers, weights.Layers...)
-	if weights.Qwen35MTP != nil {
-		allLayers = append(allLayers, weights.Qwen35MTP.Layer)
-	}
-	for _, mtp := range weights.Step35MTP {
-		allLayers = append(allLayers, mtp.Layer)
-	}
-	for _, mtp := range weights.HYV3MTP {
-		allLayers = append(allLayers, mtp.Layer)
-	}
-	for _, mtp := range weights.NextNMTP {
-		allLayers = append(allLayers, mtp.Layer)
-	}
-	if weights.Cohere2MTP != nil {
-		allLayers = append(allLayers, weights.Cohere2MTP.Layer)
-	}
+	allLayers := weights.LayerCatalog()
 	for _, layer := range allLayers {
 		infos := []gguf.TensorInfo{
 			layer.AttentionNorm,

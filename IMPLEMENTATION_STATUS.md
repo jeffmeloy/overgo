@@ -29,6 +29,9 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Host and device layer graphs now bind mirrored optional weights through one drift-checked field catalog; Kimi KDA device fields are included automatically.
+- One plan-driven side-input binder now owns embedding skip, projected per-layer input, attention blocks, scheduled temperature, and DeepSeek4 positions across graph paths.
+- Normalization, projected requests, and speculative families now compile complete execution descriptors; model-plan invariants reject contradictory cross-policy state before execution.
 - Chat, Responses, and Anthropic now share token bounds, tool grammar, prompt preparation/counting, projected generation options, and incremental tool-call state.
 - Runner ownership now separates prepared model/CUDA assets from mutable LoRA and retained prompt state; cleanup follows the same boundary.
 - Cache validation and range editing now consume one compiled schema; typed profiles/plans own shared-KV, AltUp, per-layer-embedding, and embedding-skip behavior.

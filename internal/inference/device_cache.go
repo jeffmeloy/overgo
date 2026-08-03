@@ -642,11 +642,15 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
-		if r.profile().Has(model.ArchitectureEmbeddingSkip) {
-			graphWeights.EmbeddingSkip = embeddingSkip
-		}
+		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip}
 		if len(perLayerInputs) > 0 {
-			graphWeights.PerLayerInput = perLayerInputs[layerIndex]
+			sideInputs.perLayerInput = perLayerInputs[layerIndex]
+		}
+		boundSideInputs, sideErr := bindLayerSideInputs(
+			builder, r.spec, positions, plan, hostFeeds, &graphWeights, sideInputs,
+		)
+		if sideErr != nil {
+			return fail(sideErr)
 		}
 		if plan.Attention == model.AttentionQwenGDN {
 			pastKey, pastValue, convState, ssmState, inputErr := r.deviceBatchLayerCacheInputs(
@@ -704,16 +708,13 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 				return fail(layerErr)
 			}
 		}
-		if tempErr := addAttentionTemperatureInput(
-			builder, r.spec, positions, plan, hostFeeds, &graphWeights,
-		); tempErr != nil {
-			return fail(tempErr)
-		}
 		result, buildErr := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
 			Builder: builder, Input: current, Spec: r.spec, Weights: graphWeights,
 			Positions: positions, TokenRows: rows, PastKey: pastKey, PastValue: pastValue,
 			PastConvState: pastConvState, PastSSMState: pastSSMState,
-			Layer: uint32(layerIndex), Recurrent: plan.Recurrent, Plan: &plan,
+			CurrentPositions: boundSideInputs.currentPositions,
+			PerLayerInput:    graphWeights.PerLayerInput,
+			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent, Plan: &plan,
 		})
 		if buildErr != nil {
 			return fail(buildErr)

@@ -28,6 +28,14 @@ type singleHeadMTPAdapter struct {
 	buildOutputs                       func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, *tensor.Tensor, error)
 }
 
+func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
+	if r == nil {
+		return false
+	}
+	plan := r.profile().DraftPlan(r.spec.NextNPredictLayers)
+	return plan.Kind == kind && plan.SessionEligible() && catalogs == int(plan.Heads)
+}
+
 func (r *Runner) advanceSingleHeadMTP(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,

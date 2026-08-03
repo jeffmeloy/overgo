@@ -1,6 +1,9 @@
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // BlockPolicy: compiled block-builder selection.
 type BlockPolicy uint8
@@ -79,6 +82,10 @@ type LayerPlan struct {
 	AuxiliaryInput  AuxiliaryFlow
 	AuxiliaryOutput AuxiliaryFlow
 	Temperature     AttentionTemperaturePolicy
+	AttentionBlocks AttentionBlockPolicy
+	EmbeddingSkip   bool
+	PerLayerInput   bool
+	Normalization   NormalizationPlan
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -121,6 +128,10 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		AuxiliaryInput:  auxiliaryInput,
 		AuxiliaryOutput: auxiliaryOutput,
 		Temperature:     temperature,
+		AttentionBlocks: profile.AttentionBlocks,
+		EmbeddingSkip:   profile.Has(ArchitectureEmbeddingSkip),
+		PerLayerInput:   profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
+		Normalization:   s.NormPlan(),
 	}
 }
 
@@ -196,8 +207,84 @@ func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
 		plan.Layers[layer] = spec.PlanLayer(layer, recurrent)
 	}
+	if err := validateModelPlan(spec, plan); err != nil {
+		return ModelPlan{}, err
+	}
 	plan.CachedGraph = cachedGraphPolicy(profile, plan.Layers)
 	return plan, nil
+}
+
+func validateModelPlan(spec Spec, plan ModelPlan) error {
+	if spec.SharedKVLayers > 0 && (!plan.Profile.Has(ArchitectureSharedKV) ||
+		spec.SharedKVLayers >= spec.BlockCount) {
+		return fmt.Errorf("model plan architecture %s has invalid shared-KV layer count %d", spec.Architecture, spec.SharedKVLayers)
+	}
+	producedAuxiliary := make(map[AuxiliaryFlow]bool)
+	for index, layer := range plan.Layers {
+		if layer.Layer != uint32(index) || layer.GraphFamily != plan.Profile.GraphFamily ||
+			layer.CatalogFamily != plan.Profile.CatalogFamily {
+			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
+		}
+		if layer.SharedKV {
+			if layer.HasKV || layer.KVSource >= layer.Layer || int(layer.KVSource) >= len(plan.Layers) ||
+				!plan.Layers[layer.KVSource].HasKV {
+				return fmt.Errorf("model plan layer %d shared-KV source %d is invalid", index, layer.KVSource)
+			}
+		}
+		for _, source := range []DeepstackSource{layer.DeepstackBefore, layer.DeepstackAfter} {
+			if source >= 0 && uint32(source) >= spec.DeepstackLayerCount {
+				return fmt.Errorf("model plan layer %d deepstack source %d exceeds %d streams", index, source, spec.DeepstackLayerCount)
+			}
+		}
+		if layer.AuxiliaryInput != AuxiliaryNone && len(spec.IndexerFullLayers) > 0 &&
+			!producedAuxiliary[layer.AuxiliaryInput] {
+			return fmt.Errorf("model plan layer %d consumes auxiliary flow %d before production", index, layer.AuxiliaryInput)
+		}
+		if layer.AuxiliaryOutput != AuxiliaryNone {
+			producedAuxiliary[layer.AuxiliaryOutput] = true
+		}
+		if layer.Cache == CacheDeepSeek4 && len(spec.CompressRatios) <= index {
+			return fmt.Errorf("model plan layer %d has no DeepSeek4 compression ratio", index)
+		}
+		if layer.Normalization != spec.NormPlan() {
+			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)
+		}
+	}
+	if spec.DeepstackLayerCount > 0 {
+		switch plan.Profile.Deepstack {
+		case DeepstackMappedBefore:
+			if len(spec.DeepstackMapping) < len(plan.Layers) {
+				return fmt.Errorf("model plan deepstack map has %d entries for %d layers", len(spec.DeepstackMapping), len(plan.Layers))
+			}
+		case DeepstackSequentialAfter:
+			if int(spec.DeepstackLayerCount) > len(plan.Layers) {
+				return fmt.Errorf("model plan has %d deepstack streams for %d layers", spec.DeepstackLayerCount, len(plan.Layers))
+			}
+		default:
+			return fmt.Errorf("model plan architecture %s has no deepstack policy", spec.Architecture)
+		}
+	}
+	if plan.Profile.AttentionBlocks != AttentionBlocksNone && !plan.Profile.Has(ArchitectureMultimodal) {
+		return fmt.Errorf("model plan architecture %s has attention blocks without multimodal support", spec.Architecture)
+	}
+	if spec.AttentionTempScale != 0 || spec.AttentionTempFloor != 0 || spec.AttentionTempOffset != 0 {
+		if plan.Profile.Temperature == AttentionTemperatureNone || spec.AttentionTempScale <= 0 ||
+			spec.AttentionTempFloor == 0 || math.IsNaN(float64(spec.AttentionTempScale)) ||
+			math.IsInf(float64(spec.AttentionTempScale), 0) || math.IsNaN(float64(spec.AttentionTempOffset)) ||
+			math.IsInf(float64(spec.AttentionTempOffset), 0) {
+			return fmt.Errorf("model plan architecture %s has an invalid attention temperature contract", spec.Architecture)
+		}
+	}
+	norm := spec.NormPlan()
+	if norm.PostNormLayout == PostNormLayoutBERT &&
+		(norm.Operation != NormalizationLayer || norm.PreAttention || !norm.PostAttention || !norm.Bias) {
+		return fmt.Errorf("model plan architecture %s has an invalid BERT normalization layout", spec.Architecture)
+	}
+	draft := plan.Profile.DraftPlan(spec.NextNPredictLayers)
+	if spec.NextNPredictLayers > 0 && (draft.Kind == DraftNone || !draft.HasHead(0)) {
+		return fmt.Errorf("model plan architecture %s has no draft policy for %d heads", spec.Architecture, spec.NextNPredictLayers)
+	}
+	return nil
 }
 
 func cachedGraphPolicy(profile ArchitectureProfile, layers []LayerPlan) CachedGraphPolicy {

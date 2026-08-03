@@ -32,6 +32,14 @@ claims.
 
 ## Validated milestones
 
+- The August 3 policy-consolidation wave replaced separate host/device optional
+  layer binders with one validated mirror catalog, including Kimi KDA fields;
+  routed embedding skip, per-layer projections, attention blocks, scheduled
+  temperature, and DeepSeek4 positions through one layer side-input binder;
+  compiled normalization operation/placement/bias/layout and projected request
+  contracts; unified draft catalog/session descriptors and tensor enumeration;
+  and added cross-policy model-plan invariants. Full CPU and CUDA verification
+  passed on the Windows amd64 RTX 4090 D host.
 - The compatibility generator requires exact coverage of the architecture
   registry. Missing or stale model entries fail verification; the matrix now
   includes all registered decoder, encoder, hybrid, diffusion, draft, and

@@ -72,7 +72,10 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 			block: BlockDSA, cache: CacheAttention,
 		},
 		{
-			name: "DeepSeek 4", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek4", BlockCount: 1}},
+			name: "DeepSeek 4", spec: Spec{
+				CommonSpec:    CommonSpec{Architecture: "deepseek4", BlockCount: 1},
+				AttentionSpec: AttentionSpec{CompressRatios: []uint32{0}},
+			},
 			block: BlockDeepSeek4, cache: CacheDeepSeek4,
 		},
 	}
@@ -190,6 +193,9 @@ func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
 func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
 	for _, architecture := range SupportedArchitectures() {
 		spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, BlockCount: 1}}
+		if architecture == "deepseek4" {
+			spec.CompressRatios = []uint32{0}
+		}
 		plan, err := CompileModelPlan(spec, Weights{})
 		if err != nil {
 			t.Fatalf("%s: %v", architecture, err)
@@ -231,6 +237,56 @@ func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	var unsupported *UnsupportedArchitectureError
 	if !errors.As(err, &unsupported) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestCompileModelPlanRejectsCrossPolicyConflicts(t *testing.T) {
+	tests := []struct {
+		name string
+		spec Spec
+	}{
+		{
+			name: "shared KV extent",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "gemma4", BlockCount: 2},
+				MultimodalSpec: MultimodalSpec{SharedKVLayers: 2}},
+		},
+		{
+			name: "deepstack source",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "granite", BlockCount: 2},
+				MultimodalSpec: MultimodalSpec{DeepstackLayerCount: 1, DeepstackMapping: []int32{0, 2}}},
+		},
+		{
+			name: "auxiliary ordering",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "glm-dsa", BlockCount: 2},
+				AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{false, true}}},
+		},
+		{
+			name: "DeepSeek4 cache schema",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek4", BlockCount: 1}},
+		},
+		{
+			name: "temperature",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "mistral3", BlockCount: 1},
+				AttentionSpec: AttentionSpec{AttentionTempScale: 0.1}},
+		},
+		{
+			name: "draft family",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1, NextNPredictLayers: 1}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := CompileModelPlan(test.spec, Weights{}); err == nil {
+				t.Fatalf("CompileModelPlan(%+v) succeeded", test.spec)
+			}
+		})
+	}
+	valid := Spec{
+		CommonSpec:    CommonSpec{Architecture: "glm-dsa", BlockCount: 2},
+		AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{true, false}},
+	}
+	if _, err := CompileModelPlan(valid, Weights{}); err != nil {
+		t.Fatalf("valid auxiliary flow: %v", err)
 	}
 }
 
@@ -311,5 +367,50 @@ func TestPlanLayerCompilesAttentionTemperature(t *testing.T) {
 	}
 	if got := llama4.PlanLayer(1, false).Temperature; got != AttentionTemperatureNoRoPE {
 		t.Fatalf("Llama4 no-RoPE layer temperature = %v", got)
+	}
+}
+
+func TestPlanLayerCompilesSideInputPolicies(t *testing.T) {
+	gemma4 := Spec{
+		CommonSpec:     CommonSpec{Architecture: "gemma4"},
+		MultimodalSpec: MultimodalSpec{EmbeddingPerLayer: 2},
+	}
+	plan := gemma4.PlanLayer(0, false)
+	if !plan.PerLayerInput || plan.AttentionBlocks != AttentionBlocksUncached || plan.EmbeddingSkip {
+		t.Fatalf("Gemma4 side-input plan = %+v", plan)
+	}
+	talkie := Spec{CommonSpec: CommonSpec{Architecture: "talkie"}}.PlanLayer(0, false)
+	if !talkie.EmbeddingSkip || talkie.PerLayerInput || talkie.AttentionBlocks != AttentionBlocksNone {
+		t.Fatalf("Talkie side-input plan = %+v", talkie)
+	}
+}
+
+func TestNormPlanCompilesOperationPlacementBiasAndLayout(t *testing.T) {
+	tests := []struct {
+		architecture string
+		epsilon      float32
+		operation    NormalizationPolicy
+		pre          bool
+		post         bool
+		bias         bool
+		postLayout   PostNormLayoutPolicy
+		ffnLayout    FeedForwardNormLayoutPolicy
+	}{
+		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutBERT, FeedForwardNormLayoutStandard},
+		{"olmo2", 0, NormalizationRMS, false, true, false, PostNormLayoutStandard, FeedForwardNormLayoutStandard},
+		{"grok", 0, NormalizationRMS, true, true, false, PostNormLayoutGrok, FeedForwardNormLayoutStandard},
+		{"dbrx", 1e-5, NormalizationLayer, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutAttentionOutput},
+		{"falcon-h1", 0, NormalizationRMS, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutBare},
+		{"talkie", 0, NormalizationUnweightedRMS, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutStandard},
+	}
+	for _, test := range tests {
+		spec := Spec{CommonSpec: CommonSpec{Architecture: test.architecture, LayerNormEpsilon: test.epsilon}}
+		plan := spec.NormPlan()
+		if plan.Operation != test.operation || plan.PreAttention != test.pre ||
+			plan.PreFeedForward != test.pre || plan.PostAttention != test.post ||
+			plan.PostFeedForward != test.post || plan.Bias != test.bias ||
+			plan.PostNormLayout != test.postLayout || plan.FeedForwardLayout != test.ffnLayout {
+			t.Errorf("%s normalization plan = %+v", test.architecture, plan)
+		}
 	}
 }

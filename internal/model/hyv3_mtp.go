@@ -29,7 +29,7 @@ func BuildHYV3MTPBlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if !spec.Profile().HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, offset) {
+	if plan := spec.Profile().DraftPlan(spec.NextNPredictLayers); plan.Kind != DraftHYV3MTP || !plan.HasHead(offset) {
 		return DenseBlockResult{}, errors.New("HY-V3 MTP head is invalid")
 	}
 	return BuildDenseBlockCachedForLayer(

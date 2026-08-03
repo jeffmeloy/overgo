@@ -392,6 +392,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	var result Weights
 	var err error
 	profile := spec.Profile()
+	draftPlan := profile.DraftPlan(spec.NextNPredictLayers)
 	if spec.Architecture == "dflash" {
 		featureWidth := uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength)
 		projection, loadErr := required("fc.weight", featureWidth, uint64(spec.EmbeddingLength))
@@ -784,7 +785,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.PositionEmbedding = &positionEmbedding
 	}
-	if profile.Has(ArchitectureBERTNormLayout) {
+	if spec.NormPlan().PostNormLayout == PostNormLayoutBERT {
 		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
 			if typeEmbedding.Dimensions != 2 ||
 				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||
@@ -1153,13 +1154,13 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	}
 
 	trunkBlockCount := spec.BlockCount
-	if profile.AppendsDraftBlocks() {
-		trunkBlockCount += spec.NextNPredictLayers
+	if draftPlan.AppendedBlocks {
+		trunkBlockCount += draftPlan.Heads
 	}
 	cohere2HasMTP := false
 	cohere2MTPOnly := false
-	if profile.HasSingleDraft(DraftCohere2MTP, spec.NextNPredictLayers) {
-		mtpPrefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
+	if draftPlan.Kind == DraftCohere2MTP && draftPlan.SessionEligible() {
+		mtpPrefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
 		_, cohere2HasMTP = tensors[mtpPrefix+"nextn.eh_proj.weight"]
 		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
 		cohere2MTPOnly = cohere2HasMTP && !hasTrunk
@@ -1167,7 +1168,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			trunkBlockCount++
 		}
 	}
-	mtpOnly := profile.HasSingleDraft(DraftQwen35MTP, spec.NextNPredictLayers)
+	mtpOnly := draftPlan.Kind == DraftQwen35MTP && draftPlan.SessionEligible()
 	if mtpOnly {
 		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
 		mtpOnly = !hasTrunk
@@ -1342,7 +1343,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			} else if block > 0 {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_norm.weight")
 			}
-		} else if spec.Architecture != "olmo2" && !profile.Has(ArchitecturePostOnlyNorm) &&
+		} else if spec.NormPlan().PreAttention &&
 			(spec.Architecture != "deci" || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
@@ -2044,8 +2045,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, biasErr
 			}
 		}
-		if profile.Has(ArchitecturePostNorm) || spec.Architecture == "olmo2" {
-			normNames := profile.PostNormTensors()
+		if spec.NormPlan().PostAttention {
+			normNames := spec.NormPlan().PostNormTensors()
 			if normNames.FeedForwardFallback != "" {
 				if _, ok := tensors[prefix+normNames.FeedForwardWeight]; !ok {
 					normNames.FeedForwardWeight = normNames.FeedForwardFallback
@@ -2114,7 +2115,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "mamba" || spec.Architecture == "mamba2" {
 			continue
 		}
-		feedForwardNormName := profile.FeedForwardNormTensor()
+		feedForwardNormName := spec.NormPlan().FeedForwardNormTensor()
 		if spec.Architecture == "stablelm" {
 			if _, ok := tensors[prefix+feedForwardNormName]; ok {
 				if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
@@ -2133,7 +2134,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			} else if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
 				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
 			}
-		} else if spec.Architecture != "olmo2" && spec.Architecture != "gpt-oss" && !profile.Has(ArchitecturePostOnlyNorm) &&
+		} else if spec.Architecture != "gpt-oss" && spec.NormPlan().PreFeedForward &&
 			(spec.Architecture != "deci" || spec.LayerFeedForwardLength(block) > 0) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
@@ -2164,8 +2165,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, ffnErr
 		}
 	}
-	if profile.HasSingleDraft(DraftQwen35MTP, spec.NextNPredictLayers) {
-		prefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
+	if draftPlan.Kind == DraftQwen35MTP && draftPlan.SessionEligible() {
+		prefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
 		mtp := &Qwen35MTPWeights{}
 		mtp.MTPOnly = mtpOnly
 		mtp.Layer.Recurrent = false
@@ -2202,12 +2203,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		mtp.Layer.AttentionQNorm, mtp.Layer.AttentionKNorm = &qNorm, &kNorm
 		result.Qwen35MTP = mtp
 	}
-	if profile.HasDraftHead(DraftStep35MTP, spec.NextNPredictLayers, 0) {
-		result.Step35MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
-		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
-			block := spec.BlockCount + offset
+	if (draftPlan.Kind == DraftStep35MTP || draftPlan.Kind == DraftHYV3MTP) && draftPlan.HasHead(0) {
+		heads := make([]Step35MTPWeights, draftPlan.Heads)
+		for offset := range draftPlan.Heads {
+			block := draftPlan.Block(spec.BlockCount, offset)
 			prefix := fmt.Sprintf("blk.%d.", block)
-			mtp := &result.Step35MTP[offset]
+			mtp := &heads[offset]
 			mtp.Layer = result.Layers[block]
 			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
@@ -2216,26 +2217,15 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, loadErr
 			}
 		}
-		result.Layers = result.Layers[:spec.BlockCount]
-	}
-	if profile.HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, 0) {
-		result.HYV3MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
-		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
-			block := spec.BlockCount + offset
-			prefix := fmt.Sprintf("blk.%d.", block)
-			mtp := &result.HYV3MTP[offset]
-			mtp.Layer = result.Layers[block]
-			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
-				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
-				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-			}); loadErr != nil {
-				return Weights{}, loadErr
-			}
+		if draftPlan.Kind == DraftHYV3MTP {
+			result.HYV3MTP = heads
+		} else {
+			result.Step35MTP = heads
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
 	}
 	if cohere2HasMTP {
-		block := spec.BlockCount
+		block := draftPlan.Block(spec.BlockCount, 0)
 		prefix := fmt.Sprintf("blk.%d.", block)
 		mtp := &Cohere2MTPWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
 		if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
@@ -2251,10 +2241,10 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			result.Layers = result.Layers[:spec.BlockCount]
 		}
 	}
-	if profile.HasDraftHead(DraftNextNMTP, spec.NextNPredictLayers, 0) {
+	if draftPlan.Kind == DraftNextNMTP && draftPlan.HasHead(0) {
 		result.NextNMTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
-		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
-			block := spec.BlockCount + offset
+		for offset := range draftPlan.Heads {
+			block := draftPlan.Block(spec.BlockCount, offset)
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &result.NextNMTP[offset]
 			mtp.Layer = result.Layers[block]

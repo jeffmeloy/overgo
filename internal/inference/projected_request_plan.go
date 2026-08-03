@@ -1,0 +1,80 @@
+package inference
+
+import (
+	"errors"
+	"fmt"
+
+	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/tensor/reference"
+)
+
+type projectedRequestPlan struct {
+	overridePolicy    model.EmbeddingOverridePolicy
+	overrides         []EmbeddingOverride
+	multiPositions    *MultiAxisPositions
+	deepstackInputs   []reference.Value
+	attentionBlockIDs []float32
+	visualBlocks      []AttentionBlock
+	visualMode        bool
+	deepstackBase     bool
+}
+
+func (r *Runner) compileProjectedRequestPlan(
+	tokens int,
+	hasCache bool,
+	inputs ProjectedInputs,
+) (projectedRequestPlan, error) {
+	if tokens == 0 {
+		return projectedRequestPlan{}, errors.New("inference: token sequence is empty")
+	}
+	profile := r.profile()
+	if inputs.MultiAxisPositions != nil {
+		if !supportsMultiAxisPositions(r.spec) {
+			return projectedRequestPlan{}, errors.New("inference: model does not support multi-axis positions")
+		}
+		for axis := range inputs.MultiAxisPositions {
+			if len((*inputs.MultiAxisPositions)[axis]) != tokens {
+				return projectedRequestPlan{}, fmt.Errorf(
+					"inference: multi-axis position %d has %d values for %d tokens",
+					axis, len((*inputs.MultiAxisPositions)[axis]), tokens,
+				)
+			}
+		}
+	}
+	if err := validateDeepstackInputs(r.spec, tokens, inputs.DeepstackEmbeddings); err != nil {
+		return projectedRequestPlan{}, err
+	}
+	attentionBlockIDs, err := projectedAttentionBlockIDs(
+		r.spec, tokens, hasCache, inputs.BidirectionalAttentionBlocks,
+	)
+	if err != nil {
+		return projectedRequestPlan{}, err
+	}
+	visualMode := profile.Overrides == model.EmbeddingOverrideCogVLM && len(inputs.EmbeddingOverrides) > 0
+	if visualMode {
+		if err := validateCogVLMVisualOverrides(tokens, inputs.EmbeddingOverrides); err != nil {
+			return projectedRequestPlan{}, err
+		}
+	}
+	var visualBlocks []AttentionBlock
+	if len(inputs.VisualExpertBlocks) > 0 {
+		if profile.Overrides != model.EmbeddingOverrideCogVLM {
+			return projectedRequestPlan{}, errors.New("inference: visual expert blocks require CogVLM architecture")
+		}
+		if inputs.MultiAxisPositions != nil || len(inputs.DeepstackEmbeddings) > 0 ||
+			len(inputs.BidirectionalAttentionBlocks) > 0 {
+			return projectedRequestPlan{}, errors.New("inference: CogVLM visual expert blocks cannot combine with MRoPE, deepstack, or bidirectional blocks")
+		}
+		visualBlocks, err = validateVisualExpertBlocks(tokens, inputs.VisualExpertBlocks, inputs.EmbeddingOverrides)
+		if err != nil {
+			return projectedRequestPlan{}, err
+		}
+	}
+	return projectedRequestPlan{
+		overridePolicy: profile.Overrides, overrides: inputs.EmbeddingOverrides,
+		multiPositions: inputs.MultiAxisPositions, deepstackInputs: inputs.DeepstackEmbeddings,
+		attentionBlockIDs: attentionBlockIDs, visualBlocks: visualBlocks,
+		visualMode:    visualMode,
+		deepstackBase: profile.Overrides == model.EmbeddingOverrideDeepstackBase && len(r.spec.DeepstackMapping) > 0,
+	}, nil
+}

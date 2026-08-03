@@ -44,7 +44,7 @@ func BuildNextNMTPBlockCachedWithDSA(
 	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if !spec.Profile().HasDraftHead(DraftNextNMTP, spec.NextNPredictLayers, offset) {
+	if plan := spec.Profile().DraftPlan(spec.NextNPredictLayers); plan.Kind != DraftNextNMTP || !plan.HasHead(offset) {
 		return DenseBlockResult{}, errors.New("NextN MTP block is invalid")
 	}
 	executable := spec

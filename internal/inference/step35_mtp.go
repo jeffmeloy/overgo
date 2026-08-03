@@ -331,16 +331,14 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 }
 
 func (r *Runner) validateStep35MTP() error {
-	if r == nil || !r.profile().HasDraftHead(model.DraftStep35MTP, r.spec.NextNPredictLayers, 0) ||
-		len(r.weights.Step35MTP) != int(r.spec.NextNPredictLayers) {
+	if r == nil || !r.hasDraftSession(model.DraftStep35MTP, len(r.weights.Step35MTP)) {
 		return errors.New("inference: model has no supported Step3.5 MTP heads")
 	}
 	return nil
 }
 
 func (r *Runner) validateHYV3MTP() error {
-	if r == nil || !r.profile().HasDraftHead(model.DraftHYV3MTP, r.spec.NextNPredictLayers, 0) ||
-		len(r.weights.HYV3MTP) != int(r.spec.NextNPredictLayers) {
+	if r == nil || !r.hasDraftSession(model.DraftHYV3MTP, len(r.weights.HYV3MTP)) {
 		return errors.New("inference: model has no supported HY-V3 MTP heads")
 	}
 	return nil
@@ -350,14 +348,14 @@ func (r *Runner) validateMultiHeadMTP() error {
 	if r == nil {
 		return errors.New("inference: MTP runner is nil")
 	}
-	if r.spec.Architecture == "hy_v3" {
+	if r.profile().DraftKind == model.DraftHYV3MTP {
 		return r.validateHYV3MTP()
 	}
 	return r.validateStep35MTP()
 }
 
 func (r *Runner) multiHeadMTPWeights() []model.Step35MTPWeights {
-	if r != nil && r.spec.Architecture == "hy_v3" {
+	if r != nil && r.profile().DraftKind == model.DraftHYV3MTP {
 		return r.weights.HYV3MTP
 	}
 	if r == nil {

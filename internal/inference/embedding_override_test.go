@@ -279,6 +279,22 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 	}
 }
 
+func TestCompileProjectedRequestPlan(t *testing.T) {
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{
+		CommonSpec: model.CommonSpec{Architecture: "gemma4", ContextLength: 2, EmbeddingLength: 4},
+	}}}
+	plan, err := runner.compileProjectedRequestPlan(2, false, ProjectedInputs{
+		BidirectionalAttentionBlocks: []AttentionBlock{{Start: 0, End: 2}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.overridePolicy != model.EmbeddingOverrideRawScaled || plan.multiPositions != nil ||
+		!slices.Equal(plan.attentionBlockIDs, []float32{0, 0}) || plan.visualMode {
+		t.Fatalf("projected request plan = %+v", plan)
+	}
+}
+
 func TestProjectedInputsSignatureIncludesMediaPayload(t *testing.T) {
 	first := ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{
 		TokenIndex: 2, Embedding: []float32{1, 2},

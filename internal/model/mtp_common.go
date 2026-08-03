@@ -34,10 +34,8 @@ var (
 )
 
 func (p mtpPolicy) valid(spec Spec, offset uint32) bool {
-	if p.single {
-		return offset == 0 && spec.Profile().HasSingleDraft(p.kind, spec.NextNPredictLayers)
-	}
-	return spec.Profile().HasDraftHead(p.kind, spec.NextNPredictLayers, offset)
+	plan := spec.Profile().DraftPlan(spec.NextNPredictLayers)
+	return plan.Kind == p.kind && plan.HasHead(offset) && (!p.single || offset == 0 && plan.SessionEligible())
 }
 
 func buildMTPInput(

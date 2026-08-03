@@ -2572,8 +2572,8 @@ func (s Spec) UsesRoPE(block uint32) bool {
 		return s.IsSlidingLayer(block)
 	}
 	blockCount := s.BlockCount
-	if s.Profile().AppendsDraftBlocks() {
-		blockCount += s.NextNPredictLayers
+	if draft := s.Profile().DraftPlan(s.NextNPredictLayers); draft.AppendedBlocks {
+		blockCount += draft.Heads
 	}
 	return !s.RopeDisabled &&
 		(blockCount == 0 || block < blockCount) &&
@@ -2605,25 +2605,41 @@ func (s Spec) IsEncoderOnly() bool {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Profile().Normalization == NormalizationLayer
+	return s.NormPlan().Operation == NormalizationLayer
 }
 
 func (s Spec) RequiresLayerNormBias() bool {
-	return s.Architecture == "phimoe" ||
-		(s.UsesLayerNorm() && s.Architecture != "dbrx" && s.Architecture != "mpt")
+	return s.NormPlan().Bias
 }
 
 func (s Spec) UsesUnweightedLayerNorm() bool {
-	return s.Profile().Normalization == NormalizationUnweightedLayer
+	return s.NormPlan().Operation == NormalizationUnweightedLayer
 }
 
 func (s Spec) UsesUnweightedRMSNorm() bool {
-	return s.Profile().Normalization == NormalizationUnweightedRMS
+	return s.NormPlan().Operation == NormalizationUnweightedRMS
 }
 
 func (s Spec) UsesWeightOnlyLayerNorm() bool {
-	return s.Profile().Normalization == NormalizationWeightOnlyLayer &&
-		(s.Architecture != "cohere2moe" || s.LayerNormEpsilon > 0)
+	return s.NormPlan().Operation == NormalizationWeightOnlyLayer
+}
+
+// NormPlan: compiles normalization behavior from profile and metadata.
+func (s Spec) NormPlan() NormalizationPlan {
+	profile := s.Profile()
+	operation := profile.Normalization
+	if operation == NormalizationWeightOnlyLayer && s.Architecture == "cohere2moe" && s.LayerNormEpsilon <= 0 {
+		operation = NormalizationRMS
+	}
+	post := profile.Has(ArchitecturePostNorm) || s.Architecture == "olmo2"
+	pre := !profile.Has(ArchitecturePostOnlyNorm) && s.Architecture != "olmo2"
+	return NormalizationPlan{
+		Operation: operation, PreAttention: pre, PreFeedForward: pre,
+		PostAttention: post, PostFeedForward: post,
+		Bias: s.Architecture == "phimoe" ||
+			(operation == NormalizationLayer && s.Architecture != "dbrx" && s.Architecture != "mpt"),
+		PostNormLayout: profile.PostNormLayout, FeedForwardLayout: profile.FFNNormLayout,
+	}
 }
 
 func (s Spec) validate() error {

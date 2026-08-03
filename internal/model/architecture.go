@@ -30,6 +30,48 @@ const (
 	DraftCohere2MTP
 )
 
+// DraftSessionPolicy: runtime coordinator cardinality.
+type DraftSessionPolicy uint8
+
+const (
+	DraftSessionNone DraftSessionPolicy = iota
+	DraftSessionSingle
+	DraftSessionMulti
+)
+
+// DraftPlan: compiled catalog and session contract.
+type DraftPlan struct {
+	Kind            DraftKind
+	Heads           uint32
+	Label           string
+	AppendedBlocks  bool
+	SingleCatalog   bool
+	OptionalCatalog bool
+	SupportsMTPOnly bool
+	Session         DraftSessionPolicy
+}
+
+// HasHead: bounded catalog head.
+func (p DraftPlan) HasHead(offset uint32) bool {
+	if p.Kind == DraftNone || p.Heads == 0 || p.SingleCatalog && p.Heads != 1 {
+		return false
+	}
+	return offset < p.Heads
+}
+
+// SessionEligible: supported runtime coordinator cardinality.
+func (p DraftPlan) SessionEligible() bool {
+	if !p.HasHead(0) {
+		return false
+	}
+	return p.Session != DraftSessionSingle || p.Heads == 1
+}
+
+// Block: physical draft block index.
+func (p DraftPlan) Block(trunk, offset uint32) uint32 {
+	return trunk + offset
+}
+
 // ForwardPolicy: public inference entry route.
 type ForwardPolicy uint8
 
@@ -170,6 +212,59 @@ const (
 	FeedForwardNormLayoutPostAttention
 )
 
+// NormalizationPlan: compiled operation, placement, bias, and tensor layout.
+type NormalizationPlan struct {
+	Operation         NormalizationPolicy
+	PreAttention      bool
+	PreFeedForward    bool
+	PostAttention     bool
+	PostFeedForward   bool
+	Bias              bool
+	PostNormLayout    PostNormLayoutPolicy
+	FeedForwardLayout FeedForwardNormLayoutPolicy
+}
+
+// Weighted: learned normalization weight required.
+func (p NormalizationPlan) Weighted() bool {
+	return p.Operation != NormalizationUnweightedLayer && p.Operation != NormalizationUnweightedRMS
+}
+
+// PostNormTensors: post-norm tensor namespace.
+func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
+	switch p.PostNormLayout {
+	case PostNormLayoutBERT:
+		return PostNormTensorNames{
+			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
+			AttentionBias: "attn_output_norm.bias", FeedForwardBias: "layer_output_norm.bias",
+		}
+	case PostNormLayoutGrok:
+		return PostNormTensorNames{
+			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
+			FeedForwardFallback: "ffn_post_norm.weight",
+		}
+	default:
+		return PostNormTensorNames{
+			AttentionWeight: "post_attention_norm.weight", FeedForwardWeight: "post_ffw_norm.weight",
+		}
+	}
+}
+
+// FeedForwardNormTensor: pre-FFN tensor namespace.
+func (p NormalizationPlan) FeedForwardNormTensor() string {
+	switch p.FeedForwardLayout {
+	case FeedForwardNormLayoutBare:
+		return "ffn_norm"
+	case FeedForwardNormLayoutAttentionOutput:
+		return "attn_output_norm.weight"
+	case FeedForwardNormLayoutAttentionPost:
+		return "attn_post_norm.weight"
+	case FeedForwardNormLayoutPostAttention:
+		return "post_attention_norm.weight"
+	default:
+		return "ffn_norm.weight"
+	}
+}
+
 // PostNormTensorNames: post-norm tensor catalog entry.
 type PostNormTensorNames struct {
 	AttentionWeight     string
@@ -253,22 +348,39 @@ func (p ArchitectureProfile) Has(capability ArchitectureCapability) bool {
 
 // AppendsDraftBlocks: catalog-visible draft tail
 func (p ArchitectureProfile) AppendsDraftBlocks() bool {
-	switch p.DraftKind {
-	case DraftStep35MTP, DraftHYV3MTP, DraftNextNMTP:
-		return true
-	default:
-		return false
-	}
+	return p.DraftPlan(1).AppendedBlocks
 }
 
 // HasDraftHead: bounded draft-head policy.
 func (p ArchitectureProfile) HasDraftHead(kind DraftKind, count, offset uint32) bool {
-	return p.DraftKind == kind && offset < count
+	plan := p.DraftPlan(count)
+	return plan.Kind == kind && plan.HasHead(offset)
 }
 
 // HasSingleDraft: single-head draft policy.
 func (p ArchitectureProfile) HasSingleDraft(kind DraftKind, count uint32) bool {
-	return p.DraftKind == kind && count == 1
+	plan := p.DraftPlan(count)
+	return plan.Kind == kind && plan.HasHead(0) && count == 1
+}
+
+// DraftPlan: architecture draft catalog/session descriptor.
+func (p ArchitectureProfile) DraftPlan(heads uint32) DraftPlan {
+	plan := DraftPlan{Kind: p.DraftKind, Heads: heads}
+	switch p.DraftKind {
+	case DraftQwen35MTP:
+		plan.Label, plan.SingleCatalog = "Qwen3.5 MTP", true
+		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
+	case DraftStep35MTP:
+		plan.Label, plan.AppendedBlocks, plan.Session = "Step3.5 MTP", true, DraftSessionMulti
+	case DraftHYV3MTP:
+		plan.Label, plan.AppendedBlocks, plan.Session = "HY-V3 MTP", true, DraftSessionMulti
+	case DraftNextNMTP:
+		plan.Label, plan.AppendedBlocks, plan.Session = "NextN MTP", true, DraftSessionSingle
+	case DraftCohere2MTP:
+		plan.Label, plan.SingleCatalog, plan.OptionalCatalog = "Cohere2-MoE MTP", true, true
+		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
+	}
+	return plan
 }
 
 // OutputNormTensor: final normalization tensor name.
@@ -289,38 +401,12 @@ func (p ArchitectureProfile) OutputNormTensor() string {
 
 // PostNormTensors: post-norm tensor namespace.
 func (p ArchitectureProfile) PostNormTensors() PostNormTensorNames {
-	switch p.PostNormLayout {
-	case PostNormLayoutBERT:
-		return PostNormTensorNames{
-			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
-			AttentionBias: "attn_output_norm.bias", FeedForwardBias: "layer_output_norm.bias",
-		}
-	case PostNormLayoutGrok:
-		return PostNormTensorNames{
-			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
-			FeedForwardFallback: "ffn_post_norm.weight",
-		}
-	default:
-		return PostNormTensorNames{
-			AttentionWeight: "post_attention_norm.weight", FeedForwardWeight: "post_ffw_norm.weight",
-		}
-	}
+	return NormalizationPlan{PostNormLayout: p.PostNormLayout}.PostNormTensors()
 }
 
 // FeedForwardNormTensor: pre-FFN tensor namespace.
 func (p ArchitectureProfile) FeedForwardNormTensor() string {
-	switch p.FFNNormLayout {
-	case FeedForwardNormLayoutBare:
-		return "ffn_norm"
-	case FeedForwardNormLayoutAttentionOutput:
-		return "attn_output_norm.weight"
-	case FeedForwardNormLayoutAttentionPost:
-		return "attn_post_norm.weight"
-	case FeedForwardNormLayoutPostAttention:
-		return "post_attention_norm.weight"
-	default:
-		return "ffn_norm.weight"
-	}
+	return NormalizationPlan{FeedForwardLayout: p.FFNNormLayout}.FeedForwardNormTensor()
 }
 
 // LookupArchitecture: registered profile lookup.

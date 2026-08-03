@@ -190,8 +190,7 @@ func (r *Runner) AdvanceNextNMTP(
 }
 
 func (r *Runner) validateNextNMTP() error {
-	if r == nil || !r.profile().HasSingleDraft(model.DraftNextNMTP, r.spec.NextNPredictLayers) ||
-		len(r.weights.NextNMTP) != 1 {
+	if r == nil || !r.hasDraftSession(model.DraftNextNMTP, len(r.weights.NextNMTP)) {
 		return errors.New("inference: model has no supported NextN MTP block")
 	}
 	return nil

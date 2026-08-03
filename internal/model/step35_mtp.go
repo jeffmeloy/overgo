@@ -29,7 +29,7 @@ func BuildStep35MTPBlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if !spec.Profile().HasDraftHead(DraftStep35MTP, spec.NextNPredictLayers, offset) {
+	if plan := spec.Profile().DraftPlan(spec.NextNPredictLayers); plan.Kind != DraftStep35MTP || !plan.HasHead(offset) {
 		return DenseBlockResult{}, errors.New("Step3.5 MTP head is invalid")
 	}
 	return BuildDenseBlockCachedForLayer(

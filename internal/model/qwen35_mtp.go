@@ -14,8 +14,7 @@ func BuildQwen35MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.Profile().HasSingleDraft(DraftQwen35MTP, spec.NextNPredictLayers),
-		mtpWeightedRMS, "Qwen3.5 MTP input is nil", "Qwen3.5 MTP input shape is incompatible",
+		qwen35MTPPolicy, 0,
 	)
 }
 
@@ -45,7 +44,6 @@ func BuildQwen35MTPOutputs(
 	spec Spec,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	return buildMTPOutputs(
-		builder, input, outputNorm, output, spec, spec.NextNPredictLayers == 1, false, false, mtpWeightedRMS,
-		"Qwen3.5 MTP output is nil", "Qwen3.5 MTP output shape is incompatible",
+		builder, input, outputNorm, output, spec, qwen35MTPPolicy, 0,
 	)
 }

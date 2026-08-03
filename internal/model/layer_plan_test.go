@@ -247,3 +247,69 @@ func TestPlanLayerPinsSharedKVSource(t *testing.T) {
 		t.Fatalf("owned = %+v, shared = %+v", owned, shared)
 	}
 }
+
+func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
+	granite := Spec{
+		CommonSpec: CommonSpec{Architecture: "granite", BlockCount: 4},
+		MultimodalSpec: MultimodalSpec{
+			DeepstackLayerCount: 2, DeepstackMapping: []int32{0, 2, -1, 1},
+		},
+	}
+	want := []DeepstackSource{DeepstackSourceNone, 1, DeepstackSourceNone, 0}
+	for layer, source := range want {
+		plan := granite.PlanLayer(uint32(layer), false)
+		if plan.DeepstackBefore != source || plan.DeepstackAfter != DeepstackSourceNone {
+			t.Fatalf("Granite layer %d deepstack = %d/%d, want %d/none", layer, plan.DeepstackBefore, plan.DeepstackAfter, source)
+		}
+	}
+	qwen := Spec{
+		CommonSpec:     CommonSpec{Architecture: "qwen3vl", BlockCount: 3},
+		MultimodalSpec: MultimodalSpec{DeepstackLayerCount: 2},
+	}
+	for layer := range uint32(3) {
+		plan := qwen.PlanLayer(layer, false)
+		wantAfter := DeepstackSourceNone
+		if layer < 2 {
+			wantAfter = DeepstackSource(layer)
+		}
+		if plan.DeepstackBefore != DeepstackSourceNone || plan.DeepstackAfter != wantAfter {
+			t.Fatalf("Qwen3-VL layer %d deepstack = %d/%d, want none/%d", layer, plan.DeepstackBefore, plan.DeepstackAfter, wantAfter)
+		}
+	}
+}
+
+func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
+	rwkv := Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 2}}
+	first, second := rwkv.PlanLayer(0, false), rwkv.PlanLayer(1, false)
+	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRWKVValue ||
+		second.AuxiliaryInput != AuxiliaryRWKVValue || second.AuxiliaryOutput != AuxiliaryNone {
+		t.Fatalf("RWKV auxiliary plans = %+v / %+v", first, second)
+	}
+	dsa := Spec{
+		CommonSpec:    CommonSpec{Architecture: "glm-dsa", BlockCount: 3},
+		AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{true, false, true}},
+	}
+	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliaryDSATopK, AuxiliaryNone} {
+		plan := dsa.PlanLayer(uint32(layer), false)
+		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliaryDSATopK {
+			t.Fatalf("GLM-DSA layer %d auxiliary = %v/%v", layer, plan.AuxiliaryInput, plan.AuxiliaryOutput)
+		}
+	}
+}
+
+func TestPlanLayerCompilesAttentionTemperature(t *testing.T) {
+	configured := Spec{CommonSpec: CommonSpec{Architecture: "mistral3", BlockCount: 1}}
+	if got := configured.PlanLayer(0, false).Temperature; got != AttentionTemperatureConfigured {
+		t.Fatalf("Mistral3 temperature = %v", got)
+	}
+	llama4 := Spec{
+		CommonSpec:    CommonSpec{Architecture: "llama4", BlockCount: 2},
+		AttentionSpec: AttentionSpec{NoRopeLayerStep: 2},
+	}
+	if got := llama4.PlanLayer(0, false).Temperature; got != AttentionTemperatureNone {
+		t.Fatalf("Llama4 RoPE layer temperature = %v", got)
+	}
+	if got := llama4.PlanLayer(1, false).Temperature; got != AttentionTemperatureNoRoPE {
+		t.Fatalf("Llama4 no-RoPE layer temperature = %v", got)
+	}
+}

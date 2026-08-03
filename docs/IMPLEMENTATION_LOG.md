@@ -2006,6 +2006,21 @@ One incremental tool-delta stream now owns fallback buffering, parser dispatch,
 function names, argument accumulation, and index validation for all three SSE
 protocols. Protocol encoders retain their distinct event and response shapes.
 
+## Projected and side-input plans
+
+Architecture profiles now declare projected embedding order, deepstack mode,
+bidirectional attention-block support, cross-layer auxiliary flow, and scheduled
+attention-temperature behavior. `LayerPlan` resolves Granite/Qwen3-VL stream
+placement, RWKV value-residual carry, GLM-DSA top-k carry, and per-layer
+temperature feeds before graph execution. Host, preloaded, and retained-device
+paths consume the same compiled contracts.
+
+Post-norm and pre-FFN tensor namespaces use narrow typed catalogs with preserved
+BERT biases and Grok fallback handling. Qwen3.5, Step3.5, HY-V3, NextN, and
+Cohere2-MoE MTP wrappers share one family descriptor for eligibility,
+normalization, hidden carry, logit scaling, and diagnostics; block math remains
+family-local.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

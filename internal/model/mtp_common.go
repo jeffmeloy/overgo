@@ -13,24 +13,50 @@ const (
 	mtpArchitectureNorm
 )
 
+type mtpPolicy struct {
+	kind          DraftKind
+	label         string
+	normalization mtpNormalization
+	single        bool
+	carryRaw      bool
+	scaleLogits   bool
+}
+
+var (
+	qwen35MTPPolicy  = mtpPolicy{kind: DraftQwen35MTP, label: "Qwen3.5", single: true}
+	step35MTPPolicy  = mtpPolicy{kind: DraftStep35MTP, label: "Step3.5", carryRaw: true}
+	hyv3MTPPolicy    = mtpPolicy{kind: DraftHYV3MTP, label: "HY-V3"}
+	nextNMTPPolicy   = mtpPolicy{kind: DraftNextNMTP, label: "NextN"}
+	cohere2MTPPolicy = mtpPolicy{
+		kind: DraftCohere2MTP, label: "Cohere2-MoE", normalization: mtpArchitectureNorm,
+		single: true, scaleLogits: true,
+	}
+)
+
+func (p mtpPolicy) valid(spec Spec, offset uint32) bool {
+	if p.single {
+		return offset == 0 && spec.Profile().HasSingleDraft(p.kind, spec.NextNPredictLayers)
+	}
+	return spec.Profile().HasDraftHead(p.kind, spec.NextNPredictLayers, offset)
+}
+
 func buildMTPInput(
 	builder *tensor.Builder,
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
 	spec Spec,
-	valid bool,
-	normalization mtpNormalization,
-	nilMessage, shapeMessage string,
+	policy mtpPolicy,
+	offset uint32,
 ) (*tensor.Tensor, error) {
 	if builder == nil || tokenEmbedding == nil || targetHidden == nil || embeddingNorm == nil ||
 		hiddenNorm == nil || projection == nil {
-		return nil, errors.New(nilMessage)
+		return nil, errors.New(policy.label + " MTP input is nil")
 	}
-	if !valid || tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
+	if !policy.valid(spec, offset) || tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
 		tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New(shapeMessage)
+		return nil, errors.New(policy.label + " MTP input shape is incompatible")
 	}
-	embedding := normalizeMTP(builder, tokenEmbedding, embeddingNorm, spec, normalization)
-	hidden := normalizeMTP(builder, targetHidden, hiddenNorm, spec, normalization)
+	embedding := normalizeMTP(builder, tokenEmbedding, embeddingNorm, spec, policy.normalization)
+	hidden := normalizeMTP(builder, targetHidden, hiddenNorm, spec, policy.normalization)
 	output := builder.MulMat(projection, builder.Concat(embedding, hidden, 0))
 	if err := builder.Err(); err != nil {
 		return nil, err
@@ -42,23 +68,22 @@ func buildMTPOutputs(
 	builder *tensor.Builder,
 	input, outputNorm, output *tensor.Tensor,
 	spec Spec,
-	valid, carryRaw, scaleLogits bool,
-	normalization mtpNormalization,
-	nilMessage, shapeMessage string,
+	policy mtpPolicy,
+	offset uint32,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	if builder == nil || input == nil || outputNorm == nil || output == nil {
-		return nil, nil, errors.New(nilMessage)
+		return nil, nil, errors.New(policy.label + " MTP output is nil")
 	}
-	if !valid || input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, nil, errors.New(shapeMessage)
+	if !policy.valid(spec, offset) || input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return nil, nil, errors.New(policy.label + " MTP output shape is incompatible")
 	}
-	normalized := normalizeMTP(builder, input, outputNorm, spec, normalization)
+	normalized := normalizeMTP(builder, input, outputNorm, spec, policy.normalization)
 	nextHidden = normalized
-	if carryRaw {
+	if policy.carryRaw {
 		nextHidden = input
 	}
 	logits = builder.MulMat(output, normalized)
-	if scaleLogits {
+	if policy.scaleLogits {
 		if scale := spec.OutputLogitMultiplier(); scale != 1 {
 			logits = builder.Scale(logits, scale)
 		}

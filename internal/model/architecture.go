@@ -105,6 +105,80 @@ const (
 	AttentionLFM2
 )
 
+// EmbeddingOverridePolicy: projected-embedding application order.
+type EmbeddingOverridePolicy uint8
+
+const (
+	EmbeddingOverrideStandard EmbeddingOverridePolicy = iota
+	EmbeddingOverrideCogVLM
+	EmbeddingOverrideRawScaled
+	EmbeddingOverrideDeepstackBase
+)
+
+// DeepstackPolicy: projected-stream layer placement.
+type DeepstackPolicy uint8
+
+const (
+	DeepstackNone DeepstackPolicy = iota
+	DeepstackMappedBefore
+	DeepstackSequentialAfter
+)
+
+// AttentionBlockPolicy: projected attention-mask contract.
+type AttentionBlockPolicy uint8
+
+const (
+	AttentionBlocksNone AttentionBlockPolicy = iota
+	AttentionBlocksUncached
+)
+
+// AuxiliaryFlow: transient cross-layer value contract.
+type AuxiliaryFlow uint8
+
+const (
+	AuxiliaryNone AuxiliaryFlow = iota
+	AuxiliaryRWKVValue
+	AuxiliaryDSATopK
+)
+
+// AttentionTemperaturePolicy: scheduled query-scale contract.
+type AttentionTemperaturePolicy uint8
+
+const (
+	AttentionTemperatureNone AttentionTemperaturePolicy = iota
+	AttentionTemperatureConfigured
+	AttentionTemperatureNoRoPE
+)
+
+// PostNormLayoutPolicy: post-attention/FFN tensor namespace.
+type PostNormLayoutPolicy uint8
+
+const (
+	PostNormLayoutStandard PostNormLayoutPolicy = iota
+	PostNormLayoutBERT
+	PostNormLayoutGrok
+)
+
+// FeedForwardNormLayoutPolicy: pre-FFN tensor namespace.
+type FeedForwardNormLayoutPolicy uint8
+
+const (
+	FeedForwardNormLayoutStandard FeedForwardNormLayoutPolicy = iota
+	FeedForwardNormLayoutBare
+	FeedForwardNormLayoutAttentionOutput
+	FeedForwardNormLayoutAttentionPost
+	FeedForwardNormLayoutPostAttention
+)
+
+// PostNormTensorNames: post-norm tensor catalog entry.
+type PostNormTensorNames struct {
+	AttentionWeight     string
+	FeedForwardWeight   string
+	FeedForwardFallback string
+	AttentionBias       string
+	FeedForwardBias     string
+}
+
 // ArchitectureCapability: orthogonal runtime behavior.
 type ArchitectureCapability uint64
 
@@ -133,7 +207,6 @@ const (
 	ArchitectureQwenGDN
 	ArchitectureLFM2
 	ArchitectureMultiAxisPositions
-	ArchitectureDeepstack
 	ArchitectureRequiresOutput
 	ArchitectureClassifierHead
 	ArchitectureBiasFreeProjections
@@ -151,19 +224,26 @@ const (
 
 // ArchitectureProfile: registry entry and capability set.
 type ArchitectureProfile struct {
-	Name          string
-	Family        ArchitectureFamily
-	GraphFamily   ArchitectureFamily
-	CatalogFamily ArchitectureFamily
-	DraftKind     DraftKind
-	Forward       ForwardPolicy
-	OutputNorm    OutputNormPolicy
-	Capabilities  ArchitectureCapability
-	Normalization NormalizationPolicy
-	Position      PositionPolicy
-	Residual      ResidualPolicy
-	FeedForward   FeedForwardPolicy
-	Attention     AttentionPolicy
+	Name            string
+	Family          ArchitectureFamily
+	GraphFamily     ArchitectureFamily
+	CatalogFamily   ArchitectureFamily
+	DraftKind       DraftKind
+	Forward         ForwardPolicy
+	OutputNorm      OutputNormPolicy
+	Capabilities    ArchitectureCapability
+	Normalization   NormalizationPolicy
+	Position        PositionPolicy
+	Residual        ResidualPolicy
+	FeedForward     FeedForwardPolicy
+	Attention       AttentionPolicy
+	Overrides       EmbeddingOverridePolicy
+	Deepstack       DeepstackPolicy
+	AttentionBlocks AttentionBlockPolicy
+	Auxiliary       AuxiliaryFlow
+	Temperature     AttentionTemperaturePolicy
+	PostNormLayout  PostNormLayoutPolicy
+	FFNNormLayout   FeedForwardNormLayoutPolicy
 }
 
 // Has: capability predicate.
@@ -204,6 +284,42 @@ func (p ArchitectureProfile) OutputNormTensor() string {
 		return "token_embd_norm.weight"
 	default:
 		return "output_norm.weight"
+	}
+}
+
+// PostNormTensors: post-norm tensor namespace.
+func (p ArchitectureProfile) PostNormTensors() PostNormTensorNames {
+	switch p.PostNormLayout {
+	case PostNormLayoutBERT:
+		return PostNormTensorNames{
+			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
+			AttentionBias: "attn_output_norm.bias", FeedForwardBias: "layer_output_norm.bias",
+		}
+	case PostNormLayoutGrok:
+		return PostNormTensorNames{
+			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
+			FeedForwardFallback: "ffn_post_norm.weight",
+		}
+	default:
+		return PostNormTensorNames{
+			AttentionWeight: "post_attention_norm.weight", FeedForwardWeight: "post_ffw_norm.weight",
+		}
+	}
+}
+
+// FeedForwardNormTensor: pre-FFN tensor namespace.
+func (p ArchitectureProfile) FeedForwardNormTensor() string {
+	switch p.FFNNormLayout {
+	case FeedForwardNormLayoutBare:
+		return "ffn_norm"
+	case FeedForwardNormLayoutAttentionOutput:
+		return "attn_output_norm.weight"
+	case FeedForwardNormLayoutAttentionPost:
+		return "attn_post_norm.weight"
+	case FeedForwardNormLayoutPostAttention:
+		return "post_attention_norm.weight"
+	default:
+		return "ffn_norm.weight"
 	}
 }
 
@@ -295,6 +411,27 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setFeedForward := func(policy FeedForwardPolicy, names ...string) {
 		update(names, func(profile *ArchitectureProfile) { profile.FeedForward = policy })
 	}
+	setOverrides := func(policy EmbeddingOverridePolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Overrides = policy })
+	}
+	setDeepstack := func(policy DeepstackPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Deepstack = policy })
+	}
+	setAttentionBlocks := func(policy AttentionBlockPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.AttentionBlocks = policy })
+	}
+	setAuxiliary := func(policy AuxiliaryFlow, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Auxiliary = policy })
+	}
+	setTemperature := func(policy AttentionTemperaturePolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Temperature = policy })
+	}
+	setPostNormLayout := func(policy PostNormLayoutPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.PostNormLayout = policy })
+	}
+	setFFNNormLayout := func(policy FeedForwardNormLayoutPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.FFNNormLayout = policy })
+	}
 
 	setDraftKind(DraftQwen35MTP, "qwen35", "qwen35moe")
 	setDraftKind(DraftStep35MTP, "step35")
@@ -303,6 +440,21 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setDraftKind(DraftNextNMTP,
 		"glm4", "glm4moe", "exaone4", "exaone-moe", "mimo2", "bailingmoe2", "deepseek32", "glm-dsa",
 	)
+	setOverrides(EmbeddingOverrideCogVLM, "cogvlm")
+	setOverrides(EmbeddingOverrideRawScaled, "gemma3n", "gemma4")
+	setOverrides(EmbeddingOverrideDeepstackBase, "granite")
+	setDeepstack(DeepstackMappedBefore, "granite")
+	setDeepstack(DeepstackSequentialAfter, "qwen3vl", "qwen3vlmoe")
+	setAttentionBlocks(AttentionBlocksUncached, "gemma4")
+	setAuxiliary(AuxiliaryRWKVValue, "arwkv7", "rwkv7")
+	setAuxiliary(AuxiliaryDSATopK, "glm-dsa")
+	setTemperature(AttentionTemperatureConfigured, "deepseek2", "mistral3", "mistral4")
+	setTemperature(AttentionTemperatureNoRoPE, "llama4")
+	setPostNormLayout(PostNormLayoutGrok, "grok")
+	setFFNNormLayout(FeedForwardNormLayoutBare, "falcon-h1")
+	setFFNNormLayout(FeedForwardNormLayoutAttentionOutput, "dbrx")
+	setFFNNormLayout(FeedForwardNormLayoutAttentionPost, "glm4moe")
+	setFFNNormLayout(FeedForwardNormLayoutPostAttention, "qwen3next", "qwen35", "qwen35moe", "seed_oss")
 
 	setCapabilities(ArchitectureNonCausal,
 		"bert", "dream", "eurobert", "gemma-embedding", "jina-bert-v2",
@@ -394,7 +546,6 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		"glm4", "glm4moe", "hunyuan-dense", "hunyuan_vl", "paddleocr", "qwen2vl",
 		"qwen3vl", "qwen3vlmoe", "qwen35", "qwen35moe",
 	)
-	setCapabilities(ArchitectureDeepstack, "granite", "qwen3vl", "qwen3vlmoe")
 	setCapabilities(ArchitectureRequiresOutput,
 		"apertus", "arwkv7", "baichuan", "bailingmoe", "bailingmoe2", "codeshell",
 		"dbrx", "dots1", "gpt-oss", "gptj", "gptneox", "internlm2", "jais",
@@ -491,6 +642,7 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	for name, profile := range registry {
 		if profile.Has(ArchitectureBERTNormLayout) {
 			profile.OutputNorm = OutputNormAbsent
+			profile.PostNormLayout = PostNormLayoutBERT
 		}
 		if profile.Forward == ForwardCached && profile.Has(ArchitectureNonCausal) {
 			profile.Forward = ForwardNonCausal

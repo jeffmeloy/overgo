@@ -705,7 +705,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 		}
 		if tempErr := addAttentionTemperatureInput(
-			builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights,
+			builder, r.spec, positions, plan, hostFeeds, &graphWeights,
 		); tempErr != nil {
 			return fail(tempErr)
 		}

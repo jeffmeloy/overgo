@@ -15,8 +15,7 @@ func BuildStep35MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.Profile().HasDraftHead(DraftStep35MTP, spec.NextNPredictLayers, offset), mtpWeightedRMS,
-		"Step3.5 MTP input is nil", "Step3.5 MTP input shape is incompatible",
+		step35MTPPolicy, offset,
 	)
 }
 
@@ -47,8 +46,6 @@ func BuildStep35MTPOutputs(
 	offset uint32,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	return buildMTPOutputs(
-		builder, input, outputNorm, output, spec,
-		spec.Profile().HasDraftHead(DraftStep35MTP, spec.NextNPredictLayers, offset), true, false, mtpWeightedRMS,
-		"Step3.5 MTP output is nil", "Step3.5 MTP output shape is incompatible",
+		builder, input, outputNorm, output, spec, step35MTPPolicy, offset,
 	)
 }

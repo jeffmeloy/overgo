@@ -47,25 +47,38 @@ const (
 	CachedGraphDense
 )
 
+// DeepstackSource: compiled projected-stream source.
+type DeepstackSource int32
+
+const (
+	DeepstackSourceNone DeepstackSource = -2
+	DeepstackSourceBase DeepstackSource = -1
+)
+
 // LayerPlan: derived layer execution contract.
 type LayerPlan struct {
-	Layer         uint32
-	GraphFamily   ArchitectureFamily
-	CatalogFamily ArchitectureFamily
-	Block         BlockPolicy
-	Cache         CachePolicy
-	Attention     AttentionPolicy
-	Position      PositionPolicy
-	Residual      ResidualPolicy
-	FeedForward   FeedForwardPolicy
-	CacheExtent   CacheExtent
-	Recurrent     bool
-	Sliding       bool
-	UsesRoPE      bool
-	MultiAxis     bool
-	HasKV         bool
-	SharedKV      bool
-	KVSource      uint32
+	Layer           uint32
+	GraphFamily     ArchitectureFamily
+	CatalogFamily   ArchitectureFamily
+	Block           BlockPolicy
+	Cache           CachePolicy
+	Attention       AttentionPolicy
+	Position        PositionPolicy
+	Residual        ResidualPolicy
+	FeedForward     FeedForwardPolicy
+	CacheExtent     CacheExtent
+	Recurrent       bool
+	Sliding         bool
+	UsesRoPE        bool
+	MultiAxis       bool
+	HasKV           bool
+	SharedKV        bool
+	KVSource        uint32
+	DeepstackBefore DeepstackSource
+	DeepstackAfter  DeepstackSource
+	AuxiliaryInput  AuxiliaryFlow
+	AuxiliaryOutput AuxiliaryFlow
+	Temperature     AttentionTemperaturePolicy
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -79,24 +92,75 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	if sharedKV {
 		kvSource = s.LayerSharedKVSource(layer)
 	}
+	deepstackBefore, deepstackAfter := deepstackSources(s, profile, layer)
+	auxiliaryInput, auxiliaryOutput := auxiliaryFlow(s, profile, layer)
+	temperature := profile.Temperature
+	if temperature == AttentionTemperatureNoRoPE && s.UsesRoPE(layer) {
+		temperature = AttentionTemperatureNone
+	}
 	return LayerPlan{
-		Layer:         layer,
-		GraphFamily:   profile.GraphFamily,
-		CatalogFamily: profile.CatalogFamily,
-		Attention:     profile.Attention,
-		Position:      profile.Position,
-		Residual:      profile.Residual,
-		FeedForward:   profile.FeedForward,
-		Block:         blockPolicy(s, profile, recurrent),
-		Cache:         cachePolicy(s, profile, layer, recurrent),
-		CacheExtent:   PrimaryCacheExtent(s, int(layer), info),
-		Recurrent:     recurrent,
-		Sliding:       s.IsSlidingLayer(layer),
-		UsesRoPE:      s.UsesRoPE(layer),
-		MultiAxis:     profile.Has(ArchitectureMultiAxisPositions),
-		HasKV:         hasKV,
-		SharedKV:      sharedKV,
-		KVSource:      kvSource,
+		Layer:           layer,
+		GraphFamily:     profile.GraphFamily,
+		CatalogFamily:   profile.CatalogFamily,
+		Attention:       profile.Attention,
+		Position:        profile.Position,
+		Residual:        profile.Residual,
+		FeedForward:     profile.FeedForward,
+		Block:           blockPolicy(s, profile, recurrent),
+		Cache:           cachePolicy(s, profile, layer, recurrent),
+		CacheExtent:     PrimaryCacheExtent(s, int(layer), info),
+		Recurrent:       recurrent,
+		Sliding:         s.IsSlidingLayer(layer),
+		UsesRoPE:        s.UsesRoPE(layer),
+		MultiAxis:       profile.Has(ArchitectureMultiAxisPositions),
+		HasKV:           hasKV,
+		SharedKV:        sharedKV,
+		KVSource:        kvSource,
+		DeepstackBefore: deepstackBefore,
+		DeepstackAfter:  deepstackAfter,
+		AuxiliaryInput:  auxiliaryInput,
+		AuxiliaryOutput: auxiliaryOutput,
+		Temperature:     temperature,
+	}
+}
+
+func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (DeepstackSource, DeepstackSource) {
+	switch profile.Deepstack {
+	case DeepstackMappedBefore:
+		if layer == 0 || int(layer) >= len(s.DeepstackMapping) {
+			return DeepstackSourceNone, DeepstackSourceNone
+		}
+		source := s.DeepstackMapping[layer]
+		switch {
+		case source < 0:
+			return DeepstackSourceNone, DeepstackSourceNone
+		case source == 0:
+			return DeepstackSourceBase, DeepstackSourceNone
+		default:
+			return DeepstackSource(source - 1), DeepstackSourceNone
+		}
+	case DeepstackSequentialAfter:
+		if layer < s.DeepstackLayerCount {
+			return DeepstackSourceNone, DeepstackSource(layer)
+		}
+	}
+	return DeepstackSourceNone, DeepstackSourceNone
+}
+
+func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (AuxiliaryFlow, AuxiliaryFlow) {
+	switch profile.Auxiliary {
+	case AuxiliaryRWKVValue:
+		if layer == 0 {
+			return AuxiliaryNone, AuxiliaryRWKVValue
+		}
+		return AuxiliaryRWKVValue, AuxiliaryNone
+	case AuxiliaryDSATopK:
+		if s.LayerHasFullIndexer(layer) {
+			return AuxiliaryNone, AuxiliaryDSATopK
+		}
+		return AuxiliaryDSATopK, AuxiliaryDSATopK
+	default:
+		return AuxiliaryNone, AuxiliaryNone
 	}
 }
 

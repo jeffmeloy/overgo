@@ -1317,7 +1317,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if len(tokenIDs) == 0 {
 		return reference.Value{}, nil, errors.New("inference: token sequence is empty")
 	}
-	visualMode := r.spec.Architecture == "cogvlm" && len(overrides) > 0
+	visualMode := r.profile().Overrides == model.EmbeddingOverrideCogVLM && len(overrides) > 0
 	if visualMode {
 		if err := validateCogVLMVisualOverrides(len(tokenIDs), overrides); err != nil {
 			return reference.Value{}, nil, err
@@ -1380,7 +1380,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	}
 	embeddingScaleApplied := false
 	var deepstackBase reference.Value
-	graniteDeepstack := r.spec.Architecture == "granite" && len(r.spec.DeepstackMapping) > 0
+	graniteDeepstack := r.profile().Overrides == model.EmbeddingOverrideDeepstackBase &&
+		len(r.spec.DeepstackMapping) > 0
 	if graniteDeepstack {
 		deepstackBase = reference.Value{
 			Shape: activation.Shape,
@@ -1397,7 +1398,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
 			return reference.Value{}, nil, err
 		}
-	} else if (r.spec.Architecture == "gemma4" || r.spec.Architecture == "gemma3n") && len(overrides) > 0 {
+	} else if r.profile().Overrides == model.EmbeddingOverrideRawScaled && len(overrides) > 0 {
 		if err := applyGemmaRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
 			return reference.Value{}, nil, err
 		}
@@ -1466,10 +1467,10 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 			cache, nextCache, visualMode, applyOutputNorm, capture,
 		)
 	}
-	var firstLayerValue, previousTopK *reference.Value
+	auxiliaryValues := make(map[model.AuxiliaryFlow]*reference.Value)
 	for layerIndex, layerInfo := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, layerInfo.Recurrent)
-		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), false, deepstackBase, deepstackInputs); stream != nil {
+		if stream := deepstackInputForLayer(plan.DeepstackBefore, deepstackBase, deepstackInputs); stream != nil {
 			activation, err = addDeepstackEmbedding(activation, *stream)
 			if err != nil {
 				return reference.Value{}, nil, fmt.Errorf("inference layer %d deepstack input: %w", layerIndex, err)
@@ -1486,11 +1487,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if len(perLayerInputs) > 0 {
 			perLayerInput = &perLayerInputs[layerIndex]
 		}
-		if (r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7") && layerIndex > 0 {
-			perLayerInput = firstLayerValue
-		}
-		if r.profile().Attention == model.AttentionDSA && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
-			perLayerInput = previousTopK
+		if plan.AuxiliaryInput != model.AuxiliaryNone {
+			perLayerInput = auxiliaryValues[plan.AuxiliaryInput]
 		}
 		var layerCache LayerCache
 		activation, layerCache, err = r.runLayerCached(
@@ -1510,24 +1508,20 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
 		}
-		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), true, deepstackBase, deepstackInputs); stream != nil {
+		if stream := deepstackInputForLayer(plan.DeepstackAfter, deepstackBase, deepstackInputs); stream != nil {
 			activation, err = addDeepstackEmbedding(activation, *stream)
 			if err != nil {
 				return reference.Value{}, nil, fmt.Errorf("inference layer %d deepstack output: %w", layerIndex, err)
 			}
 		}
-		if layerCache.Auxiliary != nil {
-			if r.spec.Architecture == "glm-dsa" {
-				previousTopK = layerCache.Auxiliary
-			} else {
-				firstLayerValue = layerCache.Auxiliary
-			}
+		if layerCache.Auxiliary != nil && plan.AuxiliaryOutput != model.AuxiliaryNone {
+			auxiliaryValues[plan.AuxiliaryOutput] = layerCache.Auxiliary
 			layerCache.Auxiliary = nil
 		}
 		nextCache.Layers[layerIndex] = layerCache
 	}
-	if r.spec.Architecture == "glm-dsa" && previousTopK != nil {
-		value := *previousTopK
+	if topK := auxiliaryValues[model.AuxiliaryDSATopK]; topK != nil {
+		value := *topK
 		nextCache.DSATopK = &value
 	}
 	if !r.hasPreloadedWeights() && applyOutputNorm {
@@ -1726,7 +1720,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	captured := make(map[int32]*tensor.Tensor)
 	for layerIndex, info := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, info.Recurrent)
-		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), false, deepstackBase, deepstackInputs); stream != nil {
+		if stream := deepstackInputForLayer(plan.DeepstackBefore, deepstackBase, deepstackInputs); stream != nil {
 			deepstack := builder.Input(
 				fmt.Sprintf("blk.%d.deepstack_input", layerIndex), dtype.F32, stream.Shape,
 			)
@@ -1763,7 +1757,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
-		if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+		if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
 			return reference.Value{}, nil, err
 		}
 		var pastKey, pastValue *tensor.Tensor
@@ -1800,7 +1794,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			return reference.Value{}, nil, err
 		}
 		current = result.Output
-		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), true, deepstackBase, deepstackInputs); stream != nil {
+		if stream := deepstackInputForLayer(plan.DeepstackAfter, deepstackBase, deepstackInputs); stream != nil {
 			deepstack := builder.Input(
 				fmt.Sprintf("blk.%d.deepstack_output", layerIndex), dtype.F32, stream.Shape,
 			)
@@ -1859,6 +1853,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	for layerIndex, info := range r.weights.Layers {
+		plan := r.layerPlan(layerIndex, info.Recurrent)
 		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
 		if err != nil {
 			return reference.Value{}, err
@@ -1866,7 +1861,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
-		if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+		if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
 			return reference.Value{}, err
 		}
 		result, err := model.BuildDenseBlockCachedForLayer(
@@ -2081,7 +2076,7 @@ func (r *Runner) runLayerCached(
 		hostFeeds[blockInput] = reference.Value{Shape: shape, Data: attentionBlockIDs}
 		graphWeights.AttentionBlockIDs = blockInput
 	}
-	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+	if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	cacheInputs, cacheErr := r.hostLayerCacheInputs(builder, layerIndex, info, plan, past, hostFeeds)
@@ -2334,6 +2329,7 @@ func (r *Runner) runDenseLayerNoCache(
 	layerIndex int,
 	positions []uint32,
 ) (reference.Value, error) {
+	plan := r.layerPlan(layerIndex, info.Recurrent)
 	builder := r.newGraphBuilder()
 	input := builder.Input("input", dtype.F32, activation.Shape)
 	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
@@ -2350,7 +2346,7 @@ func (r *Runner) runDenseLayerNoCache(
 	for node, value := range layerFeeds {
 		hostFeeds[node] = value
 	}
-	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
+	if err := addAttentionTemperatureInput(builder, r.spec, positions, plan, hostFeeds, &graphWeights); err != nil {
 		return reference.Value{}, err
 	}
 	result, err := model.BuildDenseBlockCachedForLayer(
@@ -2377,14 +2373,12 @@ func addAttentionTemperatureInput(
 	builder *tensor.Builder,
 	spec model.Spec,
 	positions []uint32,
-	layer uint32,
+	plan model.LayerPlan,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	weights *model.LayerGraphWeights,
 ) error {
-	llama4Temperature := spec.Architecture == "llama4" && !spec.UsesRoPE(layer)
-	deepSeek2Temperature := (spec.Architecture == "deepseek2" || spec.Architecture == "mistral4") && spec.AttentionTempScale != 0
-	mistral3Temperature := spec.Architecture == "mistral3" && spec.AttentionTempScale != 0
-	if !llama4Temperature && !deepSeek2Temperature && !mistral3Temperature {
+	if plan.Temperature == model.AttentionTemperatureNone ||
+		plan.Temperature == model.AttentionTemperatureConfigured && spec.AttentionTempScale == 0 {
 		return nil
 	}
 	if builder == nil || weights == nil || spec.AttentionTempFloor == 0 {
@@ -3398,7 +3392,7 @@ func supportsMultiAxisPositions(spec model.Spec) bool {
 }
 
 func supportsDeepstackInputs(spec model.Spec) bool {
-	return spec.DeepstackLayerCount > 0 && spec.Profile().Has(model.ArchitectureDeepstack)
+	return spec.DeepstackLayerCount > 0 && spec.Profile().Deepstack != model.DeepstackNone
 }
 
 func validateDeepstackInputs(spec model.Spec, tokens int, inputs []reference.Value) error {
@@ -3437,7 +3431,7 @@ func projectedAttentionBlockIDs(
 	if len(blocks) == 0 {
 		return nil, nil
 	}
-	if spec.Architecture != "gemma4" {
+	if spec.Profile().AttentionBlocks != model.AttentionBlocksUncached {
 		return nil, errors.New("inference: model does not support bidirectional attention blocks")
 	}
 	if hasCache {
@@ -3464,33 +3458,18 @@ func projectedAttentionBlockIDs(
 }
 
 func deepstackInputForLayer(
-	spec model.Spec,
-	layer uint32,
-	after bool,
+	source model.DeepstackSource,
 	base reference.Value,
 	inputs []reference.Value,
 ) *reference.Value {
-	if len(inputs) == 0 {
+	if len(inputs) == 0 || source == model.DeepstackSourceNone {
 		return nil
 	}
-	if spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" {
-		if after && layer < spec.DeepstackLayerCount {
-			return &inputs[layer]
-		}
-		return nil
-	}
-	if spec.Architecture != "granite" || after || layer == 0 || int(layer) >= len(spec.DeepstackMapping) {
-		return nil
-	}
-	stream := spec.DeepstackMapping[layer]
-	if stream < 0 {
-		return nil
-	}
-	if stream == 0 {
+	if source == model.DeepstackSourceBase {
 		return &base
 	}
-	index := int(stream - 1)
-	if index >= len(inputs) {
+	index := int(source)
+	if index < 0 || index >= len(inputs) {
 		return nil
 	}
 	return &inputs[index]

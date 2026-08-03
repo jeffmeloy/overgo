@@ -2045,26 +2045,21 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if profile.Has(ArchitecturePostNorm) || spec.Architecture == "olmo2" {
-			attentionPostNormName := "post_attention_norm.weight"
-			feedForwardPostNormName := "post_ffw_norm.weight"
-			if profile.Has(ArchitectureBERTNormLayout) || spec.Architecture == "grok" {
-				attentionPostNormName = "attn_output_norm.weight"
-				feedForwardPostNormName = "layer_output_norm.weight"
-				if spec.Architecture == "grok" {
-					if _, ok := tensors[prefix+feedForwardPostNormName]; !ok {
-						feedForwardPostNormName = "ffn_post_norm.weight"
-					}
+			normNames := profile.PostNormTensors()
+			if normNames.FeedForwardFallback != "" {
+				if _, ok := tensors[prefix+normNames.FeedForwardWeight]; !ok {
+					normNames.FeedForwardWeight = normNames.FeedForwardFallback
 				}
 			}
 			attentionPostNorm, normErr := required(
-				prefix+attentionPostNormName,
+				prefix+normNames.AttentionWeight,
 				uint64(spec.EmbeddingLength),
 			)
 			if normErr != nil {
 				return Weights{}, normErr
 			}
 			feedForwardPostNorm, normErr := required(
-				prefix+feedForwardPostNormName,
+				prefix+normNames.FeedForwardWeight,
 				uint64(spec.EmbeddingLength),
 			)
 			if normErr != nil {
@@ -2072,12 +2067,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionPostNorm = &attentionPostNorm
 			layer.FeedForwardPostNorm = &feedForwardPostNorm
-			if profile.Has(ArchitectureBERTNormLayout) {
-				attentionBias, biasErr := required(prefix+"attn_output_norm.bias", uint64(spec.EmbeddingLength))
+			if normNames.AttentionBias != "" {
+				attentionBias, biasErr := required(prefix+normNames.AttentionBias, uint64(spec.EmbeddingLength))
 				if biasErr != nil {
 					return Weights{}, biasErr
 				}
-				feedForwardBias, biasErr := required(prefix+"layer_output_norm.bias", uint64(spec.EmbeddingLength))
+				feedForwardBias, biasErr := required(prefix+normNames.FeedForwardBias, uint64(spec.EmbeddingLength))
 				if biasErr != nil {
 					return Weights{}, biasErr
 				}
@@ -2119,19 +2114,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "mamba" || spec.Architecture == "mamba2" {
 			continue
 		}
-		feedForwardNormName := "ffn_norm.weight"
-		if spec.Architecture == "falcon-h1" {
-			feedForwardNormName = "ffn_norm"
-		}
-		if spec.Architecture == "dbrx" {
-			feedForwardNormName = "attn_output_norm.weight"
-		}
-		if spec.Architecture == "glm4moe" {
-			feedForwardNormName = "attn_post_norm.weight"
-		}
-		if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" || spec.Architecture == "seed_oss" {
-			feedForwardNormName = "post_attention_norm.weight"
-		}
+		feedForwardNormName := profile.FeedForwardNormTensor()
 		if spec.Architecture == "stablelm" {
 			if _, ok := tensors[prefix+feedForwardNormName]; ok {
 				if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {

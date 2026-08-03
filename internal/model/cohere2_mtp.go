@@ -14,8 +14,7 @@ func BuildCohere2MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.Profile().HasSingleDraft(DraftCohere2MTP, spec.NextNPredictLayers), mtpArchitectureNorm,
-		"Cohere2-MoE MTP input is nil", "Cohere2-MoE MTP input shape is incompatible",
+		cohere2MTPPolicy, 0,
 	)
 }
 
@@ -48,9 +47,6 @@ func BuildCohere2MTPOutputs(
 	spec Spec,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	return buildMTPOutputs(
-		builder, input, outputNorm, output, spec,
-		spec.Profile().HasSingleDraft(DraftCohere2MTP, spec.NextNPredictLayers),
-		false, true, mtpArchitectureNorm,
-		"Cohere2-MoE MTP output is nil", "Cohere2-MoE MTP output shape is incompatible",
+		builder, input, outputNorm, output, spec, cohere2MTPPolicy, 0,
 	)
 }

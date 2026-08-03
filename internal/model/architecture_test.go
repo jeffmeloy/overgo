@@ -145,3 +145,77 @@ func TestArchitectureProfileFusedQKVPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
+	tests := []struct {
+		architecture string
+		overrides    EmbeddingOverridePolicy
+		deepstack    DeepstackPolicy
+		blocks       AttentionBlockPolicy
+	}{
+		{"llama", EmbeddingOverrideStandard, DeepstackNone, AttentionBlocksNone},
+		{"cogvlm", EmbeddingOverrideCogVLM, DeepstackNone, AttentionBlocksNone},
+		{"gemma4", EmbeddingOverrideRawScaled, DeepstackNone, AttentionBlocksUncached},
+		{"granite", EmbeddingOverrideDeepstackBase, DeepstackMappedBefore, AttentionBlocksNone},
+		{"qwen3vl", EmbeddingOverrideStandard, DeepstackSequentialAfter, AttentionBlocksNone},
+	}
+	for _, test := range tests {
+		profile, ok := LookupArchitecture(test.architecture)
+		if !ok || profile.Overrides != test.overrides || profile.Deepstack != test.deepstack ||
+			profile.AttentionBlocks != test.blocks {
+			t.Fatalf("%s projected-input policies = %#v", test.architecture, profile)
+		}
+	}
+}
+
+func TestArchitectureProfileLayerSideInputPolicies(t *testing.T) {
+	for architecture, want := range map[string]AuxiliaryFlow{
+		"llama": AuxiliaryNone, "rwkv7": AuxiliaryRWKVValue, "arwkv7": AuxiliaryRWKVValue,
+		"glm-dsa": AuxiliaryDSATopK, "deepseek32": AuxiliaryNone,
+	} {
+		profile, _ := LookupArchitecture(architecture)
+		if profile.Auxiliary != want {
+			t.Fatalf("%s auxiliary flow = %v, want %v", architecture, profile.Auxiliary, want)
+		}
+	}
+	for architecture, want := range map[string]AttentionTemperaturePolicy{
+		"llama": AttentionTemperatureNone, "llama4": AttentionTemperatureNoRoPE,
+		"deepseek2": AttentionTemperatureConfigured, "mistral3": AttentionTemperatureConfigured,
+		"mistral4": AttentionTemperatureConfigured,
+	} {
+		profile, _ := LookupArchitecture(architecture)
+		if profile.Temperature != want {
+			t.Fatalf("%s temperature policy = %v, want %v", architecture, profile.Temperature, want)
+		}
+	}
+}
+
+func TestArchitectureProfileNormTensorCatalog(t *testing.T) {
+	for architecture, want := range map[string]PostNormTensorNames{
+		"llama": {
+			AttentionWeight: "post_attention_norm.weight", FeedForwardWeight: "post_ffw_norm.weight",
+		},
+		"bert": {
+			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
+			AttentionBias: "attn_output_norm.bias", FeedForwardBias: "layer_output_norm.bias",
+		},
+		"grok": {
+			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
+			FeedForwardFallback: "ffn_post_norm.weight",
+		},
+	} {
+		profile, _ := LookupArchitecture(architecture)
+		if got := profile.PostNormTensors(); got != want {
+			t.Fatalf("%s post-norm tensors = %#v, want %#v", architecture, got, want)
+		}
+	}
+	for architecture, want := range map[string]string{
+		"llama": "ffn_norm.weight", "falcon-h1": "ffn_norm", "dbrx": "attn_output_norm.weight",
+		"glm4moe": "attn_post_norm.weight", "qwen35": "post_attention_norm.weight",
+	} {
+		profile, _ := LookupArchitecture(architecture)
+		if got := profile.FeedForwardNormTensor(); got != want {
+			t.Fatalf("%s FFN norm tensor = %q, want %q", architecture, got, want)
+		}
+	}
+}

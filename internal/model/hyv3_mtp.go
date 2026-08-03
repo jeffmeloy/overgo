@@ -15,8 +15,7 @@ func BuildHYV3MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.Profile().HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, offset), mtpWeightedRMS,
-		"HY-V3 MTP input is nil", "HY-V3 MTP input shape is incompatible",
+		hyv3MTPPolicy, offset,
 	)
 }
 
@@ -47,8 +46,6 @@ func BuildHYV3MTPOutputs(
 	offset uint32,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	return buildMTPOutputs(
-		builder, input, outputNorm, output, spec,
-		spec.Profile().HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, offset), false, false, mtpWeightedRMS,
-		"HY-V3 MTP output is nil", "HY-V3 MTP output shape is incompatible",
+		builder, input, outputNorm, output, spec, hyv3MTPPolicy, offset,
 	)
 }

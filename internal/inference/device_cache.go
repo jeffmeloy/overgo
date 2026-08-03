@@ -634,6 +634,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	states := make([]map[string]deviceGraphState, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
+		plan := r.layerPlan(layerIndex, info.Recurrent)
 		graphWeights, layerFeeds, layerErr := r.layerDeviceInputs(builder, info)
 		if layerErr != nil {
 			return fail(layerErr)
@@ -647,7 +648,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if len(perLayerInputs) > 0 {
 			graphWeights.PerLayerInput = perLayerInputs[layerIndex]
 		}
-		if r.spec.Profile().Attention == model.AttentionQwenGDN {
+		if plan.Attention == model.AttentionQwenGDN {
 			var pastKey, pastValue, convState, ssmState *tensor.Tensor
 			if past != nil {
 				first := past.Keys[layerIndex]
@@ -695,7 +696,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			continue
 		}
-		if r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe" {
+		if plan.Attention == model.AttentionLFM2 {
 			pastKey, pastValue, _, _, inputErr := r.deviceBatchLayerCacheInputs(
 				builder, prefix, layerIndex, info, past, hostFeeds, deviceFeeds,
 			)
@@ -731,23 +732,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		); tempErr != nil {
 			return fail(tempErr)
 		}
-		var (
-			result   model.DenseBlockResult
-			buildErr error
-		)
-		if r.spec.Profile().Has(model.ArchitectureRecurrent) {
-			result, buildErr = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-				Builder: builder, Input: current, Spec: r.spec, Weights: graphWeights,
-				Positions: positions, TokenRows: rows, PastKey: pastKey, PastValue: pastValue,
-				PastConvState: pastConvState, PastSSMState: pastSSMState,
-				Layer: uint32(layerIndex), Recurrent: info.Recurrent,
-			})
-		} else {
-			result, buildErr = model.BuildDenseBlockCachedForLayer(
-				builder, current, r.spec, graphWeights, positions,
-				pastKey, pastValue, uint32(layerIndex),
-			)
-		}
+		result, buildErr := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+			Builder: builder, Input: current, Spec: r.spec, Weights: graphWeights,
+			Positions: positions, TokenRows: rows, PastKey: pastKey, PastValue: pastValue,
+			PastConvState: pastConvState, PastSSMState: pastSSMState,
+			Layer: uint32(layerIndex), Recurrent: info.Recurrent, Plan: &plan,
+		})
 		if buildErr != nil {
 			return fail(buildErr)
 		}
@@ -810,6 +800,7 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, error) {
+	plan := r.layerPlan(layerIndex, info.Recurrent)
 	inputDevice := func(name string, value executor.DeviceValue) *tensor.Tensor {
 		input := builder.Input(name, dtype.F32, value.Shape)
 		deviceFeeds[input] = value.Pointer
@@ -824,13 +815,13 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	name := func(suffix string) string {
 		return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
 	}
-	if r.spec.Architecture == "falcon-h1" {
+	if plan.Cache == model.CacheFalconH1 {
 		var pastKey, pastValue *tensor.Tensor
 		if past != nil {
 			pastKey = inputDevice(name("cache_key"), past.Keys[layerIndex])
 			pastValue = inputDevice(name("cache_value"), past.Values[layerIndex])
 		}
-		schema, err := model.CacheSchema(r.spec, layerIndex, info, 0)
+		schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 0)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -851,7 +842,7 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		}
 		return pastKey, pastValue, convState, ssmState, nil
 	}
-	schema, err := model.CacheSchema(r.spec, layerIndex, info, 0)
+	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 0)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

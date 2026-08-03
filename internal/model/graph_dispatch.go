@@ -25,6 +25,7 @@ type BlockDispatchOptions struct {
 	PerLayerInput    *tensor.Tensor
 	Layer            uint32
 	Recurrent        bool
+	Plan             *LayerPlan
 }
 
 // BuildArchitectureBlockCached: family-routed graph construction.
@@ -38,121 +39,79 @@ func BuildArchitectureBlockCached(
 		}
 	}
 	plan := options.Spec.PlanLayer(options.Layer, options.Recurrent)
-	switch plan.GraphFamily {
-	case ArchitectureFamilyRecurrent, ArchitectureFamilyHybrid:
-		if result, handled, err := buildRecurrentFamilyBlock(options, plan); handled {
-			return result, err
-		}
-	case ArchitectureFamilyMoE:
-		if result, handled, err := buildMoEFamilyBlock(options, plan); handled {
-			return result, err
-		}
-	case ArchitectureFamilyEncoderDecoder:
+	if options.Plan != nil {
+		plan = *options.Plan
+	}
+	if plan.GraphFamily == ArchitectureFamilyEncoderDecoder {
 		return DenseBlockResult{}, errors.New(
 			"encoder-decoder blocks require explicit encoder state",
 		)
 	}
-	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA {
-		return BuildMLABlockCachedForLayer(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, options.PastKey, options.PastValue, options.Layer,
-		)
-	}
-	return buildAttentionFamilyBlock(options)
-}
-
-func buildRecurrentFamilyBlock(
-	options BlockDispatchOptions,
-	plan LayerPlan,
-) (DenseBlockResult, bool, error) {
-	var result DenseBlockResult
-	var err error
-	switch options.Spec.Architecture {
-	case "mamba":
-		result, err = BuildMambaBlockCached(
+	switch plan.Block {
+	case BlockMamba:
+		return BuildMambaBlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.PastKey, options.PastValue,
 		)
-	case "mamba2":
-		result, err = BuildMamba2BlockCached(
+	case BlockMamba2:
+		return BuildMamba2BlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.PastKey, options.PastValue,
 		)
-	case "falcon-h1":
-		result, err = BuildFalconH1BlockCached(
+	case BlockFalconH1:
+		return BuildFalconH1BlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.PastKey, options.PastValue,
 			options.PastConvState, options.PastSSMState,
 		)
-	case "jamba":
-		if !plan.Recurrent {
-			return DenseBlockResult{}, false, nil
-		}
-		result, err = BuildJambaRecurrentBlockCached(
+	case BlockJamba:
+		return BuildJambaRecurrentBlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.PastKey, options.PastValue,
 		)
-	case "granitehybrid":
-		if !plan.Recurrent {
-			return DenseBlockResult{}, false, nil
-		}
-		result, err = BuildGraniteHybridRecurrentBlockCached(
+	case BlockGraniteHybrid:
+		return BuildGraniteHybridRecurrentBlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.PastKey, options.PastValue,
 		)
-	case "plamo2":
-		if !plan.Recurrent {
-			return DenseBlockResult{}, false, nil
-		}
-		result, err = BuildPLaMo2RecurrentBlockCached(
+	case BlockPLaMo2:
+		return BuildPLaMo2RecurrentBlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.PastKey, options.PastValue,
 		)
-	case "nemotron_h", "nemotron_h_moe":
-		result, err = BuildNemotronHBlockCached(
+	case BlockNemotronH:
+		return BuildNemotronHBlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.PastKey, options.PastValue, options.Layer,
 		)
-	case "kimi-linear":
-		result, err = BuildKimiLinearBlockCached(
+	case BlockKimiLinear:
+		return BuildKimiLinearBlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, plan.Recurrent, options.PastKey,
 			options.PastValue, options.Layer,
 		)
-	default:
-		return DenseBlockResult{}, false, nil
-	}
-	return result, true, err
-}
-
-func buildMoEFamilyBlock(
-	options BlockDispatchOptions,
-	plan LayerPlan,
-) (DenseBlockResult, bool, error) {
-	if plan.Attention == AttentionDSA {
-		result, err := BuildDSABlockCached(
+	case BlockDSA:
+		return BuildDSABlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.PastKey, options.PastValue,
 			options.PastIndexerKey, options.PerLayerInput, options.Layer,
 		)
-		return result, true, err
-	}
-	if options.Spec.Architecture == "deepseek4" {
-		result, err := BuildDeepSeek4BlockCached(
+	case BlockDeepSeek4:
+		return BuildDeepSeek4BlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.TokenRows, options.PastKey,
 			options.PastStates, options.CurrentPositions, options.Layer,
 		)
-		return result, true, err
-	}
-	if plan.Attention == AttentionMLA {
-		result, err := BuildMLABlockCachedForLayer(
+	case BlockMLA:
+		return BuildMLABlockCachedForLayer(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.PastKey, options.PastValue, options.Layer,
 		)
-		return result, true, err
+	case BlockDense:
+		return buildAttentionFamilyBlock(options)
+	default:
+		return DenseBlockResult{}, errors.New("unknown compiled block policy")
 	}
-	return DenseBlockResult{}, false, nil
 }
 
 func buildAttentionFamilyBlock(

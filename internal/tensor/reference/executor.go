@@ -64,7 +64,7 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 			}
 			inputs[index] = value
 		}
-		value, err := executeNode(node, inputs)
+		value, err := ExecuteOperation(node, inputs)
 		if err != nil {
 			return nil, fmt.Errorf("execute tensor %d (%s): %w", node.ID, node.Op, err)
 		}
@@ -81,6 +81,10 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 	if node == nil {
 		return Value{}, errors.New("reference operation is nil")
+	}
+	descriptor, ok := tensor.DescribeOperation(node.Op)
+	if !ok || descriptor.Backends&tensor.BackendReference == 0 {
+		return Value{}, fmt.Errorf("unsupported reference operation %s", node.Op)
 	}
 	return executeNode(node, inputs)
 }

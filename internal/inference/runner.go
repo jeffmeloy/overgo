@@ -152,6 +152,7 @@ type Runner struct {
 	file          *gguf.File
 	path          string
 	spec          model.Spec
+	plan          model.ModelPlan
 	weights       model.Weights
 	vocab         *tokenizer.Vocab
 	cuda          *executor.Executor
@@ -225,6 +226,10 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		return fail(err)
 	}
 	weights, err := model.ReadWeights(file, spec)
+	if err != nil {
+		return fail(err)
+	}
+	plan, err := model.CompileModelPlan(spec, weights)
 	if err != nil {
 		return fail(err)
 	}
@@ -356,6 +361,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		file:                file,
 		path:                path,
 		spec:                spec,
+		plan:                plan,
 		weights:             weights,
 		vocab:               vocab,
 		cuda:                cuda,
@@ -562,6 +568,13 @@ func (r *Runner) Spec() model.Spec {
 		return model.Spec{}
 	}
 	return r.spec
+}
+
+func (r *Runner) layerPlan(layer int, recurrent bool) model.LayerPlan {
+	if r != nil && layer >= 0 && layer < len(r.plan.Layers) {
+		return r.plan.Layers[layer]
+	}
+	return r.spec.PlanLayer(uint32(layer), recurrent)
 }
 
 func (r *Runner) Vocab() *tokenizer.Vocab {
@@ -1979,7 +1992,8 @@ func (r *Runner) runLayerCached(
 	visualMode bool,
 	attentionBlockIDs []float32,
 ) (reference.Value, LayerCache, error) {
-	if r.spec.Profile().Attention == model.AttentionQwenGDN {
+	plan := r.layerPlan(layerIndex, info.Recurrent)
+	if plan.Attention == model.AttentionQwenGDN {
 		return r.runQwen35LayerCached(
 			ctx,
 			activation,
@@ -1990,7 +2004,7 @@ func (r *Runner) runLayerCached(
 			multiPositions,
 		)
 	}
-	if r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe" {
+	if plan.Attention == model.AttentionLFM2 {
 		return r.runLFM2LayerCached(ctx, activation, info, layerIndex, positions, past)
 	}
 	builder := r.newGraphBuilder()
@@ -2044,129 +2058,9 @@ func (r *Runner) runLayerCached(
 	if err := addAttentionTemperatureInput(builder, r.spec, positions, uint32(layerIndex), hostFeeds, &graphWeights); err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	var pastKey, pastValue, pastIndexerKey, pastConvState, pastSSMState *tensor.Tensor
-	pastDeepSeek4States := make(map[string]*tensor.Tensor)
-	jambaRecurrent := r.spec.Architecture == "jamba" && layerIndex < len(r.weights.Layers) &&
-		r.weights.Layers[layerIndex].Recurrent
-	graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && layerIndex < len(r.weights.Layers) &&
-		r.weights.Layers[layerIndex].Recurrent
-	plamo2Recurrent := r.spec.Architecture == "plamo2" && layerIndex < len(r.weights.Layers) &&
-		r.weights.Layers[layerIndex].Recurrent
-	nemotronHRecurrent := (r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe") &&
-		layerIndex < len(r.weights.Layers) && r.weights.Layers[layerIndex].Recurrent
-	kimiRecurrent := r.spec.Architecture == "kimi-linear" && layerIndex < len(r.weights.Layers) &&
-		r.weights.Layers[layerIndex].Recurrent
-	if r.spec.Architecture == "rwkv6" {
-		shiftShape := tensor.MustShape(uint64(r.spec.EmbeddingLength), 2)
-		stateShape := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
-		shiftElements, _ := shiftShape.Elements()
-		stateElements, _ := stateShape.Elements()
-		shiftValue := reference.Value{Shape: shiftShape, Data: make([]float32, int(shiftElements))}
-		stateValue := reference.Value{Shape: stateShape, Data: make([]float32, int(stateElements))}
-		if past != nil {
-			shiftValue, stateValue = past.Key, past.Value
-		}
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.token_shift", layerIndex), dtype.F32, shiftValue.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.wkv_state", layerIndex), dtype.F32, stateValue.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = shiftValue, stateValue
-	} else if r.spec.Architecture == "rwkv6qwen2" {
-		shiftShape := tensor.MustShape(uint64(r.spec.EmbeddingLength))
-		stateShape := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
-		shiftElements, _ := shiftShape.Elements()
-		stateElements, _ := stateShape.Elements()
-		shiftValue := reference.Value{Shape: shiftShape, Data: make([]float32, int(shiftElements))}
-		stateValue := reference.Value{Shape: stateShape, Data: make([]float32, int(stateElements))}
-		if past != nil {
-			shiftValue, stateValue = past.Key, past.Value
-		}
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.token_shift", layerIndex), dtype.F32, shiftValue.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.wkv_state", layerIndex), dtype.F32, stateValue.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = shiftValue, stateValue
-	} else if r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7" {
-		shiftShape := tensor.MustShape(uint64(r.spec.EmbeddingLength), uint64(r.spec.TokenShiftCount))
-		stateShape := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
-		shiftElements, _ := shiftShape.Elements()
-		stateElements, _ := stateShape.Elements()
-		shiftValue := reference.Value{Shape: shiftShape, Data: make([]float32, int(shiftElements))}
-		stateValue := reference.Value{Shape: stateShape, Data: make([]float32, int(stateElements))}
-		if past != nil {
-			shiftValue, stateValue = past.Key, past.Value
-		}
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.token_shift", layerIndex), dtype.F32, shiftValue.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.wkv_state", layerIndex), dtype.F32, stateValue.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = shiftValue, stateValue
-	} else if kimiRecurrent {
-		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), 3*uint64(r.spec.SSMInnerSize))
-		ssmShape := tensor.MustShape(uint64(r.spec.KDAHeadDim), uint64(r.spec.KDAHeadDim), uint64(r.spec.HeadCount), 1)
-		convElements, _ := convShape.Elements()
-		ssmElements, _ := ssmShape.Elements()
-		convValue := reference.Value{Shape: convShape, Data: make([]float32, int(convElements))}
-		ssmValue := reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmElements))}
-		if past != nil {
-			convValue, ssmValue = past.Key, past.Value
-		}
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convValue.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmValue.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = convValue, ssmValue
-	} else if r.spec.Architecture == "falcon-h1" {
-		convWidth := uint64(r.spec.SSMInnerSize) + 2*uint64(r.spec.SSMGroupCount)*uint64(r.spec.SSMStateSize)
-		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convWidth)
-		ssmShape := tensor.MustShape(uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize))
-		convElements, _ := convShape.Elements()
-		ssmElements, _ := ssmShape.Elements()
-		convValue := reference.Value{Shape: convShape, Data: make([]float32, int(convElements))}
-		ssmValue := reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmElements))}
-		if past != nil {
-			pastKey = builder.Input(fmt.Sprintf("blk.%d.cache_key", layerIndex), dtype.F32, past.Key.Shape)
-			pastValue = builder.Input(fmt.Sprintf("blk.%d.cache_value", layerIndex), dtype.F32, past.Value.Shape)
-			hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
-			if state, ok := past.States["conv_state"]; ok {
-				convValue = state.Value
-			}
-			if state, ok := past.States["ssm_state"]; ok {
-				ssmValue = state.Value
-			}
-		}
-		pastConvState = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convValue.Shape)
-		pastSSMState = builder.Input(fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmValue.Shape)
-		hostFeeds[pastConvState], hostFeeds[pastSSMState] = convValue, ssmValue
-	} else if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent || nemotronHRecurrent {
-		convWidth := uint64(r.spec.SSMInnerSize)
-		if r.spec.Architecture == "mamba2" || graniteHybridRecurrent || nemotronHRecurrent {
-			convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
-		}
-		convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convWidth)
-		ssmShape := tensor.MustShape(uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize))
-		convValue := reference.Value{Shape: convShape, Data: make([]float32, int(convShape.Dims[0]*convShape.Dims[1]))}
-		ssmValue := reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmShape.Dims[0]*ssmShape.Dims[1]))}
-		if past != nil {
-			convValue = past.Key
-			ssmValue = past.Value
-		}
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convValue.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmValue.Shape)
-		hostFeeds[pastKey] = convValue
-		hostFeeds[pastValue] = ssmValue
-	} else if past != nil {
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.cache_key", layerIndex), dtype.F32, past.Key.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.cache_value", layerIndex), dtype.F32, past.Value.Shape)
-		hostFeeds[pastKey] = past.Key
-		hostFeeds[pastValue] = past.Value
-		if state, ok := past.States["indexer_key"]; ok {
-			pastIndexerKey = builder.Input(fmt.Sprintf("blk.%d.indexer_key", layerIndex), dtype.F32, state.Value.Shape)
-			hostFeeds[pastIndexerKey] = state.Value
-		}
-		if r.spec.Architecture == "deepseek4" {
-			for _, name := range []string{
-				"positions", "compressor_kv", "compressor_score", "indexer_compressor_kv", "indexer_compressor_score",
-			} {
-				if state, ok := past.States[name]; ok {
-					value := builder.Input(fmt.Sprintf("blk.%d.%s", layerIndex, name), dtype.F32, state.Value.Shape)
-					hostFeeds[value] = state.Value
-					pastDeepSeek4States[name] = value
-				}
-			}
-		}
+	cacheInputs, cacheErr := r.hostLayerCacheInputs(builder, layerIndex, info, plan, past, hostFeeds)
+	if cacheErr != nil {
+		return reference.Value{}, LayerCache{}, cacheErr
 	}
 	var (
 		result model.DenseBlockResult
@@ -2178,7 +2072,7 @@ func (r *Runner) runLayerCached(
 		dispatchMultiPositions = &converted
 	}
 	var currentPositionState *tensor.Tensor
-	if r.spec.Architecture == "deepseek4" {
+	if plan.Cache == model.CacheDeepSeek4 {
 		values := make([]float32, len(positions))
 		for index, position := range positions {
 			values[index] = float32(position)
@@ -2195,16 +2089,17 @@ func (r *Runner) runLayerCached(
 		Positions:        positions,
 		MultiPositions:   dispatchMultiPositions,
 		TokenRows:        tokenRows,
-		PastKey:          pastKey,
-		PastValue:        pastValue,
-		PastIndexerKey:   pastIndexerKey,
-		PastConvState:    pastConvState,
-		PastSSMState:     pastSSMState,
-		PastStates:       pastDeepSeek4States,
+		PastKey:          cacheInputs.key,
+		PastValue:        cacheInputs.value,
+		PastIndexerKey:   cacheInputs.indexerKey,
+		PastConvState:    cacheInputs.convState,
+		PastSSMState:     cacheInputs.ssmState,
+		PastStates:       cacheInputs.states,
 		CurrentPositions: currentPositionState,
 		PerLayerInput:    graphWeights.PerLayerInput,
 		Layer:            uint32(layerIndex),
 		Recurrent:        info.Recurrent,
+		Plan:             &plan,
 	})
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err

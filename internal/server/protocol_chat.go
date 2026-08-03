@@ -391,8 +391,7 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if body.N == 0 {
@@ -436,8 +435,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if body.N == 0 {

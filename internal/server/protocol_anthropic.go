@@ -77,8 +77,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if body.MaxTokens == nil {
@@ -657,8 +656,7 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 	if !h.decodeMultimodalJSON(response, request, &body) {
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)

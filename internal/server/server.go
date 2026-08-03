@@ -1594,8 +1594,7 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if body.Query == nil {
@@ -1686,8 +1685,7 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 	if !h.decodeJSONWithLimit(response, request, &body, maxRequestBytes) {
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if body.EncodingFormat != "" &&
@@ -1776,8 +1774,7 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if body.EncodingFormat != "" && body.EncodingFormat != "float" {
@@ -2051,8 +2048,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if body.N == 0 {
@@ -2457,8 +2453,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	if body.Model != "" && body.Model != h.config.ModelID {
-		writeError(response, http.StatusNotFound, "model_not_found", "requested model is not loaded")
+	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if err := validateNativeCompletionOptions(body); err != nil {

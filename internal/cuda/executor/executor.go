@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"sync"
 	"unsafe"
 
@@ -249,6 +250,37 @@ type executionResult struct {
 	allocations []driver.DevicePtr
 }
 
+// CompiledGraph: validated order and memory plan for repeated execution.
+type CompiledGraph struct {
+	outputs  []*tensor.Tensor
+	order    []*tensor.Tensor
+	memory   planner.Plan
+	needBlas bool
+}
+
+// Compile: validates and plans an immutable tensor graph.
+func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
+	order, err := tensor.Topological(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	memory, err := planner.Build(outputs, 256)
+	if err != nil {
+		return nil, err
+	}
+	compiled := &CompiledGraph{
+		outputs: slices.Clone(outputs), order: order, memory: memory,
+	}
+	for _, node := range order {
+		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
+			node.Inputs[0].Type == dtype.F32 {
+			compiled.needBlas = true
+			break
+		}
+	}
+	return compiled, nil
+}
+
 func New(deviceOrdinal int) (*Executor, error) {
 	worker, err := device.New(deviceOrdinal)
 	if err != nil {
@@ -299,40 +331,24 @@ func (e *Executor) Execute(
 	outputs []*tensor.Tensor,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	if e == nil {
-		return nil, errors.New("CUDA executor is closed")
+	compiled, err := Compile(outputs...)
+	if err != nil {
+		return nil, err
 	}
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closed || e.worker == nil {
-		return nil, errors.New("CUDA executor is closed")
+	return e.ExecuteCompiled(ctx, compiled, feeds)
+}
+
+// ExecuteCompiled: reuses validated topology and memory planning.
+func (e *Executor) ExecuteCompiled(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	feeds map[*tensor.Tensor]reference.Value,
+) (map[*tensor.Tensor]reference.Value, error) {
+	result, err := e.runCompiled(ctx, compiled, feeds, nil, false)
+	if err != nil {
+		return nil, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	err := e.worker.Do(ctx, func(state *device.State) error {
-		needBlas, graphErr := graphRequiresBlas(outputs)
-		if graphErr != nil {
-			return graphErr
-		}
-		resources, resourceErr := e.ensureResources(state, needBlas)
-		if resourceErr != nil {
-			return resourceErr
-		}
-		var executeErr error
-		execution, executeErr := execute(
-			state,
-			outputs,
-			feeds,
-			nil,
-			resources.functions,
-			resources.blas,
-			false,
-		)
-		if executeErr == nil {
-			results = execution.host
-		}
-		return executeErr
-	})
-	return results, err
+	return result.host, nil
 }
 
 // ExecuteWithDeviceFeeds: evaluates graph with selected F32 input nodes
@@ -343,40 +359,25 @@ func (e *Executor) ExecuteWithDeviceFeeds(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	if e == nil {
-		return nil, errors.New("CUDA executor is closed")
+	compiled, err := Compile(outputs...)
+	if err != nil {
+		return nil, err
 	}
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closed || e.worker == nil {
-		return nil, errors.New("CUDA executor is closed")
+	return e.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds)
+}
+
+// ExecuteCompiledWithDeviceFeeds: compiled graph plus resident inputs.
+func (e *Executor) ExecuteCompiledWithDeviceFeeds(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+) (map[*tensor.Tensor]reference.Value, error) {
+	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, false)
+	if err != nil {
+		return nil, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	err := e.worker.Do(ctx, func(state *device.State) error {
-		needBlas, graphErr := graphRequiresBlas(outputs)
-		if graphErr != nil {
-			return graphErr
-		}
-		resources, resourceErr := e.ensureResources(state, needBlas)
-		if resourceErr != nil {
-			return resourceErr
-		}
-		var executeErr error
-		execution, executeErr := execute(
-			state,
-			outputs,
-			hostFeeds,
-			deviceFeeds,
-			resources.functions,
-			resources.blas,
-			false,
-		)
-		if executeErr == nil {
-			results = execution.host
-		}
-		return executeErr
-	})
-	return results, err
+	return result.host, nil
 }
 
 // ExecuteRetainedWithDeviceFeeds: evaluates graph but leaves each requested
@@ -387,66 +388,84 @@ func (e *Executor) ExecuteRetainedWithDeviceFeeds(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (*RetainedOutputs, error) {
+	compiled, err := Compile(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	return e.ExecuteRetainedCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds)
+}
+
+// ExecuteRetainedCompiledWithDeviceFeeds: compiled retained execution.
+func (e *Executor) ExecuteRetainedCompiledWithDeviceFeeds(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+) (*RetainedOutputs, error) {
+	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, true)
+	if err != nil {
+		return nil, err
+	}
+	return &RetainedOutputs{
+		executor: e, values: execution.values, allocations: execution.allocations,
+	}, nil
+}
+
+func (e *Executor) runCompiled(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	retain bool,
+) (*executionResult, error) {
 	if e == nil {
 		return nil, errors.New("CUDA executor is closed")
+	}
+	if compiled == nil {
+		return nil, errors.New("CUDA compiled graph is nil")
 	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closed || e.worker == nil {
 		return nil, errors.New("CUDA executor is closed")
 	}
-	var result *RetainedOutputs
+	var result *executionResult
 	err := e.worker.Do(ctx, func(state *device.State) error {
-		needBlas, graphErr := graphRequiresBlas(outputs)
-		if graphErr != nil {
-			return graphErr
-		}
-		resources, resourceErr := e.ensureResources(state, needBlas)
+		resources, resourceErr := e.ensureResources(state, compiled.needBlas)
 		if resourceErr != nil {
 			return resourceErr
 		}
-		execution, executeErr := execute(
+		var executeErr error
+		result, executeErr = execute(
 			state,
-			outputs,
+			compiled,
 			hostFeeds,
 			deviceFeeds,
 			resources.functions,
 			resources.blas,
-			true,
+			retain,
 		)
-		if executeErr != nil {
-			return executeErr
-		}
-		result = &RetainedOutputs{
-			executor:    e,
-			values:      execution.values,
-			allocations: execution.allocations,
-		}
-		return nil
+		return executeErr
 	})
 	return result, err
 }
 
 func execute(
 	state *device.State,
-	outputs []*tensor.Tensor,
+	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	functions functionSet,
 	blas *blasState,
 	retainOutputs bool,
 ) (*executionResult, error) {
-	order, err := tensor.Topological(outputs...)
-	if err != nil {
-		return nil, err
-	}
-	plan, err := planner.Build(outputs, 256)
-	if err != nil {
-		return nil, err
-	}
+	outputs := compiled.outputs
+	order := compiled.order
+	plan := compiled.memory
 
 	var arena driver.DevicePtr
 	if plan.ArenaSize > 0 {
+		var err error
 		arena, err = state.Driver.MemAlloc(plan.ArenaSize)
 		if err != nil {
 			return nil, err
@@ -821,19 +840,6 @@ type blasState struct {
 	handle  cublas.Handle
 }
 
-func graphRequiresBlas(outputs []*tensor.Tensor) (bool, error) {
-	nodes, err := tensor.Topological(outputs...)
-	if err != nil {
-		return false, err
-	}
-	for _, node := range nodes {
-		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) && node.Inputs[0].Type == dtype.F32 {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func (e *Executor) ensureResources(
 	state *device.State,
 	needBlas bool,
@@ -1029,6 +1035,10 @@ func launchNode(
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
+	descriptor, ok := tensor.DescribeOperation(node.Op)
+	if !ok || descriptor.Backends&tensor.BackendCUDA == 0 {
+		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
+	}
 	output := pointers[node]
 	switch node.Op {
 	case tensor.OpDeepSeek4HCInit, tensor.OpDeepSeek4HCPre, tensor.OpDeepSeek4HCPost,

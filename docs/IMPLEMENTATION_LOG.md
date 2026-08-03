@@ -693,7 +693,12 @@ claims.
   serialization, corruption checks, cache validation, and complete CUDA block
   differentials pass. Real decoder-model validation remains pending a fixture.
 
-## Current runtime limitations
+## Historical runtime notes
+
+These cumulative notes preserve the runtime boundary at each implementation
+milestone. `IMPLEMENTATION_STATUS.md` and generated `docs/COMPATIBILITY.md` are
+the authoritative current views; later entries below supersede earlier pending
+statements.
 
 - Preloaded dense generation retains KV state on-device between ordinary
   decoding calls and device-backed prompt reuse can require zero submissions.
@@ -1913,6 +1918,22 @@ Every multimodal runner delegates resource closure to one generic transaction
 and host tensor pairs to one loader. CLI commands share error exits, compact or
 pretty JSON emission, and generated-artifact check/update/output behavior.
 Reusable WAV fixtures cover PCM16 and float32 without local RIFF builders.
+
+## Compiled execution contracts
+
+Model opening now compiles an immutable `ModelPlan` with one block policy and
+cache policy per layer. Graph dispatch no longer routes on architecture names,
+and host cache-input construction materializes fixed, token, and named states
+from the same cache schema used by validation and device execution. This
+removed the parallel RWKV, Mamba, Kimi, Falcon-H1, and hybrid cache setup chain
+from the core runner.
+
+CUDA execution now supports reusable `CompiledGraph` values containing
+validated topological order, BLAS requirements, and arena liveness plans.
+Host, device-feed, and retained-output entry points share one compiled
+execution transaction. A typed tensor operation catalog owns operation names,
+diagnostic classes, and declared reference/CUDA coverage. Server protocols now
+share optional model-selector enforcement.
 
 ## Working rules
 

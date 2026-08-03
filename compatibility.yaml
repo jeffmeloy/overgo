@@ -49,6 +49,30 @@ claims:
         contains: "func (w *Worker) Do("
       - path: internal/cuda/device/worker_windows_test.go
         contains: "func TestWorkerMemoryRoundTrip("
+  - id: compiled-model-plan
+    status: implemented
+    summary: Model opening compiles per-layer graph, cache, attention, position, residual, and feed-forward policy before execution.
+    evidence:
+      - path: internal/model/layer_plan.go
+        contains: "func CompileModelPlan("
+      - path: internal/model/layer_plan_test.go
+        contains: "func TestCompileModelPlanPinsLayerPolicies("
+  - id: compiled-cuda-graph
+    status: implemented
+    summary: Repeated CUDA graph execution can reuse validated topology, BLAS selection, and arena planning.
+    evidence:
+      - path: internal/cuda/executor/executor.go
+        contains: "func Compile("
+      - path: internal/cuda/executor/compile_test.go
+        contains: "func TestCompilePinsTopologyAndMemoryPlan("
+  - id: tensor-operation-catalog
+    status: implemented
+    summary: Tensor operation identity, diagnostic class, and backend coverage share one typed catalog.
+    evidence:
+      - path: internal/tensor/operation.go
+        contains: "func DescribeOperation("
+      - path: internal/tensor/operation_test.go
+        contains: "func TestOperationCatalogIsDenseAndUnique("
   - id: editable-prompt-cache
     status: implemented
     summary: Bounded prompt caches support selection, eviction, context edits, and exact media-signed replay.

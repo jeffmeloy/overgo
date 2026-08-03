@@ -127,14 +127,15 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		if index < len(r.weights.Layers) {
 			info = r.weights.Layers[index]
 		}
-		schema, err := model.CacheSchema(r.spec, index, info, cache.Tokens)
+		plan := r.layerPlan(index, info.Recurrent)
+		schema, err := model.CacheSchemaForPlan(r.spec, plan, info, cache.Tokens)
 		if err != nil {
 			return fmt.Errorf("inference: KV cache layer %d schema: %w", index, err)
 		}
 		if err := validateLayerCacheSchema(layer, schema); err != nil {
 			return fmt.Errorf("inference: KV cache layer %d: %w", index, err)
 		}
-		if r.spec.Profile().Attention == model.AttentionDSA {
+		if plan.Attention == model.AttentionDSA {
 			state, present := layer.States["indexer_key"]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
@@ -145,7 +146,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: DSA shared layer %d has indexer state", index)
 			}
 		}
-		if r.spec.Architecture == "deepseek4" {
+		if plan.Cache == model.CacheDeepSeek4 {
 			ratio := r.spec.CompressRatios[index]
 			expected := map[string]tensor.Shape{
 				"positions": tensor.MustShape(1, 1, uint64(cache.Tokens)),

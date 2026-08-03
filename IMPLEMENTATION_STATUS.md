@@ -29,6 +29,9 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Model opening now compiles immutable per-layer block/cache policies; host and device cache setup plus graph dispatch consume the same plan.
+- CUDA graphs expose reusable compiled topology, BLAS selection, and arena plans; tensor operation identity and backend coverage share one typed catalog.
+- Server protocols share optional model-selection enforcement, and compatibility claims cover the compiled plan/graph/catalog contracts.
 - Sampler, KV-cache, and all MTP/session persistence now share bounded state encoding, checked sizing, legacy-version reads, and trailing-data enforcement.
 - Standard slice/map cloning replaced 140 handwritten copy idioms; BF16 conversion, CUDA host scalar views, and adaptive-p transforms now each have one implementation.
 - Projector resource closure and host tensor-pair loading are shared across all multimodal runners; commands share error exits, JSON output, and generated-artifact workflows.

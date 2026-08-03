@@ -119,9 +119,9 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
 	for layerIndex := range cache.Keys {
-		recurrent := layerUsesRecurrentPrimaryCache(
+		recurrent := model.PrimaryCacheExtent(
 			r.spec, layerIndex, r.weights.Layers[layerIndex],
-		)
+		) == model.CacheExtentFixed
 		if recurrent {
 			// Recurrent primary state: position-independent.
 		} else {
@@ -217,9 +217,9 @@ func (r *Runner) compactDeviceCacheForAppend(
 	stateTargets := make([]stateCopyTarget, 0)
 	stateCopies := make([]executor.DeviceCopy, 0)
 	for layerIndex := range cache.Keys {
-		recurrent := layerUsesRecurrentPrimaryCache(
+		recurrent := model.PrimaryCacheExtent(
 			r.spec, layerIndex, r.weights.Layers[layerIndex],
-		)
+		) == model.CacheExtentFixed
 		for _, item := range []struct {
 			label string
 			value executor.DeviceValue
@@ -647,7 +647,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if len(perLayerInputs) > 0 {
 			graphWeights.PerLayerInput = perLayerInputs[layerIndex]
 		}
-		if isQwenGDNArchitecture(r.spec.Architecture) {
+		if r.spec.Profile().Attention == model.AttentionQwenGDN {
 			var pastKey, pastValue, convState, ssmState *tensor.Tensor
 			if past != nil {
 				first := past.Keys[layerIndex]
@@ -830,10 +830,12 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 			pastKey = inputDevice(name("cache_key"), past.Keys[layerIndex])
 			pastValue = inputDevice(name("cache_value"), past.Values[layerIndex])
 		}
-		convShape, ssmShape, err := recurrentPrimaryStateShapes(r.spec, layerIndex, info)
+		schema, err := model.CacheSchema(r.spec, layerIndex, info, 0)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
+		convShape := schema.States["conv_state"].Shape
+		ssmShape := schema.States["ssm_state"].Shape
 		var convState, ssmState *tensor.Tensor
 		if past != nil && layerIndex < len(past.States) {
 			conv, hasConv := past.States[layerIndex]["conv_state"]
@@ -849,85 +851,23 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		}
 		return pastKey, pastValue, convState, ssmState, nil
 	}
-	if layerUsesRecurrentPrimaryCache(r.spec, layerIndex, info) {
+	schema, err := model.CacheSchema(r.spec, layerIndex, info, 0)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if schema.Primary[0].Extent == model.CacheExtentFixed {
 		if past != nil {
 			return inputDevice(name("state_0"), past.Keys[layerIndex]),
 				inputDevice(name("state_1"), past.Values[layerIndex]), nil, nil, nil
 		}
-		firstShape, secondShape, err := recurrentPrimaryStateShapes(r.spec, layerIndex, info)
-		if err != nil {
-			return nil, nil, nil, nil, err
-		}
-		return inputZero(name("state_0"), firstShape),
-			inputZero(name("state_1"), secondShape), nil, nil, nil
+		return inputZero(name("state_0"), schema.Primary[0].Shape),
+			inputZero(name("state_1"), schema.Primary[1].Shape), nil, nil, nil
 	}
 	if past == nil {
 		return nil, nil, nil, nil, nil
 	}
 	return inputDevice(name("cache_key"), past.Keys[layerIndex]),
 		inputDevice(name("cache_value"), past.Values[layerIndex]), nil, nil, nil
-}
-
-func layerUsesRecurrentPrimaryCache(
-	spec model.Spec,
-	layerIndex int,
-	info model.LayerWeights,
-) bool {
-	switch spec.Architecture {
-	case "mamba", "mamba2", "rwkv6", "rwkv6qwen2", "rwkv7", "arwkv7":
-		return true
-	case "jamba", "granitehybrid", "plamo2", "kimi-linear", "lfm2", "lfm2moe":
-		return info.Recurrent
-	case "nemotron_h", "nemotron_h_moe":
-		return spec.IsRecurrentLayer(uint32(layerIndex))
-	default:
-		return info.Recurrent
-	}
-}
-
-func recurrentPrimaryStateShapes(
-	spec model.Spec,
-	layerIndex int,
-	info model.LayerWeights,
-) (tensor.Shape, tensor.Shape, error) {
-	embedding := uint64(spec.EmbeddingLength)
-	switch spec.Architecture {
-	case "rwkv6":
-		return tensor.MustShape(embedding, 2), tensor.MustShape(
-			uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
-		), nil
-	case "rwkv6qwen2":
-		return tensor.MustShape(embedding), tensor.MustShape(
-			uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
-		), nil
-	case "rwkv7", "arwkv7":
-		return tensor.MustShape(embedding, uint64(spec.TokenShiftCount)), tensor.MustShape(
-			uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
-		), nil
-	case "kimi-linear":
-		if info.Recurrent {
-			return tensor.MustShape(uint64(spec.SSMConvKernel-1), 3*uint64(spec.SSMInnerSize)),
-				tensor.MustShape(
-					uint64(spec.KDAHeadDim), uint64(spec.KDAHeadDim), uint64(spec.HeadCount), 1,
-				), nil
-		}
-	case "falcon-h1", "mamba2", "granitehybrid", "nemotron_h", "nemotron_h_moe":
-		channels := uint64(spec.SSMInnerSize) +
-			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
-		return tensor.MustShape(uint64(spec.SSMConvKernel-1), channels),
-			tensor.MustShape(uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)), nil
-	case "mamba", "jamba", "plamo2":
-		return tensor.MustShape(uint64(spec.SSMConvKernel-1), uint64(spec.SSMInnerSize)),
-			tensor.MustShape(uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)), nil
-	case "lfm2", "lfm2moe":
-		return tensor.MustShape(
-			uint64(spec.ShortConvCacheLength-1), uint64(spec.EmbeddingLength),
-		), tensor.MustShape(1), nil
-	}
-	return tensor.Shape{}, tensor.Shape{}, fmt.Errorf(
-		"inference: architecture %s layer %d has no recurrent device-state shape",
-		spec.Architecture, layerIndex,
-	)
 }
 
 func rebuildDeviceCachePages(

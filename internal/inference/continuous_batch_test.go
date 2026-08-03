@@ -143,24 +143,32 @@ func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
 		{"mamba", true}, {"mamba2", true}, {"jamba", true},
 		{"granitehybrid", true}, {"plamo2", true}, {"kimi-linear", true},
 		{"rwkv6", true}, {"rwkv6qwen2", true}, {"rwkv7", true},
-		{"arwkv7", true}, {"falcon-h1", false}, {"nemotron_h", false},
+		{"arwkv7", true}, {"falcon-h1", false}, {"nemotron_h", true},
 		{"lfm2", true}, {"lfm2moe", true},
 	}
 	for _, test := range tests {
 		t.Run(test.architecture, func(t *testing.T) {
 			spec := model.Spec{CommonSpec: model.CommonSpec{
-				Architecture: test.architecture, EmbeddingLength: 8,
-			}, AttentionSpec: model.AttentionSpec{HeadCount: 2},
+				Architecture: test.architecture, EmbeddingLength: 8, BlockCount: 1,
+			}, AttentionSpec: model.AttentionSpec{
+				HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4,
+			},
 				RecurrentSpec: model.RecurrentSpec{
 					SSMInnerSize: 6, SSMStateSize: 3, SSMGroupCount: 1,
 					SSMConvKernel: 4, WKVHeadSize: 4, TokenShiftCount: 2,
 					KDAHeadDim: 3, ShortConvCacheLength: 4,
+					RecurrentLayers: []bool{test.recurrent},
 				},
 			}
 			info := model.LayerWeights{Recurrent: test.recurrent}
-			first, second, err := recurrentPrimaryStateShapes(spec, 0, info)
+			schema, err := model.CacheSchema(spec, 0, info, 1)
 			if err != nil {
 				t.Fatal(err)
+			}
+			first, second := schema.Primary[0].Shape, schema.Primary[1].Shape
+			if test.architecture == "falcon-h1" {
+				first = schema.States["conv_state"].Shape
+				second = schema.States["ssm_state"].Shape
 			}
 			if first.Rank == 0 || second.Rank == 0 {
 				t.Fatalf("state shapes = %v, %v", first.Slice(), second.Slice())

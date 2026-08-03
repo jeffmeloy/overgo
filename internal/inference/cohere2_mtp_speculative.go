@@ -3,7 +3,6 @@ package inference
 import (
 	"context"
 	"errors"
-	"math"
 
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -23,39 +22,18 @@ func (r *Runner) DraftCohere2MTPGreedy(
 	maximum int,
 	minimumProbability float64,
 ) (*Cohere2MTPDraft, error) {
-	if maximum <= 0 || minimumProbability < 0 || minimumProbability > 1 ||
-		math.IsNaN(minimumProbability) {
+	if !validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: Cohere2-MoE MTP draft limits are invalid")
 	}
 	if session == nil {
 		return nil, errors.New("inference: Cohere2-MoE MTP draft session is nil")
 	}
-	draft := &Cohere2MTPDraft{
-		InitialToken: initialToken, Tokens: make([]tokenizer.TokenID, 0, maximum),
-		Probabilities: make([]float64, 0, maximum), Base: session,
-	}
-	currentToken := initialToken
-	currentSession := session
-	for range maximum {
-		logits, next, err := r.AdvanceCohere2MTP(ctx, currentToken, currentSession)
-		if err != nil {
-			return nil, err
-		}
-		token, probability, err := greedyLogit(logits.Data)
-		if err != nil {
-			return nil, err
-		}
-		if probability < minimumProbability {
-			break
-		}
-		draft.Tokens = append(draft.Tokens, tokenizer.TokenID(token))
-		draft.Probabilities = append(draft.Probabilities, probability)
-		currentToken, currentSession = tokenizer.TokenID(token), next
-		if r.vocab.IsEOG(currentToken) {
-			break
-		}
-	}
-	return draft, nil
+	return draftGreedy(
+		initialToken, session, maximum, minimumProbability, r.vocab.IsEOG,
+		func(token tokenizer.TokenID, state *Cohere2MTPSession) (reference.Value, *Cohere2MTPSession, error) {
+			return r.AdvanceCohere2MTP(ctx, token, state)
+		},
+	)
 }
 
 // VerifyCohere2MTPGreedy: target check plus hidden resync.
@@ -64,11 +42,8 @@ func (r *Runner) VerifyCohere2MTPGreedy(
 	target *Runner,
 	draft *Cohere2MTPDraft,
 ) (*Cohere2MTPVerification, error) {
-	if r == nil || target == nil || draft == nil || draft.Base == nil {
+	if r == nil || target == nil || !validGreedyDraft(draft) || draft.Base == nil {
 		return nil, errors.New("inference: Cohere2-MoE MTP verification inputs are invalid")
-	}
-	if len(draft.Tokens) != len(draft.Probabilities) {
-		return nil, errors.New("inference: Cohere2-MoE MTP draft state is inconsistent")
 	}
 	if r.weights.Cohere2MTP != nil && r.weights.Cohere2MTP.MTPOnly {
 		if err := r.validateCohere2MTPTarget(target); err != nil {
@@ -84,31 +59,12 @@ func (r *Runner) VerifyCohere2MTPGreedy(
 	if draft.Base.targetModel != targetModel {
 		return nil, errors.New("inference: Cohere2-MoE MTP session belongs to a different target model")
 	}
-	mtpSession := draft.Base
-	targetCache := draft.Base.TrunkCache
-	currentToken := draft.InitialToken
-	accepted := 0
-	for {
-		logits, nextSession, err := r.advanceCohere2MTPVerification(
-			ctx, target, currentToken, mtpSession, targetCache,
-		)
-		if err != nil {
-			return nil, err
-		}
-		mtpSession, targetCache = nextSession, nextSession.TrunkCache
-		nextToken, _, err := greedyLogit(logits.Data)
-		if err != nil {
-			return nil, err
-		}
-		if accepted >= len(draft.Tokens) || tokenizer.TokenID(nextToken) != draft.Tokens[accepted] {
-			return &Cohere2MTPVerification{
-				Accepted: accepted, NextToken: tokenizer.TokenID(nextToken),
-				TargetLogits: logits, Session: mtpSession,
-			}, nil
-		}
-		currentToken = draft.Tokens[accepted]
-		accepted++
-	}
+	return verifyGreedy(draft, func(
+		token tokenizer.TokenID,
+		state *Cohere2MTPSession,
+	) (reference.Value, *Cohere2MTPSession, error) {
+		return r.advanceCohere2MTPVerification(ctx, target, token, state, state.TrunkCache)
+	})
 }
 
 func (r *Runner) advanceCohere2MTPVerification(
@@ -124,7 +80,7 @@ func (r *Runner) advanceCohere2MTPVerification(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	logits, err := target.cohere2MTPProjectLogits(ctx, hidden)
+	logits, err := target.projectHiddenLogits(ctx, hidden)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -141,10 +97,5 @@ func (r *Runner) cohere2MTPProjectLogits(
 	ctx context.Context,
 	hidden reference.Value,
 ) (reference.Value, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: Cohere2-MoE target runner is unavailable")
-	}
-	return r.projectAllLogits(ctx, hidden)
+	return r.projectHiddenLogits(ctx, hidden)
 }

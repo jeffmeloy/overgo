@@ -29,6 +29,12 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Typed architecture policies and per-layer plans now drive normalization, position, residual, attention, FFN, graph-family, cache, and weight-catalog dispatch.
+- Declarative layer cache schemas now define host validation, device allocation, shifting, compaction, and recurrent-state shapes.
+- Attention, FFN, and MoE tensor catalogs are separated from orchestration; shared catalog bindings retain ordered validation.
+- Shared graph execution now covers the remaining standalone inference leaves; only core cached/non-cached layer loops construct graphs directly.
+- Speculative families share bounded session codecs plus generic greedy drafting and verification coordinators.
+- One image-prompt planner now serves Granite 4, Llama 4, Hunyuan-VL, PaddleOCR, MiMo-VL, Qwen2-VL, Qwen3-VL, and Gemma 4, including history, deepstack, positions, and attention blocks.
 - Model-owned device-layer binding now serves every inference path; the duplicate 500-line inference binder was removed after CPU/CUDA parity verification.
 - Shared graph execution expanded to Gemma 3n, embedding, reranking, perplexity, and multi-head MTP; state-space catalogs split by family with schema-derived Mamba fixtures.
 - Speculative coordinators now share sampling limits, sampler-pair validation, and detached last-hidden state handling.

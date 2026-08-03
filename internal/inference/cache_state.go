@@ -7,6 +7,7 @@ import (
 	"math"
 	"sort"
 
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
@@ -120,7 +121,18 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
 			}
 		}
-		if isDSAArchitecture(r.spec.Architecture) {
+		info := model.LayerWeights{}
+		if index < len(r.weights.Layers) {
+			info = r.weights.Layers[index]
+		}
+		schema, err := model.CacheSchema(r.spec, index, info, cache.Tokens)
+		if err != nil {
+			return fmt.Errorf("inference: KV cache layer %d schema: %w", index, err)
+		}
+		if err := validateLayerCacheSchema(layer, schema); err != nil {
+			return fmt.Errorf("inference: KV cache layer %d: %w", index, err)
+		}
+		if r.spec.Profile().Attention == model.AttentionDSA {
 			state, present := layer.States["indexer_key"]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
@@ -354,7 +366,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		valueShape := tensor.MustShape(valueWidth, kvHeads, uint64(cache.Tokens))
 		qwenRecurrent := r.spec.IsRecurrentLayer(uint32(index)) ||
 			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
-		if isQwenGDNArchitecture(r.spec.Architecture) && qwenRecurrent {
+		if r.spec.Profile().Attention == model.AttentionQwenGDN && qwenRecurrent {
 			convChannels := uint64(r.spec.SSMInnerSize) +
 				2*uint64(r.spec.SSMStateSize)*uint64(r.spec.SSMGroupCount)
 			convShape := tensor.MustShape(
@@ -415,6 +427,58 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		}
 	}
 	return nil
+}
+
+func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) error {
+	for name, expected := range schema.States {
+		state, present := layer.States[name]
+		if !present {
+			return fmt.Errorf("required state %q is missing", name)
+		}
+		mode := CacheStateFixed
+		if expected.Extent == model.CacheExtentToken {
+			mode = CacheStateToken
+		}
+		if state.Mode != mode || !cacheShapeMatches(state.Value.Shape, expected) {
+			return fmt.Errorf("state %q shape or extent is invalid", name)
+		}
+	}
+	if schema.StrictStates {
+		for name := range layer.States {
+			if _, present := schema.States[name]; !present {
+				return fmt.Errorf("state %q is unexpected", name)
+			}
+		}
+	}
+	for index, value := range []reference.Value{layer.Key, layer.Value} {
+		expected := schema.Primary[index]
+		if !cacheShapeMatches(value.Shape, expected) {
+			return fmt.Errorf(
+				"%s state %d shape %v, need %v",
+				schema.Label, index, value.Shape.Slice(), expected.Shape.Slice(),
+			)
+		}
+		if err := validateStateValue(value); err != nil {
+			return fmt.Errorf("%s state %d: %w", schema.Label, index, err)
+		}
+	}
+	return nil
+}
+
+func cacheShapeMatches(shape tensor.Shape, schema model.CacheValueSchema) bool {
+	if !schema.VariableLast {
+		return shape.Equal(schema.Shape)
+	}
+	if shape.Rank != schema.Shape.Rank || shape.Rank == 0 {
+		return false
+	}
+	last := int(shape.Rank) - 1
+	for index := 0; index < last; index++ {
+		if shape.Dims[index] != schema.Shape.Dims[index] {
+			return false
+		}
+	}
+	return shape.Dims[last] > 0
 }
 
 func (r *Runner) validateT5Cache(cache *KVCache, encoderTokens uint64) error {

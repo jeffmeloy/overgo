@@ -19,22 +19,12 @@ func isDeepSeek2Family(architecture string) bool {
 	return ok && profile.Has(ArchitectureDeepSeek2)
 }
 
-func isDSAArchitecture(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureDSA)
-}
-
-func isMLAArchitecture(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureMLA)
-}
-
 // LayerHasFullIndexer: DSA full-indexer predicate.
 func (s Spec) LayerHasFullIndexer(layer uint32) bool {
 	if s.Architecture == "deepseek32" && layer < s.BlockCount+s.NextNPredictLayers {
 		return true
 	}
-	return isDSAArchitecture(s.Architecture) && int(layer) < len(s.IndexerFullLayers) && s.IndexerFullLayers[layer]
+	return s.Profile().Attention == AttentionDSA && int(layer) < len(s.IndexerFullLayers) && s.IndexerFullLayers[layer]
 }
 
 func (e *UnsupportedArchitectureError) Error() string {
@@ -2110,7 +2100,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.SlidingWindow = value
 		}
 	}
-	if isMLAArchitecture(architecture) {
+	if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
 		if architecture == "minicpm3" {
 			if spec.QLoRARank, err = required[uint32](
 				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
@@ -2160,7 +2150,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
 		}
 	}
-	if isDSAArchitecture(architecture) {
+	if profile.Attention == AttentionDSA {
 		sections, hasSections, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32)
 		if sectionsErr != nil {
 			return Spec{}, sectionsErr
@@ -2619,24 +2609,7 @@ func (s Spec) IsEncoderOnly() bool {
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.Architecture == "bert" ||
-		s.Architecture == "dbrx" ||
-		s.Architecture == "falcon" ||
-		s.Architecture == "gptj" ||
-		s.Architecture == "jais" ||
-		s.Architecture == "jina-bert-v2" ||
-		s.Architecture == "jina-bert-v3" ||
-		s.Architecture == "nemotron" ||
-		s.Architecture == "nomic-bert" ||
-		s.Architecture == "nomic-bert-moe" ||
-		s.Architecture == "jais2" ||
-		s.Architecture == "orion" ||
-		s.Architecture == "rwkv6" ||
-		s.Architecture == "rwkv7" ||
-		s.Architecture == "stablelm" ||
-		s.Architecture == "wavtokenizer-dec" ||
-		s.Architecture == "mpt" ||
-		usesSequentialGELU(s.Architecture)
+	return s.Profile().Normalization == NormalizationLayer
 }
 
 func (s Spec) RequiresLayerNormBias() bool {
@@ -2645,16 +2618,16 @@ func (s Spec) RequiresLayerNormBias() bool {
 }
 
 func (s Spec) UsesUnweightedLayerNorm() bool {
-	return s.Architecture == "olmo"
+	return s.Profile().Normalization == NormalizationUnweightedLayer
 }
 
 func (s Spec) UsesUnweightedRMSNorm() bool {
-	return s.Architecture == "talkie"
+	return s.Profile().Normalization == NormalizationUnweightedRMS
 }
 
 func (s Spec) UsesWeightOnlyLayerNorm() bool {
-	return s.Architecture == "cohere2" || s.Architecture == "command-r" || s.Architecture == "modern-bert" ||
-		(s.Architecture == "cohere2moe" && s.LayerNormEpsilon > 0)
+	return s.Profile().Normalization == NormalizationWeightOnlyLayer &&
+		(s.Architecture != "cohere2moe" || s.LayerNormEpsilon > 0)
 }
 
 func (s Spec) validate() error {
@@ -3408,14 +3381,15 @@ func (s Spec) validate() error {
 			}
 		}
 	}
-	if (isMLAArchitecture(s.Architecture) || s.Architecture == "kimi-linear") &&
+	profile := s.Profile()
+	if (profile.Attention == AttentionMLA || profile.Attention == AttentionDSA || s.Architecture == "kimi-linear") &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength ||
 			(!isDeepSeek2Family(s.Architecture) && s.Architecture != "glm-dsa" && s.Architecture != "kimi-linear" && s.HeadCountKV != s.HeadCount) ||
 			((isDeepSeek2Family(s.Architecture) || s.Architecture == "glm-dsa" || s.Architecture == "kimi-linear") && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
 	}
-	if isDSAArchitecture(s.Architecture) {
+	if profile.Attention == AttentionDSA {
 		switch {
 		case s.QLoRARank == 0:
 			return errors.New("DSA query LoRA rank is missing")
@@ -3993,27 +3967,27 @@ func usesPostOnlyNorm(architecture string) bool {
 
 func usesNormalRoPE(architecture string) bool {
 	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureNormalRoPE)
+	return ok && profile.Position == PositionNormal
 }
 
 func usesParallelResidual(architecture string) bool {
 	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureParallelResidual)
+	return ok && profile.Residual == ResidualParallel
 }
 
 func usesSequentialGELU(architecture string) bool {
 	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureSequentialGELU)
+	return ok && profile.FeedForward == FeedForwardSequentialGELU
 }
 
 func usesGateFreeFFN(architecture string) bool {
-	return architecture == "apertus" || usesFusedGateUp(architecture) ||
-		usesSquaredReLU(architecture) || usesGELU(architecture)
+	profile, ok := LookupArchitecture(architecture)
+	return ok && profile.FeedForward != FeedForwardSwiGLU
 }
 
 func usesFusedGateUp(architecture string) bool {
 	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureFusedGateUp)
+	return ok && profile.FeedForward == FeedForwardFusedGateUp
 }
 
 func supportsLongRoPE(architecture string) bool {
@@ -4032,12 +4006,13 @@ func firstPositive(values []uint32) uint32 {
 
 func usesGELU(architecture string) bool {
 	profile, ok := LookupArchitecture(architecture)
-	return ok && (profile.Has(ArchitectureGELU) || profile.Has(ArchitectureSequentialGELU))
+	return ok && (profile.FeedForward == FeedForwardGELU ||
+		profile.FeedForward == FeedForwardSequentialGELU)
 }
 
 func usesSquaredReLU(architecture string) bool {
 	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureSquaredReLU)
+	return ok && profile.FeedForward == FeedForwardSquaredReLU
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

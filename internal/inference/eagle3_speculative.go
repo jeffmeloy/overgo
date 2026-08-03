@@ -3,7 +3,6 @@ package inference
 import (
 	"context"
 	"errors"
-	"math"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -11,20 +10,10 @@ import (
 )
 
 // Eagle3Draft: bounded greedy proposals.
-type Eagle3Draft struct {
-	InitialToken  tokenizer.TokenID
-	Tokens        []tokenizer.TokenID
-	Probabilities []float64
-	Base          *Eagle3Session
-}
+type Eagle3Draft = greedyDraft[*Eagle3Session]
 
 // Eagle3Verification: accepted prefix plus correction.
-type Eagle3Verification struct {
-	Accepted     int
-	NextToken    tokenizer.TokenID
-	TargetLogits reference.Value
-	Session      *Eagle3Session
-}
+type Eagle3Verification = greedyVerification[*Eagle3Session]
 
 // DraftEagle3Greedy: bounded confident proposals.
 func (r *Runner) DraftEagle3Greedy(
@@ -35,36 +24,16 @@ func (r *Runner) DraftEagle3Greedy(
 	maximum int,
 	minimumProbability float64,
 ) (*Eagle3Draft, error) {
-	if r == nil || target == nil || session == nil || maximum <= 0 ||
-		minimumProbability < 0 || minimumProbability > 1 || math.IsNaN(minimumProbability) {
+	if r == nil || target == nil || session == nil ||
+		!validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: Eagle3 draft inputs are invalid")
 	}
-	draft := &Eagle3Draft{
-		InitialToken: initialToken, Tokens: make([]tokenizer.TokenID, 0, maximum),
-		Probabilities: make([]float64, 0, maximum), Base: session,
-	}
-	currentToken, currentSession := initialToken, session
-	for range maximum {
-		logits, next, err := r.AdvanceEagle3(ctx, target, currentToken, currentSession)
-		if err != nil {
-			return nil, err
-		}
-		token, probability, err := greedyLogit(logits.Data)
-		if err != nil {
-			return nil, err
-		}
-		if probability < minimumProbability {
-			break
-		}
-		currentToken = tokenizer.TokenID(token)
-		draft.Tokens = append(draft.Tokens, currentToken)
-		draft.Probabilities = append(draft.Probabilities, probability)
-		currentSession = next
-		if target.vocab.IsEOG(currentToken) {
-			break
-		}
-	}
-	return draft, nil
+	return draftGreedy(
+		initialToken, session, maximum, minimumProbability, target.vocab.IsEOG,
+		func(token tokenizer.TokenID, state *Eagle3Session) (reference.Value, *Eagle3Session, error) {
+			return r.AdvanceEagle3(ctx, target, token, state)
+		},
+	)
 }
 
 // VerifyEagle3Greedy: target verification and feature resync.
@@ -73,34 +42,16 @@ func (r *Runner) VerifyEagle3Greedy(
 	target *Runner,
 	draft *Eagle3Draft,
 ) (*Eagle3Verification, error) {
-	if r == nil || target == nil || draft == nil || !validEagle3CoordinatorSession(draft.Base) {
+	if r == nil || target == nil || !validGreedyDraft(draft) ||
+		!validEagle3CoordinatorSession(draft.Base) {
 		return nil, errors.New("inference: Eagle3 verification inputs are invalid")
 	}
-	if len(draft.Tokens) != len(draft.Probabilities) {
-		return nil, errors.New("inference: Eagle3 draft state is inconsistent")
-	}
-	session := draft.Base
-	currentToken := draft.InitialToken
-	accepted := 0
-	for {
-		logits, next, err := r.advanceEagle3Verification(ctx, target, currentToken, session)
-		if err != nil {
-			return nil, err
-		}
-		session = next
-		nextToken, _, err := greedyLogit(logits.Data)
-		if err != nil {
-			return nil, err
-		}
-		if accepted >= len(draft.Tokens) || tokenizer.TokenID(nextToken) != draft.Tokens[accepted] {
-			return &Eagle3Verification{
-				Accepted: accepted, NextToken: tokenizer.TokenID(nextToken),
-				TargetLogits: logits, Session: session,
-			}, nil
-		}
-		currentToken = draft.Tokens[accepted]
-		accepted++
-	}
+	return verifyGreedy(draft, func(
+		token tokenizer.TokenID,
+		state *Eagle3Session,
+	) (reference.Value, *Eagle3Session, error) {
+		return r.advanceEagle3Verification(ctx, target, token, state)
+	})
 }
 
 func validEagle3CoordinatorSession(session *Eagle3Session) bool {

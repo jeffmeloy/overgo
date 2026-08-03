@@ -650,7 +650,7 @@ func (r *Runner) ForwardNonCausal(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if !r.spec.NonCausalAttention && !isLFM2Architecture(r.spec.Architecture) {
+	if !r.spec.NonCausalAttention && r.spec.Profile().Attention != model.AttentionLFM2 {
 		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
 	}
 	return r.forwardNonCausalLocked(ctx, tokenIDs)
@@ -690,7 +690,7 @@ func (r *Runner) ForwardNonCausalLogits(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if !r.spec.NonCausalAttention && !isLFM2Architecture(r.spec.Architecture) {
+	if !r.spec.NonCausalAttention && r.spec.Profile().Attention != model.AttentionLFM2 {
 		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
 	}
 	hidden, err := r.forwardNonCausalLocked(ctx, tokenIDs)
@@ -746,7 +746,7 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if isLFM2Architecture(r.spec.Architecture) {
+	if r.spec.Profile().Attention == model.AttentionLFM2 {
 		for layerIndex, layerInfo := range r.weights.Layers {
 			activation, err = r.runLFM2LayerNonCausal(
 				ctx, activation, layerInfo, layerIndex, positions,
@@ -795,25 +795,19 @@ func (r *Runner) forwardWavTokenizerLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("wavtokenizer.embeddings", dtype.F32, embeddings.Shape)
-	graphWeights, hostFeeds, deviceFeeds, err := r.wavTokenizerGraphInputs(ctx, builder)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("wavtokenizer.embeddings", embeddings)
+	graphWeights, hostFeeds, deviceFeeds, err := r.wavTokenizerGraphInputs(ctx, runtime.builder)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	hostFeeds[input] = embeddings
-	output, err := model.BuildWavTokenizerDecoder(builder, input, r.spec, graphWeights)
+	runtime.addHostFeeds(hostFeeds)
+	runtime.addDeviceFeeds(deviceFeeds)
+	output, err := model.BuildWavTokenizerDecoder(runtime.builder, input, r.spec, graphWeights)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(
-			ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds,
-		)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
-	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -852,34 +846,27 @@ func (r *Runner) projectAllLogits(
 		}
 		return result, nil
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("non_causal.hidden", dtype.F32, hidden.Shape)
-	table, pointer, err := r.deviceInput(builder, outputInfo)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("non_causal.hidden", hidden)
+	table, err := runtime.weight(outputInfo)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output := builder.MulMat(table, input)
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{table: pointer}
+	output := runtime.builder.MulMat(table, input)
 	if r.weights.OutputBias != nil {
-		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
+		bias, biasErr := runtime.weight(*r.weights.OutputBias)
 		if biasErr != nil {
 			return reference.Value{}, biasErr
 		}
-		deviceFeeds[bias] = biasPointer
-		output = builder.Add(output, bias)
+		output = runtime.builder.Add(output, bias)
 	}
 	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
-		output = builder.Scale(output, scale)
+		output = runtime.builder.Scale(output, scale)
 	}
-	if err := builder.Err(); err != nil {
+	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{input: hidden},
-		deviceFeeds,
-	)
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1422,12 +1409,12 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: cachePosition,
 	}
-	if r.hasPreloadedWeights() && !isQwenGDNArchitecture(r.spec.Architecture) &&
+	if r.hasPreloadedWeights() && r.spec.Profile().Attention != model.AttentionQwenGDN &&
 		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
 		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
 		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
 		r.spec.Architecture != "deepseek4" &&
-		!isDSAArchitecture(r.spec.Architecture) && r.spec.Architecture != "falcon-h1" &&
+		r.spec.Profile().Attention != model.AttentionDSA && r.spec.Architecture != "falcon-h1" &&
 		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
 		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
 		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
@@ -1463,7 +1450,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if (r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7") && layerIndex > 0 {
 			perLayerInput = firstLayerValue
 		}
-		if isDSAArchitecture(r.spec.Architecture) && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
+		if r.spec.Profile().Attention == model.AttentionDSA && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
 			perLayerInput = previousTopK
 		}
 		var layerCache LayerCache
@@ -1884,49 +1871,17 @@ func (r *Runner) runT5EncoderLayer(
 	info model.LayerWeights,
 	layerIndex int,
 ) (reference.Value, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var graphWeights model.LayerGraphWeights
-	if r.hasPreloadedWeights() {
-		var err error
-		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
-		if err != nil {
-			return reference.Value{}, err
-		}
-	} else {
-		hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		var layerFeeds map[*tensor.Tensor]reference.Value
-		graphWeights, layerFeeds, err = hostLayer.GraphInputs(
-			builder,
-			fmt.Sprintf("enc.blk.%d.", layerIndex),
-		)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		for node, value := range layerFeeds {
-			hostFeeds[node] = value
-		}
-	}
-	output, err := model.BuildT5EncoderBlock(builder, input, r.spec, graphWeights)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("input", activation)
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("enc.blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(
-			ctx,
-			[]*tensor.Tensor{output},
-			hostFeeds,
-			deviceFeeds,
-		)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
+	output, err := model.BuildT5EncoderBlock(runtime.builder, input, r.spec, graphWeights)
+	if err != nil {
+		return reference.Value{}, err
 	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1940,51 +1895,29 @@ func (r *Runner) runT5DecoderLayer(
 	layerIndex int,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("input", activation)
 	var encoderInput *tensor.Tensor
 	var pastSelfKey, pastSelfValue, pastCrossKey, pastCrossValue *tensor.Tensor
 	if past == nil {
-		encoderInput = builder.Input("encoder", dtype.F32, encoder.Shape)
-		hostFeeds[encoderInput] = encoder
+		encoderInput = runtime.input("encoder", encoder)
 	} else {
-		pastSelfKey = builder.Input("past_self_key", dtype.F32, past.Key.Shape)
-		pastSelfValue = builder.Input("past_self_value", dtype.F32, past.Value.Shape)
-		hostFeeds[pastSelfKey], hostFeeds[pastSelfValue] = past.Key, past.Value
+		pastSelfKey = runtime.input("past_self_key", past.Key)
+		pastSelfValue = runtime.input("past_self_value", past.Value)
 		crossKey, hasKey := past.States["cross_key"]
 		crossValue, hasValue := past.States["cross_value"]
 		if !hasKey || !hasValue {
 			return reference.Value{}, LayerCache{}, errors.New("T5 decoder cross cache is missing")
 		}
-		pastCrossKey = builder.Input("past_cross_key", dtype.F32, crossKey.Value.Shape)
-		pastCrossValue = builder.Input("past_cross_value", dtype.F32, crossValue.Value.Shape)
-		hostFeeds[pastCrossKey], hostFeeds[pastCrossValue] = crossKey.Value, crossValue.Value
+		pastCrossKey = runtime.input("past_cross_key", crossKey.Value)
+		pastCrossValue = runtime.input("past_cross_value", crossValue.Value)
 	}
-	var graphWeights model.LayerGraphWeights
-	if r.hasPreloadedWeights() {
-		var err error
-		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-	} else {
-		hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-		var layerFeeds map[*tensor.Tensor]reference.Value
-		graphWeights, layerFeeds, err = hostLayer.GraphInputs(builder, fmt.Sprintf("dec.blk.%d.", layerIndex))
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-		for node, value := range layerFeeds {
-			hostFeeds[node] = value
-		}
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("dec.blk.%d.", layerIndex))
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
 	}
 	result, err := model.BuildT5DecoderBlockCached(
-		builder, input, encoderInput, r.spec, graphWeights,
+		runtime.builder, input, encoderInput, r.spec, graphWeights,
 		pastSelfKey, pastSelfValue, pastCrossKey, pastCrossValue,
 	)
 	if err != nil {
@@ -1994,12 +1927,7 @@ func (r *Runner) runT5DecoderLayer(
 	for _, state := range result.FixedStates {
 		outputs = append(outputs, state)
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -2020,39 +1948,17 @@ func (r *Runner) runT5EncoderOutputNorm(
 	if r.weights.EncoderOutputNorm == nil {
 		return reference.Value{}, errors.New("inference: T5 encoder output norm is missing")
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("enc.output_norm.input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	var (
-		weight      *tensor.Tensor
-		deviceFeeds map[*tensor.Tensor]driver.DevicePtr
-		err         error
-	)
-	if r.hasPreloadedWeights() {
-		var pointer driver.DevicePtr
-		weight, pointer, err = r.deviceInput(builder, *r.weights.EncoderOutputNorm)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		deviceFeeds = map[*tensor.Tensor]driver.DevicePtr{weight: pointer}
-	} else {
-		value, loadErr := model.LoadHostTensor(ctx, r.file, *r.weights.EncoderOutputNorm)
-		if loadErr != nil {
-			return reference.Value{}, loadErr
-		}
-		weight = builder.Input("enc.output_norm.weight", dtype.F32, value.Shape)
-		hostFeeds[weight] = value
-	}
-	output := builder.WeightedRMSNorm(input, weight, r.spec.RMSNormEpsilon)
-	if err := builder.Err(); err != nil {
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("enc.output_norm.input", activation)
+	weight, err := runtime.weight(*r.weights.EncoderOutputNorm)
+	if err != nil {
 		return reference.Value{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
+	output := runtime.builder.WeightedRMSNorm(input, weight, r.spec.RMSNormEpsilon)
+	if err := runtime.builder.Err(); err != nil {
+		return reference.Value{}, err
 	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -2073,7 +1979,7 @@ func (r *Runner) runLayerCached(
 	visualMode bool,
 	attentionBlockIDs []float32,
 ) (reference.Value, LayerCache, error) {
-	if isQwenGDNArchitecture(r.spec.Architecture) {
+	if r.spec.Profile().Attention == model.AttentionQwenGDN {
 		return r.runQwen35LayerCached(
 			ctx,
 			activation,
@@ -2715,21 +2621,10 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 		return activation, nil
 	}
 	if r.spec.UsesUnweightedLayerNorm() {
-		builder := r.newGraphBuilder()
-		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
-		output := builder.LayerNorm(input, r.spec.LayerNormEpsilon)
-		feeds := map[*tensor.Tensor]reference.Value{input: activation}
-		var (
-			results map[*tensor.Tensor]reference.Value
-			err     error
-		)
-		if r.hasPreloadedWeights() {
-			results, err = r.cuda.ExecuteWithDeviceFeeds(
-				ctx, []*tensor.Tensor{output}, feeds, nil,
-			)
-		} else {
-			results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
-		}
+		runtime := r.newInferenceGraphRuntime(ctx)
+		input := runtime.input("output_norm.input", activation)
+		output := runtime.builder.LayerNorm(input, r.spec.LayerNormEpsilon)
+		results, err := runtime.execute(output)
 		if err != nil {
 			return reference.Value{}, err
 		}
@@ -2738,62 +2633,24 @@ func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) 
 	if r.spec.UsesUnweightedRMSNorm() {
 		return r.runUnweightedRMSNorm(ctx, activation)
 	}
-	if r.hasPreloadedWeights() {
-		builder := r.newGraphBuilder()
-		input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
-		weightInput, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{weightInput: pointer}
-		var biasInput *tensor.Tensor
-		if r.weights.OutputNormBias != nil {
-			biasInput, pointer, err = r.deviceInput(builder, *r.weights.OutputNormBias)
-			if err != nil {
-				return reference.Value{}, err
-			}
-			deviceFeeds[biasInput] = pointer
-		}
-		output := model.ApplyNormalization(builder, input, weightInput, biasInput, r.spec)
-		if err := builder.Err(); err != nil {
-			return reference.Value{}, err
-		}
-		results, err := r.cuda.ExecuteWithDeviceFeeds(
-			ctx,
-			[]*tensor.Tensor{output},
-			map[*tensor.Tensor]reference.Value{input: activation},
-			deviceFeeds,
-		)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		return results[output], nil
-	}
-	weight, err := model.LoadHostTensor(ctx, r.file, r.weights.OutputNorm)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("output_norm.input", activation)
+	weightInput, err := runtime.weight(r.weights.OutputNorm)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("output_norm.input", dtype.F32, activation.Shape)
-	weightInput := builder.Input("output_norm.weight", dtype.F32, weight.Shape)
-	feeds := map[*tensor.Tensor]reference.Value{
-		input:       activation,
-		weightInput: weight,
-	}
 	var biasInput *tensor.Tensor
 	if r.weights.OutputNormBias != nil {
-		bias, biasErr := model.LoadHostTensor(ctx, r.file, *r.weights.OutputNormBias)
-		if biasErr != nil {
-			return reference.Value{}, biasErr
+		biasInput, err = runtime.weight(*r.weights.OutputNormBias)
+		if err != nil {
+			return reference.Value{}, err
 		}
-		biasInput = builder.Input("output_norm.bias", dtype.F32, bias.Shape)
-		feeds[biasInput] = bias
 	}
-	output := model.ApplyNormalization(builder, input, weightInput, biasInput, r.spec)
-	if err := builder.Err(); err != nil {
+	output := model.ApplyNormalization(runtime.builder, input, weightInput, biasInput, r.spec)
+	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
-	results, err := r.cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -2804,19 +2661,10 @@ func (r *Runner) runUnweightedRMSNorm(
 	ctx context.Context,
 	activation reference.Value,
 ) (reference.Value, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("rms_norm.input", dtype.F32, activation.Shape)
-	output := builder.RMSNorm(input, r.spec.RMSNormEpsilon)
-	feeds := map[*tensor.Tensor]reference.Value{input: activation}
-	var (
-		results map[*tensor.Tensor]reference.Value
-		err     error
-	)
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, feeds, nil)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
-	}
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("rms_norm.input", activation)
+	output := runtime.builder.RMSNorm(input, r.spec.RMSNormEpsilon)
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -3376,53 +3224,24 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	if err != nil {
 		return nil, fmt.Errorf("inference: load Gemma per-layer embeddings: %w", err)
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("gemma4.per_layer.input", dtype.F32, activation.Shape)
-	selectedInput := builder.Input("gemma4.per_layer.selected", dtype.F32, selected.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		input:         activation,
-		selectedInput: selected,
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("gemma4.per_layer.input", activation)
+	selectedInput := runtime.input("gemma4.per_layer.selected", selected)
+	projection, err := runtime.weight(*r.weights.PerLayerModelProjection)
+	if err != nil {
+		return nil, err
 	}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var projection, norm *tensor.Tensor
-	if r.hasPreloadedWeights() {
-		var pointer driver.DevicePtr
-		projection, pointer, err = r.deviceInput(builder, *r.weights.PerLayerModelProjection)
-		if err != nil {
-			return nil, err
-		}
-		deviceFeeds[projection] = pointer
-		norm, pointer, err = r.deviceInput(builder, *r.weights.PerLayerProjectionNorm)
-		if err != nil {
-			return nil, err
-		}
-		deviceFeeds[norm] = pointer
-	} else {
-		projectionValue, loadErr := model.LoadHostTensor(ctx, r.file, *r.weights.PerLayerModelProjection)
-		if loadErr != nil {
-			return nil, loadErr
-		}
-		normValue, loadErr := model.LoadHostTensor(ctx, r.file, *r.weights.PerLayerProjectionNorm)
-		if loadErr != nil {
-			return nil, loadErr
-		}
-		projection = builder.Input("gemma4.per_layer.projection", dtype.F32, projectionValue.Shape)
-		norm = builder.Input("gemma4.per_layer.norm", dtype.F32, normValue.Shape)
-		hostFeeds[projection] = projectionValue
-		hostFeeds[norm] = normValue
+	norm, err := runtime.weight(*r.weights.PerLayerProjectionNorm)
+	if err != nil {
+		return nil, err
 	}
 	outputs, err := model.BuildGemma4PerLayerInputs(
-		builder, input, selectedInput, projection, norm, r.spec,
+		runtime.builder, input, selectedInput, projection, norm, r.spec,
 	)
 	if err != nil {
 		return nil, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return nil, err
 	}
@@ -3445,21 +3264,16 @@ func (r *Runner) loadRows(
 		}
 		return r.applyLoRAEmbeddingRows(info.Name, rows, value)
 	}
-	builder := r.newGraphBuilder()
-	table, pointer, err := r.deviceInput(builder, info)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	table, err := runtime.weight(info)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output := builder.GetRows(table, rows)
-	if err := builder.Err(); err != nil {
+	output := runtime.builder.GetRows(table, rows)
+	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{output},
-		nil,
-		map[*tensor.Tensor]driver.DevicePtr{table: pointer},
-	)
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -3528,56 +3342,24 @@ func (r *Runner) applyTokenEmbeddingNorm(
 	if r.weights.TokenEmbeddingNorm == nil {
 		return activation, nil
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("token_embd_norm.input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	weightInput := (*tensor.Tensor)(nil)
-	biasInput := (*tensor.Tensor)(nil)
-	if r.hasPreloadedWeights() {
-		var pointer driver.DevicePtr
-		var err error
-		weightInput, pointer, err = r.deviceInput(builder, *r.weights.TokenEmbeddingNorm)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		deviceFeeds[weightInput] = pointer
-		if r.weights.TokenEmbeddingNormBias != nil {
-			biasInput, pointer, err = r.deviceInput(builder, *r.weights.TokenEmbeddingNormBias)
-			if err != nil {
-				return reference.Value{}, err
-			}
-			deviceFeeds[biasInput] = pointer
-		}
-	} else {
-		weight, err := model.LoadHostTensor(ctx, r.file, *r.weights.TokenEmbeddingNorm)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		weightInput = builder.Input("token_embd_norm.weight", dtype.F32, weight.Shape)
-		hostFeeds[weightInput] = weight
-		if r.weights.TokenEmbeddingNormBias != nil {
-			bias, biasErr := model.LoadHostTensor(ctx, r.file, *r.weights.TokenEmbeddingNormBias)
-			if biasErr != nil {
-				return reference.Value{}, biasErr
-			}
-			biasInput = builder.Input("token_embd_norm.bias", dtype.F32, bias.Shape)
-			hostFeeds[biasInput] = bias
-		}
-	}
-	output := model.ApplyNormalization(builder, input, weightInput, biasInput, r.spec)
-	if err := builder.Err(); err != nil {
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("token_embd_norm.input", activation)
+	weightInput, err := runtime.weight(*r.weights.TokenEmbeddingNorm)
+	if err != nil {
 		return reference.Value{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	var err error
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(
-			ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds,
-		)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
+	var biasInput *tensor.Tensor
+	if r.weights.TokenEmbeddingNormBias != nil {
+		biasInput, err = runtime.weight(*r.weights.TokenEmbeddingNormBias)
+		if err != nil {
+			return reference.Value{}, err
+		}
 	}
+	output := model.ApplyNormalization(runtime.builder, input, weightInput, biasInput, r.spec)
+	if err := runtime.builder.Err(); err != nil {
+		return reference.Value{}, err
+	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -3609,39 +3391,32 @@ func (r *Runner) logits(
 		scaleLogits(logits, r.spec.OutputLogitMultiplier())
 		return r.finalizeLogits(logits), nil
 	}
-	builder := r.newGraphBuilder()
-	table, pointer, err := r.deviceInput(builder, outputInfo)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	table, err := runtime.weight(outputInfo)
 	if err != nil {
 		return nil, err
 	}
 	inputShape := tensor.MustShape(uint64(len(hidden)), 1)
-	input := builder.Input("logits.input", dtype.F32, inputShape)
-	output := builder.MulMat(table, input)
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{table: pointer}
-	if r.weights.OutputBias != nil {
-		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
-		if biasErr != nil {
-			return nil, biasErr
-		}
-		deviceFeeds[bias] = biasPointer
-		output = builder.Add(output, bias)
-	}
-	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
-		output = builder.Scale(output, scale)
-	}
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
 	inputValue, err := reference.NewValue(inputShape, hidden)
 	if err != nil {
 		return nil, err
 	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{input: inputValue},
-		deviceFeeds,
-	)
+	input := runtime.input("logits.input", inputValue)
+	output := runtime.builder.MulMat(table, input)
+	if r.weights.OutputBias != nil {
+		bias, biasErr := runtime.weight(*r.weights.OutputBias)
+		if biasErr != nil {
+			return nil, biasErr
+		}
+		output = runtime.builder.Add(output, bias)
+	}
+	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+		output = runtime.builder.Scale(output, scale)
+	}
+	if err := runtime.builder.Err(); err != nil {
+		return nil, err
+	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return nil, err
 	}
@@ -3703,16 +3478,6 @@ func addOutputBias(logits, bias []float32) error {
 		logits[index] += bias[index%len(bias)]
 	}
 	return nil
-}
-
-func isQwenGDNArchitecture(architecture string) bool {
-	profile, ok := model.LookupArchitecture(architecture)
-	return ok && profile.Has(model.ArchitectureQwenGDN)
-}
-
-func isLFM2Architecture(architecture string) bool {
-	profile, ok := model.LookupArchitecture(architecture)
-	return ok && profile.Has(model.ArchitectureLFM2)
 }
 
 func supportsMultiAxisPositions(spec model.Spec) bool {
@@ -3846,11 +3611,6 @@ func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Val
 		output.Data[index] += value
 	}
 	return output, nil
-}
-
-func isDSAArchitecture(architecture string) bool {
-	profile, ok := model.LookupArchitecture(architecture)
-	return ok && profile.Has(model.ArchitectureDSA)
 }
 
 func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {

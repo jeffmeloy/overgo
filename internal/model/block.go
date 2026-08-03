@@ -1751,12 +1751,13 @@ func buildMLABlockCachedForLayer(
 	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if !isMLAArchitecture(spec.Architecture) && spec.Architecture != "kimi-linear" {
+	attentionPolicy := spec.Profile().Attention
+	if attentionPolicy != AttentionMLA && attentionPolicy != AttentionDSA && spec.Architecture != "kimi-linear" {
 		return DenseBlockResult{}, errors.New("MLA block architecture is unsupported")
 	}
 	isMiniCPM3 := spec.Architecture == "minicpm3"
 	isDeepSeek2 := isDeepSeek2Family(spec.Architecture)
-	isDSA := isDSAArchitecture(spec.Architecture)
+	isDSA := attentionPolicy == AttentionDSA
 	isDeepSeek32 := spec.Architecture == "deepseek32"
 	isKimi := spec.Architecture == "kimi-linear"
 	required := map[string]*tensor.Tensor{
@@ -3002,6 +3003,7 @@ func buildDenseBlockCachedForLayer(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
+	profile := spec.Profile()
 	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
 		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
@@ -3215,9 +3217,9 @@ func buildDenseBlockCachedForLayer(
 		required["attention sub norm"] = weights.AttentionSubNorm
 		required["feed-forward sub norm"] = weights.FeedForwardSubNorm
 	}
-	if !usesExperts && !usesGateFreeFFN(spec.Architecture) {
+	if !usesExperts && profile.FeedForward == FeedForwardSwiGLU {
 		required["feed-forward gate"] = weights.FeedForwardGate
-	} else if usesSequentialGELU(spec.Architecture) {
+	} else if profile.FeedForward == FeedForwardSequentialGELU {
 		required["attention output bias"] = weights.AttentionOutputBias
 		required["feed-forward up bias"] = weights.FeedForwardUpBias
 		required["feed-forward down bias"] = weights.FeedForwardDownBias
@@ -3234,14 +3236,14 @@ func buildDenseBlockCachedForLayer(
 		required["feed-forward post norm"] = weights.FeedForwardPostNorm
 	} else if !spec.UsesUnweightedLayerNorm() {
 		required["attention norm"] = weights.AttentionNorm
-		if !usesParallelResidual(spec.Architecture) && !isGPTOSS {
+		if profile.Residual != ResidualParallel && !isGPTOSS {
 			if spec.Architecture != "stablelm" {
 				required["feed-forward norm"] = weights.FeedForwardNorm
 			}
 		}
 		if spec.RequiresLayerNormBias() {
 			required["attention norm bias"] = weights.AttentionNormBias
-			if !usesParallelResidual(spec.Architecture) && spec.Architecture != "stablelm" {
+			if profile.Residual != ResidualParallel && spec.Architecture != "stablelm" {
 				required["feed-forward norm bias"] = weights.FeedForwardNormBias
 			}
 		}
@@ -3564,7 +3566,7 @@ func buildDenseBlockCachedForLayer(
 				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
 			)
 		}
-	} else if usesNormalRoPE(spec.Architecture) {
+	} else if profile.Position == PositionNormal {
 		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
@@ -3819,7 +3821,7 @@ func buildDenseBlockCachedForLayer(
 		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 	}
 
-	parallelResidual := usesParallelResidual(spec.Architecture) ||
+	parallelResidual := profile.Residual == ResidualParallel ||
 		(spec.Architecture == "gptneox" && spec.ParallelResidual) ||
 		(spec.Architecture == "stablelm" && weights.FeedForwardNorm == nil)
 	if spec.Architecture == "falcon" {
@@ -4269,7 +4271,7 @@ func buildDenseBlockCachedForLayer(
 		up = builder.Add(up, weights.FeedForwardUpBias)
 	}
 	var activation *tensor.Tensor
-	if usesFusedGateUp(spec.Architecture) {
+	if profile.FeedForward == FeedForwardFusedGateUp {
 		width := uint64(spec.FeedForwardLength)
 		stride := 2 * width
 		gate := builder.Reshape(

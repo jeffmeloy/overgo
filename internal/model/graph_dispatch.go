@@ -31,19 +31,20 @@ type BlockDispatchOptions struct {
 func BuildArchitectureBlockCached(
 	options BlockDispatchOptions,
 ) (DenseBlockResult, error) {
-	profile, ok := LookupArchitecture(options.Spec.Architecture)
+	_, ok := LookupArchitecture(options.Spec.Architecture)
 	if !ok {
 		return DenseBlockResult{}, &UnsupportedArchitectureError{
 			Architecture: options.Spec.Architecture,
 		}
 	}
-	switch profile.GraphFamily {
+	plan := options.Spec.PlanLayer(options.Layer, options.Recurrent)
+	switch plan.GraphFamily {
 	case ArchitectureFamilyRecurrent, ArchitectureFamilyHybrid:
-		if result, handled, err := buildRecurrentFamilyBlock(options); handled {
+		if result, handled, err := buildRecurrentFamilyBlock(options, plan); handled {
 			return result, err
 		}
 	case ArchitectureFamilyMoE:
-		if result, handled, err := buildMoEFamilyBlock(options); handled {
+		if result, handled, err := buildMoEFamilyBlock(options, plan); handled {
 			return result, err
 		}
 	case ArchitectureFamilyEncoderDecoder:
@@ -51,7 +52,7 @@ func BuildArchitectureBlockCached(
 			"encoder-decoder blocks require explicit encoder state",
 		)
 	}
-	if profile.Has(ArchitectureMLA) {
+	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA {
 		return BuildMLABlockCachedForLayer(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.PastKey, options.PastValue, options.Layer,
@@ -62,6 +63,7 @@ func BuildArchitectureBlockCached(
 
 func buildRecurrentFamilyBlock(
 	options BlockDispatchOptions,
+	plan LayerPlan,
 ) (DenseBlockResult, bool, error) {
 	var result DenseBlockResult
 	var err error
@@ -83,7 +85,7 @@ func buildRecurrentFamilyBlock(
 			options.PastConvState, options.PastSSMState,
 		)
 	case "jamba":
-		if !options.Recurrent {
+		if !plan.Recurrent {
 			return DenseBlockResult{}, false, nil
 		}
 		result, err = BuildJambaRecurrentBlockCached(
@@ -91,7 +93,7 @@ func buildRecurrentFamilyBlock(
 			options.PastKey, options.PastValue,
 		)
 	case "granitehybrid":
-		if !options.Recurrent {
+		if !plan.Recurrent {
 			return DenseBlockResult{}, false, nil
 		}
 		result, err = BuildGraniteHybridRecurrentBlockCached(
@@ -99,7 +101,7 @@ func buildRecurrentFamilyBlock(
 			options.PastKey, options.PastValue,
 		)
 	case "plamo2":
-		if !options.Recurrent {
+		if !plan.Recurrent {
 			return DenseBlockResult{}, false, nil
 		}
 		result, err = BuildPLaMo2RecurrentBlockCached(
@@ -114,7 +116,7 @@ func buildRecurrentFamilyBlock(
 	case "kimi-linear":
 		result, err = BuildKimiLinearBlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, options.Recurrent, options.PastKey,
+			options.Positions, plan.Recurrent, options.PastKey,
 			options.PastValue, options.Layer,
 		)
 	default:
@@ -125,9 +127,9 @@ func buildRecurrentFamilyBlock(
 
 func buildMoEFamilyBlock(
 	options BlockDispatchOptions,
+	plan LayerPlan,
 ) (DenseBlockResult, bool, error) {
-	profile := options.Spec.Profile()
-	if profile.Has(ArchitectureDSA) {
+	if plan.Attention == AttentionDSA {
 		result, err := BuildDSABlockCached(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.PastKey, options.PastValue,
@@ -143,7 +145,7 @@ func buildMoEFamilyBlock(
 		)
 		return result, true, err
 	}
-	if profile.Has(ArchitectureMLA) {
+	if plan.Attention == AttentionMLA {
 		result, err := BuildMLABlockCachedForLayer(
 			options.Builder, options.Input, options.Spec, options.Weights,
 			options.Positions, options.PastKey, options.PastValue, options.Layer,

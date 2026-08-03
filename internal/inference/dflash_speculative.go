@@ -3,27 +3,16 @@ package inference
 import (
 	"context"
 	"errors"
-	"math"
 
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
 
 // DFlashDraft: one masked-block proposal.
-type DFlashDraft struct {
-	InitialToken  tokenizer.TokenID
-	Tokens        []tokenizer.TokenID
-	Probabilities []float64
-	Base          *DFlashSession
-}
+type DFlashDraft = greedyDraft[*DFlashSession]
 
 // DFlashVerification: accepted prefix plus target correction.
-type DFlashVerification struct {
-	Accepted     int
-	NextToken    tokenizer.TokenID
-	TargetLogits reference.Value
-	Session      *DFlashSession
-}
+type DFlashVerification = greedyVerification[*DFlashSession]
 
 // DraftDFlashGreedy: bounded masked-block proposals.
 func (r *Runner) DraftDFlashGreedy(
@@ -34,8 +23,8 @@ func (r *Runner) DraftDFlashGreedy(
 	maximum int,
 	minimumProbability float64,
 ) (*DFlashDraft, error) {
-	if r == nil || target == nil || !validDFlashSession(session) || maximum <= 0 ||
-		minimumProbability < 0 || minimumProbability > 1 || math.IsNaN(minimumProbability) {
+	if r == nil || target == nil || !validDFlashSession(session) ||
+		!validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: DFlash draft inputs are invalid")
 	}
 	logits, err := r.DraftDFlashBlock(ctx, target, initialToken, maximum, session.Cache)
@@ -74,34 +63,15 @@ func (r *Runner) VerifyDFlashGreedy(
 	target *Runner,
 	draft *DFlashDraft,
 ) (*DFlashVerification, error) {
-	if r == nil || target == nil || draft == nil || !validDFlashSession(draft.Base) {
+	if r == nil || target == nil || !validGreedyDraft(draft) || !validDFlashSession(draft.Base) {
 		return nil, errors.New("inference: DFlash verification inputs are invalid")
 	}
-	if len(draft.Tokens) != len(draft.Probabilities) {
-		return nil, errors.New("inference: DFlash draft state is inconsistent")
-	}
-	session := draft.Base
-	currentToken := draft.InitialToken
-	accepted := 0
-	for {
-		logits, next, err := r.advanceDFlashVerification(ctx, target, currentToken, session)
-		if err != nil {
-			return nil, err
-		}
-		session = next
-		nextToken, _, err := greedyLogit(logits.Data)
-		if err != nil {
-			return nil, err
-		}
-		if accepted >= len(draft.Tokens) || tokenizer.TokenID(nextToken) != draft.Tokens[accepted] {
-			return &DFlashVerification{
-				Accepted: accepted, NextToken: tokenizer.TokenID(nextToken),
-				TargetLogits: logits, Session: session,
-			}, nil
-		}
-		currentToken = draft.Tokens[accepted]
-		accepted++
-	}
+	return verifyGreedy(draft, func(
+		token tokenizer.TokenID,
+		state *DFlashSession,
+	) (reference.Value, *DFlashSession, error) {
+		return r.advanceDFlashVerification(ctx, target, token, state)
+	})
 }
 
 func validDFlashSession(session *DFlashSession) bool {

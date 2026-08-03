@@ -34,6 +34,18 @@ func (runtime *inferenceGraphRuntime) input(name string, value reference.Value) 
 	return node
 }
 
+func (runtime *inferenceGraphRuntime) addHostFeeds(feeds map[*tensor.Tensor]reference.Value) {
+	for node, value := range feeds {
+		runtime.hostFeeds[node] = value
+	}
+}
+
+func (runtime *inferenceGraphRuntime) addDeviceFeeds(feeds map[*tensor.Tensor]driver.DevicePtr) {
+	for node, pointer := range feeds {
+		runtime.deviceFeeds[node] = pointer
+	}
+}
+
 func (runtime *inferenceGraphRuntime) weight(info gguf.TensorInfo) (*tensor.Tensor, error) {
 	node, pointer, err := runtime.runner.deviceOrHostTensor(
 		runtime.ctx, runtime.builder, info, runtime.hostFeeds,

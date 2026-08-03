@@ -46,7 +46,7 @@ func TestCohere2MTPSessionStateRejectsCorruption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, length := range []int{0, qwen35MTPStateHeader - 1, len(data) - 1} {
+	for _, length := range []int{0, singleHeadMTPStateHeader - 1, len(data) - 1} {
 		if _, err := runner.LoadCohere2MTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated Cohere2-MoE MTP state length %d was accepted", length)
 		}

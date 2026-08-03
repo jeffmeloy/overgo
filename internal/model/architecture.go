@@ -30,6 +30,56 @@ const (
 	DraftCohere2MTP
 )
 
+// NormalizationPolicy: model normalization contract.
+type NormalizationPolicy uint8
+
+const (
+	NormalizationRMS NormalizationPolicy = iota
+	NormalizationLayer
+	NormalizationUnweightedLayer
+	NormalizationUnweightedRMS
+	NormalizationWeightOnlyLayer
+)
+
+// PositionPolicy: rotary layout contract.
+type PositionPolicy uint8
+
+const (
+	PositionNeoX PositionPolicy = iota
+	PositionNormal
+)
+
+// ResidualPolicy: block residual ordering.
+type ResidualPolicy uint8
+
+const (
+	ResidualSequential ResidualPolicy = iota
+	ResidualParallel
+)
+
+// FeedForwardPolicy: dense activation/layout contract.
+type FeedForwardPolicy uint8
+
+const (
+	FeedForwardSwiGLU FeedForwardPolicy = iota
+	FeedForwardSequentialGELU
+	FeedForwardFusedGateUp
+	FeedForwardGELU
+	FeedForwardSquaredReLU
+	FeedForwardGateFreeSiLU
+)
+
+// AttentionPolicy: primary attention implementation.
+type AttentionPolicy uint8
+
+const (
+	AttentionStandard AttentionPolicy = iota
+	AttentionMLA
+	AttentionDSA
+	AttentionQwenGDN
+	AttentionLFM2
+)
+
 // ArchitectureCapability: orthogonal runtime behavior.
 type ArchitectureCapability uint64
 
@@ -76,6 +126,11 @@ type ArchitectureProfile struct {
 	CatalogFamily ArchitectureFamily
 	DraftKind     DraftKind
 	Capabilities  ArchitectureCapability
+	Normalization NormalizationPolicy
+	Position      PositionPolicy
+	Residual      ResidualPolicy
+	FeedForward   FeedForwardPolicy
+	Attention     AttentionPolicy
 }
 
 // Has: capability predicate.
@@ -175,6 +230,26 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 				panic("unknown architecture profile: " + name)
 			}
 			profile.DraftKind = kind
+			registry[name] = profile
+		}
+	}
+	setNormalization := func(policy NormalizationPolicy, names ...string) {
+		for _, name := range names {
+			profile, ok := registry[name]
+			if !ok {
+				panic("unknown architecture profile: " + name)
+			}
+			profile.Normalization = policy
+			registry[name] = profile
+		}
+	}
+	setFeedForward := func(policy FeedForwardPolicy, names ...string) {
+		for _, name := range names {
+			profile, ok := registry[name]
+			if !ok {
+				panic("unknown architecture profile: " + name)
+			}
+			profile.FeedForward = policy
 			registry[name] = profile
 		}
 	}
@@ -308,6 +383,29 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		"apertus", "exaone4", "glm4", "phi2", "phi3", "phimoe", "smallthinker",
 	)
 
+	setNormalization(NormalizationLayer,
+		"bert", "bloom", "codeshell", "dbrx", "falcon", "gpt2", "gptj",
+		"gptneox", "jais", "jais2", "jina-bert-v2", "jina-bert-v3", "mpt",
+		"nemotron", "nomic-bert", "nomic-bert-moe", "orion", "phi2", "rwkv6",
+		"rwkv7", "stablelm", "starcoder", "starcoder2", "wavtokenizer-dec",
+	)
+	setNormalization(NormalizationUnweightedLayer, "olmo")
+	setNormalization(NormalizationUnweightedRMS, "talkie")
+	setNormalization(NormalizationWeightOnlyLayer,
+		"cohere2", "cohere2moe", "command-r", "modern-bert",
+	)
+	setFeedForward(FeedForwardSequentialGELU,
+		"bloom", "codeshell", "gpt2", "gptneox", "phi2", "starcoder", "starcoder2",
+	)
+	setFeedForward(FeedForwardFusedGateUp,
+		"chatglm", "glm4", "modern-bert", "neo-bert", "phi3", "plamo2", "plamo3",
+	)
+	setFeedForward(FeedForwardGELU,
+		"bert", "falcon", "gptj", "jina-bert-v3", "mpt", "nomic-bert-moe",
+	)
+	setFeedForward(FeedForwardSquaredReLU, "arcee", "jais2", "nemotron", "plm")
+	setFeedForward(FeedForwardGateFreeSiLU, "apertus")
+
 	setFamily(ArchitectureFamilyMoE,
 		"afmoe", "bailingmoe", "bailingmoe2", "cohere2moe", "dbrx", "deepseek",
 		"deepseek2", "deepseek2-ocr", "deepseek32", "deepseek4", "dots1",
@@ -331,5 +429,24 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setFamily(ArchitectureFamilyEncoderDecoder, "t5")
 	setFamily(ArchitectureFamilyDiffusion, "dream", "llada", "llada-moe", "rnd1")
 	setFamily(ArchitectureFamilyDraft, "dflash", "eagle3", "gemma4-assistant")
+	for name, profile := range registry {
+		if profile.Has(ArchitectureNormalRoPE) {
+			profile.Position = PositionNormal
+		}
+		if profile.Has(ArchitectureParallelResidual) {
+			profile.Residual = ResidualParallel
+		}
+		switch {
+		case profile.Has(ArchitectureDSA):
+			profile.Attention = AttentionDSA
+		case profile.Has(ArchitectureMLA):
+			profile.Attention = AttentionMLA
+		case profile.Has(ArchitectureQwenGDN):
+			profile.Attention = AttentionQwenGDN
+		case profile.Has(ArchitectureLFM2):
+			profile.Attention = AttentionLFM2
+		}
+		registry[name] = profile
+	}
 	return registry
 }

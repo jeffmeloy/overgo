@@ -1850,6 +1850,33 @@ Fused-QKV policy moved into architecture capabilities. Speculative families
 share sampled-limit, sampler-pair, and detached last-hidden helpers. Retired
 Qwen3-VL host attention and unused multi-axis-position helpers were deleted.
 
+## Policy, plan, and execution convergence
+
+Architecture profiles now expose typed normalization, position, residual,
+attention, and feed-forward policies. A per-layer plan combines those policies
+with graph family, catalog family, cache extent, recurrence, sliding attention,
+RoPE, multi-axis position, and KV requirements; graph dispatch consumes that
+plan instead of rediscovering family semantics.
+
+Layer cache schemas describe standard KV, MLA/DSA, recurrent, hybrid, named,
+cross-attention, indexer, and fixed-state storage. Host validation and device
+allocation, shifting, compaction, and batch input construction now consume the
+same schema. Weight loading separates standard attention, dense FFN, and MoE
+selection catalogs while retaining common ordered binding and validation.
+
+Standalone graph leaves now use the shared inference graph runtime for host and
+device feeds, weights, bindings, execution, and output reads. Core layer-loop
+executors remain the only direct graph builders. Single-head MTP session state
+uses one bounded codec, and speculative families share generic greedy draft and
+verification coordinators with model-specific advance and resynchronization
+callbacks.
+
+Image prompt execution now follows one plan: validate sources, encode planned
+items, render family control syntax, tokenize variable placeholder runs, merge
+deepstack streams, map embeddings, generate multi-axis positions, and construct
+attention blocks. Granite 4, Llama 4, Hunyuan-VL, PaddleOCR, MiMo-VL, Qwen2-VL,
+Qwen3-VL, and Gemma 4 use that lifecycle for native and history prompts.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

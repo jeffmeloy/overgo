@@ -99,12 +99,11 @@ func step35MTPStateRunner() *Runner {
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		SlidingWindow: 16, SlidingLayers: []bool{false, true, false}},
 	}
-	return &Runner{
-		spec: spec,
+	return &Runner{preparedModel: preparedModel{spec: spec,
 		weights: model.Weights{
 			Layers:    make([]model.LayerWeights, 1),
 			Step35MTP: make([]model.Step35MTPWeights, 2),
-		},
+		}},
 	}
 }
 

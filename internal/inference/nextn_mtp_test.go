@@ -40,9 +40,8 @@ func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
 }
 
 func TestValidateGLM4NextNAvailability(t *testing.T) {
-	runner := &Runner{
-		spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: "glm4", NextNPredictLayers: 1}},
-		weights: model.Weights{NextNMTP: []model.Step35MTPWeights{{}}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "glm4", NextNPredictLayers: 1}},
+		weights: model.Weights{NextNMTP: []model.Step35MTPWeights{{}}}},
 	}
 	if err := runner.validateNextNMTP(); err != nil {
 		t.Fatal(err)

@@ -36,7 +36,7 @@ func TestApplyLogitSoftcap(t *testing.T) {
 }
 
 func TestChameleonImageLogitsAreSuppressed(t *testing.T) {
-	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "chameleon", VocabularySize: 8200}}}
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "chameleon", VocabularySize: 8200}}}}
 	logits := make([]float32, 2*8200)
 	for index := range logits {
 		logits[index] = float32(index)

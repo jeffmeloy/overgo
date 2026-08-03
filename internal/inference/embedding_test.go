@@ -36,9 +36,9 @@ func TestMeanPoolNormalized(t *testing.T) {
 }
 
 func TestEmbedTokensRejectsEmptyAndOutOfRangeInput(t *testing.T) {
-	runner := &Runner{vocab: &tokenizer.Vocab{
+	runner := &Runner{preparedModel: preparedModel{vocab: &tokenizer.Vocab{
 		Tokens: []tokenizer.Token{{Text: "zero"}},
-	}}
+	}}}
 	if _, _, err := runner.EmbedTokens(nil, []tokenizer.TokenID{}); err == nil ||
 		!strings.Contains(err.Error(), "empty") {
 		t.Fatalf("empty error = %v", err)
@@ -141,7 +141,7 @@ func TestProjectEmbeddingVectorsHostAppliesDenseChain(t *testing.T) {
 	if !ok {
 		t.Fatal("dense-3 projection tensor is missing")
 	}
-	runner := &Runner{file: file, weights: model.Weights{Dense2Output: &dense2Info, Dense3Output: &dense3Info}}
+	runner := &Runner{preparedModel: preparedModel{file: file, weights: model.Weights{Dense2Output: &dense2Info, Dense3Output: &dense3Info}}}
 	got, err := runner.projectEmbeddingVectors(context.Background(), [][]float32{{2, 3}, {-1, 4}})
 	if err != nil {
 		t.Fatal(err)

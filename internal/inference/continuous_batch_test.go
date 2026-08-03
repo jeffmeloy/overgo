@@ -57,12 +57,11 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 }
 
 func TestContinuousBatchAdmission(t *testing.T) {
-	runner := &Runner{
-		spec: model.Spec{
-			CommonSpec: model.CommonSpec{
-				Architecture: "llama", ContextLength: 8,
-			},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{
+		CommonSpec: model.CommonSpec{
+			Architecture: "llama", ContextLength: 8,
 		},
+	}},
 	}
 	batch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 2,

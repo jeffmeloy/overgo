@@ -8,7 +8,7 @@ import (
 )
 
 func TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces(t *testing.T) {
-	runner := &Runner{vocab: &tokenizer.Vocab{
+	runner := &Runner{preparedModel: preparedModel{vocab: &tokenizer.Vocab{
 		Model: "llama",
 		Tokens: []tokenizer.Token{
 			{Text: "a", Type: tokenizer.TokenNormal},
@@ -23,7 +23,7 @@ func TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces(t *testing.T) {
 		SEP:  tokenizer.NullToken,
 		PAD:  tokenizer.NullToken,
 		Mask: tokenizer.NullToken,
-	}}
+	}}}
 	vocabulary, err := runner.SamplingInfillVocabulary()
 	if err != nil {
 		t.Fatal(err)

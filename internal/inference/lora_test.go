@@ -20,7 +20,7 @@ func TestLoRAGraphAppliesAlphaScaleAndGlobalDisable(t *testing.T) {
 			B: reference.Value{Shape: tensor.MustShape(2, 2), Data: []float32{2, 0, 0, 3}},
 		},
 	}}
-	runner := &Runner{loraAdapters: []loadedLoRA{{adapter: adapter, scale: 0.5}}}
+	runner := &Runner{runnerState: runnerState{loraAdapters: []loadedLoRA{{adapter: adapter, scale: 0.5}}}}
 	builder := runner.newGraphBuilder()
 	weight := builder.Input("projection", dtype.F32, tensor.MustShape(2, 2))
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
@@ -44,7 +44,7 @@ func TestLoRAGraphAppliesAlphaScaleAndGlobalDisable(t *testing.T) {
 }
 
 func TestLoRAHostEmbeddingAndLogitPaths(t *testing.T) {
-	runner := &Runner{loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{
+	runner := &Runner{runnerState: runnerState{loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{
 		Alpha: 2,
 		Weights: map[string]model.LoRAWeight{
 			"token_embd.weight": {
@@ -57,7 +57,7 @@ func TestLoRAHostEmbeddingAndLogitPaths(t *testing.T) {
 				B: reference.Value{Shape: tensor.MustShape(1, 2), Data: []float32{4, 5}},
 			},
 		},
-	}, scale: 0.25}}}
+	}, scale: 0.25}}}}
 	embedded, err := runner.applyLoRAEmbeddingRows(
 		"token_embd.weight", []uint32{1},
 		reference.Value{Shape: tensor.MustShape(2, 1), Data: []float32{10, 20}},
@@ -78,7 +78,7 @@ func TestLoRAHostEmbeddingAndLogitPaths(t *testing.T) {
 }
 
 func TestSetLoRAScalesRejectsInvalidRequestsWithoutMutation(t *testing.T) {
-	runner := &Runner{loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{Path: "a"}, scale: 1}}}
+	runner := &Runner{runnerState: runnerState{loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{Path: "a"}, scale: 1}}}}
 	for _, request := range [][]LoRAScale{
 		{{ID: 1, Scale: 1}},
 		{{ID: 0, Scale: 1}, {ID: 0, Scale: 2}},
@@ -100,9 +100,9 @@ func TestLoRAScaleBindsSessionSignature(t *testing.T) {
 			B: reference.Value{Shape: tensor.MustShape(1, 1), Data: []float32{3}},
 		},
 	}}
-	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, loraAdapters: []loadedLoRA{{
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}, runnerState: runnerState{loraAdapters: []loadedLoRA{{
 		adapter: adapter, scale: 1, signature: loRAStaticSignature(adapter),
-	}}}
+	}}}}
 	before, err := runner.sessionModelSignature()
 	if err != nil {
 		t.Fatal(err)
@@ -120,10 +120,9 @@ func TestLoRAScaleBindsSessionSignature(t *testing.T) {
 }
 
 func TestGenerateRestoresPerRequestLoRA(t *testing.T) {
-	runner := &Runner{
-		spec:         model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 8}},
-		vocab:        &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "x", Type: tokenizer.TokenNormal}}},
-		loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{Path: "adapter.gguf"}, scale: 1}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 8}},
+		vocab: &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "x", Type: tokenizer.TokenNormal}}}},
+		runnerState: runnerState{loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{Path: "adapter.gguf"}, scale: 1}}},
 	}
 	_, _, err := runner.Generate(context.Background(), "", GenerateOptions{
 		MaxNewTokens:   0,
@@ -143,7 +142,7 @@ func TestActiveALoRAUsesLastInvocationAndRejectsMultiple(t *testing.T) {
 	adapter := func(path string, invocation ...uint32) loadedLoRA {
 		return loadedLoRA{adapter: &model.LoRAAdapter{Path: path, InvocationTokens: invocation}, scale: 1}
 	}
-	runner := &Runner{loraAdapters: []loadedLoRA{adapter("a", 2, 3)}}
+	runner := &Runner{runnerState: runnerState{loraAdapters: []loadedLoRA{adapter("a", 2, 3)}}}
 	id, start, err := runner.activeALoRA([]tokenizer.TokenID{1, 2, 3, 2, 3, 4})
 	if err != nil || id != 0 || start != 3 {
 		t.Fatalf("active aLoRA = id:%d start:%d err:%v", id, start, err)

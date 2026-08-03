@@ -207,7 +207,7 @@ func TestApplyEmbeddingOverridesRejectsInvalidInput(t *testing.T) {
 
 func TestMultimodalInputAdmission(t *testing.T) {
 	for _, architecture := range []string{"qwen3vl", "glm4", "hunyuan-dense"} {
-		supported := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{2, 2, 0, 0}}}}
+		supported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{2, 2, 0, 0}}}}}
 		_, _, err := supported.ForwardCachedWithMultimodalInputs(
 			context.Background(), nil, nil, MultiAxisPositions{}, nil,
 		)
@@ -216,7 +216,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 		}
 	}
 
-	unsupported := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}
+	unsupported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}}
 	_, _, err := unsupported.ForwardCachedWithMultimodalInputs(
 		context.Background(), nil, nil, MultiAxisPositions{}, nil,
 	)
@@ -226,7 +226,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 }
 
 func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
-	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3vl", ContextLength: 4}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{1, 1, 0, 0}}}}
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3vl", ContextLength: 4}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{1, 1, 0, 0}}}}}
 	positions := MultiAxisPositions{{0}, {0}, nil, {0}}
 	_, _, err := runner.ForwardCachedWithMultimodalInputs(
 		context.Background(), []tokenizer.TokenID{0}, nil, positions, nil,
@@ -237,9 +237,9 @@ func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
 }
 
 func TestProjectedInputDeepstackAdmission(t *testing.T) {
-	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "granite", EmbeddingLength: 2}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 1,
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "granite", EmbeddingLength: 2}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 1,
 		DeepstackMapping: []int32{0, 1}},
-	}}
+	}}}
 	_, _, err := runner.ForwardCachedWithProjectedInputs(
 		context.Background(), nil, nil,
 		ProjectedInputs{DeepstackEmbeddings: []reference.Value{{}}},

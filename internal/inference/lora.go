@@ -285,11 +285,5 @@ func (r *Runner) SetLoRAScales(scales []LoRAScale) error {
 	if !changed {
 		return nil
 	}
-	for _, cached := range r.promptCaches {
-		if cached.Device != nil {
-			_ = cached.Device.Release(context.Background())
-		}
-	}
-	r.promptCaches = nil
-	return nil
+	return r.runnerState.release(context.Background())
 }

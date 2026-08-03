@@ -1948,6 +1948,18 @@ of a second recurrent-shape allocator. Architecture profiles own shared-KV,
 AltUp, per-layer-embedding, and embedding-skip capabilities; `LayerPlan` pins
 shared-cache ownership and source layers before host or CUDA graph execution.
 
+## Prepared model ownership
+
+Runner storage now separates loaded GGUF, compiled plans, tensor catalogs,
+tokenizer data, CUDA executors, device weights, output data, configuration, and
+model fingerprints from mutable LoRA scales and retained prompt caches. Close
+releases request state before prepared resources through independent ownership
+methods.
+
+Prompt-cache reset is one lifecycle operation shared by explicit clearing,
+LoRA-scale changes, and runner closure. Explicit clearing preserves all prepared
+assets and returns retained-device release failures instead of discarding them.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

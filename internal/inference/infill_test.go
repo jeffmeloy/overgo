@@ -13,8 +13,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 	for index := range tokens {
 		tokens[index] = tokenizer.Token{Text: string(rune('a' + index))}
 	}
-	runner := &Runner{
-		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 32}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 32}},
 		vocab: &tokenizer.Vocab{
 			Model:  "gpt2",
 			Tokens: tokens,
@@ -33,7 +32,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 			FIMRep: tokenizer.NullToken,
 			FIMSep: tokenizer.NullToken,
 			AddBOS: true,
-		},
+		}},
 	}
 	prefix := []tokenizer.TokenID{5, 6, 7, 8, 9}
 	suffix := []tokenizer.TokenID{10, 11, 12}
@@ -74,8 +73,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 
 func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 	tokens := make([]tokenizer.Token, 32)
-	runner := &Runner{
-		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 32}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 32}},
 		vocab: &tokenizer.Vocab{
 			Tokens: tokens,
 			BOS:    tokenizer.NullToken,
@@ -85,7 +83,7 @@ func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 			FIMPad: tokenizer.NullToken,
 			FIMRep: tokenizer.NullToken,
 			FIMSep: tokenizer.NullToken,
-		},
+		}},
 	}
 	prefix := []tokenizer.TokenID{4, 5, 6, 7, 8, 9, 10, 11}
 	suffix := []tokenizer.TokenID{12, 13, 14, 15}
@@ -106,14 +104,13 @@ func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 }
 
 func TestFormatInfillTokensRequiresControlTokens(t *testing.T) {
-	runner := &Runner{
-		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 8}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 8}},
 		vocab: &tokenizer.Vocab{
 			Tokens: make([]tokenizer.Token, 4),
 			FIMPre: tokenizer.NullToken,
 			FIMSuf: tokenizer.NullToken,
 			FIMMid: tokenizer.NullToken,
-		},
+		}},
 	}
 	if _, err := runner.FormatInfillTokens(
 		nil,

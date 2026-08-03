@@ -62,7 +62,7 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	batch := &fakeContinuousBatch{}
 	ctx, cancel := context.WithCancel(context.Background())
 	generator := &ContinuousGenerator{
-		runner: &Runner{vocab: vocab}, batch: batch,
+		runner: &Runner{preparedModel: preparedModel{vocab: vocab}}, batch: batch,
 		options: ContinuousGeneratorOptions{MaxSequences: 2},
 		ctx:     ctx, cancel: cancel,
 		submit: make(chan continuousGenerateRequest, 2), done: make(chan struct{}),
@@ -139,7 +139,7 @@ func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 	batch := &fakeContinuousBatch{started: make(chan struct{}), proceed: make(chan struct{})}
 	ctx, stop := context.WithCancel(context.Background())
 	generator := &ContinuousGenerator{
-		runner: &Runner{vocab: vocab}, batch: batch,
+		runner: &Runner{preparedModel: preparedModel{vocab: vocab}}, batch: batch,
 		options: ContinuousGeneratorOptions{MaxSequences: 2},
 		ctx:     ctx, cancel: stop,
 		submit: make(chan continuousGenerateRequest, 2), done: make(chan struct{}),

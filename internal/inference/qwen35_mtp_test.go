@@ -102,9 +102,8 @@ func TestGreedyLogitProbability(t *testing.T) {
 }
 
 func TestValidateQwen35MTP(t *testing.T) {
-	runner := &Runner{
-		spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", NextNPredictLayers: 1}},
-		weights: model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", NextNPredictLayers: 1}},
+		weights: model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{}}},
 	}
 	if err := runner.validateQwen35MTP(); err != nil {
 		t.Fatal(err)
@@ -123,13 +122,11 @@ func TestQwen35MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 		SSMTimeStepRank: 2, SSMGroupCount: 1, FullAttentionInterval: 2},
 	}
 	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "b"}}}
-	draft := &Runner{
-		path: "draft", spec: spec, vocab: vocab,
-		weights: model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{MTPOnly: true}},
+	draft := &Runner{preparedModel: preparedModel{path: "draft", spec: spec, vocab: vocab,
+		weights: model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{MTPOnly: true}}},
 	}
-	target := &Runner{
-		path: "target", spec: spec, vocab: vocab,
-		weights: model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)},
+	target := &Runner{preparedModel: preparedModel{path: "target", spec: spec, vocab: vocab,
+		weights: model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)}},
 	}
 	if err := draft.validateQwen35MTPTarget(target); err != nil {
 		t.Fatal(err)

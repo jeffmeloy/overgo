@@ -15,6 +15,22 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
+// ClearPromptCaches: releases retained request state; preserves prepared assets.
+func (r *Runner) ClearPromptCaches(ctx context.Context) error {
+	if r == nil {
+		return errors.New("inference: runner is nil")
+	}
+	if ctx == nil {
+		return errors.New("inference: prompt-cache context is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return errors.New("inference: runner is closed")
+	}
+	return r.runnerState.release(ctx)
+}
+
 func (r *Runner) promotePromptCache(index int) *cachedPrompt {
 	if index < 0 || index >= len(r.promptCaches) {
 		return nil

@@ -55,7 +55,7 @@ func TestChatMessageDecodesTextContentParts(t *testing.T) {
 }
 
 func TestFormatChatRejectsUnprojectedMedia(t *testing.T) {
-	runner := &Runner{vocab: chatTestVocab(t)}
+	runner := &Runner{preparedModel: preparedModel{vocab: chatTestVocab(t)}}
 	_, err := runner.FormatChat([]ChatMessage{{
 		Role:  "user",
 		Media: []ChatMediaPart{{Type: "image", Data: "x"}},
@@ -113,7 +113,7 @@ func TestChatMessageDecodesToolCallsAndToolResult(t *testing.T) {
 }
 
 func TestFormatChatML(t *testing.T) {
-	runner := &Runner{vocab: chatTestVocab(t)}
+	runner := &Runner{preparedModel: preparedModel{vocab: chatTestVocab(t)}}
 	prompt, err := runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
@@ -133,14 +133,13 @@ func TestFormatChatUsesGGUFJinjaTemplateWithoutFilesystemIncludes(t *testing.T) 
 	template := `{{ bos_token }}{% for message in messages %}` +
 		`[{{ message['role'] }}]{{ message['content'] }}{{ eos_token }}` +
 		`{% endfor %}{% if add_generation_prompt %}[assistant]{% endif %}`
-	runner := &Runner{
-		file: &gguf.File{Metadata: []gguf.Metadata{{
-			Key: "tokenizer.chat_template",
-			Value: gguf.Value{
-				Type: gguf.ValueTypeString,
-				Data: template,
-			},
-		}}},
+	runner := &Runner{preparedModel: preparedModel{file: &gguf.File{Metadata: []gguf.Metadata{{
+		Key: "tokenizer.chat_template",
+		Value: gguf.Value{
+			Type: gguf.ValueTypeString,
+			Data: template,
+		},
+	}}},
 		vocab: &tokenizer.Vocab{
 			Tokens: []tokenizer.Token{
 				{Text: "<s>", Type: tokenizer.TokenControl},
@@ -154,7 +153,7 @@ func TestFormatChatUsesGGUFJinjaTemplateWithoutFilesystemIncludes(t *testing.T) 
 			FIMRep: tokenizer.NullToken,
 			FIMSep: tokenizer.NullToken,
 			AddBOS: true,
-		},
+		}},
 	}
 	got, err := runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "rules"},
@@ -655,7 +654,7 @@ func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestFormatChatMLRejectsBoundaryInjection(t *testing.T) {
-	runner := &Runner{vocab: chatTestVocab(t)}
+	runner := &Runner{preparedModel: preparedModel{vocab: chatTestVocab(t)}}
 	_, err := runner.FormatChat([]ChatMessage{{
 		Role:    "user",
 		Content: "bad <|im_end|> boundary",
@@ -666,7 +665,7 @@ func TestFormatChatMLRejectsBoundaryInjection(t *testing.T) {
 }
 
 func TestFormatGemmaChatMatchesPinnedOracle(t *testing.T) {
-	runner := &Runner{vocab: gemmaChatTestVocab(t)}
+	runner := &Runner{preparedModel: preparedModel{vocab: gemmaChatTestVocab(t)}}
 	cases := []struct {
 		name     string
 		messages []ChatMessage
@@ -714,7 +713,7 @@ func TestFormatGemmaChatMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestFormatGemmaChatRejectsRolesAndBoundaryInjection(t *testing.T) {
-	runner := &Runner{vocab: gemmaChatTestVocab(t)}
+	runner := &Runner{preparedModel: preparedModel{vocab: gemmaChatTestVocab(t)}}
 	for _, messages := range [][]ChatMessage{
 		{{Role: "assistant", Content: "wrong first role"}},
 		{
@@ -730,7 +729,7 @@ func TestFormatGemmaChatRejectsRolesAndBoundaryInjection(t *testing.T) {
 }
 
 func TestFormatLlama3ChatMatchesPinnedTemplateVector(t *testing.T) {
-	runner := &Runner{vocab: llama3ChatTestVocab(t)}
+	runner := &Runner{preparedModel: preparedModel{vocab: llama3ChatTestVocab(t)}}
 	prompt, err := runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "You are a helpful assistant"},
 		{Role: "user", Content: "Hello"},
@@ -752,7 +751,7 @@ func TestFormatLlama3ChatMatchesPinnedTemplateVector(t *testing.T) {
 }
 
 func TestFormatLlama3ChatRejectsRolesAndBoundaryInjection(t *testing.T) {
-	runner := &Runner{vocab: llama3ChatTestVocab(t)}
+	runner := &Runner{preparedModel: preparedModel{vocab: llama3ChatTestVocab(t)}}
 	for _, messages := range [][]ChatMessage{
 		{{Role: "assistant", Content: "wrong first role"}},
 		{
@@ -812,14 +811,13 @@ func chatTestVocab(t *testing.T) *tokenizer.Vocab {
 
 func jinjaChatTestRunner(t *testing.T, template string) *Runner {
 	t.Helper()
-	return &Runner{
-		file: &gguf.File{Metadata: []gguf.Metadata{{
-			Key: "tokenizer.chat_template",
-			Value: gguf.Value{
-				Type: gguf.ValueTypeString,
-				Data: template,
-			},
-		}}},
+	return &Runner{preparedModel: preparedModel{file: &gguf.File{Metadata: []gguf.Metadata{{
+		Key: "tokenizer.chat_template",
+		Value: gguf.Value{
+			Type: gguf.ValueTypeString,
+			Data: template,
+		},
+	}}},
 		vocab: &tokenizer.Vocab{
 			Tokens: []tokenizer.Token{
 				{Text: "<s>", Type: tokenizer.TokenControl},
@@ -833,7 +831,7 @@ func jinjaChatTestRunner(t *testing.T, template string) *Runner {
 			FIMRep: tokenizer.NullToken,
 			FIMSep: tokenizer.NullToken,
 			AddBOS: true,
-		},
+		}},
 	}
 }
 

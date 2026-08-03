@@ -10,9 +10,9 @@ import (
 )
 
 func TestT5SessionStateRoundTrip(t *testing.T) {
-	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "t5", BlockCount: 1,
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "t5", BlockCount: 1,
 		ContextLength: 16, EmbeddingLength: 2}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 3, HeadCountKV: 1}, EncoderSpec: model.EncoderSpec{DecoderBlockCount: 1},
-	}}
+	}}}
 	encoder, _ := reference.NewValue(tensor.MustShape(2, 4), []float32{1, 2, 3, 4, 5, 6, 7, 8})
 	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
 	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
@@ -42,9 +42,9 @@ func TestT5SessionStateRoundTrip(t *testing.T) {
 }
 
 func TestT5SessionStateRejectsBadPayload(t *testing.T) {
-	runner := &Runner{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "t5", BlockCount: 1,
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "t5", BlockCount: 1,
 		ContextLength: 16, EmbeddingLength: 2}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 3, HeadCountKV: 1}, EncoderSpec: model.EncoderSpec{DecoderBlockCount: 1},
-	}}
+	}}}
 	encoder, _ := reference.NewValue(tensor.MustShape(2, 2), []float32{1, 2, 3, 4})
 	payload, err := runner.SaveT5Session(&T5Session{Encoder: encoder})
 	if err != nil {

@@ -145,31 +145,38 @@ type ProjectedInputs struct {
 	VisualExpertBlocks           []AttentionBlock
 }
 
-// Runner: correctness-first Llama/Qwen inference runtime with editable
-// host attention/recurrent cache and optional persistent F32 or
-// native-quantized weights
-type Runner struct {
-	file          *gguf.File
-	path          string
-	spec          model.Spec
-	plan          model.ModelPlan
-	weights       model.Weights
-	vocab         *tokenizer.Vocab
-	cuda          *executor.Executor
-	worker        *device.Worker
-	deviceWeights *model.DeviceF32Weights
-	rawWeights    *model.DeviceWeights
-	outputBias    []float32
-	loraAdapters  []loadedLoRA
-
-	mu                  sync.Mutex
-	closed              bool
+// preparedModel: loaded assets; model-wide execution config.
+type preparedModel struct {
+	file                *gguf.File
+	path                string
+	spec                model.Spec
+	plan                model.ModelPlan
+	weights             model.Weights
+	vocab               *tokenizer.Vocab
+	cuda                *executor.Executor
+	worker              *device.Worker
+	deviceWeights       *model.DeviceF32Weights
+	rawWeights          *model.DeviceWeights
+	outputBias          []float32
+	promptCacheCapacity int
+	cachePageTokens     uint32
 	modelSignature      [32]byte
 	modelSignatureErr   error
 	modelSignatureOnce  sync.Once
-	promptCaches        []*cachedPrompt
-	promptCacheCapacity int
-	cachePageTokens     uint32
+}
+
+// runnerState: mutable LoRA and prompt-cache state.
+type runnerState struct {
+	closed       bool
+	promptCaches []*cachedPrompt
+	loraAdapters []loadedLoRA
+}
+
+// Runner: prepared assets + mutable request state.
+type Runner struct {
+	preparedModel
+	runnerState
+	mu sync.Mutex
 }
 
 type cachedPrompt struct {
@@ -357,22 +364,12 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 			return fail(err)
 		}
 	}
-	return &Runner{
-		file:                file,
-		path:                path,
-		spec:                spec,
-		plan:                plan,
-		weights:             weights,
-		vocab:               vocab,
-		cuda:                cuda,
-		worker:              worker,
-		deviceWeights:       deviceWeights,
-		rawWeights:          rawWeights,
+	return &Runner{preparedModel: preparedModel{
+		file: file, path: path, spec: spec, plan: plan, weights: weights, vocab: vocab,
+		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights,
 		outputBias:          outputBias,
-		loraAdapters:        loraAdapters,
-		promptCacheCapacity: promptCacheCapacity,
-		cachePageTokens:     cachePageTokens,
-	}, nil
+		promptCacheCapacity: promptCacheCapacity, cachePageTokens: cachePageTokens,
+	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
 }
 
 func (r *Runner) Close() error {
@@ -385,28 +382,40 @@ func (r *Runner) Close() error {
 		return nil
 	}
 	r.closed = true
+	return errors.Join(
+		r.runnerState.release(context.Background()),
+		r.preparedModel.close(),
+	)
+}
+
+func (s *runnerState) release(ctx context.Context) error {
 	var errs []error
-	for _, promptCache := range r.promptCaches {
+	for _, promptCache := range s.promptCaches {
 		if promptCache.Device != nil {
-			errs = append(errs, promptCache.Device.Release(context.Background()))
+			errs = append(errs, promptCache.Device.Release(ctx))
 			promptCache.Device = nil
 		}
 	}
-	r.promptCaches = nil
-	if r.rawWeights != nil {
-		errs = append(errs, r.rawWeights.Close())
+	s.promptCaches = nil
+	return errors.Join(errs...)
+}
+
+func (m *preparedModel) close() error {
+	var errs []error
+	if m.rawWeights != nil {
+		errs = append(errs, m.rawWeights.Close())
 	}
-	if r.deviceWeights != nil {
-		errs = append(errs, r.deviceWeights.Close())
+	if m.deviceWeights != nil {
+		errs = append(errs, m.deviceWeights.Close())
 	}
-	if r.cuda != nil {
-		errs = append(errs, r.cuda.Close())
+	if m.cuda != nil {
+		errs = append(errs, m.cuda.Close())
 	}
-	if r.worker != nil {
-		errs = append(errs, r.worker.Close())
+	if m.worker != nil {
+		errs = append(errs, m.worker.Close())
 	}
-	if r.file != nil {
-		errs = append(errs, r.file.Close())
+	if m.file != nil {
+		errs = append(errs, m.file.Close())
 	}
 	return errors.Join(errs...)
 }

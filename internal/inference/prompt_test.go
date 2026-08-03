@@ -9,13 +9,13 @@ import (
 )
 
 func TestPromptTokenIDsPreservesExactSequence(t *testing.T) {
-	runner := &Runner{vocab: &tokenizer.Vocab{
+	runner := &Runner{preparedModel: preparedModel{vocab: &tokenizer.Vocab{
 		Tokens: []tokenizer.Token{
 			{Text: "zero"},
 			{Text: "<control>", Type: tokenizer.TokenControl},
 			{Text: "two"},
 		},
-	}}
+	}}}
 	input := []tokenizer.TokenID{2, 1, 0}
 	ids, err := runner.promptTokenIDs("ignored", GenerateOptions{PromptTokenIDs: input})
 	if err != nil {
@@ -31,9 +31,9 @@ func TestPromptTokenIDsPreservesExactSequence(t *testing.T) {
 }
 
 func TestPromptTokenIDsRejectsEmptyAndOutOfRangeSequences(t *testing.T) {
-	runner := &Runner{vocab: &tokenizer.Vocab{
+	runner := &Runner{preparedModel: preparedModel{vocab: &tokenizer.Vocab{
 		Tokens: []tokenizer.Token{{Text: "zero"}},
-	}}
+	}}}
 	if _, err := runner.promptTokenIDs(
 		"",
 		GenerateOptions{PromptTokenIDs: []tokenizer.TokenID{}},

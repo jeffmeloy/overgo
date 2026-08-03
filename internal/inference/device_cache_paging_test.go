@@ -60,11 +60,10 @@ func TestRebuildDeviceCachePagesPreservesFixedState(t *testing.T) {
 }
 
 func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
-	runner := &Runner{
-		spec: model.Spec{CommonSpec: model.CommonSpec{
-			Architecture: "falcon-h1", ContextLength: 4,
-		}},
-		weights: model.Weights{Layers: []model.LayerWeights{{}}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{
+		Architecture: "falcon-h1", ContextLength: 4,
+	}},
+		weights: model.Weights{Layers: []model.LayerWeights{{}}}},
 	}
 	cache := &deviceKVCache{
 		Keys: []executor.DeviceValue{{

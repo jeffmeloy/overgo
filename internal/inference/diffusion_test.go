@@ -270,23 +270,20 @@ func TestGenerateDiffusionRejectsInvalidRunnerBoundaries(t *testing.T) {
 	if _, _, err := missing.GenerateDiffusion(context.Background(), "", options); err == nil {
 		t.Fatal("nil runner accepted")
 	}
-	causal := &Runner{
-		spec:  model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 2}},
-		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1},
+	causal := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 2}},
+		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1}},
 	}
 	if _, _, err := causal.GenerateDiffusion(context.Background(), "", options); err == nil {
 		t.Fatal("causal runner accepted")
 	}
-	noMask := &Runner{
-		spec:  model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 2}},
-		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: tokenizer.NullToken},
+	noMask := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 2}},
+		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: tokenizer.NullToken}},
 	}
 	if _, _, err := noMask.GenerateDiffusion(context.Background(), "", options); err == nil {
 		t.Fatal("missing mask accepted")
 	}
-	tooLong := &Runner{
-		spec:  model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 1}},
-		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1},
+	tooLong := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 1}},
+		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1}},
 	}
 	if _, _, err := tooLong.GenerateDiffusion(context.Background(), "", options); err == nil {
 		t.Fatal("over-context diffusion accepted")
@@ -294,7 +291,7 @@ func TestGenerateDiffusionRejectsInvalidRunnerBoundaries(t *testing.T) {
 }
 
 func TestDiffusionShiftLogitsMetadata(t *testing.T) {
-	runner := &Runner{file: &gguf.File{}}
+	runner := &Runner{preparedModel: preparedModel{file: &gguf.File{}}}
 	if got, err := runner.diffusionShiftLogits(nil); err != nil || !got {
 		t.Fatalf("default shift = %v, %v", got, err)
 	}

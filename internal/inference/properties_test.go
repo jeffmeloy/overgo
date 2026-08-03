@@ -10,8 +10,7 @@ import (
 )
 
 func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
-	runner := &Runner{
-		path: "model.gguf",
+	runner := &Runner{preparedModel: preparedModel{path: "model.gguf",
 		file: &gguf.File{
 			Metadata: []gguf.Metadata{{
 				Key: "general.file_type",
@@ -51,7 +50,7 @@ func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
 			},
 			BOS: 1,
 			EOS: 2,
-		},
+		}},
 	}
 
 	properties := runner.ModelProperties()
@@ -89,11 +88,10 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner := &Runner{
-		path:  path,
+	runner := &Runner{preparedModel: preparedModel{path: path,
 		file:  file,
 		spec:  spec,
-		vocab: vocab,
+		vocab: vocab},
 	}
 	properties := runner.ModelProperties()
 	if properties.Path != path ||
@@ -115,14 +113,13 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 }
 
 func TestModelPropertiesHandlesUnavailableOptionalMetadata(t *testing.T) {
-	runner := &Runner{
-		file: &gguf.File{},
+	runner := &Runner{preparedModel: preparedModel{file: &gguf.File{},
 		spec: model.Spec{CommonSpec: model.CommonSpec{VocabularySize: 0}},
 		vocab: &tokenizer.Vocab{
 			Tokens: []tokenizer.Token{{Text: "x"}},
 			BOS:    tokenizer.NullToken,
 			EOS:    tokenizer.NullToken,
-		},
+		}},
 	}
 	properties := runner.ModelProperties()
 	if properties.FileType != "" ||

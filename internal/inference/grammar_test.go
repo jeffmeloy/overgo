@@ -8,7 +8,7 @@ import (
 )
 
 func TestCompileGBNFUsesDecodedVocabularyAndEOG(t *testing.T) {
-	runner := &Runner{vocab: &tokenizer.Vocab{
+	runner := &Runner{preparedModel: preparedModel{vocab: &tokenizer.Vocab{
 		Model: "llama",
 		Tokens: []tokenizer.Token{
 			{Text: "a", Type: tokenizer.TokenNormal},
@@ -23,7 +23,7 @@ func TestCompileGBNFUsesDecodedVocabularyAndEOG(t *testing.T) {
 		SEP:  tokenizer.NullToken,
 		PAD:  tokenizer.NullToken,
 		Mask: tokenizer.NullToken,
-	}}
+	}}}
 	grammar, err := runner.CompileGBNF(`root ::= "a"`, "")
 	if err != nil {
 		t.Fatal(err)

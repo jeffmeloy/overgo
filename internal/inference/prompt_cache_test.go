@@ -37,8 +37,25 @@ func TestReusablePromptPrefix(t *testing.T) {
 	}
 }
 
+func TestClearPromptCachesPreservesPreparedModel(t *testing.T) {
+	runner := &Runner{
+		preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}},
+		runnerState:   runnerState{promptCaches: []*cachedPrompt{{Tokens: []tokenizer.TokenID{1}}}},
+	}
+	if err := runner.ClearPromptCaches(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.promptCaches) != 0 || runner.Spec().Architecture != "llama" {
+		t.Fatalf("runner after clear = %+v", runner)
+	}
+	runner.closed = true
+	if err := runner.ClearPromptCaches(context.Background()); err == nil {
+		t.Fatal("closed runner accepted prompt-cache clear")
+	}
+}
+
 func TestHasRecurrentCache(t *testing.T) {
-	runner := &Runner{weights: model.Weights{Layers: []model.LayerWeights{{}, {Recurrent: true}}}}
+	runner := &Runner{preparedModel: preparedModel{weights: model.Weights{Layers: []model.LayerWeights{{}, {Recurrent: true}}}}}
 	if !runner.hasRecurrentCache() {
 		t.Fatal("recurrent cache was not detected")
 	}
@@ -57,10 +74,7 @@ func TestMultiplePromptCacheSelectionAndEviction(t *testing.T) {
 		Tokens: []tokenizer.TokenID{3, 4},
 		Cache:  &KVCache{},
 	}
-	runner := &Runner{
-		promptCaches:        []*cachedPrompt{first, second},
-		promptCacheCapacity: 2,
-	}
+	runner := &Runner{preparedModel: preparedModel{promptCacheCapacity: 2}, runnerState: runnerState{promptCaches: []*cachedPrompt{first, second}}}
 	selected, common := runner.selectPromptCache(
 		[]tokenizer.TokenID{3, 4, 5},
 		2,
@@ -92,7 +106,7 @@ func TestProjectedPromptCacheRequiresExactMediaSignature(t *testing.T) {
 		Tokens: []tokenizer.TokenID{1, 2}, Cache: &KVCache{},
 		HasProjection: true, ProjectionSignature: signature,
 	}
-	runner := &Runner{promptCaches: []*cachedPrompt{entry}}
+	runner := &Runner{runnerState: runnerState{promptCaches: []*cachedPrompt{entry}}}
 	selected, cached := runner.selectProjectedPromptCache(
 		[]tokenizer.TokenID{1, 2}, signature, 2,
 	)
@@ -121,7 +135,7 @@ func TestT5SourceCacheRequiresExactSequence(t *testing.T) {
 	}
 	first := &cachedPrompt{Tokens: []tokenizer.TokenID{1, 2}, Hidden: hidden}
 	second := &cachedPrompt{Tokens: []tokenizer.TokenID{3, 4}, Hidden: hidden}
-	runner := &Runner{promptCaches: []*cachedPrompt{first, second}}
+	runner := &Runner{runnerState: runnerState{promptCaches: []*cachedPrompt{first, second}}}
 	selected, reused := runner.selectT5SourceCache([]tokenizer.TokenID{3, 4}, 2)
 	if selected != second || reused != 2 || runner.promptCaches[0] != second {
 		t.Fatalf("selected/reused/cache order = %p/%d/%p", selected, reused, runner.promptCaches[0])
@@ -208,9 +222,8 @@ func TestTrimDeviceCacheSuffix(t *testing.T) {
 }
 
 func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
-	runner := &Runner{
-		spec:    model.Spec{CommonSpec: model.CommonSpec{ContextLength: 2}},
-		weights: model.Weights{Layers: make([]model.LayerWeights, 1)},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 2}},
+		weights: model.Weights{Layers: make([]model.LayerWeights, 1)}},
 	}
 	shape := tensor.MustShape(2, 3, 2)
 	cache := &deviceKVCache{
@@ -239,11 +252,10 @@ func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
 }
 
 func TestShiftDeviceCachePreservesRecurrentState(t *testing.T) {
-	runner := &Runner{
-		spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", ContextLength: 2}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", ContextLength: 2}},
 		weights: model.Weights{Layers: []model.LayerWeights{{
 			Recurrent: true,
-		}}},
+		}}}},
 	}
 	stateShape := tensor.MustShape(4, 4)
 	cache := &deviceKVCache{

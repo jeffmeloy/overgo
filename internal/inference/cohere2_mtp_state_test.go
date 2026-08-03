@@ -64,14 +64,13 @@ func TestCohere2MTPSessionStateRejectsCorruption(t *testing.T) {
 }
 
 func cohere2MTPStateRunner() *Runner {
-	return &Runner{
-		spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "cohere2moe", Name: "state-test", BlockCount: 2,
-			NextNPredictLayers: 1, ContextLength: 32, EmbeddingLength: 8,
-			FeedForwardLength: 16,
-			RMSNormEpsilon:    1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
-			KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
-		},
-		weights: model.Weights{Cohere2MTP: &model.Cohere2MTPWeights{MTPOnly: true}},
+	return &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "cohere2moe", Name: "state-test", BlockCount: 2,
+		NextNPredictLayers: 1, ContextLength: 32, EmbeddingLength: 8,
+		FeedForwardLength: 16,
+		RMSNormEpsilon:    1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
+	},
+		weights: model.Weights{Cohere2MTP: &model.Cohere2MTPWeights{MTPOnly: true}}},
 	}
 }
 

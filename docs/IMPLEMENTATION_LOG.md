@@ -1741,6 +1741,14 @@ Ten legacy string-to-profile adapters were removed from production. T5,
 diffusion, and speculative entry guards likewise reuse prepared forward,
 family, and draft policies.
 
+Draft profiles now expose shared bounded-head and single-head predicates used
+by MTP graph builders, weight discovery, and inference session validation.
+DeepSeek2-compatible metadata and tensor layout is a separate capability from
+DeepSeek2 graph behavior, allowing GLM-DSA to share catalog/spec rules without
+inheriting incompatible dense-block requirements. The remaining DeepSeek,
+GELU, and squared-ReLU string lookup adapters were removed; graph and catalog
+code consume the cached layout, attention, and feed-forward policies directly.
+
 Retained CUDA KV caches now maintain configurable token-page tables. Each page
 contains layer-specific device pointer views with bounded token extents;
 append, suffix trim, zero-copy shift, and owned range compaction rebuild the

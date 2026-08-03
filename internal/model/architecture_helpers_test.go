@@ -25,6 +25,11 @@ func usesFusedGateUp(architecture string) bool {
 	return testProfile(architecture).FeedForward == FeedForwardFusedGateUp
 }
 
+func usesGELU(architecture string) bool {
+	profile := testProfile(architecture)
+	return profile.FeedForward == FeedForwardGELU || profile.FeedForward == FeedForwardSequentialGELU
+}
+
 func supportsLongRoPE(architecture string) bool {
 	return testProfile(architecture).Has(ArchitectureLongRoPE)
 }

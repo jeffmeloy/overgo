@@ -146,6 +146,7 @@ const (
 	ArchitecturePerLayerEmbeddings
 	ArchitectureEmbeddingSkip
 	ArchitectureBERTNormLayout
+	ArchitectureDeepSeek2Layout
 )
 
 // ArchitectureProfile: registry entry and capability set.
@@ -178,6 +179,16 @@ func (p ArchitectureProfile) AppendsDraftBlocks() bool {
 	default:
 		return false
 	}
+}
+
+// HasDraftHead: bounded draft-head policy.
+func (p ArchitectureProfile) HasDraftHead(kind DraftKind, count, offset uint32) bool {
+	return p.DraftKind == kind && offset < count
+}
+
+// HasSingleDraft: single-head draft policy.
+func (p ArchitectureProfile) HasSingleDraft(kind DraftKind, count uint32) bool {
+	return p.DraftKind == kind && count == 1
 }
 
 // OutputNormTensor: final normalization tensor name.
@@ -420,6 +431,7 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setCapabilities(ArchitectureBERTNormLayout,
 		"bert", "jina-bert-v2", "jina-bert-v3", "nomic-bert", "nomic-bert-moe",
 	)
+	setCapabilities(ArchitectureDeepSeek2Layout, "deepseek2", "deepseek32", "mistral4", "glm-dsa")
 
 	setNormalization(NormalizationLayer,
 		"bert", "bloom", "codeshell", "dbrx", "falcon", "gpt2", "gptj",

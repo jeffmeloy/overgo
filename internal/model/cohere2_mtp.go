@@ -14,7 +14,7 @@ func BuildCohere2MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.Profile().DraftKind == DraftCohere2MTP && spec.NextNPredictLayers == 1, mtpArchitectureNorm,
+		spec.Profile().HasSingleDraft(DraftCohere2MTP, spec.NextNPredictLayers), mtpArchitectureNorm,
 		"Cohere2-MoE MTP input is nil", "Cohere2-MoE MTP input shape is incompatible",
 	)
 }
@@ -28,7 +28,7 @@ func BuildCohere2MTPBlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Profile().DraftKind != DraftCohere2MTP || spec.NextNPredictLayers != 1 ||
+	if !spec.Profile().HasSingleDraft(DraftCohere2MTP, spec.NextNPredictLayers) ||
 		weights.FeedForwardRouter == nil {
 		return DenseBlockResult{}, errors.New("Cohere2-MoE MTP block is invalid")
 	}
@@ -49,7 +49,7 @@ func BuildCohere2MTPOutputs(
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	return buildMTPOutputs(
 		builder, input, outputNorm, output, spec,
-		spec.Profile().DraftKind == DraftCohere2MTP && spec.NextNPredictLayers == 1,
+		spec.Profile().HasSingleDraft(DraftCohere2MTP, spec.NextNPredictLayers),
 		false, true, mtpArchitectureNorm,
 		"Cohere2-MoE MTP output is nil", "Cohere2-MoE MTP output shape is incompatible",
 	)

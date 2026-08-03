@@ -14,7 +14,7 @@ func BuildQwen35MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.NextNPredictLayers == 1 && spec.Profile().DraftKind == DraftQwen35MTP,
+		spec.Profile().HasSingleDraft(DraftQwen35MTP, spec.NextNPredictLayers),
 		mtpWeightedRMS, "Qwen3.5 MTP input is nil", "Qwen3.5 MTP input shape is incompatible",
 	)
 }
@@ -28,7 +28,7 @@ func BuildQwen35MTPBlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	if spec.NextNPredictLayers != 1 || spec.Profile().DraftKind != DraftQwen35MTP {
+	if !spec.Profile().HasSingleDraft(DraftQwen35MTP, spec.NextNPredictLayers) {
 		return Qwen35BlockResult{}, errors.New("Qwen3.5 MTP architecture is invalid")
 	}
 	dense := spec

@@ -1158,7 +1158,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	}
 	cohere2HasMTP := false
 	cohere2MTPOnly := false
-	if spec.Architecture == "cohere2moe" && spec.NextNPredictLayers == 1 {
+	if profile.HasSingleDraft(DraftCohere2MTP, spec.NextNPredictLayers) {
 		mtpPrefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
 		_, cohere2HasMTP = tensors[mtpPrefix+"nextn.eh_proj.weight"]
 		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
@@ -1167,8 +1167,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			trunkBlockCount++
 		}
 	}
-	mtpOnly := spec.NextNPredictLayers == 1 &&
-		(spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe")
+	mtpOnly := profile.HasSingleDraft(DraftQwen35MTP, spec.NextNPredictLayers)
 	if mtpOnly {
 		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
 		mtpOnly = !hasTrunk
@@ -1667,7 +1666,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		} else if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-			if spec.Architecture == "minicpm3" || ((isDeepSeek2Family(spec.Architecture) || spec.Architecture == "glm-dsa") && spec.QLoRARank > 0) {
+			if spec.Architecture == "minicpm3" || (profile.Has(ArchitectureDeepSeek2Layout) && spec.QLoRARank > 0) {
 				if layer.AttentionQ, err = required(
 					prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank),
 				); err != nil {
@@ -2182,7 +2181,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, ffnErr
 		}
 	}
-	if spec.NextNPredictLayers == 1 && profile.DraftKind == DraftQwen35MTP {
+	if profile.HasSingleDraft(DraftQwen35MTP, spec.NextNPredictLayers) {
 		prefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
 		mtp := &Qwen35MTPWeights{}
 		mtp.MTPOnly = mtpOnly
@@ -2220,7 +2219,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		mtp.Layer.AttentionQNorm, mtp.Layer.AttentionKNorm = &qNorm, &kNorm
 		result.Qwen35MTP = mtp
 	}
-	if profile.DraftKind == DraftStep35MTP && spec.NextNPredictLayers > 0 {
+	if profile.HasDraftHead(DraftStep35MTP, spec.NextNPredictLayers, 0) {
 		result.Step35MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset
@@ -2236,7 +2235,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
 	}
-	if profile.DraftKind == DraftHYV3MTP && spec.NextNPredictLayers > 0 {
+	if profile.HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, 0) {
 		result.HYV3MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset
@@ -2269,7 +2268,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			result.Layers = result.Layers[:spec.BlockCount]
 		}
 	}
-	if profile.DraftKind == DraftNextNMTP && spec.NextNPredictLayers > 0 {
+	if profile.HasDraftHead(DraftNextNMTP, spec.NextNPredictLayers, 0) {
 		result.NextNMTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset

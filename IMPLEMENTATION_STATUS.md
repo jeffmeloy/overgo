@@ -46,6 +46,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Architecture profiles now select cached, non-causal, draft-session, audio-decoder, T5-encoder, or T5-session public forward routes.
 - Output-normalization ownership and BERT norm layout are profile policies; host/device paths share one norm graph builder and weight loading uses the same tensor-name contract.
 - Architecture registry updates share one checked mutator; runtime graph/weight paths consume prepared profiles directly, with legacy string-to-profile wrappers removed from production.
+- Draft profiles own bounded single/multi-head eligibility across graph, weight, and session paths; DeepSeek2-compatible metadata/tensor layout is distinct from DeepSeek2 graph behavior.
 - Declarative layer cache schemas now define host validation, device allocation, shifting, compaction, and recurrent-state shapes.
 - Attention, FFN, and MoE tensor catalogs are separated from orchestration; shared catalog bindings retain ordered validation.
 - Shared graph execution now covers the remaining standalone inference leaves; only core cached/non-cached layer loops construct graphs directly.

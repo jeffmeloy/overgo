@@ -38,10 +38,10 @@ func layerUsesMoECatalog(
 		return spec.IsInterleavedMoELayer(block)
 	case "exaone-moe":
 		return block >= spec.LeadingDenseBlocks && !isNextNBlock
-	case "deepseek2-ocr", "glm-dsa":
+	case "deepseek2-ocr":
 		return block >= spec.LeadingDenseBlocks
 	}
-	return spec.Profile().Has(ArchitectureDeepSeek2) && block >= spec.LeadingDenseBlocks ||
+	return spec.Profile().Has(ArchitectureDeepSeek2Layout) && block >= spec.LeadingDenseBlocks ||
 		spec.IsInterleavedMoELayer(block)
 }
 
@@ -213,8 +213,9 @@ func loadMoEFamilyCatalog(
 	layer *LayerWeights,
 ) error {
 	architecture := spec.Architecture
+	profile := spec.Profile()
 	if architecture == "ernie4_5-moe" || architecture == "hy_v3" ||
-		isDeepSeek2Family(architecture) || architecture == "glm-dsa" || architecture == "deepseek2-ocr" ||
+		profile.Has(ArchitectureDeepSeek2Layout) || architecture == "deepseek2-ocr" ||
 		architecture == "exaone-moe" || architecture == "bailingmoe2" || architecture == "dots1" ||
 		architecture == "mimo2" || architecture == "step35" {
 		if err := loadOptionalF32ExpertBias(tensors, prefix, spec, layer, architecture == "hy_v3"); err != nil {
@@ -233,7 +234,7 @@ func loadMoEFamilyCatalog(
 		layer.FeedForwardExpertBias = &bias
 	}
 	shared := architecture == "llama4" || architecture == "hunyuan-moe" || architecture == "glm4moe" ||
-		architecture == "hy_v3" || isDeepSeek2Family(architecture) || architecture == "glm-dsa" ||
+		architecture == "hy_v3" || profile.Has(ArchitectureDeepSeek2Layout) ||
 		architecture == "deepseek2-ocr" || architecture == "exaone-moe" || architecture == "bailingmoe2" ||
 		architecture == "dots1" || architecture == "bailingmoe" || architecture == "deepseek"
 	shared = shared || spec.SharedExpertFF > 0 && (architecture == "granitemoe" || architecture == "granitehybrid" ||

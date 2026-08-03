@@ -15,7 +15,7 @@ func BuildNextNMTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.Profile().DraftKind == DraftNextNMTP && offset < spec.NextNPredictLayers, mtpWeightedRMS,
+		spec.Profile().HasDraftHead(DraftNextNMTP, spec.NextNPredictLayers, offset), mtpWeightedRMS,
 		"NextN MTP input is nil", "NextN MTP input shape is incompatible",
 	)
 }
@@ -45,7 +45,7 @@ func BuildNextNMTPBlockCachedWithDSA(
 	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().DraftKind != DraftNextNMTP || offset >= spec.NextNPredictLayers {
+	if !spec.Profile().HasDraftHead(DraftNextNMTP, spec.NextNPredictLayers, offset) {
 		return DenseBlockResult{}, errors.New("NextN MTP block is invalid")
 	}
 	executable := spec
@@ -67,7 +67,7 @@ func BuildNextNMTPOutputs(
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	return buildMTPOutputs(
 		builder, input, outputNorm, output, spec,
-		spec.Profile().DraftKind == DraftNextNMTP && offset < spec.NextNPredictLayers,
+		spec.Profile().HasDraftHead(DraftNextNMTP, spec.NextNPredictLayers, offset),
 		false, false, mtpWeightedRMS, "NextN MTP output is nil", "NextN MTP output shape is incompatible",
 	)
 }

@@ -15,7 +15,7 @@ func BuildHYV3MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		spec.Profile().DraftKind == DraftHYV3MTP && offset < spec.NextNPredictLayers, mtpWeightedRMS,
+		spec.Profile().HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, offset), mtpWeightedRMS,
 		"HY-V3 MTP input is nil", "HY-V3 MTP input shape is incompatible",
 	)
 }
@@ -30,7 +30,7 @@ func BuildHYV3MTPBlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().DraftKind != DraftHYV3MTP || offset >= spec.NextNPredictLayers {
+	if !spec.Profile().HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, offset) {
 		return DenseBlockResult{}, errors.New("HY-V3 MTP head is invalid")
 	}
 	return BuildDenseBlockCachedForLayer(
@@ -48,7 +48,7 @@ func BuildHYV3MTPOutputs(
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	return buildMTPOutputs(
 		builder, input, outputNorm, output, spec,
-		spec.Profile().DraftKind == DraftHYV3MTP && offset < spec.NextNPredictLayers, false, false, mtpWeightedRMS,
+		spec.Profile().HasDraftHead(DraftHYV3MTP, spec.NextNPredictLayers, offset), false, false, mtpWeightedRMS,
 		"HY-V3 MTP output is nil", "HY-V3 MTP output shape is incompatible",
 	)
 }

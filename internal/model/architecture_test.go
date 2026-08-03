@@ -53,6 +53,40 @@ func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
 	}
 }
 
+func TestArchitectureProfileDraftHeadPolicy(t *testing.T) {
+	step, _ := LookupArchitecture("step35")
+	if !step.HasDraftHead(DraftStep35MTP, 2, 0) ||
+		!step.HasDraftHead(DraftStep35MTP, 2, 1) ||
+		step.HasDraftHead(DraftStep35MTP, 2, 2) ||
+		step.HasSingleDraft(DraftStep35MTP, 2) {
+		t.Fatalf("Step3.5 draft policy = %#v", step)
+	}
+	qwen, _ := LookupArchitecture("qwen35")
+	if !qwen.HasSingleDraft(DraftQwen35MTP, 1) ||
+		qwen.HasSingleDraft(DraftQwen35MTP, 2) ||
+		qwen.HasDraftHead(DraftNextNMTP, 1, 0) {
+		t.Fatalf("Qwen3.5 draft policy = %#v", qwen)
+	}
+}
+
+func TestArchitectureProfileDeepSeekLayoutPolicy(t *testing.T) {
+	for architecture, wantGraph := range map[string]bool{
+		"deepseek2": true, "deepseek32": true, "mistral4": true, "glm-dsa": false,
+	} {
+		profile, ok := LookupArchitecture(architecture)
+		if !ok || !profile.Has(ArchitectureDeepSeek2Layout) ||
+			profile.Has(ArchitectureDeepSeek2) != wantGraph {
+			t.Fatalf("%s DeepSeek policies = %064b", architecture, profile.Capabilities)
+		}
+	}
+	for _, architecture := range []string{"deepseek", "deepseek2-ocr", "minicpm3"} {
+		profile, _ := LookupArchitecture(architecture)
+		if profile.Has(ArchitectureDeepSeek2Layout) {
+			t.Fatalf("%s unexpectedly has DeepSeek2 layout", architecture)
+		}
+	}
+}
+
 func TestArchitectureProfileForwardPolicy(t *testing.T) {
 	for architecture, want := range map[string]ForwardPolicy{
 		"llama":            ForwardCached,

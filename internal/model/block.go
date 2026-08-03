@@ -1751,12 +1751,13 @@ func buildMLABlockCachedForLayer(
 	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	attentionPolicy := spec.Profile().Attention
+	profile := spec.Profile()
+	attentionPolicy := profile.Attention
 	if attentionPolicy != AttentionMLA && attentionPolicy != AttentionDSA && spec.Architecture != "kimi-linear" {
 		return DenseBlockResult{}, errors.New("MLA block architecture is unsupported")
 	}
 	isMiniCPM3 := spec.Architecture == "minicpm3"
-	isDeepSeek2 := isDeepSeek2Family(spec.Architecture)
+	isDeepSeek2 := profile.Has(ArchitectureDeepSeek2)
 	isDSA := attentionPolicy == AttentionDSA
 	isDeepSeek32 := spec.Architecture == "deepseek32"
 	isKimi := spec.Architecture == "kimi-linear"
@@ -4289,9 +4290,9 @@ func buildDenseBlockCachedForLayer(
 			spec.XIELUBeta[layerIndex],
 			spec.XIELUEpsilon[layerIndex],
 		)
-	} else if usesGELU(spec.Architecture) {
+	} else if profile.FeedForward == FeedForwardGELU || profile.FeedForward == FeedForwardSequentialGELU {
 		activation = builder.GELU(up)
-	} else if usesSquaredReLU(spec.Architecture) {
+	} else if profile.FeedForward == FeedForwardSquaredReLU {
 		activation = builder.ReLUSquared(up)
 	} else {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)

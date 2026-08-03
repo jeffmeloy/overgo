@@ -15,11 +15,6 @@ type UnsupportedArchitectureError struct {
 	Architecture string
 }
 
-func isDeepSeek2Family(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureDeepSeek2)
-}
-
 // LayerHasFullIndexer: DSA full-indexer predicate.
 func (s Spec) LayerHasFullIndexer(layer uint32) bool {
 	if s.Architecture == "deepseek32" && layer < s.BlockCount+s.NextNPredictLayers {
@@ -71,7 +66,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	} else if ok {
 		spec.ClassifierLabels = slices.Clone(labels)
 	}
-	if isDeepSeek2Family(architecture) || architecture == "glm-dsa" {
+	if profile.Has(ArchitectureDeepSeek2Layout) {
 		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
 			if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
@@ -304,7 +299,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.KeyLength = spec.PosNetEmbeddingLength
 		spec.ValueLength = spec.PosNetEmbeddingLength
 	}
-	if isDeepSeek2Family(architecture) || architecture == "glm-dsa" || architecture == "kimi-linear" {
+	if profile.Has(ArchitectureDeepSeek2Layout) || architecture == "kimi-linear" {
 		if value, ok := optional[uint32](values, prefix+"attention.key_length_mla", gguf.ValueTypeUint32); ok {
 			spec.KeyLength = value
 		}
@@ -365,7 +360,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" || architecture == "qwen35moe" ||
 				(scalingType != "linear" && !(profile.Has(ArchitectureLongRoPE) && scalingType == "longrope")) {
-				if (!isDeepSeek2Family(architecture) && architecture != "deepseek4" && architecture != "glm-dsa" && architecture != "laguna" && architecture != "grok" && architecture != "mellum" && architecture != "llama" && architecture != "llama-embed" && architecture != "minicpm" && architecture != "mistral3") || scalingType != "yarn" {
+				if (!profile.Has(ArchitectureDeepSeek2Layout) && architecture != "deepseek4" && architecture != "laguna" && architecture != "grok" && architecture != "mellum" && architecture != "llama" && architecture != "llama-embed" && architecture != "minicpm" && architecture != "mistral3") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
 						"model architecture %q uses unsupported RoPE scaling type %q",
 						architecture,
@@ -1583,7 +1578,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
-	if isDeepSeek2Family(architecture) || architecture == "glm-dsa" {
+	if profile.Has(ArchitectureDeepSeek2Layout) {
 		if architecture == "deepseek32" {
 			if spec.ExpertCount, err = required[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
@@ -2109,7 +2104,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				return Spec{}, err
 			}
 		}
-		if isDeepSeek2Family(architecture) || architecture == "glm-dsa" {
+		if profile.Has(ArchitectureDeepSeek2Layout) {
 			lite := spec.BlockCount == 26 || spec.BlockCount == 27 || (spec.BlockCount == 48 && spec.VocabularySize == 128256)
 			if !lite {
 				if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
@@ -2127,7 +2122,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		); err != nil {
 			return Spec{}, err
 		}
-		if isDeepSeek2Family(architecture) || architecture == "glm-dsa" {
+		if profile.Has(ArchitectureDeepSeek2Layout) {
 			spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 			if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
@@ -3386,8 +3381,8 @@ func (s Spec) validate() error {
 	if (profile.Attention == AttentionMLA || profile.Attention == AttentionDSA || s.Architecture == "kimi-linear") &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength ||
-			(!isDeepSeek2Family(s.Architecture) && s.Architecture != "glm-dsa" && s.Architecture != "kimi-linear" && s.HeadCountKV != s.HeadCount) ||
-			((isDeepSeek2Family(s.Architecture) || s.Architecture == "glm-dsa" || s.Architecture == "kimi-linear") && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
+			(!profile.Has(ArchitectureDeepSeek2Layout) && s.Architecture != "kimi-linear" && s.HeadCountKV != s.HeadCount) ||
+			((profile.Has(ArchitectureDeepSeek2Layout) || s.Architecture == "kimi-linear") && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
 	}
 	if profile.Attention == AttentionDSA {
@@ -3496,7 +3491,7 @@ func (s Spec) validate() error {
 			return errors.New("Kimi Linear requires KDA and MLA layers")
 		}
 	}
-	if isDeepSeek2Family(s.Architecture) || s.Architecture == "glm-dsa" {
+	if profile.Has(ArchitectureDeepSeek2Layout) {
 		lite := s.BlockCount == 26 || s.BlockCount == 27 || (s.BlockCount == 48 && s.VocabularySize == 128256)
 		switch {
 		case s.ExpertCount == 0 && s.LeadingDenseBlocks != s.BlockCount:
@@ -3953,17 +3948,6 @@ func firstPositive(values []uint32) uint32 {
 		}
 	}
 	return 0
-}
-
-func usesGELU(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && (profile.FeedForward == FeedForwardGELU ||
-		profile.FeedForward == FeedForwardSequentialGELU)
-}
-
-func usesSquaredReLU(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.FeedForward == FeedForwardSquaredReLU
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {

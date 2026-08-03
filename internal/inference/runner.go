@@ -1438,18 +1438,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: cachePosition,
 	}
-	if r.hasPreloadedWeights() && r.spec.Profile().Attention != model.AttentionQwenGDN &&
-		r.spec.Architecture != "lfm2" && r.spec.Architecture != "lfm2moe" &&
-		r.spec.Architecture != "plm" && r.spec.Architecture != "minicpm3" &&
-		r.spec.Architecture != "deepseek2" && r.spec.Architecture != "mistral4" &&
-		r.spec.Architecture != "deepseek4" &&
-		r.spec.Profile().Attention != model.AttentionDSA && r.spec.Architecture != "falcon-h1" &&
-		r.spec.Architecture != "mamba" && r.spec.Architecture != "mamba2" &&
-		r.spec.Architecture != "jamba" && r.spec.Architecture != "granitehybrid" &&
-		r.spec.Architecture != "plamo2" && r.spec.Architecture != "nemotron_h" &&
-		r.spec.Architecture != "nemotron_h_moe" && r.spec.Architecture != "kimi-linear" &&
-		r.spec.Architecture != "rwkv6" && r.spec.Architecture != "rwkv6qwen2" &&
-		r.spec.Architecture != "rwkv7" && r.spec.Architecture != "arwkv7" {
+	if r.hasPreloadedWeights() && r.plan.CachedGraph == model.CachedGraphDense {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
 			deepstackBase, deepstackInputs, attentionBlockIDs,

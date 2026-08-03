@@ -89,6 +89,117 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	}
 }
 
+func TestCompileModelPlanSelectsCachedGraphPolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		spec    Spec
+		weights Weights
+		want    CachedGraphPolicy
+	}{
+		{
+			name: "dense attention",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}},
+			want: CachedGraphDense,
+		},
+		{
+			name: "dense MoE",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "qwen3moe", BlockCount: 1}},
+			want: CachedGraphDense,
+		},
+		{
+			name: "sentinel cache",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "deci", BlockCount: 1}},
+			want: CachedGraphDense,
+		},
+		{
+			name: "shared KV",
+			spec: Spec{
+				CommonSpec:     CommonSpec{Architecture: "gemma4", BlockCount: 2},
+				MultimodalSpec: MultimodalSpec{SharedKVLayers: 1},
+			},
+			want: CachedGraphDense,
+		},
+		{
+			name: "AltUp",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "gemma3n", BlockCount: 1}},
+			want: CachedGraphLayered,
+		},
+		{
+			name: "MLA",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek2", BlockCount: 1}},
+			want: CachedGraphLayered,
+		},
+		{
+			name: "DSA",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
+			want: CachedGraphLayered,
+		},
+		{
+			name: "recurrent",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 1}},
+			want: CachedGraphLayered,
+		},
+		{
+			name: "hybrid attention-only layer",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
+			want: CachedGraphLayered,
+		},
+		{
+			name:    "hybrid recurrent layer",
+			spec:    Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
+			weights: Weights{Layers: []LayerWeights{{Recurrent: true}}},
+			want:    CachedGraphLayered,
+		},
+		{
+			name: "encoder",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "bert", BlockCount: 1}},
+			want: CachedGraphLayered,
+		},
+		{
+			name: "empty",
+			spec: Spec{CommonSpec: CommonSpec{Architecture: "llama"}},
+			want: CachedGraphLayered,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan, err := CompileModelPlan(test.spec, test.weights)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.CachedGraph != test.want {
+				t.Fatalf("cached graph = %v, want %v; plan = %+v", plan.CachedGraph, test.want, plan)
+			}
+		})
+	}
+}
+
+func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
+	for _, architecture := range SupportedArchitectures() {
+		spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, BlockCount: 1}}
+		plan, err := CompileModelPlan(spec, Weights{})
+		if err != nil {
+			t.Fatalf("%s: %v", architecture, err)
+		}
+		if plan.CachedGraph != CachedGraphDense {
+			continue
+		}
+		if plan.Profile.GraphFamily != ArchitectureFamilyAttention &&
+			plan.Profile.GraphFamily != ArchitectureFamilyMoE {
+			t.Fatalf("%s selected dense graph for family %v", architecture, plan.Profile.GraphFamily)
+		}
+		if plan.Profile.Has(ArchitectureAltUp) {
+			t.Fatalf("%s selected dense graph with AltUp", architecture)
+		}
+		for _, layer := range plan.Layers {
+			if layer.Block != BlockDense || layer.Attention != AttentionStandard ||
+				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
+				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
+			}
+		}
+	}
+}
+
 func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	plan, err := CompileModelPlan(Spec{
 		CommonSpec:  CommonSpec{Architecture: "t5", BlockCount: 3},

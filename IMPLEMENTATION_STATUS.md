@@ -42,6 +42,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Generation, T5, and MTP state persistence share one bounded codec; server and CLI JSON inputs share one strict single-document policy.
 - Inference and projector execution share a graph-feed substrate; model and projector catalogs share neutral tensor-requirement validation.
 - Typed architecture policies and per-layer plans now drive normalization, position, residual, attention, FFN, graph-family, cache, and weight-catalog dispatch.
+- Compiled model plans select composed dense or layered cached graphs from typed family, capability, block, attention, and cache contracts; runner architecture exclusion chains are removed.
 - Declarative layer cache schemas now define host validation, device allocation, shifting, compaction, and recurrent-state shapes.
 - Attention, FFN, and MoE tensor catalogs are separated from orchestration; shared catalog bindings retain ordered validation.
 - Shared graph execution now covers the remaining standalone inference leaves; only core cached/non-cached layer loops construct graphs directly.

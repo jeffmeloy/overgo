@@ -1715,6 +1715,13 @@ encoder-decoder, diffusion, and draft entry points over the shared strict
 shape/name validation core. Family routing is sourced only from the central
 architecture profile.
 
+Compiled model plans now select composed dense or per-layer cached graph
+execution. The decision combines graph family, AltUp capability, every block
+and attention policy, and attention/sentinel cache schemas. The runner's
+architecture-name exclusion chain is removed while dense, MoE, Deci sentinel,
+MLA/DSA, recurrent, hybrid, encoder, and Gemma 3n policies remain pinned by
+registry-wide tests.
+
 Retained CUDA KV caches now maintain configurable token-page tables. Each page
 contains layer-specific device pointer views with bounded token extents;
 append, suffix trim, zero-copy shift, and owned range compaction rebuild the

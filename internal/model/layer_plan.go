@@ -39,6 +39,14 @@ const (
 	CacheDeepSeek4
 )
 
+// CachedGraphPolicy: cached decoder graph composition.
+type CachedGraphPolicy uint8
+
+const (
+	CachedGraphLayered CachedGraphPolicy = iota
+	CachedGraphDense
+)
+
 // LayerPlan: derived layer execution contract.
 type LayerPlan struct {
 	Layer         uint32
@@ -97,6 +105,7 @@ type ModelPlan struct {
 	Profile     ArchitectureProfile
 	Layers      []LayerPlan
 	CacheLayers uint32
+	CachedGraph CachedGraphPolicy
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -120,7 +129,23 @@ func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
 		plan.Layers[layer] = spec.PlanLayer(layer, recurrent)
 	}
+	plan.CachedGraph = cachedGraphPolicy(profile, plan.Layers)
 	return plan, nil
+}
+
+func cachedGraphPolicy(profile ArchitectureProfile, layers []LayerPlan) CachedGraphPolicy {
+	if len(layers) == 0 || profile.Has(ArchitectureAltUp) ||
+		profile.GraphFamily != ArchitectureFamilyAttention &&
+			profile.GraphFamily != ArchitectureFamilyMoE {
+		return CachedGraphLayered
+	}
+	for _, layer := range layers {
+		if layer.Block != BlockDense || layer.Attention != AttentionStandard ||
+			layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
+			return CachedGraphLayered
+		}
+	}
+	return CachedGraphDense
 }
 
 // HasCache: reports a compiled cache policy.

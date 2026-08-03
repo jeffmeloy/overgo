@@ -53,6 +53,25 @@ func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
 	}
 }
 
+func TestArchitectureProfileForwardPolicy(t *testing.T) {
+	for architecture, want := range map[string]ForwardPolicy{
+		"llama":            ForwardCached,
+		"bert":             ForwardNonCausal,
+		"dream":            ForwardNonCausal,
+		"dflash":           ForwardDFlash,
+		"eagle3":           ForwardEagle3,
+		"gemma4-assistant": ForwardGemma4Assistant,
+		"wavtokenizer-dec": ForwardWavTokenizer,
+		"t5encoder":        ForwardT5Encoder,
+		"t5":               ForwardT5,
+	} {
+		profile, ok := LookupArchitecture(architecture)
+		if !ok || profile.Forward != want {
+			t.Fatalf("%s forward policy = %v, want %v", architecture, profile.Forward, want)
+		}
+	}
+}
+
 func TestArchitectureProfileFusedQKVPolicy(t *testing.T) {
 	for architecture, capabilities := range map[string]ArchitectureCapability{
 		"bloom": ArchitectureFusedQKV | ArchitectureRequiresFusedQKV | ArchitectureRequiresFusedQKVBias,

@@ -43,6 +43,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Inference and projector execution share a graph-feed substrate; model and projector catalogs share neutral tensor-requirement validation.
 - Typed architecture policies and per-layer plans now drive normalization, position, residual, attention, FFN, graph-family, cache, and weight-catalog dispatch.
 - Compiled model plans select composed dense or layered cached graphs from typed family, capability, block, attention, and cache contracts; runner architecture exclusion chains are removed.
+- Architecture profiles now select cached, non-causal, draft-session, audio-decoder, T5-encoder, or T5-session public forward routes.
 - Declarative layer cache schemas now define host validation, device allocation, shifting, compaction, and recurrent-state shapes.
 - Attention, FFN, and MoE tensor catalogs are separated from orchestration; shared catalog bindings retain ordered validation.
 - Shared graph execution now covers the remaining standalone inference leaves; only core cached/non-cached layer loops construct graphs directly.

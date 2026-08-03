@@ -114,6 +114,9 @@ func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
 	if !ok {
 		return ModelPlan{}, &UnsupportedArchitectureError{Architecture: spec.Architecture}
 	}
+	if profile.Forward == ForwardCached && spec.NonCausalAttention {
+		profile.Forward = ForwardNonCausal
+	}
 	layers := spec.BlockCount
 	if profile.Family == ArchitectureFamilyEncoderDecoder && spec.DecoderBlockCount > layers {
 		layers = spec.DecoderBlockCount

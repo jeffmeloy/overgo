@@ -30,6 +30,20 @@ const (
 	DraftCohere2MTP
 )
 
+// ForwardPolicy: public inference entry route.
+type ForwardPolicy uint8
+
+const (
+	ForwardCached ForwardPolicy = iota
+	ForwardNonCausal
+	ForwardDFlash
+	ForwardEagle3
+	ForwardGemma4Assistant
+	ForwardWavTokenizer
+	ForwardT5Encoder
+	ForwardT5
+)
+
 // NormalizationPolicy: model normalization contract.
 type NormalizationPolicy uint8
 
@@ -129,6 +143,7 @@ type ArchitectureProfile struct {
 	GraphFamily   ArchitectureFamily
 	CatalogFamily ArchitectureFamily
 	DraftKind     DraftKind
+	Forward       ForwardPolicy
 	Capabilities  ArchitectureCapability
 	Normalization NormalizationPolicy
 	Position      PositionPolicy
@@ -234,6 +249,16 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 				panic("unknown architecture profile: " + name)
 			}
 			profile.DraftKind = kind
+			registry[name] = profile
+		}
+	}
+	setForward := func(policy ForwardPolicy, names ...string) {
+		for _, name := range names {
+			profile, ok := registry[name]
+			if !ok {
+				panic("unknown architecture profile: " + name)
+			}
+			profile.Forward = policy
 			registry[name] = profile
 		}
 	}
@@ -437,7 +462,16 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setFamily(ArchitectureFamilyEncoderDecoder, "t5")
 	setFamily(ArchitectureFamilyDiffusion, "dream", "llada", "llada-moe", "rnd1")
 	setFamily(ArchitectureFamilyDraft, "dflash", "eagle3", "gemma4-assistant")
+	setForward(ForwardDFlash, "dflash")
+	setForward(ForwardEagle3, "eagle3")
+	setForward(ForwardGemma4Assistant, "gemma4-assistant")
+	setForward(ForwardWavTokenizer, "wavtokenizer-dec")
+	setForward(ForwardT5Encoder, "t5encoder")
+	setForward(ForwardT5, "t5")
 	for name, profile := range registry {
+		if profile.Forward == ForwardCached && profile.Has(ArchitectureNonCausal) {
+			profile.Forward = ForwardNonCausal
+		}
 		if profile.Has(ArchitectureNormalRoPE) {
 			profile.Position = PositionNormal
 		}

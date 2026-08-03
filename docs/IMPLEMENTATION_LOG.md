@@ -1722,6 +1722,14 @@ architecture-name exclusion chain is removed while dense, MoE, Deci sentinel,
 MLA/DSA, recurrent, hybrid, encoder, and Gemma 3n policies remain pinned by
 registry-wide tests.
 
+Architecture profiles now also select the public inference forward route:
+cached causal, non-causal, DFlash/Eagle3/Gemma 4 Assistant dedicated session,
+WavTokenizer audio decoder, T5 encoder, or T5 encoder-decoder session. Spec-
+selected non-causal execution is compiled into the prepared model snapshot;
+the runner no longer owns the corresponding architecture-name dispatch chain.
+Embedding overrides, cache entry points, T5 sessions, audio decoding, and
+generation use the same compiled route.
+
 Retained CUDA KV caches now maintain configurable token-page tables. Each page
 contains layer-specific device pointer views with bounded token extents;
 append, suffix trim, zero-copy shift, and owned range compaction rebuild the

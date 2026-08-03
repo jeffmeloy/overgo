@@ -593,6 +593,17 @@ func (r *Runner) profile() model.ArchitectureProfile {
 	return r.spec.Profile()
 }
 
+func (r *Runner) forwardPolicy() model.ForwardPolicy {
+	if r != nil && r.plan.Profile.Name != "" {
+		return r.plan.Profile.Forward
+	}
+	profile := r.spec.Profile()
+	if profile.Forward == model.ForwardCached && r.spec.NonCausalAttention {
+		return model.ForwardNonCausal
+	}
+	return profile.Forward
+}
+
 func (r *Runner) Vocab() *tokenizer.Vocab {
 	if r == nil {
 		return nil
@@ -629,7 +640,7 @@ func (r *Runner) ForwardWithEmbeddingOverrides(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if r.spec.Architecture == "t5encoder" || r.spec.NonCausalAttention {
+	if r.forwardPolicy() == model.ForwardT5Encoder || r.spec.NonCausalAttention {
 		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
 	}
 	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides, nil, nil, nil)
@@ -640,29 +651,27 @@ func (r *Runner) forwardLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
-	if r.spec.Architecture == "dflash" {
+	switch r.forwardPolicy() {
+	case model.ForwardDFlash:
 		return reference.Value{}, errors.New("inference: DFlash requires feature fusion, cache injection, and paired target decode")
-	}
-	if r.spec.Architecture == "eagle3" {
+	case model.ForwardEagle3:
 		return reference.Value{}, errors.New("inference: Eagle3 requires NewEagle3Session and AdvanceEagle3")
-	}
-	if r.spec.Architecture == "gemma4-assistant" {
+	case model.ForwardGemma4Assistant:
 		return reference.Value{}, errors.New("inference: Gemma 4 assistant requires NewGemma4AssistantSession and AdvanceGemma4Assistant")
-	}
-	if r.spec.Architecture == "wavtokenizer-dec" {
+	case model.ForwardWavTokenizer:
 		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
-	}
-	if r.spec.Architecture == "t5encoder" {
+	case model.ForwardT5Encoder:
 		return r.forwardT5EncoderLocked(ctx, tokenIDs)
-	}
-	if r.spec.Architecture == "t5" {
+	case model.ForwardT5:
 		return reference.Value{}, errors.New("inference: T5 requires NewT5Session and DecodeT5")
-	}
-	if r.spec.NonCausalAttention {
+	case model.ForwardNonCausal:
 		return r.forwardNonCausalLocked(ctx, tokenIDs)
+	case model.ForwardCached:
+		hidden, _, err := r.forwardCachedLocked(ctx, tokenIDs, nil)
+		return hidden, err
+	default:
+		return reference.Value{}, errors.New("inference: unknown compiled forward policy")
 	}
-	hidden, _, err := r.forwardCachedLocked(ctx, tokenIDs, nil)
-	return hidden, err
 }
 
 // ForwardNonCausal: evaluates entire bidirectional token sequence without
@@ -698,7 +707,7 @@ func (r *Runner) DecodeWavTokenizer(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if r.spec.Architecture != "wavtokenizer-dec" {
+	if r.forwardPolicy() != model.ForwardWavTokenizer {
 		return reference.Value{}, errors.New("inference: audio decode requires wavtokenizer-dec architecture")
 	}
 	return r.forwardWavTokenizerLocked(ctx, tokenIDs)
@@ -733,7 +742,7 @@ func (r *Runner) forwardNonCausalLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
-	if r.spec.Architecture == "wavtokenizer-dec" {
+	if r.forwardPolicy() == model.ForwardWavTokenizer {
 		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
 	}
 	if len(tokenIDs) == 0 {
@@ -930,7 +939,7 @@ func (r *Runner) forwardT5EncoderLocked(
 		return reference.Value{}, err
 	}
 	layers := r.weights.Layers
-	if r.spec.Architecture == "t5" {
+	if r.forwardPolicy() == model.ForwardT5 {
 		layers = r.weights.EncoderLayers
 	}
 	for layerIndex, layerInfo := range layers {
@@ -939,7 +948,7 @@ func (r *Runner) forwardT5EncoderLocked(
 			return reference.Value{}, fmt.Errorf("inference encoder layer %d: %w", layerIndex, err)
 		}
 	}
-	if r.spec.Architecture == "t5" {
+	if r.forwardPolicy() == model.ForwardT5 {
 		return r.runT5EncoderOutputNorm(ctx, activation)
 	}
 	return r.runOutputNorm(ctx, activation)
@@ -955,7 +964,7 @@ func (r *Runner) NewT5Session(ctx context.Context, sourceIDs []tokenizer.TokenID
 	if r.closed {
 		return nil, errors.New("inference: runner is closed")
 	}
-	if r.spec.Architecture != "t5" {
+	if r.forwardPolicy() != model.ForwardT5 {
 		return nil, errors.New("inference: T5 session requires T5 architecture")
 	}
 	encoder, err := r.forwardT5EncoderLocked(ctx, sourceIDs)
@@ -979,7 +988,7 @@ func (r *Runner) DecodeT5(
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
 	}
-	if r.spec.Architecture != "t5" {
+	if r.forwardPolicy() != model.ForwardT5 {
 		return reference.Value{}, nil, errors.New("inference: T5 decode requires T5 architecture")
 	}
 	return r.decodeT5Locked(ctx, session, decoderIDs)
@@ -1069,7 +1078,7 @@ func (r *Runner) ForwardCached(
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
-	if r.spec.Architecture == "t5" {
+	if r.forwardPolicy() == model.ForwardT5 {
 		return reference.Value{}, nil, errors.New("inference: use DecodeT5 for T5 caching")
 	}
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
@@ -1287,10 +1296,10 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if r.weights.Cohere2MTP != nil && r.weights.Cohere2MTP.MTPOnly {
 		return reference.Value{}, nil, errors.New("inference: Cohere2-MoE MTP-only model requires a paired target session")
 	}
-	if r.spec.Architecture == "gemma4-assistant" {
+	if r.forwardPolicy() == model.ForwardGemma4Assistant {
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
 	}
-	if r.spec.Architecture == "t5encoder" {
+	if r.forwardPolicy() == model.ForwardT5Encoder {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
 	}
 	if len(tokenIDs) == 0 {
@@ -2597,10 +2606,10 @@ func (r *Runner) Generate(
 	if r == nil || r.vocab == nil {
 		return nil, "", errors.New("inference: runner is nil")
 	}
-	if r.spec.Architecture == "t5encoder" {
+	if r.forwardPolicy() == model.ForwardT5Encoder {
 		return nil, "", errors.New("inference: T5 encoder models do not generate tokens")
 	}
-	if r.spec.Architecture == "t5" {
+	if r.forwardPolicy() == model.ForwardT5 {
 		generated, _, _, err := r.GenerateT5(ctx, prompt, options)
 		if err != nil {
 			return nil, "", err

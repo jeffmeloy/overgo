@@ -174,6 +174,19 @@ func TestCompileModelPlanSelectsCachedGraphPolicy(t *testing.T) {
 	}
 }
 
+func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
+	plan, err := CompileModelPlan(Spec{
+		CommonSpec:    CommonSpec{Architecture: "llama", BlockCount: 1},
+		AttentionSpec: AttentionSpec{NonCausalAttention: true},
+	}, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Profile.Forward != ForwardNonCausal {
+		t.Fatalf("forward policy = %v", plan.Profile.Forward)
+	}
+}
+
 func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
 	for _, architecture := range SupportedArchitectures() {
 		spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, BlockCount: 1}}

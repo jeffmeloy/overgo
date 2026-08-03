@@ -2,11 +2,20 @@ package inference
 
 import (
 	"fmt"
+	"math"
 
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
+
+func validSampledLimits(maximum int, minimumProbability float64) bool {
+	return maximum > 0 && minimumProbability >= 0 && minimumProbability <= 1 && !math.IsNaN(minimumProbability)
+}
+
+func validVerificationSamplers(draft, target *sampling.Sampler) bool {
+	return draft != nil && target != nil && draft != target
+}
 
 type sampledDraft[S any] struct {
 	InitialToken  tokenizer.TokenID

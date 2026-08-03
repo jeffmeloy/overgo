@@ -151,17 +151,12 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	input := func(tensorInfo gguf.TensorInfo) *tensor.Tensor {
 		node, pointer, err := w.Input(builder, tensorInfo.Name)
 		if err != nil {
-			if builder.Err() == nil {
-				// Return nil and let explicit lookup pass below surface
-				// stable error without mutating Builder internals
-			}
 			return nil
 		}
 		feeds[node] = pointer
 		return node
 	}
-	// Validate all lookups first so missing optional pointer cannot be hidden
-	// behind later builder error
+	// Preflight lookups: stable missing-tensor errors.
 	required := []gguf.TensorInfo{}
 	if info.FeedForwardRouter != nil {
 		if (info.FeedForwardUpExperts == nil && info.FeedForwardGateUpExperts == nil) ||

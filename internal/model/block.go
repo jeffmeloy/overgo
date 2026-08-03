@@ -4748,15 +4748,6 @@ func deepSeek4LimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, li
 	return builder.SwiGLU(gate, up)
 }
 
-func hasMRoPESections(sections [4]int32) bool {
-	for _, section := range sections {
-		if section != 0 {
-			return true
-		}
-	}
-	return false
-}
-
 func buildDeciSparseBlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,

@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -104,10 +101,7 @@ func (r *Runner) newMultiHeadMTPSession(
 	if err != nil {
 		return nil, err
 	}
-	last := reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-	}
+	last := lastHiddenColumn(hidden)
 	position := effectiveCachePosition(cache)
 	return &Step35MTPSession{
 		TrunkCache: cache, Heads: heads, PendingHidden: last,
@@ -242,45 +236,35 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if !hidden.Shape.Equal(tokenEmbedding.Shape) {
 		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: Step3.5 MTP hidden shape is incompatible")
 	}
-	builder := r.newGraphBuilder()
-	tokenInput := builder.Input("step35_mtp.token", dtype.F32, tokenEmbedding.Shape)
-	hiddenInput := builder.Input("step35_mtp.hidden", dtype.F32, hidden.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{tokenInput: tokenEmbedding, hiddenInput: hidden}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	graphWeights, layerFeeds, err := r.multiHeadMTPLayerInputs(ctx, builder, hostFeeds, offset)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	tokenInput := runtime.input("step35_mtp.token", tokenEmbedding)
+	hiddenInput := runtime.input("step35_mtp.hidden", hidden)
+	graphWeights, err := runtime.layer(
+		mtp.Layer, fmt.Sprintf("blk.%d.", r.spec.BlockCount+offset),
+	)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	for node, pointer := range layerFeeds {
-		deviceFeeds[node] = pointer
-	}
-	load := func(info gguf.TensorInfo) (*tensor.Tensor, error) {
-		node, pointer, loadErr := r.deviceOrHostTensor(ctx, builder, info, hostFeeds)
-		if pointer != 0 {
-			deviceFeeds[node] = pointer
-		}
-		return node, loadErr
-	}
-	embeddingNorm, err := load(mtp.EmbeddingNorm)
+	embeddingNorm, err := runtime.weight(mtp.EmbeddingNorm)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	hiddenNorm, err := load(mtp.HiddenNorm)
+	hiddenNorm, err := runtime.weight(mtp.HiddenNorm)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	projection, err := load(mtp.EHProjection)
+	projection, err := runtime.weight(mtp.EHProjection)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	var current *tensor.Tensor
 	if r.spec.Architecture == "step35" {
 		current, err = model.BuildStep35MTPInput(
-			builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
+			runtime.builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
 		)
 	} else {
 		current, err = model.BuildHYV3MTPInput(
-			builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
+			runtime.builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
 		)
 	}
 	if err != nil {
@@ -288,18 +272,17 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil && past.Key.Shape.Rank != 0 {
-		pastKey = builder.Input("step35_mtp.past_key", dtype.F32, past.Key.Shape)
-		pastValue = builder.Input("step35_mtp.past_value", dtype.F32, past.Value.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
+		pastKey = runtime.input("step35_mtp.past_key", past.Key)
+		pastValue = runtime.input("step35_mtp.past_value", past.Value)
 	}
 	var block model.DenseBlockResult
 	if r.spec.Architecture == "step35" {
 		block, err = model.BuildStep35MTPBlockCached(
-			builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
+			runtime.builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
 		)
 	} else {
 		block, err = model.BuildHYV3MTPBlockCached(
-			builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
+			runtime.builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
 		)
 	}
 	if err != nil {
@@ -309,7 +292,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if mtp.OutputNorm != nil {
 		outputNormInfo = *mtp.OutputNorm
 	}
-	outputNorm, err := load(outputNormInfo)
+	outputNorm, err := runtime.weight(outputNormInfo)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -320,48 +303,30 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if mtp.Output != nil {
 		outputInfo = *mtp.Output
 	}
-	output, err := load(outputInfo)
+	output, err := runtime.weight(outputInfo)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	var logits, nextHidden *tensor.Tensor
 	if r.spec.Architecture == "step35" {
 		logits, nextHidden, err = model.BuildStep35MTPOutputs(
-			builder, block.Output, outputNorm, output, r.spec, offset,
+			runtime.builder, block.Output, outputNorm, output, r.spec, offset,
 		)
 	} else {
 		logits, nextHidden, err = model.BuildHYV3MTPOutputs(
-			builder, block.Output, outputNorm, output, r.spec, offset,
+			runtime.builder, block.Output, outputNorm, output, r.spec, offset,
 		)
 	}
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	outputs := []*tensor.Tensor{logits, nextHidden, block.Key, block.Value}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := runtime.execute(logits, nextHidden, block.Key, block.Value)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	return results[logits], results[nextHidden], LayerCache{
 		Key: results[block.Key], Value: results[block.Value],
 	}, nil
-}
-
-func (r *Runner) multiHeadMTPLayerInputs(
-	ctx context.Context,
-	builder *tensor.Builder,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	offset uint32,
-) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	return r.layerGraphInputs(
-		ctx, builder, hostFeeds, r.multiHeadMTPWeights()[offset].Layer,
-		fmt.Sprintf("blk.%d.", r.spec.BlockCount+offset),
-	)
 }
 
 func (r *Runner) validateStep35MTP() error {

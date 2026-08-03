@@ -69,6 +69,24 @@ func (runtime *inferenceGraphRuntime) layer(
 	layer model.LayerWeights,
 	prefix string,
 ) (model.LayerGraphWeights, error) {
+	return runtime.layerWithHost(layer, prefix, nil)
+}
+
+func (runtime *inferenceGraphRuntime) layerWithHost(
+	layer model.LayerWeights,
+	prefix string,
+	hostLayer *model.HostLayer,
+) (model.LayerGraphWeights, error) {
+	if hostLayer != nil && !runtime.runner.hasPreloadedWeights() {
+		weights, feeds, err := hostLayer.GraphInputs(runtime.builder, prefix)
+		if err != nil {
+			return model.LayerGraphWeights{}, err
+		}
+		for node, value := range feeds {
+			runtime.hostFeeds[node] = value
+		}
+		return weights, nil
+	}
 	weights, feeds, err := runtime.runner.layerGraphInputs(
 		runtime.ctx, runtime.builder, runtime.hostFeeds, layer, prefix,
 	)

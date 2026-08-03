@@ -50,3 +50,19 @@ func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestArchitectureProfileFusedQKVPolicy(t *testing.T) {
+	for architecture, capabilities := range map[string]ArchitectureCapability{
+		"bloom": ArchitectureFusedQKV | ArchitectureRequiresFusedQKV | ArchitectureRequiresFusedQKVBias,
+		"mpt":   ArchitectureFusedQKV | ArchitectureRequiresFusedQKV,
+		"phi3":  ArchitectureFusedQKV | ArchitectureRejectsOrphanFusedQKVBias,
+		"llama": 0,
+	} {
+		profile, ok := LookupArchitecture(architecture)
+		mask := ArchitectureFusedQKV | ArchitectureRequiresFusedQKV |
+			ArchitectureRequiresFusedQKVBias | ArchitectureRejectsOrphanFusedQKVBias
+		if !ok || profile.Capabilities&mask != capabilities {
+			t.Fatalf("%s fused QKV capabilities = %064b", architecture, profile.Capabilities)
+		}
+	}
+}

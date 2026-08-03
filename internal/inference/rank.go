@@ -7,10 +7,8 @@ import (
 	"math"
 	"strings"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -188,27 +186,22 @@ func (r *Runner) projectRankScores(ctx context.Context, hidden []float32) ([]flo
 	if !r.hasPreloadedWeights() {
 		return model.DotRows(ctx, r.file, info, hidden, 1024)
 	}
-	builder := r.newGraphBuilder()
-	weight, pointer, err := r.deviceInput(builder, info)
-	if err != nil {
-		return nil, err
-	}
 	inputShape := tensor.MustShape(uint64(len(hidden)), 1)
-	input := builder.Input("rank.input", dtype.F32, inputShape)
-	output := builder.MulMat(weight, input)
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
 	inputValue, err := reference.NewValue(inputShape, hidden)
 	if err != nil {
 		return nil, err
 	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{input: inputValue},
-		map[*tensor.Tensor]driver.DevicePtr{weight: pointer},
-	)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("rank.input", inputValue)
+	weight, err := runtime.weight(info)
+	if err != nil {
+		return nil, err
+	}
+	output := runtime.builder.MulMat(weight, input)
+	if err := runtime.builder.Err(); err != nil {
+		return nil, err
+	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return nil, err
 	}

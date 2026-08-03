@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/quant"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
@@ -94,29 +92,26 @@ func (r *Runner) runGemma3nActiveLayer(
 	positions []uint32,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	builder := r.newGraphBuilder()
-	inputNode := builder.Input("gemma3n.input", dtype.F32, input.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{inputNode: input}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	graphWeights, err := r.gemma3nGraphWeights(builder, hostLayer, info, hostFeeds, deviceFeeds)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	inputNode := runtime.input("gemma3n.input", input)
+	graphWeights, err := runtime.layerWithHost(info, "gemma3n.", &hostLayer)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil {
-		pastKey = builder.Input("gemma3n.cache_key", dtype.F32, past.Key.Shape)
-		pastValue = builder.Input("gemma3n.cache_value", dtype.F32, past.Value.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
+		pastKey = runtime.input("gemma3n.cache_key", past.Key)
+		pastValue = runtime.input("gemma3n.cache_value", past.Value)
 	}
 	stage, err := model.BuildGemma3nAttentionStage(
-		builder, inputNode, r.spec, graphWeights, positions,
+		runtime.builder, inputNode, r.spec, graphWeights, positions,
 		pastKey, pastValue, uint32(layerIndex),
 	)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	outputs := []*tensor.Tensor{stage.Residual, stage.Gate, stage.Up, stage.Key, stage.Value}
-	results, err := r.executeGemma3n(ctx, outputs, hostFeeds, deviceFeeds)
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -127,68 +122,24 @@ func (r *Runner) runGemma3nActiveLayer(
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	builder = r.newGraphBuilder()
-	residualNode := builder.Input("gemma3n.residual", dtype.F32, results[stage.Residual].Shape)
-	activatedNode := builder.Input("gemma3n.ffn_activated", dtype.F32, activated.Shape)
-	hostFeeds = map[*tensor.Tensor]reference.Value{
-		residualNode:  results[stage.Residual],
-		activatedNode: activated,
-	}
-	deviceFeeds = make(map[*tensor.Tensor]driver.DevicePtr)
-	graphWeights, err = r.gemma3nGraphWeights(builder, hostLayer, info, hostFeeds, deviceFeeds)
+	runtime = r.newInferenceGraphRuntime(ctx)
+	residualNode := runtime.input("gemma3n.residual", results[stage.Residual])
+	activatedNode := runtime.input("gemma3n.ffn_activated", activated)
+	graphWeights, err = runtime.layerWithHost(info, "gemma3n.", &hostLayer)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	output, err := model.BuildGemma3nFeedForwardOutput(
-		builder, residualNode, activatedNode, r.spec, graphWeights,
+		runtime.builder, residualNode, activatedNode, r.spec, graphWeights,
 	)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	results, err = r.executeGemma3n(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
+	results, err = runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	return results[output], LayerCache{Key: results[stage.Key], Value: results[stage.Value]}, nil
-}
-
-func (r *Runner) gemma3nGraphWeights(
-	builder *tensor.Builder,
-	hostLayer model.HostLayer,
-	info model.LayerWeights,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-) (model.LayerGraphWeights, error) {
-	if r.hasPreloadedWeights() {
-		weights, feeds, err := r.layerDeviceInputs(builder, info)
-		if err != nil {
-			return model.LayerGraphWeights{}, err
-		}
-		for node, pointer := range feeds {
-			deviceFeeds[node] = pointer
-		}
-		return weights, nil
-	}
-	weights, feeds, err := hostLayer.GraphInputs(builder, "gemma3n.")
-	if err != nil {
-		return model.LayerGraphWeights{}, err
-	}
-	for node, value := range feeds {
-		hostFeeds[node] = value
-	}
-	return weights, nil
-}
-
-func (r *Runner) executeGemma3n(
-	ctx context.Context,
-	outputs []*tensor.Tensor,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-) (map[*tensor.Tensor]reference.Value, error) {
-	if r.hasPreloadedWeights() {
-		return r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	}
-	return r.cuda.Execute(ctx, outputs, hostFeeds)
 }
 
 func gemma3nInitializeAltUp(

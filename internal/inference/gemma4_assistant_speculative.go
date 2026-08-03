@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 
-	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -103,12 +102,8 @@ func (r *Runner) VerifyGemma4AssistantGreedy(
 		if err != nil {
 			return nil, err
 		}
-		width := int(hidden.Shape.Dims[0])
 		nextAssistantSession.TargetCache = nextTargetCache
-		nextAssistantSession.PendingHidden = reference.Value{
-			Shape: tensor.MustShape(uint64(width), 1),
-			Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-		}
+		nextAssistantSession.PendingHidden = lastHiddenColumn(hidden)
 		nextAssistantSession.Position = effectiveCachePosition(nextTargetCache)
 		assistantSession, targetCache = nextAssistantSession, nextTargetCache
 		if accepted >= len(draft.Tokens) || tokenizer.TokenID(nextToken) != draft.Tokens[accepted] {

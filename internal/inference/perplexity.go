@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -239,34 +236,27 @@ func (r *Runner) logitsBatch(
 		}
 		return r.finalizeLogits(result), nil
 	}
-	builder := r.newGraphBuilder()
-	table, pointer, err := r.deviceInput(builder, outputInfo)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	table, err := runtime.weight(outputInfo)
 	if err != nil {
 		return nil, err
 	}
-	input := builder.Input("perplexity.logits.input", dtype.F32, hidden.Shape)
-	output := builder.MulMat(table, input)
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{table: pointer}
+	input := runtime.input("perplexity.logits.input", hidden)
+	output := runtime.builder.MulMat(table, input)
 	if r.weights.OutputBias != nil {
-		bias, biasPointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
+		bias, biasErr := runtime.weight(*r.weights.OutputBias)
 		if biasErr != nil {
 			return nil, biasErr
 		}
-		deviceFeeds[bias] = biasPointer
-		output = builder.Add(output, bias)
+		output = runtime.builder.Add(output, bias)
 	}
 	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
-		output = builder.Scale(output, scale)
+		output = runtime.builder.Scale(output, scale)
 	}
-	if err := builder.Err(); err != nil {
+	if err := runtime.builder.Err(); err != nil {
 		return nil, err
 	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{input: hidden},
-		deviceFeeds,
-	)
+	results, err := runtime.execute(output)
 	if err != nil {
 		return nil, err
 	}

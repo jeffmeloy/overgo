@@ -29,6 +29,9 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Model-owned device-layer binding now serves every inference path; the duplicate 500-line inference binder was removed after CPU/CUDA parity verification.
+- Shared graph execution expanded to Gemma 3n, embedding, reranking, perplexity, and multi-head MTP; state-space catalogs split by family with schema-derived Mamba fixtures.
+- Speculative coordinators now share sampling limits, sampler-pair validation, and detached last-hidden state handling.
 - Complete ordered tensor schemas across the model catalog, including optional/F32 constraints and schema-derived fixtures; RWKV dispatch split into its family unit.
 - Shared inference graph runtime extended from MTP to Eagle3, DFlash, and Gemma 4 Assistant; retired Hunyuan/MiMo/Paddle host-only projector graphs removed.
 - Architecture profiles now own mandatory-output, classifier-head, bias-free projection, and appended-draft-block policy.

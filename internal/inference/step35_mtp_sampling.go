@@ -3,7 +3,6 @@ package inference
 import (
 	"context"
 	"errors"
-	"math"
 
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tensor/reference"
@@ -56,7 +55,7 @@ func (r *Runner) draftMultiHeadMTPSampled(
 	if r == nil || session == nil || len(session.DraftTokens) != 0 || sampler == nil || len(history) == 0 {
 		return nil, errors.New("inference: Step3.5 MTP sampled draft inputs are invalid")
 	}
-	if maximum <= 0 || minimumProbability < 0 || minimumProbability > 1 || math.IsNaN(minimumProbability) {
+	if !validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: Step3.5 MTP sampled draft limits are invalid")
 	}
 	maximum = min(maximum, len(r.multiHeadMTPWeights()))
@@ -105,7 +104,7 @@ func (r *Runner) verifyMultiHeadMTPSampled(
 	targetSampler *sampling.Sampler,
 ) (verification *Step35MTPVerification, err error) {
 	if r == nil || target == nil || r != target || draft == nil || draft.Base == nil ||
-		draftSampler == nil || targetSampler == nil || draftSampler == targetSampler {
+		!validVerificationSamplers(draftSampler, targetSampler) {
 		return nil, errors.New("inference: Step3.5 MTP sampled verification inputs are invalid")
 	}
 	if !validSampledDraft(draft) || len(draft.Tokens) > len(r.multiHeadMTPWeights()) {

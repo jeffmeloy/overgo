@@ -1835,6 +1835,21 @@ Hunyuan-VL, MiMo-VL, and PaddleOCR-VL retain only their reference/CUDA graph
 paths; the retired handwritten host graphs and family-specific host/device
 binding helpers were removed.
 
+## Consolidation expansion
+
+The model-owned F32 device-layer binder now serves inference directly; the
+second 500-line inference mapping was removed. CUDA validation covers the
+shared binder. The inference graph runtime also owns Gemma 3n attention/FFN
+stages, embedding projection, classifier ranking, perplexity output
+projection, and Step3.5/HY-V3 multi-head execution.
+
+State-space catalog dispatch for Jamba, PLaMo2, Mamba, Falcon-H1, Mamba2,
+Qwen GDN, Granite Hybrid, and LFM2 moved to a dedicated family unit. The
+Mamba catalog test constructs its fixture from the production tensor schema.
+Fused-QKV policy moved into architecture capabilities. Speculative families
+share sampled-limit, sampler-pair, and detached last-hidden helpers. Retired
+Qwen3-VL host attention and unused multi-axis-position helpers were deleted.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

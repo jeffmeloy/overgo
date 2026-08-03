@@ -1640,257 +1640,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			); err != nil {
 				return Weights{}, err
 			}
-		} else if spec.Architecture == "jamba" && spec.IsRecurrentLayer(block) {
-			layer.Recurrent = true
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank+2*spec.SSMStateSize)),
-				requiredTensorPointer("ssm_dt_norm.weight", &layer.SSMTimeStepNorm, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_b_norm.weight", &layer.SSMBNorm, uint64(spec.SSMStateSize)),
-				requiredTensorPointer("ssm_c_norm.weight", &layer.SSMCNorm, uint64(spec.SSMStateSize)),
-				requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_d", &layer.SSMD, uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-		} else if spec.Architecture == "plamo2" && spec.IsRecurrentLayer(block) {
-			layer.Recurrent = true
-			dtDimension := uint64(64)
-			if candidate := uint64(spec.EmbeddingLength / 16); candidate > dtDimension {
-				dtDimension = candidate
-			}
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), dtDimension+2*uint64(spec.SSMStateSize)),
-				requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, dtDimension, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_d", &layer.SSMD, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
-				requiredTensorPointer("ssm_dt_norm.weight", &layer.SSMTimeStepNorm, dtDimension),
-				requiredTensorPointer("ssm_b_norm.weight", &layer.SSMBNorm, uint64(spec.SSMStateSize)),
-				requiredTensorPointer("ssm_c_norm.weight", &layer.SSMCNorm, uint64(spec.SSMStateSize)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-		} else if spec.Architecture == "mamba" {
-			layer.Recurrent = true
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank+2*spec.SSMStateSize)),
-				requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_d", &layer.SSMD, uint64(spec.SSMInnerSize)),
-				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-		} else if spec.Architecture == "falcon-h1" {
-			convDimension := uint64(spec.SSMInnerSize) +
-				2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
-			inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), inputDimension),
-				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), convDimension),
-				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_a", &layer.SSMA, 1, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_d", &layer.SSMD, 1, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-			if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
-				if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != convDimension {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-				}
-				layer.SSMConv1DBias = &item
-			}
-			if item, ok := tensors[prefix+"ssm_norm.weight"]; ok {
-				norm, itemErr := required(
-					item.Name, uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount),
-				)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				layer.SSMNorm = &norm
-			}
-			if item, ok := tensors[prefix+"attn_qkv.weight"]; ok {
-				qkv, itemErr := required(item.Name, uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				layer.AttentionQKV = &qkv
-				if bias, ok := tensors[prefix+"attn_qkv.bias"]; ok {
-					validated, biasErr := required(bias.Name, queryLength+keyLength+valueLength)
-					if biasErr != nil {
-						return Weights{}, biasErr
-					}
-					if validated.Type != dtype.F32 {
-						return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", validated.Name)
-					}
-					layer.AttentionQKVBias = &validated
-				}
-			} else {
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensor("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-					requiredTensor("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-					requiredTensor("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-			}
-			if layer.AttentionOutput, err = required(
-				prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength),
-			); err != nil {
-				return Weights{}, err
-			}
-		} else if spec.Architecture == "mamba2" ||
-			(spec.Architecture == "granitehybrid" && spec.IsRecurrentLayer(block)) {
-			layer.Recurrent = true
-			convDimension := uint64(spec.SSMInnerSize) +
-				2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
-			inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), inputDimension),
-				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), convDimension),
-				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_a", &layer.SSMA, 1, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_d", &layer.SSMD, 1, uint64(spec.SSMTimeStepRank)),
-				requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount)),
-				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-			if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
-				if item.Dimensions != 1 || item.Shape[0] != convDimension {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-				}
-				layer.SSMConv1DBias = &item
-			} else if spec.Architecture == "mamba2" {
-				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"ssm_conv1d.bias")
-			}
-		} else if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" {
-			layer.Recurrent = spec.IsRecurrentLayer(block)
-			if layer.Recurrent {
-				keyDimension := uint64(spec.SSMStateSize) * uint64(spec.SSMGroupCount)
-				valueDimension := uint64(spec.SSMInnerSize)
-				if spec.Architecture == "qwen3next" {
-					if _, ok := tensors[prefix+"attn_qkv.weight"]; ok {
-						qkv, qkvErr := required(
-							prefix+"attn_qkv.weight", uint64(spec.EmbeddingLength),
-							keyDimension*2+valueDimension,
-						)
-						if qkvErr != nil {
-							return Weights{}, qkvErr
-						}
-						layer.AttentionQKV = &qkv
-						attentionGate, gateErr := required(
-							prefix+"attn_gate.weight", uint64(spec.EmbeddingLength), valueDimension,
-						)
-						if gateErr != nil {
-							return Weights{}, gateErr
-						}
-						layer.AttentionGate = &attentionGate
-					} else {
-						qkvz, qkvzErr := required(
-							prefix+"ssm_in.weight", uint64(spec.EmbeddingLength),
-							keyDimension*2+valueDimension*2,
-						)
-						if qkvzErr != nil {
-							return Weights{}, qkvzErr
-						}
-						layer.AttentionQKV = &qkvz
-					}
-					betaAlpha, betaAlphaErr := required(
-						prefix+"ssm_ba.weight", uint64(spec.EmbeddingLength),
-						2*uint64(spec.SSMTimeStepRank),
-					)
-					if betaAlphaErr != nil {
-						return Weights{}, betaAlphaErr
-					}
-					layer.SSMBetaAlpha = &betaAlpha
-				} else {
-					qkv, qkvErr := required(
-						prefix+"attn_qkv.weight", uint64(spec.EmbeddingLength),
-						keyDimension*2+valueDimension,
-					)
-					if qkvErr != nil {
-						return Weights{}, qkvErr
-					}
-					layer.AttentionQKV = &qkv
-					attentionGate, gateErr := required(
-						prefix+"attn_gate.weight", uint64(spec.EmbeddingLength), valueDimension,
-					)
-					if gateErr != nil {
-						return Weights{}, gateErr
-					}
-					layer.AttentionGate = &attentionGate
-				}
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), keyDimension*2+valueDimension),
-					requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
-					requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMTimeStepRank)),
-					requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.SSMStateSize)),
-					requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, valueDimension, uint64(spec.EmbeddingLength)),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-				if spec.Architecture != "qwen3next" {
-					if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-						requiredTensorPointer("ssm_beta.weight", &layer.SSMBeta, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
-						requiredTensorPointer("ssm_alpha.weight", &layer.SSMAlpha, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
-					}); itemErr != nil {
-						return Weights{}, itemErr
-					}
-				}
-			} else {
-				if layer.AttentionQ, err = required(
-					prefix+"attn_q.weight",
-					uint64(spec.EmbeddingLength),
-					queryLength*2,
-				); err != nil {
-					return Weights{}, err
-				}
-				if layer.AttentionK, err = required(
-					prefix+"attn_k.weight",
-					uint64(spec.EmbeddingLength),
-					keyLength,
-				); err != nil {
-					return Weights{}, err
-				}
-				if layer.AttentionV, err = required(
-					prefix+"attn_v.weight",
-					uint64(spec.EmbeddingLength),
-					valueLength,
-				); err != nil {
-					return Weights{}, err
-				}
-				if layer.AttentionOutput, err = required(
-					prefix+"attn_output.weight",
-					attentionOutputLength,
-					uint64(spec.EmbeddingLength),
-				); err != nil {
-					return Weights{}, err
-				}
-			}
-		} else if (spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && spec.IsRecurrentLayer(block) {
-			layer.Recurrent = true
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("shortconv.conv.weight", &layer.ShortConvKernel, uint64(spec.ShortConvCacheLength), uint64(spec.EmbeddingLength)),
-				requiredTensorPointer("shortconv.in_proj.weight", &layer.ShortConvInput, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
-				requiredTensorPointer("shortconv.out_proj.weight", &layer.ShortConvOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
+		} else if handled, familyErr := loadStateSpaceLayer(
+			required, tensors, prefix, spec, layer, block,
+			queryLength, keyLength, valueLength, attentionOutputLength,
+		); familyErr != nil {
+			return Weights{}, familyErr
+		} else if handled {
 		} else if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
 			if layer.AttentionQ, err = required(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
@@ -1977,10 +1732,9 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 		} else {
-			if spec.Architecture == "apertus" || spec.Architecture == "bailingmoe2" || spec.Architecture == "bert" || spec.Architecture == "bloom" || spec.Architecture == "chatglm" || spec.Architecture == "cogvlm" || spec.Architecture == "cohere2moe" || spec.Architecture == "deci" || spec.Architecture == "dbrx" || spec.Architecture == "dots1" || spec.Architecture == "ernie4_5" || spec.Architecture == "ernie4_5-moe" || spec.Architecture == "eurobert" || spec.Architecture == "exaone4" || spec.Architecture == "gemma-embedding" || spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "grok" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl" || spec.Architecture == "hy_v3" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "mimo2" || spec.Architecture == "step35" || spec.Architecture == "minimax-m2" || spec.Architecture == "modern-bert" || spec.Architecture == "neo-bert" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "openelm" || spec.Architecture == "paddleocr" || spec.Architecture == "pangu-embedded" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "plamo2" || spec.Architecture == "plamo3" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "mpt" || spec.Architecture == "qwen" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "refact" || spec.Architecture == "smallthinker" || spec.Architecture == "starcoder" || spec.Architecture == "talkie" ||
-				spec.Architecture == "falcon" {
+			if spec.Profile().Has(ArchitectureFusedQKV) {
 				_, hasQKV := tensors[prefix+"attn_qkv.weight"]
-				if hasQKV || spec.Architecture == "bailingmoe2" || spec.Architecture == "bloom" || spec.Architecture == "cogvlm" || spec.Architecture == "dbrx" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "modern-bert" || spec.Architecture == "mpt" || spec.Architecture == "neo-bert" || spec.Architecture == "qwen" || spec.Architecture == "starcoder" || spec.Architecture == "falcon" {
+				if hasQKV || spec.Profile().Has(ArchitectureRequiresFusedQKV) {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight",
 						uint64(spec.EmbeddingLength),
@@ -2003,13 +1757,13 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 						}
 						layer.AttentionQKVBias = &qkvBias
 					}
-					if (spec.Architecture == "bloom" || spec.Architecture == "gpt2" || spec.Architecture == "gptneox" || spec.Architecture == "jais" || spec.Architecture == "qwen" || spec.Architecture == "starcoder") && layer.AttentionQKVBias == nil {
+					if spec.Profile().Has(ArchitectureRequiresFusedQKVBias) && layer.AttentionQKVBias == nil {
 						return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_qkv.bias")
 					}
 				}
 			}
 			if layer.AttentionQKV == nil {
-				if spec.Architecture == "apertus" || spec.Architecture == "exaone4" || spec.Architecture == "glm4" || spec.Architecture == "phi2" || spec.Architecture == "phi3" || spec.Architecture == "phimoe" || spec.Architecture == "smallthinker" {
+				if spec.Profile().Has(ArchitectureRejectsOrphanFusedQKVBias) {
 					if _, ok := tensors[prefix+"attn_qkv.bias"]; ok {
 						return Weights{}, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 					}

@@ -60,11 +60,7 @@ func (r *Runner) newGemma4AssistantSession(
 	if err != nil {
 		return nil, err
 	}
-	width := int(hidden.Shape.Dims[0])
-	last := reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-	}
+	last := lastHiddenColumn(hidden)
 	return &Gemma4AssistantSession{
 		TargetCache: cache, PendingHidden: last, Position: effectiveCachePosition(cache),
 	}, nil

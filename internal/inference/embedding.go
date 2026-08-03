@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -195,27 +193,22 @@ func (r *Runner) projectEmbeddingVectorsDevice(
 		}
 		data = append(data, vector...)
 	}
-	builder := r.newGraphBuilder()
 	inputShape := tensor.MustShape(uint64(width), uint64(len(vectors)))
-	input := builder.Input("embedding_projection.input", dtype.F32, inputShape)
-	weight, pointer, err := r.deviceInput(builder, projection)
-	if err != nil {
-		return nil, err
-	}
-	output := builder.MulMat(weight, input)
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
 	inputValue, err := reference.NewValue(inputShape, data)
 	if err != nil {
 		return nil, err
 	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{input: inputValue},
-		map[*tensor.Tensor]driver.DevicePtr{weight: pointer},
-	)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("embedding_projection.input", inputValue)
+	weight, err := runtime.weight(projection)
+	if err != nil {
+		return nil, err
+	}
+	output := runtime.builder.MulMat(weight, input)
+	if err := runtime.builder.Err(); err != nil {
+		return nil, err
+	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return nil, err
 	}

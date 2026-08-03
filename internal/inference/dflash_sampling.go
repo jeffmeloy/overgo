@@ -3,7 +3,6 @@ package inference
 import (
 	"context"
 	"errors"
-	"math"
 
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tensor/reference"
@@ -24,7 +23,7 @@ func (r *Runner) DraftDFlashSampled(
 	minimumProbability float64,
 ) (draft *DFlashSampledDraft, err error) {
 	if r == nil || target == nil || !validDFlashSession(session) || sampler == nil || len(history) == 0 ||
-		maximum <= 0 || minimumProbability < 0 || minimumProbability > 1 || math.IsNaN(minimumProbability) {
+		!validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: DFlash sampled draft inputs are invalid")
 	}
 	initialToken := history[len(history)-1]
@@ -50,7 +49,7 @@ func (r *Runner) VerifyDFlashSampled(
 	targetSampler *sampling.Sampler,
 ) (verification *DFlashVerification, err error) {
 	if r == nil || target == nil || draft == nil || !validDFlashSession(draft.Base) ||
-		draftSampler == nil || targetSampler == nil || draftSampler == targetSampler {
+		!validVerificationSamplers(draftSampler, targetSampler) {
 		return nil, errors.New("inference: DFlash sampled verification inputs are invalid")
 	}
 	if !validSampledDraft(draft) {

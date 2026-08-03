@@ -62,6 +62,10 @@ const (
 	ArchitectureRequiresOutput
 	ArchitectureClassifierHead
 	ArchitectureBiasFreeProjections
+	ArchitectureFusedQKV
+	ArchitectureRequiresFusedQKV
+	ArchitectureRequiresFusedQKVBias
+	ArchitectureRejectsOrphanFusedQKVBias
 )
 
 // ArchitectureProfile: registry entry and capability set.
@@ -283,6 +287,26 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	)
 	setCapabilities(ArchitectureClassifierHead, "qwen3", "qwen3vl")
 	setCapabilities(ArchitectureBiasFreeProjections, "cogvlm", "qwen3next", "qwen35", "qwen35moe")
+	setCapabilities(ArchitectureFusedQKV,
+		"apertus", "bailingmoe2", "bert", "bloom", "chatglm", "cogvlm", "cohere2moe",
+		"deci", "dbrx", "dots1", "ernie4_5", "ernie4_5-moe", "eurobert", "exaone4",
+		"falcon", "gemma-embedding", "glm4", "glm4moe", "gpt2", "gptneox", "grok",
+		"hunyuan-dense", "hunyuan_vl", "hy_v3", "jais", "jina-bert-v2", "jina-bert-v3",
+		"mimo2", "minimax-m2", "modern-bert", "mpt", "neo-bert", "nomic-bert",
+		"nomic-bert-moe", "openelm", "paddleocr", "pangu-embedded", "phi2", "phi3",
+		"phimoe", "plamo2", "plamo3", "qwen", "qwen2vl", "qwen3vl", "qwen3vlmoe",
+		"refact", "smallthinker", "starcoder", "step35", "talkie",
+	)
+	setCapabilities(ArchitectureRequiresFusedQKV,
+		"bailingmoe2", "bloom", "cogvlm", "dbrx", "falcon", "gpt2", "gptneox",
+		"jais", "modern-bert", "mpt", "neo-bert", "qwen", "starcoder",
+	)
+	setCapabilities(ArchitectureRequiresFusedQKVBias,
+		"bloom", "gpt2", "gptneox", "jais", "qwen", "starcoder",
+	)
+	setCapabilities(ArchitectureRejectsOrphanFusedQKVBias,
+		"apertus", "exaone4", "glm4", "phi2", "phi3", "phimoe", "smallthinker",
+	)
 
 	setFamily(ArchitectureFamilyMoE,
 		"afmoe", "bailingmoe", "bailingmoe2", "cohere2moe", "dbrx", "deepseek",

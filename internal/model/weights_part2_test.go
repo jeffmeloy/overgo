@@ -811,14 +811,14 @@ func TestReadWeightsMamba(t *testing.T) {
 
 		VocabularySize: 32}, RecurrentSpec: RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 2},
 	}
-	file := &gguf.File{Tensors: []gguf.TensorInfo{
+	fixtures := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 4, 32), tensorInfo("output_norm.weight", 4),
-		tensorInfo("blk.0.attn_norm.weight", 4), tensorInfo("blk.0.ssm_in.weight", 4, 16),
-		tensorInfo("blk.0.ssm_conv1d.weight", 3, 8), tensorInfo("blk.0.ssm_conv1d.bias", 8),
-		tensorInfo("blk.0.ssm_x.weight", 8, 6), tensorInfo("blk.0.ssm_dt.weight", 2, 8),
-		tensorInfo("blk.0.ssm_dt.bias", 8), tensorInfo("blk.0.ssm_a", 2, 8),
-		tensorInfo("blk.0.ssm_d", 8), tensorInfo("blk.0.ssm_out.weight", 8, 4),
-	}}
+		tensorInfo("blk.0.attn_norm.weight", 4),
+	}
+	fixtures = append(fixtures, tensorRequirementFixtures(
+		"blk.0.", mambaTensorRequirements(spec, &LayerWeights{}), nil,
+	)...)
+	file := &gguf.File{Tensors: fixtures}
 	weights, err := ReadWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 
-	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -133,11 +132,7 @@ func (r *Runner) advanceCohere2MTPVerification(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	width := int(hidden.Shape.Dims[0])
-	nextSession.PendingHidden = reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-	}
+	nextSession.PendingHidden = lastHiddenColumn(hidden)
 	nextSession.TrunkCache = nextTargetCache
 	return logits, nextSession, nil
 }

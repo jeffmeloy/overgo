@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -122,11 +121,7 @@ func (r *Runner) VerifyQwen35MTPGreedy(
 		if err != nil {
 			return nil, err
 		}
-		width := int(hidden.Shape.Dims[0])
-		nextMTPSession.PendingHidden = reference.Value{
-			Shape: tensor.MustShape(uint64(width), 1),
-			Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
-		}
+		nextMTPSession.PendingHidden = lastHiddenColumn(hidden)
 		nextMTPSession.TrunkCache = nextTargetCache
 		mtpSession = nextMTPSession
 		targetCache = nextTargetCache

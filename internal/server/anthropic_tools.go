@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/strictjson"
 )
 
 func selectAnthropicTools(
@@ -22,13 +22,8 @@ func selectAnthropicTools(
 			Description string         `json:"description"`
 			InputSchema map[string]any `json:"input_schema"`
 		}
-		decoder := json.NewDecoder(bytes.NewReader(rawTools))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&definitions); err != nil {
+		if err := strictjson.DecodeBytes(rawTools, &definitions); err != nil {
 			return chatToolSelection{}, errors.New("tools must be an array of Anthropic tool definitions")
-		}
-		if err := requireEOF(decoder); err != nil {
-			return chatToolSelection{}, err
 		}
 		if len(definitions) > 128 {
 			return chatToolSelection{}, errors.New("tool count exceeds 128")
@@ -60,13 +55,8 @@ func selectAnthropicTools(
 			Name               string `json:"name"`
 			DisableParallelUse *bool  `json:"disable_parallel_tool_use"`
 		}
-		decoder := json.NewDecoder(bytes.NewReader(rawChoice))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&choice); err != nil {
+		if err := strictjson.DecodeBytes(rawChoice, &choice); err != nil {
 			return chatToolSelection{}, errors.New("tool_choice must be an Anthropic tool-choice object")
-		}
-		if err := requireEOF(decoder); err != nil {
-			return chatToolSelection{}, err
 		}
 		switch choice.Type {
 		case "auto":
@@ -329,12 +319,7 @@ func (h *Handler) parseAnthropicMessage(
 }
 
 func decodeAnthropicBlock(raw json.RawMessage, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	return requireEOF(decoder)
+	return strictjson.DecodeBytes(raw, destination)
 }
 
 func (h *Handler) anthropicBlocks(message inference.ChatMessage, idPrefix string) ([]anthropicContentBlock, error) {

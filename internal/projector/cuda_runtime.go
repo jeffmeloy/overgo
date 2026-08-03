@@ -9,6 +9,7 @@ import (
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/graphruntime"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
@@ -133,14 +134,15 @@ func (b *projectorCUDAWeights) result() (map[*tensor.Tensor]driver.DevicePtr, er
 }
 
 type projectorGraphRuntime struct {
-	ctx         context.Context
-	file        *gguf.File
-	cuda        *projectorCUDA
-	builder     *tensor.Builder
-	hostFeeds   map[*tensor.Tensor]reference.Value
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr
-	binding     *projectorCUDAWeights
-	err         error
+	ctx     context.Context
+	file    *gguf.File
+	cuda    *projectorCUDA
+	builder *tensor.Builder
+	feeds   *graphruntime.Feeds
+	// hostFeeds: graph-local inputs
+	hostFeeds map[*tensor.Tensor]reference.Value
+	binding   *projectorCUDAWeights
+	err       error
 }
 
 func newProjectorGraphRuntime(
@@ -149,9 +151,9 @@ func newProjectorGraphRuntime(
 	cuda *projectorCUDA,
 	builder *tensor.Builder,
 ) *projectorGraphRuntime {
+	feeds := graphruntime.NewFeeds()
 	runtime := &projectorGraphRuntime{
-		ctx: ctx, file: file, cuda: cuda, builder: builder,
-		hostFeeds: make(map[*tensor.Tensor]reference.Value),
+		ctx: ctx, file: file, cuda: cuda, builder: builder, feeds: feeds, hostFeeds: feeds.Host,
 	}
 	if cuda != nil {
 		runtime.binding = cuda.bindWeights(builder)
@@ -177,7 +179,7 @@ func (runtime *projectorGraphRuntime) weight(name string) *tensor.Tensor {
 		runtime.err = err
 		return nil
 	}
-	runtime.hostFeeds[node] = value
+	runtime.feeds.Host[node] = value
 	return node
 }
 
@@ -188,12 +190,21 @@ func (runtime *projectorGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*t
 	if err := runtime.builder.Err(); err != nil {
 		return nil, err
 	}
-	if runtime.binding == nil {
-		return reference.Execute(outputs, runtime.hostFeeds)
+	device := runtime.binding != nil
+	if device {
+		deviceFeeds, err := runtime.binding.result()
+		if err != nil {
+			return nil, err
+		}
+		runtime.feeds.AddDevice(deviceFeeds)
 	}
-	deviceFeeds, err := runtime.binding.result()
-	if err != nil {
-		return nil, err
-	}
-	return runtime.cuda.executor.ExecuteWithDeviceFeeds(runtime.ctx, outputs, runtime.hostFeeds, deviceFeeds)
+	return runtime.feeds.Execute(
+		outputs, device,
+		func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
+			return reference.Execute(outputs, feeds)
+		},
+		func(outputs []*tensor.Tensor, host map[*tensor.Tensor]reference.Value, device map[*tensor.Tensor]driver.DevicePtr) (map[*tensor.Tensor]reference.Value, error) {
+			return runtime.cuda.executor.ExecuteWithDeviceFeeds(runtime.ctx, outputs, host, device)
+		},
+	)
 }

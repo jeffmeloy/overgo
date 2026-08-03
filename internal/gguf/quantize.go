@@ -440,7 +440,7 @@ func (r *quantizingReader) Read(destination []byte) (int, error) {
 func (r *quantizingReader) fill() error {
 	elements := min(r.elementsRemaining, r.chunkElements)
 	sourceBlocks := elements / r.sourceTraits.BlockSize
-	if sourceBlocks > uint64(maxInt())/r.sourceTraits.TypeSize {
+	if sourceBlocks > uint64(math.MaxInt)/r.sourceTraits.TypeSize {
 		return errors.New("quantization source chunk exceeds addressable memory")
 	}
 	sourceSize := sourceBlocks * r.sourceTraits.TypeSize

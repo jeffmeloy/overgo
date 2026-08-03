@@ -1,10 +1,9 @@
 package model
 
 import (
-	"fmt"
-
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor/dtype"
+	"llamacpp2go/internal/tensorcatalog"
 )
 
 // tensorRequirement: ordered catalog binding
@@ -54,8 +53,11 @@ func loadTensorRequirements(
 		if err != nil {
 			return err
 		}
-		if requirement.f32 && item.Type != dtype.F32 {
-			return fmt.Errorf("tensor %q must use F32 storage", item.Name)
+		catalogRequirement := tensorcatalog.Requirement{
+			Name: name, Shape: requirement.shape, Storage: dtype.F32, CheckStorage: requirement.f32,
+		}
+		if err := tensorcatalog.ValidateInfo(item, catalogRequirement); err != nil {
+			return err
 		}
 		if requirement.destination != nil {
 			*requirement.destination = item

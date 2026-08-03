@@ -30,6 +30,7 @@ import (
 	"llamacpp2go/internal/projector"
 
 	"llamacpp2go/internal/sampling"
+	"llamacpp2go/internal/testutil"
 
 	"llamacpp2go/internal/tokenizer"
 
@@ -47,6 +48,14 @@ import (
 
 	"time"
 )
+
+func tinyPCM16WAV() []byte {
+	return testutil.MonoPCM16WAV(16000, []int16{16384, -16384})
+}
+
+func silentPCM16WAV() []byte {
+	return testutil.MonoPCM16WAV(16000, []int16{0, 0})
+}
 
 type fakeGenerator struct {
 	mu              sync.Mutex
@@ -1804,22 +1813,7 @@ func TestNativeCompletionAudioProjectorMultimodalPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wav := make([]byte, 48)
-	copy(wav[0:4], "RIFF")
-	binary.LittleEndian.PutUint32(wav[4:8], 40)
-	copy(wav[8:12], "WAVE")
-	copy(wav[12:16], "fmt ")
-	binary.LittleEndian.PutUint32(wav[16:20], 16)
-	binary.LittleEndian.PutUint16(wav[20:22], 1)
-	binary.LittleEndian.PutUint16(wav[22:24], 1)
-	binary.LittleEndian.PutUint32(wav[24:28], 16000)
-	binary.LittleEndian.PutUint32(wav[28:32], 32000)
-	binary.LittleEndian.PutUint16(wav[32:34], 2)
-	binary.LittleEndian.PutUint16(wav[34:36], 16)
-	copy(wav[36:40], "data")
-	binary.LittleEndian.PutUint32(wav[40:44], 4)
-	binary.LittleEndian.PutUint16(wav[44:46], uint16(16384))
-	binary.LittleEndian.PutUint16(wav[46:48], uint16(49152))
+	wav := tinyPCM16WAV()
 	body, err := json.Marshal(map[string]any{
 		"prompt": map[string]any{
 			"prompt_string": "Hear <__media__> now",
@@ -1863,20 +1857,7 @@ func TestNativeCompletionMixedMediaPreservesChunkOrder(t *testing.T) {
 	if err := png.Encode(&encodedImage, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
 	}
-	wav := make([]byte, 48)
-	copy(wav[0:4], "RIFF")
-	binary.LittleEndian.PutUint32(wav[4:8], 40)
-	copy(wav[8:12], "WAVE")
-	copy(wav[12:16], "fmt ")
-	binary.LittleEndian.PutUint32(wav[16:20], 16)
-	binary.LittleEndian.PutUint16(wav[20:22], 1)
-	binary.LittleEndian.PutUint16(wav[22:24], 1)
-	binary.LittleEndian.PutUint32(wav[24:28], 16000)
-	binary.LittleEndian.PutUint32(wav[28:32], 32000)
-	binary.LittleEndian.PutUint16(wav[32:34], 2)
-	binary.LittleEndian.PutUint16(wav[34:36], 16)
-	copy(wav[36:40], "data")
-	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	wav := silentPCM16WAV()
 	body, err := json.Marshal(map[string]any{
 		"prompt": map[string]any{
 			"prompt_string": "A<__media__>B<__media__>C",

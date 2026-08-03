@@ -1,11 +1,12 @@
 package inference
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 
+	"llamacpp2go/internal/checked"
+	"llamacpp2go/internal/statecodec"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
@@ -53,28 +54,23 @@ func (r *Runner) saveSingleHeadMTPSession(
 	if err != nil {
 		return nil, err
 	}
-	hiddenBytes := uint64(r.spec.EmbeddingLength) * 4
-	total := uint64(singleHeadMTPStateHeader) + hiddenBytes +
-		uint64(len(trunkData)) + uint64(len(layerData))
-	if total > uint64(maxIntValue()) {
+	encoder := statecodec.NewEncoder(uint64(math.MaxInt))
+	encoder.Raw([]byte(codec.magic))
+	encoder.Raw(draftModel[:])
+	encoder.Raw(session.targetModel[:])
+	encoder.U32(session.MTPStart)
+	encoder.U32(session.Position)
+	encoder.U64(uint64(len(trunkData)))
+	encoder.U64(uint64(len(layerData)))
+	for _, value := range session.PendingHidden.Data {
+		encoder.F32(value)
+	}
+	encoder.Raw(trunkData)
+	encoder.Raw(layerData)
+	output, err := encoder.Data()
+	if err != nil {
 		return nil, fmt.Errorf("inference: %s state exceeds addressable memory", codec.label)
 	}
-	output := make([]byte, int(total))
-	copy(output, codec.magic)
-	copy(output[8:40], draftModel[:])
-	copy(output[40:72], session.targetModel[:])
-	binary.LittleEndian.PutUint32(output[72:], session.MTPStart)
-	binary.LittleEndian.PutUint32(output[76:], session.Position)
-	binary.LittleEndian.PutUint64(output[80:], uint64(len(trunkData)))
-	binary.LittleEndian.PutUint64(output[88:], uint64(len(layerData)))
-	offset := singleHeadMTPStateHeader
-	for _, value := range session.PendingHidden.Data {
-		binary.LittleEndian.PutUint32(output[offset:], math.Float32bits(value))
-		offset += 4
-	}
-	copy(output[offset:], trunkData)
-	offset += len(trunkData)
-	copy(output[offset:], layerData)
 	return output, nil
 }
 
@@ -88,34 +84,41 @@ func (r *Runner) loadSingleHeadMTPSession(
 	if err := codec.validateModel(); err != nil {
 		return nil, err
 	}
-	if len(data) < singleHeadMTPStateHeader {
+	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
+	magic := decoder.Raw(8)
+	draftSignature := decoder.Raw(32)
+	targetSignature := decoder.Raw(32)
+	mtpStart := decoder.U32()
+	position := decoder.U32()
+	trunkLength := decoder.U64()
+	layerLength := decoder.U64()
+	if decoder.Err() != nil {
 		return nil, fmt.Errorf("inference: %s state is truncated", codec.label)
 	}
-	if string(data[:8]) != codec.magic {
+	if string(magic) != codec.magic {
 		return nil, fmt.Errorf("inference: %s state has invalid magic or version", codec.label)
 	}
 	draftModel, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
 	}
-	if string(data[8:40]) != string(draftModel[:]) {
+	if string(draftSignature) != string(draftModel[:]) {
 		return nil, fmt.Errorf("inference: %s state belongs to a different draft model", codec.label)
 	}
 	var targetModel [32]byte
-	copy(targetModel[:], data[40:72])
+	copy(targetModel[:], targetSignature)
 	if targetModel == [32]byte{} {
 		return nil, fmt.Errorf("inference: %s state target binding is invalid", codec.label)
 	}
-	mtpStart := binary.LittleEndian.Uint32(data[72:])
-	position := binary.LittleEndian.Uint32(data[76:])
-	trunkLength := binary.LittleEndian.Uint64(data[80:])
-	layerLength := binary.LittleEndian.Uint64(data[88:])
 	if position < mtpStart || position == math.MaxUint32 ||
 		(position == mtpStart) != (layerLength == 0) {
 		return nil, fmt.Errorf("inference: %s state positions are invalid", codec.label)
 	}
-	hiddenBytes := uint64(r.spec.EmbeddingLength) * 4
-	payload := uint64(len(data) - singleHeadMTPStateHeader)
+	hiddenBytes, ok := checked.Bytes(uint64(r.spec.EmbeddingLength), 4)
+	if !ok {
+		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", codec.label)
+	}
+	payload := decoder.Remaining()
 	if hiddenBytes > payload || trunkLength > payload-hiddenBytes ||
 		layerLength != payload-hiddenBytes-trunkLength || trunkLength == 0 {
 		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", codec.label)
@@ -124,13 +127,15 @@ func (r *Runner) loadSingleHeadMTPSession(
 		Shape: tensor.MustShape(uint64(r.spec.EmbeddingLength), 1),
 		Data:  make([]float32, int(r.spec.EmbeddingLength)),
 	}
-	offset := singleHeadMTPStateHeader
 	for index := range hidden.Data {
-		hidden.Data[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[offset:]))
-		offset += 4
+		hidden.Data[index] = decoder.F32()
 	}
-	trunkEnd := offset + int(trunkLength)
-	trunk, err := r.LoadCache(data[offset:trunkEnd])
+	trunkData := decoder.Raw(trunkLength)
+	layerData := decoder.Raw(layerLength)
+	if decoder.Done() != nil {
+		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", codec.label)
+	}
+	trunk, err := r.LoadCache(trunkData)
 	if err != nil {
 		return nil, fmt.Errorf("inference: load %s trunk cache: %w", codec.label, err)
 	}
@@ -139,7 +144,7 @@ func (r *Runner) loadSingleHeadMTPSession(
 		Position: position, targetModel: targetModel,
 	}
 	if layerLength > 0 {
-		layerCache, err := unmarshalCache(data[trunkEnd:])
+		layerCache, err := unmarshalCache(layerData)
 		if err != nil {
 			return nil, fmt.Errorf("inference: load %s layer cache: %w", codec.label, err)
 		}

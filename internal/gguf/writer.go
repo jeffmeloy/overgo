@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"llamacpp2go/internal/checked"
 )
 
 // WriteOptions: controls canonical GGUF serialization
@@ -303,8 +305,8 @@ func prepareTensors(tensors []TensorData, alignment uint64) ([]preparedTensor, e
 		if input.Data == nil {
 			return nil, fmt.Errorf("tensor %q data is nil", input.Name)
 		}
-		paddedSize, overflow := alignUp(info.Size, alignment)
-		if overflow || offset > math.MaxUint64-paddedSize {
+		paddedSize, ok := checked.Align(info.Size, alignment)
+		if !ok || offset > math.MaxUint64-paddedSize {
 			return nil, fmt.Errorf("tensor %q data offset overflows uint64", input.Name)
 		}
 		result[index] = preparedTensor{input: input, info: info, offset: offset}
@@ -586,8 +588,8 @@ func (w *countingWriter) array(valueType ValueType, data any) error {
 }
 
 func (w *countingWriter) padTo(alignment uint64) error {
-	aligned, overflow := alignUp(w.offset, alignment)
-	if overflow {
+	aligned, ok := checked.Align(w.offset, alignment)
+	if !ok {
 		return errors.New("GGUF output alignment overflows uint64")
 	}
 	padding := aligned - w.offset

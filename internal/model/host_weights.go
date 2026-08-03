@@ -213,7 +213,7 @@ func LoadHostTensor(ctx context.Context, file *gguf.File, info gguf.TensorInfo) 
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("host tensor %q elements: %w", info.Name, err)
 	}
-	if info.Size > uint64(maxInt()) {
+	if info.Size > uint64(math.MaxInt) {
 		return reference.Value{}, fmt.Errorf("host tensor %q storage exceeds addressable memory", info.Name)
 	}
 	storage := make([]byte, int(info.Size))
@@ -263,9 +263,9 @@ func LoadHostRows(
 	if info.Shape[1] > math.MaxUint64/rowBytes || info.Shape[1]*rowBytes != info.Size {
 		return reference.Value{}, fmt.Errorf("host rows: tensor %q storage is inconsistent with its shape", info.Name)
 	}
-	if rowBytes > uint64(maxInt()) || width > uint64(maxInt()) ||
+	if rowBytes > uint64(math.MaxInt) || width > uint64(math.MaxInt) ||
 		uint64(len(rows)) > math.MaxUint64/width ||
-		uint64(len(rows))*width > uint64(maxInt()) {
+		uint64(len(rows))*width > uint64(math.MaxInt) {
 		return reference.Value{}, errors.New("host rows: result exceeds addressable memory")
 	}
 	storage := make([]byte, int(rowBytes))
@@ -362,7 +362,7 @@ func DotRows(
 			count = remaining
 		}
 		storageBytes := count * rowBytes
-		if storageBytes > uint64(maxInt()) || count > math.MaxUint64/width || count*width > uint64(maxInt()) {
+		if storageBytes > uint64(math.MaxInt) || count > math.MaxUint64/width || count*width > uint64(math.MaxInt) {
 			return nil, errors.New("dot rows: chunk exceeds addressable memory")
 		}
 		storage := make([]byte, int(storageBytes))
@@ -1276,8 +1276,4 @@ func (layer *HostLayer) GraphInputs(
 		return LayerGraphWeights{}, nil, err
 	}
 	return result, feeds, nil
-}
-
-func maxInt() int {
-	return int(^uint(0) >> 1)
 }

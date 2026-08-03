@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/media"
 	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -71,10 +72,10 @@ func audioProjectedPrompt(
 	var samples []float32
 	switch strings.ToLower(filepath.Ext(audioPath)) {
 	case ".f32":
-		samples, err = projector.DecodeFloat32LE(data)
+		samples, err = media.DecodeFloat32LE(data)
 	case ".wav":
 		var sampleRate int
-		samples, sampleRate, err = projector.DecodeWAV(data)
+		samples, sampleRate, err = media.DecodeWAV(data)
 		if err == nil && sampleRate != 16000 {
 			err = fmt.Errorf("sample rate %d Hz; want 16000 Hz", sampleRate)
 		}

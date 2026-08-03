@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/strictjson"
 )
 
 func selectResponsesTools(
@@ -59,15 +60,10 @@ func selectResponsesTools(
 			Parameters  map[string]any `json:"parameters"`
 			Strict      *bool          `json:"strict"`
 		}
-		decoder := json.NewDecoder(bytes.NewReader(rawTools))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&definitions); err != nil {
+		if err := strictjson.DecodeBytes(rawTools, &definitions); err != nil {
 			return chatToolSelection{}, errors.New(
 				"tools must be an array of Responses function definitions",
 			)
-		}
-		if err := requireEOF(decoder); err != nil {
-			return chatToolSelection{}, err
 		}
 		if len(definitions) > 128 {
 			return chatToolSelection{}, errors.New("tool count exceeds 128")
@@ -114,15 +110,10 @@ func selectResponsesTools(
 				Type string `json:"type"`
 				Name string `json:"name"`
 			}
-			decoder := json.NewDecoder(bytes.NewReader(rawChoice))
-			decoder.DisallowUnknownFields()
-			if err := decoder.Decode(&named); err != nil {
+			if err := strictjson.DecodeBytes(rawChoice, &named); err != nil {
 				return chatToolSelection{}, errors.New(
 					"tool_choice must be auto, none, required, or a named function",
 				)
-			}
-			if err := requireEOF(decoder); err != nil {
-				return chatToolSelection{}, err
 			}
 			if named.Type != "function" || named.Name == "" {
 				return chatToolSelection{}, errors.New(
@@ -577,12 +568,7 @@ func validResponseFilename(filename string) (string, error) {
 }
 
 func decodeResponsesItem(raw json.RawMessage, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	return requireEOF(decoder)
+	return strictjson.DecodeBytes(raw, destination)
 }
 
 func parseResponsesTextContent(raw json.RawMessage, label string) (string, error) {

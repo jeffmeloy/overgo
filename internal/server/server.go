@@ -9,8 +9,6 @@ import (
 
 	"encoding/base64"
 
-	"encoding/binary"
-
 	"encoding/json"
 
 	"errors"
@@ -24,8 +22,10 @@ import (
 	"llamacpp2go/internal/cuda/driver"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/media"
 
 	"llamacpp2go/internal/projector"
+	"llamacpp2go/internal/strictjson"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 
@@ -1047,16 +1047,8 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 		}
 		writeJSON(response, http.StatusOK, []any{})
 	case http.MethodPost:
-		request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
-		decoder := json.NewDecoder(request.Body)
-		decoder.DisallowUnknownFields()
 		var adapters []inference.LoRAScale
-		if err := decoder.Decode(&adapters); err != nil {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
-			return
-		}
-		if err := requireEOF(decoder); err != nil {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		if !h.decodeJSONWithLimit(response, request, &adapters, maxRequestBytes) {
 			return
 		}
 		controller, ok := h.generator.(LoRAControlAPI)
@@ -1279,14 +1271,8 @@ func (h *Handler) decodeJSONWithLimit(
 	limit int64,
 ) bool {
 	request.Body = http.MaxBytesReader(response, request.Body, limit)
-	decoder := json.NewDecoder(request.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	if err := strictjson.Decode(request.Body, target); err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
-		return false
-	}
-	if err := requireEOF(decoder); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return false
 	}
 	return true
@@ -1310,16 +1296,8 @@ func (h *Handler) applyTemplate(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
 		return
 	}
-	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
-	decoder := json.NewDecoder(request.Body)
-	decoder.DisallowUnknownFields()
 	var body applyTemplateRequest
-	if err := decoder.Decode(&body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
-		return
-	}
-	if err := requireEOF(decoder); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+	if !h.decodeJSONWithLimit(response, request, &body, maxRequestBytes) {
 		return
 	}
 	selection, err := selectChatTools(chatCompletionRequest{
@@ -1704,16 +1682,8 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 		writeError(response, http.StatusNotImplemented, "unsupported_operation", "embeddings are unavailable")
 		return
 	}
-	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
-	decoder := json.NewDecoder(request.Body)
-	decoder.DisallowUnknownFields()
 	var body embeddingRequest
-	if err := decoder.Decode(&body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
-		return
-	}
-	if err := requireEOF(decoder); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+	if !h.decodeJSONWithLimit(response, request, &body, maxRequestBytes) {
 		return
 	}
 	if body.Model != "" && body.Model != h.config.ModelID {
@@ -1906,11 +1876,7 @@ func (h *Handler) embedPromptAdvanced(
 }
 
 func encodeFloat32Base64(values []float32) string {
-	data := make([]byte, len(values)*4)
-	for index, value := range values {
-		binary.LittleEndian.PutUint32(data[index*4:], math.Float32bits(value))
-	}
-	return base64.StdEncoding.EncodeToString(data)
+	return base64.StdEncoding.EncodeToString(media.EncodeFloat32LE(values))
 }
 
 func (h *Handler) embedPrompt(
@@ -2076,16 +2042,8 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
-	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
-	decoder := json.NewDecoder(request.Body)
-	decoder.DisallowUnknownFields()
 	var body completionRequest
-	if err := decoder.Decode(&body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
-		return
-	}
-	if err := requireEOF(decoder); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+	if !h.decodeJSONWithLimit(response, request, &body, maxRequestBytes) {
 		return
 	}
 	prompts, err := h.parseNativePrompts(request.Context(), body.Prompt)
@@ -2771,9 +2729,7 @@ func (h *Handler) parseNativeMultimodalPrompt(ctx context.Context, raw json.RawM
 		PromptString   string   `json:"prompt_string"`
 		MultimodalData []string `json:"multimodal_data"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&document); err != nil {
+	if err := strictjson.DecodeBytes(raw, &document); err != nil {
 		return nativePrompt{}, errors.New("prompt object must contain prompt_string and multimodal_data")
 	}
 	if document.PromptString == "" {
@@ -2882,7 +2838,7 @@ func decodeNativeAudioBytes(decoded []byte) ([]float32, error) {
 	if len(decoded) > maxMediaBytes {
 		return nil, errors.New("multimodal_data audio exceeds decoded media limit")
 	}
-	samples, sampleRate, err := projector.DecodeWAV(decoded)
+	samples, sampleRate, err := media.DecodeWAV(decoded)
 	if err != nil {
 		return nil, fmt.Errorf("multimodal_data audio: %w", err)
 	}
@@ -3455,14 +3411,9 @@ func (h *Handler) parseRequestLoRA(raw json.RawMessage) ([]inference.LoRAScale, 
 	if !ok {
 		return nil, false, errors.New("per-request lora is unavailable")
 	}
-	decoder := json.NewDecoder(strings.NewReader(trimmed))
-	decoder.DisallowUnknownFields()
 	var requested []inference.LoRAScale
-	if err := decoder.Decode(&requested); err != nil {
+	if err := strictjson.Decode(strings.NewReader(trimmed), &requested); err != nil {
 		return nil, false, fmt.Errorf("invalid lora: %w", err)
-	}
-	if err := requireEOF(decoder); err != nil {
-		return nil, false, err
 	}
 	loaded := controller.LoRAAdapters()
 	valid := make(map[int]struct{}, len(loaded))
@@ -4760,16 +4711,6 @@ func writeGenerationError(response http.ResponseWriter, err error) {
 		return
 	}
 	writeError(response, http.StatusInternalServerError, "generation_error", err.Error())
-}
-
-func requireEOF(decoder *json.Decoder) error {
-	var extra any
-	if err := decoder.Decode(&extra); err == io.EOF {
-		return nil
-	} else if err != nil {
-		return errors.New("invalid trailing JSON: " + err.Error())
-	}
-	return errors.New("request must contain one JSON object")
 }
 
 func writeJSON(response http.ResponseWriter, status int, value any) {

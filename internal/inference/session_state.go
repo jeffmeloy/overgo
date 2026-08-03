@@ -8,8 +8,10 @@ import (
 	"hash"
 	"math"
 
+	"llamacpp2go/internal/checked"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/sampling"
+	"llamacpp2go/internal/statecodec"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -49,34 +51,21 @@ func (r *Runner) SaveSession(session *Session, sampler *sampling.Sampler) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	tokenBytes := uint64(len(session.TokenIDs)) * 4
-	total := uint64(sessionHeaderSize) + tokenBytes
-	if total > math.MaxUint64-uint64(len(cacheData)) {
-		return nil, errors.New("inference: session state size overflows")
+	encoder := statecodec.NewEncoder(uint64(math.MaxInt))
+	encoder.Raw([]byte(sessionStateMagic))
+	encoder.Raw(signature[:])
+	encoder.U32(uint32(len(session.TokenIDs)))
+	encoder.U64(uint64(len(cacheData)))
+	encoder.U32(uint32(len(samplerData)))
+	for _, tokenID := range session.TokenIDs {
+		encoder.U32(uint32(tokenID))
 	}
-	total += uint64(len(cacheData))
-	if total > math.MaxUint64-uint64(len(samplerData)) {
-		return nil, errors.New("inference: session state size overflows")
-	}
-	total += uint64(len(samplerData))
-	if total > uint64(maxIntValue()) {
+	encoder.Raw(cacheData)
+	encoder.Raw(samplerData)
+	output, err := encoder.Data()
+	if err != nil {
 		return nil, errors.New("inference: session state exceeds addressable memory")
 	}
-
-	output := make([]byte, int(total))
-	copy(output, sessionStateMagic)
-	copy(output[8:40], signature[:])
-	binary.LittleEndian.PutUint32(output[40:], uint32(len(session.TokenIDs)))
-	binary.LittleEndian.PutUint64(output[44:], uint64(len(cacheData)))
-	binary.LittleEndian.PutUint32(output[52:], uint32(len(samplerData)))
-	offset := sessionHeaderSize
-	for _, tokenID := range session.TokenIDs {
-		binary.LittleEndian.PutUint32(output[offset:], uint32(tokenID))
-		offset += 4
-	}
-	copy(output[offset:], cacheData)
-	offset += len(cacheData)
-	copy(output[offset:], samplerData)
 	return output, nil
 }
 
@@ -89,48 +78,53 @@ func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, 
 	if sampler == nil {
 		return nil, errors.New("inference: sampler is nil")
 	}
-	if len(data) < sessionHeaderSize {
+	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
+	magic := decoder.Raw(8)
+	modelSignature := decoder.Raw(32)
+	tokenCount := decoder.U32()
+	cacheLength := decoder.U64()
+	samplerLength := decoder.U32()
+	if decoder.Err() != nil {
 		return nil, errors.New("inference: session state is truncated")
 	}
-	if string(data[:8]) != sessionStateMagic {
+	if string(magic) != sessionStateMagic {
 		return nil, errors.New("inference: session state has invalid magic or version")
 	}
 	signature, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
 	}
-	if string(data[8:40]) != string(signature[:]) {
+	if string(modelSignature) != string(signature[:]) {
 		return nil, errors.New("inference: session state belongs to a different model")
 	}
-	tokenCount := binary.LittleEndian.Uint32(data[40:])
-	cacheLength := binary.LittleEndian.Uint64(data[44:])
-	samplerLength := binary.LittleEndian.Uint32(data[52:])
 	if tokenCount == 0 || tokenCount > maxSessionTokens {
 		return nil, errors.New("inference: session token count is invalid or exceeds limit")
 	}
 	if samplerLength == 0 || samplerLength > maxSamplerState {
 		return nil, errors.New("inference: sampler state size is invalid or exceeds limit")
 	}
-	tokenBytes := uint64(tokenCount) * 4
-	payloadLength := uint64(len(data) - sessionHeaderSize)
+	tokenBytes, _ := checked.Bytes(uint64(tokenCount), 4)
+	payloadLength := decoder.Remaining()
 	if tokenBytes > payloadLength ||
 		cacheLength > payloadLength-tokenBytes ||
 		uint64(samplerLength) != payloadLength-tokenBytes-cacheLength {
 		return nil, errors.New("inference: session payload lengths are invalid")
 	}
 
-	offset := sessionHeaderSize
 	tokens := make([]tokenizer.TokenID, int(tokenCount))
 	for index := range tokens {
-		raw := binary.LittleEndian.Uint32(data[offset:])
-		offset += 4
+		raw := decoder.U32()
 		if raw > math.MaxInt32 {
 			return nil, fmt.Errorf("inference: session token %d is outside token ID range", index)
 		}
 		tokens[index] = tokenizer.TokenID(raw)
 	}
-	cacheEnd := offset + int(cacheLength)
-	cache, err := r.LoadCache(data[offset:cacheEnd])
+	cacheData := decoder.Raw(cacheLength)
+	samplerData := decoder.Raw(uint64(samplerLength))
+	if decoder.Done() != nil {
+		return nil, errors.New("inference: session payload lengths are invalid")
+	}
+	cache, err := r.LoadCache(cacheData)
 	if err != nil {
 		return nil, fmt.Errorf("inference: load session cache: %w", err)
 	}
@@ -138,7 +132,7 @@ func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, 
 	if err := r.validateSession(session); err != nil {
 		return nil, err
 	}
-	if err := sampler.LoadState(data[cacheEnd:]); err != nil {
+	if err := sampler.LoadState(samplerData); err != nil {
 		return nil, fmt.Errorf("inference: load sampler state: %w", err)
 	}
 	return session, nil

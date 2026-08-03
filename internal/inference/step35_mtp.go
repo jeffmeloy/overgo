@@ -413,12 +413,9 @@ func lastValueColumn(value reference.Value) (reference.Value, error) {
 	if value.Shape.Rank != 2 || value.Shape.Dims[0] == 0 || value.Shape.Dims[1] == 0 {
 		return reference.Value{}, errors.New("inference: output has no final column")
 	}
-	width := int(value.Shape.Dims[0])
-	if len(value.Data) != width*int(value.Shape.Dims[1]) {
-		return reference.Value{}, errors.New("inference: output storage is invalid")
+	result, err := value.TailRows(1)
+	if err != nil {
+		return reference.Value{}, fmt.Errorf("inference: output storage is invalid: %w", err)
 	}
-	return reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), value.Data[len(value.Data)-width:]...),
-	}, nil
+	return result, nil
 }

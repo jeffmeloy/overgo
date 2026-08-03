@@ -11,7 +11,7 @@ import (
 
 // Dequantize: converts supported ggml storage into F32 values
 func Dequantize(dataType dtype.Type, source []byte, elements uint64) ([]float32, error) {
-	if elements > uint64(maxInt()) {
+	if elements > uint64(math.MaxInt) {
 		return nil, errors.New("dequantized tensor exceeds addressable memory")
 	}
 	traits, ok := dataType.Traits()
@@ -886,8 +886,4 @@ func Float16ToFloat32(value uint16) float32 {
 		bits = sign | (exponent+112)<<23 | mantissa<<13
 	}
 	return math.Float32frombits(bits)
-}
-
-func maxInt() int {
-	return int(^uint(0) >> 1)
 }

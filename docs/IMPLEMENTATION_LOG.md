@@ -1877,6 +1877,25 @@ deepstack streams, map embeddings, generate multi-axis positions, and construct
 attention blocks. Granite 4, Llama 4, Hunyuan-VL, PaddleOCR, MiMo-VL, Qwen2-VL,
 Qwen3-VL, and Gemma 4 use that lifecycle for native and history prompts.
 
+## Shared utility substrate
+
+Checked size arithmetic and alignment now share one overflow-aware package
+across GGUF, quantization, caches, media, CUDA, and tensor planning. Generation,
+T5, and MTP session formats retain their wire layouts while using one bounded
+binary encoder/decoder with consistent truncation, trailing-data, and allocation
+guards.
+
+Server and CLI JSON inputs now use one strict single-document decoder with
+unknown-field and body-limit enforcement. Inference and projector runtimes share
+host/device feed construction and execution plumbing; model and projector tensor
+catalogs share neutral requirement validation while retaining their local binding
+policies.
+
+Reference tensor values now provide checked clone and row-slice operations.
+Audio float32/WAV conversion and image cloning share media primitives, and common
+GGUF/WAV test fixtures moved to a test utility package. Redundant alignment,
+maximum-integer, state-copy, media-copy, and fixture helpers were removed.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

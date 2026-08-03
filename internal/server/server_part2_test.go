@@ -1757,22 +1757,7 @@ func TestStreamingChatAudioContentPartProjectsPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wav := make([]byte, 48)
-	copy(wav[0:4], "RIFF")
-	binary.LittleEndian.PutUint32(wav[4:8], 40)
-	copy(wav[8:12], "WAVE")
-	copy(wav[12:16], "fmt ")
-	binary.LittleEndian.PutUint32(wav[16:20], 16)
-	binary.LittleEndian.PutUint16(wav[20:22], 1)
-	binary.LittleEndian.PutUint16(wav[22:24], 1)
-	binary.LittleEndian.PutUint32(wav[24:28], 16000)
-	binary.LittleEndian.PutUint32(wav[28:32], 32000)
-	binary.LittleEndian.PutUint16(wav[32:34], 2)
-	binary.LittleEndian.PutUint16(wav[34:36], 16)
-	copy(wav[36:40], "data")
-	binary.LittleEndian.PutUint32(wav[40:44], 4)
-	binary.LittleEndian.PutUint16(wav[44:46], uint16(16384))
-	binary.LittleEndian.PutUint16(wav[46:48], uint16(49152))
+	wav := tinyPCM16WAV()
 	body, err := json.Marshal(map[string]any{
 		"messages": []any{map[string]any{
 			"role": "user",
@@ -1917,20 +1902,7 @@ func TestChatMixedImageAudioPreservesChunkOrder(t *testing.T) {
 	if err := png.Encode(&encodedImage, input); err != nil {
 		t.Fatal(err)
 	}
-	wav := make([]byte, 48)
-	copy(wav[0:4], "RIFF")
-	binary.LittleEndian.PutUint32(wav[4:8], 40)
-	copy(wav[8:12], "WAVE")
-	copy(wav[12:16], "fmt ")
-	binary.LittleEndian.PutUint32(wav[16:20], 16)
-	binary.LittleEndian.PutUint16(wav[20:22], 1)
-	binary.LittleEndian.PutUint16(wav[22:24], 1)
-	binary.LittleEndian.PutUint32(wav[24:28], 16000)
-	binary.LittleEndian.PutUint32(wav[28:32], 32000)
-	binary.LittleEndian.PutUint16(wav[32:34], 2)
-	binary.LittleEndian.PutUint16(wav[34:36], 16)
-	copy(wav[36:40], "data")
-	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	wav := silentPCM16WAV()
 	body, err := json.Marshal(map[string]any{
 		"messages": []any{map[string]any{
 			"role": "user",

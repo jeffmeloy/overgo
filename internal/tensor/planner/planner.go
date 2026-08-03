@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 
+	"llamacpp2go/internal/checked"
 	"llamacpp2go/internal/tensor"
 )
 
@@ -81,16 +82,16 @@ func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
 		if err != nil {
 			return Plan{}, fmt.Errorf("size tensor %d: %w", node.ID, err)
 		}
-		size, overflow := alignUp(size, alignment)
-		if overflow {
+		size, ok := checked.Align(size, alignment)
+		if !ok {
 			return Plan{}, fmt.Errorf("aligned size for tensor %d overflows uint64", node.ID)
 		}
 		offset, remaining, found := takeBestFit(free, size)
 		if found {
 			free = remaining
 		} else {
-			offset, overflow = alignUp(plan.ArenaSize, alignment)
-			if overflow || offset > math.MaxUint64-size {
+			offset, ok = checked.Align(plan.ArenaSize, alignment)
+			if !ok || offset > math.MaxUint64-size {
 				return Plan{}, errors.New("tensor arena size overflows uint64")
 			}
 			plan.ArenaSize = offset + size
@@ -143,12 +144,4 @@ func coalesce(blocks []freeBlock) []freeBlock {
 		}
 	}
 	return result
-}
-
-func alignUp(value, alignment uint64) (uint64, bool) {
-	mask := alignment - 1
-	if value > math.MaxUint64-mask {
-		return 0, true
-	}
-	return (value + mask) &^ mask, false
 }

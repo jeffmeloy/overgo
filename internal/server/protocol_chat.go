@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 
 	"encoding/json"
@@ -12,6 +11,7 @@ import (
 
 	"llamacpp2go/internal/inference"
 	"llamacpp2go/internal/projector"
+	"llamacpp2go/internal/strictjson"
 
 	"llamacpp2go/internal/sampling"
 
@@ -655,15 +655,10 @@ func selectChatTools(
 					Name string `json:"name"`
 				} `json:"function"`
 			}
-			decoder := json.NewDecoder(bytes.NewReader(body.ToolChoice))
-			decoder.DisallowUnknownFields()
-			if err := decoder.Decode(&named); err != nil {
+			if err := strictjson.DecodeBytes(body.ToolChoice, &named); err != nil {
 				return chatToolSelection{}, errors.New(
 					"tool_choice must be auto, none, required, or a named function",
 				)
-			}
-			if err := requireEOF(decoder); err != nil {
-				return chatToolSelection{}, err
 			}
 			if named.Type != "function" ||
 				named.Function.Name == "" {

@@ -699,7 +699,7 @@ func elementwiseBroadcast(
 	if err != nil {
 		return Value{}, err
 	}
-	if elements > uint64(maxInt()) {
+	if elements > uint64(math.MaxInt) {
 		return Value{}, errors.New("elementwise output is too large")
 	}
 	output := make([]float32, int(elements))
@@ -1119,7 +1119,7 @@ func groupSlice(
 	attributes tensor.GroupSliceAttributes,
 ) (Value, error) {
 	elements, err := shape.Elements()
-	if err != nil || elements > uint64(maxInt()) {
+	if err != nil || elements > uint64(math.MaxInt) {
 		return Value{}, errors.New("invalid GroupSlice output size")
 	}
 	width := int(attributes.Width)
@@ -1144,7 +1144,7 @@ func flatSlice(
 	attributes tensor.FlatSliceAttributes,
 ) (Value, error) {
 	elements, err := shape.Elements()
-	if err != nil || elements > uint64(maxInt()) ||
+	if err != nil || elements > uint64(math.MaxInt) ||
 		attributes.Offset > uint64(len(input.Data)) ||
 		elements > uint64(len(input.Data))-attributes.Offset {
 		return Value{}, errors.New("invalid FlatSlice storage range")
@@ -2094,7 +2094,7 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 	}
 	if axis == 0 {
 		outputElements, shapeErr := shape.Elements()
-		if shapeErr != nil || outputElements > uint64(maxInt()) {
+		if shapeErr != nil || outputElements > uint64(math.MaxInt) {
 			return Value{}, errors.New("invalid concat output size")
 		}
 		leftWidth := int(left.Shape.Dims[0])
@@ -2120,8 +2120,4 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 	output = append(output, left.Data...)
 	output = append(output, right.Data...)
 	return Value{Shape: shape, Data: output}, nil
-}
-
-func maxInt() int {
-	return int(^uint(0) >> 1)
 }

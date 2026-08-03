@@ -7,6 +7,8 @@ import (
 	"image/draw"
 	"image/gif"
 	"io"
+
+	"llamacpp2go/internal/media"
 )
 
 func DecodeGIFVideo(reader io.Reader, maxFrames int) ([]image.Image, error) {
@@ -35,9 +37,9 @@ func DecodeGIFVideo(reader io.Reader, maxFrames int) ([]image.Image, error) {
 		if frame == nil || !frame.Bounds().In(bounds) {
 			return nil, errors.New("projector: GIF frame geometry is invalid")
 		}
-		before := cloneRGBA(canvas)
+		before := media.CloneRGBA(canvas)
 		draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
-		frames = append(frames, cloneRGBA(canvas))
+		frames = append(frames, media.CloneRGBA(canvas))
 		disposal := byte(gif.DisposalNone)
 		if index < len(decoded.Disposal) {
 			disposal = decoded.Disposal[index]
@@ -65,11 +67,5 @@ func sampleVideoFrames(frames []image.Image, maximum int) []image.Image {
 		source := index * (len(frames) - 1) / (maximum - 1)
 		result[index] = frames[source]
 	}
-	return result
-}
-
-func cloneRGBA(source *image.RGBA) *image.RGBA {
-	result := image.NewRGBA(source.Bounds())
-	copy(result.Pix, source.Pix)
 	return result
 }

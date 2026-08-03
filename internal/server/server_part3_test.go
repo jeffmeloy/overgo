@@ -6,8 +6,6 @@ import (
 	"context"
 
 	"encoding/base64"
-	"encoding/binary"
-
 	"encoding/json"
 
 	"errors"
@@ -291,20 +289,7 @@ func TestResponsesMixedImageAudioPreservesChunkOrder(t *testing.T) {
 	if err := png.Encode(&encodedImage, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
 	}
-	wav := make([]byte, 48)
-	copy(wav[0:4], "RIFF")
-	binary.LittleEndian.PutUint32(wav[4:8], 40)
-	copy(wav[8:12], "WAVE")
-	copy(wav[12:16], "fmt ")
-	binary.LittleEndian.PutUint32(wav[16:20], 16)
-	binary.LittleEndian.PutUint16(wav[20:22], 1)
-	binary.LittleEndian.PutUint16(wav[22:24], 1)
-	binary.LittleEndian.PutUint32(wav[24:28], 16000)
-	binary.LittleEndian.PutUint32(wav[28:32], 32000)
-	binary.LittleEndian.PutUint16(wav[32:34], 2)
-	binary.LittleEndian.PutUint16(wav[34:36], 16)
-	copy(wav[36:40], "data")
-	binary.LittleEndian.PutUint32(wav[40:44], 4)
+	wav := silentPCM16WAV()
 	body, err := json.Marshal(map[string]any{
 		"input": []any{map[string]any{
 			"role": "user", "content": []any{

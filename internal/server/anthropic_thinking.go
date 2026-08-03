@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -9,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"llamacpp2go/internal/strictjson"
 )
 
 const anthropicThinkingSignaturePrefix = "local_v1."
@@ -53,13 +54,8 @@ func validateAnthropicThinking(
 		return false, nil
 	}
 	var config anthropicThinkingConfig
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&config); err != nil {
+	if err := strictjson.DecodeBytes(raw, &config); err != nil {
 		return false, errors.New("thinking must be an Anthropic thinking configuration")
-	}
-	if err := requireEOF(decoder); err != nil {
-		return false, err
 	}
 	switch config.Type {
 	case "disabled":

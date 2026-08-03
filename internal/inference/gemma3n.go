@@ -150,7 +150,7 @@ func gemma3nInitializeAltUp(
 		return nil, errors.New("inference: Gemma 3n AltUp projection shape is invalid")
 	}
 	states := make([]reference.Value, count)
-	states[0] = cloneReferenceValue(input)
+	states[0] = input.Clone()
 	for index := 1; index < count; index++ {
 		projected, err := gemma3nMatMulSlice(projection, index-1, input)
 		if err != nil {
@@ -180,7 +180,7 @@ func gemma3nPredict(
 	}
 	result := make([]reference.Value, count)
 	for output := range count {
-		result[output] = cloneReferenceValue(states[output])
+		result[output] = states[output].Clone()
 		for token := 0; token < int(states[output].Shape.Dims[1]); token++ {
 			for feature := 0; feature < int(states[output].Shape.Dims[0]); feature++ {
 				position := token*int(states[output].Shape.Dims[0]) + feature
@@ -213,7 +213,7 @@ func gemma3nCorrectAndInject(
 	active := int(spec.AltUpActive)
 	result := make([]reference.Value, len(predictions))
 	for index := range predictions {
-		result[index] = cloneReferenceValue(predictions[index])
+		result[index] = predictions[index].Clone()
 		for token := 0; token < int(activated.Shape.Dims[1]); token++ {
 			coefficient := coefficients.Data[token*len(predictions)+index] + 1
 			for feature := 0; feature < int(activated.Shape.Dims[0]); feature++ {
@@ -223,7 +223,7 @@ func gemma3nCorrectAndInject(
 			}
 		}
 	}
-	scaled := cloneReferenceValue(result[active])
+	scaled := result[active].Clone()
 	for index := range scaled.Data {
 		scaled.Data[index] *= layer.AltUpCorrectScale.Data[index%int(scaled.Shape.Dims[0])]
 	}
@@ -324,7 +324,7 @@ func gemma3nMergeAltUp(
 		unembedding.Shape.Rank != 3 || unembedding.Shape.Dims[2] != uint64(len(states)-1) {
 		return reference.Value{}, errors.New("inference: Gemma 3n unembedding shape is invalid")
 	}
-	result := cloneReferenceValue(states[active])
+	result := states[active].Clone()
 	for index := 1; index < len(states); index++ {
 		projected, err := gemma3nMatMulSlice(unembedding, index-1, states[index])
 		if err != nil {
@@ -383,7 +383,7 @@ func gemma3nWeightedRMS(
 	if input.Shape.Rank != 2 || weight.Shape.Rank != 1 || input.Shape.Dims[0] != weight.Shape.Dims[0] {
 		return reference.Value{}, errors.New("inference: Gemma 3n RMS norm shape is invalid")
 	}
-	result := cloneReferenceValue(input)
+	result := input.Clone()
 	width := int(input.Shape.Dims[0])
 	for token := 0; token < int(input.Shape.Dims[1]); token++ {
 		base := token * width
@@ -401,7 +401,7 @@ func gemma3nWeightedRMS(
 }
 
 func gemma3nMatchMagnitude(input, target reference.Value) reference.Value {
-	result := cloneReferenceValue(input)
+	result := input.Clone()
 	width := int(input.Shape.Dims[0])
 	for token := 0; token < int(input.Shape.Dims[1]); token++ {
 		base := token * width
@@ -433,8 +433,4 @@ func gemma3nGELU(value float32) float32 {
 	x := float64(quant.Float16ToFloat32(quant.Float32ToFloat16(value)))
 	result := float32(0.5 * x * (1 + math.Tanh(math.Sqrt(2/math.Pi)*x*(1+0.044715*x*x))))
 	return quant.Float16ToFloat32(quant.Float32ToFloat16(result))
-}
-
-func cloneReferenceValue(value reference.Value) reference.Value {
-	return reference.Value{Shape: value.Shape, Data: append([]float32(nil), value.Data...)}
 }

@@ -539,8 +539,8 @@ func (r *Runner) RemoveCacheRange(
 		}
 		if recurrent {
 			result.Layers[index] = LayerCache{
-				Key:    cloneStateValue(layer.Key),
-				Value:  cloneStateValue(layer.Value),
+				Key:    layer.Key.Clone(),
+				Value:  layer.Value.Clone(),
 				States: states,
 			}
 			continue
@@ -681,13 +681,6 @@ func effectiveCachePosition(cache *KVCache) uint32 {
 	return cache.Position
 }
 
-func cloneStateValue(value reference.Value) reference.Value {
-	return reference.Value{
-		Shape: value.Shape,
-		Data:  append([]float32(nil), value.Data...),
-	}
-}
-
 func cloneCache(cache *KVCache) *KVCache {
 	result := &KVCache{
 		Layers:   make([]LayerCache, len(cache.Layers)),
@@ -696,8 +689,8 @@ func cloneCache(cache *KVCache) *KVCache {
 	}
 	for index, layer := range cache.Layers {
 		result.Layers[index] = LayerCache{
-			Key:    cloneStateValue(layer.Key),
-			Value:  cloneStateValue(layer.Value),
+			Key:    layer.Key.Clone(),
+			Value:  layer.Value.Clone(),
 			States: cloneLayerStates(layer.States),
 		}
 	}
@@ -710,7 +703,7 @@ func cloneLayerStates(states map[string]LayerState) map[string]LayerState {
 	}
 	result := make(map[string]LayerState, len(states))
 	for name, state := range states {
-		state.Value = cloneStateValue(state.Value)
+		state.Value = state.Value.Clone()
 		result[name] = state
 	}
 	return result
@@ -727,7 +720,7 @@ func editLayerStates(
 	for name, state := range states {
 		switch state.Mode {
 		case CacheStateFixed:
-			state.Value = cloneStateValue(state.Value)
+			state.Value = state.Value.Clone()
 		case CacheStateToken:
 			value, err := removeAttentionRange(state.Value, tokens, start, discard)
 			if err != nil {
@@ -805,7 +798,7 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 			total += recordSize
 		}
 	}
-	if total > uint64(maxIntValue()) {
+	if total > uint64(math.MaxInt) {
 		return nil, errors.New("inference: KV cache state exceeds addressable memory")
 	}
 	output := make([]byte, int(total))
@@ -921,7 +914,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		}
 		count := binary.LittleEndian.Uint64(data[offset:])
 		offset += 8
-		if count > uint64(maxIntValue()) || count > uint64((len(data)-offset)/4) {
+		if count > uint64(math.MaxInt) || count > uint64((len(data)-offset)/4) {
 			return reference.Value{}, errors.New("inference: KV cache tensor data is truncated or too large")
 		}
 		shape, err := tensor.NewShape(dimensions[:rank]...)
@@ -1071,8 +1064,4 @@ func validateStateValue(value reference.Value) error {
 		)
 	}
 	return nil
-}
-
-func maxIntValue() int {
-	return int(^uint(0) >> 1)
 }

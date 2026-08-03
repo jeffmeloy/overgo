@@ -8,6 +8,8 @@ import (
 	"math"
 	"os"
 	"strings"
+
+	"llamacpp2go/internal/checked"
 )
 
 // Options: bounds allocations made from file-controlled counts
@@ -207,7 +209,7 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 	if metadataCount > options.MaxMetadata {
 		return nil, fmt.Errorf("metadata count %d exceeds limit %d", metadataCount, options.MaxMetadata)
 	}
-	if tensorCount > uint64(maxInt()) || metadataCount > uint64(maxInt()) {
+	if tensorCount > uint64(math.MaxInt) || metadataCount > uint64(math.MaxInt) {
 		return nil, errors.New("GGUF directory count exceeds addressable memory")
 	}
 
@@ -268,8 +270,8 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 		if tensor.Offset != expectedOffset {
 			return nil, fmt.Errorf("tensor %q offset is %d, expected %d", tensor.Name, tensor.Offset, expectedOffset)
 		}
-		paddedSize, overflow := alignUp(tensor.Size, file.Alignment)
-		if overflow || expectedOffset > math.MaxUint64-paddedSize {
+		paddedSize, ok := checked.Align(tensor.Size, file.Alignment)
+		if !ok || expectedOffset > math.MaxUint64-paddedSize {
 			return nil, fmt.Errorf("tensor %q data size overflows uint64", tensor.Name)
 		}
 		expectedOffset += paddedSize
@@ -279,9 +281,9 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 
 	dataOffset := cursor.offset
 	if tensorCount > 0 {
-		var overflow bool
-		dataOffset, overflow = alignUp(dataOffset, file.Alignment)
-		if overflow {
+		var ok bool
+		dataOffset, ok = checked.Align(dataOffset, file.Alignment)
+		if !ok {
 			return nil, errors.New("GGUF data offset overflows uint64")
 		}
 	}
@@ -529,7 +531,7 @@ func (c *cursor) bytes(count uint64) ([]byte, error) {
 	if count > c.size-c.offset {
 		return nil, io.ErrUnexpectedEOF
 	}
-	if count > uint64(maxInt()) {
+	if count > uint64(math.MaxInt) {
 		return nil, errors.New("requested read exceeds addressable memory")
 	}
 	buffer := make([]byte, int(count))
@@ -620,7 +622,7 @@ func (c *cursor) value() (Value, error) {
 	if count > c.options.MaxArrayElements {
 		return Value{}, fmt.Errorf("array length %d exceeds limit %d", count, c.options.MaxArrayElements)
 	}
-	if count > uint64(maxInt()) {
+	if count > uint64(math.MaxInt) {
 		return Value{}, errors.New("array length exceeds addressable memory")
 	}
 	data, err := c.array(arrayType, int(count))
@@ -844,21 +846,6 @@ func readArrayConvert[T, U any](values []T, read func() (U, error), convert func
 	return nil
 }
 
-func alignUp(value, alignment uint64) (uint64, bool) {
-	if alignment == 0 {
-		return 0, true
-	}
-	mask := alignment - 1
-	if value > math.MaxUint64-mask {
-		return 0, true
-	}
-	return (value + mask) &^ mask, false
-}
-
 func isPowerOfTwo(value uint64) bool {
 	return value != 0 && value&(value-1) == 0
-}
-
-func maxInt() int {
-	return int(^uint(0) >> 1)
 }

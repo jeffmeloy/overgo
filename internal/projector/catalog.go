@@ -2,23 +2,22 @@ package projector
 
 import (
 	"fmt"
-	"slices"
 
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/tensorcatalog"
 )
 
 func validateProjectorTensorShapes(file *gguf.File, required map[string][]uint64) error {
+	tensors := make(map[string]gguf.TensorInfo, len(required))
+	requirements := make([]tensorcatalog.Requirement, 0, len(required))
 	for name, shape := range required {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
+		if info, ok := file.Tensor(name); ok {
+			tensors[name] = info
 		}
-		if int(info.Dimensions) != len(shape) {
-			return fmt.Errorf("projector: tensor %q rank %d, want %d", name, info.Dimensions, len(shape))
-		}
-		if !slices.Equal(info.Shape[:info.Dimensions], shape) {
-			return fmt.Errorf("projector: tensor %q shape %v, want %v", name, info.Shape[:info.Dimensions], shape)
-		}
+		requirements = append(requirements, tensorcatalog.Requirement{Name: name, Shape: shape})
+	}
+	if err := tensorcatalog.Validate(tensors, "", requirements); err != nil {
+		return fmt.Errorf("projector: %w", err)
 	}
 	return nil
 }

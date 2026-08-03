@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"llamacpp2go/internal/checked"
 )
 
 // SplitOptions: controls tensor partitioning for WriteSplit
@@ -130,8 +132,8 @@ func (f *File) planSplits(options SplitOptions) ([][]TensorInfo, error) {
 		currentBytes = 0
 	}
 	for _, tensor := range f.Tensors {
-		paddedSize, overflow := alignUp(tensor.Size, f.Alignment)
-		if overflow {
+		paddedSize, ok := checked.Align(tensor.Size, f.Alignment)
+		if !ok {
 			return nil, fmt.Errorf("tensor %q padded size overflows uint64", tensor.Name)
 		}
 		exceedsBytes := false

@@ -45,7 +45,7 @@ func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 		)
 	}
 	blocks := uint64(len(values)) / traits.BlockSize
-	if blocks > uint64(maxInt())/traits.TypeSize {
+	if blocks > uint64(math.MaxInt)/traits.TypeSize {
 		return nil, errors.New("quantized tensor exceeds addressable memory")
 	}
 	output := make([]byte, int(blocks*traits.TypeSize))

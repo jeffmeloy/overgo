@@ -1,0 +1,39 @@
+package reference
+
+import (
+	"errors"
+
+	"llamacpp2go/internal/checked"
+	"llamacpp2go/internal/tensor"
+)
+
+func (v Value) Clone() Value {
+	return Value{Shape: v.Shape, Data: append([]float32(nil), v.Data...)}
+}
+
+func (v Value) Rows(start, count uint64) (Value, error) {
+	if v.Shape.Rank != 2 || count == 0 || start > v.Shape.Dims[1] || count > v.Shape.Dims[1]-start {
+		return Value{}, errors.New("reference row range is invalid")
+	}
+	width := v.Shape.Dims[0]
+	expected, ok := checked.Mul64(width, v.Shape.Dims[1])
+	if !ok || expected != uint64(len(v.Data)) {
+		return Value{}, errors.New("reference storage is invalid")
+	}
+	first, _ := checked.Mul64(start, width)
+	elements, _ := checked.Mul64(count, width)
+	last, _ := checked.Add64(first, elements)
+	firstIndex, _ := checked.Int(first)
+	lastIndex, _ := checked.Int(last)
+	return Value{
+		Shape: tensor.MustShape(width, count),
+		Data:  append([]float32(nil), v.Data[firstIndex:lastIndex]...),
+	}, nil
+}
+
+func (v Value) TailRows(count uint64) (Value, error) {
+	if v.Shape.Rank != 2 || count > v.Shape.Dims[1] {
+		return Value{}, errors.New("reference tail row count is invalid")
+	}
+	return v.Rows(v.Shape.Dims[1]-count, count)
+}

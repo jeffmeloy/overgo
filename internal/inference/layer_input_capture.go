@@ -81,10 +81,7 @@ func (c *layerInputCapture) set(layer int, value reference.Value) {
 	if !c.wants(layer) {
 		return
 	}
-	c.values[int32(layer)] = reference.Value{
-		Shape: value.Shape,
-		Data:  append([]float32(nil), value.Data...),
-	}
+	c.values[int32(layer)] = value.Clone()
 }
 
 func (c *layerInputCapture) result(width uint32, tokens int) (reference.Value, error) {

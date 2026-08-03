@@ -67,7 +67,7 @@ func (r *Runner) saveMultiHeadMTPSession(session *Step35MTPSession) ([]byte, err
 	tokenBytes := uint64(len(session.DraftTokens)) * 4
 	total := uint64(step35MTPStateHeader) + hiddenBytes + tokenBytes +
 		uint64(len(trunkData)) + uint64(len(headData))
-	if total > uint64(maxIntValue()) {
+	if total > uint64(math.MaxInt) {
 		return nil, errors.New("inference: Step3.5 MTP state exceeds addressable memory")
 	}
 	output := make([]byte, int(total))

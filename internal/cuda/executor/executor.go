@@ -93,7 +93,7 @@ func (r *RetainedOutputs) CopyToHost(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if elements > uint64(maxInt()) {
+	if elements > uint64(math.MaxInt) {
 		return reference.Value{}, errors.New("CUDA retained output is too large")
 	}
 	data := make([]float32, int(elements))
@@ -644,7 +644,7 @@ func execute(
 		if err != nil {
 			return nil, err
 		}
-		if elements > uint64(maxInt()) {
+		if elements > uint64(math.MaxInt) {
 			return nil, errors.New("output is too large for host memory")
 		}
 		data := make([]float32, int(elements))
@@ -2800,7 +2800,7 @@ func launchReferenceNode(
 			return fmt.Errorf("reference bridge input %d has type %s", index, input.Type)
 		}
 		elements, err := input.Shape.Elements()
-		if err != nil || elements > uint64(maxInt()) {
+		if err != nil || elements > uint64(math.MaxInt) {
 			return errors.New("reference bridge input is too large")
 		}
 		data := make([]float32, int(elements))
@@ -2893,8 +2893,4 @@ func uint32Bytes(values []uint32) []byte {
 		return nil
 	}
 	return unsafe.Slice((*byte)(unsafe.Pointer(&values[0])), len(values)*int(unsafe.Sizeof(values[0])))
-}
-
-func maxInt() int {
-	return int(^uint(0) >> 1)
 }

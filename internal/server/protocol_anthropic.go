@@ -11,6 +11,7 @@ import (
 	"llamacpp2go/internal/inference"
 
 	"llamacpp2go/internal/sampling"
+	"llamacpp2go/internal/strictjson"
 	"llamacpp2go/internal/tokenizer"
 
 	"net/http"
@@ -729,12 +730,7 @@ func (h *Handler) parseAnthropicMessages(
 			Role    string          `json:"role"`
 			Content json.RawMessage `json:"content"`
 		}
-		decoder := json.NewDecoder(strings.NewReader(string(raw)))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&item); err != nil {
-			return nil, fmt.Errorf("message %d: %w", index, err)
-		}
-		if err := requireEOF(decoder); err != nil {
+		if err := strictjson.DecodeBytes(raw, &item); err != nil {
 			return nil, fmt.Errorf("message %d: %w", index, err)
 		}
 		if item.Role != "user" && item.Role != "assistant" {
@@ -775,12 +771,7 @@ func parseAnthropicContent(raw json.RawMessage, label string) (string, error) {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		}
-		decoder := json.NewDecoder(strings.NewReader(string(rawBlock)))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&block); err != nil {
-			return "", fmt.Errorf("%s block %d: %w", label, index, err)
-		}
-		if err := requireEOF(decoder); err != nil {
+		if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 			return "", fmt.Errorf("%s block %d: %w", label, index, err)
 		}
 		if block.Type != "text" {

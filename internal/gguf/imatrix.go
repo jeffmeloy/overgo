@@ -140,7 +140,7 @@ func readImportanceTensor(file *File, info TensorInfo) ([]float32, error) {
 	if err != nil {
 		return nil, err
 	}
-	if info.Size > uint64(maxInt()) {
+	if info.Size > uint64(math.MaxInt) {
 		return nil, fmt.Errorf("importance tensor %q exceeds addressable memory", info.Name)
 	}
 	data := make([]byte, int(info.Size))
@@ -189,7 +189,7 @@ func loadLegacyImportanceMatrix(path string) (*ImportanceMatrix, error) {
 			return nil, fmt.Errorf("legacy importance entry %q call count is invalid", name)
 		}
 		valueCount, err := readInt32()
-		if err != nil || valueCount < 1 || uint64(valueCount) > uint64(maxInt())/4 {
+		if err != nil || valueCount < 1 || uint64(valueCount) > uint64(math.MaxInt)/4 {
 			return nil, fmt.Errorf("legacy importance entry %q value count is invalid", name)
 		}
 		values := make([]float32, int(valueCount))

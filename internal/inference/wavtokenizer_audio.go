@@ -42,11 +42,11 @@ func (r *Runner) DecodeWavTokenizerWaveform(
 // WavTokenizerFeaturesToWaveform: pinned ISTFT postprocessor.
 func WavTokenizerFeaturesToWaveform(features reference.Value) ([]float32, error) {
 	if features.Shape.Rank != 2 || features.Shape.Dims[0] != wavTokenizerFrameWidth ||
-		features.Shape.Dims[1] == 0 || features.Shape.Dims[1] > uint64(maxInt()/wavTokenizerFrameWidth) {
+		features.Shape.Dims[1] == 0 || features.Shape.Dims[1] > uint64(math.MaxInt/wavTokenizerFrameWidth) {
 		return nil, errors.New("inference: WavTokenizer feature shape is incompatible")
 	}
 	frames := int(features.Shape.Dims[1])
-	if len(features.Data) != frames*wavTokenizerFrameWidth || frames > maxInt()/wavTokenizerFFTSize {
+	if len(features.Data) != frames*wavTokenizerFrameWidth || frames > math.MaxInt/wavTokenizerFFTSize {
 		return nil, errors.New("inference: WavTokenizer feature data is incompatible")
 	}
 	wavTokenizerTablesOnce.Do(initWavTokenizerTables)
@@ -127,8 +127,4 @@ func initWavTokenizerTables() {
 			wavTokenizerSinTable[index] = float32(sine)
 		}
 	}
-}
-
-func maxInt() int {
-	return int(^uint(0) >> 1)
 }

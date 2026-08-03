@@ -5,6 +5,7 @@ import (
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/graphruntime"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
@@ -13,48 +14,39 @@ import (
 
 // inferenceGraphRuntime: host/device graph bindings
 type inferenceGraphRuntime struct {
-	runner      *Runner
-	ctx         context.Context
-	builder     *tensor.Builder
-	hostFeeds   map[*tensor.Tensor]reference.Value
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr
+	runner  *Runner
+	ctx     context.Context
+	builder *tensor.Builder
+	feeds   *graphruntime.Feeds
 }
 
 func (r *Runner) newInferenceGraphRuntime(ctx context.Context) *inferenceGraphRuntime {
 	return &inferenceGraphRuntime{
-		runner: r, ctx: ctx, builder: r.newGraphBuilder(),
-		hostFeeds:   make(map[*tensor.Tensor]reference.Value),
-		deviceFeeds: make(map[*tensor.Tensor]driver.DevicePtr),
+		runner: r, ctx: ctx, builder: r.newGraphBuilder(), feeds: graphruntime.NewFeeds(),
 	}
 }
 
 func (runtime *inferenceGraphRuntime) input(name string, value reference.Value) *tensor.Tensor {
-	node := runtime.builder.Input(name, dtype.F32, value.Shape)
-	runtime.hostFeeds[node] = value
-	return node
+	return runtime.feeds.Input(runtime.builder, name, value)
 }
 
 func (runtime *inferenceGraphRuntime) addHostFeeds(feeds map[*tensor.Tensor]reference.Value) {
-	for node, value := range feeds {
-		runtime.hostFeeds[node] = value
-	}
+	runtime.feeds.AddHost(feeds)
 }
 
 func (runtime *inferenceGraphRuntime) addDeviceFeeds(feeds map[*tensor.Tensor]driver.DevicePtr) {
-	for node, pointer := range feeds {
-		runtime.deviceFeeds[node] = pointer
-	}
+	runtime.feeds.AddDevice(feeds)
 }
 
 func (runtime *inferenceGraphRuntime) weight(info gguf.TensorInfo) (*tensor.Tensor, error) {
 	node, pointer, err := runtime.runner.deviceOrHostTensor(
-		runtime.ctx, runtime.builder, info, runtime.hostFeeds,
+		runtime.ctx, runtime.builder, info, runtime.feeds.Host,
 	)
 	if err != nil {
 		return nil, err
 	}
 	if pointer != 0 {
-		runtime.deviceFeeds[node] = pointer
+		runtime.feeds.Device[node] = pointer
 	}
 	return node, nil
 }
@@ -95,18 +87,18 @@ func (runtime *inferenceGraphRuntime) layerWithHost(
 			return model.LayerGraphWeights{}, err
 		}
 		for node, value := range feeds {
-			runtime.hostFeeds[node] = value
+			runtime.feeds.Host[node] = value
 		}
 		return weights, nil
 	}
 	weights, feeds, err := runtime.runner.layerGraphInputs(
-		runtime.ctx, runtime.builder, runtime.hostFeeds, layer, prefix,
+		runtime.ctx, runtime.builder, runtime.feeds.Host, layer, prefix,
 	)
 	if err != nil {
 		return model.LayerGraphWeights{}, err
 	}
 	for node, pointer := range feeds {
-		runtime.deviceFeeds[node] = pointer
+		runtime.feeds.Device[node] = pointer
 	}
 	return weights, nil
 }
@@ -136,10 +128,13 @@ func (r *Runner) layerGraphInputs(
 }
 
 func (runtime *inferenceGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {
-	if runtime.runner.hasPreloadedWeights() {
-		return runtime.runner.cuda.ExecuteWithDeviceFeeds(
-			runtime.ctx, outputs, runtime.hostFeeds, runtime.deviceFeeds,
-		)
-	}
-	return runtime.runner.cuda.Execute(runtime.ctx, outputs, runtime.hostFeeds)
+	return runtime.feeds.Execute(
+		outputs, runtime.runner.hasPreloadedWeights(),
+		func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
+			return runtime.runner.cuda.Execute(runtime.ctx, outputs, feeds)
+		},
+		func(outputs []*tensor.Tensor, host map[*tensor.Tensor]reference.Value, device map[*tensor.Tensor]driver.DevicePtr) (map[*tensor.Tensor]reference.Value, error) {
+			return runtime.runner.cuda.ExecuteWithDeviceFeeds(runtime.ctx, outputs, host, device)
+		},
+	)
 }

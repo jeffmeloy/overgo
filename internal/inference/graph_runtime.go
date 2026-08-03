@@ -47,11 +47,29 @@ func (runtime *inferenceGraphRuntime) weight(info gguf.TensorInfo) (*tensor.Tens
 	return node, nil
 }
 
+func (r *Runner) deviceOrHostTensor(
+	ctx context.Context,
+	builder *tensor.Builder,
+	info gguf.TensorInfo,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+) (*tensor.Tensor, driver.DevicePtr, error) {
+	if r.hasPreloadedWeights() {
+		return r.deviceInput(builder, info)
+	}
+	value, err := model.LoadHostTensor(ctx, r.file, info)
+	if err != nil {
+		return nil, 0, err
+	}
+	item := builder.Input(info.Name, dtype.F32, value.Shape)
+	hostFeeds[item] = value
+	return item, 0, nil
+}
+
 func (runtime *inferenceGraphRuntime) layer(
 	layer model.LayerWeights,
 	prefix string,
 ) (model.LayerGraphWeights, error) {
-	weights, feeds, err := runtime.runner.mtpLayerInputs(
+	weights, feeds, err := runtime.runner.layerGraphInputs(
 		runtime.ctx, runtime.builder, runtime.hostFeeds, layer, prefix,
 	)
 	if err != nil {
@@ -61,6 +79,30 @@ func (runtime *inferenceGraphRuntime) layer(
 		runtime.deviceFeeds[node] = pointer
 	}
 	return weights, nil
+}
+
+func (r *Runner) layerGraphInputs(
+	ctx context.Context,
+	builder *tensor.Builder,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	layer model.LayerWeights,
+	prefix string,
+) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
+	if r.hasPreloadedWeights() {
+		return r.layerDeviceInputs(builder, layer)
+	}
+	hostLayer, err := model.LoadHostLayer(ctx, r.file, layer)
+	if err != nil {
+		return model.LayerGraphWeights{}, nil, err
+	}
+	graph, feeds, err := hostLayer.GraphInputs(builder, prefix)
+	if err != nil {
+		return model.LayerGraphWeights{}, nil, err
+	}
+	for node, value := range feeds {
+		hostFeeds[node] = value
+	}
+	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
 }
 
 func (runtime *inferenceGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {

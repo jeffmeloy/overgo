@@ -689,17 +689,10 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			PosNet:   make([]WavPosNetWeights, spec.PosNetBlockCount),
 			ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
 		}
-		load := func(destination *gguf.TensorInfo, name string, shape ...uint64) error {
-			item, loadErr := required(name, shape...)
-			if loadErr == nil {
-				*destination = item
-			}
-			return loadErr
-		}
-		if err = load(&wav.InputConv, "conv1d.weight", 7, uint64(spec.EmbeddingLength), width); err != nil {
-			return Weights{}, err
-		}
-		if err = load(&wav.InputConvBias, "conv1d.bias", 1, width); err != nil {
+		if err = loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			requiredTensor("conv1d.weight", &wav.InputConv, 7, uint64(spec.EmbeddingLength), width),
+			requiredTensor("conv1d.bias", &wav.InputConvBias, 1, width),
+		}); err != nil {
 			return Weights{}, err
 		}
 		for block := uint32(0); block < spec.PosNetBlockCount; block++ {
@@ -707,95 +700,72 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			layer := &wav.PosNet[block]
 			switch block {
 			case 0, 1, 3, 4:
-				for name, item := range map[string]struct {
-					destination *gguf.TensorInfo
-					shape       []uint64
-				}{
-					"norm1.weight": {&layer.Norm1, []uint64{1, width}},
-					"norm1.bias":   {&layer.Norm1Bias, []uint64{1, width}},
-					"conv1.weight": {&layer.Conv1, []uint64{3, width, width}},
-					"conv1.bias":   {&layer.Conv1Bias, []uint64{1, width}},
-					"norm2.weight": {&layer.Norm2, []uint64{1, width}},
-					"norm2.bias":   {&layer.Norm2Bias, []uint64{1, width}},
-					"conv2.weight": {&layer.Conv2, []uint64{3, width, width}},
-					"conv2.bias":   {&layer.Conv2Bias, []uint64{1, width}},
-				} {
-					if err = load(item.destination, prefix+name, item.shape...); err != nil {
-						return Weights{}, err
-					}
-				}
-			case 2:
-				for name, destination := range map[string]*gguf.TensorInfo{
-					"attn_norm.weight": &layer.AttentionNorm,
-					"attn_norm.bias":   &layer.AttentionNormBias,
-					"attn_q.bias":      &layer.AttentionQBias,
-					"attn_k.bias":      &layer.AttentionKBias,
-					"attn_v.bias":      &layer.AttentionVBias,
-					"attn_output.bias": &layer.AttentionOutBias,
-				} {
-					if err = load(destination, prefix+name, 1, width); err != nil {
-						return Weights{}, err
-					}
-				}
-				for name, destination := range map[string]*gguf.TensorInfo{
-					"attn_q.weight":      &layer.AttentionQ,
-					"attn_k.weight":      &layer.AttentionK,
-					"attn_v.weight":      &layer.AttentionV,
-					"attn_output.weight": &layer.AttentionOutput,
-				} {
-					if err = load(destination, prefix+name, 1, width, width); err != nil {
-						return Weights{}, err
-					}
-				}
-			case 5:
-				if err = load(&layer.AttentionNorm, prefix+"attn_norm.weight", 1, width); err != nil {
+				if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("norm1.weight", &layer.Norm1, 1, width),
+					requiredTensor("norm1.bias", &layer.Norm1Bias, 1, width),
+					requiredTensor("conv1.weight", &layer.Conv1, 3, width, width),
+					requiredTensor("conv1.bias", &layer.Conv1Bias, 1, width),
+					requiredTensor("norm2.weight", &layer.Norm2, 1, width),
+					requiredTensor("norm2.bias", &layer.Norm2Bias, 1, width),
+					requiredTensor("conv2.weight", &layer.Conv2, 3, width, width),
+					requiredTensor("conv2.bias", &layer.Conv2Bias, 1, width),
+				}); err != nil {
 					return Weights{}, err
 				}
-				if err = load(&layer.AttentionNormBias, prefix+"attn_norm.bias", 1, width); err != nil {
+			case 2:
+				if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
+					requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
+					requiredTensor("attn_q.bias", &layer.AttentionQBias, 1, width),
+					requiredTensor("attn_k.bias", &layer.AttentionKBias, 1, width),
+					requiredTensor("attn_v.bias", &layer.AttentionVBias, 1, width),
+					requiredTensor("attn_output.bias", &layer.AttentionOutBias, 1, width),
+					requiredTensor("attn_q.weight", &layer.AttentionQ, 1, width, width),
+					requiredTensor("attn_k.weight", &layer.AttentionK, 1, width, width),
+					requiredTensor("attn_v.weight", &layer.AttentionV, 1, width, width),
+					requiredTensor("attn_output.weight", &layer.AttentionOutput, 1, width, width),
+				}); err != nil {
+					return Weights{}, err
+				}
+			case 5:
+				if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
+					requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
+				}); err != nil {
 					return Weights{}, err
 				}
 			}
 		}
-		if err = load(&wav.TokenNorm, "token_embd_norm.weight", width); err != nil {
-			return Weights{}, err
-		}
-		if err = load(&wav.TokenNormBias, "token_embd_norm.bias", width); err != nil {
+		if err = loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			requiredTensor("token_embd_norm.weight", &wav.TokenNorm, width),
+			requiredTensor("token_embd_norm.bias", &wav.TokenNormBias, width),
+		}); err != nil {
 			return Weights{}, err
 		}
 		for block := uint32(0); block < spec.ConvNextBlockCount; block++ {
 			prefix := fmt.Sprintf("convnext.%d.", block)
 			layer := &wav.ConvNext[block]
-			for name, item := range map[string]struct {
-				destination *gguf.TensorInfo
-				shape       []uint64
-			}{
-				"dw.weight":    {&layer.Depthwise, []uint64{7, 1, width}},
-				"dw.bias":      {&layer.DepthwiseBias, []uint64{1, width}},
-				"norm.weight":  {&layer.Norm, []uint64{width}},
-				"norm.bias":    {&layer.NormBias, []uint64{width}},
-				"pw1.weight":   {&layer.Pointwise1, []uint64{width, ffn}},
-				"pw1.bias":     {&layer.Pointwise1Bias, []uint64{ffn}},
-				"pw2.weight":   {&layer.Pointwise2, []uint64{ffn, width}},
-				"pw2.bias":     {&layer.Pointwise2Bias, []uint64{width}},
-				"gamma.weight": {&layer.Gamma, []uint64{width}},
-			} {
-				if err = load(item.destination, prefix+name, item.shape...); err != nil {
-					return Weights{}, err
-				}
-			}
-		}
-		for name, item := range map[string]struct {
-			destination *gguf.TensorInfo
-			shape       []uint64
-		}{
-			"output_norm.weight": {&wav.OutputNorm, []uint64{width}},
-			"output_norm.bias":   {&wav.OutputNormBias, []uint64{width}},
-			"output.weight":      {&wav.Output, []uint64{width, uint64(spec.OutputEmbeddingLength)}},
-			"output.bias":        {&wav.OutputBias, []uint64{uint64(spec.OutputEmbeddingLength)}},
-		} {
-			if err = load(item.destination, name, item.shape...); err != nil {
+			if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensor("dw.weight", &layer.Depthwise, 7, 1, width),
+				requiredTensor("dw.bias", &layer.DepthwiseBias, 1, width),
+				requiredTensor("norm.weight", &layer.Norm, width),
+				requiredTensor("norm.bias", &layer.NormBias, width),
+				requiredTensor("pw1.weight", &layer.Pointwise1, width, ffn),
+				requiredTensor("pw1.bias", &layer.Pointwise1Bias, ffn),
+				requiredTensor("pw2.weight", &layer.Pointwise2, ffn, width),
+				requiredTensor("pw2.bias", &layer.Pointwise2Bias, width),
+				requiredTensor("gamma.weight", &layer.Gamma, width),
+			}); err != nil {
 				return Weights{}, err
 			}
+		}
+		if err = loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			requiredTensor("output_norm.weight", &wav.OutputNorm, width),
+			requiredTensor("output_norm.bias", &wav.OutputNormBias, width),
+			requiredTensor("output.weight", &wav.Output, width, uint64(spec.OutputEmbeddingLength)),
+			requiredTensor("output.bias", &wav.OutputBias, uint64(spec.OutputEmbeddingLength)),
+		}); err != nil {
+			return Weights{}, err
 		}
 		result.WavTokenizer = wav
 		result.Output = &wav.Output
@@ -1084,39 +1054,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.Output = &output
 	}
-	if (spec.Architecture == "internlm2" ||
-		spec.Architecture == "apertus" ||
-		spec.Architecture == "baichuan" ||
-		spec.Architecture == "bailingmoe" ||
-		spec.Architecture == "bailingmoe2" ||
-		spec.Architecture == "dbrx" ||
-		spec.Architecture == "dots1" ||
-		spec.Architecture == "minimax-m2" ||
-		spec.Architecture == "mimo2" ||
-		spec.Architecture == "step35" ||
-		spec.Architecture == "kimi-linear" ||
-		spec.Architecture == "rwkv6" ||
-		spec.Architecture == "rwkv6qwen2" ||
-		spec.Architecture == "rwkv7" ||
-		spec.Architecture == "arwkv7" ||
-		spec.Architecture == "mellum" ||
-		spec.Architecture == "jais" ||
-		spec.Architecture == "llada-moe" ||
-		spec.Architecture == "xverse" ||
-		spec.Architecture == "olmo2" ||
-		spec.Architecture == "nemotron" ||
-		spec.Architecture == "orion" ||
-		spec.Architecture == "gptneox" ||
-		spec.Architecture == "gptj" ||
-		spec.Architecture == "gpt-oss" ||
-		spec.Architecture == "phi2" ||
-		spec.Architecture == "phimoe" ||
-		spec.Architecture == "plamo" ||
-		spec.Architecture == "qwen" ||
-		spec.Architecture == "stablelm" ||
-		spec.Architecture == "talkie" ||
-		spec.Architecture == "codeshell") &&
-		result.Output == nil {
+	if spec.Profile().Has(ArchitectureRequiresOutput) && result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
 	}
 	if outputBias, ok := tensors["output.bias"]; ok {
@@ -1131,7 +1069,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.OutputBias = &outputBias
 	}
-	if spec.Architecture == "qwen3" || spec.Architecture == "qwen3vl" {
+	if spec.Profile().Has(ArchitectureClassifierHead) {
 		if item, ok := tensors["cls.output.weight"]; ok {
 			outputCount := uint64(1)
 			if len(spec.ClassifierLabels) > 0 {
@@ -1223,11 +1161,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	}
 
 	trunkBlockCount := spec.BlockCount
-	if spec.Architecture == "step35" || spec.Architecture == "hy_v3" ||
-		spec.Architecture == "glm4" || spec.Architecture == "glm4moe" || spec.Architecture == "exaone4" ||
-		spec.Architecture == "exaone-moe" || spec.Architecture == "mimo2" ||
-		spec.Architecture == "bailingmoe2" || spec.Architecture == "deepseek32" ||
-		spec.Architecture == "glm-dsa" {
+	if spec.Profile().AppendsDraftBlocks() {
 		trunkBlockCount += spec.NextNPredictLayers
 	}
 	cohere2HasMTP := false
@@ -1270,7 +1204,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			"ffn_up.bias",
 			"ffn_down.bias",
 		}
-		if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" || spec.Architecture == "cogvlm" {
+		if spec.Profile().Has(ArchitectureBiasFreeProjections) {
 			for _, name := range biasNames {
 				if _, ok := tensors[prefix+name]; ok {
 					return Weights{}, fmt.Errorf(
@@ -1318,20 +1252,11 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				layer.AttentionQNorm = &qNorm
 				layer.AttentionKNorm = &kNorm
-				for name, destination := range map[string]**gguf.TensorInfo{
-					"attn_q_norm.bias": &layer.AttentionQNormBias,
-					"attn_k_norm.bias": &layer.AttentionKNormBias,
-				} {
-					if _, ok := tensors[prefix+name]; ok {
-						bias, biasErr := required(prefix+name, uint64(spec.EmbeddingLength))
-						if biasErr != nil {
-							return Weights{}, biasErr
-						}
-						if bias.Type != dtype.F32 {
-							return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
-						}
-						*destination = &bias
-					}
+				if normErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					optionalF32TensorPointer("attn_q_norm.bias", &layer.AttentionQNormBias, uint64(spec.EmbeddingLength)),
+					optionalF32TensorPointer("attn_k_norm.bias", &layer.AttentionKNormBias, uint64(spec.EmbeddingLength)),
+				}); normErr != nil {
+					return Weights{}, normErr
 				}
 			} else if _, hasQBias := tensors[prefix+"attn_q_norm.bias"]; hasQBias {
 				return Weights{}, errors.New("MPT Q norm bias has no weight")
@@ -1358,7 +1283,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
 		}
 		if hasRopeFactors {
-			if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" {
+			if spec.Profile().Has(ArchitectureQwenGDN) {
 				return Weights{}, fmt.Errorf(
 					"tensor %q requires unsupported hybrid RoPE factors",
 					ropeFactors.Name,
@@ -1468,16 +1393,19 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					return &item, nil
 				}
-				for name, destination := range map[string]**gguf.TensorInfo{
-					"ssm_conv1d_q.weight": &layer.SSMQueryConv,
-					"ssm_conv1d_k.weight": &layer.SSMKeyConv,
-					"ssm_conv1d_v.weight": &layer.SSMValueConv,
+				for _, binding := range []struct {
+					name        string
+					destination **gguf.TensorInfo
+				}{
+					{name: "ssm_conv1d_q.weight", destination: &layer.SSMQueryConv},
+					{name: "ssm_conv1d_k.weight", destination: &layer.SSMKeyConv},
+					{name: "ssm_conv1d_v.weight", destination: &layer.SSMValueConv},
 				} {
-					item, itemErr := conv(name)
+					item, itemErr := conv(binding.name)
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
-					*destination = item
+					*binding.destination = item
 				}
 				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 					requiredTensorPointer("ssm_f_a.weight", &layer.SSMForgetA, width, uint64(spec.KDAHeadDim)),
@@ -1582,223 +1510,9 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			continue
 		}
-		if spec.Architecture == "rwkv6" {
-			layer.Recurrent = true
-			embedding := uint64(spec.EmbeddingLength)
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"attn_norm_2.weight":            {[]uint64{embedding}, &layer.AttentionNorm2},
-				"attn_norm_2.bias":              {[]uint64{embedding}, &layer.AttentionNorm2Bias},
-				"time_mix_w1.weight":            {[]uint64{embedding, uint64(spec.TimeMixExtraDim) * 5}, &layer.TimeMixW1},
-				"time_mix_w2.weight":            {[]uint64{uint64(spec.TimeMixExtraDim), embedding, 5}, &layer.TimeMixW2},
-				"time_mix_lerp_x.weight":        {[]uint64{embedding, 1, 1}, &layer.TimeMixLerpX},
-				"time_mix_first.weight":         {[]uint64{uint64(spec.WKVHeadSize), uint64(spec.HeadCount)}, &layer.TimeMixFirst},
-				"time_mix_decay.weight":         {[]uint64{embedding}, &layer.TimeMixDecay},
-				"time_mix_decay_w1.weight":      {[]uint64{embedding, uint64(spec.TimeDecayExtraDim)}, &layer.TimeMixDecayW1},
-				"time_mix_decay_w2.weight":      {[]uint64{uint64(spec.TimeDecayExtraDim), embedding}, &layer.TimeMixDecayW2},
-				"time_mix_key.weight":           {[]uint64{embedding, embedding}, &layer.TimeMixKey},
-				"time_mix_value.weight":         {[]uint64{embedding, embedding}, &layer.TimeMixValue},
-				"time_mix_receptance.weight":    {[]uint64{embedding, embedding}, &layer.TimeMixReceptance},
-				"time_mix_gate.weight":          {[]uint64{embedding, embedding}, &layer.TimeMixGate},
-				"time_mix_ln.weight":            {[]uint64{embedding}, &layer.TimeMixLN},
-				"time_mix_ln.bias":              {[]uint64{embedding}, &layer.TimeMixLNBias},
-				"time_mix_output.weight":        {[]uint64{embedding, embedding}, &layer.TimeMixOutput},
-				"channel_mix_lerp_k.weight":     {[]uint64{embedding, 1, 1}, &layer.ChannelMixLerpK},
-				"channel_mix_lerp_r.weight":     {[]uint64{embedding, 1, 1}, &layer.ChannelMixLerpR},
-				"channel_mix_key.weight":        {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.ChannelMixKey},
-				"channel_mix_value.weight":      {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.ChannelMixValue},
-				"channel_mix_receptance.weight": {[]uint64{embedding, embedding}, &layer.ChannelMixReceptance},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
-			}
-			if item, ok := tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
-				validated, itemErr := required(item.Name, embedding, 1, 1, 5)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				layer.TimeMixLerpFused = &validated
-			} else {
-				for suffix, destination := range map[string]**gguf.TensorInfo{
-					"w": &layer.TimeMixLerpW, "k": &layer.TimeMixLerpK,
-					"v": &layer.TimeMixLerpV, "r": &layer.TimeMixLerpR,
-					"g": &layer.TimeMixLerpG,
-				} {
-					item, itemErr := required(prefix+"time_mix_lerp_"+suffix+".weight", embedding, 1, 1)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*destination = &item
-				}
-			}
-			continue
-		}
-		if spec.Architecture == "rwkv7" || spec.Architecture == "arwkv7" {
-			layer.Recurrent = true
-			embedding := uint64(spec.EmbeddingLength)
-			valueRank := uint64(spec.ValueMixLoRARank)
-			if block == 0 {
-				valueRank = uint64(spec.ICLRLoRARank)
-			}
-			lerpCount := uint64(6)
-			if spec.Architecture == "arwkv7" && spec.GateLoRARank == 0 {
-				lerpCount = 5
-			}
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"time_mix_w0.weight":         {[]uint64{embedding}, &layer.TimeMixW0},
-				"time_mix_w1.weight":         {[]uint64{embedding, uint64(spec.DecayLoRARank)}, &layer.TimeMixW1},
-				"time_mix_w2.weight":         {[]uint64{uint64(spec.DecayLoRARank), embedding}, &layer.TimeMixW2},
-				"time_mix_a0.weight":         {[]uint64{embedding}, &layer.TimeMixA0},
-				"time_mix_a1.weight":         {[]uint64{embedding, uint64(spec.ICLRLoRARank)}, &layer.TimeMixA1},
-				"time_mix_a2.weight":         {[]uint64{uint64(spec.ICLRLoRARank), embedding}, &layer.TimeMixA2},
-				"time_mix_v0.weight":         {[]uint64{embedding}, &layer.TimeMixV0},
-				"time_mix_v1.weight":         {[]uint64{embedding, valueRank}, &layer.TimeMixV1},
-				"time_mix_v2.weight":         {[]uint64{valueRank, embedding}, &layer.TimeMixV2},
-				"time_mix_lerp_fused.weight": {[]uint64{embedding, 1, 1, lerpCount}, &layer.TimeMixLerpFused},
-				"time_mix_k_k.weight":        {[]uint64{embedding}, &layer.TimeMixKK},
-				"time_mix_k_a.weight":        {[]uint64{embedding}, &layer.TimeMixKA},
-				"time_mix_r_k.weight":        {[]uint64{embedding}, &layer.TimeMixRK},
-				"time_mix_key.weight":        {[]uint64{embedding, embedding}, &layer.TimeMixKey},
-				"time_mix_value.weight":      {[]uint64{embedding, embedding}, &layer.TimeMixValue},
-				"time_mix_receptance.weight": {[]uint64{embedding, embedding}, &layer.TimeMixReceptance},
-				"time_mix_output.weight":     {[]uint64{embedding, embedding}, &layer.TimeMixOutput},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
-			}
-			if spec.GateLoRARank > 0 {
-				g1, itemErr := required(prefix+"time_mix_g1.weight", embedding, uint64(spec.GateLoRARank))
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				g2, itemErr := required(prefix+"time_mix_g2.weight", uint64(spec.GateLoRARank), embedding)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				layer.TimeMixG1, layer.TimeMixG2 = &g1, &g2
-			}
-			if spec.Architecture == "rwkv7" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"attn_norm_2.weight":        {[]uint64{embedding}, &layer.AttentionNorm2},
-					"attn_norm_2.bias":          {[]uint64{embedding}, &layer.AttentionNorm2Bias},
-					"time_mix_ln.weight":        {[]uint64{embedding}, &layer.TimeMixLN},
-					"time_mix_ln.bias":          {[]uint64{embedding}, &layer.TimeMixLNBias},
-					"channel_mix_lerp_k.weight": {[]uint64{embedding, 1, 1}, &layer.ChannelMixLerpK},
-					"channel_mix_key.weight":    {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.ChannelMixKey},
-					"channel_mix_value.weight":  {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.ChannelMixValue},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
-				}
-			} else {
-				if item, ok := tensors[prefix+"time_mix_ln.weight"]; ok {
-					norm, itemErr := required(item.Name, embedding)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					bias, itemErr := required(prefix+"time_mix_ln.bias", embedding)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					layer.TimeMixLN, layer.TimeMixLNBias = &norm, &bias
-				}
-				if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
-					return Weights{}, err
-				}
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination *gguf.TensorInfo
-				}{
-					"ffn_gate.weight": {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardGate},
-					"ffn_up.weight":   {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardUp},
-					"ffn_down.weight": {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.FeedForwardDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = item
-				}
-			}
-			continue
-		}
-		if spec.Architecture == "rwkv6qwen2" {
-			layer.Recurrent = true
-			embedding := uint64(spec.EmbeddingLength)
-			keyValue := uint64(spec.HeadCountKV) * uint64(spec.WKVHeadSize)
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"time_mix_w1.weight":         {[]uint64{embedding, uint64(spec.TimeMixExtraDim) * 5}, &layer.TimeMixW1},
-				"time_mix_w2.weight":         {[]uint64{uint64(spec.TimeMixExtraDim), embedding, 5}, &layer.TimeMixW2},
-				"time_mix_lerp_x.weight":     {[]uint64{embedding, 1, 1}, &layer.TimeMixLerpX},
-				"time_mix_lerp_fused.weight": {[]uint64{embedding, 1, 1, 5}, &layer.TimeMixLerpFused},
-				"time_mix_decay.weight":      {[]uint64{embedding}, &layer.TimeMixDecay},
-				"time_mix_decay_w1.weight":   {[]uint64{embedding, uint64(spec.TimeDecayExtraDim)}, &layer.TimeMixDecayW1},
-				"time_mix_decay_w2.weight":   {[]uint64{uint64(spec.TimeDecayExtraDim), embedding}, &layer.TimeMixDecayW2},
-				"time_mix_key.weight":        {[]uint64{embedding, keyValue}, &layer.TimeMixKey},
-				"time_mix_value.weight":      {[]uint64{embedding, keyValue}, &layer.TimeMixValue},
-				"time_mix_receptance.weight": {[]uint64{embedding, embedding}, &layer.TimeMixReceptance},
-				"time_mix_gate.weight":       {[]uint64{embedding, embedding}, &layer.TimeMixGate},
-				"time_mix_output.weight":     {[]uint64{embedding, embedding}, &layer.TimeMixOutput},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
-			}
-			for name, widthAndDestination := range map[string]struct {
-				width       uint64
-				destination **gguf.TensorInfo
-			}{
-				"time_mix_key.bias":        {keyValue, &layer.AttentionKBias},
-				"time_mix_value.bias":      {keyValue, &layer.AttentionVBias},
-				"time_mix_receptance.bias": {embedding, &layer.AttentionQBias},
-			} {
-				if item, ok := tensors[prefix+name]; ok {
-					validated, itemErr := required(item.Name, widthAndDestination.width)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*widthAndDestination.destination = &validated
-				}
-			}
-			if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
-				return Weights{}, err
-			}
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination *gguf.TensorInfo
-			}{
-				"ffn_gate.weight": {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardGate},
-				"ffn_up.weight":   {[]uint64{embedding, uint64(spec.FeedForwardLength)}, &layer.FeedForwardUp},
-				"ffn_down.weight": {[]uint64{uint64(spec.FeedForwardLength), embedding}, &layer.FeedForwardDown},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = item
-			}
+		if handled, familyErr := loadRWKVLayer(required, tensors, prefix, spec, layer, block); familyErr != nil {
+			return Weights{}, familyErr
+		} else if handled {
 			continue
 		}
 		if spec.Architecture == "nemotron_h" || spec.Architecture == "nemotron_h_moe" {
@@ -1807,93 +1521,43 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				convDimension := uint64(spec.SSMInnerSize) +
 					2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 				inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ssm_in.weight":     {[]uint64{uint64(spec.EmbeddingLength), inputDimension}, &layer.SSMInput},
-					"ssm_conv1d.weight": {[]uint64{uint64(spec.SSMConvKernel), convDimension}, &layer.SSMConv1D},
-					"ssm_dt.bias":       {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep},
-					"ssm_a":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMA},
-					"ssm_d":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMD},
-					"ssm_norm.weight":   {[]uint64{uint64(spec.SSMInnerSize / spec.SSMGroupCount), uint64(spec.SSMGroupCount)}, &layer.SSMNorm},
-					"ssm_out.weight":    {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
-				}
-				if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
-					if item.Dimensions != 1 || item.Shape[0] != convDimension {
-						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-					}
-					layer.SSMConv1DBias = &item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), inputDimension),
+					requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), convDimension),
+					requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
+					requiredTensorPointer("ssm_a", &layer.SSMA, 1, uint64(spec.SSMTimeStepRank)),
+					requiredTensorPointer("ssm_d", &layer.SSMD, 1, uint64(spec.SSMTimeStepRank)),
+					requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount)),
+					requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
+					optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 				continue
 			}
 			if spec.LayerFeedForwardLength(block) == 0 {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination *gguf.TensorInfo
-				}{
-					"attn_q.weight":      {[]uint64{uint64(spec.EmbeddingLength), queryLength}, &layer.AttentionQ},
-					"attn_k.weight":      {[]uint64{uint64(spec.EmbeddingLength), keyLength}, &layer.AttentionK},
-					"attn_v.weight":      {[]uint64{uint64(spec.EmbeddingLength), valueLength}, &layer.AttentionV},
-					"attn_output.weight": {[]uint64{attentionOutputLength, uint64(spec.EmbeddingLength)}, &layer.AttentionOutput},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = item
-				}
-				for name, widthAndDestination := range map[string]struct {
-					width       uint64
-					destination **gguf.TensorInfo
-				}{
-					"attn_q.bias":      {queryLength, &layer.AttentionQBias},
-					"attn_k.bias":      {keyLength, &layer.AttentionKBias},
-					"attn_v.bias":      {valueLength, &layer.AttentionVBias},
-					"attn_output.bias": {uint64(spec.EmbeddingLength), &layer.AttentionOutputBias},
-				} {
-					if item, ok := tensors[prefix+name]; ok {
-						if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != widthAndDestination.width {
-							return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-						}
-						*widthAndDestination.destination = &item
-					}
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
+					requiredTensor("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+					requiredTensor("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+					requiredTensor("attn_output.weight", &layer.AttentionOutput, attentionOutputLength, uint64(spec.EmbeddingLength)),
+					optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, queryLength),
+					optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, keyLength),
+					optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, valueLength),
+					optionalF32TensorPointer("attn_output.bias", &layer.AttentionOutputBias, uint64(spec.EmbeddingLength)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 				continue
 			}
 			if spec.Architecture == "nemotron_h" {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination *gguf.TensorInfo
-				}{
-					"ffn_up.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))}, &layer.FeedForwardUp},
-					"ffn_down.weight": {[]uint64{uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)}, &layer.FeedForwardDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = item
-				}
-				for name, widthAndDestination := range map[string]struct {
-					width       uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_up.bias":   {uint64(spec.LayerFeedForwardLength(block)), &layer.FeedForwardUpBias},
-					"ffn_down.bias": {uint64(spec.EmbeddingLength), &layer.FeedForwardDownBias},
-				} {
-					if item, ok := tensors[prefix+name]; ok {
-						if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != widthAndDestination.width {
-							return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-						}
-						*widthAndDestination.destination = &item
-					}
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("ffn_up.weight", &layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))),
+					requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)),
+					optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, uint64(spec.LayerFeedForwardLength(block))),
+					optionalF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 				continue
 			}
@@ -1911,25 +1575,15 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardLatentDown = &latentDown
 				layer.FeedForwardLatentUp = &latentUp
 			}
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"ffn_gate_inp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardRouter},
-				"exp_probs_b.bias":      {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias},
-				"ffn_up_exps.weight":    {[]uint64{moeWidth, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpExperts},
-				"ffn_down_exps.weight":  {[]uint64{uint64(spec.ExpertFeedForward), moeWidth, uint64(spec.ExpertCount)}, &layer.FeedForwardDownExperts},
-				"ffn_up_shexp.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-				"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)}, &layer.FeedForwardSharedDown},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				if name == "exp_probs_b.bias" && item.Type != dtype.F32 {
-					return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", item.Name)
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
+				requiredF32TensorPointer("exp_probs_b.bias", &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
+				requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, moeWidth, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+				requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), moeWidth, uint64(spec.ExpertCount)),
+				requiredTensorPointer("ffn_up_shexp.weight", &layer.FeedForwardSharedUp, uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)),
+				requiredTensorPointer("ffn_down_shexp.weight", &layer.FeedForwardSharedDown, uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			continue
 		}
@@ -1964,21 +1618,16 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionSubNorm = &attentionSubNorm
 			layer.FeedForwardSubNorm = &feedForwardSubNorm
-			for name, destination := range map[string]**gguf.TensorInfo{
-				"attn_q.scale":      &layer.AttentionQScale,
-				"attn_k.scale":      &layer.AttentionKScale,
-				"attn_v.scale":      &layer.AttentionVScale,
-				"attn_output.scale": &layer.AttentionOutputScale,
-				"ffn_gate.scale":    &layer.FeedForwardGateScale,
-				"ffn_up.scale":      &layer.FeedForwardUpScale,
-				"ffn_down.scale":    &layer.FeedForwardDownScale,
-			} {
-				if item, ok := tensors[prefix+name]; ok {
-					if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != 1 {
-						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-					}
-					*destination = &item
-				}
+			if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				optionalF32TensorPointer("attn_q.scale", &layer.AttentionQScale, 1),
+				optionalF32TensorPointer("attn_k.scale", &layer.AttentionKScale, 1),
+				optionalF32TensorPointer("attn_v.scale", &layer.AttentionVScale, 1),
+				optionalF32TensorPointer("attn_output.scale", &layer.AttentionOutputScale, 1),
+				optionalF32TensorPointer("ffn_gate.scale", &layer.FeedForwardGateScale, 1),
+				optionalF32TensorPointer("ffn_up.scale", &layer.FeedForwardUpScale, 1),
+				optionalF32TensorPointer("ffn_down.scale", &layer.FeedForwardDownScale, 1),
+			}); scaleErr != nil {
+				return Weights{}, scaleErr
 			}
 		}
 		if spec.Architecture == "deci" && spec.LayerHeadCount(block) == 0 {
@@ -1993,28 +1642,21 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		} else if spec.Architecture == "jamba" && spec.IsRecurrentLayer(block) {
 			layer.Recurrent = true
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"ssm_in.weight":      {[]uint64{uint64(spec.EmbeddingLength), 2 * uint64(spec.SSMInnerSize)}, &layer.SSMInput},
-				"ssm_conv1d.weight":  {[]uint64{uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)}, &layer.SSMConv1D},
-				"ssm_conv1d.bias":    {[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMConv1DBias},
-				"ssm_x.weight":       {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank + 2*spec.SSMStateSize)}, &layer.SSMX},
-				"ssm_dt_norm.weight": {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStepNorm},
-				"ssm_dt.weight":      {[]uint64{uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)}, &layer.SSMTimeStepWeight},
-				"ssm_dt.bias":        {[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMTimeStep},
-				"ssm_b_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMBNorm},
-				"ssm_c_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMCNorm},
-				"ssm_a":              {[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)}, &layer.SSMA},
-				"ssm_d":              {[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMD},
-				"ssm_out.weight":     {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank+2*spec.SSMStateSize)),
+				requiredTensorPointer("ssm_dt_norm.weight", &layer.SSMTimeStepNorm, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_b_norm.weight", &layer.SSMBNorm, uint64(spec.SSMStateSize)),
+				requiredTensorPointer("ssm_c_norm.weight", &layer.SSMCNorm, uint64(spec.SSMStateSize)),
+				requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_d", &layer.SSMD, uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 		} else if spec.Architecture == "plamo2" && spec.IsRecurrentLayer(block) {
 			layer.Recurrent = true
@@ -2022,88 +1664,49 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			if candidate := uint64(spec.EmbeddingLength / 16); candidate > dtDimension {
 				dtDimension = candidate
 			}
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"ssm_in.weight":      {[]uint64{uint64(spec.EmbeddingLength), 2 * uint64(spec.SSMInnerSize)}, &layer.SSMInput},
-				"ssm_conv1d.weight":  {[]uint64{uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)}, &layer.SSMConv1D},
-				"ssm_x.weight":       {[]uint64{uint64(spec.SSMInnerSize), dtDimension + 2*uint64(spec.SSMStateSize)}, &layer.SSMX},
-				"ssm_dt.weight":      {[]uint64{dtDimension, uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStepWeight},
-				"ssm_dt.bias":        {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep},
-				"ssm_a":              {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMA},
-				"ssm_d":              {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMD},
-				"ssm_out.weight":     {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
-				"ssm_dt_norm.weight": {[]uint64{dtDimension}, &layer.SSMTimeStepNorm},
-				"ssm_b_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMBNorm},
-				"ssm_c_norm.weight":  {[]uint64{uint64(spec.SSMStateSize)}, &layer.SSMCNorm},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), dtDimension+2*uint64(spec.SSMStateSize)),
+				requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, dtDimension, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_d", &layer.SSMD, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("ssm_dt_norm.weight", &layer.SSMTimeStepNorm, dtDimension),
+				requiredTensorPointer("ssm_b_norm.weight", &layer.SSMBNorm, uint64(spec.SSMStateSize)),
+				requiredTensorPointer("ssm_c_norm.weight", &layer.SSMCNorm, uint64(spec.SSMStateSize)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 		} else if spec.Architecture == "mamba" {
 			layer.Recurrent = true
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"ssm_in.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), 2 * uint64(spec.SSMInnerSize)}, &layer.SSMInput,
-				},
-				"ssm_conv1d.weight": {
-					[]uint64{uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)}, &layer.SSMConv1D,
-				},
-				"ssm_conv1d.bias": {
-					[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMConv1DBias,
-				},
-				"ssm_x.weight": {
-					[]uint64{uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank + 2*spec.SSMStateSize)}, &layer.SSMX,
-				},
-				"ssm_dt.weight": {
-					[]uint64{uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)}, &layer.SSMTimeStepWeight,
-				},
-				"ssm_dt.bias": {
-					[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMTimeStep,
-				},
-				"ssm_a": {
-					[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)}, &layer.SSMA,
-				},
-				"ssm_d": {
-					[]uint64{uint64(spec.SSMInnerSize)}, &layer.SSMD,
-				},
-				"ssm_out.weight": {
-					[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput,
-				},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank+2*spec.SSMStateSize)),
+				requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_d", &layer.SSMD, uint64(spec.SSMInnerSize)),
+				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 		} else if spec.Architecture == "falcon-h1" {
 			convDimension := uint64(spec.SSMInnerSize) +
 				2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 			inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"ssm_in.weight":     {[]uint64{uint64(spec.EmbeddingLength), inputDimension}, &layer.SSMInput},
-				"ssm_conv1d.weight": {[]uint64{uint64(spec.SSMConvKernel), convDimension}, &layer.SSMConv1D},
-				"ssm_dt.bias":       {[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep},
-				"ssm_a":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMA},
-				"ssm_d":             {[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMD},
-				"ssm_out.weight":    {[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), inputDimension),
+				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), convDimension),
+				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_a", &layer.SSMA, 1, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_d", &layer.SSMD, 1, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
 				if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != convDimension {
@@ -2137,19 +1740,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					layer.AttentionQKVBias = &validated
 				}
 			} else {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination *gguf.TensorInfo
-				}{
-					"attn_q.weight": {[]uint64{uint64(spec.EmbeddingLength), queryLength}, &layer.AttentionQ},
-					"attn_k.weight": {[]uint64{uint64(spec.EmbeddingLength), keyLength}, &layer.AttentionK},
-					"attn_v.weight": {[]uint64{uint64(spec.EmbeddingLength), valueLength}, &layer.AttentionV},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
+					requiredTensor("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+					requiredTensor("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if layer.AttentionOutput, err = required(
@@ -2163,37 +1759,16 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			convDimension := uint64(spec.SSMInnerSize) +
 				2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 			inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"ssm_in.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), inputDimension}, &layer.SSMInput,
-				},
-				"ssm_conv1d.weight": {
-					[]uint64{uint64(spec.SSMConvKernel), convDimension}, &layer.SSMConv1D,
-				},
-				"ssm_dt.bias": {
-					[]uint64{uint64(spec.SSMTimeStepRank)}, &layer.SSMTimeStep,
-				},
-				"ssm_a": {
-					[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMA,
-				},
-				"ssm_d": {
-					[]uint64{1, uint64(spec.SSMTimeStepRank)}, &layer.SSMD,
-				},
-				"ssm_norm.weight": {
-					[]uint64{uint64(spec.SSMInnerSize / spec.SSMGroupCount), uint64(spec.SSMGroupCount)}, &layer.SSMNorm,
-				},
-				"ssm_out.weight": {
-					[]uint64{uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)}, &layer.SSMOutput,
-				},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), inputDimension),
+				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), convDimension),
+				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_a", &layer.SSMA, 1, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_d", &layer.SSMD, 1, uint64(spec.SSMTimeStepRank)),
+				requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount)),
+				requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
 				if item.Dimensions != 1 || item.Shape[0] != convDimension {
@@ -2260,45 +1835,21 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.AttentionGate = &attentionGate
 				}
-				for name, shape := range map[string][]uint64{
-					"ssm_conv1d.weight": {
-						uint64(spec.SSMConvKernel),
-						keyDimension*2 + valueDimension,
-					},
-					"ssm_dt.bias":     {uint64(spec.SSMTimeStepRank)},
-					"ssm_a":           {uint64(spec.SSMTimeStepRank)},
-					"ssm_norm.weight": {uint64(spec.SSMStateSize)},
-					"ssm_out.weight":  {valueDimension, uint64(spec.EmbeddingLength)},
-				} {
-					item, itemErr := required(prefix+name, shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					switch name {
-					case "ssm_conv1d.weight":
-						layer.SSMConv1D = &item
-					case "ssm_dt.bias":
-						layer.SSMTimeStep = &item
-					case "ssm_a":
-						layer.SSMA = &item
-					case "ssm_norm.weight":
-						layer.SSMNorm = &item
-					case "ssm_out.weight":
-						layer.SSMOutput = &item
-					}
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), keyDimension*2+valueDimension),
+					requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
+					requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMTimeStepRank)),
+					requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.SSMStateSize)),
+					requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, valueDimension, uint64(spec.EmbeddingLength)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 				if spec.Architecture != "qwen3next" {
-					for name, destination := range map[string]**gguf.TensorInfo{
-						"ssm_beta.weight":  &layer.SSMBeta,
-						"ssm_alpha.weight": &layer.SSMAlpha,
-					} {
-						item, itemErr := required(
-							prefix+name, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank),
-						)
-						if itemErr != nil {
-							return Weights{}, itemErr
-						}
-						*destination = &item
+					if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+						requiredTensorPointer("ssm_beta.weight", &layer.SSMBeta, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
+						requiredTensorPointer("ssm_alpha.weight", &layer.SSMAlpha, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
+					}); itemErr != nil {
+						return Weights{}, itemErr
 					}
 				}
 			} else {
@@ -2333,28 +1884,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		} else if (spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && spec.IsRecurrentLayer(block) {
 			layer.Recurrent = true
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"shortconv.conv.weight": {
-					[]uint64{uint64(spec.ShortConvCacheLength), uint64(spec.EmbeddingLength)},
-					&layer.ShortConvKernel,
-				},
-				"shortconv.in_proj.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), 3 * uint64(spec.EmbeddingLength)},
-					&layer.ShortConvInput,
-				},
-				"shortconv.out_proj.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)},
-					&layer.ShortConvOutput,
-				},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("shortconv.conv.weight", &layer.ShortConvKernel, uint64(spec.ShortConvCacheLength), uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("shortconv.in_proj.weight", &layer.ShortConvInput, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("shortconv.out_proj.weight", &layer.ShortConvOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 		} else if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
 			if layer.AttentionQ, err = required(
@@ -2751,30 +2286,31 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if spec.Architecture == "jina-bert-v2" {
-			for name, destination := range map[string]**gguf.TensorInfo{
-				"attn_q_norm.weight": &layer.AttentionQNorm,
-				"attn_k_norm.weight": &layer.AttentionKNorm,
+			for _, binding := range []struct {
+				name, label string
+				weight      **gguf.TensorInfo
+				bias        **gguf.TensorInfo
+			}{
+				{name: "attn_q_norm", label: "attn_q_norm.", weight: &layer.AttentionQNorm, bias: &layer.AttentionQNormBias},
+				{name: "attn_k_norm", label: "attn_k_norm.", weight: &layer.AttentionKNorm, bias: &layer.AttentionKNormBias},
 			} {
-				if _, ok := tensors[prefix+name]; ok {
-					norm, normErr := required(prefix+name, uint64(spec.EmbeddingLength))
+				weightName := prefix + binding.name + ".weight"
+				biasName := prefix + binding.name + ".bias"
+				if _, ok := tensors[weightName]; ok {
+					norm, normErr := required(weightName, uint64(spec.EmbeddingLength))
 					if normErr != nil {
 						return Weights{}, normErr
 					}
-					*destination = &norm
-					biasName := prefix + name[:len(name)-len("weight")] + "bias"
+					*binding.weight = &norm
 					if _, hasBias := tensors[biasName]; hasBias {
 						bias, biasErr := required(biasName, uint64(spec.EmbeddingLength))
 						if biasErr != nil {
 							return Weights{}, biasErr
 						}
-						if name == "attn_q_norm.weight" {
-							layer.AttentionQNormBias = &bias
-						} else {
-							layer.AttentionKNormBias = &bias
-						}
+						*binding.bias = &bias
 					}
-				} else if _, hasBias := tensors[prefix+name[:len(name)-len("weight")]+"bias"]; hasBias {
-					return Weights{}, fmt.Errorf("JinaBERT v2 %s bias has no weight", name[:len(name)-len("weight")])
+				} else if _, hasBias := tensors[biasName]; hasBias {
+					return Weights{}, fmt.Errorf("JinaBERT v2 %s bias has no weight", binding.label)
 				}
 			}
 			if layer.AttentionKNorm != nil && keyLength != uint64(spec.EmbeddingLength) {
@@ -2816,26 +2352,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if !layer.Recurrent && layer.AttentionQKV == nil &&
 			(spec.Architecture != "deci" || spec.LayerKVHeadCount(block) > 0) {
-			for name, shapeAndDestination := range map[string]struct {
-				shape       uint64
-				destination **gguf.TensorInfo
-			}{
-				"attn_q.bias": {layer.AttentionQ.Shape[1], &layer.AttentionQBias},
-				"attn_k.bias": {layer.AttentionK.Shape[1], &layer.AttentionKBias},
-				"attn_v.bias": {layer.AttentionV.Shape[1], &layer.AttentionVBias},
-			} {
-				if item, ok := tensors[prefix+name]; ok {
-					if item.Type != dtype.F32 ||
-						item.Dimensions != 1 ||
-						item.Shape[0] != shapeAndDestination.shape {
-						return Weights{}, fmt.Errorf(
-							"tensor %q has incompatible shape %v",
-							item.Name,
-							item.Shape,
-						)
-					}
-					*shapeAndDestination.destination = &item
-				}
+			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, layer.AttentionQ.Shape[1]),
+				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, layer.AttentionK.Shape[1]),
+				optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, layer.AttentionV.Shape[1]),
+			}); biasErr != nil {
+				return Weights{}, biasErr
 			}
 		}
 		if hasPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
@@ -2887,41 +2409,27 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				layer.LayerOutputScale = &scale
 			}
 			if spec.EmbeddingPerLayer > 0 {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"per_layer_inp_gate.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.EmbeddingPerLayer)}, &layer.PerLayerInputGate},
-					"per_layer_proj.weight":      {[]uint64{uint64(spec.EmbeddingPerLayer), uint64(spec.EmbeddingLength)}, &layer.PerLayerProjection},
-					"per_layer_post_norm.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.PerLayerPostNorm},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("per_layer_inp_gate.weight", &layer.PerLayerInputGate, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingPerLayer)),
+					requiredTensorPointer("per_layer_proj.weight", &layer.PerLayerProjection, uint64(spec.EmbeddingPerLayer), uint64(spec.EmbeddingLength)),
+					requiredTensorPointer("per_layer_post_norm.weight", &layer.PerLayerPostNorm, uint64(spec.EmbeddingLength)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 		}
 		if spec.Architecture == "gemma3n" {
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"altup_correct_coef.weight":  {[]uint64{uint64(spec.AltUpCount), uint64(spec.AltUpCount)}, &layer.AltUpCorrectCoefficient},
-				"altup_correct_scale.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.AltUpCorrectScale},
-				"altup_predict_coef.weight":  {[]uint64{uint64(spec.AltUpCount), uint64(spec.AltUpCount * spec.AltUpCount)}, &layer.AltUpPredictCoefficient},
-				"altup_router.weight":        {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.AltUpCount)}, &layer.AltUpRouter},
-				"altup_router_norm.weight":   {[]uint64{uint64(spec.EmbeddingLength)}, &layer.AltUpRouterNorm},
-				"laurel_l.weight":            {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.LaurelRank)}, &layer.LaurelLeft},
-				"laurel_r.weight":            {[]uint64{uint64(spec.LaurelRank), uint64(spec.EmbeddingLength)}, &layer.LaurelRight},
-				"laurel_post_norm.weight":    {[]uint64{uint64(spec.EmbeddingLength)}, &layer.LaurelPostNorm},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("altup_correct_coef.weight", &layer.AltUpCorrectCoefficient, uint64(spec.AltUpCount), uint64(spec.AltUpCount)),
+				requiredTensorPointer("altup_correct_scale.weight", &layer.AltUpCorrectScale, uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("altup_predict_coef.weight", &layer.AltUpPredictCoefficient, uint64(spec.AltUpCount), uint64(spec.AltUpCount*spec.AltUpCount)),
+				requiredTensorPointer("altup_router.weight", &layer.AltUpRouter, uint64(spec.EmbeddingLength), uint64(spec.AltUpCount)),
+				requiredTensorPointer("altup_router_norm.weight", &layer.AltUpRouterNorm, uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("laurel_l.weight", &layer.LaurelLeft, uint64(spec.EmbeddingLength), uint64(spec.LaurelRank)),
+				requiredTensorPointer("laurel_r.weight", &layer.LaurelRight, uint64(spec.LaurelRank), uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("laurel_post_norm.weight", &layer.LaurelPostNorm, uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 		}
 		if spec.Architecture == "mamba" || spec.Architecture == "mamba2" {
@@ -2997,23 +2505,6 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			(spec.Architecture == "exaone-moe" && block >= spec.LeadingDenseBlocks && !isNextNBlock) ||
 			(spec.Architecture == "afmoe" && block >= spec.LeadingDenseBlocks) ||
 			(spec.Architecture == "laguna" && block >= spec.LeadingDenseBlocks) {
-			expertTensors := map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"ffn_gate_inp.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)},
-					&layer.FeedForwardRouter,
-				},
-				"ffn_up_exps.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)},
-					&layer.FeedForwardUpExperts,
-				},
-				"ffn_down_exps.weight": {
-					[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)},
-					&layer.FeedForwardDownExperts,
-				},
-			}
 			fusedGateUp := false
 			if spec.Architecture == "cohere2moe" || isDeepSeek2Family(spec.Architecture) || spec.Architecture == "glm-dsa" || spec.Architecture == "deepseek2-ocr" || spec.Architecture == "gemma4" || spec.Architecture == "hy_v3" || spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
 				if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
@@ -3022,25 +2513,27 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
 					}
 					layer.FeedForwardGateUpExperts = &item
-					delete(expertTensors, "ffn_up_exps.weight")
 					fusedGateUp = true
 				}
 			}
-			if spec.Architecture != "granitemoe" && spec.Architecture != "granitehybrid" && !(spec.Architecture == "granite" && spec.ExpertCount > 0) && spec.Architecture != "grok" && spec.Architecture != "ernie4_5-moe" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert-moe" && spec.Architecture != "refact" && !fusedGateUp {
-				expertTensors["ffn_gate_exps.weight"] = struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)},
-					&layer.FeedForwardGateExperts,
-				}
+			expertRequirements := []tensorRequirement{
+				requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
 			}
-			for name, shapeAndDestination := range expertTensors {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if !fusedGateUp {
+				expertRequirements = append(expertRequirements,
+					requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+				)
+			}
+			expertRequirements = append(expertRequirements,
+				requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
+			)
+			if spec.Architecture != "granitemoe" && spec.Architecture != "granitehybrid" && !(spec.Architecture == "granite" && spec.ExpertCount > 0) && spec.Architecture != "grok" && spec.Architecture != "ernie4_5-moe" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert-moe" && spec.Architecture != "refact" && !fusedGateUp {
+				expertRequirements = append(expertRequirements,
+					requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+				)
+			}
+			if itemErr := loadTensorRequirements(required, tensors, prefix, expertRequirements); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			if spec.Architecture == "refact" {
 				if item, ok := tensors[prefix+"ffn_gate_exps.weight"]; ok {
@@ -3064,16 +2557,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					layer.FeedForwardDownExpertsScale = &downScale
 				}
-				for name, destination := range map[string]**gguf.TensorInfo{
-					"pre_ffw_norm_2.weight":  &layer.FeedForwardPreNorm2,
-					"post_ffw_norm_1.weight": &layer.FeedForwardPostNorm1,
-					"post_ffw_norm_2.weight": &layer.FeedForwardPostNorm2,
-				} {
-					item, itemErr := required(prefix+name, uint64(spec.EmbeddingLength))
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*destination = &item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("pre_ffw_norm_2.weight", &layer.FeedForwardPreNorm2, uint64(spec.EmbeddingLength)),
+					requiredTensorPointer("post_ffw_norm_1.weight", &layer.FeedForwardPostNorm1, uint64(spec.EmbeddingLength)),
+					requiredTensorPointer("post_ffw_norm_2.weight", &layer.FeedForwardPostNorm2, uint64(spec.EmbeddingLength)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "llama4" {
@@ -3085,40 +2574,23 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				if layer.AttentionOutputBias == nil {
 					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 				}
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_inp.bias":  {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardRouterBias},
-					"ffn_gate_exps.bias": {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardGateBias},
-					"ffn_up_exps.bias":   {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpBias},
-					"ffn_down_exps.bias": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardDownBias},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					if item.Type != dtype.F32 {
-						return Weights{}, fmt.Errorf("tensor %q must use F32 bias storage", item.Name)
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredF32TensorPointer("ffn_gate_inp.bias", &layer.FeedForwardRouterBias, uint64(spec.ExpertCount)),
+					requiredF32TensorPointer("ffn_gate_exps.bias", &layer.FeedForwardGateBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+					requiredF32TensorPointer("ffn_up_exps.bias", &layer.FeedForwardUpBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+					requiredF32TensorPointer("ffn_down_exps.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "grovemoe" {
 				chunkExperts := uint64(spec.ExpertCount / spec.ExpertsPerGroup)
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_chexps.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts}, &layer.FeedForwardGateChunkExperts},
-					"ffn_up_chexps.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts}, &layer.FeedForwardUpChunkExperts},
-					"ffn_down_chexps.weight": {[]uint64{uint64(spec.ExpertChunkFeedForward), uint64(spec.EmbeddingLength), chunkExperts}, &layer.FeedForwardDownChunkExperts},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("ffn_gate_chexps.weight", &layer.FeedForwardGateChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
+					requiredTensorPointer("ffn_up_chexps.weight", &layer.FeedForwardUpChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
+					requiredTensorPointer("ffn_down_chexps.weight", &layer.FeedForwardDownChunkExperts, uint64(spec.ExpertChunkFeedForward), uint64(spec.EmbeddingLength), chunkExperts),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if spec.Architecture == "granitemoe" || spec.Architecture == "granitehybrid" || (spec.Architecture == "granite" && spec.ExpertCount > 0) || spec.Architecture == "grok" || spec.Architecture == "ernie4_5-moe" {
@@ -3400,105 +2872,81 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		); err != nil {
 			return Weights{}, err
 		}
-		for name, shapeAndDestination := range map[string]struct {
-			shape       uint64
-			destination **gguf.TensorInfo
-		}{
-			"ffn_gate.bias": {uint64(feedForwardLength), &layer.FeedForwardGateBias},
-			"ffn_up.bias":   {uint64(feedForwardLength), &layer.FeedForwardUpBias},
-			"ffn_down.bias": {uint64(spec.EmbeddingLength), &layer.FeedForwardDownBias},
-		} {
-			if item, ok := tensors[prefix+name]; ok {
-				if item.Type != dtype.F32 ||
-					item.Dimensions != 1 ||
-					item.Shape[0] != shapeAndDestination.shape {
-					return Weights{}, fmt.Errorf(
-						"tensor %q has incompatible shape %v",
-						item.Name,
-						item.Shape,
-					)
-				}
-				*shapeAndDestination.destination = &item
-			}
+		if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			optionalF32TensorPointer("ffn_gate.bias", &layer.FeedForwardGateBias, uint64(feedForwardLength)),
+			optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, uint64(feedForwardLength)),
+			optionalF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
+		}); biasErr != nil {
+			return Weights{}, biasErr
 		}
 		if usesSequentialGELU(spec.Architecture) {
-			for name, item := range map[string]*gguf.TensorInfo{
-				"attn_output.bias": layer.AttentionOutputBias,
-				"ffn_up.bias":      layer.FeedForwardUpBias,
-				"ffn_down.bias":    layer.FeedForwardDownBias,
+			for _, binding := range []struct {
+				name string
+				item *gguf.TensorInfo
+			}{
+				{name: "attn_output.bias", item: layer.AttentionOutputBias},
+				{name: "ffn_up.bias", item: layer.FeedForwardUpBias},
+				{name: "ffn_down.bias", item: layer.FeedForwardDownBias},
 			} {
-				if item == nil {
-					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				if binding.item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+binding.name)
 				}
 			}
 		}
 		if spec.Architecture == "gptj" {
-			for name, item := range map[string]*gguf.TensorInfo{
-				"ffn_up.bias":   layer.FeedForwardUpBias,
-				"ffn_down.bias": layer.FeedForwardDownBias,
+			for _, binding := range []struct {
+				name string
+				item *gguf.TensorInfo
+			}{
+				{name: "ffn_up.bias", item: layer.FeedForwardUpBias},
+				{name: "ffn_down.bias", item: layer.FeedForwardDownBias},
 			} {
-				if item == nil {
-					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				if binding.item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+binding.name)
 				}
 			}
 		}
 		if spec.Architecture == "jais2" {
-			for name, item := range map[string]*gguf.TensorInfo{
-				"attn_q.bias":      layer.AttentionQBias,
-				"attn_k.bias":      layer.AttentionKBias,
-				"attn_v.bias":      layer.AttentionVBias,
-				"attn_output.bias": layer.AttentionOutputBias,
-				"ffn_up.bias":      layer.FeedForwardUpBias,
-				"ffn_down.bias":    layer.FeedForwardDownBias,
+			for _, binding := range []struct {
+				name string
+				item *gguf.TensorInfo
+			}{
+				{name: "attn_q.bias", item: layer.AttentionQBias},
+				{name: "attn_k.bias", item: layer.AttentionKBias},
+				{name: "attn_v.bias", item: layer.AttentionVBias},
+				{name: "attn_output.bias", item: layer.AttentionOutputBias},
+				{name: "ffn_up.bias", item: layer.FeedForwardUpBias},
+				{name: "ffn_down.bias", item: layer.FeedForwardDownBias},
 			} {
-				if item == nil {
-					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				if binding.item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+binding.name)
 				}
 			}
 		}
 		if spec.Architecture == "jais" {
-			for name, item := range map[string]*gguf.TensorInfo{
-				"attn_output.bias": layer.AttentionOutputBias,
-				"ffn_gate.bias":    layer.FeedForwardGateBias,
-				"ffn_up.bias":      layer.FeedForwardUpBias,
-				"ffn_down.bias":    layer.FeedForwardDownBias,
+			for _, binding := range []struct {
+				name string
+				item *gguf.TensorInfo
+			}{
+				{name: "attn_output.bias", item: layer.AttentionOutputBias},
+				{name: "ffn_gate.bias", item: layer.FeedForwardGateBias},
+				{name: "ffn_up.bias", item: layer.FeedForwardUpBias},
+				{name: "ffn_down.bias", item: layer.FeedForwardDownBias},
 			} {
-				if item == nil {
-					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+name)
+				if binding.item == nil {
+					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+binding.name)
 				}
 			}
 		}
 		if spec.Architecture == "cogvlm" {
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"vis_attn_qkv.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), 3 * uint64(spec.EmbeddingLength)},
-					&layer.VisualAttentionQKV,
-				},
-				"vis_attn_output.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)},
-					&layer.VisualAttentionOutput,
-				},
-				"vis_gate.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)},
-					&layer.VisualFeedForwardGate,
-				},
-				"vis_up.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)},
-					&layer.VisualFeedForwardUp,
-				},
-				"vis_down.weight": {
-					[]uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)},
-					&layer.VisualFeedForwardDown,
-				},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("vis_attn_qkv.weight", &layer.VisualAttentionQKV, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("vis_attn_output.weight", &layer.VisualAttentionOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("vis_gate.weight", &layer.VisualFeedForwardGate, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+				requiredTensorPointer("vis_up.weight", &layer.VisualFeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+				requiredTensorPointer("vis_down.weight", &layer.VisualFeedForwardDown, uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 		}
 	}
@@ -3510,25 +2958,18 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
 		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
 		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-		for name, item := range map[string]struct {
-			destination *gguf.TensorInfo
-			shape       []uint64
-		}{
-			"attn_norm.weight":           {&mtp.Layer.AttentionNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			"post_attention_norm.weight": {&mtp.Layer.FeedForwardNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			"attn_q.weight":              {&mtp.Layer.AttentionQ, []uint64{uint64(spec.EmbeddingLength), 2 * queryLength}},
-			"attn_k.weight":              {&mtp.Layer.AttentionK, []uint64{uint64(spec.EmbeddingLength), keyLength}},
-			"attn_v.weight":              {&mtp.Layer.AttentionV, []uint64{uint64(spec.EmbeddingLength), valueLength}},
-			"attn_output.weight":         {&mtp.Layer.AttentionOutput, []uint64{queryLength, uint64(spec.EmbeddingLength)}},
-			"ffn_gate.weight":            {&mtp.Layer.FeedForwardGate, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
-			"ffn_up.weight":              {&mtp.Layer.FeedForwardUp, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
-			"ffn_down.weight":            {&mtp.Layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}},
-		} {
-			loaded, loadErr := required(prefix+name, item.shape...)
-			if loadErr != nil {
-				return Weights{}, loadErr
-			}
-			*item.destination = loaded
+		if loadErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			requiredTensor("attn_norm.weight", &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
+			requiredTensor("post_attention_norm.weight", &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
+			requiredTensor("attn_q.weight", &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), 2*queryLength),
+			requiredTensor("attn_k.weight", &mtp.Layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+			requiredTensor("attn_v.weight", &mtp.Layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+			requiredTensor("attn_output.weight", &mtp.Layer.AttentionOutput, queryLength, uint64(spec.EmbeddingLength)),
+			requiredTensor("ffn_gate.weight", &mtp.Layer.FeedForwardGate, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+			requiredTensor("ffn_up.weight", &mtp.Layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+			requiredTensor("ffn_down.weight", &mtp.Layer.FeedForwardDown, uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
+		}); loadErr != nil {
+			return Weights{}, loadErr
 		}
 		if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,

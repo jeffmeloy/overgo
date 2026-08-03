@@ -2586,11 +2586,7 @@ func (s Spec) UsesRoPE(block uint32) bool {
 		return s.IsSlidingLayer(block)
 	}
 	blockCount := s.BlockCount
-	if s.Architecture == "step35" || s.Architecture == "hy_v3" ||
-		s.Architecture == "glm4" || s.Architecture == "glm4moe" || s.Architecture == "exaone4" ||
-		s.Architecture == "exaone-moe" || s.Architecture == "mimo2" ||
-		s.Architecture == "bailingmoe2" || s.Architecture == "deepseek32" ||
-		s.Architecture == "glm-dsa" {
+	if s.Profile().AppendsDraftBlocks() {
 		blockCount += s.NextNPredictLayers
 	}
 	return !s.RopeDisabled &&

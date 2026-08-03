@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -112,21 +110,14 @@ func (r *Runner) AdvanceGemma4Assistant(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	builder := r.newGraphBuilder()
-	tokenInput := builder.Input("gemma4_assistant.target_token", dtype.F32, targetEmbedding.Shape)
-	hiddenInput := builder.Input("gemma4_assistant.target_hidden", dtype.F32, session.PendingHidden.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		tokenInput: targetEmbedding, hiddenInput: session.PendingHidden,
-	}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	pre, pointer, err := r.deviceOrHostTensor(ctx, builder, *r.weights.FeatureProjection, hostFeeds)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	tokenInput := runtime.input("gemma4_assistant.target_token", targetEmbedding)
+	hiddenInput := runtime.input("gemma4_assistant.target_hidden", session.PendingHidden)
+	pre, err := runtime.weight(*r.weights.FeatureProjection)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if pointer != 0 {
-		deviceFeeds[pre] = pointer
-	}
-	current, err := model.BuildGemma4AssistantInput(builder, tokenInput, hiddenInput, pre, r.spec)
+	current, err := model.BuildGemma4AssistantInput(runtime.builder, tokenInput, hiddenInput, pre, r.spec)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -137,59 +128,41 @@ func (r *Runner) AdvanceGemma4Assistant(
 			source--
 		}
 		layerCache := session.TargetCache.Layers[source]
-		key := builder.Input(fmt.Sprintf("gemma4_assistant.shared_%t_key", sliding), dtype.F32, layerCache.Key.Shape)
-		value := builder.Input(fmt.Sprintf("gemma4_assistant.shared_%t_value", sliding), dtype.F32, layerCache.Value.Shape)
-		hostFeeds[key], hostFeeds[value] = layerCache.Key, layerCache.Value
+		key := runtime.input(fmt.Sprintf("gemma4_assistant.shared_%t_key", sliding), layerCache.Key)
+		value := runtime.input(fmt.Sprintf("gemma4_assistant.shared_%t_value", sliding), layerCache.Value)
 		cacheInputs[sliding] = [2]*tensor.Tensor{key, value}
 	}
 	for layerIndex, info := range r.weights.Layers {
-		graphWeights, layerDeviceFeeds, layerErr := r.gemma4AssistantLayerInputs(ctx, builder, hostFeeds, info, layerIndex)
+		graphWeights, layerErr := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 		if layerErr != nil {
 			return reference.Value{}, nil, layerErr
 		}
-		for node, layerPointer := range layerDeviceFeeds {
-			deviceFeeds[node] = layerPointer
-		}
 		shared := cacheInputs[r.spec.IsSlidingLayer(uint32(layerIndex))]
 		current, err = model.BuildGemma4AssistantBlock(
-			builder, current, r.spec, graphWeights, []uint32{session.Position},
+			runtime.builder, current, r.spec, graphWeights, []uint32{session.Position},
 			shared[0], shared[1], uint32(layerIndex),
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference Gemma 4 assistant layer %d: %w", layerIndex, err)
 		}
 	}
-	outputNorm, pointer, err := r.deviceOrHostTensor(ctx, builder, r.weights.OutputNorm, hostFeeds)
+	outputNorm, err := runtime.weight(r.weights.OutputNorm)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if pointer != 0 {
-		deviceFeeds[outputNorm] = pointer
-	}
-	output, pointer, err := r.deviceOrHostTensor(ctx, builder, r.weights.TokenEmbedding, hostFeeds)
+	output, err := runtime.weight(r.weights.TokenEmbedding)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if pointer != 0 {
-		deviceFeeds[output] = pointer
-	}
-	post, pointer, err := r.deviceOrHostTensor(ctx, builder, *r.weights.FeatureProjectionPost, hostFeeds)
+	post, err := runtime.weight(*r.weights.FeatureProjectionPost)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if pointer != 0 {
-		deviceFeeds[post] = pointer
-	}
-	logits, nextHidden, err := model.BuildGemma4AssistantOutputs(builder, current, outputNorm, output, post, r.spec)
+	logits, nextHidden, err := model.BuildGemma4AssistantOutputs(runtime.builder, current, outputNorm, output, post, r.spec)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{logits, nextHidden}, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{logits, nextHidden}, hostFeeds)
-	}
+	results, err := runtime.execute(logits, nextHidden)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -208,28 +181,4 @@ func (r *Runner) validateGemma4AssistantTarget(target *Runner) error {
 		return errors.New("inference: Gemma 4 assistant target model is incompatible")
 	}
 	return nil
-}
-
-func (r *Runner) gemma4AssistantLayerInputs(
-	ctx context.Context,
-	builder *tensor.Builder,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	info model.LayerWeights,
-	layerIndex int,
-) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	if r.hasPreloadedWeights() {
-		return r.layerDeviceInputs(builder, info)
-	}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	graph, feeds, err := hostLayer.GraphInputs(builder, fmt.Sprintf("blk.%d.", layerIndex))
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	for node, value := range feeds {
-		hostFeeds[node] = value
-	}
-	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
 }

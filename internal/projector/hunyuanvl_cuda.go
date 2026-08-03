@@ -58,7 +58,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input HunyuanVLImage)
 	if rows <= 0 || input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 || len(input.PixelValues) != rows*patchWidth {
 		return HunyuanVLOutput{}, errors.New("projector: Hunyuan-VL input shape is inconsistent")
 	}
-	conv0, err := r.load(ctx, "mm.0.weight")
+	conv0, err := loadProjectorHostTensor(ctx, r.file, "mm.0.weight")
 	if err != nil {
 		return HunyuanVLOutput{}, err
 	}

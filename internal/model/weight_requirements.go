@@ -1,6 +1,11 @@
 package model
 
-import "llamacpp2go/internal/gguf"
+import (
+	"fmt"
+
+	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/tensor/dtype"
+)
 
 // tensorRequirement: ordered catalog binding
 type tensorRequirement struct {
@@ -9,6 +14,7 @@ type tensorRequirement struct {
 	destination *gguf.TensorInfo
 	pointer     **gguf.TensorInfo
 	optional    bool
+	f32         bool
 }
 
 func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
@@ -21,6 +27,14 @@ func requiredTensorPointer(name string, destination **gguf.TensorInfo, shape ...
 
 func optionalTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
 	return tensorRequirement{name: name, shape: shape, pointer: destination, optional: true}
+}
+
+func optionalF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
+	return tensorRequirement{name: name, shape: shape, pointer: destination, optional: true, f32: true}
+}
+
+func requiredF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
+	return tensorRequirement{name: name, shape: shape, pointer: destination, f32: true}
 }
 
 func loadTensorRequirements(
@@ -39,6 +53,9 @@ func loadTensorRequirements(
 		item, err := load(name, requirement.shape...)
 		if err != nil {
 			return err
+		}
+		if requirement.f32 && item.Type != dtype.F32 {
+			return fmt.Errorf("tensor %q must use F32 storage", item.Name)
 		}
 		if requirement.destination != nil {
 			*requirement.destination = item

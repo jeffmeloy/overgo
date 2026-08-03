@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -41,39 +38,17 @@ func (r *Runner) FuseEagle3Features(ctx context.Context, features reference.Valu
 	if r.closed || r.spec.Architecture != "eagle3" || r.weights.FeatureProjection == nil {
 		return reference.Value{}, errors.New("inference: Eagle3 feature encoder is unavailable")
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("eagle3.features", dtype.F32, features.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: features}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var projection *tensor.Tensor
-	var err error
-	if r.hasPreloadedWeights() {
-		var pointer driver.DevicePtr
-		projection, pointer, err = r.deviceInput(builder, *r.weights.FeatureProjection)
-		if err == nil {
-			deviceFeeds[projection] = pointer
-		}
-	} else {
-		var value reference.Value
-		value, err = model.LoadHostTensor(ctx, r.file, *r.weights.FeatureProjection)
-		if err == nil {
-			projection = builder.Input("fc.weight", dtype.F32, value.Shape)
-			hostFeeds[projection] = value
-		}
-	}
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("eagle3.features", features)
+	projection, err := runtime.weight(*r.weights.FeatureProjection)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output, err := model.BuildEagle3FeatureEncoder(builder, input, projection, r.spec)
+	output, err := model.BuildEagle3FeatureEncoder(runtime.builder, input, projection, r.spec)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
-	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -189,34 +164,29 @@ func (r *Runner) stepEagle3(
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}
-	builder := r.newGraphBuilder()
-	tokenInput := builder.Input("eagle3.token", dtype.F32, tokenEmbedding.Shape)
-	featureInput := builder.Input("eagle3.feature", dtype.F32, feature.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{tokenInput: tokenEmbedding, featureInput: feature}
-	graphWeights, deviceFeeds, err := r.eagle3LayerInputs(ctx, builder, hostFeeds)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	tokenInput := runtime.input("eagle3.token", tokenEmbedding)
+	featureInput := runtime.input("eagle3.feature", feature)
+	graphWeights, err := runtime.layer(r.weights.Layers[0], "blk.0.")
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if cache != nil {
-		pastKey = builder.Input("eagle3.past_key", dtype.F32, cache.Layers[0].Key.Shape)
-		pastValue = builder.Input("eagle3.past_value", dtype.F32, cache.Layers[0].Value.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = cache.Layers[0].Key, cache.Layers[0].Value
+		pastKey = runtime.input("eagle3.past_key", cache.Layers[0].Key)
+		pastValue = runtime.input("eagle3.past_value", cache.Layers[0].Value)
 	}
 	block, err := model.BuildEagle3BlockCached(
-		builder, tokenInput, featureInput, r.spec, graphWeights, []uint32{position}, pastKey, pastValue,
+		runtime.builder, tokenInput, featureInput, r.spec, graphWeights, []uint32{position}, pastKey, pastValue,
 	)
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}
-	norm, normPointer, err := r.deviceOrHostTensor(ctx, builder, r.weights.OutputNorm, hostFeeds)
+	norm, err := runtime.weight(r.weights.OutputNorm)
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}
-	if normPointer != 0 {
-		deviceFeeds[norm] = normPointer
-	}
-	normalized := builder.WeightedRMSNorm(block.Output, norm, r.spec.RMSNormEpsilon)
+	normalized := runtime.builder.WeightedRMSNorm(block.Output, norm, r.spec.RMSNormEpsilon)
 	outputInfo := target.weights.TokenEmbedding
 	outputOwner := target
 	if target.weights.Output != nil {
@@ -225,28 +195,22 @@ func (r *Runner) stepEagle3(
 	if r.weights.Output != nil {
 		outputInfo, outputOwner = *r.weights.Output, r
 	}
-	output, outputPointer, err := outputOwner.deviceOrHostTensor(ctx, builder, outputInfo, hostFeeds)
+	var output *tensor.Tensor
+	if outputOwner == r {
+		output, err = runtime.weight(outputInfo)
+	} else {
+		var value reference.Value
+		value, err = model.LoadHostTensor(ctx, target.file, outputInfo)
+		if err == nil {
+			output = runtime.input(outputInfo.Name+".shared", value)
+		}
+	}
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}
-	if outputPointer != 0 && outputOwner == r {
-		deviceFeeds[output] = outputPointer
-	} else if outputPointer != 0 {
-		value, loadErr := model.LoadHostTensor(ctx, target.file, outputInfo)
-		if loadErr != nil {
-			return Eagle3StepResult{}, loadErr
-		}
-		output = builder.Input(outputInfo.Name+".shared", dtype.F32, value.Shape)
-		hostFeeds[output] = value
-	}
-	logits := builder.MulMat(output, normalized)
+	logits := runtime.builder.MulMat(output, normalized)
 	outputs := []*tensor.Tensor{block.Output, block.Key, block.Value, logits}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}
@@ -262,46 +226,6 @@ func (r *Runner) stepEagle3(
 		Tokens: uint32(results[block.Key].Shape.Dims[2]), Position: position + 1,
 	}
 	return Eagle3StepResult{Logits: logitValue, NextFeature: results[block.Output], Cache: nextCache}, nil
-}
-
-func (r *Runner) eagle3LayerInputs(
-	ctx context.Context,
-	builder *tensor.Builder,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	if r.hasPreloadedWeights() {
-		return r.layerDeviceInputs(builder, r.weights.Layers[0])
-	}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, r.weights.Layers[0])
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	graph, feeds, err := hostLayer.GraphInputs(builder, "blk.0.")
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	for node, value := range feeds {
-		hostFeeds[node] = value
-	}
-	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
-}
-
-func (r *Runner) deviceOrHostTensor(
-	ctx context.Context,
-	builder *tensor.Builder,
-	info gguf.TensorInfo,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) (*tensor.Tensor, driver.DevicePtr, error) {
-	if r.hasPreloadedWeights() {
-		return r.deviceInput(builder, info)
-	}
-	value, err := model.LoadHostTensor(ctx, r.file, info)
-	if err != nil {
-		return nil, 0, err
-	}
-	item := builder.Input(info.Name, dtype.F32, value.Shape)
-	hostFeeds[item] = value
-	return item, 0, nil
 }
 
 func (r *Runner) remapEagle3Logits(ctx context.Context, logits reference.Value) (reference.Value, error) {

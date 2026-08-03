@@ -59,6 +59,9 @@ const (
 	ArchitectureLFM2
 	ArchitectureMultiAxisPositions
 	ArchitectureDeepstack
+	ArchitectureRequiresOutput
+	ArchitectureClassifierHead
+	ArchitectureBiasFreeProjections
 )
 
 // ArchitectureProfile: registry entry and capability set.
@@ -74,6 +77,16 @@ type ArchitectureProfile struct {
 // Has: capability predicate.
 func (p ArchitectureProfile) Has(capability ArchitectureCapability) bool {
 	return p.Capabilities&capability != 0
+}
+
+// AppendsDraftBlocks: catalog-visible draft tail
+func (p ArchitectureProfile) AppendsDraftBlocks() bool {
+	switch p.DraftKind {
+	case DraftStep35MTP, DraftHYV3MTP, DraftNextNMTP:
+		return true
+	default:
+		return false
+	}
 }
 
 // LookupArchitecture: registered profile lookup.
@@ -261,6 +274,15 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		"qwen3vl", "qwen3vlmoe", "qwen35", "qwen35moe",
 	)
 	setCapabilities(ArchitectureDeepstack, "granite", "qwen3vl", "qwen3vlmoe")
+	setCapabilities(ArchitectureRequiresOutput,
+		"apertus", "arwkv7", "baichuan", "bailingmoe", "bailingmoe2", "codeshell",
+		"dbrx", "dots1", "gpt-oss", "gptj", "gptneox", "internlm2", "jais",
+		"kimi-linear", "llada-moe", "mellum", "mimo2", "minimax-m2", "nemotron",
+		"olmo2", "orion", "phi2", "phimoe", "plamo", "qwen", "rwkv6",
+		"rwkv6qwen2", "rwkv7", "stablelm", "step35", "talkie", "xverse",
+	)
+	setCapabilities(ArchitectureClassifierHead, "qwen3", "qwen3vl")
+	setCapabilities(ArchitectureBiasFreeProjections, "cogvlm", "qwen3next", "qwen35", "qwen35moe")
 
 	setFamily(ArchitectureFamilyMoE,
 		"afmoe", "bailingmoe", "bailingmoe2", "cohere2moe", "dbrx", "deepseek",

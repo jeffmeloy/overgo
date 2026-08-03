@@ -38,3 +38,15 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 		}
 	}
 }
+
+func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
+	for architecture, want := range map[string]bool{
+		"step35": true, "hy_v3": true, "glm4": true,
+		"qwen35": false, "cohere2moe": false, "llama": false,
+	} {
+		profile, ok := LookupArchitecture(architecture)
+		if !ok || profile.AppendsDraftBlocks() != want {
+			t.Fatalf("%s appends draft blocks = %v, want %v", architecture, profile.AppendsDraftBlocks(), want)
+		}
+	}
+}

@@ -7,7 +7,6 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
@@ -195,28 +194,4 @@ func (r *Runner) validateSingleHeadMTPTarget(
 		return errors.New("inference: " + label + " sidecar target is incompatible")
 	}
 	return nil
-}
-
-func (r *Runner) mtpLayerInputs(
-	ctx context.Context,
-	builder *tensor.Builder,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	layer model.LayerWeights,
-	prefix string,
-) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	if r.hasPreloadedWeights() {
-		return r.layerDeviceInputs(builder, layer)
-	}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, layer)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	graph, feeds, err := hostLayer.GraphInputs(builder, prefix)
-	if err != nil {
-		return model.LayerGraphWeights{}, nil, err
-	}
-	for node, value := range feeds {
-		hostFeeds[node] = value
-	}
-	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
 }

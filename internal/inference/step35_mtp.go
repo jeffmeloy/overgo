@@ -358,7 +358,7 @@ func (r *Runner) multiHeadMTPLayerInputs(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	offset uint32,
 ) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	return r.mtpLayerInputs(
+	return r.layerGraphInputs(
 		ctx, builder, hostFeeds, r.multiHeadMTPWeights()[offset].Layer,
 		fmt.Sprintf("blk.%d.", r.spec.BlockCount+offset),
 	)

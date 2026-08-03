@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -204,60 +202,25 @@ func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Valu
 	if r.spec.Architecture != "dflash" || r.weights.FeatureProjection == nil || r.weights.EncoderOutputNorm == nil {
 		return reference.Value{}, errors.New("inference: DFlash feature encoder is unavailable")
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("dflash.features", dtype.F32, features.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: features}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	projection, projectionNorm, err := r.dflashEncoderInputs(ctx, builder, hostFeeds, deviceFeeds)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("dflash.features", features)
+	projection, err := runtime.weight(*r.weights.FeatureProjection)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output, err := model.BuildDFlashFeatureEncoder(builder, input, projection, projectionNorm, r.spec)
+	projectionNorm, err := runtime.weight(*r.weights.EncoderOutputNorm)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{output}, hostFeeds)
+	output, err := model.BuildDFlashFeatureEncoder(runtime.builder, input, projection, projectionNorm, r.spec)
+	if err != nil {
+		return reference.Value{}, err
 	}
+	results, err := runtime.execute(output)
 	if err != nil {
 		return reference.Value{}, err
 	}
 	return results[output], nil
-}
-
-func (r *Runner) dflashEncoderInputs(
-	ctx context.Context,
-	builder *tensor.Builder,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-) (*tensor.Tensor, *tensor.Tensor, error) {
-	if r.hasPreloadedWeights() {
-		projection, projectionPointer, err := r.deviceInput(builder, *r.weights.FeatureProjection)
-		if err != nil {
-			return nil, nil, err
-		}
-		norm, normPointer, err := r.deviceInput(builder, *r.weights.EncoderOutputNorm)
-		if err != nil {
-			return nil, nil, err
-		}
-		deviceFeeds[projection], deviceFeeds[norm] = projectionPointer, normPointer
-		return projection, norm, nil
-	}
-	projectionValue, err := model.LoadHostTensor(ctx, r.file, *r.weights.FeatureProjection)
-	if err != nil {
-		return nil, nil, err
-	}
-	normValue, err := model.LoadHostTensor(ctx, r.file, *r.weights.EncoderOutputNorm)
-	if err != nil {
-		return nil, nil, err
-	}
-	projection := builder.Input("fc.weight", dtype.F32, projectionValue.Shape)
-	norm := builder.Input("enc.output_norm.weight", dtype.F32, normValue.Shape)
-	hostFeeds[projection], hostFeeds[norm] = projectionValue, normValue
-	return projection, norm, nil
 }
 
 // InjectDFlashFeatures: appends fused committed-token K/V.
@@ -322,49 +285,24 @@ func (r *Runner) injectDFlashLayer(
 	layerIndex int,
 	past *LayerCache,
 ) (LayerCache, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("dflash.fused", dtype.F32, fused.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: fused}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var graphWeights model.LayerGraphWeights
-	if r.hasPreloadedWeights() {
-		var err error
-		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
-		if err != nil {
-			return LayerCache{}, err
-		}
-	} else {
-		hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
-		if err != nil {
-			return LayerCache{}, err
-		}
-		var layerFeeds map[*tensor.Tensor]reference.Value
-		graphWeights, layerFeeds, err = hostLayer.GraphInputs(builder, fmt.Sprintf("blk.%d.", layerIndex))
-		if err != nil {
-			return LayerCache{}, err
-		}
-		for node, value := range layerFeeds {
-			hostFeeds[node] = value
-		}
+	runtime := r.newInferenceGraphRuntime(ctx)
+	input := runtime.input("dflash.fused", fused)
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
+	if err != nil {
+		return LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil && past.Key.Shape.Rank != 0 {
-		pastKey = builder.Input("dflash.past_key", dtype.F32, past.Key.Shape)
-		pastValue = builder.Input("dflash.past_value", dtype.F32, past.Value.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
+		pastKey = runtime.input("dflash.past_key", past.Key)
+		pastValue = runtime.input("dflash.past_value", past.Value)
 	}
 	key, value, err := model.BuildDFlashCacheInjection(
-		builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
+		runtime.builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
 	)
 	if err != nil {
 		return LayerCache{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{key, value}, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{key, value}, hostFeeds)
-	}
+	results, err := runtime.execute(key, value)
 	if err != nil {
 		return LayerCache{}, err
 	}

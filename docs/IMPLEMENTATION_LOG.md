@@ -1820,6 +1820,21 @@ and CLI model flags/open options now cover benchmark, diffusion, embedding,
 rerank, generation, perplexity, and server commands with command-specific
 names and defaults.
 
+## Consolidation closure
+
+Architecture profiles now own mandatory-output, classifier-head, bias-free
+projection, and appended-draft-block decisions previously repeated as family
+name chains. The model catalog has no inline tensor-binding maps: ordered
+schemas cover required, optional, and F32-constrained bindings, and test
+fixtures derive names and shapes from those schemas. RWKV catalog dispatch now
+lives in its family unit.
+
+The shared inference graph runtime now drives MTP, Eagle3 feature fusion and
+draft steps, DFlash feature fusion and cache injection, and Gemma 4 Assistant.
+Hunyuan-VL, MiMo-VL, and PaddleOCR-VL retain only their reference/CUDA graph
+paths; the retired handwritten host graphs and family-specific host/device
+binding helpers were removed.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

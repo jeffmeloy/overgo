@@ -29,6 +29,9 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Complete ordered tensor schemas across the model catalog, including optional/F32 constraints and schema-derived fixtures; RWKV dispatch split into its family unit.
+- Shared inference graph runtime extended from MTP to Eagle3, DFlash, and Gemma 4 Assistant; retired Hunyuan/MiMo/Paddle host-only projector graphs removed.
+- Architecture profiles now own mandatory-output, classifier-head, bias-free projection, and appended-draft-block policy.
 - Ordered tensor-requirement schemas with deterministic catalog binding across MTP, shared-expert, draft, MLA/indexer, DeepSeek 4, Kimi Linear, and encoder-decoder weights.
 - Shared inference graph runtime plus a typed single-head MTP advance adapter for Qwen3.5, Cohere2-MoE, and NextN host/device execution.
 - One reference/CUDA projector graph for Qwen3-VL, MiMo-VL, Hunyuan-VL, and PaddleOCR-VL; the Qwen3-VL handwritten CPU graph was removed.

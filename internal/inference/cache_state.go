@@ -45,7 +45,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r.spec.Architecture == "deepseek4" {
+	if r.hasCachePolicy(model.CacheDeepSeek4) {
 		upgradeDeepSeek4CachePositions(cache)
 	}
 	if err := r.validateCache(cache); err != nil {
@@ -99,10 +99,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			r.spec.ContextLength,
 		)
 	}
-	expectedLayers := int(r.spec.BlockCount)
-	if r.spec.Architecture == "t5" {
-		expectedLayers = int(r.spec.DecoderBlockCount)
-	}
+	expectedLayers := r.cacheLayerCount()
 	if expectedLayers == 0 {
 		expectedLayers = len(r.weights.Layers)
 	}
@@ -123,12 +120,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
 			}
 		}
-		info := model.LayerWeights{}
-		if index < len(r.weights.Layers) {
-			info = r.weights.Layers[index]
-		}
-		plan := r.layerPlan(index, info.Recurrent)
-		schema, err := model.CacheSchemaForPlan(r.spec, plan, info, cache.Tokens)
+		plan, schema, err := r.cacheSchema(index, cache.Tokens)
 		if err != nil {
 			return fmt.Errorf("inference: KV cache layer %d schema: %w", index, err)
 		}
@@ -147,35 +139,6 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 		}
 		if plan.Cache == model.CacheDeepSeek4 {
-			ratio := r.spec.CompressRatios[index]
-			expected := map[string]tensor.Shape{
-				"positions": tensor.MustShape(1, 1, uint64(cache.Tokens)),
-			}
-			if ratio != 0 {
-				coefficient := uint64(1)
-				if ratio == 4 {
-					coefficient = 2
-				}
-				shape := tensor.MustShape(coefficient*uint64(r.spec.KeyLength), 1, uint64(cache.Tokens))
-				expected["compressor_kv"] = shape
-				expected["compressor_score"] = shape
-			}
-			if ratio == 4 {
-				shape := tensor.MustShape(2*uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
-				expected["indexer_compressor_kv"] = shape
-				expected["indexer_compressor_score"] = shape
-			}
-			for name, shape := range expected {
-				state, present := layer.States[name]
-				if !present || state.Mode != CacheStateToken || !state.Value.Shape.Equal(shape) {
-					return fmt.Errorf("inference: DeepSeek 4 cache layer %d state %q is invalid", index, name)
-				}
-			}
-			for name := range layer.States {
-				if _, present := expected[name]; !present {
-					return fmt.Errorf("inference: DeepSeek 4 cache layer %d state %q is unexpected", index, name)
-				}
-			}
 			positions := layer.States["positions"].Value.Data
 			for item, value := range positions {
 				position := uint32(value)
@@ -194,242 +157,60 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				}
 			}
 		}
-		if r.spec.Architecture == "falcon-h1" {
-			conv, hasConv := layer.States["conv_state"]
-			ssm, hasSSM := layer.States["ssm_state"]
-			convWidth := uint64(r.spec.SSMInnerSize) + 2*uint64(r.spec.SSMGroupCount)*uint64(r.spec.SSMStateSize)
-			convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convWidth)
-			ssmShape := tensor.MustShape(uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize))
-			if !hasConv || conv.Mode != CacheStateFixed || !conv.Value.Shape.Equal(convShape) ||
-				!hasSSM || ssm.Mode != CacheStateFixed || !ssm.Value.Shape.Equal(ssmShape) {
-				return fmt.Errorf("inference: Falcon-H1 cache layer %d recurrent state is invalid", index)
-			}
-		}
-		if r.spec.Architecture == "t5" {
-			crossKey, hasKey := layer.States["cross_key"]
-			crossValue, hasValue := layer.States["cross_value"]
-			keyShapeOK := hasKey && crossKey.Mode == CacheStateFixed &&
-				crossKey.Value.Shape.Rank == 3 &&
-				crossKey.Value.Shape.Dims[0] == uint64(r.spec.KeyLength) &&
-				crossKey.Value.Shape.Dims[1] == uint64(r.spec.HeadCountKV) &&
-				crossKey.Value.Shape.Dims[2] > 0
-			valueShapeOK := hasValue && crossValue.Mode == CacheStateFixed &&
-				crossValue.Value.Shape.Rank == 3 &&
-				crossValue.Value.Shape.Dims[0] == uint64(r.spec.ValueLength) &&
-				crossValue.Value.Shape.Dims[1] == uint64(r.spec.HeadCountKV) &&
-				crossValue.Value.Shape.Dims[2] > 0
-			if !keyShapeOK || !valueShapeOK ||
-				crossKey.Value.Shape.Dims[2] != crossValue.Value.Shape.Dims[2] {
-				return fmt.Errorf("inference: T5 cache layer %d cross-attention state is invalid", index)
-			}
-		}
-		jambaRecurrent := r.spec.Architecture == "jamba" && index < len(r.weights.Layers) &&
-			r.weights.Layers[index].Recurrent
-		graniteHybridRecurrent := r.spec.Architecture == "granitehybrid" && index < len(r.weights.Layers) &&
-			r.weights.Layers[index].Recurrent
-		plamo2Recurrent := r.spec.Architecture == "plamo2" && index < len(r.weights.Layers) &&
-			r.weights.Layers[index].Recurrent
-		nemotronHRecurrent := (r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe") &&
-			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
-		kimiRecurrent := r.spec.Architecture == "kimi-linear" && index < len(r.weights.Layers) &&
-			r.weights.Layers[index].Recurrent
-		if r.spec.Architecture == "rwkv6" {
-			wantShift := tensor.MustShape(uint64(r.spec.EmbeddingLength), 2)
-			wantState := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
-			if !layer.Key.Shape.Equal(wantShift) || !layer.Value.Shape.Equal(wantState) {
-				return fmt.Errorf("inference: RWKV6 cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: RWKV6 cache layer %d shift: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: RWKV6 cache layer %d state: %w", index, err)
-			}
-			continue
-		}
-		if r.spec.Architecture == "rwkv6qwen2" {
-			wantShift := tensor.MustShape(uint64(r.spec.EmbeddingLength))
-			wantState := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
-			if !layer.Key.Shape.Equal(wantShift) || !layer.Value.Shape.Equal(wantState) {
-				return fmt.Errorf("inference: RWKV6-Qwen2 cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: RWKV6-Qwen2 cache layer %d shift: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: RWKV6-Qwen2 cache layer %d state: %w", index, err)
-			}
-			continue
-		}
-		if r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7" {
-			wantShift := tensor.MustShape(uint64(r.spec.EmbeddingLength), uint64(r.spec.TokenShiftCount))
-			wantState := tensor.MustShape(uint64(r.spec.WKVHeadSize), uint64(r.spec.WKVHeadSize), uint64(r.spec.HeadCount), 1)
-			if !layer.Key.Shape.Equal(wantShift) || !layer.Value.Shape.Equal(wantState) {
-				return fmt.Errorf("inference: RWKV7 cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: RWKV7 cache layer %d shift: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: RWKV7 cache layer %d state: %w", index, err)
-			}
-			continue
-		}
-		if kimiRecurrent {
-			convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), 3*uint64(r.spec.SSMInnerSize))
-			ssmShape := tensor.MustShape(uint64(r.spec.KDAHeadDim), uint64(r.spec.KDAHeadDim), uint64(r.spec.HeadCount), 1)
-			if !layer.Key.Shape.Equal(convShape) || !layer.Value.Shape.Equal(ssmShape) {
-				return fmt.Errorf("inference: Kimi Linear recurrent cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: Kimi Linear recurrent cache layer %d convolution: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: Kimi Linear recurrent cache layer %d state: %w", index, err)
-			}
-			continue
-		}
-		if r.spec.Architecture == "mamba" || r.spec.Architecture == "mamba2" || jambaRecurrent || graniteHybridRecurrent || plamo2Recurrent || nemotronHRecurrent {
-			convWidth := uint64(r.spec.SSMInnerSize)
-			if r.spec.Architecture == "mamba2" || graniteHybridRecurrent || nemotronHRecurrent {
-				convWidth += 2 * uint64(r.spec.SSMGroupCount) * uint64(r.spec.SSMStateSize)
-			}
-			convShape := tensor.MustShape(
-				uint64(r.spec.SSMConvKernel-1), convWidth,
-			)
-			ssmShape := tensor.MustShape(
-				uint64(r.spec.SSMStateSize), uint64(r.spec.SSMInnerSize),
-			)
-			if !layer.Key.Shape.Equal(convShape) || !layer.Value.Shape.Equal(ssmShape) {
-				return fmt.Errorf("inference: Mamba recurrent cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: Mamba recurrent cache layer %d convolution: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: Mamba recurrent cache layer %d SSM: %w", index, err)
-			}
-			continue
-		}
-		if (r.spec.Architecture == "nemotron_h" || r.spec.Architecture == "nemotron_h_moe") &&
-			r.spec.LayerFeedForwardLength(uint32(index)) > 0 {
-			sentinelShape := tensor.MustShape(1, 1, uint64(cache.Tokens))
-			if !layer.Key.Shape.Equal(sentinelShape) || !layer.Value.Shape.Equal(sentinelShape) {
-				return fmt.Errorf("inference: Nemotron-H sentinel cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: Nemotron-H sentinel cache layer %d key: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: Nemotron-H sentinel cache layer %d value: %w", index, err)
-			}
-			continue
-		}
-		if (r.spec.Architecture == "lfm2" || r.spec.Architecture == "lfm2moe") &&
-			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent {
-			convShape := tensor.MustShape(
-				uint64(r.spec.ShortConvCacheLength-1), uint64(r.spec.EmbeddingLength),
-			)
-			if !layer.Key.Shape.Equal(convShape) || !layer.Value.Shape.Equal(tensor.MustShape(1)) {
-				return fmt.Errorf("inference: LFM2 recurrent cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: LFM2 recurrent cache layer %d convolution: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: LFM2 recurrent cache layer %d reserved state: %w", index, err)
-			}
-			continue
-		}
-		if r.spec.Architecture == "deci" && r.spec.LayerKVHeadCount(uint32(index)) == 0 {
-			sentinelShape := tensor.MustShape(1, 1, uint64(cache.Tokens))
-			if !layer.Key.Shape.Equal(sentinelShape) || !layer.Value.Shape.Equal(sentinelShape) {
-				return fmt.Errorf("inference: Deci sentinel cache layer %d shape is invalid", index)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: Deci sentinel cache layer %d key: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: Deci sentinel cache layer %d value: %w", index, err)
-			}
-			continue
-		}
-		keyWidth := uint64(r.spec.LayerKeyLength(uint32(index)))
-		valueWidth := uint64(r.spec.LayerValueLength(uint32(index)))
-		kvHeads := uint64(r.spec.LayerKVHeadCount(uint32(index)))
-		if r.spec.Architecture == "deepseek2" || r.spec.Architecture == "deepseek32" || r.spec.Architecture == "mistral4" || r.spec.Architecture == "glm-dsa" || r.spec.Architecture == "kimi-linear" {
-			kvHeads = uint64(r.spec.HeadCount)
-			if index < len(r.weights.Layers) && r.weights.Layers[index].AttentionKB != nil {
-				keyWidth = uint64(r.spec.KVLoRARank + r.spec.RopeDimensionCount)
-				valueWidth = uint64(r.spec.KVLoRARank)
-				kvHeads = 1
-			}
-		}
-		keyShape := tensor.MustShape(keyWidth, kvHeads, uint64(cache.Tokens))
-		valueShape := tensor.MustShape(valueWidth, kvHeads, uint64(cache.Tokens))
-		qwenRecurrent := r.spec.IsRecurrentLayer(uint32(index)) ||
-			index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
-		if r.spec.Profile().Attention == model.AttentionQwenGDN && qwenRecurrent {
-			convChannels := uint64(r.spec.SSMInnerSize) +
-				2*uint64(r.spec.SSMStateSize)*uint64(r.spec.SSMGroupCount)
-			convShape := tensor.MustShape(
-				uint64(r.spec.SSMConvKernel-1),
-				convChannels,
-			)
-			ssmShape := tensor.MustShape(
-				uint64(r.spec.SSMStateSize),
-				uint64(r.spec.SSMStateSize),
-				uint64(r.spec.SSMTimeStepRank),
-				1,
-			)
-			if !layer.Key.Shape.Equal(convShape) {
+		if plan.Cache == model.CacheT5 {
+			crossKey := layer.States["cross_key"].Value.Shape.Dims[2]
+			crossValue := layer.States["cross_value"].Value.Shape.Dims[2]
+			if crossKey != crossValue {
 				return fmt.Errorf(
-					"inference: recurrent cache layer %d convolution shape %v, need %v",
+					"inference: T5 cache layer %d cross-attention lengths differ",
 					index,
-					layer.Key.Shape.Slice(),
-					convShape.Slice(),
 				)
 			}
-			if !layer.Value.Shape.Equal(ssmShape) {
-				return fmt.Errorf(
-					"inference: recurrent cache layer %d state shape %v, need %v",
-					index,
-					layer.Value.Shape.Slice(),
-					ssmShape.Slice(),
-				)
-			}
-			if err := validateStateValue(layer.Key); err != nil {
-				return fmt.Errorf("inference: recurrent cache layer %d convolution: %w", index, err)
-			}
-			if err := validateStateValue(layer.Value); err != nil {
-				return fmt.Errorf("inference: recurrent cache layer %d state: %w", index, err)
-			}
-			continue
-		}
-		if !layer.Key.Shape.Equal(keyShape) {
-			return fmt.Errorf(
-				"inference: KV cache layer %d key shape %v, need %v",
-				index,
-				layer.Key.Shape.Slice(),
-				keyShape.Slice(),
-			)
-		}
-		if !layer.Value.Shape.Equal(valueShape) {
-			return fmt.Errorf(
-				"inference: KV cache layer %d value shape %v, need %v",
-				index,
-				layer.Value.Shape.Slice(),
-				valueShape.Slice(),
-			)
-		}
-		if err := validateStateValue(layer.Key); err != nil {
-			return fmt.Errorf("inference: KV cache layer %d key: %w", index, err)
-		}
-		if err := validateStateValue(layer.Value); err != nil {
-			return fmt.Errorf("inference: KV cache layer %d value: %w", index, err)
 		}
 	}
 	return nil
+}
+
+func (r *Runner) cacheLayerCount() int {
+	if r.plan.CacheLayers != 0 {
+		return int(r.plan.CacheLayers)
+	}
+	if r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
+		return int(r.spec.DecoderBlockCount)
+	}
+	if r.spec.BlockCount != 0 {
+		return int(r.spec.BlockCount)
+	}
+	return len(r.weights.Layers)
+}
+
+func (r *Runner) hasCachePolicy(policy model.CachePolicy) bool {
+	if len(r.plan.Layers) != 0 {
+		return r.plan.HasCache(policy)
+	}
+	for layer := range r.cacheLayerCount() {
+		info := model.LayerWeights{}
+		if layer < len(r.weights.Layers) {
+			info = r.weights.Layers[layer]
+		}
+		if r.layerPlan(layer, info.Recurrent).Cache == policy {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Runner) cacheSchema(
+	layer int,
+	tokens uint32,
+) (model.LayerPlan, model.LayerCacheSchema, error) {
+	info := model.LayerWeights{}
+	if layer < len(r.weights.Layers) {
+		info = r.weights.Layers[layer]
+	}
+	plan := r.layerPlan(layer, info.Recurrent)
+	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, tokens)
+	return plan, schema, err
 }
 
 func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) error {
@@ -530,38 +311,27 @@ func (r *Runner) RemoveCacheRange(
 		Tokens:   remaining,
 		Position: effectiveCachePosition(cache),
 	}
-	if r.spec.Architecture == "t5" {
+	if r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
 		// T5 relative positions: translation-invariant; compact rows.
 		result.Position = remaining
 	}
 	for index, layer := range cache.Layers {
-		recurrent := index < len(r.weights.Layers) && r.weights.Layers[index].Recurrent
+		_, schema, err := r.cacheSchema(index, cache.Tokens)
+		if err != nil {
+			return nil, fmt.Errorf("inference: remove cache layer %d schema: %w", index, err)
+		}
 		states, err := editLayerStates(layer.States, cache.Tokens, start, discard)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d named states: %w", index, err)
 		}
-		if recurrent {
-			result.Layers[index] = LayerCache{
-				Key:    layer.Key.Clone(),
-				Value:  layer.Value.Clone(),
-				States: states,
-			}
-			continue
-		}
-		key, err := removeAttentionRange(
-			layer.Key,
-			cache.Tokens,
-			start,
-			discard,
+		key, err := editPrimaryCacheValue(
+			layer.Key, schema.Primary[0].Extent, cache.Tokens, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d key range: %w", index, err)
 		}
-		value, err := removeAttentionRange(
-			layer.Value,
-			cache.Tokens,
-			start,
-			discard,
+		value, err := editPrimaryCacheValue(
+			layer.Value, schema.Primary[1].Extent, cache.Tokens, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d value range: %w", index, err)
@@ -569,6 +339,17 @@ func (r *Runner) RemoveCacheRange(
 		result.Layers[index] = LayerCache{Key: key, Value: value, States: states}
 	}
 	return result, nil
+}
+
+func editPrimaryCacheValue(
+	value reference.Value,
+	extent model.CacheExtent,
+	tokens, start, discard uint32,
+) (reference.Value, error) {
+	if extent == model.CacheExtentFixed {
+		return value.Clone(), nil
+	}
+	return removeAttentionRange(value, tokens, start, discard)
 }
 
 // ShiftCache: prefix delete; absolute position retained.

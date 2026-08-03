@@ -14,6 +14,8 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 		{"t5", ArchitectureFamilyEncoderDecoder, ArchitectureRoPEDisabled},
 		{"llada", ArchitectureFamilyDiffusion, ArchitectureNonCausal | ArchitectureDiffusion},
 		{"qwen3vl", ArchitectureFamilyAttention, ArchitectureMultimodal},
+		{"gemma3n", ArchitectureFamilyAttention, ArchitectureSharedKV | ArchitectureAltUp | ArchitecturePerLayerEmbeddings},
+		{"talkie", ArchitectureFamilyAttention, ArchitectureEmbeddingSkip},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

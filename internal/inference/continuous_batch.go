@@ -99,7 +99,7 @@ func (r *Runner) NewContinuousBatch(
 	if options.Device && !supportsPersistentDeviceCache(r.spec) {
 		return nil, errors.New("inference: architecture does not support a retained device cache")
 	}
-	if r.spec.NonCausalAttention || r.spec.Architecture == "t5" {
+	if r.spec.NonCausalAttention || r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
 		return nil, errors.New("inference: architecture does not support continuous KV batching")
 	}
 	return &ContinuousBatch{
@@ -423,6 +423,5 @@ func supportsPersistentDeviceCache(spec model.Spec) bool {
 	if !ok {
 		return false
 	}
-	return !profile.Has(model.ArchitectureMLA) &&
-		spec.Architecture != "gemma3n"
+	return !profile.Has(model.ArchitectureMLA) && !profile.Has(model.ArchitectureAltUp)
 }

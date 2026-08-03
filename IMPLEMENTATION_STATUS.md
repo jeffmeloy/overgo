@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Cache validation and range editing now consume one compiled schema; typed profiles/plans own shared-KV, AltUp, per-layer-embedding, and embedding-skip behavior.
 - Model opening now compiles immutable per-layer block/cache policies; host and device cache setup plus graph dispatch consume the same plan.
 - CUDA graphs expose reusable compiled topology, BLAS selection, and arena plans; tensor operation identity and backend coverage share one typed catalog.
 - Server protocols share optional model-selection enforcement, and compatibility claims cover the compiled plan/graph/catalog contracts.

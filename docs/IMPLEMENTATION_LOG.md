@@ -1935,6 +1935,19 @@ execution transaction. A typed tensor operation catalog owns operation names,
 diagnostic classes, and declared reference/CUDA coverage. Server protocols now
 share optional model-selector enforcement.
 
+## Cache-plan convergence
+
+Host cache validation now delegates all primary and named-state shapes, finite
+value checks, extents, and strict-state membership to the layer cache schema.
+Only cross-layer and position-order semantics remain local. Range removal uses
+the same schema to clone fixed recurrent state and compact token state, including
+runners without weight-derived recurrence metadata.
+
+Qwen GDN device initialization now uses the common cache-input builder instead
+of a second recurrent-shape allocator. Architecture profiles own shared-KV,
+AltUp, per-layer-embedding, and embedding-skip capabilities; `LayerPlan` pins
+shared-cache ownership and source layers before host or CUDA graph execution.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

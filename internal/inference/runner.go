@@ -577,6 +577,13 @@ func (r *Runner) layerPlan(layer int, recurrent bool) model.LayerPlan {
 	return r.spec.PlanLayer(uint32(layer), recurrent)
 }
 
+func (r *Runner) profile() model.ArchitectureProfile {
+	if r != nil && r.plan.Profile.Name != "" {
+		return r.plan.Profile
+	}
+	return r.spec.Profile()
+}
+
 func (r *Runner) Vocab() *tokenizer.Vocab {
 	if r == nil {
 		return nil
@@ -1393,7 +1400,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if r.spec.Architecture == "gemma3n" {
+	if r.profile().Has(model.ArchitectureAltUp) {
 		if capture != nil {
 			return reference.Value{}, nil, errors.New("inference: cached Gemma3n layer extraction is unsupported")
 		}
@@ -1442,6 +1449,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	}
 	var firstLayerValue, previousTopK *reference.Value
 	for layerIndex, layerInfo := range r.weights.Layers {
+		plan := r.layerPlan(layerIndex, layerInfo.Recurrent)
 		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), false, deepstackBase, deepstackInputs); stream != nil {
 			activation, err = addDeepstackEmbedding(activation, *stream)
 			if err != nil {
@@ -1450,9 +1458,8 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		}
 		capture.set(layerIndex, activation)
 		var past *LayerCache
-		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
-			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
-			past = &nextCache.Layers[source]
+		if plan.SharedKV {
+			past = &nextCache.Layers[plan.KVSource]
 		} else if cache != nil {
 			past = &cache.Layers[layerIndex]
 		}
@@ -1699,6 +1706,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	captured := make(map[int32]*tensor.Tensor)
 	for layerIndex, info := range r.weights.Layers {
+		plan := r.layerPlan(layerIndex, info.Recurrent)
 		if stream := deepstackInputForLayer(r.spec, uint32(layerIndex), false, deepstackBase, deepstackInputs); stream != nil {
 			deepstack := builder.Input(
 				fmt.Sprintf("blk.%d.deepstack_input", layerIndex), dtype.F32, stream.Shape,
@@ -1720,7 +1728,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 				return reference.Value{}, nil, err
 			}
 		}
-		if r.spec.Architecture == "talkie" {
+		if r.profile().Has(model.ArchitectureEmbeddingSkip) {
 			graphWeights.EmbeddingSkip = input
 		}
 		graphWeights.AttentionBlockIDs = attentionBlockInput
@@ -1740,9 +1748,8 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			return reference.Value{}, nil, err
 		}
 		var pastKey, pastValue *tensor.Tensor
-		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
-			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
-			pastKey, pastValue = keys[source], values[source]
+		if plan.SharedKV {
+			pastKey, pastValue = keys[plan.KVSource], values[plan.KVSource]
 		} else if cache != nil {
 			past := cache.Layers[layerIndex]
 			pastKey = builder.Input(
@@ -2039,7 +2046,7 @@ func (r *Runner) runLayerCached(
 			return reference.Value{}, LayerCache{}, err
 		}
 	}
-	if r.spec.Architecture == "talkie" {
+	if r.profile().Has(model.ArchitectureEmbeddingSkip) {
 		skip := builder.Input("embedding_skip", dtype.F32, embeddingSkip.Shape)
 		hostFeeds[skip] = embeddingSkip
 		graphWeights.EmbeddingSkip = skip
@@ -3107,7 +3114,7 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	activation reference.Value,
 	rows []uint32,
 ) ([]reference.Value, error) {
-	if (r.spec.Architecture != "gemma4" && r.spec.Architecture != "gemma3n") ||
+	if !r.profile().Has(model.ArchitecturePerLayerEmbeddings) ||
 		r.spec.EmbeddingPerLayer == 0 {
 		return nil, nil
 	}

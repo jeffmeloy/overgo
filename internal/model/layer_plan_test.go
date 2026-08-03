@@ -91,21 +91,35 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 
 func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	plan, err := CompileModelPlan(Spec{
-		CommonSpec:  CommonSpec{Architecture: "t5", BlockCount: 1},
+		CommonSpec:  CommonSpec{Architecture: "t5", BlockCount: 3},
 		EncoderSpec: EncoderSpec{DecoderBlockCount: 2},
 	}, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Layers) != 2 {
-		t.Fatalf("layer count = %d", len(plan.Layers))
+	if len(plan.Layers) != 3 || plan.CacheLayers != 2 || !plan.HasCache(CacheT5) {
+		t.Fatalf("plan = %+v", plan)
 	}
-	if _, err := plan.Layer(2); err == nil {
+	if _, err := plan.Layer(3); err == nil {
 		t.Fatal("out-of-range layer accepted")
 	}
 	_, err = CompileModelPlan(Spec{CommonSpec: CommonSpec{Architecture: "missing"}}, Weights{})
 	var unsupported *UnsupportedArchitectureError
 	if !errors.As(err, &unsupported) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestPlanLayerPinsSharedKVSource(t *testing.T) {
+	spec := Spec{
+		CommonSpec: CommonSpec{Architecture: "gemma4", BlockCount: 4},
+		MultimodalSpec: MultimodalSpec{
+			SharedKVLayers: 2,
+		},
+	}
+	owned := spec.PlanLayer(1, false)
+	shared := spec.PlanLayer(2, false)
+	if !owned.HasKV || owned.SharedKV || shared.HasKV || !shared.SharedKV || shared.KVSource != 1 {
+		t.Fatalf("owned = %+v, shared = %+v", owned, shared)
 	}
 }

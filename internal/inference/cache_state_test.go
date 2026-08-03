@@ -238,6 +238,18 @@ func TestMambaCacheValidation(t *testing.T) {
 	if err := runner.validateCache(cache); err != nil {
 		t.Fatal(err)
 	}
+	trimmed, err := runner.RemoveCacheRange(cache, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trimmed.Tokens != 1 || !trimmed.Layers[0].Key.Shape.Equal(conv.Shape) ||
+		!trimmed.Layers[0].Value.Shape.Equal(ssm.Shape) {
+		t.Fatalf("trimmed Mamba cache = %+v", trimmed)
+	}
+	trimmed.Layers[0].Key.Data[0] = 1
+	if cache.Layers[0].Key.Data[0] != 0 {
+		t.Fatal("trimmed Mamba cache aliases source state")
+	}
 }
 
 func TestMamba2CacheValidation(t *testing.T) {

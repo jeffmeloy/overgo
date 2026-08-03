@@ -603,7 +603,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		embeddingSkip = current
 	}
 	var perLayerInputs []*tensor.Tensor
-	if r.spec.Architecture == "gemma4" && r.spec.EmbeddingPerLayer > 0 {
+	if r.profile().Has(model.ArchitecturePerLayerEmbeddings) && r.spec.EmbeddingPerLayer > 0 {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
 			return fail(errors.New("Gemma 4 per-layer weights are incomplete"))
@@ -642,54 +642,32 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		for node, pointer := range layerFeeds {
 			deviceFeeds[node] = pointer
 		}
-		if r.spec.Architecture == "talkie" {
+		if r.profile().Has(model.ArchitectureEmbeddingSkip) {
 			graphWeights.EmbeddingSkip = embeddingSkip
 		}
 		if len(perLayerInputs) > 0 {
 			graphWeights.PerLayerInput = perLayerInputs[layerIndex]
 		}
 		if plan.Attention == model.AttentionQwenGDN {
-			var pastKey, pastValue, convState, ssmState *tensor.Tensor
-			if past != nil {
-				first := past.Keys[layerIndex]
-				second := past.Values[layerIndex]
-				firstInput := builder.Input(
-					fmt.Sprintf("%sblk.%d.state_0", prefix, layerIndex), dtype.F32, first.Shape,
-				)
-				secondInput := builder.Input(
-					fmt.Sprintf("%sblk.%d.state_1", prefix, layerIndex), dtype.F32, second.Shape,
-				)
-				deviceFeeds[firstInput] = first.Pointer
-				deviceFeeds[secondInput] = second.Pointer
-				if info.Recurrent {
-					convState, ssmState = firstInput, secondInput
-				} else {
-					pastKey, pastValue = firstInput, secondInput
-				}
-			} else if info.Recurrent {
-				convChannels := uint64(r.spec.SSMInnerSize) +
-					2*uint64(r.spec.SSMStateSize)*uint64(r.spec.SSMGroupCount)
-				convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convChannels)
-				ssmShape := tensor.MustShape(
-					uint64(r.spec.SSMStateSize), uint64(r.spec.SSMStateSize),
-					uint64(r.spec.SSMTimeStepRank), 1,
-				)
-				convState = builder.Input(prefix+fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, convShape)
-				ssmState = builder.Input(prefix+fmt.Sprintf("blk.%d.ssm_state", layerIndex), dtype.F32, ssmShape)
-				convElements, _ := convShape.Elements()
-				ssmElements, _ := ssmShape.Elements()
-				hostFeeds[convState] = reference.Value{Shape: convShape, Data: make([]float32, int(convElements))}
-				hostFeeds[ssmState] = reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmElements))}
+			pastKey, pastValue, convState, ssmState, inputErr := r.deviceBatchLayerCacheInputs(
+				builder, prefix, layerIndex, info, past, hostFeeds, deviceFeeds,
+			)
+			if inputErr != nil {
+				return fail(inputErr)
+			}
+			if plan.Recurrent {
+				convState, ssmState = pastKey, pastValue
+				pastKey, pastValue = nil, nil
 			}
 			result, buildErr := model.BuildQwen35BlockCached(
-				builder, current, r.spec, graphWeights, positions, info.Recurrent,
+				builder, current, r.spec, graphWeights, positions, plan.Recurrent,
 				pastKey, pastValue, convState, ssmState,
 			)
 			if buildErr != nil {
 				return fail(buildErr)
 			}
 			current = result.Output
-			if info.Recurrent {
+			if plan.Recurrent {
 				keys[layerIndex], values[layerIndex] = result.ConvState, result.SSMState
 			} else {
 				keys[layerIndex], values[layerIndex] = result.Key, result.Value
@@ -704,7 +682,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 				return fail(inputErr)
 			}
 			result, buildErr := model.BuildLFM2BlockCached(
-				builder, current, r.spec, graphWeights, positions, info.Recurrent,
+				builder, current, r.spec, graphWeights, positions, plan.Recurrent,
 				pastKey, pastValue, uint32(layerIndex),
 			)
 			if buildErr != nil {
@@ -715,9 +693,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			continue
 		}
 		var pastKey, pastValue, pastConvState, pastSSMState *tensor.Tensor
-		if r.spec.Architecture == "gemma4" && !r.spec.LayerHasKV(uint32(layerIndex)) {
-			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
-			pastKey, pastValue = keys[source], values[source]
+		if plan.SharedKV {
+			pastKey, pastValue = keys[plan.KVSource], values[plan.KVSource]
 		} else {
 			pastKey, pastValue, pastConvState, pastSSMState, layerErr =
 				r.deviceBatchLayerCacheInputs(
@@ -736,7 +713,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			Builder: builder, Input: current, Spec: r.spec, Weights: graphWeights,
 			Positions: positions, TokenRows: rows, PastKey: pastKey, PastValue: pastValue,
 			PastConvState: pastConvState, PastSSMState: pastSSMState,
-			Layer: uint32(layerIndex), Recurrent: info.Recurrent, Plan: &plan,
+			Layer: uint32(layerIndex), Recurrent: plan.Recurrent, Plan: &plan,
 		})
 		if buildErr != nil {
 			return fail(buildErr)

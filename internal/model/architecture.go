@@ -116,6 +116,10 @@ const (
 	ArchitectureRequiresFusedQKV
 	ArchitectureRequiresFusedQKVBias
 	ArchitectureRejectsOrphanFusedQKVBias
+	ArchitectureSharedKV
+	ArchitectureAltUp
+	ArchitecturePerLayerEmbeddings
+	ArchitectureEmbeddingSkip
 )
 
 // ArchitectureProfile: registry entry and capability set.
@@ -382,6 +386,10 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setCapabilities(ArchitectureRejectsOrphanFusedQKVBias,
 		"apertus", "exaone4", "glm4", "phi2", "phi3", "phimoe", "smallthinker",
 	)
+	setCapabilities(ArchitectureSharedKV, "gemma3n", "gemma4")
+	setCapabilities(ArchitectureAltUp, "gemma3n")
+	setCapabilities(ArchitecturePerLayerEmbeddings, "gemma3n", "gemma4")
+	setCapabilities(ArchitectureEmbeddingSkip, "talkie")
 
 	setNormalization(NormalizationLayer,
 		"bert", "bloom", "codeshell", "dbrx", "falcon", "gpt2", "gptj",

@@ -42,6 +42,7 @@ func (r *Runner) forwardGemma3nCachedLocked(
 		Position: nextPosition + uint32(len(positions)),
 	}
 	for layerIndex, info := range r.weights.Layers {
+		plan := r.layerPlan(layerIndex, info.Recurrent)
 		hostLayer, loadErr := model.LoadHostLayer(ctx, r.file, info)
 		if loadErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, loadErr)
@@ -51,9 +52,8 @@ func (r *Runner) forwardGemma3nCachedLocked(
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, predictErr)
 		}
 		var past *LayerCache
-		if !r.spec.LayerHasKV(uint32(layerIndex)) {
-			source := r.spec.LayerSharedKVSource(uint32(layerIndex))
-			past = &nextCache.Layers[source]
+		if plan.SharedKV {
+			past = &nextCache.Layers[plan.KVSource]
 		} else if cache != nil {
 			past = &cache.Layers[layerIndex]
 		}

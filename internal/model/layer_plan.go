@@ -56,6 +56,8 @@ type LayerPlan struct {
 	UsesRoPE      bool
 	MultiAxis     bool
 	HasKV         bool
+	SharedKV      bool
+	KVSource      uint32
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -63,6 +65,12 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	profile := s.Profile()
 	info := LayerWeights{Recurrent: recurrent}
 	recurrent = recurrent || s.IsRecurrentLayer(layer)
+	hasKV := s.LayerHasKV(layer)
+	sharedKV := profile.Has(ArchitectureSharedKV) && !hasKV
+	var kvSource uint32
+	if sharedKV {
+		kvSource = s.LayerSharedKVSource(layer)
+	}
 	return LayerPlan{
 		Layer:         layer,
 		GraphFamily:   profile.GraphFamily,
@@ -78,14 +86,17 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Sliding:       s.IsSlidingLayer(layer),
 		UsesRoPE:      s.UsesRoPE(layer),
 		MultiAxis:     profile.Has(ArchitectureMultiAxisPositions),
-		HasKV:         s.LayerHasKV(layer),
+		HasKV:         hasKV,
+		SharedKV:      sharedKV,
+		KVSource:      kvSource,
 	}
 }
 
 // ModelPlan: immutable model and per-layer execution contract.
 type ModelPlan struct {
-	Profile ArchitectureProfile
-	Layers  []LayerPlan
+	Profile     ArchitectureProfile
+	Layers      []LayerPlan
+	CacheLayers uint32
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -98,12 +109,28 @@ func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
 	if profile.Family == ArchitectureFamilyEncoderDecoder && spec.DecoderBlockCount > layers {
 		layers = spec.DecoderBlockCount
 	}
-	plan := ModelPlan{Profile: profile, Layers: make([]LayerPlan, layers)}
+	cacheLayers := spec.BlockCount
+	if profile.Family == ArchitectureFamilyEncoderDecoder {
+		cacheLayers = spec.DecoderBlockCount
+	}
+	plan := ModelPlan{
+		Profile: profile, Layers: make([]LayerPlan, layers), CacheLayers: cacheLayers,
+	}
 	for layer := range layers {
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
 		plan.Layers[layer] = spec.PlanLayer(layer, recurrent)
 	}
 	return plan, nil
+}
+
+// HasCache: reports a compiled cache policy.
+func (p ModelPlan) HasCache(policy CachePolicy) bool {
+	for _, layer := range p.Layers {
+		if layer.Cache == policy {
+			return true
+		}
+	}
+	return false
 }
 
 // Layer: bounds-checked layer contract.

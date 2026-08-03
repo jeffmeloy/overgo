@@ -3,6 +3,7 @@ package clioptions
 import (
 	"errors"
 	"flag"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/inference"
@@ -74,7 +75,7 @@ func (flags *ModelFlags) OpenOptions(loraScale float32) inference.OpenOptions {
 
 // LoRAPaths: copied adapter paths
 func (flags *ModelFlags) LoRAPaths() []string {
-	return append([]string(nil), flags.loraPaths...)
+	return slices.Clone(flags.loraPaths)
 }
 
 // BuildOpenOptions: common inference open options

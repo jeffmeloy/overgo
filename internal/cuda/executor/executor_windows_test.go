@@ -1460,7 +1460,7 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 	defer copiedOwner.Release(context.Background())
 	data := make([]float32, 4)
 	err = cuda.worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemcpyDtoH(float32Bytes(data), copied[0].Pointer)
+		return state.Driver.MemcpyDtoH(driver.Bytes(data), copied[0].Pointer)
 	})
 	if err != nil {
 		t.Fatal(err)

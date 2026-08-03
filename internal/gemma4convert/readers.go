@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"math"
+
+	"llamacpp2go/internal/tensor/dtype"
 )
 
 type fp8BF16Reader struct {
@@ -61,7 +63,7 @@ func (r *fp8BF16Reader) Read(destination []byte) (int, error) {
 		}
 		for column, value := range r.input {
 			converted := fp8E4M3FN(value) * r.scales[r.row]
-			binary.LittleEndian.PutUint16(r.buffer[column*2:], float32ToBF16(converted))
+			binary.LittleEndian.PutUint16(r.buffer[column*2:], dtype.Float32ToBF16(converted))
 		}
 		r.row++
 		r.offset = 0
@@ -83,15 +85,6 @@ func fp8E4M3FN(encoded byte) float32 {
 		return float32(math.NaN())
 	}
 	return sign * float32(math.Ldexp(1+float64(mantissa)/8, exponent-7))
-}
-
-func float32ToBF16(value float32) uint16 {
-	bits := math.Float32bits(value)
-	if bits&0x7f800000 == 0x7f800000 {
-		return uint16(bits >> 16)
-	}
-	bits += 0x7fff + ((bits >> 16) & 1)
-	return uint16(bits >> 16)
 }
 
 type bf16F32Reader struct {

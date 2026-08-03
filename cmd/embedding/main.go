@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -81,7 +80,7 @@ func run() error {
 	if *dimensions > 0 && *dimensions < len(emitted) {
 		emitted = emitted[:*dimensions]
 	}
-	return json.NewEncoder(os.Stdout).Encode(report{
+	return clioptions.WriteJSON(os.Stdout, report{
 		TokenIDs:   ids,
 		Tokens:     result.Tokens,
 		Dimensions: width,
@@ -92,8 +91,5 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(run)
 }

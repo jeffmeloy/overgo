@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"sync"
 
-	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -268,7 +269,7 @@ func (b *ContinuousBatch) stepDeviceLocked(
 		}
 		input := inputs[index]
 		outputs[index] = SequenceBatchOutput{
-			ID: input.ID, Logits: append([]float32(nil), cache.Logits...),
+			ID: input.ID, Logits: slices.Clone(cache.Logits),
 			Tokens: cache.Tokens, Position: cache.Position,
 			Pages: sequencePages(cache.Tokens, b.options.PageTokens),
 		}
@@ -337,24 +338,21 @@ func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
 		return nil, errors.New("inference: retained device cache is unavailable")
 	}
 	result := *source
-	result.Keys = append([]executor.DeviceValue(nil), source.Keys...)
-	result.Values = append([]executor.DeviceValue(nil), source.Values...)
-	result.Logits = append([]float32(nil), source.Logits...)
+	result.Keys = slices.Clone(source.Keys)
+	result.Values = slices.Clone(source.Values)
+	result.Logits = slices.Clone(source.Logits)
 	result.Pages = make([]deviceKVPage, len(source.Pages))
 	for index, page := range source.Pages {
 		result.Pages[index] = page
-		result.Pages[index].Keys = append([]executor.DeviceValue(nil), page.Keys...)
-		result.Pages[index].Values = append([]executor.DeviceValue(nil), page.Values...)
+		result.Pages[index].Keys = slices.Clone(page.Keys)
+		result.Pages[index].Values = slices.Clone(page.Values)
 	}
 	result.States = make([]map[string]deviceLayerState, len(source.States))
 	for layer, states := range source.States {
 		if states == nil {
 			continue
 		}
-		result.States[layer] = make(map[string]deviceLayerState, len(states))
-		for name, state := range states {
-			result.States[layer][name] = state
-		}
+		result.States[layer] = maps.Clone(states)
 	}
 	return &result, nil
 }

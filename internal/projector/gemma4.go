@@ -8,8 +8,8 @@ import (
 	"math"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
 
@@ -91,17 +91,7 @@ func (r *Gemma4Runner) Close() error {
 	if r == nil {
 		return nil
 	}
-	var closeErr error
-	if r.cuda != nil {
-		closeErr = r.cuda.Close()
-		r.cuda = nil
-	}
-	if r.file == nil {
-		return closeErr
-	}
-	file := r.file
-	r.file = nil
-	return errors.Join(closeErr, file.Close())
+	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Gemma4Runner) Spec() Gemma4Spec {
@@ -376,8 +366,8 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 		for channel := 0; channel < r.spec.Hidden; channel++ {
 			xValue := position.Data[x*r.spec.Hidden+channel]
 			yValue := position.Data[(r.spec.PositionCount+y)*r.spec.Hidden+channel]
-			pos := bf16Round(xValue + yValue)
-			ln2[row*r.spec.Hidden+channel] = bf16Round(ln2[row*r.spec.Hidden+channel] + pos)
+			pos := dtype.RoundBF16(xValue + yValue)
+			ln2[row*r.spec.Hidden+channel] = dtype.RoundBF16(ln2[row*r.spec.Hidden+channel] + pos)
 		}
 	}
 	ln3Weight, ln3Bias, err := r.loadPair(ctx, "v.patch_norm.3.weight", "v.patch_norm.3.bias")
@@ -416,20 +406,11 @@ func traceGemma4(trace gemma4Trace, name string, values []float32) {
 }
 
 func (r *Gemma4Runner) load(ctx context.Context, name string) (reference.Value, error) {
-	info, ok := r.file.Tensor(name)
-	if !ok {
-		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
-	}
-	return model.LoadHostTensor(ctx, r.file, info)
+	return loadProjectorHostTensor(ctx, r.file, name)
 }
 
 func (r *Gemma4Runner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
-	a, err := r.load(ctx, first)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, err
-	}
-	b, err := r.load(ctx, second)
-	return a, b, err
+	return loadProjectorHostTensorPair(ctx, r.file, first, second)
 }
 
 func rmsNormNoWeight(output, input []float32, rows, width int, epsilon float32) {
@@ -449,17 +430,8 @@ func rmsNormNoWeight(output, input []float32, rows, width int, epsilon float32) 
 	})
 }
 
-func bf16Round(value float32) float32 {
-	raw := math.Float32bits(value)
-	if raw&0x7f800000 == 0x7f800000 {
-		return value
-	}
-	raw += 0x7fff + ((raw >> 16) & 1)
-	return math.Float32frombits(raw & 0xffff0000)
-}
-
 func bf16RoundSlice(values []float32) {
 	for index, value := range values {
-		values[index] = bf16Round(value)
+		values[index] = dtype.RoundBF16(value)
 	}
 }

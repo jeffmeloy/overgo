@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -56,7 +57,7 @@ func newLayerInputCapture(layerIDs []int32, layers int) (*layerInputCapture, err
 		return nil, errors.New("inference: extraction layer list is empty")
 	}
 	capture := &layerInputCapture{
-		order:     append([]int32(nil), layerIDs...),
+		order:     slices.Clone(layerIDs),
 		requested: make(map[int32]struct{}, len(layerIDs)),
 		values:    make(map[int32]reference.Value, len(layerIDs)),
 	}

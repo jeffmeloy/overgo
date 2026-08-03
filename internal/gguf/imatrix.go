@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/quant"
@@ -90,7 +91,7 @@ func loadGGUFImportanceMatrix(path string) (*ImportanceMatrix, error) {
 		return nil, errors.New("GGUF importance matrix has no entries")
 	}
 	result := &ImportanceMatrix{
-		Entries: make(map[string][]float32, len(pairs)), Datasets: append([]string(nil), datasets...),
+		Entries: make(map[string][]float32, len(pairs)), Datasets: slices.Clone(datasets),
 		ChunkCount: chunkCount, ChunkSize: chunkSize,
 	}
 	for name, pair := range pairs {

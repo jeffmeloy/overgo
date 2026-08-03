@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 )
 
@@ -83,7 +84,7 @@ func (s *Sampler) speculativeCandidates(
 	logits []float32,
 	history []int,
 ) ([]candidate, float64, map[int]float64, bool, error) {
-	adjusted := append([]float32(nil), logits...)
+	adjusted := slices.Clone(logits)
 	for index, value := range adjusted {
 		if math.IsNaN(float64(value)) {
 			return nil, 0, nil, false, fmt.Errorf("sampling logit %d is NaN", index)
@@ -130,50 +131,15 @@ func (s *Sampler) speculativeCandidates(
 			)
 		}
 	}
-	var original map[int]float64
 	if useAdaptive {
-		var err error
-		original, err = s.applySpeculativeAdaptive(candidates)
+		original, total, err := s.adaptiveCandidates(candidates)
 		if err != nil {
 			return nil, 0, nil, false, err
 		}
+		return candidates, total, original, false, nil
 	}
 	total, err := candidateProbabilities(candidates)
-	return candidates, total, original, false, err
-}
-
-func (s *Sampler) applySpeculativeAdaptive(candidates []candidate) (map[int]float64, error) {
-	total, err := candidateProbabilities(candidates)
-	if err != nil {
-		return nil, err
-	}
-	original := make(map[int]float64, len(candidates))
-	for _, item := range candidates {
-		original[item.id] = item.probability / total
-	}
-	if s.config.AdaptiveTarget < 0 {
-		return original, nil
-	}
-	target := math.Max(0, math.Min(1, float64(s.config.AdaptiveTarget)))
-	adapted := target
-	if s.adaptiveWeight != 0 {
-		adapted = 2*target - s.adaptiveSum/s.adaptiveWeight
-	}
-	adapted = math.Max(0, math.Min(1, adapted))
-	const (
-		distributionWidth = 0.3
-		peakLogit         = 5
-		sharpness         = 10
-	)
-	for index := range candidates {
-		if math.IsInf(candidates[index].scaledLogit, -1) {
-			continue
-		}
-		distance := math.Abs((original[candidates[index].id] - adapted) / distributionWidth)
-		candidates[index].scaledLogit = peakLogit -
-			sharpness*distance*distance/(1+distance)
-	}
-	return original, nil
+	return candidates, total, nil, false, err
 }
 
 func (s *Sampler) speculativeMirostatCandidates(logits []float32) ([]candidate, float64, error) {

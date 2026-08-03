@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/gguf"
 )
@@ -68,7 +69,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	); labelsErr != nil {
 		return Spec{}, labelsErr
 	} else if ok {
-		spec.ClassifierLabels = append([]string(nil), labels...)
+		spec.ClassifierLabels = slices.Clone(labels)
 	}
 	if isDeepSeek2Family(architecture) || architecture == "glm-dsa" {
 		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
@@ -271,7 +272,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 		spec.RecurrentLayers = make([]bool, len(counts))
 		if architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "kimi-linear" {
-			spec.LayerKVHeadCounts = append([]uint32(nil), counts...)
+			spec.LayerKVHeadCounts = slices.Clone(counts)
 		}
 		for index, count := range counts {
 			if count == 0 {
@@ -545,7 +546,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				if len(layers) != int(spec.BlockCount) {
 					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
 				}
-				spec.SlidingLayers = append([]bool(nil), layers...)
+				spec.SlidingLayers = slices.Clone(layers)
 			}
 		}
 	}
@@ -682,7 +683,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				}
 			}
 			spec.DeepstackLayerCount = uint32(len(unique))
-			spec.DeepstackMapping = append([]int32(nil), mapping...)
+			spec.DeepstackMapping = slices.Clone(mapping)
 		}
 	}
 	if architecture == "cohere2" || architecture == "cohere2moe" {
@@ -1067,7 +1068,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			if len(layers) != int(spec.BlockCount) {
 				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
 			}
-			spec.SlidingLayers = append([]bool(nil), layers...)
+			spec.SlidingLayers = slices.Clone(layers)
 		}
 	}
 	if architecture == "bailingmoe2" {
@@ -1248,7 +1249,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				if len(layers) != int(spec.BlockCount) {
 					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
 				}
-				spec.SlidingLayers = append([]bool(nil), layers...)
+				spec.SlidingLayers = slices.Clone(layers)
 			}
 			spec.RopeFrequencySWA = spec.RopeFrequencyBase
 			if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
@@ -1271,7 +1272,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 				if len(layers) != int(spec.BlockCount) {
 					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
 				}
-				spec.SlidingLayers = append([]bool(nil), layers...)
+				spec.SlidingLayers = slices.Clone(layers)
 			}
 			spec.RopeFrequencySWA = spec.RopeFrequencyBase
 			if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
@@ -1371,7 +1372,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 					declaredBlockCount,
 				)
 			}
-			spec.RecurrentLayers = append([]bool(nil), recurrent[:spec.BlockCount]...)
+			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
 		}
 	}
 	if architecture == "kimi-linear" {
@@ -2262,7 +2263,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			return Spec{}, err
 		}
 		if len(spec.LayerSharedSwiGLUClamp) == 0 {
-			spec.LayerSharedSwiGLUClamp = append([]float32(nil), spec.LayerSwiGLUClamp...)
+			spec.LayerSharedSwiGLUClamp = slices.Clone(spec.LayerSwiGLUClamp)
 		}
 		if spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
 			return Spec{}, errors.New("DeepSeek 4 shared expert width overflows")
@@ -2326,7 +2327,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 					if len(layers) != int(spec.BlockCount) {
 						return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
 					}
-					spec.SlidingLayers = append([]bool(nil), layers...)
+					spec.SlidingLayers = slices.Clone(layers)
 				}
 			}
 			if architecture == "cohere2" && len(spec.SlidingLayers) == 0 {
@@ -4096,7 +4097,7 @@ func requiredLayerFloat32(
 	if len(items) != int(count) {
 		return nil, fmt.Errorf("metadata %q has %d values, need %d", key, len(items), count)
 	}
-	return append([]float32(nil), items...), nil
+	return slices.Clone(items), nil
 }
 
 func optionalLayerFloat32(
@@ -4140,7 +4141,7 @@ func requiredLayerUint32(
 	if len(items) != int(count) {
 		return nil, fmt.Errorf("metadata %q has %d values, need %d", key, len(items), count)
 	}
-	return append([]uint32(nil), items...), nil
+	return slices.Clone(items), nil
 }
 
 func requiredLayerUint32Compatible(

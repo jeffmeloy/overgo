@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/gguf"
@@ -127,7 +128,7 @@ func (r *Runner) ContinueSession(
 	if err := r.validateSession(session); err != nil {
 		return nil, "", err
 	}
-	ids := append([]tokenizer.TokenID(nil), session.TokenIDs...)
+	ids := slices.Clone(session.TokenIDs)
 	cache := session.Cache
 	if options.MaxNewTokens > 0 && !r.isTerminal(ids[len(ids)-1]) {
 		outputTable := r.outputTensor()

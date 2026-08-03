@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -81,10 +80,7 @@ type benchmarkResult struct {
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(func() error { return run(os.Args[1:]) })
 }
 
 func parseOptions(args []string) (options, error) {
@@ -270,9 +266,7 @@ func run(args []string) error {
 		Runs:                   runs,
 		Summary:                summarizeRuns(runs),
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
+	return clioptions.WritePrettyJSON(os.Stdout, result)
 }
 
 func subtractExecutionStats(after, before driver.ExecutionStats) driver.ExecutionStats {

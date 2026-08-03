@@ -74,17 +74,7 @@ func (r *CogVLMVisionRunner) Close() error {
 	if r == nil {
 		return nil
 	}
-	var closeErr error
-	if r.cuda != nil {
-		closeErr = r.cuda.Close()
-		r.cuda = nil
-	}
-	if r.file == nil {
-		return closeErr
-	}
-	file := r.file
-	r.file = nil
-	return errors.Join(closeErr, file.Close())
+	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *CogVLMVisionRunner) Spec() CogVLMVisionSpec {

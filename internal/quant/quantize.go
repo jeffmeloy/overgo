@@ -60,9 +60,7 @@ func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 		}
 	case dtype.BF16:
 		for index, value := range values {
-			bits := math.Float32bits(value)
-			round := uint32(0x7fff + ((bits >> 16) & 1))
-			binary.LittleEndian.PutUint16(output[index*2:], uint16((bits+round)>>16))
+			binary.LittleEndian.PutUint16(output[index*2:], dtype.Float32ToBF16(value))
 		}
 	case dtype.Q1_0:
 		if err := quantizeQ1_0(values, output); err != nil {

@@ -3,6 +3,7 @@ package inference
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tensor/reference"
@@ -54,9 +55,9 @@ func draftSampled[S any](
 		Tokens:        make([]tokenizer.TokenID, 0, maximum),
 		Probabilities: make([]float64, 0, maximum),
 		Distributions: make([][]sampling.TokenProbability, 0, maximum),
-		History:       append([]tokenizer.TokenID(nil), history...),
+		History:       slices.Clone(history),
 		Base:          base,
-		samplerStates: [][]byte{append([]byte(nil), initialState...)},
+		samplerStates: [][]byte{slices.Clone(initialState)},
 	}
 	currentToken, currentState := initialToken, base
 	currentHistory := tokenIDsAsInts(history)
@@ -79,7 +80,7 @@ func draftSampled[S any](
 		token := tokenizer.TokenID(result.Token)
 		draft.Tokens = append(draft.Tokens, token)
 		draft.Probabilities = append(draft.Probabilities, result.SelectedProbability)
-		draft.Distributions = append(draft.Distributions, append([]sampling.TokenProbability(nil), result.Top...))
+		draft.Distributions = append(draft.Distributions, slices.Clone(result.Top))
 		draft.samplerStates = append(draft.samplerStates, state)
 		currentToken, currentState = token, next
 		currentHistory = append(currentHistory, result.Token)

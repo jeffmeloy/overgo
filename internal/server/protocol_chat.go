@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"slices"
 
 	"encoding/json"
 
@@ -210,7 +211,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 	if body.AddPrompt != nil && !*body.AddPrompt {
 		return nativePrompt{}, errors.New("multimodal chat requires add_generation_prompt")
 	}
-	messages := append([]inference.ChatMessage(nil), body.Messages...)
+	messages := slices.Clone(body.Messages)
 	markers := make([]string, 0, mediaCount)
 	images := make([][]byte, 0, mediaCount)
 	mediaInputs := make([]nativeMedia, 0, mediaCount)

@@ -8,6 +8,7 @@ import (
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/statecodec"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
@@ -912,19 +913,20 @@ func legacyCachePayload(cache *KVCache, magic string) []byte {
 			total += 44 + 4*len(value.Data)
 		}
 	}
-	result := make([]byte, total)
-	copy(result, magic)
-	binary.LittleEndian.PutUint32(result[8:], cache.Tokens)
+	encoder := statecodec.NewEncoderCapacity(uint64(total), uint64(total))
+	encoder.Raw([]byte(magic))
+	encoder.U32(cache.Tokens)
 	if magic == cacheStateV2Magic {
-		binary.LittleEndian.PutUint32(result[12:], effectiveCachePosition(cache))
-		binary.LittleEndian.PutUint32(result[16:], uint32(len(cache.Layers)))
-	} else {
-		binary.LittleEndian.PutUint32(result[12:], uint32(len(cache.Layers)))
+		encoder.U32(effectiveCachePosition(cache))
 	}
-	offset := headerSize
+	encoder.U32(uint32(len(cache.Layers)))
 	for _, layer := range cache.Layers {
-		writeCacheValue(result, &offset, layer.Key)
-		writeCacheValue(result, &offset, layer.Value)
+		writeCacheValue(encoder, layer.Key)
+		writeCacheValue(encoder, layer.Value)
+	}
+	result, err := encoder.Data()
+	if err != nil {
+		panic(err)
 	}
 	return result
 }

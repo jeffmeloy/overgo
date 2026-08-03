@@ -1,12 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/gguf"
 )
 
@@ -109,9 +109,7 @@ func run(arguments []string) error {
 	}
 	defer file.Close()
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(buildReport(path, file, *includeMetadata, *includeTensors, *maxString))
+	return clioptions.WritePrettyJSON(os.Stdout, buildReport(path, file, *includeMetadata, *includeTensors, *maxString))
 }
 
 func main() {

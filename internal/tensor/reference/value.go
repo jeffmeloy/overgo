@@ -2,13 +2,14 @@ package reference
 
 import (
 	"errors"
+	"slices"
 
 	"llamacpp2go/internal/checked"
 	"llamacpp2go/internal/tensor"
 )
 
 func (v Value) Clone() Value {
-	return Value{Shape: v.Shape, Data: append([]float32(nil), v.Data...)}
+	return Value{Shape: v.Shape, Data: slices.Clone(v.Data)}
 }
 
 func (v Value) Rows(start, count uint64) (Value, error) {
@@ -27,7 +28,7 @@ func (v Value) Rows(start, count uint64) (Value, error) {
 	lastIndex, _ := checked.Int(last)
 	return Value{
 		Shape: tensor.MustShape(width, count),
-		Data:  append([]float32(nil), v.Data[firstIndex:lastIndex]...),
+		Data:  slices.Clone(v.Data[firstIndex:lastIndex]),
 	}, nil
 }
 

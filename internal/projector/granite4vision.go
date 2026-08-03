@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
@@ -103,17 +103,7 @@ func (r *Granite4VisionRunner) Close() error {
 	if r == nil {
 		return nil
 	}
-	var closeErr error
-	if r.cuda != nil {
-		closeErr = r.cuda.Close()
-		r.cuda = nil
-	}
-	if r.file == nil {
-		return closeErr
-	}
-	file := r.file
-	r.file = nil
-	return errors.Join(closeErr, file.Close())
+	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Granite4VisionRunner) Spec() Granite4VisionSpec {
@@ -486,7 +476,7 @@ func (r *Granite4VisionRunner) encodeTile(ctx context.Context, tile Granite4Visi
 		if err := r.runVisionLayer(ctx, hidden, rows, layer); err != nil {
 			return nil, err
 		}
-		layerOutputs[layer] = append([]float32(nil), hidden...)
+		layerOutputs[layer] = slices.Clone(hidden)
 	}
 	outputs := make([]reference.Value, len(r.spec.FeatureLayers))
 	for block, layer := range r.spec.FeatureLayers {
@@ -791,18 +781,9 @@ func (r *Granite4VisionRunner) affineNormalize(
 }
 
 func (r *Granite4VisionRunner) load(ctx context.Context, name string) (reference.Value, error) {
-	info, ok := r.file.Tensor(name)
-	if !ok {
-		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
-	}
-	return model.LoadHostTensor(ctx, r.file, info)
+	return loadProjectorHostTensor(ctx, r.file, name)
 }
 
 func (r *Granite4VisionRunner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
-	a, err := r.load(ctx, first)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, err
-	}
-	b, err := r.load(ctx, second)
-	return a, b, err
+	return loadProjectorHostTensorPair(ctx, r.file, first, second)
 }

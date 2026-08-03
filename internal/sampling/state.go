@@ -7,6 +7,8 @@ import (
 	"hash/fnv"
 	"math"
 	"sort"
+
+	"llamacpp2go/internal/statecodec"
 )
 
 const (
@@ -26,21 +28,20 @@ func (s *Sampler) SaveState() ([]byte, error) {
 	if len(s.gbnfHistory) > maxGBNFHistoryTokens {
 		return nil, errors.New("sampler GBNF history exceeds state limit")
 	}
-	output := make([]byte, samplerStateHeaderSize+len(s.gbnfHistory)*4)
-	copy(output, samplerStateMagic)
-	binary.LittleEndian.PutUint64(output[8:], configSignature(s.config))
-	binary.LittleEndian.PutUint64(output[16:], s.source.state)
-	binary.LittleEndian.PutUint64(output[24:], math.Float64bits(s.mu))
-	binary.LittleEndian.PutUint64(output[32:], uint64(s.grammarState))
-	binary.LittleEndian.PutUint32(output[40:], uint32(len(s.gbnfHistory)))
-	binary.LittleEndian.PutUint64(output[44:], math.Float64bits(s.adaptiveSum))
-	binary.LittleEndian.PutUint64(output[52:], math.Float64bits(s.adaptiveWeight))
-	offset := samplerStateHeaderSize
+	size := uint64(samplerStateHeaderSize + len(s.gbnfHistory)*4)
+	encoder := statecodec.NewEncoderCapacity(1<<20, size)
+	encoder.Raw([]byte(samplerStateMagic))
+	encoder.U64(configSignature(s.config))
+	encoder.U64(s.source.state)
+	encoder.F64(s.mu)
+	encoder.U64(uint64(s.grammarState))
+	encoder.U32(uint32(len(s.gbnfHistory)))
+	encoder.F64(s.adaptiveSum)
+	encoder.F64(s.adaptiveWeight)
 	for _, token := range s.gbnfHistory {
-		binary.LittleEndian.PutUint32(output[offset:], uint32(token))
-		offset += 4
+		encoder.U32(uint32(token))
 	}
-	return output, nil
+	return encoder.Data()
 }
 
 // LoadState: restores state only when it was produced by identical sampler
@@ -49,10 +50,8 @@ func (s *Sampler) LoadState(data []byte) error {
 	if s == nil || s.source == nil {
 		return errors.New("sampler is nil")
 	}
-	if len(data) < 8 {
-		return errors.New("sampler state has invalid size")
-	}
-	magic := string(data[:8])
+	decoder := statecodec.NewDecoder(data, 1<<20)
+	magic := string(decoder.Raw(8))
 	legacy := magic == legacySamplerStateMagic
 	previous := magic == previousSamplerStateMagic
 	if magic != samplerStateMagic && !previous && !legacy {
@@ -72,17 +71,29 @@ func (s *Sampler) LoadState(data []byte) error {
 		if s.adaptive {
 			return errors.New("previous sampler state cannot restore adaptive-p state")
 		}
-	} else if len(data) < samplerStateHeaderSize {
+	}
+	signature := decoder.U64()
+	sourceState := decoder.U64()
+	mu := decoder.F64()
+	grammarState := decoder.U64()
+	count := uint32(0)
+	if !legacy {
+		count = decoder.U32()
+	}
+	adaptiveSum, adaptiveWeight := 0.0, 0.0
+	if !legacy && !previous {
+		adaptiveSum = decoder.F64()
+		adaptiveWeight = decoder.F64()
+	}
+	if decoder.Err() != nil {
 		return errors.New("sampler state has invalid size")
 	}
-	if binary.LittleEndian.Uint64(data[8:]) != configSignature(s.config) {
+	if signature != configSignature(s.config) {
 		return errors.New("sampler state configuration does not match")
 	}
-	mu := math.Float64frombits(binary.LittleEndian.Uint64(data[24:]))
 	if math.IsNaN(mu) || math.IsInf(mu, 0) {
 		return errors.New("sampler state has invalid Mirostat value")
 	}
-	grammarState := binary.LittleEndian.Uint64(data[32:])
 	nextGrammarState := 0
 	if s.grammar == nil {
 		if grammarState != 0 {
@@ -102,16 +113,15 @@ func (s *Sampler) LoadState(data []byte) error {
 		if legacy || previous {
 			return errors.New("legacy sampler state lacks adaptive-p state")
 		}
-		nextAdaptiveSum = math.Float64frombits(binary.LittleEndian.Uint64(data[44:]))
-		nextAdaptiveWeight = math.Float64frombits(binary.LittleEndian.Uint64(data[52:]))
+		nextAdaptiveSum = adaptiveSum
+		nextAdaptiveWeight = adaptiveWeight
 		if math.IsNaN(nextAdaptiveSum) || math.IsInf(nextAdaptiveSum, 0) ||
 			math.IsNaN(nextAdaptiveWeight) || math.IsInf(nextAdaptiveWeight, 0) ||
 			nextAdaptiveWeight <= 0 {
 			return errors.New("sampler state has invalid adaptive-p state")
 		}
 	} else if !legacy && !previous {
-		if binary.LittleEndian.Uint64(data[44:]) != 0 ||
-			binary.LittleEndian.Uint64(data[52:]) != 0 {
+		if adaptiveSum != 0 || adaptiveWeight != 0 {
 			return errors.New("sampler state has unexpected adaptive-p state")
 		}
 	}
@@ -123,25 +133,19 @@ func (s *Sampler) LoadState(data []byte) error {
 		}
 	}
 	if !legacy {
-		count := binary.LittleEndian.Uint32(data[40:])
-		headerSize := samplerStateHeaderSize
 		maxHistory := maxGBNFHistoryTokens
 		if previous {
-			headerSize = previousSamplerHeaderSize
 			maxHistory = ((1 << 20) - previousSamplerHeaderSize) / 4
 		}
-		if count > uint32(maxHistory) ||
-			uint64(headerSize)+uint64(count)*4 != uint64(len(data)) {
+		if count > uint32(maxHistory) {
 			return errors.New("sampler state has invalid GBNF history length")
 		}
 		if s.gbnf == nil && count != 0 {
 			return errors.New("sampler state has unexpected GBNF history")
 		}
 		nextGBNFHistory = make([]int, int(count))
-		offset := headerSize
 		for index := range nextGBNFHistory {
-			token := binary.LittleEndian.Uint32(data[offset:])
-			offset += 4
+			token := decoder.U32()
 			if token > math.MaxInt32 {
 				return errors.New("sampler state has invalid GBNF token")
 			}
@@ -158,7 +162,10 @@ func (s *Sampler) LoadState(data []byte) error {
 	} else if s.gbnf != nil {
 		return errors.New("legacy sampler state lacks GBNF history")
 	}
-	s.source.state = binary.LittleEndian.Uint64(data[16:])
+	if err := decoder.Done(); err != nil {
+		return errors.New("sampler state has invalid GBNF history length")
+	}
+	s.source.state = sourceState
 	s.mu = mu
 	s.grammarState = nextGrammarState
 	s.gbnfState = nextGBNFState

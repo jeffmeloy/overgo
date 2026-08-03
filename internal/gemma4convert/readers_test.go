@@ -6,6 +6,8 @@ import (
 	"math"
 	"os"
 	"testing"
+
+	"llamacpp2go/internal/tensor/dtype"
 )
 
 func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
@@ -37,7 +39,7 @@ func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 		t.Fatalf("output bytes = %d, want %d", len(actual), len(weights)*2)
 	}
 	for index, encoded := range weights {
-		want := float32ToBF16(fp8E4M3FN(encoded) * scales[index/4])
+		want := dtype.Float32ToBF16(fp8E4M3FN(encoded) * scales[index/4])
 		got := binary.LittleEndian.Uint16(actual[index*2:])
 		if got != want {
 			t.Fatalf("value %d = %#04x, want %#04x", index, got, want)

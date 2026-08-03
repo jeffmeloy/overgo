@@ -2,6 +2,7 @@ package sampling
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -38,7 +39,7 @@ var defaultSamplerOrder = []SamplerStage{
 // DefaultSamplerOrder: returns supported subset of llama.cpp's default
 // chain; Unsupported disabled-by-default stages are omitted
 func DefaultSamplerOrder() []SamplerStage {
-	return append([]SamplerStage(nil), defaultSamplerOrder...)
+	return slices.Clone(defaultSamplerOrder)
 }
 
 // ParseSamplerOrder: parses llama.cpp's semicolon-delimited sampler names

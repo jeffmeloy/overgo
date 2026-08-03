@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -187,7 +188,7 @@ func NewGBNFGrammarWithOptions(
 				maxGBNFTokenPieceBytes,
 			)
 		}
-		pieces[index] = append([]byte(nil), piece...)
+		pieces[index] = slices.Clone(piece)
 	}
 	eos := make([]bool, len(pieces))
 	for _, token := range eosTokens {
@@ -834,7 +835,7 @@ func (c *gbnfCompiler) compileRepetition(
 			return nil, fmt.Errorf("GBNF expansion exceeds %d rules", maxGBNFRules)
 		}
 		c.grammar.rules = append(c.grammar.rules, gbnfRule{})
-		recursive := append(append([]gbnfSymbol(nil), base...),
+		recursive := append(slices.Clone(base),
 			gbnfSymbol{kind: gbnfRuleSymbol, index: id})
 		c.grammar.rules[id] = gbnfRule{
 			alternatives: [][]gbnfSymbol{recursive, nil},
@@ -849,7 +850,7 @@ func (c *gbnfCompiler) compileRepetition(
 		if id >= maxGBNFRules {
 			return nil, fmt.Errorf("GBNF expansion exceeds %d rules", maxGBNFRules)
 		}
-		sequence := append([]gbnfSymbol(nil), base...)
+		sequence := slices.Clone(base)
 		if next >= 0 {
 			sequence = append(sequence, gbnfSymbol{kind: gbnfRuleSymbol, index: next})
 		}
@@ -1012,7 +1013,7 @@ func stronglyConnectedGBNFRules(edges []map[int]bool) []int {
 }
 
 func normalizeGBNFRanges(input []gbnfRange) []gbnfRange {
-	result := append([]gbnfRange(nil), input...)
+	result := slices.Clone(input)
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].low == result[j].low {
 			return result[i].high < result[j].high
@@ -1062,8 +1063,8 @@ func (g *GBNFGrammar) advanceAwaitingTrigger(
 		state.triggerPositions = nil
 		return g.advanceConstrainedToken(state, token, g.tokenPieces[token])
 	}
-	buffer := append([]byte(nil), state.triggerBuffer...)
-	positions := append([]gbnfTriggerPosition(nil), state.triggerPositions...)
+	buffer := slices.Clone(state.triggerBuffer)
+	positions := slices.Clone(state.triggerPositions)
 	if len(buffer)+len(g.tokenPieces[token]) > maxGBNFTriggerBuffer {
 		return gbnfState{}, false
 	}
@@ -1134,11 +1135,11 @@ func (g *GBNFGrammar) advanceConstrainedToken(
 		switch symbol.kind {
 		case gbnfTokenSymbol:
 			if token == symbol.index {
-				tokenPending = append(tokenPending, append([]gbnfSymbol(nil), stack[1:]...))
+				tokenPending = append(tokenPending, slices.Clone(stack[1:]))
 			}
 		case gbnfTokenNotSymbol:
 			if token != symbol.index {
-				tokenPending = append(tokenPending, append([]gbnfSymbol(nil), stack[1:]...))
+				tokenPending = append(tokenPending, slices.Clone(stack[1:]))
 			}
 		case gbnfTerminalSymbol:
 			characterStacks = append(characterStacks, stack)
@@ -1191,7 +1192,7 @@ func decodeGBNFTokenPiece(
 				if _, ok := partialUTF8Ranges(input); !ok {
 					return nil, nil, false
 				}
-				return result, append([]byte(nil), input...), true
+				return result, slices.Clone(input), true
 			}
 			return nil, nil, false
 		}
@@ -1215,7 +1216,7 @@ func (g *GBNFGrammar) acceptRune(
 			!g.terminals[symbol.index].matches(value) {
 			continue
 		}
-		pending = append(pending, append([]gbnfSymbol(nil), stack[1:]...))
+		pending = append(pending, slices.Clone(stack[1:]))
 	}
 	if len(pending) == 0 {
 		return nil, nil

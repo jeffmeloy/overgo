@@ -71,16 +71,7 @@ func (r *DeepSeekOCR2Runner) Close() error {
 	if r == nil {
 		return nil
 	}
-	var errs []error
-	if r.cuda != nil {
-		errs = append(errs, r.cuda.Close())
-		r.cuda = nil
-	}
-	if r.file != nil {
-		errs = append(errs, r.file.Close())
-		r.file = nil
-	}
-	return errors.Join(errs...)
+	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *DeepSeekOCR2Runner) Spec() DeepSeekOCR2Spec {

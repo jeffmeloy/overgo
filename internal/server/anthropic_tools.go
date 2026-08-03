@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/inference"
@@ -205,7 +206,7 @@ func (h *Handler) parseAnthropicMessage(
 			messages = append(messages, inference.ChatMessage{
 				Role:    "user",
 				Content: content.String(),
-				Media:   append([]inference.ChatMediaPart(nil), media...),
+				Media:   slices.Clone(media),
 			})
 			content.Reset()
 			media = media[:0]

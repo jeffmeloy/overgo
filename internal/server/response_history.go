@@ -2,6 +2,7 @@ package server
 
 import (
 	"container/list"
+	"slices"
 	"sync"
 
 	"llamacpp2go/internal/inference"
@@ -82,10 +83,10 @@ func (s *responseHistoryStore) put(id string, messages []inference.ChatMessage) 
 }
 
 func cloneResponseMessages(messages []inference.ChatMessage) []inference.ChatMessage {
-	cloned := append([]inference.ChatMessage(nil), messages...)
+	cloned := slices.Clone(messages)
 	for index := range cloned {
-		cloned[index].Media = append([]inference.ChatMediaPart(nil), messages[index].Media...)
-		cloned[index].ToolCalls = append([]inference.ChatToolCall(nil), messages[index].ToolCalls...)
+		cloned[index].Media = slices.Clone(messages[index].Media)
+		cloned[index].ToolCalls = slices.Clone(messages[index].ToolCalls)
 	}
 	return cloned
 }

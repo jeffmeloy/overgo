@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"os"
 
 	"llamacpp2go/internal/clioptions"
@@ -13,10 +11,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(run)
 }
 
 func run() error {
@@ -61,7 +56,5 @@ func run() error {
 	if !*includeScores {
 		result.Scores = nil
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
+	return clioptions.WritePrettyJSON(os.Stdout, result)
 }

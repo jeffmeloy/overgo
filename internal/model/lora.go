@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/gguf"
@@ -89,7 +90,7 @@ func LoadLoRA(ctx context.Context, path string, base *gguf.File, spec Spec) (*Lo
 		if !ok {
 			return nil, errors.New("aLoRA invocation tokens have invalid storage")
 		}
-		result.InvocationTokens = append([]uint32(nil), tokens...)
+		result.InvocationTokens = slices.Clone(tokens)
 	}
 	baseTensors := make(map[string]gguf.TensorInfo, len(base.Tensors))
 	for _, info := range base.Tensors {

@@ -237,7 +237,7 @@ func (r *Runner) trimHostPromptCache(
 	shape.Dims[1] = uint64(keep)
 	result := reference.Value{
 		Shape: shape,
-		Data:  append([]float32(nil), hidden.Data[:int(count)]...),
+		Data:  slices.Clone(hidden.Data[:int(count)]),
 	}
 	return result, trimmed, nil
 }

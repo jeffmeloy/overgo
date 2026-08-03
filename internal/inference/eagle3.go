@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
@@ -80,16 +81,16 @@ func (r *Runner) NewEagle3Session(
 	width := int(fused.Shape.Dims[0])
 	pending := reference.Value{
 		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), fused.Data[(len(tokenIDs)-1)*width:]...),
+		Data:  slices.Clone(fused.Data[(len(tokenIDs)-1)*width:]),
 	}
 	session := &Eagle3Session{
-		TargetCache: targetCache, TargetTokens: append([]tokenizer.TokenID(nil), tokenIDs...),
+		TargetCache: targetCache, TargetTokens: slices.Clone(tokenIDs),
 		PendingFeature: pending, Position: uint32(len(tokenIDs) - 1),
 	}
 	for index := 0; index+1 < len(tokenIDs); index++ {
 		feature := reference.Value{
 			Shape: tensor.MustShape(uint64(width), 1),
-			Data:  append([]float32(nil), fused.Data[index*width:(index+1)*width]...),
+			Data:  slices.Clone(fused.Data[index*width : (index+1)*width]),
 		}
 		step, stepErr := r.stepEagle3(ctx, target, tokenIDs[index+1], feature, uint32(index), session.Cache)
 		if stepErr != nil {
@@ -116,7 +117,7 @@ func (r *Runner) AdvanceEagle3(
 	}
 	next := &Eagle3Session{
 		Cache: step.Cache, TargetCache: session.TargetCache,
-		TargetTokens:   append([]tokenizer.TokenID(nil), session.TargetTokens...),
+		TargetTokens:   slices.Clone(session.TargetTokens),
 		PendingFeature: step.NextFeature, Position: session.Position + 1,
 	}
 	return step.Logits, next, nil

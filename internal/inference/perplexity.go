@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
@@ -123,7 +124,7 @@ func (r *Runner) PerplexityWithOptions(
 			offset := window * contextSize
 			windowIDs := ids[offset : offset+contextSize]
 			if r.vocab.AddBOS {
-				windowIDs = append([]tokenizer.TokenID(nil), windowIDs...)
+				windowIDs = slices.Clone(windowIDs)
 				windowIDs[0] = r.vocab.BOS
 			}
 			scores, negativeLogLik, scoreErr := r.scoreTokenWindow(

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
@@ -90,16 +89,7 @@ func (r *DeepSeekOCRRunner) Close() error {
 	if r == nil {
 		return nil
 	}
-	var errs []error
-	if r.cuda != nil {
-		errs = append(errs, r.cuda.Close())
-		r.cuda = nil
-	}
-	if r.file != nil {
-		errs = append(errs, r.file.Close())
-		r.file = nil
-	}
-	return errors.Join(errs...)
+	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *DeepSeekOCRRunner) Spec() DeepSeekOCRSpec {
@@ -301,14 +291,6 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 		}
 	}
 	return nil
-}
-
-func loadProjectorHostTensor(ctx context.Context, file *gguf.File, name string) (reference.Value, error) {
-	info, ok := file.Tensor(name)
-	if !ok {
-		return reference.Value{}, fmt.Errorf("tensor %q is unavailable", name)
-	}
-	return model.LoadHostTensor(ctx, file, info)
 }
 
 func openDeepSeekOCRCuda(ctx context.Context, file *gguf.File, spec DeepSeekOCRSpec, ordinal int) (*deepSeekOCRCuda, error) {

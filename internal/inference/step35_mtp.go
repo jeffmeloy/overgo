@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
@@ -159,7 +160,7 @@ func (r *Runner) advanceMultiHeadMTP(
 	if offset >= len(r.multiHeadMTPWeights()) {
 		return reference.Value{}, nil, errors.New("inference: Step3.5 MTP head chain is exhausted")
 	}
-	tokens := append(append([]tokenizer.TokenID(nil), session.DraftTokens...), tokenID)
+	tokens := append(slices.Clone(session.DraftTokens), tokenID)
 	width := int(r.spec.EmbeddingLength)
 	hidden := reference.Value{
 		Shape: tensor.MustShape(uint64(width), uint64(len(tokens))),
@@ -189,13 +190,13 @@ func (r *Runner) advanceMultiHeadMTP(
 	}
 	next := &Step35MTPSession{
 		TrunkCache: session.TrunkCache,
-		Heads:      append([]LayerCache(nil), session.Heads...),
+		Heads:      slices.Clone(session.Heads),
 		PendingHidden: reference.Value{
 			Shape: session.PendingHidden.Shape,
-			Data:  append([]float32(nil), session.PendingHidden.Data...),
+			Data:  slices.Clone(session.PendingHidden.Data),
 		},
-		DraftTokens: append(append([]tokenizer.TokenID(nil), session.DraftTokens...), tokenID),
-		DraftHidden: append(append([]reference.Value(nil), session.DraftHidden...), lastHidden),
+		DraftTokens: append(slices.Clone(session.DraftTokens), tokenID),
+		DraftHidden: append(slices.Clone(session.DraftHidden), lastHidden),
 		MTPStart:    session.MTPStart,
 		Position:    session.MTPStart + uint32(len(tokens)),
 		targetModel: session.targetModel,

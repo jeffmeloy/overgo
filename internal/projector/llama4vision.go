@@ -8,7 +8,6 @@ import (
 	"math"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
@@ -108,17 +107,7 @@ func (r *Llama4VisionRunner) Close() error {
 	if r == nil {
 		return nil
 	}
-	var closeErr error
-	if r.cuda != nil {
-		closeErr = r.cuda.Close()
-		r.cuda = nil
-	}
-	if r.file == nil {
-		return closeErr
-	}
-	file := r.file
-	r.file = nil
-	return errors.Join(closeErr, file.Close())
+	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Llama4VisionRunner) Spec() Llama4VisionSpec {
@@ -662,18 +651,9 @@ func (r *Llama4VisionRunner) optionalBias(ctx context.Context, name string) ([]f
 }
 
 func (r *Llama4VisionRunner) load(ctx context.Context, name string) (reference.Value, error) {
-	info, ok := r.file.Tensor(name)
-	if !ok {
-		return reference.Value{}, fmt.Errorf("projector: tensor %q is unavailable", name)
-	}
-	return model.LoadHostTensor(ctx, r.file, info)
+	return loadProjectorHostTensor(ctx, r.file, name)
 }
 
 func (r *Llama4VisionRunner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
-	a, err := r.load(ctx, first)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, err
-	}
-	b, err := r.load(ctx, second)
-	return a, b, err
+	return loadProjectorHostTensorPair(ctx, r.file, first, second)
 }

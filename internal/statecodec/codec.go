@@ -22,6 +22,17 @@ func NewEncoder(limit uint64) *Encoder {
 	return &Encoder{limit: limit}
 }
 
+func NewEncoderCapacity(limit, capacity uint64) *Encoder {
+	encoder := NewEncoder(limit)
+	count, ok := checked.Int(capacity)
+	if !ok || capacity > limit {
+		encoder.err = ErrLimit
+		return encoder
+	}
+	encoder.data = make([]byte, 0, count)
+	return encoder
+}
+
 func (e *Encoder) Raw(value []byte) {
 	if !e.grow(uint64(len(value))) {
 		return
@@ -45,6 +56,23 @@ func (e *Encoder) U64(value uint64) {
 
 func (e *Encoder) F32(value float32) {
 	e.U32(math.Float32bits(value))
+}
+
+func (e *Encoder) I32(value int32) {
+	e.U32(uint32(value))
+}
+
+func (e *Encoder) F64(value float64) {
+	e.U64(math.Float64bits(value))
+}
+
+func (e *Encoder) String32(value string) {
+	if uint64(len(value)) > math.MaxUint32 {
+		e.err = ErrLimit
+		return
+	}
+	e.U32(uint32(len(value)))
+	e.Raw([]byte(value))
 }
 
 func (e *Encoder) Data() ([]byte, error) {
@@ -119,6 +147,26 @@ func (d *Decoder) U64() uint64 {
 
 func (d *Decoder) F32() float32 {
 	return math.Float32frombits(d.U32())
+}
+
+func (d *Decoder) I32() int32 {
+	return int32(d.U32())
+}
+
+func (d *Decoder) F64() float64 {
+	return math.Float64frombits(d.U64())
+}
+
+func (d *Decoder) String32(limit uint64) string {
+	size := uint64(d.U32())
+	if d.err != nil {
+		return ""
+	}
+	if size > limit {
+		d.err = ErrLimit
+		return ""
+	}
+	return string(d.Raw(size))
 }
 
 func (d *Decoder) Remaining() uint64 {

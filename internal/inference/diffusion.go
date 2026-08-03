@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"slices"
 	"sort"
 	"strings"
 
@@ -120,7 +121,7 @@ func (r *Runner) GenerateDiffusion(
 	if err != nil {
 		return nil, "", err
 	}
-	generated := append([]tokenizer.TokenID(nil), output[len(ids):]...)
+	generated := slices.Clone(output[len(ids):])
 	text, err := r.vocab.Decode(generated, false)
 	if err != nil {
 		return nil, "", err
@@ -152,7 +153,7 @@ func (r *Runner) diffusionPromptTokens(
 	if len(exact) == 0 {
 		return nil, errors.New("inference: exact diffusion prompt is empty")
 	}
-	ids := append([]tokenizer.TokenID(nil), exact...)
+	ids := slices.Clone(exact)
 	for index, id := range ids {
 		if _, ok := r.vocab.Token(id); !ok {
 			return nil, fmt.Errorf("inference: diffusion prompt token %d has out-of-range ID %d", index, id)
@@ -240,7 +241,7 @@ func runDiffusion(
 			}
 			globalStep := block*stepsPerBlock + step
 			if options.OnStep != nil {
-				snapshot := append([]tokenizer.TokenID(nil), output...)
+				snapshot := slices.Clone(output)
 				if err := options.OnStep(DiffusionStep{
 					Step: globalStep, TotalSteps: options.Steps, Tokens: snapshot,
 				}); err != nil {
@@ -414,11 +415,11 @@ func diffusionLogits(
 	if len(conditionalLogits) != expected {
 		return nil, fmt.Errorf("inference: diffusion logits count %d differs from expected %d", len(conditionalLogits), expected)
 	}
-	logits := append([]float32(nil), conditionalLogits...)
+	logits := slices.Clone(conditionalLogits)
 	if options.CFGScale == 0 {
 		return logits, nil
 	}
-	unconditional := append([]tokenizer.TokenID(nil), conditional...)
+	unconditional := slices.Clone(conditional)
 	for index := range prompt {
 		unconditional[index] = mask
 	}
@@ -565,7 +566,7 @@ func selectDiffusionCandidates(
 	if count == 0 {
 		return nil
 	}
-	remaining := append([]diffusionCandidate(nil), candidates...)
+	remaining := slices.Clone(candidates)
 	if temperature == 0 {
 		sort.SliceStable(remaining, func(left, right int) bool {
 			if remaining[left].confidence == remaining[right].confidence {

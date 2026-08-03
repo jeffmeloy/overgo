@@ -103,7 +103,7 @@ func (r *RetainedOutputs) CopyToHost(
 		return reference.Value{}, errors.New("CUDA executor is closed")
 	}
 	err = r.executor.worker.Do(ctx, func(state *device.State) error {
-		return state.Driver.MemcpyDtoH(float32Bytes(data), value.Pointer)
+		return state.Driver.MemcpyDtoH(driver.Bytes(data), value.Pointer)
 	})
 	return reference.Value{Shape: value.Shape, Data: data}, err
 }
@@ -554,7 +554,7 @@ func execute(
 				return nil, err
 			}
 		} else {
-			if err := state.Driver.MemcpyHtoD(pointer, float32Bytes(value.Data)); err != nil {
+			if err := state.Driver.MemcpyHtoD(pointer, driver.Bytes(value.Data)); err != nil {
 				return nil, err
 			}
 		}
@@ -600,7 +600,7 @@ func execute(
 		default:
 			continue
 		}
-		encoded := uint32Bytes(values)
+		encoded := driver.Bytes(values)
 		key := string(encoded)
 		if pointer, ok := sharedAttributes[key]; ok {
 			attributePointers[node] = pointer
@@ -648,7 +648,7 @@ func execute(
 			return nil, errors.New("output is too large for host memory")
 		}
 		data := make([]float32, int(elements))
-		if err := state.Driver.MemcpyDtoH(float32Bytes(data), pointers[output]); err != nil {
+		if err := state.Driver.MemcpyDtoH(driver.Bytes(data), pointers[output]); err != nil {
 			return nil, err
 		}
 		results[output] = reference.Value{Shape: output.Shape, Data: data}
@@ -2804,7 +2804,7 @@ func launchReferenceNode(
 			return errors.New("reference bridge input is too large")
 		}
 		data := make([]float32, int(elements))
-		if err := state.Driver.MemcpyDtoH(float32Bytes(data), pointers[input]); err != nil {
+		if err := state.Driver.MemcpyDtoH(driver.Bytes(data), pointers[input]); err != nil {
 			return err
 		}
 		inputs[index] = reference.Value{Shape: input.Shape, Data: data}
@@ -2813,7 +2813,7 @@ func launchReferenceNode(
 	if err != nil {
 		return err
 	}
-	return state.Driver.MemcpyHtoD(pointers[node], float32Bytes(value.Data))
+	return state.Driver.MemcpyHtoD(pointers[node], driver.Bytes(value.Data))
 }
 
 func nativeQuantizedType(value dtype.Type) bool {
@@ -2879,18 +2879,4 @@ func shapeDimensions32(shape tensor.Shape) ([tensor.MaxDimensions]uint32, error)
 		result[axis] = value
 	}
 	return result, nil
-}
-
-func float32Bytes(values []float32) []byte {
-	if len(values) == 0 {
-		return nil
-	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(&values[0])), len(values)*int(unsafe.Sizeof(values[0])))
-}
-
-func uint32Bytes(values []uint32) []byte {
-	if len(values) == 0 {
-		return nil
-	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(&values[0])), len(values)*int(unsafe.Sizeof(values[0])))
 }

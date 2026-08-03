@@ -3,6 +3,7 @@ package inference
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -34,7 +35,7 @@ func (document ProjectedInputsJSON) ProjectedInputs() (ProjectedInputs, error) {
 		BidirectionalAttentionBlocks: append(
 			[]AttentionBlock(nil), document.BidirectionalAttentionBlocks...,
 		),
-		VisualExpertBlocks: append([]AttentionBlock(nil), document.VisualExpertBlocks...),
+		VisualExpertBlocks: slices.Clone(document.VisualExpertBlocks),
 	}
 	result.EmbeddingOverrides = make([]EmbeddingOverride, len(document.EmbeddingOverrides))
 	for index, item := range document.EmbeddingOverrides {
@@ -43,7 +44,7 @@ func (document ProjectedInputsJSON) ProjectedInputs() (ProjectedInputs, error) {
 		}
 		result.EmbeddingOverrides[index] = EmbeddingOverride{
 			TokenIndex: item.TokenIndex,
-			Embedding:  append([]float32(nil), item.Embedding...),
+			Embedding:  slices.Clone(item.Embedding),
 		}
 	}
 	result.DeepstackEmbeddings = make([]reference.Value, len(document.DeepstackEmbeddings))

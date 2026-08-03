@@ -73,9 +73,9 @@ func LoadRemoteMediaPolicy(path string) (*RemoteMediaPolicy, error) {
 	}
 	policy := &RemoteMediaPolicy{
 		Enabled:               document.Remote.Enabled,
-		AllowedSchemes:        append([]string(nil), document.Remote.AllowedSchemes...),
-		AllowedHosts:          append([]string(nil), document.Remote.AllowedHosts...),
-		AllowedPorts:          append([]int(nil), document.Remote.AllowedPorts...),
+		AllowedSchemes:        slices.Clone(document.Remote.AllowedSchemes),
+		AllowedHosts:          slices.Clone(document.Remote.AllowedHosts),
+		AllowedPorts:          slices.Clone(document.Remote.AllowedPorts),
 		AllowPrivateNetworks:  document.Remote.AllowPrivateNetworks,
 		MaxRedirects:          document.Remote.MaxRedirects,
 		MaxConcurrentFetches:  document.Remote.MaxConcurrentFetches,
@@ -195,9 +195,9 @@ func newRemoteMediaFetcher(policy *RemoteMediaPolicy) (*remoteMediaFetcher, erro
 		return nil, nil
 	}
 	copyPolicy := *policy
-	copyPolicy.AllowedSchemes = append([]string(nil), policy.AllowedSchemes...)
-	copyPolicy.AllowedHosts = append([]string(nil), policy.AllowedHosts...)
-	copyPolicy.AllowedPorts = append([]int(nil), policy.AllowedPorts...)
+	copyPolicy.AllowedSchemes = slices.Clone(policy.AllowedSchemes)
+	copyPolicy.AllowedHosts = slices.Clone(policy.AllowedHosts)
+	copyPolicy.AllowedPorts = slices.Clone(policy.AllowedPorts)
 	if err := validateRemoteMediaPolicy(&copyPolicy); err != nil {
 		return nil, err
 	}

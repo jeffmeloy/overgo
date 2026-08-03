@@ -12,9 +12,10 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/model"
-
 	"gopkg.in/yaml.v3"
+
+	"llamacpp2go/internal/clioptions"
+	"llamacpp2go/internal/model"
 )
 
 const (
@@ -71,38 +72,25 @@ type modelClaim struct {
 }
 
 func main() {
+	clioptions.Main(run)
+}
+
+func run() error {
 	check := flag.Bool("check", false, "verify compatibility claims and generated matrix")
 	update := flag.Bool("update", false, "write generated compatibility matrix")
 	flag.Parse()
 	if flag.NArg() != 0 || *check && *update {
-		fmt.Fprintln(os.Stderr, "usage: compatibility [-check|-update]")
-		os.Exit(1)
+		return errors.New("usage: compatibility [-check|-update]")
 	}
 	data, err := generate(".")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
-	if *check {
-		current, readErr := os.ReadFile(matrixPath)
-		if readErr != nil {
-			fmt.Fprintln(os.Stderr, readErr)
-			os.Exit(1)
-		}
-		if !bytes.Equal(current, data) {
-			fmt.Fprintln(os.Stderr, "docs/COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update")
-			os.Exit(1)
-		}
-		return
-	}
-	if *update {
-		if err := os.WriteFile(matrixPath, data, 0o644); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-	_, _ = os.Stdout.Write(data)
+	return clioptions.OutputGenerated(
+		data, matrixPath, *check, *update,
+		"docs/COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update",
+		os.Stdout,
+	)
 }
 
 func generate(root string) ([]byte, error) {

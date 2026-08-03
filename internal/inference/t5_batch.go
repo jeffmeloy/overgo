@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -50,7 +51,7 @@ func (r *Runner) NewT5BatchSession(
 	}
 	result := &T5BatchSession{
 		Sequences:     make([]*T5Session, len(batch.Tokens)),
-		SourceLengths: append([]uint32(nil), batch.Lengths...),
+		SourceLengths: slices.Clone(batch.Lengths),
 		SourceWidth:   width,
 	}
 	for index, row := range batch.Tokens {
@@ -105,12 +106,12 @@ func (r *Runner) DecodeT5Batch(
 	}
 	next := &T5BatchSession{
 		Sequences:     make([]*T5Session, len(session.Sequences)),
-		SourceLengths: append([]uint32(nil), session.SourceLengths...),
+		SourceLengths: slices.Clone(session.SourceLengths),
 		SourceWidth:   session.SourceWidth,
 	}
 	result := T5BatchResult{
 		Logits:  make([]reference.Value, len(session.Sequences)),
-		Lengths: append([]uint32(nil), batch.Lengths...),
+		Lengths: slices.Clone(batch.Lengths),
 	}
 	for index, row := range batch.Tokens {
 		length := batch.Lengths[index]

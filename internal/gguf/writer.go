@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/checked"
 )
@@ -188,7 +189,7 @@ func (r *tensorRangeReader) Read(destination []byte) (int, error) {
 }
 
 func prepareMetadata(metadata []Metadata, alignment uint64) ([]Metadata, error) {
-	result := append([]Metadata(nil), metadata...)
+	result := slices.Clone(metadata)
 	seen := make(map[string]int, len(result)+1)
 	alignmentFound := false
 	for index, item := range result {

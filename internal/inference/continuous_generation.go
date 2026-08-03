@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -338,7 +339,7 @@ func (g *ContinuousGenerator) sample(
 		return continuousGenerateResult{}, false
 	}
 	text, decodeErr := g.runner.vocab.Decode(state.ids, false)
-	return continuousGenerateResult{ids: append([]tokenizer.TokenID(nil), state.ids...), text: text, err: decodeErr}, true
+	return continuousGenerateResult{ids: slices.Clone(state.ids), text: text, err: decodeErr}, true
 }
 
 func sortedContinuousStateIDs(active map[SequenceID]*continuousGenerateState) []SequenceID {

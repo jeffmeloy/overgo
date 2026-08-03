@@ -340,8 +340,8 @@ func (stats *slotRuntimeStats) beginGeneration(
 			MirostatEta:      config.MirostatEta,
 			MaxTokens:        options.MaxNewTokens,
 			NPredict:         options.MaxNewTokens,
-			Stop:             append([]string(nil), options.StopSequences...),
-			Samplers:         append([]sampling.SamplerStage(nil), config.Samplers...),
+			Stop:             slices.Clone(options.StopSequences),
+			Samplers:         slices.Clone(config.Samplers),
 			CachePrompt:      options.CachePrompt,
 			NKeep:            options.KeepTokens,
 			NDiscard:         options.DiscardTokens,
@@ -362,8 +362,8 @@ func (stats *slotRuntimeStats) snapshot() (string, string, slotStatusParams) {
 	stats.textMu.RLock()
 	defer stats.textMu.RUnlock()
 	params := stats.params
-	params.Stop = append([]string(nil), params.Stop...)
-	params.Samplers = append([]sampling.SamplerStage(nil), params.Samplers...)
+	params.Stop = slices.Clone(params.Stop)
+	params.Samplers = slices.Clone(params.Samplers)
 	return stats.prompt, stats.generated.String(), params
 }
 
@@ -876,7 +876,7 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		Stream:           false,
 		MinKeep:          samplingConfig.MinKeep,
 		Grammar:          "",
-		Samplers:         append([]sampling.SamplerStage(nil), samplingConfig.Samplers...),
+		Samplers:         slices.Clone(samplingConfig.Samplers),
 	}
 	writeJSON(response, http.StatusOK, result)
 }
@@ -1928,7 +1928,7 @@ type stopFilter struct {
 }
 
 func newStopFilter(stops []string) *stopFilter {
-	return &stopFilter{stops: append([]string(nil), stops...)}
+	return &stopFilter{stops: slices.Clone(stops)}
 }
 
 func (filter *stopFilter) Accept(piece string) string {
@@ -3589,7 +3589,7 @@ func (h *Handler) nativeGenerationSettings(
 		"mirostat":              config.Mirostat,
 		"mirostat_tau":          config.MirostatTau,
 		"mirostat_eta":          config.MirostatEta,
-		"samplers":              append([]sampling.SamplerStage(nil), config.Samplers...),
+		"samplers":              slices.Clone(config.Samplers),
 		"stop":                  append([]string{}, stops...),
 		"ignore_eos":            body.IgnoreEOS,
 		"stream":                body.Stream,

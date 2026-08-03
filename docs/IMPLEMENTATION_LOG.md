@@ -1896,6 +1896,24 @@ Audio float32/WAV conversion and image cloning share media primitives, and commo
 GGUF/WAV test fixtures moved to a test utility package. Redundant alignment,
 maximum-integer, state-copy, media-copy, and fixture helpers were removed.
 
+## Repository-wide utility sweep
+
+The bounded state codec now owns sampler, KV-cache, single-head MTP,
+multi-head Step3.5/HY-V3 MTP, T5, and generation session envelopes. Existing
+magic/version layouts remain byte-compatible, including legacy sampler and
+cache readers; common cursor bounds replace format-local offset arithmetic.
+
+All production slice copies use `slices.Clone`, and shallow map copies use
+`maps.Clone`. One dtype implementation now owns BF16 storage, expansion, and
+rounding for quantization, conversion, reference execution, and Gemma 4
+projection. CUDA driver host views replace executor/kernel scalar-to-byte
+helpers, and normal/speculative sampling share one adaptive-p transformation.
+
+Every multimodal runner delegates resource closure to one generic transaction
+and host tensor pairs to one loader. CLI commands share error exits, compact or
+pretty JSON emission, and generated-artifact check/update/output behavior.
+Reusable WAV fixtures cover PCM16 and float32 without local RIFF builders.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

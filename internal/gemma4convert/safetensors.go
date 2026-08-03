@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -137,7 +138,7 @@ func (s *Source) openShard(path string) error {
 			return fmt.Errorf("safetensors: tensor %q has %d bytes, need %d", name, end-start, expected)
 		}
 		s.Tensors[name] = Tensor{
-			Name: name, DType: header.DType, Shape: append([]uint64(nil), header.Shape...),
+			Name: name, DType: header.DType, Shape: slices.Clone(header.Shape),
 			file: file, offset: payloadStart + int64(start), size: int64(end - start),
 		}
 	}

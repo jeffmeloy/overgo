@@ -7,6 +7,7 @@ import (
 	"image"
 	"math"
 	"runtime"
+	"slices"
 	"sync"
 
 	"llamacpp2go/internal/gguf"
@@ -114,17 +115,7 @@ func (r *Qwen3VLRunner) Close() error {
 	if r == nil {
 		return nil
 	}
-	var closeErr error
-	if r.cuda != nil {
-		closeErr = r.cuda.Close()
-		r.cuda = nil
-	}
-	if r.file == nil {
-		return closeErr
-	}
-	file := r.file
-	r.file = nil
-	return errors.Join(closeErr, file.Close())
+	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
@@ -170,7 +161,7 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 		if deepstack.Type != gguf.ValueTypeArray || deepstack.ArrayType != gguf.ValueTypeBool || !storageOK {
 			return Qwen3VLSpec{}, errors.New("projector: deepstack metadata must be a bool array")
 		}
-		deepstackLayers = append([]bool(nil), layers...)
+		deepstackLayers = slices.Clone(layers)
 	}
 	values := make([]int, 8)
 	for index, key := range []string{
@@ -329,7 +320,7 @@ func PreprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 	if options == (Qwen3VLPreprocessOptions{}) {
 		options = DefaultQwen3VLVideoPreprocessOptions()
 	}
-	padded := append([]image.Image(nil), frames...)
+	padded := slices.Clone(frames)
 	if len(padded)%2 != 0 {
 		padded = append(padded, padded[len(padded)-1])
 	}

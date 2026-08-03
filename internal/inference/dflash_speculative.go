@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -97,7 +98,7 @@ func (r *Runner) advanceDFlashVerification(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	tokens := append(append([]tokenizer.TokenID(nil), session.TargetTokens...), currentToken)
+	tokens := append(slices.Clone(session.TargetTokens), currentToken)
 	fused, err := r.FuseDFlashFeatures(ctx, features)
 	if err != nil {
 		return reference.Value{}, nil, err

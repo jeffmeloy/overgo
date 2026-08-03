@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
@@ -88,7 +89,7 @@ func (r *Runner) EmbedTokensAdvanced(
 	if len(input) == 0 {
 		return EmbeddingResult{}, errors.New("inference: embedding token list is empty")
 	}
-	ids := append([]tokenizer.TokenID(nil), input...)
+	ids := slices.Clone(input)
 	for index, id := range ids {
 		if _, ok := r.vocab.Token(id); !ok {
 			return EmbeddingResult{}, fmt.Errorf(
@@ -217,7 +218,7 @@ func (r *Runner) projectEmbeddingVectorsDevice(
 	result := make([][]float32, len(vectors))
 	for index := range result {
 		start := index * outWidth
-		result[index] = append([]float32(nil), projected.Data[start:start+outWidth]...)
+		result[index] = slices.Clone(projected.Data[start : start+outWidth])
 	}
 	return result, nil
 }
@@ -249,7 +250,7 @@ func poolEmbeddings(
 		}
 		return result, nil
 	case EmbeddingPoolingLast:
-		vector := append([]float32(nil), hidden.Data[(tokens-1)*width:]...)
+		vector := slices.Clone(hidden.Data[(tokens-1)*width:])
 		normalizeEmbedding(vector, options.Normalize)
 		return [][]float32{vector}, nil
 	case EmbeddingPoolingMean:

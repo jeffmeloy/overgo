@@ -104,7 +104,7 @@ func New(config Config) (*Sampler, error) {
 	}
 	config.Grammar = cloneGrammar(config.Grammar)
 	config.Samplers = cloneSamplerOrder(config.Samplers)
-	config.LogitBiases = append([]LogitBias(nil), config.LogitBiases...)
+	config.LogitBiases = slices.Clone(config.LogitBiases)
 	config.Infill = cloneInfillVocabulary(config.Infill)
 	if config.Samplers == nil {
 		config.Samplers = DefaultSamplerOrder()
@@ -304,7 +304,7 @@ func (s *Sampler) Config() Config {
 	result.DryBreakers = cloneBreakers(result.DryBreakers)
 	result.Grammar = cloneGrammar(result.Grammar)
 	result.Samplers = cloneSamplerOrder(result.Samplers)
-	result.LogitBiases = append([]LogitBias(nil), result.LogitBiases...)
+	result.LogitBiases = slices.Clone(result.LogitBiases)
 	result.Infill = cloneInfillVocabulary(result.Infill)
 	return result
 }
@@ -324,7 +324,7 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	if len(logits) == 0 {
 		return 0, errors.New("sampling logits are empty")
 	}
-	adjusted := append([]float32(nil), logits...)
+	adjusted := slices.Clone(logits)
 	for index, value := range adjusted {
 		if math.IsNaN(float64(value)) {
 			return 0, fmt.Errorf("sampling logit %d is NaN", index)
@@ -445,7 +445,7 @@ func (s *Sampler) SampleWithHistoryProbabilities(
 	}
 	result := s.lastProbability
 	result.Token = token
-	result.Top = append([]TokenProbability(nil), result.Top...)
+	result.Top = slices.Clone(result.Top)
 	return result, nil
 }
 
@@ -506,9 +506,19 @@ func (s *Sampler) recordCandidateProbabilities(
 }
 
 func (s *Sampler) sampleAdaptiveP(candidates []candidate) (int, float64, error) {
-	total, err := candidateProbabilities(candidates)
+	original, total, err := s.adaptiveCandidates(candidates)
 	if err != nil {
 		return 0, 0, err
+	}
+	selected := sampleCandidateIndex(s.random.Float64(), candidates, total)
+	token := candidates[selected].id
+	return token, original[token], nil
+}
+
+func (s *Sampler) adaptiveCandidates(candidates []candidate) (map[int]float64, float64, error) {
+	total, err := candidateProbabilities(candidates)
+	if err != nil {
+		return nil, 0, err
 	}
 	original := make(map[int]float64, len(candidates))
 	for _, item := range candidates {
@@ -539,12 +549,10 @@ func (s *Sampler) sampleAdaptiveP(candidates []candidate) (int, float64, error) 
 		}
 		total, err = candidateProbabilities(candidates)
 		if err != nil {
-			return 0, 0, err
+			return nil, 0, err
 		}
 	}
-	selected := sampleCandidateIndex(s.random.Float64(), candidates, total)
-	token := candidates[selected].id
-	return token, original[token], nil
+	return original, total, nil
 }
 
 func (s *Sampler) applySamplerStage(
@@ -905,8 +913,8 @@ func cloneInfillVocabulary(
 		return nil
 	}
 	return &InfillVocabulary{
-		Pieces:    append([]string(nil), vocabulary.Pieces...),
-		EOG:       append([]bool(nil), vocabulary.EOG...),
+		Pieces:    slices.Clone(vocabulary.Pieces),
+		EOG:       slices.Clone(vocabulary.EOG),
 		EOT:       vocabulary.EOT,
 		EOS:       vocabulary.EOS,
 		signature: vocabulary.signature,
@@ -1216,7 +1224,7 @@ func sampleCandidateIndex(random float64, candidates []candidate, total float64)
 }
 
 func (s *Sampler) applyPenalties(logits []float32, history []int) ([]float32, error) {
-	adjusted := append([]float32(nil), logits...)
+	adjusted := slices.Clone(logits)
 	for index, value := range adjusted {
 		if math.IsNaN(float64(value)) {
 			return nil, fmt.Errorf("sampling logit %d is NaN", index)
@@ -1372,7 +1380,7 @@ func cloneBreakers(breakers [][]int) [][]int {
 	}
 	result := make([][]int, len(breakers))
 	for index, breaker := range breakers {
-		result[index] = append([]int(nil), breaker...)
+		result[index] = slices.Clone(breaker)
 	}
 	return result
 }

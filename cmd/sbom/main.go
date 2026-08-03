@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"llamacpp2go/internal/clioptions"
 )
 
 const (
@@ -38,38 +40,25 @@ type module struct {
 }
 
 func main() {
+	clioptions.Main(run)
+}
+
+func run() error {
 	check := flag.Bool("check", false, "verify SBOM.cdx.json is current")
 	update := flag.Bool("update", false, "write generated SBOM.cdx.json")
 	flag.Parse()
 	if flag.NArg() != 0 || *check && *update {
-		fmt.Fprintln(os.Stderr, "usage: sbom [-check|-update]")
-		os.Exit(1)
+		return errors.New("usage: sbom [-check|-update]")
 	}
 	data, err := generate(".")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
-	if *check {
-		current, readErr := os.ReadFile(sbomPath)
-		if readErr != nil {
-			fmt.Fprintln(os.Stderr, readErr)
-			os.Exit(1)
-		}
-		if !bytes.Equal(current, data) {
-			fmt.Fprintln(os.Stderr, "SBOM.cdx.json is stale; regenerate with: go run ./cmd/sbom -update")
-			os.Exit(1)
-		}
-		return
-	}
-	if *update {
-		if err := os.WriteFile(sbomPath, data, 0o644); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-	_, _ = os.Stdout.Write(data)
+	return clioptions.OutputGenerated(
+		data, sbomPath, *check, *update,
+		"SBOM.cdx.json is stale; regenerate with: go run ./cmd/sbom -update",
+		os.Stdout,
+	)
 }
 
 func generate(root string) ([]byte, error) {

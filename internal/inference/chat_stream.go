@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -43,7 +44,7 @@ func NewChatOutputStream(
 ) ChatOutputStream {
 	return &chatOutputStream{
 		template: template,
-		tools:    append([]ChatTool(nil), tools...),
+		tools:    slices.Clone(tools),
 	}
 }
 

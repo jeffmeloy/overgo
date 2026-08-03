@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -284,7 +285,7 @@ func (converter *schemaConverter) visit(schema orderedJSONObject, name string) (
 				return "", fmt.Errorf("type alternative %d is not a string", index)
 			}
 			copySchema := schema
-			copySchema.Members = append([]orderedJSONMember(nil), schema.Members...)
+			copySchema.Members = slices.Clone(schema.Members)
 			for memberIndex := range copySchema.Members {
 				if copySchema.Members[memberIndex].Name == "type" {
 					copySchema.Members[memberIndex].Value = itemType

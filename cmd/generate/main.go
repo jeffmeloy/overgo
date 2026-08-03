@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -35,10 +34,7 @@ func (values *stringListFlag) Set(value string) error {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(run)
 }
 
 func run() error {
@@ -353,7 +349,5 @@ func run() error {
 		IDs:  ids,
 		Text: text,
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
+	return clioptions.WritePrettyJSON(os.Stdout, result)
 }

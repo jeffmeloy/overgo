@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -135,7 +136,7 @@ func (p *ResponseFilePolicy) ResolveResponseFile(id string) (ResponseFile, bool)
 	if !ok {
 		return ResponseFile{}, false
 	}
-	file.Data = append([]byte(nil), file.Data...)
+	file.Data = slices.Clone(file.Data)
 	return file, true
 }
 

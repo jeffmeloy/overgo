@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
 	"llamacpp2go/internal/model"
@@ -254,7 +255,7 @@ func (r *Runner) LoRAAdapters() []LoRAAdapterInfo {
 	for index, loaded := range r.loraAdapters {
 		result[index] = LoRAAdapterInfo{
 			ID: index, Path: loaded.adapter.Path, Scale: loaded.scale,
-			ALoRAInvocationTokens: append([]uint32(nil), loaded.adapter.InvocationTokens...),
+			ALoRAInvocationTokens: slices.Clone(loaded.adapter.InvocationTokens),
 		}
 	}
 	return result

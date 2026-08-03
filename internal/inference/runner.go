@@ -255,7 +255,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		if loadErr != nil {
 			return fail(loadErr)
 		}
-		outputBias = append([]float32(nil), value.Data...)
+		outputBias = slices.Clone(value.Data)
 	}
 	var cuda *executor.Executor
 	var worker *device.Worker
@@ -1175,7 +1175,7 @@ func (r *Runner) forwardCachedWithProjectedInputsLocked(
 }
 
 func validateVisualExpertBlocks(tokenCount int, blocks []AttentionBlock, overrides []EmbeddingOverride) ([]AttentionBlock, error) {
-	ordered := append([]AttentionBlock(nil), blocks...)
+	ordered := slices.Clone(blocks)
 	slices.SortFunc(ordered, func(a, b AttentionBlock) int { return cmp.Compare(a.Start, b.Start) })
 	expected := 0
 	previousEnd := uint32(0)
@@ -1334,7 +1334,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if graniteDeepstack {
 		deepstackBase = reference.Value{
 			Shape: activation.Shape,
-			Data:  append([]float32(nil), activation.Data...),
+			Data:  slices.Clone(activation.Data),
 		}
 		if err := applyEmbeddingOverrides(&deepstackBase, overrides); err != nil {
 			return reference.Value{}, nil, err
@@ -2709,7 +2709,7 @@ func (r *Runner) Generate(
 		if err != nil {
 			return nil, "", err
 		}
-		ids := append(append([]tokenizer.TokenID(nil), sourceIDs...), generated...)
+		ids := append(slices.Clone(sourceIDs), generated...)
 		text, err := r.vocab.Decode(ids, false)
 		return ids, text, err
 	}
@@ -2958,7 +2958,7 @@ func (r *Runner) Generate(
 		}
 		if options.CachePrompt {
 			nextPromptCache := &cachedPrompt{
-				Tokens:              append([]tokenizer.TokenID(nil), ids...),
+				Tokens:              slices.Clone(ids),
 				Hidden:              hidden,
 				Cache:               cache,
 				Device:              deviceCache,
@@ -3169,7 +3169,7 @@ func (r *Runner) promptTokenIDs(prompt string, options GenerateOptions) ([]token
 	if len(options.PromptTokenIDs) == 0 {
 		return nil, errors.New("inference: exact prompt token list is empty")
 	}
-	ids := append([]tokenizer.TokenID(nil), options.PromptTokenIDs...)
+	ids := slices.Clone(options.PromptTokenIDs)
 	for index, id := range ids {
 		if _, ok := r.vocab.Token(id); !ok {
 			return nil, fmt.Errorf(
@@ -3605,7 +3605,7 @@ func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Val
 	}
 	output := reference.Value{
 		Shape: activation.Shape,
-		Data:  append([]float32(nil), activation.Data...),
+		Data:  slices.Clone(activation.Data),
 	}
 	for index, value := range deepstack.Data {
 		output.Data[index] += value
@@ -3615,7 +3615,7 @@ func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Val
 
 func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	result := make(map[string]struct{})
-	layers := append([]model.LayerWeights(nil), weights.Layers...)
+	layers := slices.Clone(weights.Layers)
 	for _, mtp := range weights.Step35MTP {
 		layers = append(layers, mtp.Layer)
 	}

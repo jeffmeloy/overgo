@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
@@ -46,7 +47,7 @@ func (r *Runner) NewNextNMTPSession(
 		width := int(cache.DSATopK.Shape.Dims[0])
 		value := reference.Value{
 			Shape: tensor.MustShape(uint64(width), 1),
-			Data:  append([]float32(nil), cache.DSATopK.Data[len(cache.DSATopK.Data)-width:]...),
+			Data:  slices.Clone(cache.DSATopK.Data[len(cache.DSATopK.Data)-width:]),
 		}
 		session.Layer.Auxiliary = &value
 	}

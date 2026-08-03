@@ -3,6 +3,8 @@ package sampling
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 )
 
 // TokenGrammar: deterministic token-level grammar; transition value of
@@ -127,13 +129,10 @@ func cloneGrammar(grammar *TokenGrammar) *TokenGrammar {
 		Start:          grammar.Start,
 		VocabularySize: grammar.VocabularySize,
 		Transitions:    make([]map[int]int, len(grammar.Transitions)),
-		Accepting:      append([]bool(nil), grammar.Accepting...),
+		Accepting:      slices.Clone(grammar.Accepting),
 	}
 	for state := range grammar.Transitions {
-		result.Transitions[state] = make(map[int]int, len(grammar.Transitions[state]))
-		for token, next := range grammar.Transitions[state] {
-			result.Transitions[state][token] = next
-		}
+		result.Transitions[state] = maps.Clone(grammar.Transitions[state])
 	}
 	return result
 }

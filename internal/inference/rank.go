@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/model"
@@ -152,7 +153,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 		return RankResult{}, errors.New("inference: model does not support deepstack embeddings")
 	}
 	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(
-		ctx, append([]tokenizer.TokenID(nil), input...), nil,
+		ctx, slices.Clone(input), nil,
 		inputs.EmbeddingOverrides, inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
 		inputs.BidirectionalAttentionBlocks,
 	)
@@ -171,7 +172,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 		return RankResult{}, err
 	}
 	softmaxScores(scores)
-	labels := append([]string(nil), r.spec.ClassifierLabels...)
+	labels := slices.Clone(r.spec.ClassifierLabels)
 	if len(labels) == 0 {
 		labels = make([]string, len(scores))
 		for index := range labels {
@@ -205,7 +206,7 @@ func (r *Runner) projectRankScores(ctx context.Context, hidden []float32) ([]flo
 	if err != nil {
 		return nil, err
 	}
-	return append([]float32(nil), results[output].Data...), nil
+	return slices.Clone(results[output].Data), nil
 }
 
 func softmaxScores(scores []float32) {

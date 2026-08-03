@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/tensor/dtype"
 )
@@ -1194,7 +1195,7 @@ func (b *Builder) GatherLast(input, indices *Tensor) *Tensor {
 		b.setError(errors.New("GatherLast output rank exceeds limit"))
 		return nil
 	}
-	dimensions := append([]uint64(nil), input.Shape.Slice()[:input.Shape.Rank-1]...)
+	dimensions := slices.Clone(input.Shape.Slice()[:input.Shape.Rank-1])
 	dimensions = append(dimensions, indices.Shape.Slice()...)
 	shape, err := NewShape(dimensions...)
 	if err != nil {
@@ -1783,7 +1784,7 @@ func (b *Builder) getRows(table *Tensor, rows []uint32) *Tensor {
 		b.setError(err)
 		return nil
 	}
-	attributes := GetRowsAttributes{Rows: append([]uint32(nil), rows...)}
+	attributes := GetRowsAttributes{Rows: slices.Clone(rows)}
 	outputType := table.Type
 	if nativeQuantizedType(table.Type) {
 		outputType = dtype.F32
@@ -2047,7 +2048,7 @@ func (b *Builder) RoPEMultiScaled(
 		FrequencyScale:   frequencyScale,
 	}
 	for axis := range positions {
-		attributes.Positions[axis] = append([]uint32(nil), positions[axis]...)
+		attributes.Positions[axis] = slices.Clone(positions[axis])
 	}
 	return b.add("", input.Type, input.Shape, OpRoPEMulti, []*Tensor{input}, attributes)
 }
@@ -2102,7 +2103,7 @@ func (b *Builder) rope(
 		}
 	}
 	attributes := RoPEAttributes{
-		Positions:        append([]uint32(nil), positions...),
+		Positions:        slices.Clone(positions),
 		RotaryDimensions: rotaryDimensions,
 		FrequencyBase:    frequencyBase,
 		FrequencyScale:   frequencyScale,
@@ -2300,7 +2301,7 @@ func (b *Builder) DeepSeek4Attention(
 		}
 		inputs = append(inputs, indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm)
 	}
-	attributes.Positions = append([]uint32(nil), attributes.Positions...)
+	attributes.Positions = slices.Clone(attributes.Positions)
 	return b.add("", dtype.F32, query.Shape, OpDeepSeek4Attention, inputs, attributes)
 }
 

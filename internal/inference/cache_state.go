@@ -1,13 +1,15 @@
 package inference
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
+	"llamacpp2go/internal/checked"
 	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/statecodec"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 )
@@ -70,7 +72,7 @@ func upgradeDeepSeek4CachePositions(cache *KVCache) {
 			cache.Layers[index].States = make(map[string]LayerState)
 		}
 		cache.Layers[index].States["positions"] = LayerState{
-			Mode: CacheStateToken, Value: reference.Value{Shape: shape, Data: append([]float32(nil), data...)},
+			Mode: CacheStateToken, Value: reference.Value{Shape: shape, Data: slices.Clone(data)},
 		}
 	}
 }
@@ -182,7 +184,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				}
 			}
 			if index == 0 {
-				deepSeekPositions = append([]float32(nil), positions...)
+				deepSeekPositions = slices.Clone(positions)
 			} else {
 				for item := range positions {
 					if positions[item] != deepSeekPositions[item] {
@@ -775,10 +777,11 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 		if len(layer.States) > maxLayerCacheStates-2 {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count exceeds limit", index)
 		}
-		if total > math.MaxUint64-4 {
+		var ok bool
+		total, ok = checked.Add64(total, 4)
+		if !ok {
 			return nil, errors.New("inference: KV cache state size overflows")
 		}
-		total += 4
 		records := cacheLayerRecords(layer)
 		for _, record := range records {
 			if record.mode != 0 {
@@ -790,38 +793,35 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 			} else if err := validateStateValue(record.value); err != nil {
 				return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, record.name, err)
 			}
-			bytes := uint64(len(record.value.Data)) * 4
-			recordSize := uint64(8+len(record.name)) + 44 + bytes
-			if total > math.MaxUint64-recordSize {
+			bytes, ok := checked.Bytes(uint64(len(record.value.Data)), 4)
+			recordSize, okSize := checked.Add64(8, uint64(len(record.name)), 44, bytes)
+			if !ok || !okSize {
 				return nil, errors.New("inference: KV cache state size overflows")
 			}
-			total += recordSize
+			total, ok = checked.Add64(total, recordSize)
+			if !ok {
+				return nil, errors.New("inference: KV cache state size overflows")
+			}
 		}
 	}
 	if total > uint64(math.MaxInt) {
 		return nil, errors.New("inference: KV cache state exceeds addressable memory")
 	}
-	output := make([]byte, int(total))
-	copy(output, cacheStateMagic)
-	binary.LittleEndian.PutUint32(output[8:], cache.Tokens)
-	binary.LittleEndian.PutUint32(output[12:], effectiveCachePosition(cache))
-	binary.LittleEndian.PutUint32(output[16:], uint32(len(cache.Layers)))
-	offset := cacheStateHeaderSize
+	encoder := statecodec.NewEncoderCapacity(uint64(math.MaxInt), total)
+	encoder.Raw([]byte(cacheStateMagic))
+	encoder.U32(cache.Tokens)
+	encoder.U32(effectiveCachePosition(cache))
+	encoder.U32(uint32(len(cache.Layers)))
 	for _, layer := range cache.Layers {
 		records := cacheLayerRecords(layer)
-		binary.LittleEndian.PutUint32(output[offset:], uint32(len(records)))
-		offset += 4
+		encoder.U32(uint32(len(records)))
 		for _, record := range records {
-			binary.LittleEndian.PutUint32(output[offset:], uint32(len(record.name)))
-			offset += 4
-			copy(output[offset:], record.name)
-			offset += len(record.name)
-			binary.LittleEndian.PutUint32(output[offset:], uint32(record.mode))
-			offset += 4
-			writeCacheValue(output, &offset, record.value)
+			encoder.String32(record.name)
+			encoder.U32(uint32(record.mode))
+			writeCacheValue(encoder, record.value)
 		}
 	}
-	return output, nil
+	return encoder.Data()
 }
 
 type cacheLayerRecord struct {
@@ -848,42 +848,34 @@ func cacheLayerRecords(layer LayerCache) []cacheLayerRecord {
 	return records
 }
 
-func writeCacheValue(output []byte, offset *int, value reference.Value) {
-	binary.LittleEndian.PutUint32(output[*offset:], uint32(value.Shape.Rank))
-	*offset += 4
+func writeCacheValue(encoder *statecodec.Encoder, value reference.Value) {
+	encoder.U32(uint32(value.Shape.Rank))
 	for _, dimension := range value.Shape.Dims {
-		binary.LittleEndian.PutUint64(output[*offset:], dimension)
-		*offset += 8
+		encoder.U64(dimension)
 	}
-	binary.LittleEndian.PutUint64(output[*offset:], uint64(len(value.Data)))
-	*offset += 8
+	encoder.U64(uint64(len(value.Data)))
 	for _, item := range value.Data {
-		binary.LittleEndian.PutUint32(output[*offset:], math.Float32bits(item))
-		*offset += 4
+		encoder.F32(item)
 	}
 }
 
 func unmarshalCache(data []byte) (*KVCache, error) {
-	if len(data) < legacyCacheHeaderSize {
-		return nil, errors.New("inference: KV cache state is truncated")
-	}
-	magic := string(data[:8])
+	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
+	magic := string(decoder.Raw(8))
 	if magic != cacheStateMagic && magic != cacheStateV2Magic && magic != legacyCacheStateMagic {
 		return nil, errors.New("inference: KV cache state has invalid magic or version")
 	}
-	tokens := binary.LittleEndian.Uint32(data[8:])
+	tokens := decoder.U32()
 	position := tokens
-	headerSize := legacyCacheHeaderSize
 	var layers uint32
 	if magic == cacheStateMagic || magic == cacheStateV2Magic {
-		if len(data) < cacheStateHeaderSize {
-			return nil, errors.New("inference: KV cache state is truncated")
-		}
-		position = binary.LittleEndian.Uint32(data[12:])
-		layers = binary.LittleEndian.Uint32(data[16:])
-		headerSize = cacheStateHeaderSize
+		position = decoder.U32()
+		layers = decoder.U32()
 	} else {
-		layers = binary.LittleEndian.Uint32(data[12:])
+		layers = decoder.U32()
+	}
+	if decoder.Err() != nil {
+		return nil, errors.New("inference: KV cache state is truncated")
 	}
 	if layers > maxCacheStateLayers {
 		return nil, errors.New("inference: KV cache state layer count exceeds limit")
@@ -896,25 +888,18 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 	if result.Position == 0 && result.Tokens != 0 {
 		result.Position = result.Tokens
 	}
-	offset := headerSize
 	readValue := func() (reference.Value, error) {
-		const header = 44
-		if len(data)-offset < header {
-			return reference.Value{}, errors.New("inference: KV cache tensor header is truncated")
-		}
-		rank := binary.LittleEndian.Uint32(data[offset:])
-		offset += 4
+		rank := decoder.U32()
 		if rank == 0 || rank > tensor.MaxDimensions {
 			return reference.Value{}, fmt.Errorf("inference: KV cache tensor rank %d is invalid", rank)
 		}
 		dimensions := make([]uint64, tensor.MaxDimensions)
 		for index := range tensor.MaxDimensions {
-			dimensions[index] = binary.LittleEndian.Uint64(data[offset:])
-			offset += 8
+			dimensions[index] = decoder.U64()
 		}
-		count := binary.LittleEndian.Uint64(data[offset:])
-		offset += 8
-		if count > uint64(math.MaxInt) || count > uint64((len(data)-offset)/4) {
+		count := decoder.U64()
+		bytes, ok := checked.Bytes(count, 4)
+		if decoder.Err() != nil || !ok || count > uint64(math.MaxInt) || bytes > decoder.Remaining() {
 			return reference.Value{}, errors.New("inference: KV cache tensor data is truncated or too large")
 		}
 		shape, err := tensor.NewShape(dimensions[:rank]...)
@@ -927,8 +912,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		}
 		values := make([]float32, int(count))
 		for index := range values {
-			values[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[offset:]))
-			offset += 4
+			values[index] = decoder.F32()
 		}
 		return reference.Value{Shape: shape, Data: values}, nil
 	}
@@ -945,27 +929,20 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 			result.Layers[index] = LayerCache{Key: key, Value: value}
 			continue
 		}
-		if len(data)-offset < 4 {
+		stateCount := decoder.U32()
+		if decoder.Err() != nil {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count is truncated", index)
 		}
-		stateCount := binary.LittleEndian.Uint32(data[offset:])
-		offset += 4
 		if stateCount < 2 || stateCount > maxLayerCacheStates {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count %d is invalid", index, stateCount)
 		}
 		seen := make(map[string]struct{}, int(stateCount))
 		layer := LayerCache{}
 		for stateIndex := uint32(0); stateIndex < stateCount; stateIndex++ {
-			if len(data)-offset < 4 {
-				return nil, fmt.Errorf("inference: KV cache layer %d state name is truncated", index)
+			name := decoder.String32(maxCacheStateName)
+			if decoder.Err() != nil || name == "" {
+				return nil, fmt.Errorf("inference: KV cache layer %d state name is invalid", index)
 			}
-			nameLength := binary.LittleEndian.Uint32(data[offset:])
-			offset += 4
-			if nameLength == 0 || nameLength > maxCacheStateName || uint64(nameLength) > uint64(len(data)-offset) {
-				return nil, fmt.Errorf("inference: KV cache layer %d state name length %d is invalid", index, nameLength)
-			}
-			name := string(data[offset : offset+int(nameLength)])
-			offset += int(nameLength)
 			if !validCacheStateName(name) {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name %q is invalid", index, name)
 			}
@@ -973,11 +950,10 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name %q is duplicated", index, name)
 			}
 			seen[name] = struct{}{}
-			if len(data)-offset < 4 {
+			mode := CacheStateMode(decoder.U32())
+			if decoder.Err() != nil {
 				return nil, fmt.Errorf("inference: KV cache layer %d state %q mode is truncated", index, name)
 			}
-			mode := CacheStateMode(binary.LittleEndian.Uint32(data[offset:]))
-			offset += 4
 			value, err := readValue()
 			if err != nil {
 				return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
@@ -1012,7 +988,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		}
 		result.Layers[index] = layer
 	}
-	if offset != len(data) {
+	if err := decoder.Done(); err != nil {
 		return nil, errors.New("inference: KV cache state has trailing data")
 	}
 	return result, nil

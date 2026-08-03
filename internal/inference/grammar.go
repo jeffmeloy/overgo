@@ -3,6 +3,7 @@ package inference
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
@@ -85,7 +86,7 @@ func (r *Runner) CompileLazyGBNF(
 	}
 	return r.compileGBNF(source, root, sampling.GBNFLazyOptions{
 		Enabled:  true,
-		Patterns: append([]string(nil), patterns...),
+		Patterns: slices.Clone(patterns),
 		Tokens:   tokens,
 	})
 }

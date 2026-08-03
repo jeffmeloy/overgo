@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 )
@@ -26,9 +26,7 @@ func run(arguments []string) error {
 	if _, err := model.ReadWeights(file, spec); err != nil {
 		return err
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(spec)
+	return clioptions.WritePrettyJSON(os.Stdout, spec)
 }
 
 func main() {

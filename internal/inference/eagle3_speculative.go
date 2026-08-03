@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -80,7 +81,7 @@ func (r *Runner) advanceEagle3Verification(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	tokens := append(append([]tokenizer.TokenID(nil), session.TargetTokens...), currentToken)
+	tokens := append(slices.Clone(session.TargetTokens), currentToken)
 	fused, err := r.FuseEagle3Features(ctx, features)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -90,7 +91,7 @@ func (r *Runner) advanceEagle3Verification(
 	next.TargetTokens = tokens
 	next.PendingFeature = reference.Value{
 		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), fused.Data[len(fused.Data)-width:]...),
+		Data:  slices.Clone(fused.Data[len(fused.Data)-width:]),
 	}
 	return logits, next, nil
 }

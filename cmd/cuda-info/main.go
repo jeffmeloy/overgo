@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/cuda/driver"
 )
 
@@ -44,9 +44,7 @@ func run() error {
 		result.Devices = append(result.Devices, info)
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
+	return clioptions.WritePrettyJSON(os.Stdout, result)
 }
 
 func main() {

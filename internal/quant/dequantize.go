@@ -42,8 +42,7 @@ func Dequantize(dataType dtype.Type, source []byte, elements uint64) ([]float32,
 		}
 	case dtype.BF16:
 		for index := range output {
-			bits := uint32(binary.LittleEndian.Uint16(source[index*2:])) << 16
-			output[index] = math.Float32frombits(bits)
+			output[index] = dtype.BF16ToFloat32(binary.LittleEndian.Uint16(source[index*2:]))
 		}
 	case dtype.I8:
 		for index := range output {

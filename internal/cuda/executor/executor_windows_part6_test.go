@@ -394,7 +394,7 @@ func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 		if allocateErr != nil {
 			return allocateErr
 		}
-		return state.Driver.MemcpyHtoD(pointer, float32Bytes(leftData))
+		return state.Driver.MemcpyHtoD(pointer, driver.Bytes(leftData))
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -29,6 +29,9 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Sampler, KV-cache, and all MTP/session persistence now share bounded state encoding, checked sizing, legacy-version reads, and trailing-data enforcement.
+- Standard slice/map cloning replaced 140 handwritten copy idioms; BF16 conversion, CUDA host scalar views, and adaptive-p transforms now each have one implementation.
+- Projector resource closure and host tensor-pair loading are shared across all multimodal runners; commands share error exits, JSON output, and generated-artifact workflows.
 - Narrow shared packages now own checked arithmetic/alignment, bounded state envelopes, strict JSON decoding, graph feeds, tensor catalog validation, reference-value copies/slices, media codecs, and reusable fixtures.
 - Generation, T5, and MTP state persistence share one bounded codec; server and CLI JSON inputs share one strict single-document policy.
 - Inference and projector execution share a graph-feed substrate; model and projector catalogs share neutral tensor-requirement validation.

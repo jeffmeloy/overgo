@@ -26,10 +26,7 @@ type cliConfig struct {
 }
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(func() error { return run(os.Args[1:], os.Stdout, os.Stderr) })
 }
 
 func run(arguments []string, stdout, stderr io.Writer) error {

@@ -3,6 +3,7 @@ package reference
 import (
 	"errors"
 	"math"
+	"slices"
 	"sort"
 
 	"llamacpp2go/internal/tensor"
@@ -380,7 +381,7 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 			for item, blockIndex := range visibleCompressed {
 				var score float64
 				for head := uint32(0); head < attributes.IndexerHeads; head++ {
-					queryVector := append([]float32(nil), inputs[7].Data[int((token*attributes.IndexerHeads+head)*indexerWidth):int((token*attributes.IndexerHeads+head+1)*indexerWidth)]...)
+					queryVector := slices.Clone(inputs[7].Data[int((token*attributes.IndexerHeads+head)*indexerWidth):int((token*attributes.IndexerHeads+head+1)*indexerWidth)])
 					deepSeek4RotateTail(queryVector, position, false, attributes)
 					deepSeek4FWHT(queryVector)
 					var dot float64
@@ -410,7 +411,7 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 		rawLast := position + 1
 		for head := uint32(0); head < heads; head++ {
 			queryBase := int((token*heads + head) * width)
-			queryVector := append([]float32(nil), query.Data[queryBase:queryBase+int(width)]...)
+			queryVector := slices.Clone(query.Data[queryBase : queryBase+int(width)])
 			deepSeek4RotateTail(queryVector, position, false, attributes)
 			maximum := float64(sinks.Data[head])
 			type candidate struct {
@@ -432,7 +433,7 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 					continue
 				}
 				base := row * int(width)
-				raw := append([]float32(nil), cache.Data[base:base+int(width)]...)
+				raw := slices.Clone(cache.Data[base : base+int(width)])
 				deepSeek4RotateTail(raw, rawPosition, false, attributes)
 				add(raw)
 			}

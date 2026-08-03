@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -99,7 +100,7 @@ func (r *Runner) GenerateT5(
 		}
 		if options.CachePrompt {
 			if err := r.storePromptCache(ctx, &cachedPrompt{
-				Tokens:        append([]tokenizer.TokenID(nil), sourceIDs...),
+				Tokens:        slices.Clone(sourceIDs),
 				Hidden:        encoder,
 				LoRASignature: r.currentLoRASignature(),
 			}); err != nil {

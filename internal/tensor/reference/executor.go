@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
@@ -23,7 +24,7 @@ func NewValue(shape tensor.Shape, data []float32) (Value, error) {
 	if elements != uint64(len(data)) {
 		return Value{}, fmt.Errorf("reference data has %d elements, need %d", len(data), elements)
 	}
-	copied := append([]float32(nil), data...)
+	copied := slices.Clone(data)
 	return Value{Shape: shape, Data: copied}, nil
 }
 
@@ -115,12 +116,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpBF16Round:
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {
-			raw := math.Float32bits(value)
-			if raw&0x7f800000 != 0x7f800000 {
-				raw += 0x7fff + ((raw >> 16) & 1)
-				value = math.Float32frombits(raw & 0xffff0000)
-			}
-			output[i] = value
+			output[i] = dtype.RoundBF16(value)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpRMSNorm:
@@ -353,7 +349,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		}
 		return ropeMulti(node.Shape, inputs[0], attributes)
 	case tensor.OpReshape:
-		return Value{Shape: node.Shape, Data: append([]float32(nil), inputs[0].Data...)}, nil
+		return Value{Shape: node.Shape, Data: slices.Clone(inputs[0].Data)}, nil
 	case tensor.OpAttention:
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 		if !ok {
@@ -386,7 +382,7 @@ func loraMerge(shape tensor.Shape, inputs []Value, attributes tensor.LoRAMergeAt
 		return Value{}, errors.New("LoRA merge input count is invalid")
 	}
 	base := inputs[0]
-	output := append([]float32(nil), base.Data...)
+	output := slices.Clone(base.Data)
 	k, m, groups := int(shape.Dims[0]), int(shape.Dims[1]), 1
 	if shape.Rank == 3 {
 		groups = int(shape.Dims[2])
@@ -1152,7 +1148,7 @@ func flatSlice(
 	start := int(attributes.Offset)
 	return Value{
 		Shape: shape,
-		Data:  append([]float32(nil), input.Data[start:start+int(elements)]...),
+		Data:  slices.Clone(input.Data[start : start+int(elements)]),
 	}, nil
 }
 
@@ -1262,7 +1258,7 @@ func ropeNeoX(shape tensor.Shape, inputs []Value, attributes tensor.RoPENeoXAttr
 	if err != nil {
 		return Value{}, err
 	}
-	output := append([]float32(nil), input.Data...)
+	output := slices.Clone(input.Data)
 	half := rotary / 2
 	for batch := 0; batch < batches; batch++ {
 		for tokenIndex, position := range attributes.Positions {
@@ -1298,7 +1294,7 @@ func ropeNormal(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttrib
 	if err != nil {
 		return Value{}, err
 	}
-	output := append([]float32(nil), input.Data...)
+	output := slices.Clone(input.Data)
 	for batch := 0; batch < batches; batch++ {
 		for tokenIndex, position := range attributes.Positions {
 			for head := 0; head < heads; head++ {
@@ -1391,7 +1387,7 @@ func ropeMulti(
 		sectionPairs <= 0 {
 		return Value{}, errors.New("invalid rope_multi dimensions")
 	}
-	output := append([]float32(nil), input.Data...)
+	output := slices.Clone(input.Data)
 	for batch := range batches {
 		for token := range tokens {
 			for head := range heads {
@@ -1702,7 +1698,7 @@ func fwht(shape tensor.Shape, input Value) (Value, error) {
 	if width == 0 || width&(width-1) != 0 || len(input.Data)%width != 0 {
 		return Value{}, errors.New("invalid FWHT dimensions")
 	}
-	output := append([]float32(nil), input.Data...)
+	output := slices.Clone(input.Data)
 	for row := 0; row < len(output); row += width {
 		for stride := 1; stride < width; stride *= 2 {
 			for base := 0; base < width; base += 2 * stride {

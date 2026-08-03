@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
@@ -52,7 +53,7 @@ func (r *Runner) NewDFlashSession(
 	}
 	return &DFlashSession{
 		Cache: cache, TargetCache: targetCache,
-		TargetTokens: append([]tokenizer.TokenID(nil), tokenIDs...), Position: position,
+		TargetTokens: slices.Clone(tokenIDs), Position: position,
 	}, nil
 }
 
@@ -176,7 +177,7 @@ func (r *Runner) SyncDFlashPrefix(
 	featureWidth := int(features.Shape.Dims[0])
 	features = reference.Value{
 		Shape: tensor.MustShape(features.Shape.Dims[0], uint64(len(tokenIDs)-start)),
-		Data:  append([]float32(nil), features.Data[start*featureWidth:]...),
+		Data:  slices.Clone(features.Data[start*featureWidth:]),
 	}
 	fused, err := r.FuseDFlashFeatures(ctx, features)
 	if err != nil {

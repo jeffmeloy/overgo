@@ -140,7 +140,7 @@ func lastHiddenColumn(hidden reference.Value) reference.Value {
 	width := int(hidden.Shape.Dims[0])
 	return reference.Value{
 		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  append([]float32(nil), hidden.Data[len(hidden.Data)-width:]...),
+		Data:  slices.Clone(hidden.Data[len(hidden.Data)-width:]),
 	}
 }
 

@@ -1,21 +1,17 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"os"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tokenizer"
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(run)
 }
 
 func run() error {
@@ -56,5 +52,5 @@ func run() error {
 		token, _ := vocab.Token(id)
 		result.Pieces[i] = token.Text
 	}
-	return json.NewEncoder(os.Stdout).Encode(result)
+	return clioptions.WriteJSON(os.Stdout, result)
 }

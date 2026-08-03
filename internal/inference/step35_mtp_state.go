@@ -1,11 +1,12 @@
 package inference
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 
+	"llamacpp2go/internal/checked"
+	"llamacpp2go/internal/statecodec"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -63,42 +64,42 @@ func (r *Runner) saveMultiHeadMTPSession(session *Step35MTPSession) ([]byte, err
 		return nil, errors.New("inference: Step3.5 MTP session belongs to a different target model")
 	}
 	width := uint64(r.spec.EmbeddingLength)
-	hiddenBytes := (uint64(1) + uint64(len(session.DraftHidden))) * width * 4
-	tokenBytes := uint64(len(session.DraftTokens)) * 4
-	total := uint64(step35MTPStateHeader) + hiddenBytes + tokenBytes +
-		uint64(len(trunkData)) + uint64(len(headData))
-	if total > uint64(math.MaxInt) {
+	hiddenCount, ok := checked.Add64(1, uint64(len(session.DraftHidden)))
+	hiddenElements, okElements := checked.Mul64(hiddenCount, width)
+	hiddenBytes, okBytes := checked.Mul64(hiddenElements, 4)
+	tokenBytes, okTokens := checked.Mul64(uint64(len(session.DraftTokens)), 4)
+	total, okTotal := checked.Add64(
+		uint64(step35MTPStateHeader), hiddenBytes, tokenBytes,
+		uint64(len(trunkData)), uint64(len(headData)),
+	)
+	if !ok || !okElements || !okBytes || !okTokens || !okTotal || total > uint64(math.MaxInt) {
 		return nil, errors.New("inference: Step3.5 MTP state exceeds addressable memory")
 	}
-	output := make([]byte, int(total))
-	copy(output, step35MTPStateMagic)
-	copy(output[8:40], draftModel[:])
-	copy(output[40:72], session.targetModel[:])
-	binary.LittleEndian.PutUint32(output[72:], session.MTPStart)
-	binary.LittleEndian.PutUint32(output[76:], session.Position)
-	binary.LittleEndian.PutUint32(output[80:], uint32(len(session.Heads)))
-	binary.LittleEndian.PutUint32(output[84:], uint32(len(session.DraftTokens)))
-	binary.LittleEndian.PutUint64(output[88:], uint64(len(trunkData)))
-	binary.LittleEndian.PutUint64(output[96:], uint64(len(headData)))
-	offset := step35MTPStateHeader
+	encoder := statecodec.NewEncoderCapacity(uint64(math.MaxInt), total)
+	encoder.Raw([]byte(step35MTPStateMagic))
+	encoder.Raw(draftModel[:])
+	encoder.Raw(session.targetModel[:])
+	encoder.U32(session.MTPStart)
+	encoder.U32(session.Position)
+	encoder.U32(uint32(len(session.Heads)))
+	encoder.U32(uint32(len(session.DraftTokens)))
+	encoder.U64(uint64(len(trunkData)))
+	encoder.U64(uint64(len(headData)))
 	writeHidden := func(hidden reference.Value) {
 		for _, value := range hidden.Data {
-			binary.LittleEndian.PutUint32(output[offset:], math.Float32bits(value))
-			offset += 4
+			encoder.F32(value)
 		}
 	}
 	writeHidden(session.PendingHidden)
 	for _, token := range session.DraftTokens {
-		binary.LittleEndian.PutUint32(output[offset:], uint32(int32(token)))
-		offset += 4
+		encoder.I32(int32(token))
 	}
 	for _, hidden := range session.DraftHidden {
 		writeHidden(hidden)
 	}
-	copy(output[offset:], trunkData)
-	offset += len(trunkData)
-	copy(output[offset:], headData)
-	return output, nil
+	encoder.Raw(trunkData)
+	encoder.Raw(headData)
+	return encoder.Data()
 }
 
 // LoadStep35MTPSession: bounded multi-head restore.
@@ -124,54 +125,53 @@ func (r *Runner) loadMultiHeadMTPSession(data []byte) (*Step35MTPSession, error)
 	if err := r.validateMultiHeadMTP(); err != nil {
 		return nil, err
 	}
-	if len(data) < step35MTPStateHeader {
-		return nil, errors.New("inference: Step3.5 MTP state is truncated")
-	}
-	if string(data[:8]) != step35MTPStateMagic {
+	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
+	if string(decoder.Raw(8)) != step35MTPStateMagic {
 		return nil, errors.New("inference: Step3.5 MTP state has invalid magic or version")
 	}
 	draftModel, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
 	}
-	if string(data[8:40]) != string(draftModel[:]) {
+	if string(decoder.Raw(32)) != string(draftModel[:]) {
 		return nil, errors.New("inference: Step3.5 MTP state belongs to a different model")
 	}
 	var targetModel [32]byte
-	copy(targetModel[:], data[40:72])
+	copy(targetModel[:], decoder.Raw(32))
 	if targetModel == [32]byte{} {
 		return nil, errors.New("inference: Step3.5 MTP state target binding is invalid")
 	}
 	if targetModel != draftModel {
 		return nil, errors.New("inference: Step3.5 MTP state belongs to a different target model")
 	}
-	mtpStart := binary.LittleEndian.Uint32(data[72:])
-	position := binary.LittleEndian.Uint32(data[76:])
-	headCount := binary.LittleEndian.Uint32(data[80:])
-	draftCount := binary.LittleEndian.Uint32(data[84:])
-	trunkLength := binary.LittleEndian.Uint64(data[88:])
-	headLength := binary.LittleEndian.Uint64(data[96:])
+	mtpStart := decoder.U32()
+	position := decoder.U32()
+	headCount := decoder.U32()
+	draftCount := decoder.U32()
+	trunkLength := decoder.U64()
+	headLength := decoder.U64()
+	if decoder.Err() != nil {
+		return nil, errors.New("inference: Step3.5 MTP state is truncated")
+	}
 	if headCount != uint32(len(r.multiHeadMTPWeights())) || draftCount > headCount ||
 		position != mtpStart+draftCount || position == math.MaxUint32 || trunkLength == 0 || headLength == 0 {
 		return nil, errors.New("inference: Step3.5 MTP state metadata is invalid")
 	}
 	width := uint64(r.spec.EmbeddingLength)
-	hiddenBytes := (uint64(1) + uint64(draftCount)) * width * 4
-	tokenBytes := uint64(draftCount) * 4
-	payload := uint64(len(data) - step35MTPStateHeader)
-	if hiddenBytes > payload || tokenBytes > payload-hiddenBytes ||
-		trunkLength > payload-hiddenBytes-tokenBytes ||
-		headLength != payload-hiddenBytes-tokenBytes-trunkLength {
+	hiddenCount, ok := checked.Add64(1, uint64(draftCount))
+	hiddenElements, okElements := checked.Mul64(hiddenCount, width)
+	hiddenBytes, okBytes := checked.Mul64(hiddenElements, 4)
+	tokenBytes, okTokens := checked.Mul64(uint64(draftCount), 4)
+	payload, okPayload := checked.Add64(hiddenBytes, tokenBytes, trunkLength, headLength)
+	if !ok || !okElements || !okBytes || !okTokens || !okPayload || payload != decoder.Remaining() {
 		return nil, errors.New("inference: Step3.5 MTP state payload lengths are invalid")
 	}
-	offset := step35MTPStateHeader
 	readHidden := func() reference.Value {
 		hidden := reference.Value{
 			Shape: tensor.MustShape(width, 1), Data: make([]float32, int(width)),
 		}
 		for index := range hidden.Data {
-			hidden.Data[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[offset:]))
-			offset += 4
+			hidden.Data[index] = decoder.F32()
 		}
 		return hidden
 	}
@@ -181,8 +181,7 @@ func (r *Runner) loadMultiHeadMTPSession(data []byte) (*Step35MTPSession, error)
 		draftTokens = make([]tokenizer.TokenID, int(draftCount))
 	}
 	for index := range draftTokens {
-		draftTokens[index] = tokenizer.TokenID(int32(binary.LittleEndian.Uint32(data[offset:])))
-		offset += 4
+		draftTokens[index] = tokenizer.TokenID(decoder.I32())
 	}
 	var draftHidden []reference.Value
 	if draftCount > 0 {
@@ -191,18 +190,20 @@ func (r *Runner) loadMultiHeadMTPSession(data []byte) (*Step35MTPSession, error)
 	for index := range draftHidden {
 		draftHidden[index] = readHidden()
 	}
-	trunkEnd := offset + int(trunkLength)
-	trunk, err := r.LoadCache(data[offset:trunkEnd])
+	trunk, err := r.LoadCache(decoder.Raw(trunkLength))
 	if err != nil {
 		return nil, fmt.Errorf("inference: load Step3.5 MTP trunk cache: %w", err)
 	}
-	headCache, err := unmarshalCache(data[trunkEnd:])
+	headCache, err := unmarshalCache(decoder.Raw(headLength))
 	if err != nil {
 		return nil, fmt.Errorf("inference: load Step3.5 MTP head caches: %w", err)
 	}
 	if len(headCache.Layers) != int(headCount) || headCache.Tokens != position ||
 		effectiveCachePosition(headCache) != position {
 		return nil, errors.New("inference: Step3.5 MTP head cache metadata is invalid")
+	}
+	if err := decoder.Done(); err != nil {
+		return nil, errors.New("inference: Step3.5 MTP state payload lengths are invalid")
 	}
 	session := &Step35MTPSession{
 		TrunkCache: trunk, Heads: headCache.Layers, PendingHidden: pendingHidden,

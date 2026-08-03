@@ -57,10 +57,10 @@ func VectorAdd(
 	}
 	defer lib.MemFree(pointerOutput)
 
-	if err := lib.MemcpyHtoD(pointerA, float32Bytes(inputA)); err != nil {
+	if err := lib.MemcpyHtoD(pointerA, driver.Bytes(inputA)); err != nil {
 		return nil, err
 	}
-	if err := lib.MemcpyHtoD(pointerB, float32Bytes(inputB)); err != nil {
+	if err := lib.MemcpyHtoD(pointerB, driver.Bytes(inputB)); err != nil {
 		return nil, err
 	}
 
@@ -102,15 +102,8 @@ func VectorAdd(
 		return nil, err
 	}
 	output := make([]float32, len(inputA))
-	if err := lib.MemcpyDtoH(float32Bytes(output), pointerOutput); err != nil {
+	if err := lib.MemcpyDtoH(driver.Bytes(output), pointerOutput); err != nil {
 		return nil, err
 	}
 	return output, nil
-}
-
-func float32Bytes(values []float32) []byte {
-	if len(values) == 0 {
-		return nil
-	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(&values[0])), len(values)*int(unsafe.Sizeof(values[0])))
 }

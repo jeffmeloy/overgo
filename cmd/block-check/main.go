@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
@@ -30,10 +30,7 @@ type report struct {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(run)
 }
 
 func run() error {
@@ -134,7 +131,5 @@ func run() error {
 		MaxAbsError:      maximum,
 		MeanAbsError:     sum / float64(len(want[output].Data)),
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
+	return clioptions.WritePrettyJSON(os.Stdout, result)
 }

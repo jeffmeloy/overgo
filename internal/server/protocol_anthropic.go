@@ -64,9 +64,7 @@ type anthropicResponse struct {
 }
 
 func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(ChatFormatter)
@@ -207,10 +205,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		)
 		return
 	}
-	var output strings.Builder
-	filter := newStopFilter(body.StopSequences)
-	generatedTokens := 0
-	_, _, err = h.generate(
+	_, pump, err := h.generateWithPump(
 		request.Context(),
 		slotID,
 		prepared.Text,
@@ -218,35 +213,27 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			MaxNewTokens:    *body.MaxTokens,
 			Sampler:         sampler,
 			ParseSpecial:    true,
-			StopSequences:   body.StopSequences,
 			ContextShift:    h.config.ContextShift,
 			PromptTokenIDs:  prepared.TokenIDs,
 			ProjectedInputs: prepared.ProjectedInputs,
-			OnToken: func(event inference.TokenEvent) error {
-				generatedTokens++
-				output.WriteString(filter.Accept(event.Piece))
-				return nil
-			},
 		},
+		body.StopSequences,
+		nil,
 	)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
-	output.WriteString(filter.Flush())
-	stopReason := "end_turn"
-	if !filter.Stopped() && generatedTokens >= *body.MaxTokens {
-		stopReason = "max_tokens"
-	}
+	stopReason := pump.finishReason(*body.MaxTokens, "end_turn", "max_tokens")
 	var stopSequence *string
-	if filter.Stopped() {
-		value := filter.StoppingWord()
+	if pump.stopped() {
+		value := pump.stoppingWord()
 		stopSequence = &value
 	}
-	message := inference.ChatMessage{Role: "assistant", Content: output.String()}
+	message := inference.ChatMessage{Role: "assistant", Content: pump.text()}
 	if len(toolSelection.active) != 0 || thinkingEnabled {
 		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
-			output.String(),
+			pump.text(),
 			toolSelection.active,
 		)
 		if err != nil {
@@ -278,7 +265,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		Usage: anthropicUsage{
 			CacheReadInputTokens: 0,
 			InputTokens:          len(prepared.TokenIDs),
-			OutputTokens:         generatedTokens,
+			OutputTokens:         pump.generated,
 		},
 	})
 }
@@ -322,8 +309,6 @@ func (h *Handler) streamAnthropicMessages(
 	}); err != nil {
 		return
 	}
-	filter := newStopFilter(stops)
-	generatedTokens := 0
 	textStarted := false
 	textStopped := false
 	var buffered strings.Builder
@@ -481,7 +466,7 @@ func (h *Handler) streamAnthropicMessages(
 			"type": "content_block_stop", "index": index,
 		})
 	}
-	_, _, err = h.generate(
+	_, pump, err := h.generateWithPump(
 		request.Context(),
 		slotID,
 		prompt,
@@ -489,25 +474,23 @@ func (h *Handler) streamAnthropicMessages(
 			MaxNewTokens:    maxTokens,
 			Sampler:         sampler,
 			ParseSpecial:    true,
-			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
 			PromptTokenIDs:  promptIDs,
 			ProjectedInputs: projectedInputs,
-			OnToken: func(event inference.TokenEvent) error {
-				generatedTokens++
-				piece := filter.Accept(event.Piece)
-				if thinkingEnabled {
-					buffered.WriteString(piece)
-					return request.Context().Err()
+		},
+		stops,
+		func(piece string) error {
+			if thinkingEnabled {
+				buffered.WriteString(piece)
+				return request.Context().Err()
+			}
+			if len(tools) != 0 {
+				if streamErr := emitToolPiece(piece); streamErr != nil {
+					return streamErr
 				}
-				if len(tools) != 0 {
-					if streamErr := emitToolPiece(piece); streamErr != nil {
-						return streamErr
-					}
-					return request.Context().Err()
-				}
-				return emitText(piece)
-			},
+				return request.Context().Err()
+			}
+			return emitText(piece)
 		},
 	)
 	if err != nil {
@@ -517,26 +500,7 @@ func (h *Handler) streamAnthropicMessages(
 		})
 		return
 	}
-	flushed := filter.Flush()
-	if thinkingEnabled {
-		buffered.WriteString(flushed)
-	} else if len(tools) != 0 {
-		if err := emitToolPiece(flushed); err != nil {
-			_ = writeEvent("error", map[string]any{
-				"type":  "error",
-				"error": errorEnvelope("generation_error", err.Error()).Error,
-			})
-			return
-		}
-	} else {
-		if err := emitText(flushed); err != nil {
-			return
-		}
-	}
-	stopReason := "end_turn"
-	if !filter.Stopped() && generatedTokens >= maxTokens {
-		stopReason = "max_tokens"
-	}
+	stopReason := pump.finishReason(maxTokens, "end_turn", "max_tokens")
 	if thinkingEnabled {
 		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(buffered.String(), nil)
 		if parseErr != nil || message.ReasoningContent == "" {
@@ -658,8 +622,8 @@ func (h *Handler) streamAnthropicMessages(
 		}
 	}
 	var stopSequence any
-	if filter.Stopped() && stopReason != "tool_use" {
-		stopSequence = filter.StoppingWord()
+	if pump.stopped() && stopReason != "tool_use" {
+		stopSequence = pump.stoppingWord()
 	}
 	if err := writeEvent("message_delta", map[string]any{
 		"type": "message_delta",
@@ -667,7 +631,7 @@ func (h *Handler) streamAnthropicMessages(
 			"stop_reason":   stopReason,
 			"stop_sequence": stopSequence,
 		},
-		"usage": map[string]int{"output_tokens": generatedTokens},
+		"usage": map[string]int{"output_tokens": pump.generated},
 	}); err != nil {
 		return
 	}
@@ -675,9 +639,7 @@ func (h *Handler) streamAnthropicMessages(
 }
 
 func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(ChatFormatter)

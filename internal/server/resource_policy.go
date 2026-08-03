@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -59,14 +57,8 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 		return nil, fmt.Errorf("read response resource policy: %w", err)
 	}
 	var policy ResponseFilePolicy
-	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&policy); err != nil {
+	if err := decodeStrictYAML(data, &policy, "response resource policy must contain exactly one YAML document"); err != nil {
 		return nil, fmt.Errorf("decode response resource policy: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return nil, errors.New("response resource policy must contain exactly one YAML document")
 	}
 	if policy.Schema != 1 {
 		return nil, fmt.Errorf("response resource policy schema %d is unsupported", policy.Schema)

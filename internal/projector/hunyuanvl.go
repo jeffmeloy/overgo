@@ -371,46 +371,7 @@ func (r *HunyuanVLRunner) EncodeImage(ctx context.Context, source image.Image, o
 }
 
 func (r *HunyuanVLRunner) encode(ctx context.Context, input HunyuanVLImage) (HunyuanVLOutput, error) {
-	if r.cuda != nil {
-		return r.encodeCUDA(ctx, input)
-	}
-	rows := input.GridH * input.GridW
-	patchWidth := 3 * r.spec.PatchSize * r.spec.PatchSize
-	if rows <= 0 || input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 || len(input.PixelValues) != rows*patchWidth {
-		return HunyuanVLOutput{}, errors.New("projector: Hunyuan-VL input shape is inconsistent")
-	}
-	hidden, err := r.patchEmbedding(ctx, input)
-	if err != nil {
-		return HunyuanVLOutput{}, err
-	}
-	if err := r.addPositions(ctx, hidden, input.GridH, input.GridW); err != nil {
-		return HunyuanVLOutput{}, err
-	}
-	if r.spec.PreLayerNorm {
-		hidden, err = r.affineNormalize(ctx, hidden, rows, "v.pre_ln")
-		if err != nil {
-			return HunyuanVLOutput{}, err
-		}
-	}
-	for layer := 0; layer < r.spec.Layers; layer++ {
-		if err := ctx.Err(); err != nil {
-			return HunyuanVLOutput{}, err
-		}
-		if err := r.runLayer(ctx, hidden, rows, layer); err != nil {
-			return HunyuanVLOutput{}, err
-		}
-	}
-	if r.spec.PostLayerNorm {
-		hidden, err = r.affineNormalize(ctx, hidden, rows, "v.post_ln")
-		if err != nil {
-			return HunyuanVLOutput{}, err
-		}
-	}
-	embeddings, err := r.project(ctx, hidden, input.GridH, input.GridW)
-	if err != nil {
-		return HunyuanVLOutput{}, err
-	}
-	return HunyuanVLOutput{Embeddings: embeddings, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
+	return r.encodeGraph(ctx, input)
 }
 
 func (r *HunyuanVLRunner) patchEmbedding(ctx context.Context, input HunyuanVLImage) ([]float32, error) {

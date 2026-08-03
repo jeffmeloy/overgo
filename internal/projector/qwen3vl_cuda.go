@@ -40,7 +40,7 @@ func openQwen3VLCUDA(ctx context.Context, file *gguf.File, spec Qwen3VLSpec, ord
 	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
-func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
+func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
 	temporalWidth := 3 * patchArea
@@ -59,15 +59,15 @@ func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwe
 	builder := tensor.NewBuilder()
 	input0 := builder.Input("pixel_values.0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
 	input1 := builder.Input("pixel_values.1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
-	binding := r.cuda.bindWeights(builder)
-	weight := binding.weight
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	weight := graph.weight
 	patch0 := builder.Reshape(weight("v.patch_embd.weight"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	patch1 := builder.Reshape(weight("v.patch_embd.weight.1"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1)), weight("v.patch_embd.bias"))
 	rowOrder, columnOrder := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		input0: {Shape: input0.Shape, Data: pixels0}, input1: {Shape: input1.Shape, Data: pixels1},
-	}
+	hostFeeds := graph.hostFeeds
+	hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
+	hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
 	hidden = r.qwen3VLPositionGraph(builder, hidden, weight("v.position_embd.weight"), input, rowOrder, columnOrder, hostFeeds)
 	positionsY := make([]uint32, rows)
 	positionsX := make([]uint32, rows)
@@ -126,17 +126,10 @@ func (r *Qwen3VLRunner) encodeCUDA(ctx context.Context, input Qwen3VLImage) (Qwe
 	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
-	deviceFeeds, err := binding.result()
-	if err != nil {
-		return Qwen3VLOutput{}, fmt.Errorf("projector: build Qwen3-VL CUDA graph: %w", err)
-	}
-	if err := builder.Err(); err != nil {
-		return Qwen3VLOutput{}, fmt.Errorf("projector: build Qwen3-VL CUDA graph: %w", err)
-	}
 	targets := append([]*tensor.Tensor{output}, deepstack...)
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, targets, hostFeeds, deviceFeeds)
+	results, err := graph.execute(targets...)
 	if err != nil {
-		return Qwen3VLOutput{}, fmt.Errorf("projector: execute Qwen3-VL CUDA graph: %w", err)
+		return Qwen3VLOutput{}, fmt.Errorf("projector: execute Qwen3-VL graph: %w", err)
 	}
 	streams := make([]reference.Value, len(deepstack))
 	for index, target := range deepstack {

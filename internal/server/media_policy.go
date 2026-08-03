@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 type RemoteMediaPolicy struct {
@@ -55,14 +53,8 @@ func LoadRemoteMediaPolicy(path string) (*RemoteMediaPolicy, error) {
 		return nil, fmt.Errorf("read remote media policy: %w", err)
 	}
 	var document mediaPolicyDocument
-	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&document); err != nil {
+	if err := decodeStrictYAML(data, &document, "remote media policy must contain exactly one YAML document"); err != nil {
 		return nil, fmt.Errorf("decode remote media policy: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return nil, errors.New("remote media policy must contain exactly one YAML document")
 	}
 	if document.Schema != 1 {
 		return nil, fmt.Errorf("remote media policy schema = %d, want 1", document.Schema)

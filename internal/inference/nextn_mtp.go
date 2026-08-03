@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -90,40 +88,25 @@ func (r *Runner) AdvanceNextNMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	builder := r.newGraphBuilder()
-	tokenInput := builder.Input("nextn_mtp.token", dtype.F32, tokenEmbedding.Shape)
-	hiddenInput := builder.Input("nextn_mtp.hidden", dtype.F32, session.PendingHidden.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		tokenInput: tokenEmbedding, hiddenInput: session.PendingHidden,
-	}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	graphWeights, layerFeeds, err := r.nextNMTPLayerInputs(ctx, builder, hostFeeds)
+	graph := r.newInferenceGraphRuntime(ctx)
+	builder := graph.builder
+	tokenInput := graph.input("nextn_mtp.token", tokenEmbedding)
+	hiddenInput := graph.input("nextn_mtp.hidden", session.PendingHidden)
+	graphWeights, err := graph.layer(mtp.Layer, fmt.Sprintf("blk.%d.", r.spec.BlockCount))
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	for node, pointer := range layerFeeds {
-		deviceFeeds[node] = pointer
-	}
-	embeddingNorm, pointer, err := r.deviceOrHostTensor(ctx, builder, mtp.EmbeddingNorm, hostFeeds)
+	embeddingNorm, err := graph.weight(mtp.EmbeddingNorm)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if pointer != 0 {
-		deviceFeeds[embeddingNorm] = pointer
-	}
-	hiddenNorm, pointer, err := r.deviceOrHostTensor(ctx, builder, mtp.HiddenNorm, hostFeeds)
+	hiddenNorm, err := graph.weight(mtp.HiddenNorm)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if pointer != 0 {
-		deviceFeeds[hiddenNorm] = pointer
-	}
-	projection, pointer, err := r.deviceOrHostTensor(ctx, builder, mtp.EHProjection, hostFeeds)
+	projection, err := graph.weight(mtp.EHProjection)
 	if err != nil {
 		return reference.Value{}, nil, err
-	}
-	if pointer != 0 {
-		deviceFeeds[projection] = pointer
 	}
 	current, err := model.BuildNextNMTPInput(
 		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, 0,
@@ -133,17 +116,14 @@ func (r *Runner) AdvanceNextNMTP(
 	}
 	var pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor
 	if session.Layer.Key.Shape.Rank != 0 {
-		pastKey = builder.Input("nextn_mtp.past_key", dtype.F32, session.Layer.Key.Shape)
-		pastValue = builder.Input("nextn_mtp.past_value", dtype.F32, session.Layer.Value.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = session.Layer.Key, session.Layer.Value
+		pastKey = graph.input("nextn_mtp.past_key", session.Layer.Key)
+		pastValue = graph.input("nextn_mtp.past_value", session.Layer.Value)
 	}
 	if state, ok := session.Layer.States["indexer_key"]; ok {
-		pastIndexerKey = builder.Input("nextn_mtp.past_indexer_key", dtype.F32, state.Value.Shape)
-		hostFeeds[pastIndexerKey] = state.Value
+		pastIndexerKey = graph.input("nextn_mtp.past_indexer_key", state.Value)
 	}
 	if session.Layer.Auxiliary != nil {
-		previousTopK = builder.Input("nextn_mtp.previous_top_k", dtype.F32, session.Layer.Auxiliary.Shape)
-		hostFeeds[previousTopK] = *session.Layer.Auxiliary
+		previousTopK = graph.input("nextn_mtp.previous_top_k", *session.Layer.Auxiliary)
 	}
 	block, err := model.BuildNextNMTPBlockCachedWithDSA(
 		builder, current, r.spec, graphWeights, []uint32{session.Position},
@@ -159,12 +139,9 @@ func (r *Runner) AdvanceNextNMTP(
 	if mtp.LayerOutputNorm != nil {
 		outputNormInfo = *mtp.LayerOutputNorm
 	}
-	outputNorm, pointer, err := r.deviceOrHostTensor(ctx, builder, outputNormInfo, hostFeeds)
+	outputNorm, err := graph.weight(outputNormInfo)
 	if err != nil {
 		return reference.Value{}, nil, err
-	}
-	if pointer != 0 {
-		deviceFeeds[outputNorm] = pointer
 	}
 	outputInfo := r.weights.TokenEmbedding
 	if r.weights.Output != nil {
@@ -173,12 +150,9 @@ func (r *Runner) AdvanceNextNMTP(
 	if mtp.Output != nil {
 		outputInfo = *mtp.Output
 	}
-	output, pointer, err := r.deviceOrHostTensor(ctx, builder, outputInfo, hostFeeds)
+	output, err := graph.weight(outputInfo)
 	if err != nil {
 		return reference.Value{}, nil, err
-	}
-	if pointer != 0 {
-		deviceFeeds[output] = pointer
 	}
 	logits, nextHidden, err := model.BuildNextNMTPOutputs(builder, block.Output, outputNorm, output, r.spec, 0)
 	if err != nil {
@@ -189,12 +163,7 @@ func (r *Runner) AdvanceNextNMTP(
 	if indexerKey != nil {
 		outputs = append(outputs, indexerKey)
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := graph.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -251,14 +220,4 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 		return errors.New("inference: NextN MTP session has unexpected auxiliary state")
 	}
 	return nil
-}
-
-func (r *Runner) nextNMTPLayerInputs(
-	ctx context.Context,
-	builder *tensor.Builder,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	return r.mtpLayerInputs(
-		ctx, builder, hostFeeds, r.weights.NextNMTP[0].Layer, fmt.Sprintf("blk.%d.", r.spec.BlockCount),
-	)
 }

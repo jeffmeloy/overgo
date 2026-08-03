@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/inference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -26,36 +27,19 @@ func run() error {
 	flags := flag.NewFlagSet("embedding", flag.ContinueOnError)
 	modelPath := flags.String("model", "", "GGUF encoder model path")
 	prompt := flags.String("prompt", "", "text to encode")
-	device := flags.Int("device", 0, "CUDA device ordinal")
-	nativeQuant := flags.Bool("native-quant", true, "preload quantized weights in native form")
-	preloadF32 := flags.Bool("preload-f32", false, "preload all weights as F32")
+	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
+		PreloadName: "preload-f32", NativeQuantName: "native-quant", NativeQuantDefault: true,
+	})
 	pooling := flags.String("pooling", "mean", "pooling: mean, last, or none")
 	normalize := flags.Int("normalize", -1, "embedding normalization: -1 none, 0 max-absolute, or p-norm")
 	dimensions := flags.Int("dimensions", 0, "limit emitted embedding dimensions (0 = all)")
-	var loraPaths []string
-	flags.Func("lora", "load GGUF LoRA adapter at scale 1; repeatable", func(value string) error {
-		if value == "" {
-			return errors.New("LoRA path is empty")
-		}
-		loraPaths = append(loraPaths, value)
-		return nil
-	})
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	if *modelPath == "" {
 		return errors.New("-model is required")
 	}
-	loraAdapters := make([]inference.LoRAConfig, len(loraPaths))
-	for index, path := range loraPaths {
-		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: 1}
-	}
-	runner, err := inference.OpenWithOptions(*modelPath, inference.OpenOptions{
-		DeviceOrdinal:           *device,
-		PreloadDeviceWeights:    *preloadF32,
-		PreloadQuantizedWeights: *nativeQuant,
-		LoRAAdapters:            loraAdapters,
-	})
+	runner, err := inference.OpenWithOptions(*modelPath, modelFlags.OpenOptions(1))
 	if err != nil {
 		return err
 	}

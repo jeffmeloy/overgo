@@ -276,40 +276,15 @@ func loadMTPCommonWeights(
 	spec Spec,
 	destination mtpCommonDestinations,
 ) error {
-	for name, target := range map[string]*gguf.TensorInfo{
-		"nextn.eh_proj.weight": destination.ehProjection,
-		"nextn.enorm.weight":   destination.embeddingNorm,
-		"nextn.hnorm.weight":   destination.hiddenNorm,
-	} {
-		shape := []uint64{uint64(spec.EmbeddingLength)}
-		if name == "nextn.eh_proj.weight" {
-			shape = []uint64{2 * uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)}
-		}
-		loaded, err := required(prefix+name, shape...)
-		if err != nil {
-			return err
-		}
-		*target = loaded
-	}
-	for name, target := range map[string]**gguf.TensorInfo{
-		"nextn.embed_tokens.weight":     destination.tokenEmbedding,
-		"nextn.shared_head_norm.weight": destination.outputNorm,
-		"nextn.shared_head_head.weight": destination.output,
-	} {
-		if _, ok := tensors[prefix+name]; !ok {
-			continue
-		}
-		shape := []uint64{uint64(spec.EmbeddingLength)}
-		if name != "nextn.shared_head_norm.weight" {
-			shape = append(shape, uint64(spec.VocabularySize))
-		}
-		loaded, err := required(prefix+name, shape...)
-		if err != nil {
-			return err
-		}
-		*target = &loaded
-	}
-	return nil
+	width := uint64(spec.EmbeddingLength)
+	return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		requiredTensor("nextn.eh_proj.weight", destination.ehProjection, 2*width, width),
+		requiredTensor("nextn.enorm.weight", destination.embeddingNorm, width),
+		requiredTensor("nextn.hnorm.weight", destination.hiddenNorm, width),
+		optionalTensorPointer("nextn.embed_tokens.weight", destination.tokenEmbedding, width, uint64(spec.VocabularySize)),
+		optionalTensorPointer("nextn.shared_head_norm.weight", destination.outputNorm, width),
+		optionalTensorPointer("nextn.shared_head_head.weight", destination.output, width, uint64(spec.VocabularySize)),
+	})
 }
 
 func loadSharedExpertWeights(
@@ -330,28 +305,17 @@ func loadSharedExpertWeightsForWidth(
 	layer *LayerWeights,
 	withRouter bool,
 ) error {
-	requirements := map[string]struct {
-		shape       []uint64
-		destination **gguf.TensorInfo
-	}{
-		"ffn_gate_shexp.weight": {[]uint64{width, uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedGate},
-		"ffn_up_shexp.weight":   {[]uint64{width, uint64(spec.SharedExpertFF)}, &layer.FeedForwardSharedUp},
-		"ffn_down_shexp.weight": {[]uint64{uint64(spec.SharedExpertFF), width}, &layer.FeedForwardSharedDown},
+	requirements := []tensorRequirement{
+		requiredTensorPointer("ffn_gate_shexp.weight", &layer.FeedForwardSharedGate, width, uint64(spec.SharedExpertFF)),
+		requiredTensorPointer("ffn_up_shexp.weight", &layer.FeedForwardSharedUp, width, uint64(spec.SharedExpertFF)),
+		requiredTensorPointer("ffn_down_shexp.weight", &layer.FeedForwardSharedDown, uint64(spec.SharedExpertFF), width),
 	}
 	if withRouter {
-		requirements["ffn_gate_inp_shexp.weight"] = struct {
-			shape       []uint64
-			destination **gguf.TensorInfo
-		}{[]uint64{width}, &layer.FeedForwardSharedRouter}
+		requirements = append(requirements,
+			requiredTensorPointer("ffn_gate_inp_shexp.weight", &layer.FeedForwardSharedRouter, width),
+		)
 	}
-	for name, requirement := range requirements {
-		item, err := required(prefix+name, requirement.shape...)
-		if err != nil {
-			return err
-		}
-		*requirement.destination = &item
-	}
-	return nil
+	return loadTensorRequirements(required, nil, prefix, requirements)
 }
 
 // Weights: validated initial Llama/Qwen3 tensor catalog
@@ -449,25 +413,19 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		for block := uint32(0); block < spec.BlockCount; block++ {
 			prefix := fmt.Sprintf("blk.%d.", block)
 			layer := &result.Layers[block]
-			for name, item := range map[string]struct {
-				destination *gguf.TensorInfo
-				shape       []uint64
-			}{
-				"attn_norm.weight":   {&layer.AttentionNorm, []uint64{uint64(spec.EmbeddingLength)}},
-				"attn_q.weight":      {&layer.AttentionQ, []uint64{uint64(spec.EmbeddingLength), queryLength}},
-				"attn_k.weight":      {&layer.AttentionK, []uint64{uint64(spec.EmbeddingLength), keyLength}},
-				"attn_v.weight":      {&layer.AttentionV, []uint64{uint64(spec.EmbeddingLength), valueLength}},
-				"attn_output.weight": {&layer.AttentionOutput, []uint64{queryLength, uint64(spec.EmbeddingLength)}},
-				"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{uint64(spec.EmbeddingLength)}},
-				"ffn_gate.weight":    {&layer.FeedForwardGate, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
-				"ffn_up.weight":      {&layer.FeedForwardUp, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
-				"ffn_down.weight":    {&layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}},
-			} {
-				loaded, itemErr := required(prefix+name, item.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*item.destination = loaded
+			width := uint64(spec.EmbeddingLength)
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
+				requiredTensor("attn_q.weight", &layer.AttentionQ, width, queryLength),
+				requiredTensor("attn_k.weight", &layer.AttentionK, width, keyLength),
+				requiredTensor("attn_v.weight", &layer.AttentionV, width, valueLength),
+				requiredTensor("attn_output.weight", &layer.AttentionOutput, queryLength, width),
+				requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
+				requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
+				requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
+				requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			qNorm, itemErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
 			if itemErr != nil {
@@ -522,25 +480,19 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
 		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
 		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-		for name, item := range map[string]struct {
-			destination *gguf.TensorInfo
-			shape       []uint64
-		}{
-			"attn_norm.weight":   {&layer.AttentionNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			"attn_q.weight":      {&layer.AttentionQ, []uint64{2 * uint64(spec.EmbeddingLength), queryLength}},
-			"attn_k.weight":      {&layer.AttentionK, []uint64{2 * uint64(spec.EmbeddingLength), keyLength}},
-			"attn_v.weight":      {&layer.AttentionV, []uint64{2 * uint64(spec.EmbeddingLength), valueLength}},
-			"attn_output.weight": {&layer.AttentionOutput, []uint64{queryLength, uint64(spec.EmbeddingLength)}},
-			"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{uint64(spec.EmbeddingLength)}},
-			"ffn_gate.weight":    {&layer.FeedForwardGate, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
-			"ffn_up.weight":      {&layer.FeedForwardUp, []uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}},
-			"ffn_down.weight":    {&layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}},
-		} {
-			loaded, itemErr := required("blk.0."+name, item.shape...)
-			if itemErr != nil {
-				return Weights{}, itemErr
-			}
-			*item.destination = loaded
+		width := uint64(spec.EmbeddingLength)
+		if itemErr := loadTensorRequirements(required, tensors, "blk.0.", []tensorRequirement{
+			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
+			requiredTensor("attn_q.weight", &layer.AttentionQ, 2*width, queryLength),
+			requiredTensor("attn_k.weight", &layer.AttentionK, 2*width, keyLength),
+			requiredTensor("attn_v.weight", &layer.AttentionV, 2*width, valueLength),
+			requiredTensor("attn_output.weight", &layer.AttentionOutput, queryLength, width),
+			requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
+			requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
+			requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
+			requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
+		}); itemErr != nil {
+			return Weights{}, itemErr
 		}
 		hiddenNorm, itemErr := required("blk.0.attn_norm_2.weight", uint64(spec.EmbeddingLength))
 		if itemErr != nil {
@@ -582,38 +534,20 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			layer := &result.Layers[block]
 			queryLength := uint64(spec.HeadCount) * uint64(spec.LayerKeyLength(block))
 			attentionOutputLength := uint64(spec.HeadCount) * uint64(spec.LayerValueLength(block))
-			for name, item := range map[string]struct {
-				destination *gguf.TensorInfo
-				shape       []uint64
-			}{
-				"attn_norm.weight":   {&layer.AttentionNorm, []uint64{width}},
-				"attn_q.weight":      {&layer.AttentionQ, []uint64{width, queryLength}},
-				"attn_output.weight": {&layer.AttentionOutput, []uint64{attentionOutputLength, width}},
-				"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{width}},
-				"ffn_gate.weight":    {&layer.FeedForwardGate, []uint64{width, uint64(spec.FeedForwardLength)}},
-				"ffn_up.weight":      {&layer.FeedForwardUp, []uint64{width, uint64(spec.FeedForwardLength)}},
-				"ffn_down.weight":    {&layer.FeedForwardDown, []uint64{uint64(spec.FeedForwardLength), width}},
-			} {
-				loaded, itemErr := required(prefix+name, item.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*item.destination = loaded
-			}
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"attn_q_norm.weight":         {[]uint64{uint64(spec.LayerKeyLength(block))}, &layer.AttentionQNorm},
-				"post_attention_norm.weight": {[]uint64{width}, &layer.AttentionPostNorm},
-				"post_ffw_norm.weight":       {[]uint64{width}, &layer.FeedForwardPostNorm},
-				"layer_output_scale.weight":  {[]uint64{1}, &layer.LayerOutputScale},
-			} {
-				loaded, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &loaded
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
+				requiredTensor("attn_q.weight", &layer.AttentionQ, width, queryLength),
+				requiredTensor("attn_output.weight", &layer.AttentionOutput, attentionOutputLength, width),
+				requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
+				requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
+				requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
+				requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
+				requiredTensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, uint64(spec.LayerKeyLength(block))),
+				requiredTensorPointer("post_attention_norm.weight", &layer.AttentionPostNorm, width),
+				requiredTensorPointer("post_ffw_norm.weight", &layer.FeedForwardPostNorm, width),
+				requiredTensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, 1),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			if !spec.IsSlidingLayer(block) {
 				rope, ok := tensors[prefix+"rope_freqs.weight"]
@@ -666,47 +600,29 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		for block := uint32(0); block < spec.BlockCount; block++ {
 			prefix := fmt.Sprintf("blk.%d.", block)
 			layer := &result.Layers[block]
-			for name, item := range map[string]struct {
-				destination *gguf.TensorInfo
-				shape       []uint64
-			}{
-				"attn_norm.weight":   {&layer.AttentionNorm, []uint64{width}},
-				"attn_q_a.weight":    {&layer.AttentionQ, []uint64{width, uint64(spec.QLoRARank)}},
-				"attn_kv.weight":     {&layer.AttentionK, []uint64{width, headWidth}},
-				"attn_output.weight": {&layer.AttentionOutput, []uint64{uint64(spec.AttentionOutputGroups * spec.AttentionOutputRank), width}},
-				"ffn_norm.weight":    {&layer.FeedForwardNorm, []uint64{width}},
-			} {
-				loaded, itemErr := required(prefix+name, item.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*item.destination = loaded
-			}
-			for name, item := range map[string]struct {
-				destination **gguf.TensorInfo
-				shape       []uint64
-			}{
-				"attn_sinks.weight":     {&layer.AttentionSinks, []uint64{uint64(spec.HeadCount)}},
-				"attn_q_a_norm.weight":  {&layer.AttentionQNorm, []uint64{uint64(spec.QLoRARank)}},
-				"attn_q_b.weight":       {&layer.AttentionQB, []uint64{uint64(spec.QLoRARank), uint64(spec.HeadCount) * headWidth}},
-				"attn_kv_a_norm.weight": {&layer.AttentionKNorm, []uint64{headWidth}},
-				"attn_output_a.weight":  {&layer.AttentionOutputA, []uint64{uint64(spec.HeadCount) * headWidth / uint64(spec.AttentionOutputGroups), uint64(spec.AttentionOutputRank * spec.AttentionOutputGroups)}},
-				"hc_attn_fn.weight":     {&layer.HyperAttentionFN, []uint64{hyperWidth, mixWidth}},
-				"hc_attn_base.weight":   {&layer.HyperAttentionBase, []uint64{mixWidth}},
-				"hc_attn_scale.weight":  {&layer.HyperAttentionScale, []uint64{3}},
-				"hc_ffn_fn.weight":      {&layer.HyperFeedForwardFN, []uint64{hyperWidth, mixWidth}},
-				"hc_ffn_base.weight":    {&layer.HyperFeedForwardBase, []uint64{mixWidth}},
-				"hc_ffn_scale.weight":   {&layer.HyperFeedForwardScale, []uint64{3}},
-				"ffn_gate_inp.weight":   {&layer.FeedForwardRouter, []uint64{width, uint64(spec.ExpertCount)}},
-				"ffn_gate_exps.weight":  {&layer.FeedForwardGateExperts, []uint64{width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}},
-				"ffn_up_exps.weight":    {&layer.FeedForwardUpExperts, []uint64{width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}},
-				"ffn_down_exps.weight":  {&layer.FeedForwardDownExperts, []uint64{uint64(spec.ExpertFeedForward), width, uint64(spec.ExpertCount)}},
-			} {
-				loaded, itemErr := required(prefix+name, item.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*item.destination = &loaded
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
+				requiredTensor("attn_q_a.weight", &layer.AttentionQ, width, uint64(spec.QLoRARank)),
+				requiredTensor("attn_kv.weight", &layer.AttentionK, width, headWidth),
+				requiredTensor("attn_output.weight", &layer.AttentionOutput, uint64(spec.AttentionOutputGroups*spec.AttentionOutputRank), width),
+				requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
+				requiredTensorPointer("attn_sinks.weight", &layer.AttentionSinks, uint64(spec.HeadCount)),
+				requiredTensorPointer("attn_q_a_norm.weight", &layer.AttentionQNorm, uint64(spec.QLoRARank)),
+				requiredTensorPointer("attn_q_b.weight", &layer.AttentionQB, uint64(spec.QLoRARank), uint64(spec.HeadCount)*headWidth),
+				requiredTensorPointer("attn_kv_a_norm.weight", &layer.AttentionKNorm, headWidth),
+				requiredTensorPointer("attn_output_a.weight", &layer.AttentionOutputA, uint64(spec.HeadCount)*headWidth/uint64(spec.AttentionOutputGroups), uint64(spec.AttentionOutputRank*spec.AttentionOutputGroups)),
+				requiredTensorPointer("hc_attn_fn.weight", &layer.HyperAttentionFN, hyperWidth, mixWidth),
+				requiredTensorPointer("hc_attn_base.weight", &layer.HyperAttentionBase, mixWidth),
+				requiredTensorPointer("hc_attn_scale.weight", &layer.HyperAttentionScale, 3),
+				requiredTensorPointer("hc_ffn_fn.weight", &layer.HyperFeedForwardFN, hyperWidth, mixWidth),
+				requiredTensorPointer("hc_ffn_base.weight", &layer.HyperFeedForwardBase, mixWidth),
+				requiredTensorPointer("hc_ffn_scale.weight", &layer.HyperFeedForwardScale, 3),
+				requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, width, uint64(spec.ExpertCount)),
+				requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+				requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+				requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), width, uint64(spec.ExpertCount)),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			if itemErr := loadSharedExpertWeightsForWidth(required, prefix, width, spec, layer, false); itemErr != nil {
 				return Weights{}, itemErr
@@ -733,57 +649,36 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				if ratio == 4 {
 					coefficient = 2
 				}
-				for name, item := range map[string]struct {
-					destination **gguf.TensorInfo
-					shape       []uint64
-				}{
-					"attn_compressor_kv.weight":   {&layer.AttentionCompressorKV, []uint64{width, coefficient * headWidth}},
-					"attn_compressor_gate.weight": {&layer.AttentionCompressorGate, []uint64{width, coefficient * headWidth}},
-					"attn_compressor_ape.weight":  {&layer.AttentionCompressorAPE, []uint64{coefficient * headWidth, uint64(ratio)}},
-					"attn_compressor_norm.weight": {&layer.AttentionCompressorNorm, []uint64{headWidth}},
-				} {
-					loaded, itemErr := required(prefix+name, item.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*item.destination = &loaded
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("attn_compressor_kv.weight", &layer.AttentionCompressorKV, width, coefficient*headWidth),
+					requiredTensorPointer("attn_compressor_gate.weight", &layer.AttentionCompressorGate, width, coefficient*headWidth),
+					requiredTensorPointer("attn_compressor_ape.weight", &layer.AttentionCompressorAPE, coefficient*headWidth, uint64(ratio)),
+					requiredTensorPointer("attn_compressor_norm.weight", &layer.AttentionCompressorNorm, headWidth),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if ratio == 4 {
 				indexerWidth := uint64(spec.IndexerKeyLength)
-				for name, item := range map[string]struct {
-					destination **gguf.TensorInfo
-					shape       []uint64
-				}{
-					"indexer.proj.weight":            {&layer.IndexerProjection, []uint64{width, uint64(spec.IndexerHeadCount)}},
-					"indexer.attn_q_b.weight":        {&layer.IndexerAttentionQB, []uint64{uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount) * indexerWidth}},
-					"indexer_compressor_kv.weight":   {&layer.IndexerCompressorKV, []uint64{width, 2 * indexerWidth}},
-					"indexer_compressor_gate.weight": {&layer.IndexerCompressorGate, []uint64{width, 2 * indexerWidth}},
-					"indexer_compressor_ape.weight":  {&layer.IndexerCompressorAPE, []uint64{2 * indexerWidth, 4}},
-					"indexer_compressor_norm.weight": {&layer.IndexerCompressorNorm, []uint64{indexerWidth}},
-				} {
-					loaded, itemErr := required(prefix+name, item.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*item.destination = &loaded
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, width, uint64(spec.IndexerHeadCount)),
+					requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*indexerWidth),
+					requiredTensorPointer("indexer_compressor_kv.weight", &layer.IndexerCompressorKV, width, 2*indexerWidth),
+					requiredTensorPointer("indexer_compressor_gate.weight", &layer.IndexerCompressorGate, width, 2*indexerWidth),
+					requiredTensorPointer("indexer_compressor_ape.weight", &layer.IndexerCompressorAPE, 2*indexerWidth, 4),
+					requiredTensorPointer("indexer_compressor_norm.weight", &layer.IndexerCompressorNorm, indexerWidth),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 		}
 		last := &result.Layers[len(result.Layers)-1]
-		for name, item := range map[string]struct {
-			destination **gguf.TensorInfo
-			shape       []uint64
-		}{
-			"output_hc_fn.weight":    {&last.HyperHeadFN, []uint64{hyperWidth, hyper}},
-			"output_hc_base.weight":  {&last.HyperHeadBase, []uint64{hyper}},
-			"output_hc_scale.weight": {&last.HyperHeadScale, []uint64{1}},
-		} {
-			loaded, itemErr := required(name, item.shape...)
-			if itemErr != nil {
-				return Weights{}, itemErr
-			}
-			*item.destination = &loaded
+		if itemErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			requiredTensorPointer("output_hc_fn.weight", &last.HyperHeadFN, hyperWidth, hyper),
+			requiredTensorPointer("output_hc_base.weight", &last.HyperHeadBase, hyper),
+			requiredTensorPointer("output_hc_scale.weight", &last.HyperHeadScale, 1),
+		}); itemErr != nil {
+			return Weights{}, itemErr
 		}
 		return result, nil
 	}
@@ -1160,21 +1055,15 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			} else {
 				layer.AttentionRelativeBias = decoderRelativeBias
 			}
-			for name, shapeAndDestination := range map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"cross_attn_norm.weight": {[]uint64{uint64(spec.EmbeddingLength)}, &layer.CrossAttentionNorm},
-				"cross_attn_q.weight":    {[]uint64{uint64(spec.EmbeddingLength), queryLength}, &layer.CrossAttentionQ},
-				"cross_attn_k.weight":    {[]uint64{uint64(spec.EmbeddingLength), keyLength}, &layer.CrossAttentionK},
-				"cross_attn_v.weight":    {[]uint64{uint64(spec.EmbeddingLength), valueLength}, &layer.CrossAttentionV},
-				"cross_attn_o.weight":    {[]uint64{attentionOutputLength, uint64(spec.EmbeddingLength)}, &layer.CrossAttentionOutput},
-			} {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			width := uint64(spec.EmbeddingLength)
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("cross_attn_norm.weight", &layer.CrossAttentionNorm, width),
+				requiredTensorPointer("cross_attn_q.weight", &layer.CrossAttentionQ, width, queryLength),
+				requiredTensorPointer("cross_attn_k.weight", &layer.CrossAttentionK, width, keyLength),
+				requiredTensorPointer("cross_attn_v.weight", &layer.CrossAttentionV, width, valueLength),
+				requiredTensorPointer("cross_attn_o.weight", &layer.CrossAttentionOutput, attentionOutputLength, width),
+			}); itemErr != nil {
+				return Weights{}, itemErr
 			}
 		}
 		if output, ok := tensors["output.weight"]; ok {
@@ -1558,19 +1447,14 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
 				inner := uint64(spec.SSMInnerSize)
-				for name, destination := range map[string]*gguf.TensorInfo{
-					"attn_q.weight": &layer.AttentionQ, "attn_k.weight": &layer.AttentionK,
-					"attn_v.weight": &layer.AttentionV, "attn_output.weight": &layer.AttentionOutput,
-				} {
-					shape := []uint64{uint64(spec.EmbeddingLength), inner}
-					if name == "attn_output.weight" {
-						shape = []uint64{inner, uint64(spec.EmbeddingLength)}
-					}
-					item, itemErr := required(prefix+name, shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*destination = item
+				width := uint64(spec.EmbeddingLength)
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("attn_q.weight", &layer.AttentionQ, width, inner),
+					requiredTensor("attn_k.weight", &layer.AttentionK, width, inner),
+					requiredTensor("attn_v.weight", &layer.AttentionV, width, inner),
+					requiredTensor("attn_output.weight", &layer.AttentionOutput, inner, width),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 				conv := func(name string) (*gguf.TensorInfo, error) {
 					item, ok := tensors[prefix+name]
@@ -1595,23 +1479,16 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					}
 					*destination = item
 				}
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ssm_f_a.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.KDAHeadDim)}, &layer.SSMForgetA},
-					"ssm_f_b.weight":  {[]uint64{uint64(spec.KDAHeadDim), inner}, &layer.SSMForgetB},
-					"ssm_beta.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.HeadCount)}, &layer.SSMBeta},
-					"ssm_dt.bias":     {[]uint64{inner}, &layer.SSMTimeStep},
-					"ssm_g_a.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.KDAHeadDim)}, &layer.SSMOutputGateA},
-					"ssm_g_b.weight":  {[]uint64{uint64(spec.KDAHeadDim), inner}, &layer.SSMOutputGateB},
-					"ssm_norm.weight": {[]uint64{uint64(spec.KDAHeadDim)}, &layer.SSMNorm},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("ssm_f_a.weight", &layer.SSMForgetA, width, uint64(spec.KDAHeadDim)),
+					requiredTensorPointer("ssm_f_b.weight", &layer.SSMForgetB, uint64(spec.KDAHeadDim), inner),
+					requiredTensorPointer("ssm_beta.weight", &layer.SSMBeta, width, uint64(spec.HeadCount)),
+					requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, inner),
+					requiredTensorPointer("ssm_g_a.weight", &layer.SSMOutputGateA, width, uint64(spec.KDAHeadDim)),
+					requiredTensorPointer("ssm_g_b.weight", &layer.SSMOutputGateB, uint64(spec.KDAHeadDim), inner),
+					requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.KDAHeadDim)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 				ssmA, ok := tensors[prefix+"ssm_a"]
 				if !ok {
@@ -1680,36 +1557,24 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, err
 			}
 			if block < spec.LeadingDenseBlocks {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination *gguf.TensorInfo
-				}{
-					"ffn_gate.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}, &layer.FeedForwardGate},
-					"ffn_up.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)}, &layer.FeedForwardUp},
-					"ffn_down.weight": {[]uint64{uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)}, &layer.FeedForwardDown},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = item
+				width := uint64(spec.EmbeddingLength)
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
+					requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
+					requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			} else {
-				for name, shapeAndDestination := range map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"ffn_gate_inp.weight":  {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardRouter},
-					"ffn_gate_exps.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardGateExperts},
-					"ffn_up_exps.weight":   {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)}, &layer.FeedForwardUpExperts},
-					"ffn_down_exps.weight": {[]uint64{uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)}, &layer.FeedForwardDownExperts},
-					"exp_probs_b.bias":     {[]uint64{uint64(spec.ExpertCount)}, &layer.FeedForwardExpertBias},
-				} {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				width := uint64(spec.EmbeddingLength)
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, width, uint64(spec.ExpertCount)),
+					requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+					requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+					requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), width, uint64(spec.ExpertCount)),
+					requiredTensorPointer("exp_probs_b.bias", &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
 					return Weights{}, itemErr
@@ -2541,60 +2406,34 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			); err != nil {
 				return Weights{}, err
 			}
-			mlaTensors := map[string]struct {
-				shape       []uint64
-				destination **gguf.TensorInfo
-			}{
-				"attn_kv_a_mqa.weight": {
-					[]uint64{uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank + spec.RopeDimensionCount)},
-					&layer.AttentionKVAMQA,
-				},
-				"attn_kv_a_norm.weight": {
-					[]uint64{uint64(spec.KVLoRARank)}, &layer.AttentionKVANorm,
-				},
+			mlaTensors := []tensorRequirement{
+				requiredTensorPointer("attn_kv_a_mqa.weight", &layer.AttentionKVAMQA,
+					uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount)),
+				requiredTensorPointer("attn_kv_a_norm.weight", &layer.AttentionKVANorm, uint64(spec.KVLoRARank)),
 			}
 			if _, modern := tensors[prefix+"attn_k_b.weight"]; modern {
-				mlaTensors["attn_k_b.weight"] = struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{[]uint64{nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount)}, &layer.AttentionKB}
-				mlaTensors["attn_v_b.weight"] = struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{[]uint64{uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount)}, &layer.AttentionVB}
+				mlaTensors = append(mlaTensors,
+					requiredTensorPointer("attn_k_b.weight", &layer.AttentionKB, nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount)),
+					requiredTensorPointer("attn_v_b.weight", &layer.AttentionVB, uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount)),
+				)
 			} else {
-				mlaTensors["attn_kv_b.weight"] = struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{[]uint64{uint64(spec.KVLoRARank), uint64(spec.HeadCount) * (nope + uint64(spec.ValueLength))}, &layer.AttentionKVB}
+				mlaTensors = append(mlaTensors, requiredTensorPointer(
+					"attn_kv_b.weight", &layer.AttentionKVB,
+					uint64(spec.KVLoRARank), uint64(spec.HeadCount)*(nope+uint64(spec.ValueLength)),
+				))
 			}
-			for name, shapeAndDestination := range mlaTensors {
-				item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				*shapeAndDestination.destination = &item
+			if itemErr := loadTensorRequirements(required, tensors, prefix, mlaTensors); itemErr != nil {
+				return Weights{}, itemErr
 			}
 			if spec.LayerHasFullIndexer(block) {
-				indexerTensors := map[string]struct {
-					shape       []uint64
-					destination **gguf.TensorInfo
-				}{
-					"indexer.k_norm.weight": {[]uint64{uint64(spec.IndexerKeyLength)}, &layer.IndexerKNorm},
-					"indexer.k_norm.bias":   {[]uint64{uint64(spec.IndexerKeyLength)}, &layer.IndexerKNormBias},
-					"indexer.proj.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.IndexerHeadCount)},
-						&layer.IndexerProjection},
-					"indexer.attn_k.weight": {[]uint64{uint64(spec.EmbeddingLength), uint64(spec.IndexerKeyLength)},
-						&layer.IndexerAttentionK},
-					"indexer.attn_q_b.weight": {[]uint64{uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount) * uint64(spec.IndexerKeyLength)},
-						&layer.IndexerAttentionQB},
-				}
-				for name, shapeAndDestination := range indexerTensors {
-					item, itemErr := required(prefix+name, shapeAndDestination.shape...)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*shapeAndDestination.destination = &item
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointer("indexer.k_norm.weight", &layer.IndexerKNorm, uint64(spec.IndexerKeyLength)),
+					requiredTensorPointer("indexer.k_norm.bias", &layer.IndexerKNormBias, uint64(spec.IndexerKeyLength)),
+					requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, uint64(spec.EmbeddingLength), uint64(spec.IndexerHeadCount)),
+					requiredTensorPointer("indexer.attn_k.weight", &layer.IndexerAttentionK, uint64(spec.EmbeddingLength), uint64(spec.IndexerKeyLength)),
+					requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*uint64(spec.IndexerKeyLength)),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
 			}
 			if layer.AttentionOutput, err = required(

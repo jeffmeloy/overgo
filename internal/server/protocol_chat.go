@@ -373,9 +373,7 @@ func chatThinkingEnabled(kwargs map[string]any) (bool, error) {
 }
 
 func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(ChatFormatter)
@@ -425,9 +423,7 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 }
 
 func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(ChatFormatter)
@@ -749,11 +745,7 @@ func (h *Handler) completeChat(
 			writeGenerationError(response, err)
 			return
 		}
-		var output strings.Builder
-		completionTokens := 0
-		generatedTokens := 0
-		filter := newStopFilter(stops)
-		ids, _, err := h.generate(
+		ids, pump, err := h.generateWithPump(
 			request.Context(),
 			slotID,
 			prompt,
@@ -761,41 +753,30 @@ func (h *Handler) completeChat(
 				MaxNewTokens:    maxTokens,
 				Sampler:         choiceSampler,
 				ParseSpecial:    true,
-				StopSequences:   stops,
 				ContextShift:    h.config.ContextShift,
 				PromptTokenIDs:  promptIDs,
 				CachePrompt:     projectedInputs != nil,
 				ProjectedInputs: projectedInputs,
-				OnToken: func(event inference.TokenEvent) error {
-					generatedTokens++
-					if !filter.Stopped() {
-						completionTokens++
-					}
-					output.WriteString(filter.Accept(event.Piece))
-					return nil
-				},
 			},
+			stops,
+			nil,
 		)
 		if err != nil {
 			writeGenerationError(response, err)
 			return
 		}
 		if choiceIndex == 0 {
-			promptTokens = len(ids) - generatedTokens
+			promptTokens = len(ids) - pump.generated
 		}
-		output.WriteString(filter.Flush())
-		finishReason := "stop"
-		if !filter.Stopped() && completionTokens == maxTokens {
-			finishReason = "length"
-		}
-		totalCompletionTokens += completionTokens
+		finishReason := pump.finishReason(maxTokens, "stop", "length")
+		totalCompletionTokens += pump.completion
 		message := inference.ChatMessage{
 			Role:    "assistant",
-			Content: output.String(),
+			Content: pump.text(),
 		}
 		if len(tools) != 0 {
 			parser := h.generator.(ChatOutputParser)
-			message, err = parser.ParseChatOutput(output.String(), tools)
+			message, err = parser.ParseChatOutput(pump.text(), tools)
 			if err != nil {
 				writeGenerationError(response, err)
 				return
@@ -909,8 +890,6 @@ func (h *Handler) streamChatCompletion(
 		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
 			return
 		}
-		completionTokens := 0
-		filter := newStopFilter(stops)
 		var buffered strings.Builder
 		var toolStream inference.ChatOutputStream
 		streamedToolCall := false
@@ -974,7 +953,7 @@ func (h *Handler) streamChatCompletion(
 			}
 			return nil
 		}
-		_, _, err = h.generate(
+		_, pump, err := h.generateWithPump(
 			request.Context(),
 			slotID,
 			prompt,
@@ -982,51 +961,32 @@ func (h *Handler) streamChatCompletion(
 				MaxNewTokens:    maxTokens,
 				Sampler:         choiceSampler,
 				ParseSpecial:    true,
-				StopSequences:   stops,
 				ContextShift:    h.config.ContextShift,
 				PromptTokenIDs:  promptIDs,
 				CachePrompt:     projectedInputs != nil,
 				ProjectedInputs: projectedInputs,
-				OnToken: func(event inference.TokenEvent) error {
-					if !filter.Stopped() {
-						completionTokens++
-					}
-					piece := filter.Accept(event.Piece)
-					if piece != "" {
-						if len(tools) != 0 {
-							if streamErr := emitToolPiece(piece); streamErr != nil {
-								return streamErr
-							}
-						} else {
-							if writeErr := writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil); writeErr != nil {
-								return writeErr
-							}
+			},
+			stops,
+			func(piece string) error {
+				if piece != "" {
+					if len(tools) != 0 {
+						if streamErr := emitToolPiece(piece); streamErr != nil {
+							return streamErr
+						}
+					} else {
+						if writeErr := writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil); writeErr != nil {
+							return writeErr
 						}
 					}
-					return request.Context().Err()
-				},
+				}
+				return request.Context().Err()
 			},
 		)
 		if err != nil {
 			_ = stream.write(errorEnvelope("generation_error", err.Error()))
 			break
 		}
-		if piece := filter.Flush(); piece != "" {
-			if len(tools) != 0 {
-				if streamErr := emitToolPiece(piece); streamErr != nil {
-					_ = stream.write(
-						errorEnvelope("generation_error", streamErr.Error()),
-					)
-					break
-				}
-			} else {
-				_ = writeChunk(choiceIndex, chatStreamDelta{Content: piece}, nil)
-			}
-		}
-		reason := "stop"
-		if !filter.Stopped() && completionTokens == maxTokens {
-			reason = "length"
-		}
+		reason := pump.finishReason(maxTokens, "stop", "length")
 		if len(tools) != 0 {
 			parser := h.generator.(ChatOutputParser)
 			message, parseErr := parser.ParseChatOutput(buffered.String(), tools)

@@ -29,6 +29,11 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Ordered tensor-requirement schemas with deterministic catalog binding across MTP, shared-expert, draft, MLA/indexer, DeepSeek 4, Kimi Linear, and encoder-decoder weights.
+- Shared inference graph runtime plus a typed single-head MTP advance adapter for Qwen3.5, Cohere2-MoE, and NextN host/device execution.
+- One reference/CUDA projector graph for Qwen3-VL, MiMo-VL, Hunyuan-VL, and PaddleOCR-VL; the Qwen3-VL handwritten CPU graph was removed.
+- Shared server method guards, strict single-document YAML decoding, and protocol-neutral generation pumping for stop filtering, token accounting, flush, and finish reasons.
+- Shared prompt-cache LRU promotion and configurable CLI model flags/open options across benchmark, diffusion, embedding, rerank, generation, perplexity, and server commands.
 - Shared projector CUDA/catalog/graph runtimes, prompt assembly, MTP session/sampling transactions, quant dispatch, server SSE/admission, cache planning, CLI model flags, and test fixtures; 3,000+ duplicate lines removed.
 - Single-pass cached target-layer input capture with incremental Eagle3 and DFlash feature resynchronization.
 - Gemma 4 Assistant projected image/audio target-prefix sessions.

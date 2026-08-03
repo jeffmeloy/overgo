@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/inference"
 	"llamacpp2go/internal/sampling"
@@ -89,23 +90,20 @@ func main() {
 func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("benchmark", flag.ContinueOnError)
 	var result options
-	flags.IntVar(&result.Device, "device", 0, "CUDA device ordinal")
+	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
+		PreloadName: "preload", NativeQuantName: "native-quant",
+	})
 	flags.IntVar(&result.Tokens, "tokens", 32, "maximum generated tokens per run")
 	flags.IntVar(&result.Runs, "runs", 5, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", 1, "unmeasured warmup runs")
-	flags.BoolVar(&result.Preload, "preload", false, "preload dequantized weights on CUDA")
-	flags.BoolVar(&result.NativeQuant, "native-quant", false, "preload supported quantized weights")
 	flags.BoolVar(&result.ContextShift, "context-shift", false, "enable rolling context shift")
-	flags.Func("lora", "load GGUF LoRA adapter at scale 1; repeatable", func(value string) error {
-		if value == "" {
-			return errors.New("LoRA path is empty")
-		}
-		result.LoRA = append(result.LoRA, value)
-		return nil
-	})
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
+	result.Device = *modelFlags.DeviceOrdinal
+	result.Preload = modelFlags.Preload != nil && *modelFlags.Preload
+	result.NativeQuant = modelFlags.NativeQuant != nil && *modelFlags.NativeQuant
+	result.LoRA = modelFlags.LoRAPaths()
 	if flags.NArg() != 2 {
 		return options{}, errors.New("usage: benchmark [options] <model.gguf> <prompt>")
 	}
@@ -148,16 +146,9 @@ func run(args []string) error {
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
 	loadStarted := time.Now()
-	loraAdapters := make([]inference.LoRAConfig, len(options.LoRA))
-	for index, path := range options.LoRA {
-		loraAdapters[index] = inference.LoRAConfig{Path: path, Scale: 1}
-	}
-	runner, err := inference.OpenWithOptions(options.Model, inference.OpenOptions{
-		DeviceOrdinal:           options.Device,
-		PreloadDeviceWeights:    options.Preload,
-		PreloadQuantizedWeights: options.NativeQuant,
-		LoRAAdapters:            loraAdapters,
-	})
+	runner, err := inference.OpenWithOptions(options.Model, clioptions.BuildOpenOptions(
+		options.Device, options.Preload, options.NativeQuant, options.LoRA, 1,
+	))
 	if err != nil {
 		return err
 	}

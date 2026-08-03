@@ -55,22 +55,21 @@ func openPaddleOCRCuda(ctx context.Context, file *gguf.File, spec PaddleOCRSpec,
 	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
-func (r *PaddleOCRRunner) encodeCUDA(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {
+func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {
 	rows := input.GridH * input.GridW
 	patchWidth := 3 * r.spec.PatchSize * r.spec.PatchSize
 	if rows <= 0 || len(input.PixelValues) != rows*patchWidth {
 		return PaddleOCROutput{}, errors.New("projector: PaddleOCR input shape is inconsistent")
 	}
 	if input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 {
-		return PaddleOCROutput{}, errors.New("projector: PaddleOCR CUDA input is not merge aligned")
+		return PaddleOCROutput{}, errors.New("projector: PaddleOCR input is not merge aligned")
 	}
 	builder := tensor.NewBuilder()
 	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		pixels: {Shape: pixels.Shape, Data: input.PixelValues},
-	}
-	binding := r.cuda.bindWeights(builder)
-	weight := binding.weight
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	hostFeeds := graph.hostFeeds
+	hostFeeds[pixels] = reference.Value{Shape: pixels.Shape, Data: input.PixelValues}
+	weight := graph.weight
 	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
 		if !hasTensor(r.file, name) {
 			return value
@@ -145,16 +144,9 @@ func (r *PaddleOCRRunner) encodeCUDA(ctx context.Context, input PaddleOCRImage) 
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
 	fc1 = r.paddleOCRActivationGraph(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
-	deviceFeeds, err := binding.result()
+	results, err := graph.execute(output)
 	if err != nil {
-		return PaddleOCROutput{}, fmt.Errorf("projector: build PaddleOCR CUDA graph: %w", err)
-	}
-	if err := builder.Err(); err != nil {
-		return PaddleOCROutput{}, fmt.Errorf("projector: build PaddleOCR CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-	if err != nil {
-		return PaddleOCROutput{}, fmt.Errorf("projector: execute PaddleOCR CUDA graph: %w", err)
+		return PaddleOCROutput{}, fmt.Errorf("projector: execute PaddleOCR graph: %w", err)
 	}
 	return PaddleOCROutput{
 		Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize,

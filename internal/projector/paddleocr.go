@@ -424,46 +424,7 @@ func (r *PaddleOCRRunner) EncodeImage(ctx context.Context, source image.Image, o
 }
 
 func (r *PaddleOCRRunner) encode(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {
-	if r.cuda != nil {
-		return r.encodeCUDA(ctx, input)
-	}
-	rows := input.GridH * input.GridW
-	if rows <= 0 || len(input.PixelValues) != rows*3*r.spec.PatchSize*r.spec.PatchSize {
-		return PaddleOCROutput{}, errors.New("projector: PaddleOCR input shape is inconsistent")
-	}
-	hidden, err := r.patchEmbedding(ctx, input)
-	if err != nil {
-		return PaddleOCROutput{}, err
-	}
-	rowOrder, columnOrder := paddleOCRGrid(input.GridH, input.GridW)
-	if err := r.addPositions(ctx, hidden, input.GridH, input.GridW, rowOrder, columnOrder); err != nil {
-		return PaddleOCROutput{}, err
-	}
-	if r.spec.PreLayerNorm {
-		hidden, err = r.normalize(ctx, hidden, rows, "v.pre_ln", r.spec.LayerNormEpsilon)
-		if err != nil {
-			return PaddleOCROutput{}, err
-		}
-	}
-	for layer := 0; layer < r.spec.Layers; layer++ {
-		if err := ctx.Err(); err != nil {
-			return PaddleOCROutput{}, err
-		}
-		if err := r.runLayer(ctx, hidden, rows, rowOrder, columnOrder, layer); err != nil {
-			return PaddleOCROutput{}, err
-		}
-	}
-	if r.spec.PostLayerNorm {
-		hidden, err = r.normalize(ctx, hidden, rows, "v.post_ln", r.spec.LayerNormEpsilon)
-		if err != nil {
-			return PaddleOCROutput{}, err
-		}
-	}
-	embeddings, err := r.merge(ctx, hidden, input.GridH, input.GridW)
-	if err != nil {
-		return PaddleOCROutput{}, err
-	}
-	return PaddleOCROutput{Embeddings: embeddings, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
+	return r.encodeGraph(ctx, input)
 }
 
 func paddleOCRGrid(height, width int) ([]int, []int) {

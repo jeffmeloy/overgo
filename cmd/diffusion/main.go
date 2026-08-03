@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/inference"
 )
 
@@ -24,20 +25,6 @@ type cliConfig struct {
 	diffusion   inference.DiffusionOptions
 }
 
-type stringFlags []string
-
-func (values *stringFlags) String() string {
-	return strings.Join(*values, ",")
-}
-
-func (values *stringFlags) Set(value string) error {
-	if strings.TrimSpace(value) == "" {
-		return errors.New("LoRA path is empty")
-	}
-	*values = append(*values, value)
-	return nil
-}
-
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -50,16 +37,9 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	adapters := make([]inference.LoRAConfig, len(config.lora))
-	for index, path := range config.lora {
-		adapters[index] = inference.LoRAConfig{Path: path, Scale: 1}
-	}
-	runner, err := inference.OpenWithOptions(config.model, inference.OpenOptions{
-		DeviceOrdinal:           config.device,
-		PreloadDeviceWeights:    config.preload,
-		PreloadQuantizedWeights: config.nativeQuant,
-		LoRAAdapters:            adapters,
-	})
+	runner, err := inference.OpenWithOptions(config.model, clioptions.BuildOpenOptions(
+		config.device, config.preload, config.nativeQuant, config.lora, 1,
+	))
 	if err != nil {
 		return err
 	}
@@ -84,6 +64,9 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 func parseCLI(arguments []string) (cliConfig, error) {
 	flags := flag.NewFlagSet("diffusion", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
+		PreloadName: "preload", NativeQuantName: "native-quant",
+	})
 	length := flags.Int("length", 512, "total prompt-plus-output sequence length")
 	steps := flags.Int("steps", 128, "diffusion step count")
 	algorithm := flags.Int("algorithm", 4, "ranking: 0 origin, 1 entropy, 2 margin, 3 random, 4 confidence")
@@ -97,19 +80,16 @@ func parseCLI(arguments []string) (cliConfig, error) {
 	topP := flags.Float64("top-p", 0.95, "nucleus sampling probability")
 	seed := flags.Int64("seed", 0, "sampling seed")
 	shiftLogits := flags.String("shift-logits", "auto", "logit alignment: auto, true, or false")
-	device := flags.Int("device", 0, "CUDA device ordinal")
-	preload := flags.Bool("preload", false, "dequantize all model weights into CUDA memory")
-	nativeQuant := flags.Bool("native-quant", false, "retain supported quantized CUDA weights")
 	visual := flags.Bool("visual", false, "show progressive step count")
-	var lora stringFlags
-	flags.Var(&lora, "lora", "GGUF LoRA adapter at scale 1; repeatable")
 	if err := flags.Parse(arguments); err != nil {
 		return cliConfig{}, err
 	}
 	if flags.NArg() != 2 {
 		return cliConfig{}, errors.New("usage: diffusion [options] <model.gguf> <prompt>")
 	}
-	if *preload && *nativeQuant {
+	preload := modelFlags.Preload != nil && *modelFlags.Preload
+	nativeQuant := modelFlags.NativeQuant != nil && *modelFlags.NativeQuant
+	if preload && nativeQuant {
 		return cliConfig{}, errors.New("diffusion: -preload and -native-quant are mutually exclusive")
 	}
 	if (*epsilon == 0) == (*blockLength == 0) {
@@ -147,8 +127,8 @@ func parseCLI(arguments []string) (cliConfig, error) {
 		schedule = inference.DiffusionBlock
 	}
 	return cliConfig{
-		model: flags.Arg(0), prompt: flags.Arg(1), device: *device,
-		preload: *preload, nativeQuant: *nativeQuant, lora: append([]string(nil), lora...), visual: *visual,
+		model: flags.Arg(0), prompt: flags.Arg(1), device: *modelFlags.DeviceOrdinal,
+		preload: preload, nativeQuant: nativeQuant, lora: modelFlags.LoRAPaths(), visual: *visual,
 		diffusion: inference.DiffusionOptions{
 			MaxLength: *length, Steps: *steps,
 			Temperature: float32(*temperature), TopK: *topK, TopP: float32(*topP), Seed: *seed,

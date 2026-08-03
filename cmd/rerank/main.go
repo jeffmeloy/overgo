@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 
+	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/inference"
 )
 
@@ -23,9 +24,9 @@ func run() error {
 	modelPath := flags.String("model", "", "Qwen3 or Qwen3-VL reranker GGUF path")
 	query := flags.String("query", "", "query text")
 	document := flags.String("document", "", "document text")
-	device := flags.Int("device", 0, "CUDA device ordinal")
-	nativeQuant := flags.Bool("native-quant", true, "preload quantized weights in native form")
-	preloadF32 := flags.Bool("preload-f32", false, "preload all weights as F32")
+	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
+		PreloadName: "preload-f32", NativeQuantName: "native-quant", NativeQuantDefault: true,
+	})
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
@@ -35,11 +36,7 @@ func run() error {
 	if *query == "" || *document == "" {
 		return errors.New("-query and -document are required")
 	}
-	runner, err := inference.OpenWithOptions(*modelPath, inference.OpenOptions{
-		DeviceOrdinal:           *device,
-		PreloadDeviceWeights:    *preloadF32,
-		PreloadQuantizedWeights: *nativeQuant,
-	})
+	runner, err := inference.OpenWithOptions(*modelPath, modelFlags.OpenOptions(1))
 	if err != nil {
 		return err
 	}

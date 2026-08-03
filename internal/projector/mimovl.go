@@ -325,51 +325,7 @@ func (r *MiMoVLRunner) EncodeImage(ctx context.Context, source image.Image) (MiM
 }
 
 func (r *MiMoVLRunner) encode(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
-	if r.cuda != nil {
-		return r.encodeCUDA(ctx, input)
-	}
-	rows := input.GridH * input.GridW
-	if rows <= 0 || input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 {
-		return MiMoVLOutput{}, errors.New("projector: MiMo-VL input geometry is inconsistent")
-	}
-	hidden, err := r.patchEmbedding(ctx, input)
-	if err != nil {
-		return MiMoVLOutput{}, err
-	}
-	rowPositions, columnPositions := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
-	positionsH, positionsW := rowPositions, columnPositions
-	columnOrder := mimoVLColumnOrder(input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize, r.spec.MergeSize)
-	inverseColumnOrder := inversePermutation(columnOrder)
-	previousMode := -1
-	for layer, mode := range r.spec.WindowModes {
-		if err := ctx.Err(); err != nil {
-			return MiMoVLOutput{}, err
-		}
-		if mode == 1 && previousMode != 1 {
-			hidden = reorderRows(hidden, columnOrder, r.spec.Hidden)
-			positionsH = reorderInts(rowPositions, columnOrder)
-			positionsW = reorderInts(columnPositions, columnOrder)
-		} else if mode != 1 && previousMode == 1 {
-			hidden = reorderRows(hidden, inverseColumnOrder, r.spec.Hidden)
-			positionsH, positionsW = rowPositions, columnPositions
-		}
-		if err := r.runLayer(ctx, hidden, rows, positionsH, positionsW, layer, mode); err != nil {
-			return MiMoVLOutput{}, err
-		}
-		previousMode = mode
-	}
-	if previousMode == 1 {
-		hidden = reorderRows(hidden, inverseColumnOrder, r.spec.Hidden)
-	}
-	hidden, err = r.layerNormalize(ctx, hidden, rows, "v.post_ln", 1e-6)
-	if err != nil {
-		return MiMoVLOutput{}, err
-	}
-	embeddings, err := r.merge(ctx, hidden, rows)
-	if err != nil {
-		return MiMoVLOutput{}, err
-	}
-	return MiMoVLOutput{Embeddings: embeddings, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
+	return r.encodeGraph(ctx, input)
 }
 
 func (r *MiMoVLRunner) patchEmbedding(ctx context.Context, input MiMoVLInput) ([]float32, error) {

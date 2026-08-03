@@ -8,11 +8,114 @@ import (
 	"slices"
 
 	"llamacpp2go/internal/cuda/driver"
+	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
+
+type singleHeadMTPBlock struct {
+	output, key, value *tensor.Tensor
+}
+
+type singleHeadMTPAdapter struct {
+	nodePrefix                         string
+	layer                              model.LayerWeights
+	embeddingNorm, hiddenNorm, project gguf.TensorInfo
+	tokenEmbedding, outputNorm, output *gguf.TensorInfo
+	buildInput                         func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, error)
+	buildBlock                         func(*tensor.Builder, *tensor.Tensor, model.Spec, model.LayerGraphWeights, []uint32, *tensor.Tensor, *tensor.Tensor) (singleHeadMTPBlock, error)
+	buildOutputs                       func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, *tensor.Tensor, error)
+}
+
+func (r *Runner) advanceSingleHeadMTP(
+	ctx context.Context,
+	tokenID tokenizer.TokenID,
+	session *Qwen35MTPSession,
+	adapter singleHeadMTPAdapter,
+) (reference.Value, *Qwen35MTPSession, error) {
+	embeddingInfo := r.weights.TokenEmbedding
+	if adapter.tokenEmbedding != nil {
+		embeddingInfo = *adapter.tokenEmbedding
+	}
+	tokenEmbedding, err := r.loadRows(ctx, embeddingInfo, []uint32{uint32(tokenID)})
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	graph := r.newInferenceGraphRuntime(ctx)
+	builder := graph.builder
+	tokenInput := graph.input(adapter.nodePrefix+".token", tokenEmbedding)
+	hiddenInput := graph.input(adapter.nodePrefix+".hidden", session.PendingHidden)
+	graphWeights, err := graph.layer(adapter.layer, fmt.Sprintf("blk.%d.", r.spec.BlockCount))
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	embeddingNorm, err := graph.weight(adapter.embeddingNorm)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	hiddenNorm, err := graph.weight(adapter.hiddenNorm)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	projection, err := graph.weight(adapter.project)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	current, err := adapter.buildInput(
+		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec,
+	)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	var pastKey, pastValue *tensor.Tensor
+	if session.Layer.Key.Shape.Rank != 0 {
+		pastKey = graph.input(adapter.nodePrefix+".past_key", session.Layer.Key)
+		pastValue = graph.input(adapter.nodePrefix+".past_value", session.Layer.Value)
+	}
+	block, err := adapter.buildBlock(
+		builder, current, r.spec, graphWeights, []uint32{session.Position}, pastKey, pastValue,
+	)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	outputNormInfo := r.weights.OutputNorm
+	if adapter.outputNorm != nil {
+		outputNormInfo = *adapter.outputNorm
+	}
+	outputNorm, err := graph.weight(outputNormInfo)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	outputInfo := r.weights.TokenEmbedding
+	if r.weights.Output != nil {
+		outputInfo = *r.weights.Output
+	}
+	if adapter.output != nil {
+		outputInfo = *adapter.output
+	}
+	output, err := graph.weight(outputInfo)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	logits, nextHidden, err := adapter.buildOutputs(builder, block.output, outputNorm, output, r.spec)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	results, err := graph.execute(logits, nextHidden, block.key, block.value)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	logitValue := results[logits]
+	logitValue.Data = r.finalizeLogits(logitValue.Data)
+	return logitValue, &Qwen35MTPSession{
+		TrunkCache:    session.TrunkCache,
+		Layer:         LayerCache{Key: results[block.key], Value: results[block.value]},
+		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
+		Position: session.Position + 1, targetModel: session.targetModel,
+	}, nil
+}
 
 func (target *Runner) newSingleHeadMTPSession(
 	ctx context.Context,

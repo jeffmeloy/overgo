@@ -42,7 +42,7 @@ func openMiMoVLCUDA(ctx context.Context, file *gguf.File, spec MiMoVLSpec, ordin
 	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
-func (r *MiMoVLRunner) encodeCUDA(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
+func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
 	rows := input.GridH * input.GridW
 	if rows <= 0 || input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 {
 		return MiMoVLOutput{}, errors.New("projector: MiMo-VL input geometry is inconsistent")
@@ -64,11 +64,11 @@ func (r *MiMoVLRunner) encodeCUDA(ctx context.Context, input MiMoVLInput) (MiMoV
 	builder := tensor.NewBuilder()
 	input0 := builder.Input("pixel_values.0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
 	input1 := builder.Input("pixel_values.1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		input0: {Shape: input0.Shape, Data: pixels0}, input1: {Shape: input1.Shape, Data: pixels1},
-	}
-	binding := r.cuda.bindWeights(builder)
-	weight := binding.weight
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	hostFeeds := graph.hostFeeds
+	hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
+	hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
+	weight := graph.weight
 	addOptional := func(input *tensor.Tensor, name string) *tensor.Tensor {
 		if hasTensor(r.file, name) {
 			return builder.Add(input, weight(name))
@@ -138,16 +138,9 @@ func (r *MiMoVLRunner) encodeCUDA(ctx context.Context, input MiMoVLInput) (MiMoV
 	fc1 = qwen3VLGELUTanh(builder, addOptional(fc1, "mm.0.bias"), hostFeeds)
 	output := builder.MulMat(weight("mm.2.weight"), fc1)
 	output = addOptional(output, "mm.2.bias")
-	deviceFeeds, err := binding.result()
+	results, err := graph.execute(output)
 	if err != nil {
-		return MiMoVLOutput{}, fmt.Errorf("projector: build MiMo-VL CUDA graph: %w", err)
-	}
-	if err := builder.Err(); err != nil {
-		return MiMoVLOutput{}, fmt.Errorf("projector: build MiMo-VL CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-	if err != nil {
-		return MiMoVLOutput{}, fmt.Errorf("projector: execute MiMo-VL CUDA graph: %w", err)
+		return MiMoVLOutput{}, fmt.Errorf("projector: execute MiMo-VL graph: %w", err)
 	}
 	return MiMoVLOutput{
 		Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize,

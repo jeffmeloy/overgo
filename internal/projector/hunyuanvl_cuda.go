@@ -52,11 +52,11 @@ func openHunyuanVLCUDA(ctx context.Context, file *gguf.File, spec HunyuanVLSpec,
 	return openProjectorCUDA(ctx, file, names, nil, ordinal)
 }
 
-func (r *HunyuanVLRunner) encodeCUDA(ctx context.Context, input HunyuanVLImage) (HunyuanVLOutput, error) {
+func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input HunyuanVLImage) (HunyuanVLOutput, error) {
 	rows := input.GridH * input.GridW
 	patchWidth := 3 * r.spec.PatchSize * r.spec.PatchSize
 	if rows <= 0 || input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 || len(input.PixelValues) != rows*patchWidth {
-		return HunyuanVLOutput{}, errors.New("projector: Hunyuan-VL CUDA input shape is inconsistent")
+		return HunyuanVLOutput{}, errors.New("projector: Hunyuan-VL input shape is inconsistent")
 	}
 	conv0, err := r.load(ctx, "mm.0.weight")
 	if err != nil {
@@ -77,11 +77,11 @@ func (r *HunyuanVLRunner) encodeCUDA(ctx context.Context, input HunyuanVLImage) 
 	builder := tensor.NewBuilder()
 	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	conv0Input := builder.Input("mm.0.weight.reordered", dtype.F32, tensor.MustShape(uint64(convWidth), uint64(r.spec.ConvIntermediate)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		pixels: pixelsValue(pixels, input.PixelValues), conv0Input: pixelsValue(conv0Input, reordered),
-	}
-	binding := r.cuda.bindWeights(builder)
-	weight := binding.weight
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	hostFeeds := graph.hostFeeds
+	hostFeeds[pixels] = pixelsValue(pixels, input.PixelValues)
+	hostFeeds[conv0Input] = pixelsValue(conv0Input, reordered)
+	weight := graph.weight
 	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
 		if !hasTensor(r.file, name) {
 			return value
@@ -164,16 +164,9 @@ func (r *HunyuanVLRunner) encodeCUDA(ctx context.Context, input HunyuanVLImage) 
 	end := builder.Reshape(weight("mm.image_end"), uint64(r.spec.OutputHidden), 1)
 	output := builder.Concat(builder.Concat(begin, content, 1), end, 1)
 	output = builder.WeightedRMSNorm(output, weight("mm.post_norm.weight"), r.spec.LayerNormEpsilon)
-	deviceFeeds, err := binding.result()
+	results, err := graph.execute(output)
 	if err != nil {
-		return HunyuanVLOutput{}, fmt.Errorf("projector: build Hunyuan-VL CUDA graph: %w", err)
-	}
-	if err := builder.Err(); err != nil {
-		return HunyuanVLOutput{}, fmt.Errorf("projector: build Hunyuan-VL CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
-	if err != nil {
-		return HunyuanVLOutput{}, fmt.Errorf("projector: execute Hunyuan-VL CUDA graph: %w", err)
+		return HunyuanVLOutput{}, fmt.Errorf("projector: execute Hunyuan-VL graph: %w", err)
 	}
 	return HunyuanVLOutput{Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
 }

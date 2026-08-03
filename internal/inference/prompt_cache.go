@@ -15,6 +15,18 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
+func (r *Runner) promotePromptCache(index int) *cachedPrompt {
+	if index < 0 || index >= len(r.promptCaches) {
+		return nil
+	}
+	selected := r.promptCaches[index]
+	if index > 0 {
+		copy(r.promptCaches[1:index+1], r.promptCaches[:index])
+		r.promptCaches[0] = selected
+	}
+	return selected
+}
+
 func (r *Runner) selectPromptCache(
 	requested []tokenizer.TokenID,
 	minimum int,
@@ -40,8 +52,7 @@ func (r *Runner) selectPromptCache(
 		}
 	}
 	if selectedIndex > 0 {
-		copy(r.promptCaches[1:selectedIndex+1], r.promptCaches[:selectedIndex])
-		r.promptCaches[0] = selected
+		r.promotePromptCache(selectedIndex)
 	}
 	return selected, best
 }
@@ -61,11 +72,7 @@ func (r *Runner) selectProjectedPromptCache(
 			!slices.Equal(candidate.Tokens, requested) {
 			continue
 		}
-		if index > 0 {
-			copy(r.promptCaches[1:index+1], r.promptCaches[:index])
-			r.promptCaches[0] = candidate
-		}
-		return candidate, len(requested)
+		return r.promotePromptCache(index), len(requested)
 	}
 	return nil, 0
 }
@@ -87,11 +94,7 @@ func (r *Runner) selectT5SourceCache(
 			!slices.Equal(candidate.Tokens, requested) {
 			continue
 		}
-		if index > 0 {
-			copy(r.promptCaches[1:index+1], r.promptCaches[:index])
-			r.promptCaches[0] = candidate
-		}
-		return candidate, len(requested)
+		return r.promotePromptCache(index), len(requested)
 	}
 	return nil, 0
 }

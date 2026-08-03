@@ -1798,6 +1798,28 @@ query outputs enter the final projection; the overview receives the trailing
 view separator. Tiny overview/grid/prompt contracts and a nonzero end-to-end
 CPU/CUDA differential pass; real-model validation remains fixture-gated.
 
+## Shared runtime follow-on
+
+Model catalog loading now uses ordered tensor-requirement schemas for common
+MTP, shared-expert, draft, DeepSeek 4, Kimi Linear, T5 cross-attention, and MLA
+families. Required and optional bindings share one path, preserve declared
+validation order, and bind value or pointer destinations without reflection.
+
+Inference host/device graph setup now shares one runtime for inputs, weights,
+layer bindings, and execution. Qwen3.5 and Cohere2-MoE share a typed single-head
+MTP advance transaction; NextN uses the same graph runtime while retaining DSA
+indexer and auxiliary-state policy. Qwen3-VL, MiMo-VL, Hunyuan-VL, and
+PaddleOCR-VL now execute one projector graph on reference or CUDA backends.
+
+Server endpoints now share exact method guards and strict one-document YAML
+decoding. OpenAI Completions, Chat, Responses, and Anthropic generation paths share
+stop filtering, generated/completion counts, final flush, and finish-reason
+selection while protocol-specific text, reasoning, and tool events remain in
+their protocol sinks. Prompt-cache selection shares one LRU promotion helper,
+and CLI model flags/open options now cover benchmark, diffusion, embedding,
+rerank, generation, perplexity, and server commands with command-specific
+names and defaults.
+
 ## Working rules
 
 - A blocked task is recorded here and deferred while independent work continues.

@@ -800,9 +800,7 @@ type propertiesResponse struct {
 }
 
 func (h *Handler) properties(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		response.Header().Set("Allow", http.MethodGet)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
 	api, ok := h.generator.(ModelPropertiesAPI)
@@ -963,9 +961,7 @@ func perTokenAndRate(tokens uint64, durationMS float64) (float64, float64) {
 }
 
 func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		response.Header().Set("Allow", http.MethodGet)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
 	if request.URL.Query().Has("fail_on_no_slot") && len(h.slots) == 0 {
@@ -1099,9 +1095,7 @@ type tokenPieceResponse struct {
 }
 
 func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	api, ok := h.generator.(TokenizationAPI)
@@ -1210,9 +1204,7 @@ type detokenizeRequest struct {
 }
 
 func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	api, ok := h.generator.(TokenizationAPI)
@@ -1310,9 +1302,7 @@ type applyTemplateRequest struct {
 }
 
 func (h *Handler) applyTemplate(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(ChatFormatter)
@@ -1372,9 +1362,7 @@ func (h *Handler) authorized(request *http.Request) bool {
 }
 
 func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		response.Header().Set("Allow", http.MethodGet)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
 	response.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
@@ -1498,9 +1486,7 @@ func (h *Handler) generate(
 }
 
 func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		response.Header().Set("Allow", http.MethodGet)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
 	model := inference.ModelProperties{}
@@ -1556,9 +1542,7 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) health(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		response.Header().Set("Allow", http.MethodGet)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
+	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
@@ -1616,9 +1600,7 @@ type rerankResponse struct {
 }
 
 func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	ranker, ok := h.generator.(Ranker)
@@ -1714,9 +1696,7 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	embedder, ok := h.generator.(Embedder)
@@ -1814,9 +1794,7 @@ type nativeEmbeddingItem struct {
 }
 
 func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	embedder, ok := h.generator.(Embedder)
@@ -2095,9 +2073,7 @@ type completionRequest struct {
 }
 
 func (h *Handler) completions(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBytes)
@@ -2215,14 +2191,7 @@ func (h *Handler) infill(
 	response http.ResponseWriter,
 	request *http.Request,
 ) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(
-			response,
-			http.StatusMethodNotAllowed,
-			"method_not_allowed",
-			"POST required",
-		)
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(InfillFormatter)
@@ -2518,9 +2487,7 @@ type preparedPrompt struct {
 }
 
 func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	var body nativeCompletionRequest
@@ -4655,11 +4622,7 @@ func (h *Handler) complete(
 				writeGenerationError(response, err)
 				return
 			}
-			var output strings.Builder
-			completionTokens := 0
-			generatedTokens := 0
-			filter := newStopFilter(stops)
-			ids, _, err := h.generate(
+			ids, pump, err := h.generateWithPump(
 				request.Context(),
 				slotID,
 				prompt.Text,
@@ -4667,33 +4630,22 @@ func (h *Handler) complete(
 					MaxNewTokens:   maxTokens,
 					Sampler:        choiceSampler,
 					PromptTokenIDs: prompt.TokenIDs,
-					StopSequences:  stops,
 					ContextShift:   h.config.ContextShift,
-					OnToken: func(event inference.TokenEvent) error {
-						generatedTokens++
-						if !filter.Stopped() {
-							completionTokens++
-						}
-						output.WriteString(filter.Accept(event.Piece))
-						return nil
-					},
 				},
+				stops,
+				nil,
 			)
 			if err != nil {
 				writeGenerationError(response, err)
 				return
 			}
 			if promptChoice == 0 {
-				promptTokens += len(ids) - generatedTokens
+				promptTokens += len(ids) - pump.generated
 			}
-			output.WriteString(filter.Flush())
-			finishReason := "stop"
-			if !filter.Stopped() && completionTokens == maxTokens {
-				finishReason = "length"
-			}
-			totalCompletionTokens += completionTokens
+			finishReason := pump.finishReason(maxTokens, "stop", "length")
+			totalCompletionTokens += pump.completion
 			choices = append(choices, completionChoice{
-				Text:         output.String(),
+				Text:         pump.text(),
 				Index:        choiceIndex,
 				FinishReason: finishReason,
 			})
@@ -4753,9 +4705,7 @@ func (h *Handler) streamCompletion(
 				_ = stream.write(errorEnvelope("generation_error", err.Error()))
 				break
 			}
-			completionTokens := 0
-			filter := newStopFilter(stops)
-			_, _, err = h.generate(
+			_, pump, err := h.generateWithPump(
 				request.Context(),
 				slotID,
 				prompt.Text,
@@ -4763,44 +4713,31 @@ func (h *Handler) streamCompletion(
 					MaxNewTokens:   maxTokens,
 					Sampler:        choiceSampler,
 					PromptTokenIDs: prompt.TokenIDs,
-					StopSequences:  stops,
 					ContextShift:   h.config.ContextShift,
-					OnToken: func(event inference.TokenEvent) error {
-						if !filter.Stopped() {
-							completionTokens++
-						}
-						piece := filter.Accept(event.Piece)
-						if piece == "" {
-							return request.Context().Err()
-						}
-						chunk := streamResponse{
-							ID:      id,
-							Object:  "text_completion",
-							Created: created,
-							Model:   h.config.ModelID,
-							Choices: []streamChoice{{
-								Text:  piece,
-								Index: choiceIndex,
-							}},
-						}
-						return stream.write(chunk)
-					},
+				},
+				stops,
+				func(piece string) error {
+					if piece == "" {
+						return request.Context().Err()
+					}
+					chunk := streamResponse{
+						ID:      id,
+						Object:  "text_completion",
+						Created: created,
+						Model:   h.config.ModelID,
+						Choices: []streamChoice{{
+							Text:  piece,
+							Index: choiceIndex,
+						}},
+					}
+					return stream.write(chunk)
 				},
 			)
 			if err != nil {
 				_ = stream.write(errorEnvelope("generation_error", err.Error()))
 				break
 			}
-			if piece := filter.Flush(); piece != "" {
-				_ = stream.write(streamResponse{
-					ID: id, Object: "text_completion", Created: created, Model: h.config.ModelID,
-					Choices: []streamChoice{{Text: piece, Index: choiceIndex}},
-				})
-			}
-			reason := "stop"
-			if !filter.Stopped() && completionTokens == maxTokens {
-				reason = "length"
-			}
+			reason := pump.finishReason(maxTokens, "stop", "length")
 			_ = stream.write(streamResponse{
 				ID:      id,
 				Object:  "text_completion",

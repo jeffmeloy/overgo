@@ -101,9 +101,7 @@ type responsesResponse struct {
 }
 
 func (h *Handler) responses(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(ChatFormatter)
@@ -274,10 +272,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	var output strings.Builder
-	filter := newStopFilter(stops)
-	generatedTokens := 0
-	ids, _, err := h.generate(
+	ids, pump, err := h.generateWithPump(
 		request.Context(),
 		slotID,
 		prepared.Text,
@@ -285,31 +280,26 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			MaxNewTokens:    maxTokens,
 			Sampler:         sampler,
 			ParseSpecial:    true,
-			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
 			PromptTokenIDs:  prepared.TokenIDs,
 			CachePrompt:     prepared.ProjectedInputs != nil,
 			ProjectedInputs: prepared.ProjectedInputs,
-			OnToken: func(event inference.TokenEvent) error {
-				generatedTokens++
-				output.WriteString(filter.Accept(event.Piece))
-				return nil
-			},
 		},
+		stops,
+		nil,
 	)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
-	output.WriteString(filter.Flush())
 	now := time.Now().Unix()
 	message := inference.ChatMessage{
 		Role:    "assistant",
-		Content: output.String(),
+		Content: pump.text(),
 	}
 	if len(toolSelection.active) != 0 || reasoningSummary {
 		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
-			output.String(),
+			pump.text(),
 			toolSelection.active,
 		)
 		if err != nil {
@@ -320,7 +310,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
 	assignResponseCallIDs(&message, idSuffix)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
-	promptTokens := len(ids) - generatedTokens
+	promptTokens := len(ids) - pump.generated
 	if body.Store == nil || *body.Store {
 		h.responseHistory.put(responseID, append(history, message))
 	}
@@ -334,8 +324,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      generatedTokens,
-			TotalTokens:       promptTokens + generatedTokens,
+			OutputTokens:      pump.generated,
+			TotalTokens:       promptTokens + pump.generated,
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: 0},
 		},
 	})
@@ -383,8 +373,6 @@ func (h *Handler) streamResponses(
 
 	var output strings.Builder
 	var buffered strings.Builder
-	filter := newStopFilter(stops)
-	generatedTokens := 0
 	textStarted := false
 	var reasoningOutput *responseOutputItem
 	var toolStream inference.ChatOutputStream
@@ -558,7 +546,7 @@ func (h *Handler) streamResponses(
 		reasoningOutput = &completed
 		return nil
 	}
-	ids, _, err := h.generate(
+	ids, pump, err := h.generateWithPump(
 		request.Context(),
 		slotID,
 		prompt,
@@ -566,26 +554,24 @@ func (h *Handler) streamResponses(
 			MaxNewTokens:    maxTokens,
 			Sampler:         sampler,
 			ParseSpecial:    true,
-			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
 			PromptTokenIDs:  promptIDs,
 			CachePrompt:     projectedInputs != nil,
 			ProjectedInputs: projectedInputs,
-			OnToken: func(event inference.TokenEvent) error {
-				generatedTokens++
-				piece := filter.Accept(event.Piece)
-				if len(tools) != 0 {
-					if streamErr := emitToolPiece(piece); streamErr != nil {
-						return streamErr
-					}
-					return request.Context().Err()
+		},
+		stops,
+		func(piece string) error {
+			if len(tools) != 0 {
+				if streamErr := emitToolPiece(piece); streamErr != nil {
+					return streamErr
 				}
-				if reasoningSummary {
-					buffered.WriteString(piece)
-					return request.Context().Err()
-				}
-				return emitText(piece)
-			},
+				return request.Context().Err()
+			}
+			if reasoningSummary {
+				buffered.WriteString(piece)
+				return request.Context().Err()
+			}
+			return emitText(piece)
 		},
 	)
 	if err != nil {
@@ -595,16 +581,8 @@ func (h *Handler) streamResponses(
 		})
 		return
 	}
-	flushed := filter.Flush()
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
-		if err := emitToolPiece(flushed); err != nil {
-			_ = writeEvent("response.failed", map[string]any{
-				"type":  "response.failed",
-				"error": errorEnvelope("generation_error", err.Error()).Error,
-			})
-			return
-		}
 		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(
 			buffered.String(),
 			tools,
@@ -622,7 +600,6 @@ func (h *Handler) streamResponses(
 			}
 		}
 	} else if reasoningSummary {
-		buffered.WriteString(flushed)
 		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(buffered.String(), nil)
 		if err != nil {
 			_ = writeEvent("response.failed", map[string]any{
@@ -637,9 +614,6 @@ func (h *Handler) streamResponses(
 			return
 		}
 	} else {
-		if err := emitText(flushed); err != nil {
-			return
-		}
 		parsedMessage = inference.ChatMessage{
 			Role:    "assistant",
 			Content: output.String(),
@@ -755,7 +729,7 @@ func (h *Handler) streamResponses(
 		outputItems = append(outputItems, item)
 	}
 	now := time.Now().Unix()
-	promptTokens := len(ids) - generatedTokens
+	promptTokens := len(ids) - pump.generated
 	final := responsesResponse{
 		CompletedAt: now,
 		CreatedAt:   now,
@@ -766,8 +740,8 @@ func (h *Handler) streamResponses(
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      generatedTokens,
-			TotalTokens:       promptTokens + generatedTokens,
+			OutputTokens:      pump.generated,
+			TotalTokens:       promptTokens + pump.generated,
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: 0},
 		},
 	}
@@ -781,9 +755,7 @@ func (h *Handler) streamResponses(
 }
 
 func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		response.Header().Set("Allow", http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "POST required")
+	if !requireMethod(response, request, http.MethodPost) {
 		return
 	}
 	formatter, ok := h.generator.(ChatFormatter)

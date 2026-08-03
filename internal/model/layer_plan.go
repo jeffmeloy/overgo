@@ -220,6 +220,7 @@ func validateModelPlan(spec Spec, plan ModelPlan) error {
 		return fmt.Errorf("model plan architecture %s has invalid shared-KV layer count %d", spec.Architecture, spec.SharedKVLayers)
 	}
 	producedAuxiliary := make(map[AuxiliaryFlow]bool)
+	norm := spec.NormPlan()
 	for index, layer := range plan.Layers {
 		if layer.Layer != uint32(index) || layer.GraphFamily != plan.Profile.GraphFamily ||
 			layer.CatalogFamily != plan.Profile.CatalogFamily {
@@ -246,7 +247,7 @@ func validateModelPlan(spec Spec, plan ModelPlan) error {
 		if layer.Cache == CacheDeepSeek4 && len(spec.CompressRatios) <= index {
 			return fmt.Errorf("model plan layer %d has no DeepSeek4 compression ratio", index)
 		}
-		if layer.Normalization != spec.NormPlan() {
+		if layer.Normalization != norm {
 			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)
 		}
 	}
@@ -275,7 +276,6 @@ func validateModelPlan(spec Spec, plan ModelPlan) error {
 			return fmt.Errorf("model plan architecture %s has an invalid attention temperature contract", spec.Architecture)
 		}
 	}
-	norm := spec.NormPlan()
 	if norm.PostNormLayout == PostNormLayoutBERT &&
 		(norm.Operation != NormalizationLayer || norm.PreAttention || !norm.PostAttention || !norm.Bias) {
 		return fmt.Errorf("model plan architecture %s has an invalid BERT normalization layout", spec.Architecture)

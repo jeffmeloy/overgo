@@ -655,7 +655,9 @@ func (r *Runner) ForwardWithEmbeddingOverrides(
 	if r.forwardPolicy() == model.ForwardT5Encoder || r.spec.NonCausalAttention {
 		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
 	}
-	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, nil, overrides, nil, nil, nil)
+	hidden, _, err := r.forwardCachedProjectedChunkLocked(
+		ctx, tokenIDs, nil, ProjectedInputs{EmbeddingOverrides: overrides},
+	)
 	return hidden, err
 }
 
@@ -1116,7 +1118,9 @@ func (r *Runner) ForwardCachedWithEmbeddingOverrides(
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, overrides, nil, nil, nil)
+	return r.forwardCachedProjectedChunkLocked(
+		ctx, tokenIDs, cache, ProjectedInputs{EmbeddingOverrides: overrides},
+	)
 }
 
 // ForwardCachedWithMultimodalInputs: projected embeddings plus MRoPE axes.
@@ -1138,8 +1142,10 @@ func (r *Runner) ForwardCachedWithMultimodalInputs(
 	if !supportsMultiAxisPositions(r.spec) {
 		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
 	}
-	return r.forwardCachedWithEmbeddingOverridesLocked(
-		ctx, tokenIDs, cache, overrides, &positions, nil, nil,
+	return r.forwardCachedProjectedChunkLocked(
+		ctx, tokenIDs, cache, ProjectedInputs{
+			EmbeddingOverrides: overrides, MultiAxisPositions: &positions,
+		},
 	)
 }
 
@@ -1168,11 +1174,7 @@ func (r *Runner) forwardCachedWithProjectedInputsLocked(
 	inputs ProjectedInputs,
 ) (reference.Value, *KVCache, error) {
 	if len(inputs.VisualExpertBlocks) == 0 {
-		return r.forwardCachedWithEmbeddingOverridesLocked(
-			ctx, tokenIDs, cache, inputs.EmbeddingOverrides,
-			inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
-			inputs.BidirectionalAttentionBlocks,
-		)
+		return r.forwardCachedProjectedChunkLocked(ctx, tokenIDs, cache, inputs)
 	}
 	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, inputs)
 	if err != nil {
@@ -1187,7 +1189,9 @@ func (r *Runner) forwardCachedWithProjectedInputsLocked(
 	start := 0
 	for _, block := range projected.visualBlocks {
 		if start < int(block.Start) {
-			hidden, next, err = r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs[start:int(block.Start)], next, nil, nil, nil, nil)
+			hidden, next, err = r.forwardCachedProjectedChunkLocked(
+				ctx, tokenIDs[start:int(block.Start)], next, ProjectedInputs{},
+			)
 			if err != nil {
 				return reference.Value{}, nil, err
 			}
@@ -1197,14 +1201,18 @@ func (r *Runner) forwardCachedWithProjectedInputsLocked(
 		for index := range chunk {
 			chunkOverrides[index] = EmbeddingOverride{TokenIndex: uint32(index), Embedding: overrides[block.Start+uint32(index)]}
 		}
-		hidden, next, err = r.forwardCachedWithEmbeddingOverridesLocked(ctx, chunk, next, chunkOverrides, nil, nil, nil)
+		hidden, next, err = r.forwardCachedProjectedChunkLocked(
+			ctx, chunk, next, ProjectedInputs{EmbeddingOverrides: chunkOverrides},
+		)
 		if err != nil {
 			return reference.Value{}, nil, err
 		}
 		start = int(block.End)
 	}
 	if start < len(tokenIDs) {
-		hidden, next, err = r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs[start:], next, nil, nil, nil, nil)
+		hidden, next, err = r.forwardCachedProjectedChunkLocked(
+			ctx, tokenIDs[start:], next, ProjectedInputs{},
+		)
 	}
 	return hidden, next, err
 }
@@ -1249,20 +1257,17 @@ func (r *Runner) forwardCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
-	return r.forwardCachedWithEmbeddingOverridesLocked(ctx, tokenIDs, cache, nil, nil, nil, nil)
+	return r.forwardCachedProjectedChunkLocked(ctx, tokenIDs, cache, ProjectedInputs{})
 }
 
-func (r *Runner) forwardCachedWithEmbeddingOverridesLocked(
+func (r *Runner) forwardCachedProjectedChunkLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
-	overrides []EmbeddingOverride,
-	multiPositions *MultiAxisPositions,
-	deepstackInputs []reference.Value,
-	attentionBlocks []AttentionBlock,
+	inputs ProjectedInputs,
 ) (reference.Value, *KVCache, error) {
-	return r.forwardCachedWithEmbeddingOverridesModeLocked(
-		ctx, tokenIDs, cache, overrides, multiPositions, deepstackInputs, attentionBlocks, true, nil,
+	return r.forwardCachedProjectedChunkModeLocked(
+		ctx, tokenIDs, cache, inputs, true, nil,
 	)
 }
 
@@ -1271,19 +1276,16 @@ func (r *Runner) forwardCachedPreOutputNormLocked(
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
-	return r.forwardCachedWithEmbeddingOverridesModeLocked(
-		ctx, tokenIDs, cache, nil, nil, nil, nil, false, nil,
+	return r.forwardCachedProjectedChunkModeLocked(
+		ctx, tokenIDs, cache, ProjectedInputs{}, false, nil,
 	)
 }
 
-func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
+func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
-	overrides []EmbeddingOverride,
-	multiPositions *MultiAxisPositions,
-	deepstackInputs []reference.Value,
-	attentionBlocks []AttentionBlock,
+	inputs ProjectedInputs,
 	applyOutputNorm bool,
 	capture *layerInputCapture,
 ) (reference.Value, *KVCache, error) {
@@ -1299,17 +1301,14 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 	if r.forwardPolicy() == model.ForwardT5Encoder {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
 	}
-	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, ProjectedInputs{
-		EmbeddingOverrides: overrides, MultiAxisPositions: multiPositions,
-		DeepstackEmbeddings: deepstackInputs, BidirectionalAttentionBlocks: attentionBlocks,
-	})
+	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, inputs)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
 	visualMode := projected.visualMode
-	overrides = projected.overrides
-	multiPositions = projected.multiPositions
-	deepstackInputs = projected.deepstackInputs
+	overrides := projected.overrides
+	multiPositions := projected.multiPositions
+	deepstackInputs := projected.deepstackInputs
 	attentionBlockIDs := projected.attentionBlockIDs
 	var pastTokens, nextPosition uint32
 	if cache != nil {

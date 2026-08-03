@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Required and optional layer tensors now share one reflected catalog for host loading and device graph binding; projected chunk execution carries one compiled request value and normalization plans are resolved once per model load.
 - Host and device layer graphs now bind mirrored optional weights through one drift-checked field catalog; Kimi KDA device fields are included automatically.
 - One plan-driven side-input binder now owns embedding skip, projected per-layer input, attention blocks, scheduled temperature, and DeepSeek4 positions across graph paths.
 - Normalization, projected requests, and speculative families now compile complete execution descriptors; model-plan invariants reject contradictory cross-policy state before execution.

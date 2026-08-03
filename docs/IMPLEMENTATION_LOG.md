@@ -32,6 +32,13 @@ claims.
 
 ## Validated milestones
 
+- The August 3 layer-catalog follow-up extended the validated mirror catalog
+  across required and optional host tensor loading and device graph binding,
+  replacing parallel inventories while retaining family-specific structural
+  validation. Projected chunk execution now accepts one request value, and
+  model loading reuses its compiled normalization plan. The wave removed 596
+  net lines; full CPU and CUDA verification passed on the Windows amd64 RTX
+  4090 D host.
 - The August 3 policy-consolidation wave replaced separate host/device optional
   layer binders with one validated mirror catalog, including Kimi KDA fields;
   routed embedding skip, per-layer projections, attention blocks, scheduled

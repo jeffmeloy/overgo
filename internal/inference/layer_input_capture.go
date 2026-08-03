@@ -42,8 +42,8 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 	if err != nil {
 		return reference.Value{}, nil, reference.Value{}, err
 	}
-	hidden, next, err := r.forwardCachedWithEmbeddingOverridesModeLocked(
-		ctx, tokenIDs, cache, nil, nil, nil, nil, true, capture,
+	hidden, next, err := r.forwardCachedProjectedChunkModeLocked(
+		ctx, tokenIDs, cache, ProjectedInputs{}, true, capture,
 	)
 	if err != nil {
 		return reference.Value{}, nil, reference.Value{}, err

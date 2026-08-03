@@ -393,6 +393,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	var err error
 	profile := spec.Profile()
 	draftPlan := profile.DraftPlan(spec.NextNPredictLayers)
+	normPlan := spec.NormPlan()
 	if spec.Architecture == "dflash" {
 		featureWidth := uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength)
 		projection, loadErr := required("fc.weight", featureWidth, uint64(spec.EmbeddingLength))
@@ -785,7 +786,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.PositionEmbedding = &positionEmbedding
 	}
-	if spec.NormPlan().PostNormLayout == PostNormLayoutBERT {
+	if normPlan.PostNormLayout == PostNormLayoutBERT {
 		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
 			if typeEmbedding.Dimensions != 2 ||
 				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||
@@ -1343,7 +1344,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			} else if block > 0 {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_norm.weight")
 			}
-		} else if spec.NormPlan().PreAttention &&
+		} else if normPlan.PreAttention &&
 			(spec.Architecture != "deci" || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
@@ -2045,8 +2046,8 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, biasErr
 			}
 		}
-		if spec.NormPlan().PostAttention {
-			normNames := spec.NormPlan().PostNormTensors()
+		if normPlan.PostAttention {
+			normNames := normPlan.PostNormTensors()
 			if normNames.FeedForwardFallback != "" {
 				if _, ok := tensors[prefix+normNames.FeedForwardWeight]; !ok {
 					normNames.FeedForwardWeight = normNames.FeedForwardFallback
@@ -2115,7 +2116,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		if spec.Architecture == "mamba" || spec.Architecture == "mamba2" {
 			continue
 		}
-		feedForwardNormName := spec.NormPlan().FeedForwardNormTensor()
+		feedForwardNormName := normPlan.FeedForwardNormTensor()
 		if spec.Architecture == "stablelm" {
 			if _, ok := tensors[prefix+feedForwardNormName]; ok {
 				if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
@@ -2134,7 +2135,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			} else if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
 				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
 			}
-		} else if spec.Architecture != "gpt-oss" && spec.NormPlan().PreFeedForward &&
+		} else if spec.Architecture != "gpt-oss" && normPlan.PreFeedForward &&
 			(spec.Architecture != "deci" || spec.LayerFeedForwardLength(block) > 0) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {

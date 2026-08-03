@@ -152,11 +152,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec) {
 		return RankResult{}, errors.New("inference: model does not support deepstack embeddings")
 	}
-	hidden, _, err := r.forwardCachedWithEmbeddingOverridesLocked(
-		ctx, slices.Clone(input), nil,
-		inputs.EmbeddingOverrides, inputs.MultiAxisPositions, inputs.DeepstackEmbeddings,
-		inputs.BidirectionalAttentionBlocks,
-	)
+	hidden, _, err := r.forwardCachedProjectedChunkLocked(ctx, slices.Clone(input), nil, inputs)
 	if err != nil {
 		return RankResult{}, err
 	}

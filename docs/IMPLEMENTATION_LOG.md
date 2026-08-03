@@ -1730,6 +1730,17 @@ the runner no longer owns the corresponding architecture-name dispatch chain.
 Embedding overrides, cache entry points, T5 sessions, audio decoding, and
 generation use the same compiled route.
 
+Final normalization is now one profile contract covering absent, model,
+encoder, decoder, and token-embedding tensor ownership. BERT-style embedding
+and post-norm layout has an explicit capability rather than repeated five-name
+predicates. Host and retained-device execution share one output-norm graph
+builder, while weight loading uses the profile's tensor name and absence rule.
+The architecture registry's policy setters share one checked mutation loop;
+graph and weight construction consume their existing profile snapshot directly.
+Ten legacy string-to-profile adapters were removed from production. T5,
+diffusion, and speculative entry guards likewise reuse prepared forward,
+family, and draft policies.
+
 Retained CUDA KV caches now maintain configurable token-page tables. Each page
 contains layer-specific device pointer views with bounded token extents;
 append, suffix trim, zero-copy shift, and owned range compaction rebuild the

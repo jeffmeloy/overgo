@@ -391,6 +391,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 
 	var result Weights
 	var err error
+	profile := spec.Profile()
 	if spec.Architecture == "dflash" {
 		featureWidth := uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength)
 		projection, loadErr := required("fc.weight", featureWidth, uint64(spec.EmbeddingLength))
@@ -783,7 +784,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.PositionEmbedding = &positionEmbedding
 	}
-	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
+	if profile.Has(ArchitectureBERTNormLayout) {
 		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
 			if typeEmbedding.Dimensions != 2 ||
 				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||
@@ -850,22 +851,13 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		result.TokenEmbeddingNorm = &tokenNorm
 		result.TokenEmbeddingNormBias = &tokenNormBias
 	}
-	outputNormName := "output_norm.weight"
-	if spec.Architecture == "t5encoder" {
-		outputNormName = "enc.output_norm.weight"
-	} else if spec.Architecture == "t5" {
-		outputNormName = "dec.output_norm.weight"
-	} else if spec.Architecture == "neo-bert" {
-		outputNormName = "enc.output_norm.weight"
-	} else if spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe" {
-		outputNormName = "token_embd_norm.weight"
-	}
-	if !spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" && spec.Architecture != "nomic-bert-moe" {
-		if result.OutputNorm, err = required(outputNormName, uint64(spec.EmbeddingLength)); err != nil {
+	if !spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() &&
+		profile.OutputNorm != OutputNormAbsent {
+		if result.OutputNorm, err = required(profile.OutputNormTensor(), uint64(spec.EmbeddingLength)); err != nil {
 			return Weights{}, err
 		}
 	}
-	if spec.RequiresLayerNormBias() && spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" && spec.Architecture != "nomic-bert-moe" {
+	if spec.RequiresLayerNormBias() && profile.OutputNorm != OutputNormAbsent {
 		outputNormBias, biasErr := required("output_norm.bias", uint64(spec.EmbeddingLength))
 		if biasErr != nil {
 			return Weights{}, biasErr
@@ -1054,7 +1046,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.Output = &output
 	}
-	if spec.Profile().Has(ArchitectureRequiresOutput) && result.Output == nil {
+	if profile.Has(ArchitectureRequiresOutput) && result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
 	}
 	if outputBias, ok := tensors["output.bias"]; ok {
@@ -1069,7 +1061,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.OutputBias = &outputBias
 	}
-	if spec.Profile().Has(ArchitectureClassifierHead) {
+	if profile.Has(ArchitectureClassifierHead) {
 		if item, ok := tensors["cls.output.weight"]; ok {
 			outputCount := uint64(1)
 			if len(spec.ClassifierLabels) > 0 {
@@ -1161,7 +1153,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	}
 
 	trunkBlockCount := spec.BlockCount
-	if spec.Profile().AppendsDraftBlocks() {
+	if profile.AppendsDraftBlocks() {
 		trunkBlockCount += spec.NextNPredictLayers
 	}
 	cohere2HasMTP := false
@@ -1204,7 +1196,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			"ffn_up.bias",
 			"ffn_down.bias",
 		}
-		if spec.Profile().Has(ArchitectureBiasFreeProjections) {
+		if profile.Has(ArchitectureBiasFreeProjections) {
 			for _, name := range biasNames {
 				if _, ok := tensors[prefix+name]; ok {
 					return Weights{}, fmt.Errorf(
@@ -1219,7 +1211,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			"rope_factors_short.weight",
 		} {
 			if _, ok := tensors[prefix+unsupported]; ok {
-				if supportsLongRoPE(spec.Architecture) {
+				if profile.Has(ArchitectureLongRoPE) {
 					continue
 				}
 				return Weights{}, fmt.Errorf(
@@ -1283,7 +1275,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
 		}
 		if hasRopeFactors {
-			if spec.Profile().Has(ArchitectureQwenGDN) {
+			if profile.Has(ArchitectureQwenGDN) {
 				return Weights{}, fmt.Errorf(
 					"tensor %q requires unsupported hybrid RoPE factors",
 					ropeFactors.Name,
@@ -1305,7 +1297,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.RopeFactors = &ropeFactors
 		}
-		if supportsLongRoPE(spec.Architecture) {
+		if profile.Has(ArchitectureLongRoPE) {
 			longName := prefix + "rope_factors_long.weight"
 			shortName := prefix + "rope_factors_short.weight"
 			if spec.Architecture == "step35" {
@@ -1351,7 +1343,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			} else if block > 0 {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_norm.weight")
 			}
-		} else if spec.Architecture != "olmo2" && !usesPostOnlyNorm(spec.Architecture) &&
+		} else if spec.Architecture != "olmo2" && !profile.Has(ArchitecturePostOnlyNorm) &&
 			(spec.Architecture != "deci" || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
@@ -1673,7 +1665,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			); err != nil {
 				return Weights{}, err
 			}
-		} else if spec.Profile().Attention == AttentionMLA || spec.Profile().Attention == AttentionDSA {
+		} else if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
 			if spec.Architecture == "minicpm3" || ((isDeepSeek2Family(spec.Architecture) || spec.Architecture == "glm-dsa") && spec.QLoRARank > 0) {
 				if layer.AttentionQ, err = required(
@@ -2053,10 +2045,10 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, biasErr
 			}
 		}
-		if hasPostNorm(spec.Architecture) || spec.Architecture == "olmo2" {
+		if profile.Has(ArchitecturePostNorm) || spec.Architecture == "olmo2" {
 			attentionPostNormName := "post_attention_norm.weight"
 			feedForwardPostNormName := "post_ffw_norm.weight"
-			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" || spec.Architecture == "grok" {
+			if profile.Has(ArchitectureBERTNormLayout) || spec.Architecture == "grok" {
 				attentionPostNormName = "attn_output_norm.weight"
 				feedForwardPostNormName = "layer_output_norm.weight"
 				if spec.Architecture == "grok" {
@@ -2081,7 +2073,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.AttentionPostNorm = &attentionPostNorm
 			layer.FeedForwardPostNorm = &feedForwardPostNorm
-			if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
+			if profile.Has(ArchitectureBERTNormLayout) {
 				attentionBias, biasErr := required(prefix+"attn_output_norm.bias", uint64(spec.EmbeddingLength))
 				if biasErr != nil {
 					return Weights{}, biasErr
@@ -2159,9 +2151,9 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			} else if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
 				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
 			}
-		} else if spec.Architecture != "olmo2" && spec.Architecture != "gpt-oss" && !usesPostOnlyNorm(spec.Architecture) &&
+		} else if spec.Architecture != "olmo2" && spec.Architecture != "gpt-oss" && !profile.Has(ArchitecturePostOnlyNorm) &&
 			(spec.Architecture != "deci" || spec.LayerFeedForwardLength(block) > 0) &&
-			spec.Profile().Residual != ResidualParallel &&
+			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
@@ -2190,7 +2182,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, ffnErr
 		}
 	}
-	if spec.NextNPredictLayers == 1 && spec.Profile().DraftKind == DraftQwen35MTP {
+	if spec.NextNPredictLayers == 1 && profile.DraftKind == DraftQwen35MTP {
 		prefix := fmt.Sprintf("blk.%d.", spec.BlockCount)
 		mtp := &Qwen35MTPWeights{}
 		mtp.MTPOnly = mtpOnly
@@ -2228,7 +2220,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		mtp.Layer.AttentionQNorm, mtp.Layer.AttentionKNorm = &qNorm, &kNorm
 		result.Qwen35MTP = mtp
 	}
-	if spec.Profile().DraftKind == DraftStep35MTP && spec.NextNPredictLayers > 0 {
+	if profile.DraftKind == DraftStep35MTP && spec.NextNPredictLayers > 0 {
 		result.Step35MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset
@@ -2244,7 +2236,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
 	}
-	if spec.Profile().DraftKind == DraftHYV3MTP && spec.NextNPredictLayers > 0 {
+	if profile.DraftKind == DraftHYV3MTP && spec.NextNPredictLayers > 0 {
 		result.HYV3MTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset
@@ -2277,7 +2269,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			result.Layers = result.Layers[:spec.BlockCount]
 		}
 	}
-	if spec.Profile().DraftKind == DraftNextNMTP && spec.NextNPredictLayers > 0 {
+	if profile.DraftKind == DraftNextNMTP && spec.NextNPredictLayers > 0 {
 		result.NextNMTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := uint32(0); offset < spec.NextNPredictLayers; offset++ {
 			block := spec.BlockCount + offset

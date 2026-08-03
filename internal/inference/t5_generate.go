@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
@@ -22,7 +23,7 @@ func (r *Runner) GenerateT5(
 	if r == nil || r.vocab == nil {
 		return nil, "", nil, errors.New("inference: runner is nil")
 	}
-	if r.spec.Architecture != "t5" {
+	if r.forwardPolicy() != model.ForwardT5 {
 		return nil, "", nil, errors.New("inference: T5 generation requires T5 architecture")
 	}
 	if options.MaxNewTokens < 0 {

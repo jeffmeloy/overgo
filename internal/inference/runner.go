@@ -537,7 +537,21 @@ func (r *Runner) applyDeviceOutputNorm(
 	input *tensor.Tensor,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (*tensor.Tensor, error) {
-	if r.spec.Architecture == "bert" || r.spec.Architecture == "jina-bert-v2" || r.spec.Architecture == "jina-bert-v3" || r.spec.Architecture == "nomic-bert" || r.spec.Architecture == "nomic-bert-moe" {
+	return r.buildOutputNorm(builder, input, func(info gguf.TensorInfo) (*tensor.Tensor, error) {
+		node, pointer, err := r.deviceInput(builder, info)
+		if err == nil {
+			deviceFeeds[node] = pointer
+		}
+		return node, err
+	})
+}
+
+func (r *Runner) buildOutputNorm(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	bind func(gguf.TensorInfo) (*tensor.Tensor, error),
+) (*tensor.Tensor, error) {
+	if r.profile().OutputNorm == model.OutputNormAbsent {
 		return input, nil
 	}
 	if r.spec.UsesUnweightedLayerNorm() {
@@ -546,18 +560,16 @@ func (r *Runner) applyDeviceOutputNorm(
 	if r.spec.UsesUnweightedRMSNorm() {
 		return builder.RMSNorm(input, r.spec.RMSNormEpsilon), builder.Err()
 	}
-	weight, pointer, err := r.deviceInput(builder, r.weights.OutputNorm)
+	weight, err := bind(r.weights.OutputNorm)
 	if err != nil {
 		return nil, err
 	}
-	deviceFeeds[weight] = pointer
 	var bias *tensor.Tensor
 	if r.weights.OutputNormBias != nil {
-		bias, pointer, err = r.deviceInput(builder, *r.weights.OutputNormBias)
+		bias, err = bind(*r.weights.OutputNormBias)
 		if err != nil {
 			return nil, err
 		}
-		deviceFeeds[bias] = pointer
 	}
 	return model.ApplyNormalization(builder, input, weight, bias, r.spec), builder.Err()
 }
@@ -688,7 +700,7 @@ func (r *Runner) ForwardNonCausal(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if !r.spec.NonCausalAttention && r.spec.Profile().Attention != model.AttentionLFM2 {
+	if !r.spec.NonCausalAttention && r.profile().Attention != model.AttentionLFM2 {
 		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
 	}
 	return r.forwardNonCausalLocked(ctx, tokenIDs)
@@ -728,7 +740,7 @@ func (r *Runner) ForwardNonCausalLogits(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if !r.spec.NonCausalAttention && r.spec.Profile().Attention != model.AttentionLFM2 {
+	if !r.spec.NonCausalAttention && r.profile().Attention != model.AttentionLFM2 {
 		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
 	}
 	hidden, err := r.forwardNonCausalLocked(ctx, tokenIDs)
@@ -784,7 +796,7 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if r.spec.Profile().Attention == model.AttentionLFM2 {
+	if r.profile().Attention == model.AttentionLFM2 {
 		for layerIndex, layerInfo := range r.weights.Layers {
 			activation, err = r.runLFM2LayerNonCausal(
 				ctx, activation, layerInfo, layerIndex, positions,
@@ -1477,7 +1489,7 @@ func (r *Runner) forwardCachedWithEmbeddingOverridesModeLocked(
 		if (r.spec.Architecture == "rwkv7" || r.spec.Architecture == "arwkv7") && layerIndex > 0 {
 			perLayerInput = firstLayerValue
 		}
-		if r.spec.Profile().Attention == model.AttentionDSA && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
+		if r.profile().Attention == model.AttentionDSA && !r.spec.LayerHasFullIndexer(uint32(layerIndex)) {
 			perLayerInput = previousTopK
 		}
 		var layerCache LayerCache
@@ -2526,37 +2538,13 @@ func (r *Runner) runQwen35LayerCached(
 }
 
 func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) (reference.Value, error) {
-	if r.spec.Architecture == "bert" || r.spec.Architecture == "jina-bert-v2" || r.spec.Architecture == "jina-bert-v3" || r.spec.Architecture == "nomic-bert" || r.spec.Architecture == "nomic-bert-moe" {
+	if r.profile().OutputNorm == model.OutputNormAbsent {
 		return activation, nil
-	}
-	if r.spec.UsesUnweightedLayerNorm() {
-		runtime := r.newInferenceGraphRuntime(ctx)
-		input := runtime.input("output_norm.input", activation)
-		output := runtime.builder.LayerNorm(input, r.spec.LayerNormEpsilon)
-		results, err := runtime.execute(output)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		return results[output], nil
-	}
-	if r.spec.UsesUnweightedRMSNorm() {
-		return r.runUnweightedRMSNorm(ctx, activation)
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	input := runtime.input("output_norm.input", activation)
-	weightInput, err := runtime.weight(r.weights.OutputNorm)
+	output, err := r.buildOutputNorm(runtime.builder, input, runtime.weight)
 	if err != nil {
-		return reference.Value{}, err
-	}
-	var biasInput *tensor.Tensor
-	if r.weights.OutputNormBias != nil {
-		biasInput, err = runtime.weight(*r.weights.OutputNormBias)
-		if err != nil {
-			return reference.Value{}, err
-		}
-	}
-	output := model.ApplyNormalization(runtime.builder, input, weightInput, biasInput, r.spec)
-	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
 	results, err := runtime.execute(output)

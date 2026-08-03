@@ -84,7 +84,7 @@ func (r *Runner) AdvanceCohere2MTP(
 }
 
 func (r *Runner) validateCohere2MTP() error {
-	if r.spec.Profile().DraftKind != model.DraftCohere2MTP || r.spec.NextNPredictLayers != 1 ||
+	if r.profile().DraftKind != model.DraftCohere2MTP || r.spec.NextNPredictLayers != 1 ||
 		r.weights.Cohere2MTP == nil {
 		return errors.New("inference: model has no supported Cohere2-MoE MTP block")
 	}

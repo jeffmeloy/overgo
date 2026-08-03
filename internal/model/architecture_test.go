@@ -72,6 +72,30 @@ func TestArchitectureProfileForwardPolicy(t *testing.T) {
 	}
 }
 
+func TestArchitectureProfileOutputNormPolicy(t *testing.T) {
+	for architecture, want := range map[string]struct {
+		policy OutputNormPolicy
+		tensor string
+	}{
+		"llama":          {OutputNormModel, "output_norm.weight"},
+		"bert":           {OutputNormAbsent, ""},
+		"nomic-bert-moe": {OutputNormAbsent, ""},
+		"neo-bert":       {OutputNormEncoder, "enc.output_norm.weight"},
+		"t5encoder":      {OutputNormEncoder, "enc.output_norm.weight"},
+		"t5":             {OutputNormDecoder, "dec.output_norm.weight"},
+		"lfm2":           {OutputNormTokenEmbedding, "token_embd_norm.weight"},
+	} {
+		profile, ok := LookupArchitecture(architecture)
+		if !ok || profile.OutputNorm != want.policy || profile.OutputNormTensor() != want.tensor {
+			t.Fatalf("%s output norm = %v/%q, want %v/%q",
+				architecture, profile.OutputNorm, profile.OutputNormTensor(), want.policy, want.tensor)
+		}
+		if want.policy == OutputNormAbsent && !profile.Has(ArchitectureBERTNormLayout) {
+			t.Fatalf("%s has no BERT normalization layout", architecture)
+		}
+	}
+}
+
 func TestArchitectureProfileFusedQKVPolicy(t *testing.T) {
 	for architecture, capabilities := range map[string]ArchitectureCapability{
 		"bloom": ArchitectureFusedQKV | ArchitectureRequiresFusedQKV | ArchitectureRequiresFusedQKVBias,

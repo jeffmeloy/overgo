@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"llamacpp2go/internal/checked"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/statecodec"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -119,7 +120,7 @@ func (r *Runner) LoadT5Session(data []byte) (*T5Session, error) {
 }
 
 func (r *Runner) validateT5Session(session *T5Session) error {
-	if r.spec.Architecture != "t5" {
+	if r.forwardPolicy() != model.ForwardT5 {
 		return errors.New("inference: T5 session requires T5 architecture")
 	}
 	if session == nil || session.Encoder.Shape.Rank != 2 ||

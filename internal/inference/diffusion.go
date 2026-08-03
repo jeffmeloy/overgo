@@ -73,7 +73,7 @@ func (r *Runner) GenerateDiffusion(
 	if r == nil || r.vocab == nil {
 		return nil, "", errors.New("inference: runner is nil")
 	}
-	if !diffusionArchitecture(r.spec.Architecture) {
+	if r.profile().Family != model.ArchitectureFamilyDiffusion {
 		return nil, "", fmt.Errorf("inference: architecture %q is not a diffusion model", r.spec.Architecture)
 	}
 	r.mu.Lock()
@@ -127,11 +127,6 @@ func (r *Runner) GenerateDiffusion(
 		return nil, "", err
 	}
 	return generated, text, nil
-}
-
-func diffusionArchitecture(architecture string) bool {
-	profile, ok := model.LookupArchitecture(architecture)
-	return ok && profile.Has(model.ArchitectureDiffusion)
 }
 
 func (r *Runner) diffusionPromptTokens(

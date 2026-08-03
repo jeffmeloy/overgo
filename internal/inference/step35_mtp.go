@@ -331,7 +331,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 }
 
 func (r *Runner) validateStep35MTP() error {
-	if r == nil || r.spec.Profile().DraftKind != model.DraftStep35MTP || r.spec.NextNPredictLayers == 0 ||
+	if r == nil || r.profile().DraftKind != model.DraftStep35MTP || r.spec.NextNPredictLayers == 0 ||
 		len(r.weights.Step35MTP) != int(r.spec.NextNPredictLayers) {
 		return errors.New("inference: model has no supported Step3.5 MTP heads")
 	}
@@ -339,7 +339,7 @@ func (r *Runner) validateStep35MTP() error {
 }
 
 func (r *Runner) validateHYV3MTP() error {
-	if r == nil || r.spec.Profile().DraftKind != model.DraftHYV3MTP || r.spec.NextNPredictLayers == 0 ||
+	if r == nil || r.profile().DraftKind != model.DraftHYV3MTP || r.spec.NextNPredictLayers == 0 ||
 		len(r.weights.HYV3MTP) != int(r.spec.NextNPredictLayers) {
 		return errors.New("inference: model has no supported HY-V3 MTP heads")
 	}

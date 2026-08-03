@@ -44,6 +44,17 @@ const (
 	ForwardT5
 )
 
+// OutputNormPolicy: final normalization tensor ownership.
+type OutputNormPolicy uint8
+
+const (
+	OutputNormModel OutputNormPolicy = iota
+	OutputNormAbsent
+	OutputNormEncoder
+	OutputNormDecoder
+	OutputNormTokenEmbedding
+)
+
 // NormalizationPolicy: model normalization contract.
 type NormalizationPolicy uint8
 
@@ -134,6 +145,7 @@ const (
 	ArchitectureAltUp
 	ArchitecturePerLayerEmbeddings
 	ArchitectureEmbeddingSkip
+	ArchitectureBERTNormLayout
 )
 
 // ArchitectureProfile: registry entry and capability set.
@@ -144,6 +156,7 @@ type ArchitectureProfile struct {
 	CatalogFamily ArchitectureFamily
 	DraftKind     DraftKind
 	Forward       ForwardPolicy
+	OutputNorm    OutputNormPolicy
 	Capabilities  ArchitectureCapability
 	Normalization NormalizationPolicy
 	Position      PositionPolicy
@@ -164,6 +177,22 @@ func (p ArchitectureProfile) AppendsDraftBlocks() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// OutputNormTensor: final normalization tensor name.
+func (p ArchitectureProfile) OutputNormTensor() string {
+	switch p.OutputNorm {
+	case OutputNormAbsent:
+		return ""
+	case OutputNormEncoder:
+		return "enc.output_norm.weight"
+	case OutputNormDecoder:
+		return "dec.output_norm.weight"
+	case OutputNormTokenEmbedding:
+		return "token_embd_norm.weight"
+	default:
+		return "output_norm.weight"
 	}
 }
 
@@ -220,67 +249,40 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 			CatalogFamily: ArchitectureFamilyAttention,
 		}
 	}
-	setCapabilities := func(capabilities ArchitectureCapability, names ...string) {
+	update := func(names []string, apply func(*ArchitectureProfile)) {
 		for _, name := range names {
 			profile, ok := registry[name]
 			if !ok {
 				panic("unknown architecture profile: " + name)
 			}
-			profile.Capabilities |= capabilities
+			apply(&profile)
 			registry[name] = profile
 		}
 	}
+	setCapabilities := func(capabilities ArchitectureCapability, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Capabilities |= capabilities })
+	}
 	setFamily := func(family ArchitectureFamily, names ...string) {
-		for _, name := range names {
-			profile, ok := registry[name]
-			if !ok {
-				panic("unknown architecture profile: " + name)
-			}
+		update(names, func(profile *ArchitectureProfile) {
 			profile.Family = family
 			profile.GraphFamily = family
 			profile.CatalogFamily = family
-			registry[name] = profile
-		}
+		})
 	}
 	setDraftKind := func(kind DraftKind, names ...string) {
-		for _, name := range names {
-			profile, ok := registry[name]
-			if !ok {
-				panic("unknown architecture profile: " + name)
-			}
-			profile.DraftKind = kind
-			registry[name] = profile
-		}
+		update(names, func(profile *ArchitectureProfile) { profile.DraftKind = kind })
 	}
 	setForward := func(policy ForwardPolicy, names ...string) {
-		for _, name := range names {
-			profile, ok := registry[name]
-			if !ok {
-				panic("unknown architecture profile: " + name)
-			}
-			profile.Forward = policy
-			registry[name] = profile
-		}
+		update(names, func(profile *ArchitectureProfile) { profile.Forward = policy })
+	}
+	setOutputNorm := func(policy OutputNormPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.OutputNorm = policy })
 	}
 	setNormalization := func(policy NormalizationPolicy, names ...string) {
-		for _, name := range names {
-			profile, ok := registry[name]
-			if !ok {
-				panic("unknown architecture profile: " + name)
-			}
-			profile.Normalization = policy
-			registry[name] = profile
-		}
+		update(names, func(profile *ArchitectureProfile) { profile.Normalization = policy })
 	}
 	setFeedForward := func(policy FeedForwardPolicy, names ...string) {
-		for _, name := range names {
-			profile, ok := registry[name]
-			if !ok {
-				panic("unknown architecture profile: " + name)
-			}
-			profile.FeedForward = policy
-			registry[name] = profile
-		}
+		update(names, func(profile *ArchitectureProfile) { profile.FeedForward = policy })
 	}
 
 	setDraftKind(DraftQwen35MTP, "qwen35", "qwen35moe")
@@ -415,6 +417,9 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setCapabilities(ArchitectureAltUp, "gemma3n")
 	setCapabilities(ArchitecturePerLayerEmbeddings, "gemma3n", "gemma4")
 	setCapabilities(ArchitectureEmbeddingSkip, "talkie")
+	setCapabilities(ArchitectureBERTNormLayout,
+		"bert", "jina-bert-v2", "jina-bert-v3", "nomic-bert", "nomic-bert-moe",
+	)
 
 	setNormalization(NormalizationLayer,
 		"bert", "bloom", "codeshell", "dbrx", "falcon", "gpt2", "gptj",
@@ -468,7 +473,13 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setForward(ForwardWavTokenizer, "wavtokenizer-dec")
 	setForward(ForwardT5Encoder, "t5encoder")
 	setForward(ForwardT5, "t5")
+	setOutputNorm(OutputNormEncoder, "t5encoder", "neo-bert")
+	setOutputNorm(OutputNormDecoder, "t5")
+	setOutputNorm(OutputNormTokenEmbedding, "lfm2", "lfm2moe")
 	for name, profile := range registry {
+		if profile.Has(ArchitectureBERTNormLayout) {
+			profile.OutputNorm = OutputNormAbsent
+		}
 		if profile.Forward == ForwardCached && profile.Has(ArchitectureNonCausal) {
 			profile.Forward = ForwardNonCausal
 		}

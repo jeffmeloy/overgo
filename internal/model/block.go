@@ -3035,7 +3035,7 @@ func buildDenseBlockCachedForLayer(
 	isOLMoE := spec.Architecture == "olmoe"
 	isPhiMoE := spec.Architecture == "phimoe"
 	isEXAOneMoE := spec.Architecture == "exaone-moe"
-	isPostOnlyNorm := usesPostOnlyNorm(spec.Architecture)
+	isPostOnlyNorm := profile.Has(ArchitecturePostOnlyNorm)
 	isCommandRQKNorm := spec.Architecture == "command-r" && spec.BlockCount >= 64
 	isChameleon := spec.Architecture == "chameleon"
 	isLaguna := spec.Architecture == "laguna"
@@ -3590,7 +3590,7 @@ func buildDenseBlockCachedForLayer(
 				key, positions, rotaryDimensions, frequencyBase, frequencyScale,
 			)
 		}
-	} else if isGemmaArchitecture(spec.Architecture) {
+	} else if profile.Has(ArchitectureGemma) {
 		frequencyBase := spec.RopeFrequencyBase
 		frequencyScale := float32(1)
 		if spec.Architecture == "gemma3" {
@@ -3655,7 +3655,7 @@ func buildDenseBlockCachedForLayer(
 			)
 		}
 	}
-	if supportsLongRoPE(spec.Architecture) && spec.RopeScalingType != "yarn" && spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
+	if profile.Has(ArchitectureLongRoPE) && spec.RopeScalingType != "yarn" && spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
 		query = builder.Scale(query, spec.RopeAttentionFactor)
 		key = builder.Scale(key, spec.RopeAttentionFactor)
 	}
@@ -3702,7 +3702,7 @@ func buildDenseBlockCachedForLayer(
 		query = builder.Scale(query, attentionScale)
 		attentionScale = 1
 	}
-	if isGemmaArchitecture(spec.Architecture) {
+	if profile.Has(ArchitectureGemma) {
 		// Gemma scales Q before attention dot product, rather than scaling
 		// accumulated score; Preserve that ordering for quantized parity
 		if spec.Architecture == "gemma2" && spec.BlockCount == 46 {
@@ -3786,7 +3786,7 @@ func buildDenseBlockCachedForLayer(
 	if spec.SandwichNorm {
 		attention = builder.WeightedRMSNorm(attention, weights.AttentionNorm, spec.RMSNormEpsilon)
 	}
-	if hasPostNorm(spec.Architecture) || isOLMo2 {
+	if profile.Has(ArchitecturePostNorm) || isOLMo2 {
 		if weights.AttentionPostNorm == nil || weights.FeedForwardPostNorm == nil {
 			return DenseBlockResult{}, errors.New("dense post-normalized block requires post norm weights")
 		}
@@ -4302,7 +4302,7 @@ func buildDenseBlockCachedForLayer(
 			gate = builder.Add(gate, weights.FeedForwardGateBias)
 		}
 		activation = builder.SwiGLU(gate, up)
-		if isGemmaArchitecture(spec.Architecture) {
+		if profile.Has(ArchitectureGemma) {
 			activation = builder.GEGLU(gate, up)
 		}
 	}
@@ -4329,7 +4329,7 @@ func buildDenseBlockCachedForLayer(
 			feedForward, weights.FeedForwardNorm, spec.RMSNormEpsilon,
 		)
 	}
-	if hasPostNorm(spec.Architecture) || isOLMo2 {
+	if profile.Has(ArchitecturePostNorm) || isOLMo2 {
 		feedForward = builder.WeightedRMSNorm(
 			feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)

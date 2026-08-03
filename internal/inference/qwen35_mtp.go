@@ -91,7 +91,7 @@ func (r *Runner) AdvanceQwen35MTP(
 }
 
 func (r *Runner) validateQwen35MTP() error {
-	if r.spec.Profile().DraftKind != model.DraftQwen35MTP || r.spec.NextNPredictLayers != 1 ||
+	if r.profile().DraftKind != model.DraftQwen35MTP || r.spec.NextNPredictLayers != 1 ||
 		r.weights.Qwen35MTP == nil {
 		return errors.New("inference: model has no supported Qwen3.5 MTP block")
 	}

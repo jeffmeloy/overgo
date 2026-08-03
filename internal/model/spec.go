@@ -364,7 +364,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			gguf.ValueTypeString,
 		); ok && scalingType != "" && scalingType != "none" {
 			if architecture == "qwen35" || architecture == "qwen35moe" ||
-				(scalingType != "linear" && !(supportsLongRoPE(architecture) && scalingType == "longrope")) {
+				(scalingType != "linear" && !(profile.Has(ArchitectureLongRoPE) && scalingType == "longrope")) {
 				if (!isDeepSeek2Family(architecture) && architecture != "deepseek4" && architecture != "glm-dsa" && architecture != "laguna" && architecture != "grok" && architecture != "mellum" && architecture != "llama" && architecture != "llama-embed" && architecture != "minicpm" && architecture != "mistral3") || scalingType != "yarn" {
 					return Spec{}, fmt.Errorf(
 						"model architecture %q uses unsupported RoPE scaling type %q",
@@ -2480,7 +2480,7 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 	if block < uint32(len(s.SlidingLayers)) {
 		return s.SlidingLayers[block]
 	}
-	return usesSlidingAttention(s.Architecture) &&
+	return s.Profile().Has(ArchitectureSlidingAttention) &&
 		block < s.BlockCount &&
 		s.SlidingWindow > 0 &&
 		s.SlidingPattern > 0 &&
@@ -2589,7 +2589,7 @@ func (s Spec) InputEmbeddingScale() float32 {
 	if s.EmbeddingScale > 0 {
 		return s.EmbeddingScale
 	}
-	if s.Architecture == "afmoe" || isGemmaArchitecture(s.Architecture) {
+	if s.Architecture == "afmoe" || s.Profile().Has(ArchitectureGemma) {
 		return float32(math.Sqrt(float64(s.EmbeddingLength)))
 	}
 	return 1
@@ -3944,56 +3944,6 @@ func (s Spec) validate() error {
 		return errors.New("logit scale must be finite and positive when required")
 	}
 	return nil
-}
-
-func isGemmaArchitecture(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureGemma)
-}
-
-func hasPostNorm(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitecturePostNorm)
-}
-
-func usesSlidingAttention(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureSlidingAttention)
-}
-
-func usesPostOnlyNorm(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitecturePostOnlyNorm)
-}
-
-func usesNormalRoPE(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Position == PositionNormal
-}
-
-func usesParallelResidual(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Residual == ResidualParallel
-}
-
-func usesSequentialGELU(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.FeedForward == FeedForwardSequentialGELU
-}
-
-func usesGateFreeFFN(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.FeedForward != FeedForwardSwiGLU
-}
-
-func usesFusedGateUp(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.FeedForward == FeedForwardFusedGateUp
-}
-
-func supportsLongRoPE(architecture string) bool {
-	profile, ok := LookupArchitecture(architecture)
-	return ok && profile.Has(ArchitectureLongRoPE)
 }
 
 func firstPositive(values []uint32) uint32 {

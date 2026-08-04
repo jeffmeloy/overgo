@@ -8,10 +8,6 @@ import (
 
 	"llamacpp2go/internal/inference"
 
-	"llamacpp2go/internal/sampling"
-
-	"llamacpp2go/internal/tokenizer"
-
 	"net/http"
 
 	"strconv"
@@ -109,10 +105,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	var body responsesRequest
-	if !h.decodeMultimodalJSON(response, request, &body) {
-		return
-	}
-	if !h.requireModel(response, body.Model) {
+	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
 	previous, ok := h.previousResponseMessages(response, body.PreviousResponseID)
@@ -209,16 +202,13 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	) {
 		return
 	}
-	sampler, err := h.newSampler(samplingParams)
-	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return
-	}
-	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, normalizedPrompt)
+	plan, ok := h.prepareProtocolGenerationPlan(
+		response, request, normalizedPrompt, samplingParams, maxTokens, stops,
+	)
 	if !ok {
 		return
 	}
-	defer h.releaseSlot(slotID)
+	defer plan.release()
 	idNumber := h.nextID.Add(1)
 	responseID := "resp_" + strconv.FormatUint(idNumber, 10)
 	messageID := "msg_" + strconv.FormatUint(idNumber, 10)
@@ -226,16 +216,10 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		h.streamResponses(
 			response,
 			request,
-			slotID,
-			prepared.Text,
-			sampler,
-			maxTokens,
-			stops,
+			plan,
 			responseID,
 			messageID,
 			toolSelection.active,
-			prepared.TokenIDs,
-			prepared.ProjectedInputs,
 			history,
 			body.Store == nil || *body.Store,
 			reasoningSummary,
@@ -243,14 +227,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	ids, pump, err := h.generateWithPump(
-		request.Context(),
-		slotID,
-		prepared.Text,
-		h.protocolGenerationOptions(maxTokens, sampler, prepared.TokenIDs, prepared.ProjectedInputs),
-		stops,
-		nil,
-	)
+	result, err := plan.run(nil)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -258,11 +235,11 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	now := time.Now().Unix()
 	message := inference.ChatMessage{
 		Role:    "assistant",
-		Content: pump.text(),
+		Content: result.pump.text(),
 	}
 	if len(toolSelection.active) != 0 || reasoningSummary {
 		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
-			pump.text(),
+			result.pump.text(),
 			toolSelection.active,
 		)
 		if err != nil {
@@ -273,7 +250,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
 	assignResponseCallIDs(&message, idSuffix)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
-	promptTokens := len(ids) - pump.generated
+	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
 		h.responseHistory.put(responseID, append(history, message))
 	}
@@ -287,8 +264,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      pump.generated,
-			TotalTokens:       promptTokens + pump.generated,
+			OutputTokens:      result.pump.generated,
+			TotalTokens:       promptTokens + result.pump.generated,
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: 0},
 		},
 	})
@@ -297,15 +274,9 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 func (h *Handler) streamResponses(
 	response http.ResponseWriter,
 	request *http.Request,
-	slotID int,
-	prompt string,
-	sampler *sampling.Sampler,
-	maxTokens int,
-	stops []string,
+	plan *protocolGenerationPlan,
 	responseID, messageID string,
 	tools []inference.ChatTool,
-	promptIDs []tokenizer.TokenID,
-	projectedInputs *inference.ProjectedInputs,
 	history []inference.ChatMessage,
 	store bool,
 	reasoningSummary bool,
@@ -488,12 +459,7 @@ func (h *Handler) streamResponses(
 		reasoningOutput = &completed
 		return nil
 	}
-	ids, pump, err := h.generateWithPump(
-		request.Context(),
-		slotID,
-		prompt,
-		h.protocolGenerationOptions(maxTokens, sampler, promptIDs, projectedInputs),
-		stops,
+	result, err := plan.run(
 		func(piece string) error {
 			if len(tools) != 0 {
 				if streamErr := emitToolPiece(piece); streamErr != nil {
@@ -663,7 +629,7 @@ func (h *Handler) streamResponses(
 		outputItems = append(outputItems, item)
 	}
 	now := time.Now().Unix()
-	promptTokens := len(ids) - pump.generated
+	promptTokens := result.promptTokens()
 	final := responsesResponse{
 		CompletedAt: now,
 		CreatedAt:   now,
@@ -674,8 +640,8 @@ func (h *Handler) streamResponses(
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      pump.generated,
-			TotalTokens:       promptTokens + pump.generated,
+			OutputTokens:      result.pump.generated,
+			TotalTokens:       promptTokens + result.pump.generated,
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: 0},
 		},
 	}
@@ -700,10 +666,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		return
 	}
 	var body responsesTokenCountRequest
-	if !h.decodeMultimodalJSON(response, request, &body) {
-		return
-	}
-	if !h.requireModel(response, body.Model) {
+	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
 	previous, ok := h.previousResponseMessages(response, body.PreviousResponseID)

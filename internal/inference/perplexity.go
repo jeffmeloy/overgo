@@ -84,10 +84,7 @@ func (r *Runner) PerplexityWithOptions(
 	if r.closed {
 		return PerplexityResult{}, errors.New("inference: runner is closed")
 	}
-	outputTable := r.weights.TokenEmbedding
-	if r.weights.Output != nil {
-		outputTable = *r.weights.Output
-	}
+	outputTable := r.outputTensor()
 	result := PerplexityResult{
 		TokenCount: len(ids),
 	}

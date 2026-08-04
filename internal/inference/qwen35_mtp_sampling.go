@@ -51,19 +51,11 @@ func (r *Runner) VerifyQwen35MTPSampled(
 	if !validSampledDraft(draft) {
 		return nil, errors.New("inference: Qwen3.5 MTP sampled draft state is inconsistent")
 	}
-	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
-		if err := r.validateQwen35MTPTarget(target); err != nil {
-			return nil, err
-		}
-	} else if r != target {
-		return nil, errors.New("inference: bundled Qwen3.5 MTP verification requires its owning target runner")
-	}
-	targetModel, err := target.sessionModelSignature()
-	if err != nil {
+	mtpOnly := r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly
+	if err := r.validateSingleHeadMTPVerificationTarget(
+		target, draft.Base, mtpOnly, "Qwen3.5 MTP", r.validateQwen35MTPTarget,
+	); err != nil {
 		return nil, err
-	}
-	if draft.Base.targetModel != targetModel {
-		return nil, errors.New("inference: Qwen3.5 MTP session belongs to a different target model")
 	}
 	return verifySampled(
 		draft, draft.Base, draftSampler, targetSampler, "Qwen3.5 MTP",

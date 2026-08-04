@@ -10,9 +10,7 @@ import (
 
 	"llamacpp2go/internal/inference"
 
-	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/strictjson"
-	"llamacpp2go/internal/tokenizer"
 
 	"net/http"
 
@@ -73,10 +71,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		return
 	}
 	var body anthropicTokenCountRequest
-	if !h.decodeMultimodalJSON(response, request, &body) {
-		return
-	}
-	if !h.requireModel(response, body.Model) {
+	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
 	maxTokens, err := boundedProtocolTokens(
@@ -154,46 +149,31 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 	) {
 		return
 	}
-	sampler, err := h.newSampler(samplingParams)
-	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return
-	}
-	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, normalized)
+	plan, ok := h.prepareProtocolGenerationPlan(
+		response, request, normalized, samplingParams, maxTokens, body.StopSequences,
+	)
 	if !ok {
 		return
 	}
-	defer h.releaseSlot(slotID)
+	defer plan.release()
 	messageID := "msg_" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
 		h.streamAnthropicMessages(
 			response,
 			request,
-			slotID,
-			prepared.Text,
-			prepared.TokenIDs,
-			prepared.ProjectedInputs,
-			sampler,
-			maxTokens,
-			body.StopSequences,
+			plan,
 			messageID,
 			toolSelection.active,
 			thinkingEnabled,
 		)
 		return
 	}
-	_, pump, err := h.generateWithPump(
-		request.Context(),
-		slotID,
-		prepared.Text,
-		h.protocolGenerationOptions(maxTokens, sampler, prepared.TokenIDs, prepared.ProjectedInputs),
-		body.StopSequences,
-		nil,
-	)
+	result, err := plan.run(nil)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
+	pump := result.pump
 	stopReason := pump.finishReason(maxTokens, "end_turn", "max_tokens")
 	var stopSequence *string
 	if pump.stopped() {
@@ -234,7 +214,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		StopSequence: stopSequence,
 		Usage: anthropicUsage{
 			CacheReadInputTokens: 0,
-			InputTokens:          len(prepared.TokenIDs),
+			InputTokens:          len(plan.prompt.TokenIDs),
 			OutputTokens:         pump.generated,
 		},
 	})
@@ -243,13 +223,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 func (h *Handler) streamAnthropicMessages(
 	response http.ResponseWriter,
 	request *http.Request,
-	slotID int,
-	prompt string,
-	promptIDs []tokenizer.TokenID,
-	projectedInputs *inference.ProjectedInputs,
-	sampler *sampling.Sampler,
-	maxTokens int,
-	stops []string,
+	plan *protocolGenerationPlan,
 	messageID string,
 	tools []inference.ChatTool,
 	thinkingEnabled bool,
@@ -272,7 +246,7 @@ func (h *Handler) streamAnthropicMessages(
 			"stop_sequence": nil,
 			"usage": anthropicUsage{
 				CacheReadInputTokens: 0,
-				InputTokens:          len(promptIDs),
+				InputTokens:          len(plan.prompt.TokenIDs),
 				OutputTokens:         0,
 			},
 		},
@@ -415,12 +389,7 @@ func (h *Handler) streamAnthropicMessages(
 			"type": "content_block_stop", "index": index,
 		})
 	}
-	_, pump, err := h.generateWithPump(
-		request.Context(),
-		slotID,
-		prompt,
-		h.protocolGenerationOptions(maxTokens, sampler, promptIDs, projectedInputs),
-		stops,
+	result, err := plan.run(
 		func(piece string) error {
 			if thinkingEnabled {
 				buffered.WriteString(piece)
@@ -442,7 +411,8 @@ func (h *Handler) streamAnthropicMessages(
 		})
 		return
 	}
-	stopReason := pump.finishReason(maxTokens, "end_turn", "max_tokens")
+	pump := result.pump
+	stopReason := pump.finishReason(plan.maxTokens, "end_turn", "max_tokens")
 	if thinkingEnabled {
 		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(buffered.String(), nil)
 		if parseErr != nil || message.ReasoningContent == "" {
@@ -592,10 +562,7 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		return
 	}
 	var body anthropicTokenCountRequest
-	if !h.decodeMultimodalJSON(response, request, &body) {
-		return
-	}
-	if !h.requireModel(response, body.Model) {
+	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
 	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)

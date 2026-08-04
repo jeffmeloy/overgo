@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tensor/reference"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -25,15 +24,8 @@ func (r *Runner) StartSession(
 	if options.MaxNewTokens <= 0 {
 		return nil, "", errors.New("inference: resumable generation needs at least one new token")
 	}
-	if err := validateStopSequences(options.StopSequences); err != nil {
+	if err := normalizeGenerateOptions(&options); err != nil {
 		return nil, "", err
-	}
-	if options.Sampler == nil {
-		var err error
-		options.Sampler, err = sampling.New(sampling.Config{})
-		if err != nil {
-			return nil, "", err
-		}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -66,23 +58,17 @@ func (r *Runner) StartSession(
 				return nil, "", err
 			}
 		}
-		nextID, sampleErr := r.sampleHidden(ctx, outputTable, hidden, ids, options.Sampler)
+		event, sampleErr := r.sampleHidden(ctx, outputTable, hidden, ids, options)
 		if sampleErr != nil {
 			return nil, "", sampleErr
 		}
-		ids = append(ids, nextID)
-		if err := r.reportToken(options.OnToken, nextID, generatedIndex); err != nil {
-			return nil, "", err
+		event.Index = generatedIndex
+		ids = append(ids, event.ID)
+		stop, deliverErr := r.deliverGenerationToken(&event, options, &generatedText)
+		if deliverErr != nil {
+			return nil, "", deliverErr
 		}
-		if len(options.StopSequences) > 0 {
-			piece, decodeErr := r.vocab.DecodePiece(nextID, false)
-			if decodeErr != nil {
-				return nil, "", decodeErr
-			}
-			generatedText.WriteString(piece)
-		}
-		if r.isTerminal(nextID) ||
-			matchesStopSequence(generatedText.String(), options.StopSequences) {
+		if stop {
 			break
 		}
 	}
@@ -110,15 +96,8 @@ func (r *Runner) ContinueSession(
 	if options.MaxNewTokens < 0 {
 		return nil, "", errors.New("inference: max new tokens is negative")
 	}
-	if err := validateStopSequences(options.StopSequences); err != nil {
+	if err := normalizeGenerateOptions(&options); err != nil {
 		return nil, "", err
-	}
-	if options.Sampler == nil {
-		var err error
-		options.Sampler, err = sampling.New(sampling.Config{})
-		if err != nil {
-			return nil, "", err
-		}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,24 +126,18 @@ func (r *Runner) ContinueSession(
 			if err != nil {
 				return nil, "", err
 			}
-			nextID, err := r.sampleHidden(ctx, outputTable, hidden, ids, options.Sampler)
+			event, err := r.sampleHidden(ctx, outputTable, hidden, ids, options)
 			if err != nil {
 				return nil, "", err
 			}
 			cache = nextCache
-			ids = append(ids, nextID)
-			if err := r.reportToken(options.OnToken, nextID, generatedIndex); err != nil {
-				return nil, "", err
+			event.Index = generatedIndex
+			ids = append(ids, event.ID)
+			stop, deliverErr := r.deliverGenerationToken(&event, options, &generatedText)
+			if deliverErr != nil {
+				return nil, "", deliverErr
 			}
-			if len(options.StopSequences) > 0 {
-				piece, decodeErr := r.vocab.DecodePiece(nextID, false)
-				if decodeErr != nil {
-					return nil, "", decodeErr
-				}
-				generatedText.WriteString(piece)
-			}
-			if r.isTerminal(nextID) ||
-				matchesStopSequence(generatedText.String(), options.StopSequences) {
+			if stop {
 				break
 			}
 		}
@@ -192,35 +165,15 @@ func (r *Runner) sampleHidden(
 	outputTable gguf.TensorInfo,
 	hidden reference.Value,
 	ids []tokenizer.TokenID,
-	sampler *sampling.Sampler,
-) (tokenizer.TokenID, error) {
+	options GenerateOptions,
+) (TokenEvent, error) {
 	width := int(hidden.Shape.Dims[0])
 	last := hidden.Data[len(hidden.Data)-width:]
 	logits, err := r.logits(ctx, outputTable, last)
 	if err != nil {
-		return 0, err
+		return TokenEvent{}, err
 	}
-	history := make([]int, len(ids))
-	for index, id := range ids {
-		history[index] = int(id)
-	}
-	next, err := sampler.SampleWithHistory(logits, history)
-	return tokenizer.TokenID(next), err
-}
-
-func (r *Runner) reportToken(
-	callback func(TokenEvent) error,
-	id tokenizer.TokenID,
-	index int,
-) error {
-	if callback == nil {
-		return nil
-	}
-	piece, err := r.vocab.DecodePiece(id, false)
-	if err != nil {
-		return err
-	}
-	return callback(TokenEvent{ID: id, Piece: piece, Index: index})
+	return sampleGenerationToken(logits, ids, options)
 }
 
 func (r *Runner) isTerminal(id tokenizer.TokenID) bool {

@@ -52,21 +52,8 @@ func (r *Runner) VerifyGemma4AssistantGreedy(
 		token tokenizer.TokenID,
 		state *Gemma4AssistantSession,
 	) (reference.Value, *Gemma4AssistantSession, error) {
-		hidden, cache, err := target.ForwardCached(ctx, []tokenizer.TokenID{token}, state.TargetCache)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		logits, err := target.projectHiddenLogits(ctx, hidden)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		_, next, err := r.AdvanceGemma4Assistant(ctx, target, token, state)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		next.TargetCache = cache
-		next.PendingHidden = lastHiddenColumn(hidden)
-		next.Position = effectiveCachePosition(cache)
-		return logits, next, nil
+		return r.advanceGemma4AssistantVerification(
+			ctx, target, token, state, state.TargetCache,
+		)
 	})
 }

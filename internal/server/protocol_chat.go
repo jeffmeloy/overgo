@@ -14,10 +14,6 @@ import (
 	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/strictjson"
 
-	"llamacpp2go/internal/sampling"
-
-	"llamacpp2go/internal/tokenizer"
-
 	"net/http"
 
 	"strconv"
@@ -385,10 +381,7 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 		return
 	}
 	var body chatCompletionRequest
-	if !h.decodeMultimodalJSON(response, request, &body) {
-		return
-	}
-	if !h.requireModel(response, body.Model) {
+	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
 	if body.N == 0 {
@@ -416,10 +409,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		return
 	}
 	var body chatCompletionRequest
-	if !h.decodeMultimodalJSON(response, request, &body) {
-		return
-	}
-	if !h.requireModel(response, body.Model) {
+	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
 	if body.N == 0 {
@@ -503,47 +493,32 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 			return
 		}
 	}
-	sampler, err := h.newSampler(body.samplingParameters)
-	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return
-	}
-	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, normalizedPrompt)
+	plan, ok := h.prepareProtocolGenerationPlan(
+		response, request, normalizedPrompt, body.samplingParameters, maxTokens, stops,
+	)
 	if !ok {
 		return
 	}
-	defer h.releaseSlot(slotID)
+	defer plan.release()
 	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
 		h.streamChatCompletion(
 			response,
 			request,
-			slotID,
-			prepared.Text,
-			sampler,
-			maxTokens,
+			plan,
 			id,
-			stops,
 			body.N,
 			toolSelection.active,
-			prepared.TokenIDs,
-			prepared.ProjectedInputs,
 		)
 		return
 	}
 	h.completeChat(
 		response,
 		request,
-		slotID,
-		prepared.Text,
-		sampler,
-		maxTokens,
+		plan,
 		id,
-		stops,
 		body.N,
 		toolSelection.active,
-		prepared.TokenIDs,
-		prepared.ProjectedInputs,
 	)
 }
 
@@ -678,42 +653,25 @@ type chatResponse struct {
 func (h *Handler) completeChat(
 	response http.ResponseWriter,
 	request *http.Request,
-	slotID int,
-	prompt string,
-	sampler *sampling.Sampler,
-	maxTokens int,
+	plan *protocolGenerationPlan,
 	id string,
-	stops []string,
 	n int,
 	tools []inference.ChatTool,
-	promptIDs []tokenizer.TokenID,
-	projectedInputs *inference.ProjectedInputs,
 ) {
 	choices := make([]chatChoice, 0, n)
 	promptTokens := 0
 	totalCompletionTokens := 0
 	for choiceIndex := range n {
-		choiceSampler, err := samplerForChoice(sampler, choiceIndex)
-		if err != nil {
-			writeGenerationError(response, err)
-			return
-		}
-		ids, pump, err := h.generateWithPump(
-			request.Context(),
-			slotID,
-			prompt,
-			h.protocolGenerationOptions(maxTokens, choiceSampler, promptIDs, projectedInputs),
-			stops,
-			nil,
-		)
+		result, err := plan.runChoice(choiceIndex, nil)
 		if err != nil {
 			writeGenerationError(response, err)
 			return
 		}
 		if choiceIndex == 0 {
-			promptTokens = len(ids) - pump.generated
+			promptTokens = result.promptTokens()
 		}
-		finishReason := pump.finishReason(maxTokens, "stop", "length")
+		pump := result.pump
+		finishReason := pump.finishReason(plan.maxTokens, "stop", "length")
 		totalCompletionTokens += pump.completion
 		message := inference.ChatMessage{
 			Role:    "assistant",
@@ -796,16 +754,10 @@ type chatStreamResponse struct {
 func (h *Handler) streamChatCompletion(
 	response http.ResponseWriter,
 	request *http.Request,
-	slotID int,
-	prompt string,
-	sampler *sampling.Sampler,
-	maxTokens int,
+	plan *protocolGenerationPlan,
 	id string,
-	stops []string,
 	n int,
 	tools []inference.ChatTool,
-	promptIDs []tokenizer.TokenID,
-	projectedInputs *inference.ProjectedInputs,
 ) {
 	flusher, ok := beginSSE(response)
 	if !ok {
@@ -827,11 +779,6 @@ func (h *Handler) streamChatCompletion(
 		})
 	}
 	for choiceIndex := range n {
-		choiceSampler, err := samplerForChoice(sampler, choiceIndex)
-		if err != nil {
-			_ = stream.write(errorEnvelope("generation_error", err.Error()))
-			break
-		}
 		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
 			return
 		}
@@ -884,12 +831,8 @@ func (h *Handler) streamChatCompletion(
 			}
 			return nil
 		}
-		_, pump, err := h.generateWithPump(
-			request.Context(),
-			slotID,
-			prompt,
-			h.protocolGenerationOptions(maxTokens, choiceSampler, promptIDs, projectedInputs),
-			stops,
+		result, err := plan.runChoice(
+			choiceIndex,
 			func(piece string) error {
 				if piece != "" {
 					if len(tools) != 0 {
@@ -909,7 +852,7 @@ func (h *Handler) streamChatCompletion(
 			_ = stream.write(errorEnvelope("generation_error", err.Error()))
 			break
 		}
-		reason := pump.finishReason(maxTokens, "stop", "length")
+		reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
 		if len(tools) != 0 {
 			parser := h.generator.(ChatOutputParser)
 			message, parseErr := parser.ParseChatOutput(toolStream.text(), tools)

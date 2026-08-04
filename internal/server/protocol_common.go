@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +10,16 @@ import (
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
+
+func (h *Handler) decodeProtocolJSON(
+	response http.ResponseWriter,
+	request *http.Request,
+	target any,
+	model func() string,
+) bool {
+	return h.decodeMultimodalJSON(response, request, target) &&
+		h.requireModel(response, model())
+}
 
 func (h *Handler) prepareProtocolGeneration(
 	response http.ResponseWriter,
@@ -26,6 +37,90 @@ func (h *Handler) prepareProtocolGeneration(
 		return preparedPrompt{}, 0, false
 	}
 	return prepared, slotID, true
+}
+
+type protocolGenerationPlan struct {
+	handler   *Handler
+	request   *http.Request
+	slotID    int
+	prompt    preparedPrompt
+	sampler   *sampling.Sampler
+	maxTokens int
+	stops     []string
+}
+
+type protocolGenerationResult struct {
+	ids  []tokenizer.TokenID
+	pump *generationPump
+}
+
+func (result protocolGenerationResult) promptTokens() int {
+	return len(result.ids) - result.pump.generated
+}
+
+func (h *Handler) prepareProtocolGenerationPlan(
+	response http.ResponseWriter,
+	request *http.Request,
+	prompt nativePrompt,
+	parameters samplingParameters,
+	maxTokens int,
+	stops []string,
+) (*protocolGenerationPlan, bool) {
+	sampler, err := h.newSampler(parameters)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return nil, false
+	}
+	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, prompt)
+	if !ok {
+		return nil, false
+	}
+	return &protocolGenerationPlan{
+		handler: h, request: request, slotID: slotID, prompt: prepared,
+		sampler: sampler, maxTokens: maxTokens, stops: stops,
+	}, true
+}
+
+func (plan *protocolGenerationPlan) release() {
+	plan.handler.releaseSlot(plan.slotID)
+}
+
+func (plan *protocolGenerationPlan) context() context.Context {
+	return plan.request.Context()
+}
+
+func (plan *protocolGenerationPlan) run(
+	emit func(string) error,
+) (protocolGenerationResult, error) {
+	return plan.runWithSampler(plan.sampler, emit)
+}
+
+func (plan *protocolGenerationPlan) runChoice(
+	index int,
+	emit func(string) error,
+) (protocolGenerationResult, error) {
+	sampler, err := samplerForChoice(plan.sampler, index)
+	if err != nil {
+		return protocolGenerationResult{}, err
+	}
+	return plan.runWithSampler(sampler, emit)
+}
+
+func (plan *protocolGenerationPlan) runWithSampler(
+	sampler *sampling.Sampler,
+	emit func(string) error,
+) (protocolGenerationResult, error) {
+	ids, pump, err := plan.handler.generateWithPump(
+		plan.context(),
+		plan.slotID,
+		plan.prompt.Text,
+		plan.handler.protocolGenerationOptions(
+			plan.maxTokens, sampler, plan.prompt.TokenIDs, plan.prompt.ProjectedInputs,
+		),
+		plan.stops,
+		emit,
+	)
+	return protocolGenerationResult{ids: ids, pump: pump}, err
 }
 
 func (h *Handler) writeProtocolInputTokenCount(

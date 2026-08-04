@@ -45,39 +45,17 @@ func (r *Runner) VerifyQwen35MTPGreedy(
 	if r == nil || target == nil || !validGreedyDraft(draft) || draft.Base == nil {
 		return nil, errors.New("inference: Qwen3.5 MTP verification inputs are invalid")
 	}
-	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
-		if err := r.validateQwen35MTPTarget(target); err != nil {
-			return nil, err
-		}
-	} else if r != target {
-		return nil, errors.New("inference: bundled Qwen3.5 MTP verification requires its owning target runner")
-	}
-	targetModel, err := target.sessionModelSignature()
-	if err != nil {
+	mtpOnly := r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly
+	if err := r.validateSingleHeadMTPVerificationTarget(
+		target, draft.Base, mtpOnly, "Qwen3.5 MTP", r.validateQwen35MTPTarget,
+	); err != nil {
 		return nil, err
-	}
-	if draft.Base.targetModel != targetModel {
-		return nil, errors.New("inference: Qwen3.5 MTP session belongs to a different target model")
 	}
 	return verifyGreedy(draft, func(
 		token tokenizer.TokenID,
 		state *Qwen35MTPSession,
 	) (reference.Value, *Qwen35MTPSession, error) {
-		hidden, cache, err := target.ForwardCached(ctx, []tokenizer.TokenID{token}, state.TrunkCache)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		logits, err := target.projectHiddenLogits(ctx, hidden)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		_, next, err := r.AdvanceQwen35MTP(ctx, token, state)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		next.PendingHidden = lastHiddenColumn(hidden)
-		next.TrunkCache = cache
-		return logits, next, nil
+		return r.advanceQwen35MTPVerification(ctx, target, token, state, state.TrunkCache)
 	})
 }
 

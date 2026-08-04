@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/reference"
@@ -12,20 +11,10 @@ import (
 )
 
 // Step35MTPDraft: bounded proposals across trained heads.
-type Step35MTPDraft struct {
-	InitialToken  tokenizer.TokenID
-	Tokens        []tokenizer.TokenID
-	Probabilities []float64
-	Base          *Step35MTPSession
-}
+type Step35MTPDraft = greedyDraft[*Step35MTPSession]
 
 // Step35MTPVerification: accepted prefix plus target correction.
-type Step35MTPVerification struct {
-	Accepted     int
-	NextToken    tokenizer.TokenID
-	TargetLogits reference.Value
-	Session      *Step35MTPSession
-}
+type Step35MTPVerification = greedyVerification[*Step35MTPSession]
 
 type HYV3MTPDraft = Step35MTPDraft
 type HYV3MTPVerification = Step35MTPVerification
@@ -65,8 +54,8 @@ func (r *Runner) draftMultiHeadMTPGreedy(
 	maximum int,
 	minimumProbability float64,
 ) (*Step35MTPDraft, error) {
-	if r == nil || session == nil || len(session.DraftTokens) != 0 || maximum <= 0 || minimumProbability < 0 ||
-		minimumProbability > 1 || math.IsNaN(minimumProbability) {
+	if r == nil || session == nil || len(session.DraftTokens) != 0 ||
+		!validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: Step3.5 MTP draft inputs are invalid")
 	}
 	remaining := len(r.multiHeadMTPWeights())
@@ -74,35 +63,12 @@ func (r *Runner) draftMultiHeadMTPGreedy(
 		return nil, errors.New("inference: Step3.5 MTP head chain is exhausted")
 	}
 	maximum = min(maximum, remaining)
-	draft := &Step35MTPDraft{
-		InitialToken:  initialToken,
-		Tokens:        make([]tokenizer.TokenID, 0, maximum),
-		Probabilities: make([]float64, 0, maximum),
-		Base:          session,
-	}
-	currentToken := initialToken
-	currentSession := session
-	for range maximum {
-		logits, next, err := r.advanceMultiHeadMTP(ctx, currentToken, currentSession)
-		if err != nil {
-			return nil, err
-		}
-		token, probability, err := greedyLogit(logits.Data)
-		if err != nil {
-			return nil, err
-		}
-		if probability < minimumProbability {
-			break
-		}
-		currentToken = tokenizer.TokenID(token)
-		draft.Tokens = append(draft.Tokens, currentToken)
-		draft.Probabilities = append(draft.Probabilities, probability)
-		currentSession = next
-		if r.vocab.IsEOG(currentToken) {
-			break
-		}
-	}
-	return draft, nil
+	return draftGreedy(
+		initialToken, session, min(maximum, remaining), minimumProbability, r.vocab.IsEOG,
+		func(token tokenizer.TokenID, state *Step35MTPSession) (reference.Value, *Step35MTPSession, error) {
+			return r.advanceMultiHeadMTP(ctx, token, state)
+		},
+	)
 }
 
 // VerifyStep35MTPGreedy: target check plus head-cache resync.

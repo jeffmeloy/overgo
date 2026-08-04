@@ -32,30 +32,15 @@ func (r *Runner) DraftDFlashGreedy(
 	if err != nil {
 		return nil, err
 	}
-	draft := &DFlashDraft{
-		InitialToken: initialToken, Tokens: make([]tokenizer.TokenID, 0, maximum),
-		Probabilities: make([]float64, 0, maximum), Base: session,
-	}
-	for index := 0; index < maximum; index++ {
-		row, err := dflashLogitRow(logits, index+1, target.vocab.Len())
-		if err != nil {
-			return nil, err
-		}
-		token, probability, err := greedyLogit(row)
-		if err != nil {
-			return nil, err
-		}
-		if probability < minimumProbability {
-			break
-		}
-		id := tokenizer.TokenID(token)
-		draft.Tokens = append(draft.Tokens, id)
-		draft.Probabilities = append(draft.Probabilities, probability)
-		if target.vocab.IsEOG(id) {
-			break
-		}
-	}
-	return draft, nil
+	index := 0
+	return draftGreedy(
+		initialToken, session, maximum, minimumProbability, target.vocab.IsEOG,
+		func(_ tokenizer.TokenID, state *DFlashSession) (reference.Value, *DFlashSession, error) {
+			index++
+			row, rowErr := dflashLogitRow(logits, index, target.vocab.Len())
+			return reference.Value{Data: row}, state, rowErr
+		},
+	)
 }
 
 // VerifyDFlashGreedy: target verification and feature-cache resync.

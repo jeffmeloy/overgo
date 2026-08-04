@@ -203,3 +203,29 @@ func (r *Runner) validateSingleHeadMTPTarget(
 	}
 	return nil
 }
+
+func (r *Runner) validateSingleHeadMTPVerificationTarget(
+	target *Runner,
+	session *Qwen35MTPSession,
+	mtpOnly bool,
+	label string,
+	validate func(*Runner) error,
+) error {
+	if mtpOnly {
+		if err := validate(target); err != nil {
+			return err
+		}
+	} else if r != target {
+		return fmt.Errorf(
+			"inference: bundled %s verification requires its owning target runner", label,
+		)
+	}
+	targetModel, err := target.sessionModelSignature()
+	if err != nil {
+		return err
+	}
+	if session.targetModel != targetModel {
+		return fmt.Errorf("inference: %s session belongs to a different target model", label)
+	}
+	return nil
+}

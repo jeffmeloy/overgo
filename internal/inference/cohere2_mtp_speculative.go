@@ -45,19 +45,11 @@ func (r *Runner) VerifyCohere2MTPGreedy(
 	if r == nil || target == nil || !validGreedyDraft(draft) || draft.Base == nil {
 		return nil, errors.New("inference: Cohere2-MoE MTP verification inputs are invalid")
 	}
-	if r.weights.Cohere2MTP != nil && r.weights.Cohere2MTP.MTPOnly {
-		if err := r.validateCohere2MTPTarget(target); err != nil {
-			return nil, err
-		}
-	} else if r != target {
-		return nil, errors.New("inference: bundled Cohere2-MoE MTP verification requires its owning target runner")
-	}
-	targetModel, err := target.sessionModelSignature()
-	if err != nil {
+	mtpOnly := r.weights.Cohere2MTP != nil && r.weights.Cohere2MTP.MTPOnly
+	if err := r.validateSingleHeadMTPVerificationTarget(
+		target, draft.Base, mtpOnly, "Cohere2-MoE MTP", r.validateCohere2MTPTarget,
+	); err != nil {
 		return nil, err
-	}
-	if draft.Base.targetModel != targetModel {
-		return nil, errors.New("inference: Cohere2-MoE MTP session belongs to a different target model")
 	}
 	return verifyGreedy(draft, func(
 		token tokenizer.TokenID,

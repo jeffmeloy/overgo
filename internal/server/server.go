@@ -2568,72 +2568,26 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	}
 	settings := h.nativeGenerationSettings(body, sampler.Config(), maxTokens, stops)
 	settings["multimodal"] = multimodal
+	plan := &nativeCompletionPlan{
+		handler: h, request: request, body: body, prompts: prompts,
+		sampler: sampler, maxTokens: maxTokens, stops: stops, settings: settings,
+		slotID: slotID, lora: lora, loraConfigured: loraConfigured,
+		projectedInputs: projectedInputs,
+	}
 	if body.Stream {
-		pingInterval := 30
-		if body.SSEPingInterval != nil {
-			pingInterval = int(*body.SSEPingInterval)
-		}
-		h.streamNativeCompletion(
-			response,
-			request,
-			prompts,
-			sampler,
-			maxTokens,
-			stops,
-			body.NCmpl,
-			settings,
-			body.ResponseFields,
-			slotID,
-			body.NKeep,
-			body.NDiscard,
-			body.CachePrompt != nil && *body.CachePrompt,
-			body.NCacheReuse,
-			pingInterval,
-			body.ReturnProgress,
-			body.TimingsPerToken,
-			body.TMaxPredictMS,
-			body.NIndent,
-			body.NProbs,
-			body.PostSamplingProbs,
-			lora,
-			loraConfigured,
-			projectedInputs,
-		)
+		h.streamNativeCompletion(response, plan)
 		return
 	}
 	results := make([]nativeCompletionResponse, 0, len(prompts)*body.NCmpl)
 	resultIndex := 0
-	for _, prompt := range prompts {
+	for _, prompt := range plan.prompts {
 		for range body.NCmpl {
-			choiceSampler, choiceErr := samplerForChoice(sampler, resultIndex)
-			if choiceErr != nil {
-				writeGenerationError(response, choiceErr)
-				return
-			}
-			result, generationErr := h.runNativeCompletion(
-				request.Context(),
+			result, generationErr := plan.run(
 				prompt,
-				choiceSampler,
-				maxTokens,
-				stops,
 				resultIndex,
 				body.ReturnTokens,
-				settings,
 				nil,
 				nil,
-				body.TimingsPerToken,
-				body.TMaxPredictMS,
-				body.NIndent,
-				body.NProbs,
-				body.PostSamplingProbs,
-				slotID,
-				body.NKeep,
-				body.NDiscard,
-				body.CachePrompt != nil && *body.CachePrompt,
-				body.NCacheReuse,
-				lora,
-				loraConfigured,
-				projectedInputs,
 			)
 			if generationErr != nil {
 				writeGenerationError(response, generationErr)
@@ -3621,31 +3575,49 @@ func nativeSSEPingInterval(body nativeCompletionRequest) int {
 	return int(*body.SSEPingInterval)
 }
 
-func (h *Handler) runNativeCompletion(
-	ctx context.Context,
+type nativeCompletionPlan struct {
+	handler         *Handler
+	request         *http.Request
+	body            nativeCompletionRequest
+	prompts         []nativePrompt
+	sampler         *sampling.Sampler
+	maxTokens       int
+	stops           []string
+	settings        map[string]any
+	slotID          int
+	lora            []inference.LoRAScale
+	loraConfigured  bool
+	projectedInputs *inference.ProjectedInputs
+}
+
+func (plan *nativeCompletionPlan) run(
 	prompt nativePrompt,
-	sampler *sampling.Sampler,
-	maxTokens int,
-	stops []string,
 	index int,
 	returnTokens bool,
-	settings map[string]any,
 	onChunk func(nativeCompletionChunk) error,
 	onPromptProgress func(nativePromptProgress) error,
-	timingsPerToken bool,
-	maxPredictMS int,
-	nIndent int,
-	nProbs int,
-	postSamplingProbabilities bool,
-	slotID int,
-	nKeep int,
-	nDiscard int,
-	cachePrompt bool,
-	minCacheReuse int,
-	lora []inference.LoRAScale,
-	loraConfigured bool,
-	projectedInputs *inference.ProjectedInputs,
 ) (nativeCompletionResponse, error) {
+	sampler, err := samplerForChoice(plan.sampler, index)
+	if err != nil {
+		return nativeCompletionResponse{}, err
+	}
+	return plan.handler.runNativeCompletion(
+		plan, prompt, sampler, index, returnTokens, onChunk, onPromptProgress,
+	)
+}
+
+func (h *Handler) runNativeCompletion(
+	plan *nativeCompletionPlan,
+	prompt nativePrompt,
+	sampler *sampling.Sampler,
+	index int,
+	returnTokens bool,
+	onChunk func(nativeCompletionChunk) error,
+	onPromptProgress func(nativePromptProgress) error,
+) (nativeCompletionResponse, error) {
+	ctx := plan.request.Context()
+	body := plan.body
+	maxTokens, stops := plan.maxTokens, plan.stops
 	started := time.Now()
 	var output strings.Builder
 	filter := newStopFilter(stops)
@@ -3673,24 +3645,24 @@ func (h *Handler) runNativeCompletion(
 	indentationLimitReached := false
 	ids, _, err := h.generate(
 		ctx,
-		slotID,
+		plan.slotID,
 		prompt.Text,
 		inference.GenerateOptions{
 			MaxNewTokens:    maxTokens,
 			Sampler:         sampler,
 			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
-			KeepTokens:      nKeep,
-			DiscardTokens:   nDiscard,
+			KeepTokens:      body.NKeep,
+			DiscardTokens:   body.NDiscard,
 			PromptTokenIDs:  prompt.TokenIDs,
-			CachePrompt:     cachePrompt,
-			MinCacheReuse:   minCacheReuse,
-			LoRA:            lora,
-			LoRAConfigured:  loraConfigured,
-			ProjectedInputs: projectedInputs,
+			CachePrompt:     body.CachePrompt != nil && *body.CachePrompt,
+			MinCacheReuse:   body.NCacheReuse,
+			LoRA:            plan.lora,
+			LoRAConfigured:  plan.loraConfigured,
+			ProjectedInputs: plan.projectedInputs,
 			PostSamplingProbabilities: func() int {
-				if postSamplingProbabilities {
-					return nProbs
+				if body.PostSamplingProbs {
+					return body.NProbs
 				}
 				return 0
 			}(),
@@ -3711,17 +3683,17 @@ func (h *Handler) runNativeCompletion(
 				}
 				generated = append(generated, event.ID)
 				var probability *nativeTokenProbability
-				if nProbs > 0 {
+				if body.NProbs > 0 {
 					var item nativeTokenProbability
 					var probabilityErr error
-					if postSamplingProbabilities {
+					if body.PostSamplingProbs {
 						item, probabilityErr =
 							h.nativePostSamplingProbability(event)
 					} else {
 						item, probabilityErr = h.nativeTokenProbability(
 							event.ID,
 							event.Logits,
-							nProbs,
+							body.NProbs,
 						)
 					}
 					if probabilityErr != nil {
@@ -3733,10 +3705,10 @@ func (h *Handler) runNativeCompletion(
 				piece := filter.Accept(event.Piece)
 				previousLength := output.Len()
 				output.WriteString(piece)
-				if nIndent > 0 {
+				if body.NIndent > 0 {
 					if trimmed, stop := enforceNativeIndentation(
 						output.String(),
-						nIndent,
+						body.NIndent,
 					); stop {
 						trimmed = strings.Clone(trimmed)
 						output.Reset()
@@ -3759,7 +3731,7 @@ func (h *Handler) runNativeCompletion(
 						TokensPredicted: len(generated),
 						TokensEvaluated: promptTokensEstimate,
 					}
-					if timingsPerToken {
+					if body.TimingsPerToken {
 						timings := measuredNativeTimings(
 							promptTokensEstimate,
 							len(generated),
@@ -3784,10 +3756,10 @@ func (h *Handler) runNativeCompletion(
 				if predictionStarted.IsZero() {
 					predictionStarted = now
 				}
-				if maxPredictMS > 0 &&
+				if body.TMaxPredictMS > 0 &&
 					strings.Contains(event.Piece, "\n") &&
 					now.Sub(predictionStarted) >
-						time.Duration(maxPredictMS)*time.Millisecond {
+						time.Duration(body.TMaxPredictMS)*time.Millisecond {
 					timeLimitReached = true
 					return true
 				}
@@ -3805,8 +3777,8 @@ func (h *Handler) runNativeCompletion(
 	if pending := filter.Flush(); pending != "" {
 		previousLength := output.Len()
 		output.WriteString(pending)
-		if nIndent > 0 {
-			if trimmed, stop := enforceNativeIndentation(output.String(), nIndent); stop {
+		if body.NIndent > 0 {
+			if trimmed, stop := enforceNativeIndentation(output.String(), body.NIndent); stop {
 				trimmed = strings.Clone(trimmed)
 				output.Reset()
 				output.WriteString(trimmed)
@@ -3860,12 +3832,12 @@ func (h *Handler) runNativeCompletion(
 		Index:                   index,
 		Content:                 content,
 		Tokens:                  tokens,
-		IDSlot:                  slotID,
+		IDSlot:                  plan.slotID,
 		Stop:                    true,
 		Model:                   h.config.ModelID,
 		TokensPredicted:         len(generated),
 		TokensEvaluated:         promptTokens,
-		GenerationSettings:      settings,
+		GenerationSettings:      plan.settings,
 		Prompt:                  prompt.Response,
 		HasNewLine:              strings.Contains(content, "\n"),
 		Truncated:               truncated,
@@ -4084,29 +4056,7 @@ func measuredNativeTimings(
 
 func (h *Handler) streamNativeCompletion(
 	response http.ResponseWriter,
-	request *http.Request,
-	prompts []nativePrompt,
-	sampler *sampling.Sampler,
-	maxTokens int,
-	stops []string,
-	n int,
-	settings map[string]any,
-	responseFields []string,
-	slotID int,
-	nKeep int,
-	nDiscard int,
-	cachePrompt bool,
-	minCacheReuse int,
-	pingIntervalSeconds int,
-	returnProgress bool,
-	timingsPerToken bool,
-	maxPredictMS int,
-	nIndent int,
-	nProbs int,
-	postSamplingProbabilities bool,
-	lora []inference.LoRAScale,
-	loraConfigured bool,
-	projectedInputs *inference.ProjectedInputs,
+	plan *nativeCompletionPlan,
 ) {
 	flusher, ok := beginSSE(response)
 	if !ok {
@@ -4114,35 +4064,25 @@ func (h *Handler) streamNativeCompletion(
 	}
 	stream := newSynchronizedSSE(response, flusher)
 	stopHeartbeat := stream.startHeartbeat(
-		request.Context(),
-		time.Duration(pingIntervalSeconds)*time.Second,
+		plan.request.Context(),
+		time.Duration(nativeSSEPingInterval(plan.body))*time.Second,
 	)
 	defer stopHeartbeat()
 	resultIndex := 0
-	for _, prompt := range prompts {
-		for range n {
-			choiceSampler, err := samplerForChoice(sampler, resultIndex)
-			if err != nil {
-				_ = stream.write(errorEnvelope("generation_error", err.Error()))
-				return
-			}
-			result, err := h.runNativeCompletion(
-				request.Context(),
+	for _, prompt := range plan.prompts {
+		for range plan.body.NCmpl {
+			result, err := plan.run(
 				prompt,
-				choiceSampler,
-				maxTokens,
-				stops,
 				resultIndex,
 				true,
-				settings,
 				func(chunk nativeCompletionChunk) error {
 					if err := stream.write(chunk); err != nil {
 						return err
 					}
-					return request.Context().Err()
+					return plan.request.Context().Err()
 				},
 				func(progress nativePromptProgress) error {
-					if !returnProgress {
+					if !plan.body.ReturnProgress {
 						return nil
 					}
 					return stream.write(nativeCompletionChunk{
@@ -4156,19 +4096,6 @@ func (h *Handler) streamNativeCompletion(
 						PromptProgress:  &progress,
 					})
 				},
-				timingsPerToken,
-				maxPredictMS,
-				nIndent,
-				nProbs,
-				postSamplingProbabilities,
-				slotID,
-				nKeep,
-				nDiscard,
-				cachePrompt,
-				minCacheReuse,
-				lora,
-				loraConfigured,
-				projectedInputs,
 			)
 			if err != nil {
 				_ = stream.write(errorEnvelope("generation_error", err.Error()))
@@ -4180,8 +4107,8 @@ func (h *Handler) streamNativeCompletion(
 			result.Content = ""
 			result.Tokens = []tokenizer.TokenID{}
 			var final any = result
-			if len(responseFields) > 0 {
-				projected, projectErr := projectNativeResponse(result, responseFields)
+			if len(plan.body.ResponseFields) > 0 {
+				projected, projectErr := projectNativeResponse(result, plan.body.ResponseFields)
 				if projectErr != nil {
 					_ = stream.write(errorEnvelope("server_error", projectErr.Error()))
 					return

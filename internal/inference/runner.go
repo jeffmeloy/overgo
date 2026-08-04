@@ -2544,54 +2544,19 @@ func (r *Runner) Generate(
 	if r.spec.NonCausalAttention {
 		return nil, "", errors.New("inference: non-causal models require diffusion generation")
 	}
-	if options.MaxNewTokens < 0 {
-		return nil, "", errors.New("inference: max new tokens is negative")
-	}
-	if options.MinCacheReuse < 0 {
-		return nil, "", errors.New("inference: minimum cache reuse is negative")
-	}
-	if options.KeepTokens < -1 {
-		return nil, "", errors.New("inference: keep token count must be at least -1")
-	}
-	if options.DiscardTokens < 0 {
-		return nil, "", errors.New("inference: discard token count is negative")
-	}
-	if options.PostSamplingProbabilities < 0 {
-		return nil, "", errors.New(
-			"inference: post-sampling probability count is negative",
-		)
-	}
-	if err := validateStopSequences(options.StopSequences); err != nil {
+	if err := normalizeGenerateOptions(&options); err != nil {
 		return nil, "", err
-	}
-	if options.Sampler == nil {
-		var err error
-		options.Sampler, err = sampling.New(sampling.Config{})
-		if err != nil {
-			return nil, "", err
-		}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
 		return nil, "", errors.New("inference: runner is closed")
 	}
-	if options.LoRAConfigured {
-		next, err := validatedLoRAScales(len(r.loraAdapters), options.LoRA)
-		if err != nil {
-			return nil, "", err
-		}
-		previous := make([]float32, len(r.loraAdapters))
-		for index := range r.loraAdapters {
-			previous[index] = r.loraAdapters[index].scale
-			r.loraAdapters[index].scale = next[index]
-		}
-		defer func() {
-			for index := range r.loraAdapters {
-				r.loraAdapters[index].scale = previous[index]
-			}
-		}()
+	restoreLoRA, err := r.applyGenerationLoRA(options)
+	if err != nil {
+		return nil, "", err
 	}
+	defer restoreLoRA()
 	ids, err := r.promptTokenIDs(prompt, options)
 	if err != nil {
 		return nil, "", err
@@ -2617,10 +2582,7 @@ func (r *Runner) Generate(
 		len(ids),
 		r.spec.ContextLength,
 	)
-	outputTable := r.weights.TokenEmbedding
-	if r.weights.Output != nil {
-		outputTable = *r.weights.Output
-	}
+	outputTable := r.outputTensor()
 	var hidden reference.Value
 	var cache *KVCache
 	var deviceCache *deviceKVCache
@@ -2885,62 +2847,17 @@ func (r *Runner) Generate(
 		if logitsErr != nil {
 			return nil, "", logitsErr
 		}
-		history := make([]int, len(ids))
-		for index, id := range ids {
-			history[index] = int(id)
-		}
-		next := 0
-		var topProbabilities []sampling.TokenProbability
-		selectedProbability := 0.0
-		var sampleErr error
-		if options.PostSamplingProbabilities > 0 {
-			var probabilityResult sampling.SampleProbabilityResult
-			probabilityResult, sampleErr =
-				options.Sampler.SampleWithHistoryProbabilities(
-					logits,
-					history,
-					options.PostSamplingProbabilities,
-				)
-			next = probabilityResult.Token
-			selectedProbability = probabilityResult.SelectedProbability
-			topProbabilities = probabilityResult.Top
-		} else {
-			next, sampleErr = options.Sampler.SampleWithHistory(logits, history)
-		}
+		event, sampleErr := sampleGenerationToken(logits, ids, options)
 		if sampleErr != nil {
 			return nil, "", sampleErr
 		}
-		nextID := tokenizer.TokenID(next)
-		ids = append(ids, nextID)
-		piece := ""
-		event := TokenEvent{
-			ID:                  nextID,
-			Index:               generatedIndex,
-			Logits:              logits,
-			SelectedProbability: selectedProbability,
-			TopProbabilities:    topProbabilities,
+		event.Index = generatedIndex
+		ids = append(ids, event.ID)
+		stop, deliverErr := r.deliverGenerationToken(&event, options, &generatedText)
+		if deliverErr != nil {
+			return nil, "", deliverErr
 		}
-		if options.OnToken != nil ||
-			options.ShouldStop != nil ||
-			len(options.StopSequences) > 0 {
-			var decodeErr error
-			piece, decodeErr = r.vocab.DecodePiece(nextID, false)
-			if decodeErr != nil {
-				return nil, "", decodeErr
-			}
-			event.Piece = piece
-			if options.OnToken != nil {
-				if callbackErr := options.OnToken(event); callbackErr != nil {
-					return nil, "", callbackErr
-				}
-			}
-		}
-		generatedText.WriteString(piece)
-		if options.ShouldStop != nil && options.ShouldStop(event) {
-			break
-		}
-		if r.vocab.IsEOG(nextID) ||
-			matchesStopSequence(generatedText.String(), options.StopSequences) {
+		if stop {
 			break
 		}
 	}

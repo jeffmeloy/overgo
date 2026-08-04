@@ -3,6 +3,8 @@ package model
 import (
 	"errors"
 	"testing"
+
+	"llamacpp2go/internal/tensor"
 )
 
 func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
@@ -44,6 +46,41 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 				t.Fatalf("plan = %+v", plan)
 			}
 		})
+	}
+}
+
+func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
+	step := Spec{
+		CommonSpec: CommonSpec{Architecture: "step35", BlockCount: 1},
+		AttentionSpec: AttentionSpec{
+			KeyLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10_000,
+		},
+		MoESpec: MoESpec{
+			ExpertUsedCount: 2, ExpertWeightsScale: 1, ExpertGatingFunc: 2,
+			LayerSwiGLUClamp: []float32{7},
+		},
+	}
+	plan := step.PlanLayer(0, false)
+	if plan.Rotary.kind != rotaryGraphSingle ||
+		plan.Rotary.layout != tensor.RoPELayoutNeoX || plan.Rotary.factorPairs != 1 ||
+		plan.Experts.Routing != tensor.MoERoutingSigmoid ||
+		!plan.Experts.SelectionBias || plan.Experts.SwiGLUClamp != 7 {
+		t.Fatalf("Step3.5 graph plan = %+v", plan)
+	}
+
+	gptOSS := Spec{
+		CommonSpec: CommonSpec{Architecture: "gpt-oss", BlockCount: 1},
+		AttentionSpec: AttentionSpec{
+			SlidingWindow: 128, SlidingLayers: []bool{true},
+		},
+		MoESpec: MoESpec{ExpertUsedCount: 2, ExpertWeightsScale: 1},
+	}
+	plan = gptOSS.PlanLayer(0, false)
+	if !plan.AttentionGraph.UseSinks || plan.AttentionGraph.Window != 128 ||
+		plan.Experts.Routing != tensor.MoERoutingSelectedSoftmax ||
+		plan.Experts.Activation != tensor.MoEActivationSwiGLUOAI ||
+		plan.Experts.NormalizeTopKProb {
+		t.Fatalf("GPT-OSS graph plan = %+v", plan)
 	}
 }
 

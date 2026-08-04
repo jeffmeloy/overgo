@@ -86,6 +86,9 @@ type LayerPlan struct {
 	EmbeddingSkip   bool
 	PerLayerInput   bool
 	Normalization   NormalizationPlan
+	Rotary          RotaryPlan
+	AttentionGraph  AttentionGraphPlan
+	Experts         MoEGraphPlan
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -132,6 +135,9 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		EmbeddingSkip:   profile.Has(ArchitectureEmbeddingSkip),
 		PerLayerInput:   profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
 		Normalization:   s.NormPlan(),
+		Rotary:          s.rotaryPlan(profile, layer),
+		AttentionGraph:  s.attentionGraphPlan(layer),
+		Experts:         s.moeGraphPlan(layer),
 	}
 }
 

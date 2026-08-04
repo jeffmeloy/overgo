@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- `LayerPlan` now compiles detailed rotary, attention, and routed-expert graph controls; dense/Gemma 4 execution consumes the plans, paired RoPE and shared experts have one implementation, and production model MoE construction converges on one typed core.
 - Typed internal option contracts now own attention, MoE, and RoPE graph construction; specialized wrappers no longer forward positional nil/zero/boolean control streams or mutate completed graph nodes.
 - Named semantic constants now own projector/RWKV normalization contracts, quantizer thresholds, serialization/schema envelopes, GGUF buffers, server/CLI defaults, media security bounds, and derived validation diagnostics; fixture data and mathematical shapes remain literal.
 - Projector opening now uses one failure-safe GGUF ownership transaction; shared graph math owns optional bias, linear, and normalization operations; checked geometry plans own pixel merging and paired temporal patch splitting.

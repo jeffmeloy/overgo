@@ -117,15 +117,10 @@ func BuildArchitectureBlockCached(
 func buildAttentionFamilyBlock(
 	options BlockDispatchOptions,
 ) (DenseBlockResult, error) {
-	if options.MultiPositions != nil {
-		return BuildDenseBlockCachedForLayerWithMultiPositions(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			*options.MultiPositions, options.PastKey, options.PastValue,
-			options.Layer,
-		)
-	}
-	return BuildDenseBlockCachedForLayer(
-		options.Builder, options.Input, options.Spec, options.Weights,
-		options.Positions, options.PastKey, options.PastValue, options.Layer,
-	)
+	return BuildDenseBlockWithOptions(DenseBlockOptions{
+		Builder: options.Builder, Input: options.Input, Spec: options.Spec,
+		Weights: options.Weights, Positions: options.Positions,
+		MultiPositions: options.MultiPositions, PastKey: options.PastKey,
+		PastValue: options.PastValue, Layer: options.Layer, Plan: options.Plan,
+	})
 }

@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 3 layer-graph planning wave promoted rotary, attention, and MoE
+  controls into compiled `LayerPlan` values. Dense and Gemma 4 graph execution
+  now share paired RoPE, planned attention, one typed routed-expert core, and
+  one shared-SwiGLU composition; dense dispatch carries one typed request.
+  Full CPU and CUDA verification passed on the Windows amd64 RTX 4090 D host.
 - The August 3 typed-builder wave replaced the internal attention, MoE, and
   RoPE positional control streams with named option contracts. Specialized
   wrappers now declare only their active features, centralized builders own

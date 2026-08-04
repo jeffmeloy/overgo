@@ -1187,6 +1187,57 @@ type moeOptions struct {
 	swigluClamp                float32
 }
 
+// MoEBiases: OpenAI routed-expert biases.
+type MoEBiases struct {
+	Router *Tensor
+	Gate   *Tensor
+	Up     *Tensor
+	Down   *Tensor
+}
+
+// MoEOptions: routed-expert graph controls.
+type MoEOptions struct {
+	RouterInput        *Tensor
+	Gate               *Tensor
+	SelectionBias      *Tensor
+	ExpertScale        *Tensor
+	SelectedExperts    *Tensor
+	Biases             *MoEBiases
+	TopK               uint32
+	NormalizeTopKProb  bool
+	Scale              float32
+	Routing            MoERouting
+	Activation         MoEActivation
+	FusedGateUp        bool
+	ExpertIndexDivisor uint32
+	SwiGLUClamp        float32
+}
+
+// MoEWithOptions: typed routed-expert construction.
+func (b *Builder) MoEWithOptions(
+	input, router, up, down *Tensor,
+	options MoEOptions,
+) *Tensor {
+	var biases *moeBiases
+	if options.Biases != nil {
+		biases = &moeBiases{
+			router: options.Biases.Router,
+			gate:   options.Biases.Gate,
+			up:     options.Biases.Up,
+			down:   options.Biases.Down,
+		}
+	}
+	return b.buildMoE(input, router, up, down, moeOptions{
+		routerInput: options.RouterInput, gate: options.Gate,
+		selectionBias: options.SelectionBias, expertScale: options.ExpertScale,
+		selectedExperts: options.SelectedExperts, biases: biases,
+		topK: options.TopK, normalizeTopKProb: options.NormalizeTopKProb,
+		scale: options.Scale, routing: options.Routing, activation: options.Activation,
+		fusedGateUp: options.FusedGateUp, expertIndexDivisor: options.ExpertIndexDivisor,
+		swigluClamp: options.SwiGLUClamp,
+	})
+}
+
 // MoE: softmax top-k SwiGLU; GGUF expert layouts.
 func (b *Builder) MoE(
 	input, router, gate, up, down *Tensor,
@@ -1796,6 +1847,52 @@ type ropeOptions struct {
 	betaFast, betaSlow            float32
 }
 
+// RoPELayout: rotary channel pairing.
+type RoPELayout uint8
+
+const (
+	RoPELayoutNormal RoPELayout = iota
+	RoPELayoutNeoX
+)
+
+// RoPEOptions: single-axis rotary graph controls.
+type RoPEOptions struct {
+	Layout           RoPELayout
+	Positions        []uint32
+	FrequencyFactors *Tensor
+	RotaryDimensions uint32
+	FrequencyBase    float32
+	FrequencyScale   float32
+	YaRN             bool
+	OriginalContext  uint32
+	ExtFactor        float32
+	AttentionFactor  float32
+	BetaFast         float32
+	BetaSlow         float32
+}
+
+// RoPEWithOptions: typed single-axis rotary construction.
+func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
+	operation, name := OpRoPENormal, "rope_normal"
+	switch options.Layout {
+	case RoPELayoutNormal:
+	case RoPELayoutNeoX:
+		operation, name = OpRoPENeoX, "rope_neox"
+	default:
+		b.setError(errors.New("RoPE layout is invalid"))
+		return nil
+	}
+	return b.buildRoPE(input, ropeOptions{
+		operation: operation, name: name, positions: options.Positions,
+		frequencyFactors: options.FrequencyFactors,
+		rotaryDimensions: options.RotaryDimensions,
+		frequencyBase:    options.FrequencyBase, frequencyScale: options.FrequencyScale,
+		yarn: options.YaRN, originalContext: options.OriginalContext,
+		extFactor: options.ExtFactor, attentionFactor: options.AttentionFactor,
+		betaFast: options.BetaFast, betaSlow: options.BetaSlow,
+	})
+}
+
 // RoPENeoX: split-half rotary layout; input [head width, heads, tokens, batch?].
 func (b *Builder) RoPENeoX(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
 	return b.buildRoPE(input, ropeOptions{
@@ -2381,6 +2478,42 @@ type attentionOptions struct {
 	relativeBidirectional bool
 	chunkedWindow         bool
 	queryStart, window    uint32
+}
+
+// AttentionOptions: attention graph controls.
+type AttentionOptions struct {
+	Bias                  *Tensor
+	Sinks                 *Tensor
+	BlockIDs              *Tensor
+	Scale                 float32
+	Softcap               float32
+	MaxALiBiBias          float32
+	Causal                bool
+	SymmetricWindow       bool
+	RelativeBidirectional bool
+	ChunkedWindow         bool
+	QueryStart            uint32
+	Window                uint32
+}
+
+// AttentionWithOptions: typed attention construction.
+func (b *Builder) AttentionWithOptions(
+	query, key, value *Tensor,
+	options AttentionOptions,
+) *Tensor {
+	if options.Window == 0 &&
+		(options.SymmetricWindow || options.ChunkedWindow || options.BlockIDs != nil) {
+		b.setError(errors.New("attention window must be positive"))
+		return nil
+	}
+	return b.buildAttention(query, key, value, attentionOptions{
+		bias: options.Bias, sinks: options.Sinks, blockIDs: options.BlockIDs,
+		scale: options.Scale, softcap: options.Softcap, maxALiBiBias: options.MaxALiBiBias,
+		causal: options.Causal, symmetricWindow: options.SymmetricWindow,
+		relativeBidirectional: options.RelativeBidirectional,
+		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
+		window: options.Window,
+	})
 }
 
 // AttentionWithOffset: query suffix at queryStart in cached key/value sequence.

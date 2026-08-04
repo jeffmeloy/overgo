@@ -356,10 +356,10 @@ func buildBERTEncoderBlock(
 	}
 	var feedForward *tensor.Tensor
 	if usesExperts {
-		feedForward = builder.MoEGELU(
-			attention, weights.FeedForwardRouter, nil, weights.FeedForwardUpExperts,
-			weights.FeedForwardDownExperts, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-		)
+		plan := spec.moeGraphPlan(layerIndex)
+		plan.Activation = tensor.MoEActivationGELU
+		plan.NormalizeTopKProb = true
+		feedForward = plan.BuildLayer(builder, attention, nil, weights)
 	} else {
 		feedForward = builder.MulMat(weights.FeedForwardUp, attention)
 		if weights.FeedForwardUpBias != nil {
@@ -1101,11 +1101,9 @@ func BuildJambaRecurrentBlockCached(
 			weights.FeedForwardDownExperts == nil {
 			return DenseBlockResult{}, errors.New("Jamba expert catalog is incomplete")
 		}
-		feedForward = builder.MoE(
-			normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-			weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-			spec.ExpertUsedCount, false, spec.ExpertWeightsScale,
-		)
+		plan := spec.moeGraphPlan(0)
+		plan.NormalizeTopKProb = false
+		feedForward = plan.BuildLayer(builder, normalized, nil, weights)
 	} else {
 		if weights.FeedForwardGate == nil || weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
 			return DenseBlockResult{}, errors.New("Jamba dense FFN catalog is incomplete")
@@ -1392,26 +1390,13 @@ func BuildGraniteHybridRecurrentBlockCached(
 		if weights.FeedForwardUpExperts == nil || weights.FeedForwardDownExperts == nil {
 			return DenseBlockResult{}, errors.New("Granite Hybrid expert catalog is incomplete")
 		}
-		if weights.FeedForwardGateExperts == nil {
-			feedForward = builder.MoEUngated(
-				normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
-		} else {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-				weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
-		}
+		feedForward = spec.moeGraphPlan(0).BuildLayer(builder, normalized, nil, weights)
 		if spec.SharedExpertFF > 0 {
 			if weights.FeedForwardSharedGate == nil || weights.FeedForwardSharedUp == nil ||
 				weights.FeedForwardSharedDown == nil {
 				return DenseBlockResult{}, errors.New("Granite Hybrid shared expert catalog is incomplete")
 			}
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp))
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		}
 	} else {
@@ -1652,11 +1637,11 @@ func BuildNemotronHBlockCached(
 		} else if weights.FeedForwardLatentUp != nil {
 			return DenseBlockResult{}, errors.New("Nemotron-H MoE latent projection is incomplete")
 		}
-		feedForward = builder.MoEReLUSquaredWithRouterInput(
-			expertInput, normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
-			weights.FeedForwardDownExperts, weights.FeedForwardExpertBias, spec.ExpertUsedCount,
-			spec.ExpertWeightsNorm, spec.ExpertWeightsScale, tensor.MoERoutingSigmoid,
-		)
+		plan := spec.moeGraphPlan(layerIndex)
+		plan.Routing = tensor.MoERoutingSigmoid
+		plan.Activation = tensor.MoEActivationReLUSquared
+		plan.SelectionBias = true
+		feedForward = plan.BuildLayer(builder, expertInput, normalized, weights)
 		if weights.FeedForwardLatentUp != nil {
 			feedForward = builder.MulMat(weights.FeedForwardLatentUp, feedForward)
 		}
@@ -2008,33 +1993,11 @@ func buildMLABlockCachedForLayer(
 		auxiliary = nil
 	}
 	if (isDeepSeek2 || isDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
-		var feedForward *tensor.Tensor
-		if weights.FeedForwardGateUpExperts != nil {
-			if spec.ExpertGatingFunc == 2 {
-				feedForward = builder.MoESigmoidFusedGateUp(normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateUpExperts, weights.FeedForwardDownExperts,
-					weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
-			} else {
-				feedForward = builder.MoESoftmaxFusedGateUp(normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateUpExperts, weights.FeedForwardDownExperts,
-					weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
-			}
-		} else if spec.ExpertGatingFunc == 2 {
-			feedForward = builder.MoESigmoid(normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-				weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
-		} else if weights.FeedForwardExpertBias != nil {
-			feedForward = builder.MoESoftmaxWithSelectionBias(normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-				weights.FeedForwardExpertBias, spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
-		} else {
-			feedForward = builder.MoE(normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-				spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale)
-		}
-		sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-		sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-		shared := builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp))
+		moePlan := spec.moeGraphPlan(layerIndex)
+		moePlan.NormalizeTopKProb = spec.ExpertWeightsNorm
+		moePlan.SelectionBias = weights.FeedForwardExpertBias != nil
+		feedForward := moePlan.BuildLayer(builder, normalized, nil, weights)
+		shared := buildSharedSwiGLU(builder, normalized, weights)
 		output := builder.Add(residual, builder.Add(feedForward, shared))
 		if err := builder.Err(); err != nil {
 			return DenseBlockResult{}, err
@@ -2237,9 +2200,15 @@ func BuildDeepSeek4BlockCached(
 	if layerIndex < spec.HashLayerCount {
 		selected = builder.GetRows(weights.FeedForwardHashExperts, tokenRows)
 	}
-	moe := builder.MoESqrtSoftplusLimited(current, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-		weights.FeedForwardUpExperts, weights.FeedForwardDownExperts, weights.FeedForwardRouterBias, selected,
-		spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale, spec.LayerExpertSwiGLUClamp(layerIndex))
+	moePlan := spec.moeGraphPlan(layerIndex)
+	moePlan.Routing = tensor.MoERoutingSqrtSoftplus
+	moePlan.SelectionBias = true
+	moePlan.SwiGLUClamp = spec.LayerExpertSwiGLUClamp(layerIndex)
+	moe := moePlan.Build(builder, current, weights.FeedForwardRouter, MoEGraphInputs{
+		Gate: weights.FeedForwardGateExperts, Up: weights.FeedForwardUpExperts,
+		Down: weights.FeedForwardDownExperts, SelectionBias: weights.FeedForwardRouterBias,
+		SelectedExperts: selected,
+	})
 	sharedGate := builder.MulMat(weights.FeedForwardSharedGate, current)
 	sharedUp := builder.MulMat(weights.FeedForwardSharedUp, current)
 	shared := builder.MulMat(weights.FeedForwardSharedDown,
@@ -2756,20 +2725,10 @@ func buildKimiFeedForward(
 		up := builder.MulMat(weights.FeedForwardUp, normalized)
 		return builder.Add(residual, builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up)))
 	}
-	var routed *tensor.Tensor
-	if spec.ExpertGatingFunc == 2 {
-		routed = builder.MoESigmoid(
-			normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-			weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-			weights.FeedForwardExpertBias, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-		)
-	} else {
-		routed = builder.MoESoftmaxWithSelectionBias(
-			normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-			weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-			weights.FeedForwardExpertBias, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-		)
-	}
+	plan := spec.moeGraphPlan(layerIndex)
+	plan.NormalizeTopKProb = true
+	plan.SelectionBias = true
+	routed := plan.BuildLayer(builder, normalized, nil, weights)
 	shared := builder.MulMat(
 		weights.FeedForwardSharedDown,
 		builder.SwiGLU(
@@ -2893,21 +2852,10 @@ func BuildLFM2BlockCached(
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	var feedForward *tensor.Tensor
 	if usesExperts {
-		if spec.ExpertGatingFunc == 2 {
-			feedForward = builder.MoESigmoid(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
-		} else {
-			feedForward = builder.MoESoftmaxWithSelectionBias(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
-		}
+		plan := spec.moeGraphPlan(0)
+		plan.NormalizeTopKProb = true
+		plan.SelectionBias = true
+		feedForward = plan.BuildLayer(builder, normalized, nil, weights)
 	} else {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)
 		up := builder.MulMat(weights.FeedForwardUp, normalized)
@@ -2923,8 +2871,42 @@ func BuildLFM2BlockCached(
 	}, nil
 }
 
-// BuildDenseBlock: constructs one pre-normalized grouped-query transformer
-// block; covers initial Llama layout and Qwen3's per-head Q/K norms
+// DenseBlockOptions: dense layer graph inputs.
+type DenseBlockOptions struct {
+	Builder        *tensor.Builder
+	Input          *tensor.Tensor
+	Spec           Spec
+	Weights        LayerGraphWeights
+	Positions      []uint32
+	MultiPositions *[4][]uint32
+	PastKey        *tensor.Tensor
+	PastValue      *tensor.Tensor
+	Layer          uint32
+	Plan           *LayerPlan
+}
+
+// BuildDenseBlockWithOptions: typed dense layer construction.
+func BuildDenseBlockWithOptions(options DenseBlockOptions) (DenseBlockResult, error) {
+	if options.MultiPositions != nil {
+		switch options.Spec.Architecture {
+		case "glm4", "glm4moe":
+			if options.Spec.RopeSections[0] <= 0 || options.Spec.RopeSections[1] <= 0 {
+				return DenseBlockResult{}, errors.New("GLM4 multi-axis positions require multimodal RoPE sections")
+			}
+		case "hunyuan-dense", "hunyuan_vl":
+			if options.Spec.RopeSections[0] <= 0 || options.Spec.RopeSections[1] <= 0 {
+				return DenseBlockResult{}, errors.New("Hunyuan multi-axis positions require multimodal RoPE sections")
+			}
+		case "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe":
+		default:
+			return DenseBlockResult{}, errors.New("dense block architecture does not support multi-axis positions")
+		}
+		options.Positions = options.MultiPositions[0]
+	}
+	return buildDenseBlockCachedForLayer(options)
+}
+
+// BuildDenseBlock: pre-normalized grouped-query transformer block.
 func BuildDenseBlock(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -2948,9 +2930,10 @@ func BuildDenseBlockCached(
 	pastKey *tensor.Tensor,
 	pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	return BuildDenseBlockCachedForLayer(
-		builder, input, spec, weights, positions, pastKey, pastValue, 0,
-	)
+	return BuildDenseBlockWithOptions(DenseBlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: weights,
+		Positions: positions, PastKey: pastKey, PastValue: pastValue,
+	})
 }
 
 func BuildDenseBlockCachedForLayer(
@@ -2963,9 +2946,10 @@ func BuildDenseBlockCachedForLayer(
 	pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	return buildDenseBlockCachedForLayer(
-		builder, input, spec, weights, positions, nil, pastKey, pastValue, layerIndex,
-	)
+	return BuildDenseBlockWithOptions(DenseBlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: weights,
+		Positions: positions, PastKey: pastKey, PastValue: pastValue, Layer: layerIndex,
+	})
 }
 
 // BuildDenseBlockCachedForLayerWithMultiPositions: distinct MRoPE axes.
@@ -2979,35 +2963,23 @@ func BuildDenseBlockCachedForLayerWithMultiPositions(
 	pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	switch spec.Architecture {
-	case "glm4", "glm4moe":
-		if spec.RopeSections[0] <= 0 || spec.RopeSections[1] <= 0 {
-			return DenseBlockResult{}, errors.New("GLM4 multi-axis positions require multimodal RoPE sections")
-		}
-	case "hunyuan-dense", "hunyuan_vl":
-		if spec.RopeSections[0] <= 0 || spec.RopeSections[1] <= 0 {
-			return DenseBlockResult{}, errors.New("Hunyuan multi-axis positions require multimodal RoPE sections")
-		}
-	case "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe":
-	default:
-		return DenseBlockResult{}, errors.New("dense block architecture does not support multi-axis positions")
-	}
-	return buildDenseBlockCachedForLayer(
-		builder, input, spec, weights, multiPositions[0], &multiPositions, pastKey, pastValue, layerIndex,
-	)
+	return BuildDenseBlockWithOptions(DenseBlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: weights,
+		MultiPositions: &multiPositions, PastKey: pastKey, PastValue: pastValue,
+		Layer: layerIndex,
+	})
 }
 
-func buildDenseBlockCachedForLayer(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	multiPositions *[4][]uint32,
-	pastKey *tensor.Tensor,
-	pastValue *tensor.Tensor,
-	layerIndex uint32,
-) (DenseBlockResult, error) {
+func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult, error) {
+	builder := options.Builder
+	input := options.Input
+	spec := options.Spec
+	weights := options.Weights
+	positions := options.Positions
+	multiPositions := options.MultiPositions
+	pastKey := options.PastKey
+	pastValue := options.PastValue
+	layerIndex := options.Layer
 	if builder == nil {
 		return DenseBlockResult{}, errors.New("dense block builder is nil")
 	}
@@ -3018,7 +2990,11 @@ func buildDenseBlockCachedForLayer(
 		return DenseBlockResult{}, err
 	}
 	profile := spec.Profile()
-	normPlan := spec.NormPlan()
+	layerPlan := spec.PlanLayer(layerIndex, false)
+	if options.Plan != nil {
+		layerPlan = *options.Plan
+	}
+	normPlan := layerPlan.Normalization
 	if spec.Architecture == "bert" || spec.Architecture == "jina-bert-v2" || spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
 		return buildBERTEncoderBlock(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
 	}
@@ -3492,188 +3468,9 @@ func buildDenseBlockCachedForLayer(
 			weights.AttentionKNorm,
 		)
 	}
-	rotaryDimensions := spec.KeyLength
-	if spec.RopeDimensionCount > 0 {
-		rotaryDimensions = spec.LayerRopeDimensionCount(layerIndex)
-	}
-	if !spec.UsesRoPE(layerIndex) {
-		// Periodic position-independent layer.
-	} else if spec.Architecture == "paddleocr" || spec.Architecture == "qwen2vl" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || ((spec.Architecture == "glm4" || isGLM4MoE) && spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0) || ((spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl") && spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0) {
-		resolved := [4][]uint32{}
-		if multiPositions == nil {
-			for axis := range resolved {
-				resolved[axis] = positions
-			}
-		} else {
-			resolved = *multiPositions
-		}
-		frequencyScale := float32(1)
-		if spec.RopeScalingType == "linear" {
-			frequencyScale = 1 / spec.RopeScalingFactor
-		}
-		query = builder.RoPEMultiScaled(
-			query, resolved, spec.RopeSections,
-			rotaryDimensions, spec.RopeFrequencyBase, frequencyScale,
-		)
-		key = builder.RoPEMultiScaled(
-			key, resolved, spec.RopeSections,
-			rotaryDimensions, spec.RopeFrequencyBase, frequencyScale,
-		)
-	} else if isLaguna {
-		if spec.IsSlidingLayer(layerIndex) {
-			query = builder.RoPENeoX(
-				query, positions, spec.RopeDimensionSWA, spec.RopeFrequencySWA,
-			)
-			key = builder.RoPENeoX(
-				key, positions, spec.RopeDimensionSWA, spec.RopeFrequencySWA,
-			)
-		} else {
-			frequencyScale := float32(1) / spec.RopeScalingFactor
-			query = builder.RoPENeoXYaRN(
-				query, positions, spec.RopeDimensionCount, spec.OriginalContextLength,
-				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-			)
-			key = builder.RoPENeoXYaRN(
-				key, positions, spec.RopeDimensionCount, spec.OriginalContextLength,
-				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-			)
-		}
-	} else if (isGrok || isMellum) && spec.RopeScalingType == "yarn" && !spec.IsSlidingLayer(layerIndex) {
-		frequencyScale := float32(1) / spec.RopeScalingFactor
-		query = builder.RoPENeoXYaRN(
-			query, positions, rotaryDimensions, spec.OriginalContextLength,
-			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-			spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-		)
-		key = builder.RoPENeoXYaRN(
-			key, positions, rotaryDimensions, spec.OriginalContextLength,
-			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-			spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-		)
-	} else if (spec.Architecture == "llama" || spec.Architecture == "llama-embed" ||
-		spec.Architecture == "minicpm" || spec.Architecture == "mistral3") &&
-		spec.RopeScalingType == "yarn" {
-		frequencyScale := float32(1) / spec.RopeScalingFactor
-		if weights.RopeFactors != nil {
-			query = builder.RoPENormalYaRNWithFactors(
-				query, positions, rotaryDimensions, spec.OriginalContextLength,
-				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-				weights.RopeFactors,
-			)
-			key = builder.RoPENormalYaRNWithFactors(
-				key, positions, rotaryDimensions, spec.OriginalContextLength,
-				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-				weights.RopeFactors,
-			)
-		} else {
-			query = builder.RoPENormalYaRN(
-				query, positions, rotaryDimensions, spec.OriginalContextLength,
-				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-			)
-			key = builder.RoPENormalYaRN(
-				key, positions, rotaryDimensions, spec.OriginalContextLength,
-				spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor,
-				spec.YaRNAttentionFactor, spec.YaRNBetaFast, spec.YaRNBetaSlow,
-			)
-		}
-	} else if profile.Position == PositionNormal {
-		frequencyBase := spec.RopeFrequencyBase
-		frequencyScale := float32(1)
-		if spec.RopeScalingType == "linear" {
-			frequencyScale = 1 / spec.RopeScalingFactor
-		}
-		if (spec.Architecture == "cohere2" || isCohere2MoE || isLlama4 || isGPTOSS) && spec.IsSlidingLayer(layerIndex) {
-			frequencyBase = spec.RopeFrequencySWA
-		}
-		if weights.RopeFactors != nil {
-			query = builder.RoPENormalScaledWithFactors(
-				query, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
-			)
-			key = builder.RoPENormalScaledWithFactors(
-				key, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
-			)
-		} else {
-			query = builder.RoPENormalScaled(
-				query, positions, rotaryDimensions, frequencyBase, frequencyScale,
-			)
-			key = builder.RoPENormalScaled(
-				key, positions, rotaryDimensions, frequencyBase, frequencyScale,
-			)
-		}
-	} else if profile.Has(ArchitectureGemma) {
-		frequencyBase := spec.RopeFrequencyBase
-		frequencyScale := float32(1)
-		if spec.Architecture == "gemma3" {
-			frequencyScale = 1 / spec.RopeScalingFactor
-		} else if spec.RopeScalingType == "linear" {
-			frequencyScale = 1 / spec.RopeScalingFactor
-		}
-		if spec.IsSlidingLayer(layerIndex) {
-			frequencyBase = spec.RopeFrequencySWA
-			if spec.Architecture == "gemma3" {
-				frequencyScale = 1
-			}
-		}
-		if weights.RopeFactors != nil {
-			query = builder.RoPENeoXScaledWithFactors(
-				query, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
-			)
-			key = builder.RoPENeoXScaledWithFactors(
-				key, positions, rotaryDimensions, frequencyBase, frequencyScale, weights.RopeFactors,
-			)
-		} else {
-			query = builder.RoPENeoXScaled(
-				query, positions, rotaryDimensions, frequencyBase, frequencyScale,
-			)
-			key = builder.RoPENeoXScaled(
-				key, positions, rotaryDimensions, frequencyBase, frequencyScale,
-			)
-		}
-	} else {
-		frequencyBase := spec.RopeFrequencyBase
-		frequencyScale := float32(1)
-		if spec.RopeScalingType == "linear" {
-			frequencyScale = 1 / spec.RopeScalingFactor
-		}
-		if isOLMo2 && spec.IsSlidingLayer(layerIndex) {
-			frequencyScale = 1
-		}
-		if (isAFMoE || isEXAOneMoE || isMiMo2 || isStep35 || isSmallThinker || spec.Architecture == "plamo3") && spec.IsSlidingLayer(layerIndex) {
-			frequencyBase = spec.RopeFrequencySWA
-		}
-		if isMellum && spec.IsSlidingLayer(layerIndex) {
-			frequencyBase = spec.RopeFrequencySWA
-			frequencyScale = 1
-		}
-		ropeFactors := weights.RopeFactors
-		if isStep35 && ropeFactors != nil && ropeFactors.Shape.Dims[0] > uint64(rotaryDimensions/2) {
-			ropeFactors = builder.FlatSlice(ropeFactors, 0, uint64(rotaryDimensions/2))
-		}
-		if ropeFactors != nil {
-			query = builder.RoPENeoXScaledWithFactors(
-				query, positions, rotaryDimensions, frequencyBase, frequencyScale, ropeFactors,
-			)
-			key = builder.RoPENeoXScaledWithFactors(
-				key, positions, rotaryDimensions, frequencyBase, frequencyScale, ropeFactors,
-			)
-		} else {
-			query = builder.RoPENeoXScaled(
-				query, positions, rotaryDimensions, frequencyBase, frequencyScale,
-			)
-			key = builder.RoPENeoXScaled(
-				key, positions, rotaryDimensions, frequencyBase, frequencyScale,
-			)
-		}
-	}
-	if profile.Has(ArchitectureLongRoPE) && spec.RopeScalingType != "yarn" && spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
-		query = builder.Scale(query, spec.RopeAttentionFactor)
-		key = builder.Scale(key, spec.RopeAttentionFactor)
-	}
+	query, key = layerPlan.Rotary.Apply(
+		builder, query, key, positions, multiPositions, weights.RopeFactors,
+	)
 	if isLlama4 && spec.UsesRoPE(layerIndex) && spec.ExpertCount != 128 {
 		query = builder.RMSNorm(query, spec.RMSNormEpsilon)
 		key = builder.RMSNorm(key, spec.RMSNormEpsilon)
@@ -3728,50 +3525,10 @@ func buildDenseBlockCachedForLayer(
 		query = builder.Scale(query, attentionScale)
 		attentionScale = 1
 	}
-	var attention *tensor.Tensor
-	if isLlama4 && spec.IsSlidingLayer(layerIndex) {
-		attention = builder.AttentionChunkedWindowWithOffset(
-			query, cacheKey, cacheValue, attentionScale, true, queryStart, spec.SlidingWindow,
-		)
-	} else if spec.IsSlidingLayer(layerIndex) {
-		causal := !spec.NonCausalAttention
-		if (isMiMo2 || isGPTOSS) && weights.AttentionSinks != nil {
-			attention = builder.AttentionWindowWithSinksWithOffset(
-				query, cacheKey, cacheValue, weights.AttentionSinks, attentionScale,
-				true, queryStart, spec.SlidingWindow,
-			)
-		} else if spec.AttentionSoftcap > 0 {
-			attention = builder.AttentionWindowSoftcappedWithOffset(
-				query, cacheKey, cacheValue, attentionScale, spec.AttentionSoftcap,
-				true, queryStart, spec.SlidingWindow,
-			)
-		} else {
-			attention = builder.AttentionWindowWithOffset(
-				query, cacheKey, cacheValue, attentionScale, causal, queryStart, spec.SlidingWindow,
-			)
-		}
-	} else {
-		causal := !spec.NonCausalAttention
-		if (isMiMo2 || isGPTOSS) && weights.AttentionSinks != nil {
-			attention = builder.AttentionWithSinksWithOffset(
-				query, cacheKey, cacheValue, weights.AttentionSinks, attentionScale, causal, queryStart,
-			)
-		} else if spec.MaxALiBiBias > 0 {
-			attention = builder.AttentionALiBiWithOffset(
-				query, cacheKey, cacheValue, attentionScale, spec.MaxALiBiBias,
-				causal, queryStart,
-			)
-		} else if spec.AttentionSoftcap > 0 {
-			attention = builder.AttentionSoftcappedWithOffset(
-				query, cacheKey, cacheValue, attentionScale, spec.AttentionSoftcap,
-				causal, queryStart,
-			)
-		} else {
-			attention = builder.AttentionWithOffset(
-				query, cacheKey, cacheValue, attentionScale, causal, queryStart,
-			)
-		}
-	}
+	attention := layerPlan.AttentionGraph.Build(
+		builder, query, cacheKey, cacheValue, weights.AttentionSinks, nil,
+		attentionScale, queryStart,
+	)
 	if (isLaguna || isStep35) && attentionGate != nil && weights.AttentionOutputGate.Shape.Dims[1] == uint64(headCount) {
 		attentionGate = builder.Reshape(attentionGate, 1, uint64(headCount), tokens)
 		attention = builder.Multiply(attention, attentionGate)
@@ -3823,12 +3580,7 @@ func buildDenseBlockCachedForLayer(
 		dense := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(denseGate, denseUp))
 		denseOutput := builder.Add(residual, dense)
 		expertInput := builder.WeightedRMSNorm(input, weights.FeedForwardExpertNorm, spec.RMSNormEpsilon)
-		experts := builder.MoE(
-			expertInput, weights.FeedForwardRouter,
-			weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-			weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-			spec.ExpertWeightsScale,
-		)
+		experts := layerPlan.Experts.BuildLayer(builder, expertInput, nil, weights)
 		output := builder.Add(denseOutput, experts)
 		if err := builder.Err(); err != nil {
 			return DenseBlockResult{}, err
@@ -3866,169 +3618,47 @@ func buildDenseBlockCachedForLayer(
 	if usesExperts {
 		var feedForward *tensor.Tensor
 		if isRefactMoE {
-			if weights.FeedForwardGateExperts == nil {
-				feedForward = builder.MoEUngated(
-					normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoE(
-					normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-					weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-				)
-			}
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 		} else if isErnieMoE {
-			if weights.FeedForwardGateExperts == nil {
-				if weights.FeedForwardExpertBias != nil {
-					feedForward = builder.MoEUngatedWithSelectionBias(
-						normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
-						weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-						spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-					)
-				} else {
-					feedForward = builder.MoEUngated(
-						normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
-						weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-						spec.ExpertWeightsScale,
-					)
-				}
-			} else if weights.FeedForwardExpertBias != nil {
-				feedForward = builder.MoESoftmaxWithSelectionBias(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoE(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-					spec.ExpertWeightsScale,
-				)
-			}
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			if spec.SharedExpertFF > 0 {
-				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-				shared := builder.MulMat(
-					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-				)
+				shared := buildSharedSwiGLU(builder, normalized, weights)
 				feedForward = builder.Add(feedForward, shared)
 			}
 		} else if isHYV3 || isDeepSeek2OCR {
-			if weights.FeedForwardGateUpExperts != nil {
-				if spec.ExpertGatingFunc == 2 {
-					feedForward = builder.MoESigmoidFusedGateUp(
-						normalized, weights.FeedForwardRouter, weights.FeedForwardGateUpExperts,
-						weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-						spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-					)
-				} else {
-					feedForward = builder.MoESoftmaxFusedGateUp(
-						normalized, weights.FeedForwardRouter, weights.FeedForwardGateUpExperts,
-						weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-						spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-					)
-				}
-			} else if spec.ExpertGatingFunc == 2 {
-				feedForward = builder.MoESigmoid(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			} else if weights.FeedForwardExpertBias != nil {
-				feedForward = builder.MoESoftmaxWithSelectionBias(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoE(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, spec.ExpertUsedCount,
-					spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			}
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(
-				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		} else if isCohere2MoE {
-			if weights.FeedForwardGateUpExperts != nil {
-				feedForward = builder.MoESigmoidFusedGateUp(
-					normalized, weights.FeedForwardRouter, weights.FeedForwardGateUpExperts,
-					weights.FeedForwardDownExperts, nil, spec.ExpertUsedCount,
-					spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoESigmoid(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, nil, spec.ExpertUsedCount,
-					spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			}
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			if spec.SharedExpertFF > 0 {
-				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-				shared := builder.MulMat(
-					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-				)
+				shared := buildSharedSwiGLU(builder, normalized, weights)
 				feedForward = builder.Scale(builder.Add(feedForward, shared), 0.5)
 			}
 		} else if isGLM4MoE {
-			if spec.ExpertGatingFunc == 2 {
-				feedForward = builder.MoESigmoid(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoESoftmaxWithSelectionBias(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			}
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(
-				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		} else if isGroveMoE {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-				spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			chunkTopK := spec.ExpertUsedCount
 			chunkExperts := spec.ExpertCount / spec.ExpertsPerGroup
 			if chunkTopK > chunkExperts {
 				chunkTopK = chunkExperts
 			}
-			chunk := builder.MoEGroupedWithRouterInput(
-				feedForward, normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateChunkExperts, weights.FeedForwardUpChunkExperts,
-				weights.FeedForwardDownChunkExperts, chunkTopK, true,
-				spec.ExpertWeightsScale, spec.ExpertsPerGroup,
+			chunkPlan := layerPlan.Experts
+			chunkPlan.TopK = chunkTopK
+			chunkPlan.ExpertIndexDivisor = spec.ExpertsPerGroup
+			chunk := chunkPlan.Build(
+				builder, feedForward, weights.FeedForwardRouter, MoEGraphInputs{
+					RouterInput: normalized, Gate: weights.FeedForwardGateChunkExperts,
+					Up:   weights.FeedForwardUpChunkExperts,
+					Down: weights.FeedForwardDownChunkExperts,
+				},
 			)
 			feedForward = builder.Add(feedForward, builder.Scale(chunk, spec.ExpertGroupScale))
 		} else if isGrok {
-			feedForward = builder.MoEGELU(
-				normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-				weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			if weights.FeedForwardUp != nil || weights.FeedForwardGate != nil || weights.FeedForwardDown != nil {
 				if weights.FeedForwardUp == nil || weights.FeedForwardGate == nil || weights.FeedForwardDown == nil {
 					return DenseBlockResult{}, errors.New("Grok dense FFN weights are incomplete")
@@ -4050,42 +3680,11 @@ func buildDenseBlockCachedForLayer(
 			}
 			return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 		} else if isSmallThinker {
-			routing := tensor.MoERoutingSoftmax
-			if spec.ExpertGatingFunc == 2 {
-				routing = tensor.MoERoutingSigmoid
-			}
-			feedForward = builder.MoEReLUWithRouterInput(
-				normalized, input, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-				spec.ExpertWeightsScale, routing,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, input, weights)
 		} else if isMiMo2 {
-			feedForward = builder.MoESigmoid(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 		} else if isStep35 {
-			limit := spec.LayerExpertSwiGLUClamp(layerIndex)
-			if spec.ExpertGatingFunc == 2 {
-				feedForward = builder.MoESigmoidLimited(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, spec.ExpertWeightsNorm,
-					spec.ExpertWeightsScale, limit,
-				)
-			} else {
-				feedForward = builder.MoESoftmaxLimitedWithSelectionBias(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, spec.ExpertWeightsNorm,
-					spec.ExpertWeightsScale, limit,
-				)
-			}
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			if spec.SharedExpertFF > 0 {
 				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
 				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
@@ -4096,178 +3695,55 @@ func buildDenseBlockCachedForLayer(
 				feedForward = builder.Add(feedForward, shared)
 			}
 		} else if isMiniMaxM2 {
-			if spec.ExpertGatingFunc == 2 {
-				feedForward = builder.MoESigmoid(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoESoftmaxWithSelectionBias(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-				)
-			}
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 		} else if isGPTOSS {
-			feedForward = builder.MoEOpenAI(
-				normalized, weights.FeedForwardRouter, weights.FeedForwardRouterBias,
-				weights.FeedForwardGateExperts, weights.FeedForwardGateBias,
-				weights.FeedForwardUpExperts, weights.FeedForwardUpBias,
-				weights.FeedForwardDownExperts, weights.FeedForwardDownBias,
-				spec.ExpertUsedCount, spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 		} else if isLlama4 {
-			feedForward = builder.MoESigmoid(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, nil,
-				spec.ExpertUsedCount, false, spec.ExpertWeightsScale,
-			)
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(
-				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		} else if isLaguna || isAFMoE || ((isEXAOneMoE || isBailingMoE2 || isLFM2MoE || isDOTS1) && spec.ExpertGatingFunc == 2) {
-			feedForward = builder.MoESigmoid(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-				spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			if spec.SharedExpertFF > 0 {
-				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-				shared := builder.MulMat(
-					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-				)
+				shared := buildSharedSwiGLU(builder, normalized, weights)
 				feedForward = builder.Add(feedForward, shared)
 			}
 		} else if isEXAOneMoE || isBailingMoE2 || isLFM2MoE || isDOTS1 {
-			if weights.FeedForwardExpertBias != nil {
-				feedForward = builder.MoESoftmaxWithSelectionBias(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, weights.FeedForwardExpertBias,
-					spec.ExpertUsedCount, spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoE(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, spec.ExpertUsedCount,
-					spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-				)
-			}
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp))
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		} else if isHunyuanMoE {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-				spec.ExpertWeightsScale,
-			)
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp))
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		} else if isBailingMoE {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount,
-				spec.ExpertWeightsNorm, spec.ExpertWeightsScale,
-			)
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(
-				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		} else if isDeepSeek {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount, false,
-				spec.ExpertWeightsScale,
-			)
-			sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-			sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-			shared := builder.MulMat(
-				weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
+			shared := buildSharedSwiGLU(builder, normalized, weights)
 			feedForward = builder.Add(feedForward, shared)
 		} else if isGraniteMoE {
-			if weights.FeedForwardGateExperts == nil {
-				feedForward = builder.MoEUngated(
-					normalized, weights.FeedForwardRouter, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-					spec.ExpertWeightsScale,
-				)
-			} else {
-				feedForward = builder.MoE(
-					normalized, weights.FeedForwardRouter,
-					weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-					weights.FeedForwardDownExperts, spec.ExpertUsedCount, true,
-					spec.ExpertWeightsScale,
-				)
-			}
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			if spec.SharedExpertFF > 0 {
-				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-				shared := builder.MulMat(
-					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-				)
+				shared := buildSharedSwiGLU(builder, normalized, weights)
 				feedForward = builder.Add(feedForward, shared)
 			}
 		} else if isLLaDAMoE {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount, false,
-				spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 		} else if isQwen2MoE || isOLMoE {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, spec.ExpertUsedCount, false,
-				spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 			if isQwen2MoE {
 				sharedGateWeight := builder.Reshape(
 					weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
 				)
 				sharedScale := builder.Sigmoid(builder.MulMat(sharedGateWeight, normalized))
-				sharedGate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
-				sharedUp := builder.MulMat(weights.FeedForwardSharedUp, normalized)
-				shared := builder.MulMat(
-					weights.FeedForwardSharedDown, builder.SwiGLU(sharedGate, sharedUp),
-				)
+				shared := buildSharedSwiGLU(builder, normalized, weights)
 				feedForward = builder.Add(feedForward, builder.Multiply(shared, sharedScale))
 			}
 		} else {
-			normalizeWeights := true
-			if isJamba {
-				normalizeWeights = spec.ExpertWeightsNorm
-			}
-			feedForward = builder.MoE(
-				normalized,
-				weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts,
-				weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts,
-				spec.ExpertUsedCount,
-				normalizeWeights,
-				spec.ExpertWeightsScale,
-			)
+			feedForward = layerPlan.Experts.BuildLayer(builder, normalized, nil, weights)
 		}
 		if isGraniteMoE && spec.ResidualScale > 0 {
 			feedForward = builder.Scale(feedForward, spec.ResidualScale)
@@ -4368,6 +3844,7 @@ func buildGemma4BlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
+	layerPlan := spec.PlanLayer(layerIndex, false)
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Gemma 4 block input shape is invalid")
@@ -4435,18 +3912,7 @@ func buildGemma4BlockCached(
 		builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens,
 	)
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
-	frequencyBase := spec.RopeFrequencyBase
-	if spec.IsSlidingLayer(layerIndex) {
-		frequencyBase = spec.RopeFrequencySWA
-	}
-	rotaryDimensions := spec.LayerRopeDimensionCount(layerIndex)
-	if weights.RopeFactors != nil {
-		query = builder.RoPENeoXScaledWithFactors(
-			query, positions, rotaryDimensions, frequencyBase, 1, weights.RopeFactors,
-		)
-	} else {
-		query = builder.RoPENeoXScaled(query, positions, rotaryDimensions, frequencyBase, 1)
-	}
+	query = layerPlan.Rotary.ApplyOne(builder, query, positions, nil, weights.RopeFactors)
 	cacheKey, cacheValue := pastKey, pastValue
 	queryStart := uint32(0)
 	if spec.LayerHasKV(layerIndex) {
@@ -4461,13 +3927,7 @@ func buildGemma4BlockCached(
 		}
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 		value = builder.RMSNorm(value, spec.RMSNormEpsilon)
-		if weights.RopeFactors != nil {
-			key = builder.RoPENeoXScaledWithFactors(
-				key, positions, rotaryDimensions, frequencyBase, 1, weights.RopeFactors,
-			)
-		} else {
-			key = builder.RoPENeoXScaled(key, positions, rotaryDimensions, frequencyBase, 1)
-		}
+		key = layerPlan.Rotary.ApplyOne(builder, key, positions, nil, weights.RopeFactors)
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
 			queryStart = uint32(pastKey.Shape.Dims[2])
@@ -4483,23 +3943,10 @@ func buildGemma4BlockCached(
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
 	}
-	var attention *tensor.Tensor
-	if spec.IsSlidingLayer(layerIndex) {
-		if weights.AttentionBlockIDs != nil {
-			attention = builder.AttentionWindowWithBlockMaskWithOffset(
-				query, cacheKey, cacheValue, weights.AttentionBlockIDs,
-				spec.AttentionScale, queryStart, spec.SlidingWindow,
-			)
-		} else {
-			attention = builder.AttentionWindowWithOffset(
-				query, cacheKey, cacheValue, spec.AttentionScale, true, queryStart, spec.SlidingWindow,
-			)
-		}
-	} else {
-		attention = builder.AttentionWithOffset(
-			query, cacheKey, cacheValue, spec.AttentionScale, true, queryStart,
-		)
-	}
+	attention := layerPlan.AttentionGraph.Build(
+		builder, query, cacheKey, cacheValue, nil, weights.AttentionBlockIDs,
+		spec.AttentionScale, queryStart,
+	)
 	attention = builder.Reshape(attention, headCount*valueLength, tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
@@ -4514,22 +3961,7 @@ func buildGemma4BlockCached(
 		expertInput := builder.WeightedRMSNorm(attentionOutput, weights.FeedForwardPreNorm2, spec.RMSNormEpsilon)
 		routerInput := builder.Scale(builder.RMSNorm(attentionOutput, spec.RMSNormEpsilon), 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
 		routerInput = builder.Multiply(routerInput, weights.FeedForwardRouterScale)
-		if weights.FeedForwardGateUpExperts != nil {
-			feedForward = builder.MoEGELUFusedGateUpWithRouterInput(
-				expertInput, routerInput, weights.FeedForwardRouter,
-				weights.FeedForwardGateUpExperts, weights.FeedForwardDownExperts,
-				weights.FeedForwardDownExpertsScale,
-				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
-		} else {
-			feedForward = builder.MoEGELUWithRouterInput(
-				expertInput, routerInput, weights.FeedForwardRouter,
-				weights.FeedForwardGateExperts, weights.FeedForwardUpExperts,
-				weights.FeedForwardDownExperts, weights.FeedForwardDownExpertsScale,
-				spec.ExpertUsedCount, true,
-				spec.ExpertWeightsScale,
-			)
-		}
+		feedForward = layerPlan.Experts.BuildLayer(builder, expertInput, routerInput, weights)
 		feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm2, spec.RMSNormEpsilon)
 		feedForward = builder.Add(dense, feedForward)
 	} else {
@@ -4754,6 +4186,16 @@ func limitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float
 	up = builder.Clamp(up, -limit, limit)
 	gate = builder.Clamp(builder.SiLU(gate), -math.MaxFloat32, limit)
 	return builder.Multiply(gate, up)
+}
+
+func buildSharedSwiGLU(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	weights LayerGraphWeights,
+) *tensor.Tensor {
+	gate := builder.MulMat(weights.FeedForwardSharedGate, input)
+	up := builder.MulMat(weights.FeedForwardSharedUp, input)
+	return builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(gate, up))
 }
 
 func deepSeek4LimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
@@ -5226,18 +4668,9 @@ func buildQwen35FeedForward(
 	)
 	var feedForward *tensor.Tensor
 	if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
-		if weights.FeedForwardGateUpExperts != nil {
-			feedForward = builder.MoESoftmaxFusedGateUp(
-				normalized, weights.FeedForwardRouter, weights.FeedForwardGateUpExperts,
-				weights.FeedForwardDownExperts, nil, spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
-		} else {
-			feedForward = builder.MoE(
-				normalized, weights.FeedForwardRouter, weights.FeedForwardGateExperts,
-				weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-				spec.ExpertUsedCount, true, spec.ExpertWeightsScale,
-			)
-		}
+		plan := spec.moeGraphPlan(0)
+		plan.NormalizeTopKProb = true
+		feedForward = plan.BuildLayer(builder, normalized, nil, weights)
 		sharedRouter := builder.Reshape(
 			weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
 		)

@@ -10,6 +10,41 @@ const (
 	rotaryGraphMulti
 )
 
+type multiAxisRotaryPolicy uint8
+
+const (
+	multiAxisRotaryNone multiAxisRotaryPolicy = iota
+	multiAxisRotaryAlways
+	multiAxisRotaryWithSections
+)
+
+type rotaryPolicyKind uint8
+
+const (
+	rotaryPolicyDefault rotaryPolicyKind = iota
+	rotaryPolicyLaguna
+	rotaryPolicyGrokMellum
+	rotaryPolicyLlamaYaRN
+	rotaryPolicyNormal
+	rotaryPolicyGemma
+)
+
+// RotaryPolicy: architecture-owned rotary selection.
+type RotaryPolicy struct {
+	Kind              rotaryPolicyKind
+	MultiAxis         multiAxisRotaryPolicy
+	SlidingFrequency  bool
+	SlidingScaleReset bool
+	Gemma3            bool
+	FactorPairs       bool
+}
+
+// AttentionGraphPolicy: architecture-owned attention controls.
+type AttentionGraphPolicy struct {
+	UseSinks      bool
+	ChunkedWindow bool
+}
+
 func applyRoPEPairWithOptions(
 	builder *tensor.Builder,
 	query, key *tensor.Tensor,
@@ -127,12 +162,10 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		rotaryDimensions: rotaryDimensions, frequencyBase: s.RopeFrequencyBase,
 		frequencyScale: 1,
 	}
-	multiAxis := s.Architecture == "paddleocr" || s.Architecture == "qwen2vl" ||
-		s.Architecture == "qwen3vl" || s.Architecture == "qwen3vlmoe" ||
-		((s.Architecture == "glm4" || s.Architecture == "glm4moe") &&
-			s.RopeSections[0] > 0 && s.RopeSections[1] > 0) ||
-		((s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan_vl") &&
-			s.RopeSections[0] > 0 && s.RopeSections[1] > 0)
+	policy := profile.Rotary
+	multiAxis := policy.MultiAxis == multiAxisRotaryAlways ||
+		policy.MultiAxis == multiAxisRotaryWithSections &&
+			s.RopeSections[0] > 0 && s.RopeSections[1] > 0
 	if multiAxis {
 		plan.kind = rotaryGraphMulti
 		plan.sections = s.RopeSections
@@ -151,59 +184,63 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		plan.betaFast = s.YaRNBetaFast
 		plan.betaSlow = s.YaRNBetaSlow
 	}
-	switch {
-	case s.Architecture == "laguna" && s.IsSlidingLayer(layer):
-		plan.rotaryDimensions = s.RopeDimensionSWA
-		plan.frequencyBase = s.RopeFrequencySWA
-	case s.Architecture == "laguna":
-		setYaRN(tensor.RoPELayoutNeoX)
-	case (s.Architecture == "grok" || s.Architecture == "mellum") &&
-		s.RopeScalingType == "yarn" && !s.IsSlidingLayer(layer):
-		setYaRN(tensor.RoPELayoutNeoX)
-	case (s.Architecture == "llama" || s.Architecture == "llama-embed" ||
-		s.Architecture == "minicpm" || s.Architecture == "mistral3") &&
-		s.RopeScalingType == "yarn":
-		setYaRN(tensor.RoPELayoutNormal)
-	case profile.Position == PositionNormal:
+	applyNormal := func() {
 		plan.layout = tensor.RoPELayoutNormal
 		if s.RopeScalingType == "linear" {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
-		if (s.Architecture == "cohere2" || s.Architecture == "cohere2moe" ||
-			s.Architecture == "llama4" || s.Architecture == "gpt-oss") &&
-			s.IsSlidingLayer(layer) {
+		if policy.SlidingFrequency && s.IsSlidingLayer(layer) {
 			plan.frequencyBase = s.RopeFrequencySWA
 		}
-	case profile.Has(ArchitectureGemma):
-		if s.Architecture == "gemma3" || s.RopeScalingType == "linear" {
+	}
+	applyDefault := func() {
+		if s.RopeScalingType == "linear" {
+			plan.frequencyScale = 1 / s.RopeScalingFactor
+		}
+		if policy.SlidingScaleReset && s.IsSlidingLayer(layer) {
+			plan.frequencyScale = 1
+		}
+		if policy.SlidingFrequency && s.IsSlidingLayer(layer) {
+			plan.frequencyBase = s.RopeFrequencySWA
+		}
+	}
+	switch policy.Kind {
+	case rotaryPolicyLaguna:
+		if !s.IsSlidingLayer(layer) {
+			setYaRN(tensor.RoPELayoutNeoX)
+			break
+		}
+		plan.rotaryDimensions = s.RopeDimensionSWA
+		plan.frequencyBase = s.RopeFrequencySWA
+	case rotaryPolicyGrokMellum:
+		if s.RopeScalingType == "yarn" && !s.IsSlidingLayer(layer) {
+			setYaRN(tensor.RoPELayoutNeoX)
+		} else {
+			applyDefault()
+		}
+	case rotaryPolicyLlamaYaRN:
+		if s.RopeScalingType == "yarn" {
+			setYaRN(tensor.RoPELayoutNormal)
+		} else {
+			applyNormal()
+		}
+	case rotaryPolicyNormal:
+		applyNormal()
+	case rotaryPolicyGemma:
+		if policy.Gemma3 || s.RopeScalingType == "linear" {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
 		if s.IsSlidingLayer(layer) {
 			plan.frequencyBase = s.RopeFrequencySWA
-			if s.Architecture == "gemma3" {
+			if policy.Gemma3 {
 				plan.frequencyScale = 1
 			}
 		}
 	default:
-		if s.RopeScalingType == "linear" {
-			plan.frequencyScale = 1 / s.RopeScalingFactor
-		}
-		if s.Architecture == "olmo2" && s.IsSlidingLayer(layer) {
-			plan.frequencyScale = 1
-		}
-		if (s.Architecture == "afmoe" || s.Architecture == "exaone-moe" ||
-			s.Architecture == "mimo2" || s.Architecture == "step35" ||
-			s.Architecture == "smallthinker" || s.Architecture == "plamo3") &&
-			s.IsSlidingLayer(layer) {
-			plan.frequencyBase = s.RopeFrequencySWA
-		}
-		if s.Architecture == "mellum" && s.IsSlidingLayer(layer) {
-			plan.frequencyBase = s.RopeFrequencySWA
-			plan.frequencyScale = 1
-		}
-		if s.Architecture == "step35" {
-			plan.factorPairs = rotaryDimensions / 2
-		}
+		applyDefault()
+	}
+	if policy.FactorPairs {
+		plan.factorPairs = rotaryDimensions / 2
 	}
 	if profile.Has(ArchitectureLongRoPE) && s.RopeScalingType != "yarn" &&
 		s.RopeAttentionFactor > 0 && s.RopeAttentionFactor != 1 {
@@ -244,16 +281,17 @@ func (p AttentionGraphPlan) Build(
 }
 
 func (s Spec) attentionGraphPlan(layer uint32) AttentionGraphPlan {
+	policy := s.Profile().AttentionGraph
 	plan := AttentionGraphPlan{Causal: !s.NonCausalAttention}
 	if s.IsSlidingLayer(layer) {
 		plan.Window = s.SlidingWindow
-		plan.ChunkedWindow = s.Architecture == "llama4"
+		plan.ChunkedWindow = policy.ChunkedWindow
 		plan.Softcap = s.AttentionSoftcap
 	} else {
 		plan.MaxALiBiBias = s.MaxALiBiBias
 		plan.Softcap = s.AttentionSoftcap
 	}
-	plan.UseSinks = s.Architecture == "mimo2" || s.Architecture == "gpt-oss"
+	plan.UseSinks = policy.UseSinks
 	return plan
 }
 
@@ -332,46 +370,35 @@ func (p MoEGraphPlan) BuildLayer(
 }
 
 func (s Spec) moeGraphPlan(layer uint32) MoEGraphPlan {
+	policy := s.Profile().Experts
 	routing := tensor.MoERoutingSoftmax
 	if s.ExpertGatingFunc == 2 {
 		routing = tensor.MoERoutingSigmoid
 	}
-	switch s.Architecture {
-	case "cohere2moe", "mimo2", "llama4", "laguna", "afmoe":
+	switch policy.Routing {
+	case expertRouteSigmoid:
 		routing = tensor.MoERoutingSigmoid
-	}
-	normalize := true
-	switch s.Architecture {
-	case "hy_v3", "deepseek2-ocr", "cohere2moe", "glm4moe", "step35", "laguna", "afmoe",
-		"exaone-moe", "bailingmoe", "bailingmoe2", "lfm2moe", "dots1", "jamba":
-		normalize = s.ExpertWeightsNorm
-	case "deepseek", "llada-moe", "qwen2moe", "olmoe", "llama4", "gpt-oss":
-		normalize = false
-	}
-	activation := tensor.MoEActivationSiLU
-	switch s.Architecture {
-	case "grok", "gemma4":
-		activation = tensor.MoEActivationGELU
-	case "smallthinker":
-		activation = tensor.MoEActivationReLU
-	case "gpt-oss":
-		activation = tensor.MoEActivationSwiGLUOAI
+	case expertRouteSelectedSoftmax:
 		routing = tensor.MoERoutingSelectedSoftmax
 	}
-	selectionBias := false
-	switch s.Architecture {
-	case "ernie4_5-moe", "hy_v3", "deepseek2-ocr", "glm4moe", "mimo2",
-		"step35", "minimax-m2", "laguna", "afmoe", "exaone-moe",
-		"bailingmoe2", "lfm2moe", "dots1":
-		selectionBias = true
+	normalize := true
+	switch policy.Normalization {
+	case expertNormalizeMetadata:
+		normalize = s.ExpertWeightsNorm
+	case expertNormalizeNever:
+		normalize = false
+	}
+	activation := policy.Activation
+	if activation == 0 {
+		activation = tensor.MoEActivationSiLU
 	}
 	clamp := float32(0)
-	if s.Architecture == "step35" {
+	if policy.ClampSwiGLU {
 		clamp = s.LayerExpertSwiGLUClamp(layer)
 	}
 	return MoEGraphPlan{
 		TopK: s.ExpertUsedCount, NormalizeTopKProb: normalize,
 		Scale: s.ExpertWeightsScale, Routing: routing, Activation: activation,
-		SelectionBias: selectionBias, ExpertIndexDivisor: 1, SwiGLUClamp: clamp,
+		SelectionBias: policy.SelectionBias, ExpertIndexDivisor: 1, SwiGLUClamp: clamp,
 	}
 }

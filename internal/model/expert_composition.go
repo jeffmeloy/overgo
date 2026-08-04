@@ -20,6 +20,62 @@ const (
 	expertArctic
 )
 
+type expertCompositionCondition uint8
+
+const (
+	expertCompositionAlways expertCompositionCondition = iota
+	expertCompositionWithShared
+	expertCompositionWithExpertsAndShared
+	expertCompositionUnlessSigmoidWithoutShared
+)
+
+type expertNormalizationPolicy uint8
+
+const (
+	expertNormalizeAlways expertNormalizationPolicy = iota
+	expertNormalizeMetadata
+	expertNormalizeNever
+)
+
+type expertRoutingPolicy uint8
+
+const (
+	expertRouteMetadata expertRoutingPolicy = iota
+	expertRouteSigmoid
+	expertRouteSelectedSoftmax
+)
+
+// ExpertPolicy: routed/shared expert planning policy.
+type ExpertPolicy struct {
+	Composition         expertCompositionKind
+	Condition           expertCompositionCondition
+	Normalization       expertNormalizationPolicy
+	Routing             expertRoutingPolicy
+	Activation          tensor.MoEActivation
+	SelectionBias       bool
+	RouterInputOriginal bool
+	ResidualScale       bool
+	ClampSwiGLU         bool
+}
+
+func (p ExpertPolicy) compositionKind(spec Spec) expertCompositionKind {
+	switch p.Condition {
+	case expertCompositionWithShared:
+		if spec.SharedExpertFF == 0 {
+			return expertRoutedOnly
+		}
+	case expertCompositionWithExpertsAndShared:
+		if spec.ExpertCount == 0 || spec.SharedExpertFF == 0 {
+			return expertRoutedOnly
+		}
+	case expertCompositionUnlessSigmoidWithoutShared:
+		if spec.ExpertGatingFunc == 2 && spec.SharedExpertFF == 0 {
+			return expertRoutedOnly
+		}
+	}
+	return p.Composition
+}
+
 // ExpertCompositionPlan: compiled routed/shared expert composition.
 type ExpertCompositionPlan struct {
 	kind                expertCompositionKind
@@ -36,43 +92,11 @@ func (p ExpertCompositionPlan) Validate(spec Spec) error {
 }
 
 func (s Spec) expertCompositionPlan() ExpertCompositionPlan {
-	plan := ExpertCompositionPlan{}
-	shared := s.SharedExpertFF > 0
-	switch s.Architecture {
-	case "arctic":
-		plan.kind = expertArctic
-	case "grok":
-		plan.kind = expertGrok
-	case "grovemoe":
-		plan.kind = expertGrouped
-	case "cohere2moe":
-		if shared {
-			plan.kind = expertSharedAverage
-		}
-	case "step35":
-		if shared {
-			plan.kind = expertSharedLimited
-		}
-	case "qwen2moe":
-		plan.kind = expertSharedGated
-	case "hy_v3", "deepseek2-ocr", "glm4moe", "llama4", "hunyuan-moe",
-		"bailingmoe", "deepseek":
-		plan.kind = expertSharedAdd
-	case "exaone-moe", "bailingmoe2", "lfm2moe", "dots1":
-		if s.ExpertGatingFunc != 2 || shared {
-			plan.kind = expertSharedAdd
-		}
-	case "ernie4_5-moe", "laguna", "afmoe", "granitemoe", "granitehybrid":
-		if shared {
-			plan.kind = expertSharedAdd
-		}
+	policy := s.Profile().Experts
+	plan := ExpertCompositionPlan{
+		kind: policy.compositionKind(s), routerInputOriginal: policy.RouterInputOriginal,
 	}
-	if s.Architecture == "granite" && s.ExpertCount > 0 && shared {
-		plan.kind = expertSharedAdd
-	}
-	plan.routerInputOriginal = s.Architecture == "smallthinker"
-	if s.Architecture == "granitemoe" || s.Architecture == "granitehybrid" ||
-		s.Architecture == "granite" && s.ExpertCount > 0 {
+	if policy.ResidualScale && s.ExpertCount > 0 {
 		plan.residualScale = s.ResidualScale
 	}
 	return plan

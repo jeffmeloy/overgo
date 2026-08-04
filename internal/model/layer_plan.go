@@ -42,6 +42,15 @@ const (
 	CacheDeepSeek4
 )
 
+// CacheFallbackPolicy: non-primary per-layer cache selection.
+type CacheFallbackPolicy uint8
+
+const (
+	CacheFallbackNone CacheFallbackPolicy = iota
+	CacheFallbackFeedForward
+	CacheFallbackMissingKV
+)
+
 // CachedGraphPolicy: cached decoder graph composition.
 type CachedGraphPolicy uint8
 
@@ -141,7 +150,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Position:          profile.Position,
 		Residual:          profile.Residual,
 		FeedForward:       profile.FeedForward,
-		Block:             blockPolicy(s, profile, recurrent),
+		Block:             blockPolicy(profile, recurrent),
 		Cache:             cachePolicy(s, profile, layer, recurrent),
 		CacheExtent:       PrimaryCacheExtent(s, int(layer), info),
 		Recurrent:         recurrent,
@@ -165,39 +174,14 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Experts:           s.moeGraphPlan(layer),
 		ExpertComposition: s.expertCompositionPlan(),
 		DenseWeights:      s.denseWeightPlan(profile, layer),
-		DenseGraph:        denseGraphPolicy(s),
-		DeciSparse: s.Architecture == "deci" &&
+		DenseGraph:        profile.DenseGraph,
+		DeciSparse: profile.DeciSparse &&
 			(s.LayerFeedForwardLength(layer) == 0 || s.LayerHeadCount(layer) == 0 ||
 				s.LayerKVHeadCount(layer) == 0),
 		QKPreprocess:    s.qkPreprocessPlan(layer),
 		QueryScale:      s.queryScalePlan(profile, layer),
 		AttentionOutput: s.attentionOutputPlan(normalization),
 		ResidualStages:  s.residualStagePlan(profile, normalization),
-	}
-}
-
-func denseGraphPolicy(s Spec) DenseGraphPolicy {
-	switch s.Architecture {
-	case "bert", "jina-bert-v2", "jina-bert-v3", "nomic-bert", "nomic-bert-moe":
-		return DenseGraphBERT
-	case "modern-bert":
-		return DenseGraphModernBERT
-	case "gemma-embedding":
-		return DenseGraphGemmaEmbedding
-	case "talkie":
-		return DenseGraphTalkie
-	case "gemma4":
-		return DenseGraphGemma4
-	case "gemma3n":
-		return DenseGraphGemma3n
-	case "rwkv6":
-		return DenseGraphRWKV6
-	case "rwkv6qwen2":
-		return DenseGraphRWKV6Qwen2
-	case "rwkv7", "arwkv7":
-		return DenseGraphRWKV7
-	default:
-		return DenseGraphStandard
 	}
 }
 
@@ -386,86 +370,23 @@ func (p ModelPlan) Layer(layer int) (LayerPlan, error) {
 	return p.Layers[layer], nil
 }
 
-func blockPolicy(spec Spec, profile ArchitectureProfile, recurrent bool) BlockPolicy {
-	switch {
-	case profile.Attention == AttentionDSA:
-		return BlockDSA
-	case spec.Architecture == "deepseek4":
-		return BlockDeepSeek4
-	case profile.Attention == AttentionMLA:
-		return BlockMLA
+func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
+	if recurrent && profile.RecurrentBlock != BlockDense {
+		return profile.RecurrentBlock
 	}
-	switch spec.Architecture {
-	case "mamba":
-		return BlockMamba
-	case "mamba2":
-		return BlockMamba2
-	case "falcon-h1":
-		return BlockFalconH1
-	case "jamba":
-		if recurrent {
-			return BlockJamba
-		}
-	case "granitehybrid":
-		if recurrent {
-			return BlockGraniteHybrid
-		}
-	case "plamo2":
-		if recurrent {
-			return BlockPLaMo2
-		}
-	case "nemotron_h", "nemotron_h_moe":
-		return BlockNemotronH
-	case "kimi-linear":
-		return BlockKimiLinear
-	}
-	return BlockDense
+	return profile.Block
 }
 
 func cachePolicy(spec Spec, profile ArchitectureProfile, layer uint32, recurrent bool) CachePolicy {
-	switch spec.Architecture {
-	case "deepseek4":
-		return CacheDeepSeek4
-	case "falcon-h1":
-		return CacheFalconH1
-	case "t5":
-		return CacheT5
-	case "rwkv6":
-		return CacheRWKV6
-	case "rwkv6qwen2":
-		return CacheRWKV6Qwen2
-	case "rwkv7", "arwkv7":
-		return CacheRWKV7
-	case "kimi-linear":
-		if recurrent {
-			return CacheKimiLinear
-		}
-	case "qwen3next", "qwen35", "qwen35moe":
-		if recurrent {
-			return CacheQwenGDN
-		}
-	case "mamba2":
-		return CacheMamba2
-	case "granitehybrid", "nemotron_h", "nemotron_h_moe":
-		if recurrent {
-			return CacheMamba2
-		}
-	case "mamba":
-		return CacheMamba
-	case "jamba", "plamo2":
-		if recurrent {
-			return CacheMamba
-		}
-	case "lfm2", "lfm2moe":
-		if recurrent {
-			return CacheLFM2
-		}
+	if recurrent && profile.RecurrentCache != CacheAttention {
+		return profile.RecurrentCache
 	}
-	if (spec.Architecture == "nemotron_h" || spec.Architecture == "nemotron_h_moe") &&
-		spec.LayerFeedForwardLength(layer) > 0 ||
-		spec.Architecture == "deci" && spec.LayerKVHeadCount(layer) == 0 {
+	if profile.Cache != CacheAttention {
+		return profile.Cache
+	}
+	if profile.CacheFallback == CacheFallbackFeedForward && spec.LayerFeedForwardLength(layer) > 0 ||
+		profile.CacheFallback == CacheFallbackMissingKV && spec.LayerKVHeadCount(layer) == 0 {
 		return CacheSentinel
 	}
-	_ = profile
 	return CacheAttention
 }

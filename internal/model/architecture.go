@@ -3,6 +3,8 @@ package model
 import (
 	"sort"
 	"strings"
+
+	"llamacpp2go/internal/tensor"
 )
 
 // ArchitectureFamily: primary runtime dispatch family.
@@ -339,6 +341,18 @@ type ArchitectureProfile struct {
 	Temperature     AttentionTemperaturePolicy
 	PostNormLayout  PostNormLayoutPolicy
 	FFNNormLayout   FeedForwardNormLayoutPolicy
+	Block           BlockPolicy
+	RecurrentBlock  BlockPolicy
+	Cache           CachePolicy
+	RecurrentCache  CachePolicy
+	CacheFallback   CacheFallbackPolicy
+	DenseGraph      DenseGraphPolicy
+	DenseStages     DenseStagePolicy
+	DenseWeights    DenseWeightPolicy
+	Rotary          RotaryPolicy
+	AttentionGraph  AttentionGraphPolicy
+	Experts         ExpertPolicy
+	DeciSparse      bool
 }
 
 // Has: capability predicate.
@@ -517,6 +531,39 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	}
 	setFFNNormLayout := func(policy FeedForwardNormLayoutPolicy, names ...string) {
 		update(names, func(profile *ArchitectureProfile) { profile.FFNNormLayout = policy })
+	}
+	setBlock := func(policy BlockPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Block = policy })
+	}
+	setRecurrentBlock := func(policy BlockPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.RecurrentBlock = policy })
+	}
+	setCache := func(policy CachePolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Cache = policy })
+	}
+	setRecurrentCache := func(policy CachePolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.RecurrentCache = policy })
+	}
+	setCacheFallback := func(policy CacheFallbackPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.CacheFallback = policy })
+	}
+	setDenseGraph := func(policy DenseGraphPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.DenseGraph = policy })
+	}
+	setExperts := func(policy ExpertPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Experts = policy })
+	}
+	updateDenseStages := func(names []string, apply func(*DenseStagePolicy)) {
+		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseStages) })
+	}
+	updateDenseWeights := func(names []string, apply func(*DenseWeightPolicy)) {
+		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseWeights) })
+	}
+	updateRotary := func(names []string, apply func(*RotaryPolicy)) {
+		update(names, func(profile *ArchitectureProfile) { apply(&profile.Rotary) })
+	}
+	updateAttentionGraph := func(names []string, apply func(*AttentionGraphPolicy)) {
+		update(names, func(profile *ArchitectureProfile) { apply(&profile.AttentionGraph) })
 	}
 
 	setDraftKind(DraftQwen35MTP, "qwen35", "qwen35moe")
@@ -725,6 +772,254 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setOutputNorm(OutputNormEncoder, "t5encoder", "neo-bert")
 	setOutputNorm(OutputNormDecoder, "t5")
 	setOutputNorm(OutputNormTokenEmbedding, "lfm2", "lfm2moe")
+
+	setBlock(BlockDeepSeek4, "deepseek4")
+	setBlock(BlockMamba, "mamba")
+	setBlock(BlockMamba2, "mamba2")
+	setBlock(BlockFalconH1, "falcon-h1")
+	setBlock(BlockNemotronH, "nemotron_h", "nemotron_h_moe")
+	setBlock(BlockKimiLinear, "kimi-linear")
+	setRecurrentBlock(BlockJamba, "jamba")
+	setRecurrentBlock(BlockGraniteHybrid, "granitehybrid")
+	setRecurrentBlock(BlockPLaMo2, "plamo2")
+
+	setCache(CacheDeepSeek4, "deepseek4")
+	setCache(CacheFalconH1, "falcon-h1")
+	setCache(CacheT5, "t5")
+	setCache(CacheRWKV6, "rwkv6")
+	setCache(CacheRWKV6Qwen2, "rwkv6qwen2")
+	setCache(CacheRWKV7, "rwkv7", "arwkv7")
+	setCache(CacheMamba, "mamba")
+	setCache(CacheMamba2, "mamba2")
+	setRecurrentCache(CacheKimiLinear, "kimi-linear")
+	setRecurrentCache(CacheQwenGDN, "qwen3next", "qwen35", "qwen35moe")
+	setRecurrentCache(CacheMamba2, "granitehybrid", "nemotron_h", "nemotron_h_moe")
+	setRecurrentCache(CacheMamba, "jamba", "plamo2")
+	setRecurrentCache(CacheLFM2, "lfm2", "lfm2moe")
+	setCacheFallback(CacheFallbackFeedForward, "nemotron_h", "nemotron_h_moe")
+	setCacheFallback(CacheFallbackMissingKV, "deci")
+
+	setDenseGraph(DenseGraphBERT, "bert", "jina-bert-v2", "jina-bert-v3", "nomic-bert", "nomic-bert-moe")
+	setDenseGraph(DenseGraphModernBERT, "modern-bert")
+	setDenseGraph(DenseGraphGemmaEmbedding, "gemma-embedding")
+	setDenseGraph(DenseGraphTalkie, "talkie")
+	setDenseGraph(DenseGraphGemma4, "gemma4")
+	setDenseGraph(DenseGraphGemma3n, "gemma3n")
+	setDenseGraph(DenseGraphRWKV6, "rwkv6")
+	setDenseGraph(DenseGraphRWKV6Qwen2, "rwkv6qwen2")
+	setDenseGraph(DenseGraphRWKV7, "rwkv7", "arwkv7")
+
+	updateDenseStages([]string{"olmo2", "olmoe", "minimax-m2"}, func(policy *DenseStagePolicy) {
+		policy.QK.Projection = qkNormWeighted
+	})
+	updateDenseStages([]string{"mpt"}, func(policy *DenseStagePolicy) {
+		policy.QK.Projection = qkNormConfigured
+	})
+	updateDenseStages([]string{
+		"apertus", "afmoe", "bailingmoe2", "dots1", "dflash", "exaone4",
+		"exaone-moe", "grovemoe", "hy_v3", "llada-moe", "mellum", "openelm",
+		"plamo2", "plamo3", "qwen3", "qwen3moe", "qwen3vl", "qwen3vlmoe",
+		"rnd1", "laguna", "lfm2", "lfm2moe", "gemma3",
+	}, func(policy *DenseStagePolicy) { policy.QK.Heads = qkNormWeighted })
+	updateDenseStages([]string{"glm4moe", "step35"}, func(policy *DenseStagePolicy) {
+		policy.QK.Heads = qkNormOptionalWeighted
+	})
+	updateDenseStages([]string{"command-r"}, func(policy *DenseStagePolicy) {
+		policy.QK.Heads = qkNormConfiguredNoBias
+		policy.QKHeadsMinBlocks = 64
+	})
+	updateDenseStages([]string{"chameleon"}, func(policy *DenseStagePolicy) {
+		policy.QK.Heads = qkNormAffine
+	})
+	updateDenseStages([]string{"stablelm"}, func(policy *DenseStagePolicy) {
+		policy.QK.Heads = qkNormLayer
+	})
+	updateDenseStages([]string{"maincoder", "hunyuan-moe", "hunyuan-dense", "hunyuan_vl"}, func(policy *DenseStagePolicy) {
+		policy.QK.PostRotary = qkNormWeighted
+	})
+	updateDenseStages([]string{"llama4"}, func(policy *DenseStagePolicy) {
+		policy.PostRotaryRMSNon128 = true
+		policy.QueryScale = queryScalePolicyTemperatureWithoutRoPE
+	})
+	updateDenseStages([]string{"laguna"}, func(policy *DenseStagePolicy) {
+		policy.AttentionGate = attentionGateSoftplus
+		policy.AttentionHeadGate = true
+		policy.AttentionFlatGateElse = true
+	})
+	updateDenseStages([]string{"afmoe"}, func(policy *DenseStagePolicy) {
+		policy.AttentionGate = attentionGateSigmoid
+		policy.AttentionFlatGate = true
+	})
+	updateDenseStages([]string{"step35"}, func(policy *DenseStagePolicy) {
+		policy.AttentionGate = attentionGateSigmoid
+		policy.AttentionHeadGate = true
+	})
+	updateDenseStages([]string{"bitnet"}, func(policy *DenseStagePolicy) {
+		policy.AttentionSubNorm = true
+	})
+	updateDenseStages([]string{"mimo2"}, func(policy *DenseStagePolicy) {
+		policy.AttentionValueScale = true
+	})
+	updateDenseStages([]string{"falcon"}, func(policy *DenseStagePolicy) {
+		policy.Residual = residualFalcon
+	})
+	updateDenseStages([]string{"gptneox"}, func(policy *DenseStagePolicy) {
+		policy.Residual = residualOriginalNorm
+		policy.ResidualParallelOnly = true
+	})
+	updateDenseStages([]string{"stablelm"}, func(policy *DenseStagePolicy) {
+		policy.Residual = residualStable
+	})
+	updateDenseStages([]string{"gpt-oss"}, func(policy *DenseStagePolicy) {
+		policy.Residual = residualGPTOSS
+	})
+	updateDenseStages([]string{"mistral3"}, func(policy *DenseStagePolicy) {
+		policy.QueryScale = queryScalePolicyConfiguredTemperature
+	})
+	updateDenseStages([]string{"phi2", "phi3", "phimoe"}, func(policy *DenseStagePolicy) {
+		policy.QueryScale = queryScalePolicyPreDot
+	})
+	updateDenseStages([]string{
+		"gemma", "gemma2", "gemma3", "gemma3n", "gemma4", "gemma-embedding",
+	}, func(policy *DenseStagePolicy) { policy.QueryScale = queryScalePolicyGemma })
+	updateDenseStages([]string{"gemma2"}, func(policy *DenseStagePolicy) {
+		policy.GemmaSpecial = true
+	})
+	updateDenseWeights([]string{
+		"granitemoe", "granitehybrid", "grok", "ernie4_5-moe", "refact", "granite",
+	}, func(policy *DenseWeightPolicy) { policy.AllowUngatedExperts = true })
+	updateDenseWeights([]string{"glm4moe", "laguna", "afmoe", "lfm2moe", "minimax-m2"}, func(policy *DenseWeightPolicy) {
+		policy.RequireExpertBias = true
+	})
+	updateDenseWeights([]string{"olmo2"}, func(policy *DenseWeightPolicy) {
+		policy.RequirePostNorm = true
+	})
+	updateDenseWeights([]string{"bitnet"}, func(policy *DenseWeightPolicy) {
+		policy.RequireSubNorm = true
+	})
+	updateDenseWeights([]string{"phimoe", "pangu-embedded", "gpt-oss"}, func(policy *DenseWeightPolicy) {
+		policy.RequireAttentionOutputBias = true
+	})
+	updateDenseWeights([]string{"stablelm", "mpt"}, func(policy *DenseWeightPolicy) {
+		policy.ValidateOptionalQKNorm = true
+	})
+	updateDenseWeights([]string{"falcon"}, func(policy *DenseWeightPolicy) {
+		policy.ValidateFalconNorm = true
+	})
+	updateDenseWeights([]string{"laguna", "afmoe"}, func(policy *DenseWeightPolicy) {
+		policy.RequireAttentionGate = true
+	})
+	updateDenseWeights([]string{"gpt-oss"}, func(policy *DenseWeightPolicy) {
+		policy.RequireOpenAIBiases = true
+		policy.RequireAttentionSinks = true
+		policy.SkipFeedForwardNorm = true
+	})
+	updateDenseWeights([]string{"stablelm"}, func(policy *DenseWeightPolicy) {
+		policy.SkipFeedForwardNorm = true
+	})
+	updateRotary([]string{"paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe"}, func(policy *RotaryPolicy) {
+		policy.MultiAxis = multiAxisRotaryAlways
+	})
+	updateRotary([]string{"glm4", "glm4moe", "hunyuan-dense", "hunyuan_vl"}, func(policy *RotaryPolicy) {
+		policy.MultiAxis = multiAxisRotaryWithSections
+	})
+	updateRotary([]string{"laguna"}, func(policy *RotaryPolicy) {
+		policy.Kind = rotaryPolicyLaguna
+	})
+	updateRotary([]string{"grok", "mellum"}, func(policy *RotaryPolicy) {
+		policy.Kind = rotaryPolicyGrokMellum
+	})
+	updateRotary([]string{"llama", "llama-embed", "minicpm", "mistral3"}, func(policy *RotaryPolicy) {
+		policy.Kind = rotaryPolicyLlamaYaRN
+	})
+	updateRotary([]string{"cohere2", "cohere2moe", "llama4", "gpt-oss"}, func(policy *RotaryPolicy) {
+		policy.SlidingFrequency = true
+	})
+	updateRotary([]string{"afmoe", "exaone-moe", "mimo2", "step35", "smallthinker", "plamo3"}, func(policy *RotaryPolicy) {
+		policy.SlidingFrequency = true
+	})
+	updateRotary([]string{"mellum"}, func(policy *RotaryPolicy) {
+		policy.SlidingFrequency = true
+	})
+	updateRotary([]string{"olmo2", "mellum"}, func(policy *RotaryPolicy) {
+		policy.SlidingScaleReset = true
+	})
+	updateRotary([]string{"step35"}, func(policy *RotaryPolicy) {
+		policy.FactorPairs = true
+	})
+	updateRotary([]string{"gemma3"}, func(policy *RotaryPolicy) {
+		policy.Gemma3 = true
+	})
+	updateAttentionGraph([]string{"mimo2", "gpt-oss"}, func(policy *AttentionGraphPolicy) {
+		policy.UseSinks = true
+	})
+	updateAttentionGraph([]string{"llama4"}, func(policy *AttentionGraphPolicy) {
+		policy.ChunkedWindow = true
+	})
+
+	setExperts(ExpertPolicy{Composition: expertArctic}, "arctic")
+	setExperts(ExpertPolicy{Composition: expertGrok, Activation: tensor.MoEActivationGELU}, "grok")
+	setExperts(ExpertPolicy{Composition: expertGrouped}, "grovemoe")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAverage, Condition: expertCompositionWithShared,
+		Normalization: expertNormalizeMetadata, Routing: expertRouteSigmoid,
+	}, "cohere2moe")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedLimited, Condition: expertCompositionWithShared,
+		Normalization: expertNormalizeMetadata, SelectionBias: true, ClampSwiGLU: true,
+	}, "step35")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedGated, Normalization: expertNormalizeNever,
+	}, "qwen2moe")
+	setExperts(ExpertPolicy{Composition: expertSharedAdd},
+		"hunyuan-moe", "llama4",
+	)
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Normalization: expertNormalizeMetadata, SelectionBias: true,
+	}, "hy_v3", "deepseek2-ocr")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Normalization: expertNormalizeMetadata,
+	}, "bailingmoe")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Normalization: expertNormalizeMetadata, SelectionBias: true,
+	}, "glm4moe")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Normalization: expertNormalizeNever,
+	}, "deepseek")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Condition: expertCompositionUnlessSigmoidWithoutShared,
+		Normalization: expertNormalizeMetadata, SelectionBias: true,
+	}, "exaone-moe", "bailingmoe2", "lfm2moe", "dots1")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Condition: expertCompositionWithShared, SelectionBias: true,
+	}, "ernie4_5-moe")
+	setExperts(ExpertPolicy{SelectionBias: true}, "minimax-m2")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Condition: expertCompositionWithShared,
+		Normalization: expertNormalizeMetadata, Routing: expertRouteSigmoid, SelectionBias: true,
+	}, "laguna", "afmoe")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Condition: expertCompositionWithShared,
+		ResidualScale: true,
+	}, "granitemoe", "granitehybrid")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Condition: expertCompositionWithExpertsAndShared,
+		ResidualScale: true,
+	}, "granite")
+	setExperts(ExpertPolicy{RouterInputOriginal: true, Activation: tensor.MoEActivationReLU}, "smallthinker")
+	setExperts(ExpertPolicy{Normalization: expertNormalizeMetadata}, "jamba")
+	setExperts(ExpertPolicy{Normalization: expertNormalizeNever}, "llada-moe", "olmoe")
+	setExperts(ExpertPolicy{Routing: expertRouteSigmoid, SelectionBias: true}, "mimo2")
+	setExperts(ExpertPolicy{
+		Composition: expertSharedAdd, Normalization: expertNormalizeNever,
+		Routing: expertRouteSigmoid,
+	}, "llama4")
+	setExperts(ExpertPolicy{
+		Normalization: expertNormalizeNever, Routing: expertRouteSelectedSoftmax,
+		Activation: tensor.MoEActivationSwiGLUOAI,
+	}, "gpt-oss")
+	setExperts(ExpertPolicy{Activation: tensor.MoEActivationGELU}, "gemma4")
+	update([]string{"deci"}, func(profile *ArchitectureProfile) { profile.DeciSparse = true })
 	for name, profile := range registry {
 		if profile.Has(ArchitectureBERTNormLayout) {
 			profile.OutputNorm = OutputNormAbsent
@@ -735,6 +1030,12 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		}
 		if profile.Has(ArchitectureNormalRoPE) {
 			profile.Position = PositionNormal
+			if profile.Rotary.Kind == rotaryPolicyDefault {
+				profile.Rotary.Kind = rotaryPolicyNormal
+			}
+		}
+		if profile.Has(ArchitectureGemma) {
+			profile.Rotary.Kind = rotaryPolicyGemma
 		}
 		if profile.Has(ArchitectureParallelResidual) {
 			profile.Residual = ResidualParallel
@@ -742,8 +1043,10 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		switch {
 		case profile.Has(ArchitectureDSA):
 			profile.Attention = AttentionDSA
+			profile.Block = BlockDSA
 		case profile.Has(ArchitectureMLA):
 			profile.Attention = AttentionMLA
+			profile.Block = BlockMLA
 		case profile.Has(ArchitectureQwenGDN):
 			profile.Attention = AttentionQwenGDN
 		case profile.Has(ArchitectureLFM2):

@@ -35,36 +35,40 @@ const (
 	qkPostRotary
 )
 
+type queryScalePolicy uint8
+
+const (
+	queryScalePolicyScores queryScalePolicy = iota
+	queryScalePolicyTemperatureWithoutRoPE
+	queryScalePolicyConfiguredTemperature
+	queryScalePolicyPreDot
+	queryScalePolicyGemma
+)
+
+// DenseStagePolicy: architecture-owned dense stage selection.
+type DenseStagePolicy struct {
+	QK                    QKPreprocessPlan
+	QKHeadsMinBlocks      uint32
+	PostRotaryRMSNon128   bool
+	AttentionGate         attentionGateKind
+	AttentionHeadGate     bool
+	AttentionFlatGate     bool
+	AttentionFlatGateElse bool
+	AttentionSubNorm      bool
+	AttentionValueScale   bool
+	Residual              residualStageKind
+	ResidualParallelOnly  bool
+	QueryScale            queryScalePolicy
+	GemmaSpecial          bool
+}
+
 func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
-	plan := QKPreprocessPlan{}
-	switch s.Architecture {
-	case "olmo2", "olmoe", "minimax-m2":
-		plan.Projection = qkNormWeighted
-	case "mpt":
-		plan.Projection = qkNormConfigured
+	policy := s.Profile().DenseStages
+	plan := policy.QK
+	if policy.QKHeadsMinBlocks > 0 && s.BlockCount < policy.QKHeadsMinBlocks {
+		plan.Heads = qkNormNone
 	}
-	switch s.Architecture {
-	case "apertus", "afmoe", "bailingmoe2", "dots1", "dflash", "exaone4",
-		"exaone-moe", "grovemoe", "hy_v3", "llada-moe", "mellum", "openelm",
-		"plamo2", "plamo3", "qwen3", "qwen3moe", "qwen3vl", "qwen3vlmoe",
-		"rnd1", "laguna", "lfm2", "lfm2moe", "gemma3":
-		plan.Heads = qkNormWeighted
-	case "glm4moe", "step35":
-		plan.Heads = qkNormOptionalWeighted
-	case "command-r":
-		if s.BlockCount >= 64 {
-			plan.Heads = qkNormConfiguredNoBias
-		}
-	case "chameleon":
-		plan.Heads = qkNormAffine
-	case "stablelm":
-		plan.Heads = qkNormLayer
-	}
-	switch {
-	case s.Architecture == "maincoder" || s.Architecture == "hunyuan-moe" ||
-		s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan_vl":
-		plan.PostRotary = qkNormWeighted
-	case s.Architecture == "llama4" && s.UsesRoPE(layer) && s.ExpertCount != 128:
+	if policy.PostRotaryRMSNon128 && s.UsesRoPE(layer) && s.ExpertCount != 128 {
 		plan.PostRotary = qkNormRMS
 	}
 	return plan
@@ -175,25 +179,15 @@ type AttentionOutputPlan struct {
 }
 
 func (s Spec) attentionOutputPlan(norm NormalizationPlan) AttentionOutputPlan {
+	policy := s.Profile().DenseStages
 	plan := AttentionOutputPlan{
 		valueScale: s.AttentionValueScale, sandwichNorm: s.SandwichNorm,
 		postNorm: norm.PostAttention, residualScale: s.ResidualScale,
+		gate: policy.AttentionGate, headGate: policy.AttentionHeadGate,
+		flatGate: policy.AttentionFlatGate, flatGateElse: policy.AttentionFlatGateElse,
+		subNorm: policy.AttentionSubNorm,
 	}
-	switch s.Architecture {
-	case "laguna":
-		plan.gate = attentionGateSoftplus
-		plan.headGate = true
-		plan.flatGateElse = true
-	case "afmoe":
-		plan.gate = attentionGateSigmoid
-		plan.flatGate = true
-	case "step35":
-		plan.gate = attentionGateSigmoid
-		plan.headGate = true
-	case "bitnet":
-		plan.subNorm = true
-	}
-	if s.Architecture != "mimo2" {
+	if !policy.AttentionValueScale {
 		plan.valueScale = 0
 	}
 	return plan
@@ -295,19 +289,13 @@ func (s Spec) residualStagePlan(profile ArchitectureProfile, norm NormalizationP
 		postOnly: !norm.PreAttention, sandwichNorm: s.SandwichNorm,
 		residualScale: s.ResidualScale,
 	}
-	switch {
-	case s.Architecture == "falcon":
-		plan.kind = residualFalcon
-	case s.Architecture == "gptneox" && s.ParallelResidual:
-		plan.kind = residualOriginalNorm
-	case s.Architecture == "stablelm":
-		plan.kind = residualStable
-	case s.Architecture == "gpt-oss":
-		plan.kind = residualGPTOSS
-	case profile.Residual == ResidualParallel:
-		plan.kind = residualShared
-	default:
+	policy := profile.DenseStages
+	if policy.ResidualParallelOnly && !s.ParallelResidual {
 		plan.kind = residualSequential
+	} else if policy.Residual != residualSequential {
+		plan.kind = policy.Residual
+	} else if profile.Residual == ResidualParallel {
+		plan.kind = residualShared
 	}
 	return plan
 }
@@ -371,15 +359,23 @@ func (p ResidualStagePlan) ApplyFeedForwardOutput(
 }
 
 func (s Spec) queryScalePlan(profile ArchitectureProfile, layer uint32) QueryScalePlan {
-	switch {
-	case s.Architecture == "llama4" && !s.UsesRoPE(layer):
+	switch profile.DenseStages.QueryScale {
+	case queryScalePolicyTemperatureWithoutRoPE:
+		if s.UsesRoPE(layer) {
+			return QueryScalePlan{kind: queryScaleScores}
+		}
 		return QueryScalePlan{kind: queryScaleTemperature}
-	case s.Architecture == "mistral3" && s.AttentionTempScale != 0:
+	case queryScalePolicyConfiguredTemperature:
+		if s.AttentionTempScale == 0 {
+			return QueryScalePlan{kind: queryScaleScores}
+		}
 		return QueryScalePlan{kind: queryScaleTemperature}
-	case s.Architecture == "phi2" || s.Architecture == "phi3" || s.Architecture == "phimoe":
+	case queryScalePolicyPreDot:
 		return QueryScalePlan{kind: queryScalePreDot}
-	case profile.Has(ArchitectureGemma):
-		return QueryScalePlan{kind: queryScalePreDot, gemmaSpecial: s.Architecture == "gemma2" && s.BlockCount == 46}
+	case queryScalePolicyGemma:
+		return QueryScalePlan{
+			kind: queryScalePreDot, gemmaSpecial: profile.DenseStages.GemmaSpecial && s.BlockCount == 46,
+		}
 	default:
 		return QueryScalePlan{kind: queryScaleScores}
 	}

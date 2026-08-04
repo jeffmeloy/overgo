@@ -7,6 +7,21 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
+// DenseWeightPolicy: architecture-owned dense tensor requirements.
+type DenseWeightPolicy struct {
+	AllowUngatedExperts        bool
+	RequireExpertBias          bool
+	RequirePostNorm            bool
+	RequireSubNorm             bool
+	RequireAttentionOutputBias bool
+	ValidateOptionalQKNorm     bool
+	ValidateFalconNorm         bool
+	RequireOpenAIBiases        bool
+	RequireAttentionGate       bool
+	RequireAttentionSinks      bool
+	SkipFeedForwardNorm        bool
+}
+
 // DenseWeightPlan: compiled dense graph tensor contract.
 type DenseWeightPlan struct {
 	supportsExperts            bool
@@ -33,42 +48,38 @@ type DenseWeightPlan struct {
 func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWeightPlan {
 	postOnly := !s.NormPlan().PreAttention
 	composition := s.expertCompositionPlan()
+	policy := profile.DenseWeights
+	qk := s.qkPreprocessPlan(layer)
+	requireQKNorm := func(kind qkNormKind) bool {
+		return kind == qkNormWeighted || kind == qkNormConfiguredNoBias ||
+			kind == qkNormAffine || kind == qkNormRMS
+	}
+	queryScale := s.queryScalePlan(profile, layer)
 	plan := DenseWeightPlan{
 		supportsExperts: profile.Has(ArchitectureMoE) || s.ExpertCount > 0,
-		requirePostNorm: postOnly || s.Architecture == "olmo2",
-		requireSubNorm:  s.Architecture == "bitnet",
+		requirePostNorm: postOnly || policy.RequirePostNorm,
+		requireSubNorm:  policy.RequireSubNorm,
 		requireAttentionOutputBias: profile.FeedForward == FeedForwardSequentialGELU ||
-			s.Architecture == "phimoe" || s.Architecture == "pangu-embedded" ||
-			s.Architecture == "gpt-oss",
-		requireTemperature: s.Architecture == "llama4" && !s.UsesRoPE(layer) ||
-			s.Architecture == "mistral3" && s.AttentionTempScale != 0,
-		validateOptionalQKNorm: s.Architecture == "stablelm" || s.Architecture == "mpt",
-		validateFalconNorm:     s.Architecture == "falcon",
+			policy.RequireAttentionOutputBias,
+		requireTemperature:     queryScale.kind == queryScaleTemperature,
+		validateOptionalQKNorm: policy.ValidateOptionalQKNorm,
+		validateFalconNorm:     policy.ValidateFalconNorm,
 	}
-	plan.allowUngatedExperts = s.Architecture == "granitemoe" || s.Architecture == "granitehybrid" ||
-		s.Architecture == "grok" || s.Architecture == "ernie4_5-moe" ||
-		s.Architecture == "refact" || s.Architecture == "granite" && s.ExpertCount > 0
-	plan.requireExpertBias = s.Architecture == "glm4moe" || s.Architecture == "laguna" ||
-		s.Architecture == "afmoe" || s.Architecture == "lfm2moe" ||
-		s.Architecture == "minimax-m2"
+	plan.allowUngatedExperts = policy.AllowUngatedExperts
+	plan.requireExpertBias = policy.RequireExpertBias
 	plan.requireShared = plan.supportsExperts &&
 		(composition.kind == expertSharedAdd || composition.kind == expertSharedAverage ||
 			composition.kind == expertSharedLimited || composition.kind == expertSharedGated)
 	plan.requireSharedRouter = composition.kind == expertSharedGated
 	plan.requireChunkExperts = composition.kind == expertGrouped
-	plan.requireOpenAIBiases = s.Architecture == "gpt-oss"
+	plan.requireOpenAIBiases = policy.RequireOpenAIBiases
 	plan.requireArcticDense = composition.kind == expertArctic
-	plan.requireAttentionGate = s.Architecture == "laguna" || s.Architecture == "afmoe"
-	plan.requireQKNorm = plan.requirePostNorm || s.Architecture == "command-r" && s.BlockCount >= 64 ||
-		s.Architecture == "plamo2" || s.Architecture == "plamo3" ||
-		s.Architecture == "chameleon" || s.Architecture == "olmoe" ||
-		s.Architecture == "minimax-m2" || s.Architecture == "dots1" ||
-		s.Architecture == "hy_v3" || s.Architecture == "hunyuan-moe" ||
-		s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan_vl" ||
-		plan.requireAttentionGate
+	plan.requireAttentionGate = policy.RequireAttentionGate
+	plan.requireQKNorm = plan.requirePostNorm || requireQKNorm(qk.Projection) ||
+		requireQKNorm(qk.Heads) || requireQKNorm(qk.PostRotary) || plan.requireAttentionGate
 	plan.requireBaseNorm = !postOnly && !s.UsesUnweightedLayerNorm()
 	plan.requireFeedForwardNorm = plan.requireBaseNorm && profile.Residual != ResidualParallel &&
-		s.Architecture != "gpt-oss" && s.Architecture != "stablelm"
+		!policy.SkipFeedForwardNorm
 	plan.requireNormBias = plan.requireBaseNorm && s.RequiresLayerNormBias()
 	return plan
 }
@@ -176,7 +187,7 @@ func (p DenseWeightPlan) Validate(
 	if p.requireAttentionOutputBias {
 		required["attention output bias"] = weights.AttentionOutputBias
 	}
-	if spec.Architecture == "gpt-oss" {
+	if profile.DenseWeights.RequireAttentionSinks {
 		required["attention sinks"] = weights.AttentionSinks
 		required["attention post norm"] = weights.AttentionPostNorm
 	}

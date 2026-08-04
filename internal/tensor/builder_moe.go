@@ -8,6 +8,9 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
+// MaxMoETopK: routed experts supported per token.
+const MaxMoETopK uint32 = 16
+
 type moeOptions struct {
 	routerInput, gate          *Tensor
 	selectionBias, expertScale *Tensor
@@ -374,7 +377,7 @@ func (b *Builder) buildMoE(
 		intermediate /= 2
 	}
 	if hidden == 0 || experts == 0 || experts > math.MaxUint32 || topK == 0 ||
-		uint64(topK) > experts || uint64(topK) > bankExperts || topK > 16 || scale == 0 ||
+		uint64(topK) > experts || uint64(topK) > bankExperts || topK > MaxMoETopK || scale == 0 ||
 		math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) ||
 		routerHidden == 0 || router.Shape.Dims[0] != routerHidden || up.Shape.Dims[0] != hidden ||
 		routerInput.Shape.Dims[1] != input.Shape.Dims[1] ||

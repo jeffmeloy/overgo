@@ -2647,8 +2647,8 @@ func (s Spec) validate() error {
 			return errors.New("Jamba SSM metadata is invalid")
 		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
 			return errors.New("Jamba layer schedule is invalid")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0:
+		case !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
+			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0:
 			return errors.New("Jamba expert metadata is invalid")
 		}
 	}
@@ -2661,8 +2661,8 @@ func (s Spec) validate() error {
 			return errors.New("Granite Hybrid SSM metadata is invalid")
 		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
 			return errors.New("Granite Hybrid layer schedule is invalid")
-		case s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0):
+		case s.ExpertCount > 0 && (!validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
+			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0):
 			return errors.New("Granite Hybrid expert metadata is invalid")
 		case s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.ExpertFeedForward != 0 || s.SharedExpertFF != 0):
 			return errors.New("dense Granite Hybrid expert metadata is inconsistent")
@@ -2706,7 +2706,7 @@ func (s Spec) validate() error {
 		}
 		if s.Architecture == "nemotron_h_moe" {
 			if s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-				s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+				exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
 				s.ExpertWeightsScale <= 0 {
 				return errors.New("Nemotron-H MoE metadata is invalid")
 			}
@@ -2729,7 +2729,7 @@ func (s Spec) validate() error {
 			s.KeyLength != s.ValueLength ||
 			(s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.ExpertFeedForward != 0 || s.MoELayerStep != 0)) ||
 			(s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-				s.ExpertUsedCount > 16 || s.ExpertFeedForward != s.FeedForwardLength ||
+				exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward != s.FeedForwardLength ||
 				s.MoELayerStep < 2 || s.ExpertWeightsScale <= 0))) {
 		return errors.New("JinaBERT v3 metadata is invalid")
 	}
@@ -2785,14 +2785,13 @@ func (s Spec) validate() error {
 	}
 	if (s.Architecture == "qwen3next" || s.Architecture == "qwen35moe") &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
 			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen3.5-MoE expert metadata is invalid")
 	}
 	if (s.Architecture == "qwen3moe" || s.Architecture == "qwen3vlmoe" || s.Architecture == "rnd1") &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
-			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+		(!validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
@@ -2800,7 +2799,7 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "grovemoe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertChunkFeedForward == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertChunkFeedForward == 0 ||
 			s.ExpertsPerGroup == 0 || s.ExpertCount%s.ExpertsPerGroup != 0 ||
 			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0) || math.IsNaN(float64(s.ExpertGroupScale)) ||
@@ -2810,7 +2809,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "mimo2" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("MiMo2 expert metadata is invalid")
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
@@ -2831,7 +2830,7 @@ func (s Spec) validate() error {
 		layerCount := int(s.BlockCount + s.NextNPredictLayers)
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("Step3.5 expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
@@ -2864,27 +2863,27 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "llada-moe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("LLaDA-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "qwen2moe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
 			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Qwen2-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "arctic" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Arctic expert metadata is invalid")
 	}
 	if s.Architecture == "bailingmoe" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("BailingMoE expert metadata is invalid")
 		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
@@ -2899,7 +2898,7 @@ func (s Spec) validate() error {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DeepSeek leading dense block count leaves no MoE layers")
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("DeepSeek expert metadata is invalid")
 		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
@@ -2911,13 +2910,13 @@ func (s Spec) validate() error {
 	}
 	if (s.Architecture == "granitemoe" || s.Architecture == "granite" && s.ExpertCount > 0) &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("GraniteMoE expert metadata is invalid")
 	}
 	if s.Architecture == "dbrx" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			s.AttentionClamp < 0 || math.IsNaN(float64(s.AttentionClamp)) ||
 			math.IsInf(float64(s.AttentionClamp), 0) || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
@@ -2926,7 +2925,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "grok" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 			return errors.New("Grok expert metadata is invalid")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -2951,7 +2950,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "mellum" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 			return errors.New("Mellum expert metadata is invalid")
 		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
 			return errors.New("Mellum rotary/head dimensions are invalid")
@@ -2966,7 +2965,7 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "hunyuan-moe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
 			s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("Hunyuan-MoE metadata is invalid")
@@ -2974,7 +2973,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "hy_v3" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
 			return errors.New("HY-V3 expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
 			return errors.New("HY-V3 expert routing function is unsupported")
@@ -2991,7 +2990,7 @@ func (s Spec) validate() error {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DeepSeek2-OCR leading dense block count leaves no MoE layers")
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("DeepSeek2-OCR expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
@@ -3010,7 +3009,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "smallthinker" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 			return errors.New("SmallThinker expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
 			return errors.New("SmallThinker expert routing function is unsupported")
@@ -3029,7 +3028,7 @@ func (s Spec) validate() error {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DOTS1 leading dense block count leaves no MoE layers")
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("DOTS1 expert metadata is invalid")
 		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
@@ -3048,7 +3047,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "minimax-m2" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 			return errors.New("MiniMax-M2 expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
 			return errors.New("MiniMax-M2 expert routing function is unsupported")
@@ -3073,7 +3072,7 @@ func (s Spec) validate() error {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("BailingMoE2 leading dense block count leaves no MoE layers")
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("BailingMoE2 expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
@@ -3089,14 +3088,13 @@ func (s Spec) validate() error {
 		}
 	}
 	if s.Architecture == "olmoe" &&
-		(s.HeadCountKV != s.HeadCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
-			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+		(s.HeadCountKV != s.HeadCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("OLMoE expert or attention metadata is invalid")
 	}
 	if (s.Architecture == "llama" || s.Architecture == "llama-embed") && s.ExpertCount > 0 &&
-		(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+		(!validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Llama MoE expert metadata is invalid")
@@ -3126,7 +3124,7 @@ func (s Spec) validate() error {
 	if s.Architecture == "llama4" {
 		switch {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 || s.MoELayerStep == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 || s.MoELayerStep == 0:
 			return errors.New("Llama 4 expert metadata is invalid")
 		case s.ExpertGatingFunc != 2 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -3142,7 +3140,7 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "gpt-oss" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertGatingFunc != 3 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertGatingFunc != 3 ||
 			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0) ||
 			s.SlidingWindow == 0 || s.SlidingPattern < 2 || s.RopeDimensionCount != s.KeyLength ||
 			s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0 || s.RopeFrequencySWA <= 0) {
@@ -3150,7 +3148,7 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "phimoe" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("PhiMoE expert metadata is invalid")
 	}
@@ -3169,8 +3167,7 @@ func (s Spec) validate() error {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("Laguna leading dense block count leaves no MoE layers")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
-			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+		case !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
 			return errors.New("Laguna expert metadata is invalid")
 		case s.ExpertGatingFunc != 2:
@@ -3202,8 +3199,7 @@ func (s Spec) validate() error {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("AFMoE leading dense block count leaves no MoE layers")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
-			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 ||
+		case !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0:
 			return errors.New("AFMoE expert metadata is invalid")
 		case s.ExpertGatingFunc != 2:
@@ -3225,7 +3221,7 @@ func (s Spec) validate() error {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("EXAONE-MoE leading dense block count leaves no MoE layers")
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
 			return errors.New("EXAONE-MoE expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
 			return errors.New("EXAONE-MoE expert routing function is unsupported")
@@ -3254,7 +3250,7 @@ func (s Spec) validate() error {
 			case s.LeadingDenseBlocks >= s.BlockCount:
 				return errors.New("LFM2-MoE leading dense block count leaves no MoE layers")
 			case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-				s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0:
+				exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 				return errors.New("LFM2-MoE expert metadata is invalid")
 			case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
 				return errors.New("LFM2-MoE expert routing function is unsupported")
@@ -3330,7 +3326,7 @@ func (s Spec) validate() error {
 			s.IndexerTopK > s.ContextLength || s.IndexerKeyLength&(s.IndexerKeyLength-1) != 0:
 			return errors.New("DeepSeek 4 indexer metadata is invalid")
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
 			return errors.New("DeepSeek 4 expert metadata is invalid")
 		case s.ExpertGatingFunc != uint32(4):
 			return errors.New("DeepSeek 4 expert routing function is unsupported")
@@ -3361,8 +3357,8 @@ func (s Spec) validate() error {
 			return errors.New("Kimi Linear layer schedule is invalid")
 		case s.SSMConvKernel < 2 || s.KDAHeadDim == 0 || s.SSMInnerSize != s.HeadCount*s.KDAHeadDim:
 			return errors.New("Kimi Linear KDA metadata is invalid")
-		case s.LeadingDenseBlocks >= s.BlockCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
-			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
+		case s.LeadingDenseBlocks >= s.BlockCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
+			s.ExpertFeedForward == 0 ||
 			s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
 			return errors.New("Kimi Linear expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
@@ -3389,7 +3385,7 @@ func (s Spec) validate() error {
 		case s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.SharedExpertCount != 0 || s.SharedExpertFF != 0):
 			return errors.New("dense DeepSeek2 expert metadata is inconsistent")
 		case s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0):
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0):
 			return errors.New("DeepSeek2 expert metadata is invalid")
 		case s.ExpertCount > 0 && s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
 			return errors.New("DeepSeek2 shared expert width overflows")
@@ -3427,7 +3423,7 @@ func (s Spec) validate() error {
 			return errors.New("dense Mistral 3 expert metadata is inconsistent")
 		case s.ExpertCount > 0 &&
 			(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-				s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
+				exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 ||
 				s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 				math.IsInf(float64(s.ExpertWeightsScale), 0)):
 			return errors.New("Mistral 3 expert metadata is invalid")
@@ -3572,7 +3568,7 @@ func (s Spec) validate() error {
 		case len(s.LayerFeedForward) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
 			return errors.New("Gemma 4 layer metadata is invalid")
 		case s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0):
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0):
 			return errors.New("Gemma 4 expert metadata is invalid")
 		}
 		for block := uint32(0); block < s.BlockCount; block++ {
@@ -3758,8 +3754,8 @@ func (s Spec) validate() error {
 		}
 	}
 	if s.Architecture == "glm4moe" &&
-		(s.LeadingDenseBlocks >= s.BlockCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
-			s.ExpertUsedCount > s.ExpertCount || s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
+		(s.LeadingDenseBlocks >= s.BlockCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
+			s.ExpertFeedForward == 0 ||
 			s.SharedExpertCount == 0 || s.SharedExpertFF == 0 ||
 			(s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2) ||
 			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
@@ -3782,7 +3778,7 @@ func (s Spec) validate() error {
 	}
 	if s.Architecture == "refact" && s.ExpertCount > 0 &&
 		(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			s.ExpertUsedCount > 16 || s.ExpertFeedForward == 0 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 ||
 			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("Refact expert metadata is invalid")

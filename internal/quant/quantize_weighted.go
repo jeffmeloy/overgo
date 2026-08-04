@@ -16,6 +16,20 @@ var (
 	iq1Codebook         = buildIQ1QuantCodebook(iq1SGrid[:])
 )
 
+const (
+	iq2XXSWeightedGroupWidth = 32
+	iq2XXSWeightedTypeSize   = 66
+	iq2XXSWeightedAttempts   = 6
+	iq2XSWeightedGroupWidth  = 16
+	iq2XSWeightedTypeSize    = 74
+	iq2XSWeightedAttempts    = 9
+	iq2ScaleHeaderBytes      = 2
+	iq2XXSGroupBytes         = 8
+	iq2XXSSignWordOffset     = 6
+	iq2XSGridBytes           = 2
+	iq2XSScaleOffset         = 66
+)
+
 type iq1QuantCodebook struct {
 	lanes [][8]int8
 	index map[uint16]int
@@ -40,14 +54,18 @@ func buildIQ1QuantCodebook(grid []uint64) iq1QuantCodebook {
 
 func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, output []byte) error {
 	codebook := iq2XXSQuantCodebook
-	groupWidth, typeSize, attempts := 32, 66, 6
+	groupWidth := iq2XXSWeightedGroupWidth
+	typeSize := iq2XXSWeightedTypeSize
+	attempts := iq2XXSWeightedAttempts
 	if dataType == dtype.IQ2XS {
 		codebook = iq2XSQuantCodebook
-		groupWidth, typeSize, attempts = 16, 74, 9
+		groupWidth = iq2XSWeightedGroupWidth
+		typeSize = iq2XSWeightedTypeSize
+		attempts = iq2XSWeightedAttempts
 	}
-	for block := 0; block < len(values)/256; block++ {
-		input := values[block*256 : (block+1)*256]
-		weights := importance[block*256 : (block+1)*256]
+	for block := 0; block < len(values)/iqSuperBlockWidth; block++ {
+		input := values[block*iqSuperBlockWidth : (block+1)*iqSuperBlockWidth]
+		weights := importance[block*iqSuperBlockWidth : (block+1)*iqSuperBlockWidth]
 		destination := output[block*typeSize : (block+1)*typeSize]
 		for _, value := range input {
 			if !finiteFloat32(value) {
@@ -58,8 +76,8 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 		for _, value := range input {
 			sumSquares += value * value
 		}
-		variance := sumSquares / 256
-		scales := make([]float32, 256/groupWidth)
+		variance := sumSquares / iqSuperBlockWidth
+		scales := make([]float32, iqSuperBlockWidth/groupWidth)
 		var maxScale float32
 		for group := range scales {
 			start := group * groupWidth
@@ -70,28 +88,28 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 			absoluteValues := make([]float32, groupWidth)
 			levels := make([]int8, groupWidth)
 			auxiliary := make([]int8, groupWidth)
-			signs := make([]byte, groupWidth/8)
+			signs := make([]byte, groupWidth/iqCodebookLaneWidth)
 			for index, value := range groupInput {
 				weight[index] = groupImportance[index] * float32(math.Sqrt(float64(variance+value*value)))
 				neighborWeight[index] = float32(math.Sqrt(float64(weight[index])))
 				absoluteValues[index] = absoluteFloat32(value)
 				if value < 0 {
-					signs[index/8] |= 1 << uint(index%8)
+					signs[index/iqCodebookLaneWidth] |= 1 << uint(index%iqCodebookLaneWidth)
 				}
 			}
 			for signGroup := range signs {
 				if bitsSet(signs[signGroup])%2 != 0 {
-					minimumIndex := signGroup * 8
+					minimumIndex := signGroup * iqCodebookLaneWidth
 					minimum := weight[minimumIndex] * groupInput[minimumIndex] * groupInput[minimumIndex]
-					for lane := 1; lane < 8; lane++ {
-						index := signGroup*8 + lane
+					for lane := 1; lane < iqCodebookLaneWidth; lane++ {
+						index := signGroup*iqCodebookLaneWidth + lane
 						score := weight[index] * groupInput[index] * groupInput[index]
 						if score < minimum {
 							minimum, minimumIndex = score, index
 						}
 					}
 					absoluteValues[minimumIndex] = -absoluteValues[minimumIndex]
-					signs[signGroup] ^= 1 << uint(minimumIndex%8)
+					signs[signGroup] ^= 1 << uint(minimumIndex%iqCodebookLaneWidth)
 				}
 				signs[signGroup] &= 0x7f
 			}
@@ -112,15 +130,15 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 				}
 			}
 			best := float32(0)
-			onGrid := make([]bool, groupWidth/8)
-			auxiliaryOnGrid := make([]bool, groupWidth/8)
+			onGrid := make([]bool, groupWidth/iqCodebookLaneWidth)
+			auxiliaryOnGrid := make([]bool, groupWidth/iqCodebookLaneWidth)
 			for attempt := -attempts; attempt <= attempts; attempt++ {
 				inverse := (5 + float32(attempt)*0.1) / effectiveMaximum
 				candidateScale := 1 / inverse
-				for subGroup := 0; subGroup < groupWidth/8; subGroup++ {
+				for subGroup := 0; subGroup < groupWidth/iqCodebookLaneWidth; subGroup++ {
 					var encoded uint16
-					for lane := 0; lane < 8; lane++ {
-						index := subGroup*8 + lane
+					for lane := 0; lane < iqCodebookLaneWidth; lane++ {
+						index := subGroup*iqCodebookLaneWidth + lane
 						level := nearestIntGGML(0.5 * (inverse*absoluteValues[index] - 1))
 						level = max(0, min(2, level))
 						auxiliary[index] = int8(level)
@@ -130,9 +148,9 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 					auxiliaryOnGrid[subGroup] = direct
 					if !direct {
 						iq2FindBest(codebook, encoded,
-							absoluteValues[subGroup*8:(subGroup+1)*8],
-							neighborWeight[subGroup*8:(subGroup+1)*8],
-							candidateScale, auxiliary[subGroup*8:(subGroup+1)*8], 2)
+							absoluteValues[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
+							neighborWeight[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
+							candidateScale, auxiliary[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth], 2)
 					}
 				}
 				var sumValue, sumQuantized float32
@@ -150,13 +168,13 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 			}
 			if scale > 0 {
 				inverse := 1 / scale
-				for subGroup := 0; subGroup < groupWidth/8; subGroup++ {
+				for subGroup := 0; subGroup < groupWidth/iqCodebookLaneWidth; subGroup++ {
 					if dataType == dtype.IQ2XS && onGrid[subGroup] {
 						continue
 					}
 					var encoded uint16
-					for lane := 0; lane < 8; lane++ {
-						index := subGroup*8 + lane
+					for lane := 0; lane < iqCodebookLaneWidth; lane++ {
+						index := subGroup*iqCodebookLaneWidth + lane
 						level := nearestIntGGML(0.5 * (inverse*absoluteValues[index] - 1))
 						level = max(0, min(2, level))
 						if dataType == dtype.IQ2XS {
@@ -166,9 +184,9 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 					}
 					if _, direct := codebook.index[encoded]; !direct {
 						iq2FindBest(codebook, encoded,
-							absoluteValues[subGroup*8:(subGroup+1)*8],
-							neighborWeight[subGroup*8:(subGroup+1)*8],
-							scale, levels[subGroup*8:(subGroup+1)*8], 2)
+							absoluteValues[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
+							neighborWeight[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
+							scale, levels[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth], 2)
 					}
 				}
 				var sumValue, sumQuantized float32
@@ -189,8 +207,8 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 			}
 			if dataType == dtype.IQ2XXS {
 				var first, second uint32
-				for subGroup := 0; subGroup < 4; subGroup++ {
-					encoded := encodeIQ2Levels(levels[subGroup*8 : (subGroup+1)*8])
+				for subGroup := range signs {
+					encoded := encodeIQ2Levels(levels[subGroup*iqCodebookLaneWidth : (subGroup+1)*iqCodebookLaneWidth])
 					gridIndex, ok := codebook.index[encoded]
 					if !ok {
 						return errors.New("IQ2_XXS quantized point is not on the grid")
@@ -198,17 +216,19 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 					first |= uint32(gridIndex) << uint(8*subGroup)
 					second |= uint32(signs[subGroup]) << uint(7*subGroup)
 				}
-				binary.LittleEndian.PutUint32(destination[2+group*8:], first)
-				binary.LittleEndian.PutUint32(destination[6+group*8:], second)
+				groupOffset := group * iq2XXSGroupBytes
+				binary.LittleEndian.PutUint32(destination[iq2ScaleHeaderBytes+groupOffset:], first)
+				binary.LittleEndian.PutUint32(destination[iq2XXSSignWordOffset+groupOffset:], second)
 			} else {
-				for subGroup := 0; subGroup < 2; subGroup++ {
-					encoded := encodeIQ2Levels(levels[subGroup*8 : (subGroup+1)*8])
+				for subGroup := range signs {
+					encoded := encodeIQ2Levels(levels[subGroup*iqCodebookLaneWidth : (subGroup+1)*iqCodebookLaneWidth])
 					gridIndex, ok := codebook.index[encoded]
 					if !ok {
 						return errors.New("IQ2_XS quantized point is not on the grid")
 					}
 					packed := uint16(gridIndex) | uint16(signs[subGroup])<<9
-					binary.LittleEndian.PutUint16(destination[2+(group*2+subGroup)*2:], packed)
+					offset := iq2ScaleHeaderBytes + (group*2+subGroup)*iq2XSGridBytes
+					binary.LittleEndian.PutUint16(destination[offset:], packed)
 				}
 			}
 			scales[group] = scale
@@ -224,13 +244,13 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 			quantized := nearestIntGGML(0.5 * (inverse*groupScale - 1))
 			quantized = max(0, min(15, quantized))
 			if dataType == dtype.IQ2XXS {
-				offset := 6 + group*8
+				offset := iq2XXSSignWordOffset + group*iq2XXSGroupBytes
 				packed := binary.LittleEndian.Uint32(destination[offset:])
 				binary.LittleEndian.PutUint32(destination[offset:], packed|uint32(quantized)<<28)
 			} else if group%2 == 0 {
-				destination[66+group/2] = byte(quantized)
+				destination[iq2XSScaleOffset+group/2] = byte(quantized)
 			} else {
-				destination[66+group/2] |= byte(quantized << 4)
+				destination[iq2XSScaleOffset+group/2] |= byte(quantized << 4)
 			}
 		}
 	}

@@ -1111,7 +1111,7 @@ func TestProperties(t *testing.T) {
 		result.ModelPath != "fixture.gguf" ||
 		result.ModelMetadata.Architecture != "qwen3" ||
 		result.DefaultGenerationSettings.NCtx != 32768 ||
-		result.DefaultGenerationSettings.Params.NPredict != 16 ||
+		result.DefaultGenerationSettings.Params.NPredict != defaultProtocolMaxTokens ||
 		result.DefaultGenerationSettings.Params.TopP != 1 ||
 		result.BOSToken != "<bos>" ||
 		result.EOSToken != "<eos>" ||

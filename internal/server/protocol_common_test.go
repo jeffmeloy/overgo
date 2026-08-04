@@ -32,13 +32,15 @@ func TestBoundedProtocolTokens(t *testing.T) {
 		want       int
 		wantError  string
 	}{
-		{name: "default", want: 16},
+		{name: "default", want: defaultProtocolMaxTokens},
 		{name: "required", required: true, wantError: "max_tokens is required"},
 		{name: "configured", configured: &value, want: 4},
 		{name: "bounded", configured: &invalid, wantError: "must be in [0,32]"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := boundedProtocolTokens(test.configured, 16, 32, "max_tokens", test.required)
+			got, err := boundedProtocolTokens(
+				test.configured, defaultProtocolMaxTokens, 32, "max_tokens", test.required,
+			)
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) {
 					t.Fatalf("error = %v", err)

@@ -45,6 +45,8 @@ const (
 	maxResponseStoreBytes     = 1 << 30
 	maxTokenListLength        = 1 << 20
 	maxCompletionChoices      = 8
+	defaultProtocolMaxTokens  = 16
+	maxProtocolTools          = 128
 	maxVideoFrameLimit        = 256
 )
 

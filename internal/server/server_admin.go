@@ -138,7 +138,7 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 	}
 	result.DefaultGenerationSettings.NCtx = model.ContextLength
 	result.DefaultGenerationSettings.Params = propertiesSamplingParams{
-		NPredict:         16,
+		NPredict:         defaultProtocolMaxTokens,
 		Seed:             samplingConfig.Seed,
 		Temperature:      samplingConfig.Temperature,
 		DynatempRange:    samplingConfig.DynatempRange,
@@ -163,7 +163,7 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		MirostatTau:      samplingConfig.MirostatTau,
 		MirostatEta:      samplingConfig.MirostatEta,
 		Stop:             []string{},
-		MaxTokens:        16,
+		MaxTokens:        defaultProtocolMaxTokens,
 		IgnoreEOS:        false,
 		Stream:           false,
 		MinKeep:          samplingConfig.MinKeep,

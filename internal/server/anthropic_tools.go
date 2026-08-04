@@ -26,8 +26,8 @@ func selectAnthropicTools(
 		if err := strictjson.DecodeBytes(rawTools, &definitions); err != nil {
 			return chatToolSelection{}, errors.New("tools must be an array of Anthropic tool definitions")
 		}
-		if len(definitions) > 128 {
-			return chatToolSelection{}, errors.New("tool count exceeds 128")
+		if err := validateProtocolToolCount(len(definitions)); err != nil {
+			return chatToolSelection{}, err
 		}
 		tools = make([]inference.ChatTool, len(definitions))
 		for index, definition := range definitions {

@@ -178,7 +178,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	maxTokens, err := boundedProtocolTokens(
-		body.MaxTokens, 16, h.config.MaxTokens, "max_tokens", false,
+		body.MaxTokens, defaultProtocolMaxTokens, h.config.MaxTokens, "max_tokens", false,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)

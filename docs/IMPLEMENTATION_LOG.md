@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 3 typed-builder wave replaced the internal attention, MoE, and
+  RoPE positional control streams with named option contracts. Specialized
+  wrappers now declare only their active features, centralized builders own
+  validation and graph attributes, and public APIs remain unchanged. Full CPU
+  and CUDA verification passed on the Windows amd64 RTX 4090 D host.
 - The August 3 semantic-literal wave named architecture-fixed projector/RWKV
   normalization values, quantizer near-zero thresholds, sampler/schema state
   envelopes, GGUF buffers, server and CLI defaults, completion/token bounds,

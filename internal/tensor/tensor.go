@@ -1172,6 +1172,21 @@ func (b *Builder) RWKV7(receptance, decay, key, value, a, bVector, state *Tensor
 	return b.add("", dtype.F32, shape, OpRWKV7, inputs, nil)
 }
 
+type moeOptions struct {
+	routerInput, gate          *Tensor
+	selectionBias, expertScale *Tensor
+	selectedExperts            *Tensor
+	biases                     *moeBiases
+	topK                       uint32
+	normalizeTopKProb          bool
+	scale                      float32
+	routing                    MoERouting
+	activation                 MoEActivation
+	fusedGateUp                bool
+	expertIndexDivisor         uint32
+	swigluClamp                float32
+}
+
 // MoE: softmax top-k SwiGLU; GGUF expert layouts.
 func (b *Builder) MoE(
 	input, router, gate, up, down *Tensor,
@@ -1179,8 +1194,10 @@ func (b *Builder) MoE(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, topK: topK, normalizeTopKProb: normalizeTopKProb, scale: scale,
+		routing: MoERoutingSoftmax, activation: MoEActivationSiLU, expertIndexDivisor: 1,
+	})
 }
 
 // MoEGroupedWithRouterInput: split router input; grouped expert-bank indices.
@@ -1191,8 +1208,11 @@ func (b *Builder) MoEGroupedWithRouterInput(
 	scale float32,
 	expertIndexDivisor uint32,
 ) *Tensor {
-	return b.moe(input, routerInput, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false, expertIndexDivisor, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		routerInput: routerInput, gate: gate, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: MoERoutingSoftmax, activation: MoEActivationSiLU,
+		expertIndexDivisor: expertIndexDivisor,
+	})
 }
 
 func (b *Builder) MoEUngated(
@@ -1201,8 +1221,10 @@ func (b *Builder) MoEUngated(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, up, down, nil, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		topK: topK, normalizeTopKProb: normalizeTopKProb, scale: scale,
+		routing: MoERoutingSoftmax, activation: MoEActivationSiLU, expertIndexDivisor: 1,
+	})
 }
 
 // MoEUngatedWithSelectionBias: softmax selection bias; ungated experts.
@@ -1212,8 +1234,10 @@ func (b *Builder) MoEUngatedWithSelectionBias(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb, scale: scale,
+		routing: MoERoutingSoftmax, activation: MoEActivationSiLU, expertIndexDivisor: 1,
+	})
 }
 
 // MoESoftmaxWithSelectionBias: biased selection; unbiased route weights.
@@ -1223,8 +1247,10 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: MoERoutingSoftmax, activation: MoEActivationSiLU, expertIndexDivisor: 1,
+	})
 }
 
 // MoESoftmaxLimitedWithSelectionBias: biased selection; limited SwiGLU.
@@ -1234,8 +1260,11 @@ func (b *Builder) MoESoftmaxLimitedWithSelectionBias(
 	normalizeTopKProb bool,
 	scale, swigluClamp float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, false, 1, swigluClamp, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: MoERoutingSoftmax, activation: MoEActivationSiLU,
+		expertIndexDivisor: 1, swigluClamp: swigluClamp,
+	})
 }
 
 // MoESoftmaxFusedGateUp: softmax top-k; fused expert gate/up storage.
@@ -1245,8 +1274,11 @@ func (b *Builder) MoESoftmaxFusedGateUp(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, gateUp, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationSiLU, true, 1, 0, nil)
+	return b.buildMoE(input, router, gateUp, down, moeOptions{
+		selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: MoERoutingSoftmax, activation: MoEActivationSiLU,
+		fusedGateUp: true, expertIndexDivisor: 1,
+	})
 }
 
 // MoESigmoid: sigmoid routes; optional selection bias.
@@ -1256,8 +1288,10 @@ func (b *Builder) MoESigmoid(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSigmoid, MoEActivationSiLU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: MoERoutingSigmoid, activation: MoEActivationSiLU, expertIndexDivisor: 1,
+	})
 }
 
 // MoESigmoidLimited: sigmoid top-k; limited SwiGLU.
@@ -1267,8 +1301,11 @@ func (b *Builder) MoESigmoidLimited(
 	normalizeTopKProb bool,
 	scale, swigluClamp float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSigmoid, MoEActivationSiLU, false, 1, swigluClamp, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: MoERoutingSigmoid, activation: MoEActivationSiLU,
+		expertIndexDivisor: 1, swigluClamp: swigluClamp,
+	})
 }
 
 // MoESigmoidFusedGateUp: sigmoid top-k; fused expert gate/up storage.
@@ -1278,8 +1315,11 @@ func (b *Builder) MoESigmoidFusedGateUp(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, nil, gateUp, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSigmoid, MoEActivationSiLU, true, 1, 0, nil)
+	return b.buildMoE(input, router, gateUp, down, moeOptions{
+		selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: MoERoutingSigmoid, activation: MoEActivationSiLU,
+		fusedGateUp: true, expertIndexDivisor: 1,
+	})
 }
 
 // MoEReLUWithRouterInput: split router input; gated ReLU experts.
@@ -1290,8 +1330,10 @@ func (b *Builder) MoEReLUWithRouterInput(
 	scale float32,
 	routing MoERouting,
 ) *Tensor {
-	return b.moe(input, routerInput, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
-		routing, MoEActivationReLU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		routerInput: routerInput, gate: gate, topK: topK, normalizeTopKProb: normalizeTopKProb,
+		scale: scale, routing: routing, activation: MoEActivationReLU, expertIndexDivisor: 1,
+	})
 }
 
 // MoEReLUSquaredWithRouterInput: split router input; ungated squared-ReLU experts.
@@ -1302,8 +1344,11 @@ func (b *Builder) MoEReLUSquaredWithRouterInput(
 	scale float32,
 	routing MoERouting,
 ) *Tensor {
-	return b.moe(input, routerInput, router, nil, up, down, selectionBias, nil, topK, normalizeTopKProb, scale,
-		routing, MoEActivationReLUSquared, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		routerInput: routerInput, selectionBias: selectionBias, topK: topK,
+		normalizeTopKProb: normalizeTopKProb, scale: scale, routing: routing,
+		activation: MoEActivationReLUSquared, expertIndexDivisor: 1,
+	})
 }
 
 // MoEGELU: softmax top-k GELU/GEGLU experts.
@@ -1313,8 +1358,10 @@ func (b *Builder) MoEGELU(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, nil, nil, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationGELU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, topK: topK, normalizeTopKProb: normalizeTopKProb, scale: scale,
+		routing: MoERoutingSoftmax, activation: MoEActivationGELU, expertIndexDivisor: 1,
+	})
 }
 
 // MoEGELUWithRouterInput: split router input; GELU/GEGLU experts.
@@ -1324,8 +1371,11 @@ func (b *Builder) MoEGELUWithRouterInput(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, routerInput, router, gate, up, down, nil, expertScale, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationGELU, false, 1, 0, nil)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		routerInput: routerInput, gate: gate, expertScale: expertScale, topK: topK,
+		normalizeTopKProb: normalizeTopKProb, scale: scale, routing: MoERoutingSoftmax,
+		activation: MoEActivationGELU, expertIndexDivisor: 1,
+	})
 }
 
 // MoEGELUFusedGateUpWithRouterInput: split router input; fused GEGLU experts.
@@ -1335,8 +1385,11 @@ func (b *Builder) MoEGELUFusedGateUpWithRouterInput(
 	normalizeTopKProb bool,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, routerInput, router, nil, gateUp, down, nil, expertScale, topK, normalizeTopKProb, scale,
-		MoERoutingSoftmax, MoEActivationGELU, true, 1, 0, nil)
+	return b.buildMoE(input, router, gateUp, down, moeOptions{
+		routerInput: routerInput, expertScale: expertScale, topK: topK,
+		normalizeTopKProb: normalizeTopKProb, scale: scale, routing: MoERoutingSoftmax,
+		activation: MoEActivationGELU, fusedGateUp: true, expertIndexDivisor: 1,
+	})
 }
 
 // MoEOpenAI: selected-logit softmax; biased OpenAI SwiGLU experts.
@@ -1345,9 +1398,11 @@ func (b *Builder) MoEOpenAI(
 	topK uint32,
 	scale float32,
 ) *Tensor {
-	return b.moe(input, input, router, gate, up, down, nil, nil, topK, false, scale,
-		MoERoutingSelectedSoftmax, MoEActivationSwiGLUOAI, false, 1, 0,
-		&moeBiases{router: routerBias, gate: gateBias, up: upBias, down: downBias})
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, topK: topK, scale: scale, routing: MoERoutingSelectedSoftmax,
+		activation: MoEActivationSwiGLUOAI, expertIndexDivisor: 1,
+		biases: &moeBiases{router: routerBias, gate: gateBias, up: upBias, down: downBias},
+	})
 }
 
 // MoESqrtSoftplusLimited: DeepSeek 4 routing; optional fixed expert IDs.
@@ -1357,45 +1412,35 @@ func (b *Builder) MoESqrtSoftplusLimited(
 	normalizeTopKProb bool,
 	scale, swigluClamp float32,
 ) *Tensor {
-	return b.moeWithSelected(
-		input, input, router, gate, up, down, selectionBias, nil,
-		topK, normalizeTopKProb, scale, MoERoutingSqrtSoftplus,
-		MoEActivationSiLU, false, 1, swigluClamp, nil, selectedExperts,
-	)
+	return b.buildMoE(input, router, up, down, moeOptions{
+		gate: gate, selectionBias: selectionBias, selectedExperts: selectedExperts,
+		topK: topK, normalizeTopKProb: normalizeTopKProb, scale: scale,
+		routing: MoERoutingSqrtSoftplus, activation: MoEActivationSiLU,
+		expertIndexDivisor: 1, swigluClamp: swigluClamp,
+	})
 }
 
-func (b *Builder) moe(
-	input, routerInput, router, gate, up, down, selectionBias, expertScale *Tensor,
-	topK uint32,
-	normalizeTopKProb bool,
-	scale float32,
-	routing MoERouting,
-	activation MoEActivation,
-	fusedGateUp bool,
-	expertIndexDivisor uint32,
-	swigluClamp float32,
-	biases *moeBiases,
+func (b *Builder) buildMoE(
+	input, router, up, down *Tensor,
+	options moeOptions,
 ) *Tensor {
-	return b.moeWithSelected(
-		input, routerInput, router, gate, up, down, selectionBias, expertScale,
-		topK, normalizeTopKProb, scale, routing, activation, fusedGateUp,
-		expertIndexDivisor, swigluClamp, biases, nil,
-	)
-}
-
-func (b *Builder) moeWithSelected(
-	input, routerInput, router, gate, up, down, selectionBias, expertScale *Tensor,
-	topK uint32,
-	normalizeTopKProb bool,
-	scale float32,
-	routing MoERouting,
-	activation MoEActivation,
-	fusedGateUp bool,
-	expertIndexDivisor uint32,
-	swigluClamp float32,
-	biases *moeBiases,
-	selectedExperts *Tensor,
-) *Tensor {
+	routerInput := options.routerInput
+	if routerInput == nil {
+		routerInput = input
+	}
+	gate := options.gate
+	selectionBias := options.selectionBias
+	expertScale := options.expertScale
+	selectedExperts := options.selectedExperts
+	topK := options.topK
+	normalizeTopKProb := options.normalizeTopKProb
+	scale := options.scale
+	routing := options.routing
+	activation := options.activation
+	fusedGateUp := options.fusedGateUp
+	expertIndexDivisor := options.expertIndexDivisor
+	swigluClamp := options.swigluClamp
+	biases := options.biases
 	if b.err != nil {
 		return nil
 	}
@@ -1738,10 +1783,25 @@ func nativeQuantizedType(value dtype.Type) bool {
 	}
 }
 
-// RoPENeoX: applies split-half rotary layout used by Qwen3; Input shape is
-// [head width, heads, tokens] (optionally with batch dimension)
+type ropeOptions struct {
+	operation                     Op
+	name                          string
+	positions                     []uint32
+	frequencyFactors              *Tensor
+	rotaryDimensions              uint32
+	frequencyBase, frequencyScale float32
+	yarn                          bool
+	originalContext               uint32
+	extFactor, attentionFactor    float32
+	betaFast, betaSlow            float32
+}
+
+// RoPENeoX: split-half rotary layout; input [head width, heads, tokens, batch?].
 func (b *Builder) RoPENeoX(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
-	return b.rope(OpRoPENeoX, "rope_neox", input, positions, rotaryDimensions, frequencyBase, 1, nil)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
+		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: 1,
+	})
 }
 
 func (b *Builder) RoPENeoXScaled(
@@ -1751,10 +1811,10 @@ func (b *Builder) RoPENeoXScaled(
 	frequencyBase float32,
 	frequencyScale float32,
 ) *Tensor {
-	return b.rope(
-		OpRoPENeoX, "rope_neox", input, positions,
-		rotaryDimensions, frequencyBase, frequencyScale, nil,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
+		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: frequencyScale,
+	})
 }
 
 // RoPENeoXYaRN: applies YaRN interpolation/extrapolation and magnitude scaling
@@ -1766,10 +1826,12 @@ func (b *Builder) RoPENeoXYaRN(
 	originalContext uint32,
 	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
 ) *Tensor {
-	return b.ropeYaRN(
-		OpRoPENeoX, "rope_neox", input, positions, rotaryDimensions, originalContext,
-		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
+		rotaryDimensions: rotaryDimensions, originalContext: originalContext,
+		frequencyBase: frequencyBase, frequencyScale: frequencyScale, yarn: true,
+		extFactor: extFactor, attentionFactor: attentionFactor, betaFast: betaFast, betaSlow: betaSlow,
+	})
 }
 
 func (b *Builder) RoPENeoXScaledWithFactors(
@@ -1780,10 +1842,11 @@ func (b *Builder) RoPENeoXScaledWithFactors(
 	frequencyScale float32,
 	frequencyFactors *Tensor,
 ) *Tensor {
-	return b.rope(
-		OpRoPENeoX, "rope_neox", input, positions,
-		rotaryDimensions, frequencyBase, frequencyScale, frequencyFactors,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
+		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
+		frequencyBase: frequencyBase, frequencyScale: frequencyScale,
+	})
 }
 
 // RoPENeoXWithFactors: applies one frequency divisor per rotary pair
@@ -1794,16 +1857,20 @@ func (b *Builder) RoPENeoXWithFactors(
 	frequencyBase float32,
 	frequencyFactors *Tensor,
 ) *Tensor {
-	return b.rope(
-		OpRoPENeoX, "rope_neox", input, positions,
-		rotaryDimensions, frequencyBase, 1, frequencyFactors,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
+		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
+		frequencyBase: frequencyBase, frequencyScale: 1,
+	})
 }
 
 // RoPENormal: applies rotary embeddings to consecutive channel pairs, as used
 // by Llama architecture family
 func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
-	return b.rope(OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, frequencyBase, 1, nil)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENormal, name: "rope_normal", positions: positions,
+		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: 1,
+	})
 }
 
 func (b *Builder) RoPENormalScaled(
@@ -1813,10 +1880,10 @@ func (b *Builder) RoPENormalScaled(
 	frequencyBase float32,
 	frequencyScale float32,
 ) *Tensor {
-	return b.rope(
-		OpRoPENormal, "rope_normal", input, positions,
-		rotaryDimensions, frequencyBase, frequencyScale, nil,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENormal, name: "rope_normal", positions: positions,
+		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: frequencyScale,
+	})
 }
 
 // RoPENormalYaRN: applies YaRN interpolation/extrapolation and magnitude
@@ -1828,10 +1895,12 @@ func (b *Builder) RoPENormalYaRN(
 	originalContext uint32,
 	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
 ) *Tensor {
-	return b.ropeYaRNWithFactors(
-		OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, originalContext,
-		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow, nil,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENormal, name: "rope_normal", positions: positions,
+		rotaryDimensions: rotaryDimensions, originalContext: originalContext,
+		frequencyBase: frequencyBase, frequencyScale: frequencyScale, yarn: true,
+		extFactor: extFactor, attentionFactor: attentionFactor, betaFast: betaFast, betaSlow: betaSlow,
+	})
 }
 
 // RoPENormalYaRNWithFactors: YaRN plus pair divisors.
@@ -1843,56 +1912,13 @@ func (b *Builder) RoPENormalYaRNWithFactors(
 	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
 	frequencyFactors *Tensor,
 ) *Tensor {
-	return b.ropeYaRNWithFactors(
-		OpRoPENormal, "rope_normal", input, positions, rotaryDimensions, originalContext,
-		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow,
-		frequencyFactors,
-	)
-}
-
-func (b *Builder) ropeYaRN(
-	operation Op,
-	name string,
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	originalContext uint32,
-	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
-) *Tensor {
-	return b.ropeYaRNWithFactors(
-		operation, name, input, positions, rotaryDimensions, originalContext,
-		frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow, nil,
-	)
-}
-
-func (b *Builder) ropeYaRNWithFactors(
-	operation Op,
-	name string,
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	originalContext uint32,
-	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
-	frequencyFactors *Tensor,
-) *Tensor {
-	if originalContext == 0 || attentionFactor <= 0 || betaFast <= 0 || betaSlow <= 0 || extFactor < 0 {
-		b.setError(errors.New("YaRN RoPE parameters are invalid"))
-		return nil
-	}
-	result := b.rope(
-		operation, name, input, positions, rotaryDimensions, frequencyBase, frequencyScale, frequencyFactors,
-	)
-	if result == nil {
-		return nil
-	}
-	attributes := result.Attrs.(RoPEAttributes)
-	attributes.OriginalContext = originalContext
-	attributes.ExtFactor = extFactor
-	attributes.AttentionFactor = attentionFactor
-	attributes.BetaFast = betaFast
-	attributes.BetaSlow = betaSlow
-	result.Attrs = attributes
-	return result
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENormal, name: "rope_normal", positions: positions,
+		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
+		originalContext: originalContext, frequencyBase: frequencyBase,
+		frequencyScale: frequencyScale, yarn: true, extFactor: extFactor,
+		attentionFactor: attentionFactor, betaFast: betaFast, betaSlow: betaSlow,
+	})
 }
 
 func (b *Builder) RoPENormalScaledWithFactors(
@@ -1903,10 +1929,11 @@ func (b *Builder) RoPENormalScaledWithFactors(
 	frequencyScale float32,
 	frequencyFactors *Tensor,
 ) *Tensor {
-	return b.rope(
-		OpRoPENormal, "rope_normal", input, positions,
-		rotaryDimensions, frequencyBase, frequencyScale, frequencyFactors,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENormal, name: "rope_normal", positions: positions,
+		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
+		frequencyBase: frequencyBase, frequencyScale: frequencyScale,
+	})
 }
 
 // RoPENormalWithFactors: applies one frequency divisor per rotary pair
@@ -1917,10 +1944,11 @@ func (b *Builder) RoPENormalWithFactors(
 	frequencyBase float32,
 	frequencyFactors *Tensor,
 ) *Tensor {
-	return b.rope(
-		OpRoPENormal, "rope_normal", input, positions,
-		rotaryDimensions, frequencyBase, 1, frequencyFactors,
-	)
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENormal, name: "rope_normal", positions: positions,
+		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
+		frequencyBase: frequencyBase, frequencyScale: 1,
+	})
 }
 
 // RoPEMulti: adjacent-pair multi-axis rotation; axes T/H/W/extra.
@@ -1986,67 +2014,77 @@ func (b *Builder) RoPEMultiScaled(
 	return b.add("", input.Type, input.Shape, OpRoPEMulti, []*Tensor{input}, attributes)
 }
 
-func (b *Builder) rope(
-	operation Op,
-	name string,
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyScale float32,
-	frequencyFactors *Tensor,
-) *Tensor {
+func (b *Builder) buildRoPE(input *Tensor, options ropeOptions) *Tensor {
 	if b.err != nil {
 		return nil
 	}
+	if options.yarn &&
+		(options.originalContext == 0 || options.attentionFactor <= 0 ||
+			options.betaFast <= 0 || options.betaSlow <= 0 || options.extFactor < 0) {
+		b.setError(errors.New("YaRN RoPE parameters are invalid"))
+		return nil
+	}
 	if input == nil {
-		b.setError(fmt.Errorf("%s input is nil", name))
+		b.setError(fmt.Errorf("%s input is nil", options.name))
 		return nil
 	}
 	if input.Shape.Rank < 3 {
-		b.setError(fmt.Errorf("%s input must have rank 3 or 4", name))
+		b.setError(fmt.Errorf("%s input must have rank 3 or 4", options.name))
 		return nil
 	}
-	if rotaryDimensions == 0 || rotaryDimensions%2 != 0 || uint64(rotaryDimensions) > input.Shape.Dims[0] {
-		b.setError(fmt.Errorf("%s rotary dimensions %d are invalid for head width %d", name, rotaryDimensions, input.Shape.Dims[0]))
+	if options.rotaryDimensions == 0 || options.rotaryDimensions%2 != 0 ||
+		uint64(options.rotaryDimensions) > input.Shape.Dims[0] {
+		b.setError(fmt.Errorf(
+			"%s rotary dimensions %d are invalid for head width %d",
+			options.name, options.rotaryDimensions, input.Shape.Dims[0],
+		))
 		return nil
 	}
-	if len(positions) != int(input.Shape.Dims[2]) {
-		b.setError(fmt.Errorf("%s has %d positions, need %d", name, len(positions), input.Shape.Dims[2]))
+	if len(options.positions) != int(input.Shape.Dims[2]) {
+		b.setError(fmt.Errorf(
+			"%s has %d positions, need %d", options.name, len(options.positions), input.Shape.Dims[2],
+		))
 		return nil
 	}
-	if frequencyBase <= 0 {
-		b.setError(fmt.Errorf("%s frequency base must be positive", name))
+	if options.frequencyBase <= 0 {
+		b.setError(fmt.Errorf("%s frequency base must be positive", options.name))
 		return nil
 	}
-	if frequencyScale <= 0 {
-		b.setError(fmt.Errorf("%s frequency scale must be positive", name))
+	if options.frequencyScale <= 0 {
+		b.setError(fmt.Errorf("%s frequency scale must be positive", options.name))
 		return nil
 	}
-	if frequencyFactors != nil {
-		if frequencyFactors.Type != dtype.F32 ||
-			frequencyFactors.Shape.Rank != 1 ||
-			frequencyFactors.Shape.Dims[0] != uint64(rotaryDimensions/2) {
+	if options.frequencyFactors != nil {
+		if options.frequencyFactors.Type != dtype.F32 ||
+			options.frequencyFactors.Shape.Rank != 1 ||
+			options.frequencyFactors.Shape.Dims[0] != uint64(options.rotaryDimensions/2) {
 			b.setError(fmt.Errorf(
 				"%s frequency factors must be F32 with shape [%d]",
-				name,
-				rotaryDimensions/2,
+				options.name,
+				options.rotaryDimensions/2,
 			))
 			return nil
 		}
 	}
 	attributes := RoPEAttributes{
-		Positions:        slices.Clone(positions),
-		RotaryDimensions: rotaryDimensions,
-		FrequencyBase:    frequencyBase,
-		FrequencyScale:   frequencyScale,
+		Positions:        slices.Clone(options.positions),
+		RotaryDimensions: options.rotaryDimensions,
+		FrequencyBase:    options.frequencyBase,
+		FrequencyScale:   options.frequencyScale,
 		AttentionFactor:  1,
 	}
-	inputs := []*Tensor{input}
-	if frequencyFactors != nil {
-		inputs = append(inputs, frequencyFactors)
+	if options.yarn {
+		attributes.OriginalContext = options.originalContext
+		attributes.ExtFactor = options.extFactor
+		attributes.AttentionFactor = options.attentionFactor
+		attributes.BetaFast = options.betaFast
+		attributes.BetaSlow = options.betaSlow
 	}
-	return b.add("", input.Type, input.Shape, operation, inputs, attributes)
+	inputs := []*Tensor{input}
+	if options.frequencyFactors != nil {
+		inputs = append(inputs, options.frequencyFactors)
+	}
+	return b.add("", input.Type, input.Shape, options.operation, inputs, attributes)
 }
 
 // Reshape: changes only logical dimensions and preserves contiguous order
@@ -2334,15 +2372,27 @@ func (b *Builder) IndexerScore(
 		IndexerScoreAttributes{Scale: scale, QueryStart: queryStart})
 }
 
-// AttentionWithOffset: permits query to represent only suffix beginning at
-// queryStart in longer cached key/value sequence
+type attentionOptions struct {
+	bias, sinks, blockIDs *Tensor
+	scale, softcap        float32
+	maxALiBiBias          float32
+	causal                bool
+	symmetricWindow       bool
+	relativeBidirectional bool
+	chunkedWindow         bool
+	queryStart, window    uint32
+}
+
+// AttentionWithOffset: query suffix at queryStart in cached key/value sequence.
 func (b *Builder) AttentionWithOffset(
 	query, key, value *Tensor,
 	scale float32,
 	causal bool,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, causal, false, queryStart, 0)
+	return b.buildAttention(query, key, value, attentionOptions{
+		scale: scale, causal: causal, queryStart: queryStart,
+	})
 }
 
 func (b *Builder) AttentionWithSinksWithOffset(
@@ -2351,7 +2401,9 @@ func (b *Builder) AttentionWithSinksWithOffset(
 	causal bool,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithWindow(query, key, value, nil, sinks, scale, 0, 0, causal, false, queryStart, 0)
+	return b.buildAttention(query, key, value, attentionOptions{
+		sinks: sinks, scale: scale, causal: causal, queryStart: queryStart,
+	})
 }
 
 // AttentionALiBiWithOffset: applies llama.cpp-compatible head slopes to
@@ -2362,9 +2414,9 @@ func (b *Builder) AttentionALiBiWithOffset(
 	causal bool,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithWindow(
-		query, key, value, nil, nil, scale, 0, maxBias, causal, false, queryStart, 0,
-	)
+	return b.buildAttention(query, key, value, attentionOptions{
+		scale: scale, maxALiBiBias: maxBias, causal: causal, queryStart: queryStart,
+	})
 }
 
 // AttentionSoftcappedWithOffset: applies cap*tanh(score/cap) before softmax
@@ -2375,9 +2427,9 @@ func (b *Builder) AttentionSoftcappedWithOffset(
 	causal bool,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithWindow(
-		query, key, value, nil, nil, scale, softcap, 0, causal, false, queryStart, 0,
-	)
+	return b.buildAttention(query, key, value, attentionOptions{
+		scale: scale, softcap: softcap, causal: causal, queryStart: queryStart,
+	})
 }
 
 // AttentionWithRelativeBias: computes full bidirectional attention and adds
@@ -2386,7 +2438,9 @@ func (b *Builder) AttentionWithRelativeBias(
 	query, key, value, bias *Tensor,
 	scale float32,
 ) *Tensor {
-	return b.attentionWithRelativeBias(query, key, value, bias, scale, false, 0, true)
+	return b.buildAttention(query, key, value, attentionOptions{
+		bias: bias, scale: scale, relativeBidirectional: true,
+	})
 }
 
 // AttentionWithRelativeBiasAndOffset: causal T5 decoder attention.
@@ -2395,23 +2449,9 @@ func (b *Builder) AttentionWithRelativeBiasAndOffset(
 	scale float32,
 	queryStart uint32,
 ) *Tensor {
-	return b.attentionWithRelativeBias(query, key, value, bias, scale, true, queryStart, false)
-}
-
-func (b *Builder) attentionWithRelativeBias(
-	query, key, value, bias *Tensor,
-	scale float32,
-	causal bool,
-	queryStart uint32,
-	bidirectional bool,
-) *Tensor {
-	result := b.attentionWithWindow(query, key, value, bias, nil, scale, 0, 0, causal, false, queryStart, 0)
-	if result != nil {
-		attributes := result.Attrs.(AttentionAttributes)
-		attributes.RelativeBidirectional = bidirectional
-		result.Attrs = attributes
-	}
-	return result
+	return b.buildAttention(query, key, value, attentionOptions{
+		bias: bias, scale: scale, causal: true, queryStart: queryStart,
+	})
 }
 
 func (b *Builder) AttentionWindowWithOffset(
@@ -2425,7 +2465,9 @@ func (b *Builder) AttentionWindowWithOffset(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, causal, false, queryStart, window)
+	return b.buildAttention(query, key, value, attentionOptions{
+		scale: scale, causal: causal, queryStart: queryStart, window: window,
+	})
 }
 
 // AttentionWindowWithBlockMaskWithOffset: causal window plus bidirectional
@@ -2440,22 +2482,9 @@ func (b *Builder) AttentionWindowWithBlockMaskWithOffset(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	result := b.attentionWithWindow(
-		query, key, value, nil, nil, scale, 0, 0, true, false, queryStart, window,
-	)
-	if result == nil {
-		return nil
-	}
-	if blockIDs == nil || blockIDs.Type != query.Type || blockIDs.Shape.Rank != 1 ||
-		blockIDs.Shape.Dims[0] != key.Shape.Dims[2] {
-		b.setError(errors.New("attention block IDs must have shape [key tokens] and match input type"))
-		return nil
-	}
-	result.Inputs = append(result.Inputs, blockIDs)
-	attributes := result.Attrs.(AttentionAttributes)
-	attributes.HasBlockMask = true
-	result.Attrs = attributes
-	return result
+	return b.buildAttention(query, key, value, attentionOptions{
+		blockIDs: blockIDs, scale: scale, causal: true, queryStart: queryStart, window: window,
+	})
 }
 
 func (b *Builder) AttentionWindowWithSinksWithOffset(
@@ -2469,7 +2498,9 @@ func (b *Builder) AttentionWindowWithSinksWithOffset(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, sinks, scale, 0, 0, causal, false, queryStart, window)
+	return b.buildAttention(query, key, value, attentionOptions{
+		sinks: sinks, scale: scale, causal: causal, queryStart: queryStart, window: window,
+	})
 }
 
 func (b *Builder) AttentionChunkedWindowWithOffset(
@@ -2483,15 +2514,9 @@ func (b *Builder) AttentionChunkedWindowWithOffset(
 		b.setError(errors.New("attention chunk must be positive"))
 		return nil
 	}
-	result := b.attentionWithWindow(
-		query, key, value, nil, nil, scale, 0, 0, causal, false, queryStart, window,
-	)
-	if result != nil {
-		attributes := result.Attrs.(AttentionAttributes)
-		attributes.ChunkedWindow = true
-		result.Attrs = attributes
-	}
-	return result
+	return b.buildAttention(query, key, value, attentionOptions{
+		scale: scale, causal: causal, chunkedWindow: true, queryStart: queryStart, window: window,
+	})
 }
 
 func (b *Builder) AttentionWindowSoftcappedWithOffset(
@@ -2506,9 +2531,9 @@ func (b *Builder) AttentionWindowSoftcappedWithOffset(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(
-		query, key, value, nil, nil, scale, softcap, 0, causal, false, queryStart, window,
-	)
+	return b.buildAttention(query, key, value, attentionOptions{
+		scale: scale, softcap: softcap, causal: causal, queryStart: queryStart, window: window,
+	})
 }
 
 func (b *Builder) AttentionSymmetricWindow(
@@ -2520,7 +2545,9 @@ func (b *Builder) AttentionSymmetricWindow(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, nil, scale, 0, 0, false, true, 0, window)
+	return b.buildAttention(query, key, value, attentionOptions{
+		scale: scale, symmetricWindow: true, window: window,
+	})
 }
 
 func (b *Builder) AttentionSymmetricWindowWithSinks(
@@ -2532,18 +2559,14 @@ func (b *Builder) AttentionSymmetricWindowWithSinks(
 		b.setError(errors.New("attention window must be positive"))
 		return nil
 	}
-	return b.attentionWithWindow(query, key, value, nil, sinks, scale, 0, 0, false, true, 0, window)
+	return b.buildAttention(query, key, value, attentionOptions{
+		sinks: sinks, scale: scale, symmetricWindow: true, window: window,
+	})
 }
 
-func (b *Builder) attentionWithWindow(
-	query, key, value, bias, sinks *Tensor,
-	scale float32,
-	softcap float32,
-	maxALiBiBias float32,
-	causal bool,
-	symmetricWindow bool,
-	queryStart uint32,
-	window uint32,
+func (b *Builder) buildAttention(
+	query, key, value *Tensor,
+	options attentionOptions,
 ) *Tensor {
 	if b.err != nil {
 		return nil
@@ -2572,13 +2595,14 @@ func (b *Builder) attentionWithWindow(
 		b.setError(errors.New("attention key/value token counts differ"))
 		return nil
 	}
-	queryRangeExceeds := uint64(queryStart) > key.Shape.Dims[2] ||
-		uint64(queryStart) <= key.Shape.Dims[2] && query.Shape.Dims[2] > key.Shape.Dims[2]-uint64(queryStart)
-	if queryRangeExceeds && (causal || queryStart != 0) {
+	queryRangeExceeds := uint64(options.queryStart) > key.Shape.Dims[2] ||
+		uint64(options.queryStart) <= key.Shape.Dims[2] &&
+			query.Shape.Dims[2] > key.Shape.Dims[2]-uint64(options.queryStart)
+	if queryRangeExceeds && (options.causal || options.queryStart != 0) {
 		b.setError(fmt.Errorf(
 			"attention query range [%d,%d) exceeds key/value token count %d",
-			queryStart,
-			uint64(queryStart)+query.Shape.Dims[2],
+			options.queryStart,
+			uint64(options.queryStart)+query.Shape.Dims[2],
 			key.Shape.Dims[2],
 		))
 		return nil
@@ -2587,53 +2611,64 @@ func (b *Builder) attentionWithWindow(
 		b.setError(errors.New("attention query head count is not divisible by KV head count"))
 		return nil
 	}
-	if scale <= 0 {
+	if options.scale <= 0 {
 		b.setError(errors.New("attention scale must be positive"))
 		return nil
 	}
-	if softcap < 0 || math.IsNaN(float64(softcap)) ||
-		math.IsInf(float64(softcap), 0) {
+	if options.softcap < 0 || math.IsNaN(float64(options.softcap)) ||
+		math.IsInf(float64(options.softcap), 0) {
 		b.setError(errors.New("attention softcap must be finite and non-negative"))
 		return nil
 	}
-	if maxALiBiBias < 0 || math.IsNaN(float64(maxALiBiBias)) ||
-		math.IsInf(float64(maxALiBiBias), 0) {
+	if options.maxALiBiBias < 0 || math.IsNaN(float64(options.maxALiBiBias)) ||
+		math.IsInf(float64(options.maxALiBiBias), 0) {
 		b.setError(errors.New("attention ALiBi bias must be finite and non-negative"))
 		return nil
 	}
-	if symmetricWindow && (causal || queryStart != 0 || query.Shape.Dims[2] != key.Shape.Dims[2]) {
+	if options.symmetricWindow &&
+		(options.causal || options.queryStart != 0 || query.Shape.Dims[2] != key.Shape.Dims[2]) {
 		b.setError(errors.New("symmetric-window attention requires a full bidirectional sequence"))
 		return nil
 	}
 	var relativeBuckets uint32
-	if bias != nil {
-		if maxALiBiBias > 0 {
+	if options.bias != nil {
+		if options.maxALiBiBias > 0 {
 			b.setError(errors.New("attention cannot combine learned relative bias and ALiBi"))
 			return nil
 		}
-		if window != 0 {
+		if options.window != 0 {
 			b.setError(errors.New("relative-bias attention cannot use a window"))
 			return nil
 		}
-		if bias.Type != query.Type || bias.Shape.Rank != 2 ||
-			bias.Shape.Dims[0] != query.Shape.Dims[1] ||
-			bias.Shape.Dims[1] < 4 || bias.Shape.Dims[1]%2 != 0 ||
-			bias.Shape.Dims[1] > math.MaxUint32 {
+		if options.bias.Type != query.Type || options.bias.Shape.Rank != 2 ||
+			options.bias.Shape.Dims[0] != query.Shape.Dims[1] ||
+			options.bias.Shape.Dims[1] < 4 || options.bias.Shape.Dims[1]%2 != 0 ||
+			options.bias.Shape.Dims[1] > math.MaxUint32 {
 			b.setError(errors.New("attention relative bias must have shape [query heads, even buckets >= 4]"))
 			return nil
 		}
-		relativeBuckets = uint32(bias.Shape.Dims[1])
+		relativeBuckets = uint32(options.bias.Shape.Dims[1])
 	}
-	if sinks != nil {
-		if bias != nil {
+	if options.relativeBidirectional && options.bias == nil {
+		b.setError(errors.New("bidirectional relative attention requires learned bias"))
+		return nil
+	}
+	if options.sinks != nil {
+		if options.bias != nil {
 			b.setError(errors.New("attention cannot combine learned relative bias and sinks"))
 			return nil
 		}
-		if sinks.Type != query.Type || sinks.Shape.Rank != 1 ||
-			sinks.Shape.Dims[0] != query.Shape.Dims[1] {
+		if options.sinks.Type != query.Type || options.sinks.Shape.Rank != 1 ||
+			options.sinks.Shape.Dims[0] != query.Shape.Dims[1] {
 			b.setError(errors.New("attention sinks must have shape [query heads]"))
 			return nil
 		}
+	}
+	if options.blockIDs != nil &&
+		(options.blockIDs.Type != query.Type || options.blockIDs.Shape.Rank != 1 ||
+			options.blockIDs.Shape.Dims[0] != key.Shape.Dims[2]) {
+		b.setError(errors.New("attention block IDs must have shape [key tokens] and match input type"))
+		return nil
 	}
 	shape, err := NewShape(value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2])
 	if err != nil {
@@ -2641,10 +2676,13 @@ func (b *Builder) attentionWithWindow(
 		return nil
 	}
 	inputs := []*Tensor{query, key, value}
-	if bias != nil {
-		inputs = append(inputs, bias)
-	} else if sinks != nil {
-		inputs = append(inputs, sinks)
+	if options.bias != nil {
+		inputs = append(inputs, options.bias)
+	} else if options.sinks != nil {
+		inputs = append(inputs, options.sinks)
+	}
+	if options.blockIDs != nil {
+		inputs = append(inputs, options.blockIDs)
 	}
 	return b.add(
 		"",
@@ -2653,11 +2691,16 @@ func (b *Builder) attentionWithWindow(
 		OpAttention,
 		inputs,
 		AttentionAttributes{
-			Scale: scale, Softcap: softcap, MaxALiBiBias: maxALiBiBias, Causal: causal,
-			HasSinks:        sinks != nil,
-			SymmetricWindow: symmetricWindow,
-			QueryStart:      queryStart, Window: window,
-			RelativeBuckets: relativeBuckets,
+			Scale: options.scale, Softcap: options.softcap, MaxALiBiBias: options.maxALiBiBias,
+			Causal:                options.causal,
+			HasSinks:              options.sinks != nil,
+			HasBlockMask:          options.blockIDs != nil,
+			SymmetricWindow:       options.symmetricWindow,
+			ChunkedWindow:         options.chunkedWindow,
+			QueryStart:            options.queryStart,
+			Window:                options.window,
+			RelativeBuckets:       relativeBuckets,
+			RelativeBidirectional: options.relativeBidirectional,
 		},
 	)
 }

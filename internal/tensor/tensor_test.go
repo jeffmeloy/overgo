@@ -83,6 +83,19 @@ func TestBuilderAttentionSinks(t *testing.T) {
 	}
 }
 
+func TestBuilderAttentionOptionsRejectBidirectionalModeWithoutBias(t *testing.T) {
+	builder := NewBuilder()
+	query := builder.Input("query", dtype.F32, MustShape(2, 1, 1))
+	key := builder.Input("key", dtype.F32, MustShape(2, 1, 1))
+	value := builder.Input("value", dtype.F32, MustShape(2, 1, 1))
+	builder.buildAttention(query, key, value, attentionOptions{
+		scale: 1, relativeBidirectional: true,
+	})
+	if err := builder.Err(); err == nil || !strings.Contains(err.Error(), "requires learned bias") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestBuilderBroadcastWeightedNormAndSwiGLU(t *testing.T) {
 	builder := NewBuilder()
 	activation := builder.Input("activation", dtype.F32, MustShape(4, 3))

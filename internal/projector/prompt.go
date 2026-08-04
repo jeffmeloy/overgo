@@ -684,37 +684,25 @@ func (r *Qwen2VLRunner) BuildVideoPrompt(
 		return MultimodalPrompt{}, err
 	}
 	count := int(output.Embeddings.Shape.Dims[1])
-	var prompt strings.Builder
-	prompt.WriteString("<|im_start|>user\n")
-	prompt.WriteString(beforeVideo)
-	prompt.WriteString("<|vision_start|>")
-	prompt.WriteString(strings.Repeat(Qwen3VLVideoPad, count))
-	prompt.WriteString("<|vision_end|>")
-	prompt.WriteString(afterVideo)
-	prompt.WriteString("<|im_end|>\n<|im_start|>assistant\n")
-	ids, err := tokenizer.TokenizeText(prompt.String(), false, true)
+	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
+		Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
+			strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
+			"<|im_end|>\n<|im_start|>assistant\n",
+		Placeholder: Qwen3VLVideoPad, Runs: 1, TokensPerRun: count,
+		PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
+	})
 	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Qwen2-VL video prompt: %w", err)
+		return MultimodalPrompt{}, err
 	}
-	padIDs, err := tokenizer.TokenizeText(Qwen3VLVideoPad, false, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize video placeholder: %w", err)
-	}
-	if len(padIDs) != 1 {
-		return MultimodalPrompt{}, fmt.Errorf("projector: video placeholder maps to %d tokens", len(padIDs))
-	}
-	start, err := contiguousTokenRun(ids, padIDs[0], count)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: Qwen2-VL video prompt: %w", err)
-	}
+	start := runs.Starts[0]
 	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
-	positions, err := Qwen2VLVideoPositions(len(ids), start, output.GridT, rows, columns)
+	positions, err := Qwen2VLVideoPositions(len(runs.TokenIDs), start, output.GridT, rows, columns)
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
 	return MultimodalPrompt{
-		TokenIDs: ids, Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
-		EmbeddingStart: start, EmbeddingTokenIndices: sequentialTokenIndices(start, count),
+		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
+		EmbeddingStart: start, EmbeddingTokenIndices: runs.Indices,
 		MultiAxisPositions: positions,
 	}, nil
 }
@@ -929,26 +917,19 @@ func (r *Gemma4Runner) BuildAudioPrompt(
 		return MultimodalPrompt{}, err
 	}
 	audioTokens := int(output.Embeddings.Shape.Dims[1])
-	text := Gemma4AudioPromptText(afterAudio, audioTokens)
-	ids, err := tokenizer.TokenizeText(text, false, true)
+	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
+		Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
+		Runs: 1, TokensPerRun: audioTokens,
+		PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
+	})
 	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 audio prompt: %w", err)
+		return MultimodalPrompt{}, err
 	}
-	padIDs, err := tokenizer.TokenizeText("<|audio|>", false, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 audio placeholder: %w", err)
-	}
-	if len(padIDs) != 1 {
-		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 audio placeholder maps to %d tokens", len(padIDs))
-	}
-	audioStart, err := contiguousTokenRun(ids, padIDs[0], audioTokens)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 audio prompt: %w", err)
-	}
+	audioStart := runs.Starts[0]
 	return MultimodalPrompt{
-		TokenIDs: ids, Embeddings: output.Embeddings.Data,
+		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data,
 		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: audioStart,
-		EmbeddingTokenIndices: sequentialTokenIndices(audioStart, audioTokens),
+		EmbeddingTokenIndices: runs.Indices,
 	}, nil
 }
 
@@ -979,34 +960,18 @@ func (r *Gemma4Runner) BuildVideoPrompt(
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
-	text := Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps)
-	ids, err := tokenizer.TokenizeText(text, false, true)
+	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
+		Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
+		Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
+		PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
+	})
 	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 video prompt: %w", err)
-	}
-	padIDs, err := tokenizer.TokenizeText("<|video|>", false, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 4 video placeholder: %w", err)
-	}
-	if len(padIDs) != 1 {
-		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 video placeholder maps to %d tokens", len(padIDs))
-	}
-	starts, err := contiguousTokenRuns(ids, padIDs[0], output.TokensPerFrame, output.Frames)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 video prompt: %w", err)
-	}
-	indices := make([]uint32, 0, output.Frames*output.TokensPerFrame)
-	blocks := make([]AttentionBlock, len(starts))
-	for index, start := range starts {
-		indices = append(indices, sequentialTokenIndices(start, output.TokensPerFrame)...)
-		blocks[index] = AttentionBlock{
-			Start: uint32(start), End: uint32(start + output.TokensPerFrame),
-		}
+		return MultimodalPrompt{}, err
 	}
 	return MultimodalPrompt{
-		TokenIDs: ids, Embeddings: output.Embeddings.Data,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: starts[0],
-		EmbeddingTokenIndices: indices, AttentionBlocks: blocks,
+		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data,
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: runs.Starts[0],
+		EmbeddingTokenIndices: runs.Indices, AttentionBlocks: mediaPromptAttentionBlocks(runs.Starts, output.TokensPerFrame),
 	}, nil
 }
 
@@ -1098,61 +1063,27 @@ func (r *Qwen3VLRunner) BuildQwen35VideoPrompt(
 	}
 	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
 	perGroup := rows * columns
-	text := Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking)
-	ids, err := tokenizer.TokenizeText(text, false, true)
-	if err != nil {
-		return Qwen3VLPrompt{}, fmt.Errorf("projector: tokenize video prompt: %w", err)
-	}
-	padIDs, err := tokenizer.TokenizeText(Qwen3VLVideoPad, false, true)
-	if err != nil {
-		return Qwen3VLPrompt{}, fmt.Errorf("projector: tokenize video placeholder: %w", err)
-	}
-	if len(padIDs) != 1 {
-		return Qwen3VLPrompt{}, fmt.Errorf("projector: video placeholder maps to %d tokens", len(padIDs))
-	}
-	starts, err := contiguousTokenRuns(ids, padIDs[0], perGroup, output.GridT)
-	if err != nil {
-		return Qwen3VLPrompt{}, fmt.Errorf("projector: video prompt: %w", err)
-	}
-	positions, err := Qwen3VLMultiChunkPositions(len(ids), starts, perGroup, rows, columns)
+	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
+		Prompt:      Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking),
+		Placeholder: Qwen3VLVideoPad, Runs: output.GridT, TokensPerRun: perGroup,
+		PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
+	})
 	if err != nil {
 		return Qwen3VLPrompt{}, err
 	}
-	indices := make([]uint32, 0, output.GridT*perGroup)
-	for _, start := range starts {
-		indices = append(indices, sequentialTokenIndices(start, perGroup)...)
+	positions, err := Qwen3VLMultiChunkPositions(len(runs.TokenIDs), runs.Starts, perGroup, rows, columns)
+	if err != nil {
+		return Qwen3VLPrompt{}, err
 	}
-	var deepstack [][]float32
-	if err := appendQwen3VLDeepstack(&deepstack, output); err != nil {
+	item, err := qwenImagePromptItem(output)
+	if err != nil {
 		return Qwen3VLPrompt{}, err
 	}
 	return Qwen3VLPrompt{
-		TokenIDs: ids, Embeddings: output.Embeddings.Data, DeepstackEmbeddings: deepstack,
+		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data, DeepstackEmbeddings: item.Deepstack,
 		EmbeddingWidth:        int(output.Embeddings.Shape.Dims[0]),
-		EmbeddingTokenIndices: indices, MultiAxisPositions: positions,
+		EmbeddingTokenIndices: runs.Indices, MultiAxisPositions: positions,
 	}, nil
-}
-
-func appendQwen3VLDeepstack(target *[][]float32, output Qwen3VLOutput) error {
-	if len(output.DeepstackEmbeddings) == 0 {
-		if len(*target) != 0 {
-			return errors.New("deepstack stream count changed")
-		}
-		return nil
-	}
-	if len(*target) == 0 {
-		*target = make([][]float32, len(output.DeepstackEmbeddings))
-	}
-	if len(*target) != len(output.DeepstackEmbeddings) {
-		return fmt.Errorf("deepstack streams = %d, want %d", len(output.DeepstackEmbeddings), len(*target))
-	}
-	for index, stream := range output.DeepstackEmbeddings {
-		if !stream.Shape.Equal(output.Embeddings.Shape) {
-			return fmt.Errorf("deepstack stream %d shape differs from base embeddings", index)
-		}
-		(*target)[index] = append((*target)[index], stream.Data...)
-	}
-	return nil
 }
 
 func (r *Qwen3VLRunner) BuildVideoPrompt(
@@ -1199,39 +1130,6 @@ func Qwen35VideoPromptText(beforeVideo, afterVideo string, groups, tokensPerGrou
 		prompt.WriteString("\n</think>\n\n")
 	}
 	return prompt.String()
-}
-
-func contiguousTokenRun(ids []tokenizer.TokenID, token tokenizer.TokenID, count int) (int, error) {
-	starts, err := contiguousTokenRuns(ids, token, count, 1)
-	if err != nil {
-		return 0, err
-	}
-	return starts[0], nil
-}
-
-func contiguousTokenRuns(ids []tokenizer.TokenID, token tokenizer.TokenID, count, runs int) ([]int, error) {
-	if count <= 0 {
-		return nil, errors.New("media token count is not positive")
-	}
-	found := make([]int, 0, runs)
-	for start := 0; start+count <= len(ids); start++ {
-		if ids[start] != token {
-			continue
-		}
-		end := start
-		for end < len(ids) && ids[end] == token {
-			end++
-		}
-		if end-start != count {
-			return nil, fmt.Errorf("placeholder run has %d tokens, want %d", end-start, count)
-		}
-		found = append(found, start)
-		start = end - 1
-	}
-	if len(found) != runs {
-		return nil, fmt.Errorf("placeholder runs = %d, want %d", len(found), runs)
-	}
-	return found, nil
 }
 
 func variableTokenRuns(ids []tokenizer.TokenID, token tokenizer.TokenID, counts []int) ([]int, error) {

@@ -84,10 +84,7 @@ func (r *Runner) newMultiHeadMTPSession(
 	if len(tokenIDs) > 1 {
 		copy(shifted.Data[width:], hidden.Data[:len(hidden.Data)-width])
 	}
-	positions := make([]uint32, len(tokenIDs))
-	for index := range positions {
-		positions[index] = uint32(index)
-	}
+	positions := tokenPositions(0, len(tokenIDs))
 	heads := make([]LayerCache, len(r.multiHeadMTPWeights()))
 	for offset := range heads {
 		_, _, headCache, runErr := r.runMultiHeadMTPHeadLocked(
@@ -170,10 +167,7 @@ func (r *Runner) advanceMultiHeadMTP(
 	for index, row := range session.DraftHidden {
 		copy(hidden.Data[(index+1)*width:], row.Data)
 	}
-	positions := make([]uint32, len(tokens))
-	for index := range positions {
-		positions[index] = session.MTPStart + uint32(index)
-	}
+	positions := tokenPositions(session.MTPStart, len(tokens))
 	logits, nextHidden, headCache, err := r.runMultiHeadMTPHeadLocked(
 		ctx, tokens, hidden, positions, &session.Heads[offset], uint32(offset),
 	)
@@ -218,12 +212,9 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if offset >= uint32(len(mtpWeights)) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
 		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: Step3.5 MTP head inputs are invalid")
 	}
-	rows := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, reference.Value{}, LayerCache{}, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	mtp := mtpWeights[offset]
 	embeddingInfo := r.weights.TokenEmbedding

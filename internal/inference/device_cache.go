@@ -547,15 +547,11 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if uint64(nextPosition)+uint64(len(tokenIDs)) > math.MaxUint32 {
 		return fail(errors.New("absolute token position exceeds uint32"))
 	}
-	rows := make([]uint32, len(tokenIDs))
-	positions := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return fail(fmt.Errorf("token ID %d is out of range", id))
-		}
-		rows[index] = uint32(id)
-		positions[index] = nextPosition + uint32(index)
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return fail(err)
 	}
+	positions := tokenPositions(nextPosition, len(tokenIDs))
 	prefix := fmt.Sprintf("seq.%d.", branch)
 	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
 	if err != nil {

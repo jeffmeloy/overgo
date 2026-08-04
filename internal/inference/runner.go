@@ -768,15 +768,11 @@ func (r *Runner) forwardNonCausalLocked(
 			len(tokenIDs), r.spec.ContextLength,
 		)
 	}
-	rows := make([]uint32, len(tokenIDs))
-	positions := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
-		positions[index] = uint32(index)
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return reference.Value{}, err
 	}
+	positions := tokenPositions(0, len(tokenIDs))
 	activation, err := r.loadEmbeddings(ctx, rows)
 	if err != nil {
 		return reference.Value{}, err
@@ -836,12 +832,9 @@ func (r *Runner) forwardWavTokenizerLocked(
 			len(tokenIDs), r.spec.ContextLength,
 		)
 	}
-	rows := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return reference.Value{}, err
 	}
 	embeddings, err := r.loadEmbeddings(ctx, rows)
 	if err != nil {
@@ -938,12 +931,9 @@ func (r *Runner) forwardT5EncoderLocked(
 			r.spec.ContextLength,
 		)
 	}
-	rows := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return reference.Value{}, err
 	}
 	activation, err := r.loadEmbeddings(ctx, rows)
 	if err != nil {
@@ -1032,12 +1022,9 @@ func (r *Runner) decodeT5Locked(
 	if uint64(pastTokens)+uint64(len(decoderIDs)) > uint64(r.spec.ContextLength) {
 		return reference.Value{}, nil, errors.New("inference: T5 decoder sequence exceeds context length")
 	}
-	rows := make([]uint32, len(decoderIDs))
-	for index, id := range decoderIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
+	rows, err := r.tokenRows(decoderIDs)
+	if err != nil {
+		return reference.Value{}, nil, err
 	}
 	activation, err := r.loadEmbeddings(ctx, rows)
 	if err != nil {
@@ -1327,15 +1314,11 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 			"inference: absolute token position exceeds uint32",
 		)
 	}
-	rows := make([]uint32, len(tokenIDs))
-	positions := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
-		positions[index] = nextPosition + uint32(index)
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return reference.Value{}, nil, err
 	}
+	positions := tokenPositions(nextPosition, len(tokenIDs))
 	if multiPositions != nil {
 		positions = append(positions[:0], (*multiPositions)[0]...)
 	}

@@ -252,6 +252,12 @@ type toolDeltaStream struct {
 	started   bool
 }
 
+type toolDeltaSink struct {
+	Reasoning func(string) error
+	Content   func(string) error
+	Tool      func(inference.ChatToolCallDelta) error
+}
+
 func (h *Handler) requireChatFormatter(
 	response http.ResponseWriter,
 ) (ChatFormatter, bool) {
@@ -354,6 +360,35 @@ func (s *toolDeltaStream) accept(piece string) ([]inference.ChatToolCallDelta, e
 		}
 	}
 	return deltas, nil
+}
+
+func (s *toolDeltaStream) route(piece string, sink toolDeltaSink) error {
+	deltas, err := s.accept(piece)
+	if err != nil {
+		return err
+	}
+	for _, delta := range deltas {
+		if delta.ReasoningContent != "" && sink.Reasoning != nil {
+			if err := sink.Reasoning(delta.ReasoningContent); err != nil {
+				return err
+			}
+		}
+		if delta.Content != "" && sink.Content != nil {
+			if err := sink.Content(delta.Content); err != nil {
+				return err
+			}
+		}
+		if sink.Tool != nil {
+			if err := sink.Tool(delta); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *toolDeltaStream) parse(parser ChatOutputParser, tools []inference.ChatTool) (inference.ChatMessage, error) {
+	return parser.ParseChatOutput(s.text(), tools)
 }
 
 func (s *toolDeltaStream) text() string {

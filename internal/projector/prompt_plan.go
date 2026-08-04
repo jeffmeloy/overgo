@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"image"
 	"strings"
+
+	"llamacpp2go/internal/tokenizer"
 )
 
 type imagePromptItem struct {
@@ -31,6 +33,54 @@ type imagePromptPlan struct {
 }
 
 type imagePromptEncoder func(context.Context, image.Image) (imagePromptItem, error)
+
+type mediaPromptRunPlan struct {
+	Prompt           string
+	History          bool
+	Placeholder      string
+	Runs             int
+	TokensPerRun     int
+	PromptLabel      string
+	PlaceholderLabel string
+	RunsLabel        string
+}
+
+type mediaPromptRuns struct {
+	TokenIDs []tokenizer.TokenID
+	Starts   []int
+	Indices  []uint32
+}
+
+func compileMediaPromptRuns(tokenizer ImageTokenizer, plan mediaPromptRunPlan) (mediaPromptRuns, error) {
+	if tokenizer == nil {
+		return mediaPromptRuns{}, errors.New("projector: tokenizer is nil")
+	}
+	if plan.Runs <= 0 || plan.TokensPerRun <= 0 {
+		return mediaPromptRuns{}, errors.New("projector: media prompt run plan is invalid")
+	}
+	counts := make([]int, plan.Runs)
+	for index := range counts {
+		counts[index] = plan.TokensPerRun
+	}
+	ids, starts, err := tokenizePromptRuns(
+		tokenizer, plan.Prompt, plan.History, plan.Placeholder, counts,
+		plan.PromptLabel, plan.PlaceholderLabel, plan.RunsLabel,
+	)
+	if err != nil {
+		return mediaPromptRuns{}, err
+	}
+	return mediaPromptRuns{
+		TokenIDs: ids, Starts: starts, Indices: embeddingTokenIndices(starts, counts, 0),
+	}, nil
+}
+
+func mediaPromptAttentionBlocks(starts []int, tokensPerRun int) []AttentionBlock {
+	blocks := make([]AttentionBlock, len(starts))
+	for index, start := range starts {
+		blocks[index] = AttentionBlock{Start: uint32(start), End: uint32(start + tokensPerRun)}
+	}
+	return blocks
+}
 
 func executeImagePromptPlan(
 	ctx context.Context,

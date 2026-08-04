@@ -4,8 +4,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"llamacpp2go/internal/tokenizer"
 )
 
 func TestQwen35ImagePromptText(t *testing.T) {
@@ -32,14 +30,18 @@ func TestQwen35VideoPromptText(t *testing.T) {
 	}
 }
 
-func TestContiguousTokenRun(t *testing.T) {
-	ids := []tokenizer.TokenID{1, 7, 7, 7, 2}
-	start, err := contiguousTokenRun(ids, 7, 3)
-	if err != nil || start != 1 {
-		t.Fatalf("run = %d, %v", start, err)
+func TestCompileMediaPromptRuns(t *testing.T) {
+	runs, err := compileMediaPromptRuns(gemma4PromptTokenizer{}, mediaPromptRunPlan{
+		Prompt: "a<|video|><|video|>b<|video|><|video|>", Placeholder: "<|video|>",
+		Runs: 2, TokensPerRun: 2, PromptLabel: "video prompt",
+		PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := contiguousTokenRun(ids, 7, 2); err == nil {
-		t.Fatal("short placeholder count accepted")
+	if !slices.Equal(runs.Starts, []int{1, 4}) ||
+		!slices.Equal(runs.Indices, []uint32{1, 2, 4, 5}) {
+		t.Fatalf("media runs = starts %v indices %v", runs.Starts, runs.Indices)
 	}
 }
 

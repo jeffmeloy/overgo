@@ -344,59 +344,53 @@ func (h *Handler) streamResponses(
 		})
 	}
 	emitToolPiece := func(piece string) error {
-		deltas, streamErr := toolStream.accept(piece)
-		if streamErr != nil {
-			return streamErr
-		}
 		idSuffix := strings.TrimPrefix(responseID, "resp_")
-		for _, delta := range deltas {
-			if delta.Content != "" {
-				if streamErr := emitText(delta.Content); streamErr != nil {
-					return streamErr
+		return toolStream.route(piece, toolDeltaSink{
+			Content: emitText,
+			Tool: func(delta inference.ChatToolCallDelta) error {
+				outputIndex := delta.Index
+				if textStarted {
+					outputIndex++
 				}
-			}
-			outputIndex := delta.Index
-			if textStarted {
-				outputIndex++
-			}
-			itemID := fmt.Sprintf("fc_%s_%d", idSuffix, delta.Index)
-			callID := fmt.Sprintf("call_%s_%d", idSuffix, delta.Index)
-			if delta.Started {
-				if streamErr := writeEvent(
-					"response.output_item.added",
-					map[string]any{
-						"type":         "response.output_item.added",
-						"response_id":  responseID,
-						"output_index": outputIndex,
-						"item": responseOutputItem{
-							Arguments: "",
-							CallID:    callID,
-							ID:        itemID,
-							Name:      delta.Name,
-							Status:    "in_progress",
-							Type:      "function_call",
+				itemID := fmt.Sprintf("fc_%s_%d", idSuffix, delta.Index)
+				callID := fmt.Sprintf("call_%s_%d", idSuffix, delta.Index)
+				if delta.Started {
+					if err := writeEvent(
+						"response.output_item.added",
+						map[string]any{
+							"type":         "response.output_item.added",
+							"response_id":  responseID,
+							"output_index": outputIndex,
+							"item": responseOutputItem{
+								Arguments: "",
+								CallID:    callID,
+								ID:        itemID,
+								Name:      delta.Name,
+								Status:    "in_progress",
+								Type:      "function_call",
+							},
 						},
-					},
-				); streamErr != nil {
-					return streamErr
+					); err != nil {
+						return err
+					}
 				}
-			}
-			if delta.Arguments != "" {
-				if streamErr := writeEvent(
-					"response.function_call_arguments.delta",
-					map[string]any{
-						"type":         "response.function_call_arguments.delta",
-						"response_id":  responseID,
-						"item_id":      itemID,
-						"output_index": outputIndex,
-						"delta":        delta.Arguments,
-					},
-				); streamErr != nil {
-					return streamErr
+				if delta.Arguments != "" {
+					if err := writeEvent(
+						"response.function_call_arguments.delta",
+						map[string]any{
+							"type":         "response.function_call_arguments.delta",
+							"response_id":  responseID,
+							"item_id":      itemID,
+							"output_index": outputIndex,
+							"delta":        delta.Arguments,
+						},
+					); err != nil {
+						return err
+					}
 				}
-			}
-		}
-		return nil
+				return nil
+			},
+		})
 	}
 	emitReasoning := func(text string) error {
 		if text == "" {
@@ -470,10 +464,7 @@ func (h *Handler) streamResponses(
 	}
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
-		parsedMessage, err = parser.ParseChatOutput(
-			toolStream.text(),
-			tools,
-		)
+		parsedMessage, err = toolStream.parse(parser, tools)
 		if err != nil {
 			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 			return

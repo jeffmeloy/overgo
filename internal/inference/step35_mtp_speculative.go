@@ -222,10 +222,7 @@ func (r *Runner) resyncStep35MTPSession(
 	for index := 1; index < len(tokens); index++ {
 		copy(hidden.Data[index*width:], targetHidden[index-1].Data)
 	}
-	positions := make([]uint32, len(tokens))
-	for index := range positions {
-		positions[index] = base.MTPStart + uint32(index)
-	}
+	positions := tokenPositions(base.MTPStart, len(tokens))
 	heads := make([]LayerCache, len(base.Heads))
 	for offset := range heads {
 		_, _, headCache, err := r.runMultiHeadMTPHeadLocked(

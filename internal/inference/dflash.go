@@ -39,10 +39,7 @@ func (r *Runner) NewDFlashSession(
 	if err != nil {
 		return nil, err
 	}
-	positions := make([]uint32, len(tokenIDs))
-	for index := range positions {
-		positions[index] = uint32(index)
-	}
+	positions := tokenPositions(0, len(tokenIDs))
 	cache, err := r.InjectDFlashFeatures(ctx, fused, positions, nil)
 	if err != nil {
 		return nil, err
@@ -81,14 +78,11 @@ func (r *Runner) ExtractLayerInputs(
 		}
 		requested[layer] = struct{}{}
 	}
-	rows := make([]uint32, len(tokenIDs))
-	positions := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return reference.Value{}, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index], positions[index] = uint32(id), uint32(index)
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return reference.Value{}, err
 	}
+	positions := tokenPositions(0, len(tokenIDs))
 	activation, err := r.loadEmbeddings(ctx, rows)
 	if err != nil {
 		return reference.Value{}, err
@@ -339,12 +333,9 @@ func (r *Runner) DecodeDFlashNoiseBlock(
 	if len(tokenIDs) == 0 || len(tokenIDs) != len(positions) || cache == nil || len(cache.Layers) != len(r.weights.Layers) {
 		return reference.Value{}, errors.New("inference: DFlash noise block input is incompatible")
 	}
-	rows := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= target.vocab.Len() {
-			return reference.Value{}, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
+	rows, err := target.tokenRows(tokenIDs)
+	if err != nil {
+		return reference.Value{}, err
 	}
 	activation, err := target.loadEmbeddings(ctx, rows)
 	if err != nil {
@@ -382,10 +373,9 @@ func (r *Runner) DraftDFlashBlock(
 		return reference.Value{}, errors.New("inference: DFlash vocabulary has no mask token")
 	}
 	ids := make([]tokenizer.TokenID, draftCount+1)
-	positions := make([]uint32, draftCount+1)
+	positions := tokenPositions(cache.Position, draftCount+1)
 	ids[0] = last
 	for index := range ids {
-		positions[index] = cache.Position + uint32(index)
 		if index > 0 {
 			ids[index] = r.vocab.Mask
 		}

@@ -281,58 +281,52 @@ func (h *Handler) streamAnthropicMessages(
 		})
 	}
 	emitToolPiece := func(piece string) error {
-		deltas, streamErr := toolStream.accept(piece)
-		if streamErr != nil {
-			return streamErr
-		}
 		idPrefix := "toolu_" + strings.TrimPrefix(messageID, "msg_")
-		for _, delta := range deltas {
-			if delta.Content != "" {
-				if streamErr := emitText(delta.Content); streamErr != nil {
-					return streamErr
+		return toolStream.route(piece, toolDeltaSink{
+			Content: emitText,
+			Tool: func(delta inference.ChatToolCallDelta) error {
+				if delta.Started && textStarted && !textStopped {
+					if err := writeEvent("content_block_stop", map[string]any{
+						"type":  "content_block_stop",
+						"index": 0,
+					}); err != nil {
+						return err
+					}
+					textStopped = true
 				}
-			}
-			if delta.Started && textStarted && !textStopped {
-				if streamErr := writeEvent("content_block_stop", map[string]any{
-					"type":  "content_block_stop",
-					"index": 0,
-				}); streamErr != nil {
-					return streamErr
+				blockIndex := delta.Index
+				if textStarted {
+					blockIndex++
 				}
-				textStopped = true
-			}
-			blockIndex := delta.Index
-			if textStarted {
-				blockIndex++
-			}
-			if delta.Started {
-				if streamErr := writeEvent("content_block_start", map[string]any{
-					"type":  "content_block_start",
-					"index": blockIndex,
-					"content_block": map[string]any{
-						"type":  "tool_use",
-						"id":    fmt.Sprintf("%s_%d", idPrefix, delta.Index),
-						"name":  delta.Name,
-						"input": map[string]any{},
-					},
-				}); streamErr != nil {
-					return streamErr
+				if delta.Started {
+					if err := writeEvent("content_block_start", map[string]any{
+						"type":  "content_block_start",
+						"index": blockIndex,
+						"content_block": map[string]any{
+							"type":  "tool_use",
+							"id":    fmt.Sprintf("%s_%d", idPrefix, delta.Index),
+							"name":  delta.Name,
+							"input": map[string]any{},
+						},
+					}); err != nil {
+						return err
+					}
 				}
-			}
-			if delta.Arguments != "" {
-				if streamErr := writeEvent("content_block_delta", map[string]any{
-					"type":  "content_block_delta",
-					"index": blockIndex,
-					"delta": map[string]any{
-						"type":         "input_json_delta",
-						"partial_json": delta.Arguments,
-					},
-				}); streamErr != nil {
-					return streamErr
+				if delta.Arguments != "" {
+					if err := writeEvent("content_block_delta", map[string]any{
+						"type":  "content_block_delta",
+						"index": blockIndex,
+						"delta": map[string]any{
+							"type":         "input_json_delta",
+							"partial_json": delta.Arguments,
+						},
+					}); err != nil {
+						return err
+					}
 				}
-			}
-		}
-		return nil
+				return nil
+			},
+		})
 	}
 	emitCompletedBlock := func(index int, block anthropicContentBlock) error {
 		switch block.Type {
@@ -422,10 +416,7 @@ func (h *Handler) streamAnthropicMessages(
 		textStarted = true
 		textStopped = true
 	} else if len(tools) != 0 {
-		message, parseErr := parser.ParseChatOutput(
-			toolStream.text(),
-			tools,
-		)
+		message, parseErr := toolStream.parse(parser, tools)
 		if parseErr != nil {
 			_ = emitNamedGenerationError(writeEvent, "error", parseErr)
 			return

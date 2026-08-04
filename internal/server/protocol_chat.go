@@ -766,48 +766,35 @@ func (h *Handler) streamChatCompletion(
 			break
 		}
 		emitToolPiece := func(piece string) error {
-			deltas, streamErr := toolStream.accept(piece)
-			if streamErr != nil {
-				return streamErr
-			}
-			for _, delta := range deltas {
-				if delta.ReasoningContent != "" {
-					if writeErr := writeChunk(choiceIndex, chatStreamDelta{
-						ReasoningContent: delta.ReasoningContent,
-					}, nil); writeErr != nil {
-						return writeErr
+			return toolStream.route(piece, toolDeltaSink{
+				Reasoning: func(text string) error {
+					return writeChunk(choiceIndex, chatStreamDelta{ReasoningContent: text}, nil)
+				},
+				Content: func(text string) error {
+					return writeChunk(choiceIndex, chatStreamDelta{Content: text}, nil)
+				},
+				Tool: func(delta inference.ChatToolCallDelta) error {
+					call := chatStreamToolCall{
+						Index: delta.Index,
+						Function: chatStreamToolFunction{
+							Arguments: delta.Arguments,
+						},
 					}
-				}
-				if delta.Content != "" {
-					if writeErr := writeChunk(choiceIndex, chatStreamDelta{
-						Content: delta.Content,
-					}, nil); writeErr != nil {
-						return writeErr
+					if delta.Started {
+						call.ID = fmt.Sprintf(
+							"call_%s_%d_%d",
+							strings.TrimPrefix(id, "chatcmpl-"),
+							choiceIndex,
+							delta.Index,
+						)
+						call.Type = "function"
+						call.Function.Name = delta.Name
 					}
-				}
-				call := chatStreamToolCall{
-					Index: delta.Index,
-					Function: chatStreamToolFunction{
-						Arguments: delta.Arguments,
-					},
-				}
-				if delta.Started {
-					call.ID = fmt.Sprintf(
-						"call_%s_%d_%d",
-						strings.TrimPrefix(id, "chatcmpl-"),
-						choiceIndex,
-						delta.Index,
-					)
-					call.Type = "function"
-					call.Function.Name = delta.Name
-				}
-				if writeErr := writeChunk(choiceIndex, chatStreamDelta{
-					ToolCalls: []chatStreamToolCall{call},
-				}, nil); writeErr != nil {
-					return writeErr
-				}
-			}
-			return nil
+					return writeChunk(choiceIndex, chatStreamDelta{
+						ToolCalls: []chatStreamToolCall{call},
+					}, nil)
+				},
+			})
 		}
 		result, err := plan.runChoice(
 			choiceIndex,
@@ -832,7 +819,7 @@ func (h *Handler) streamChatCompletion(
 		}
 		reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
 		if len(tools) != 0 {
-			message, parseErr := parser.ParseChatOutput(toolStream.text(), tools)
+			message, parseErr := toolStream.parse(parser, tools)
 			if parseErr != nil {
 				_ = emitGenerationError(stream.write, parseErr)
 				break

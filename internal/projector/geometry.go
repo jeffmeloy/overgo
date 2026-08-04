@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	maxPixelMergeRows     uint64 = 1 << 32
-	temporalPatchChannels        = 3
-	temporalPatchFrames          = 2
+	maxPixelMergeRows           uint64 = 1 << 32
+	defaultVisionMaxAspectRatio        = 200
+	temporalPatchChannels              = 3
+	temporalPatchFrames                = 2
 )
 
 type pixelMergePlan struct {

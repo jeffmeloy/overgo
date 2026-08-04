@@ -127,17 +127,17 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 	if !hasVision {
 		return HunyuanVLSpec{}, errors.New("projector: vision encoder is disabled")
 	}
-	values := make([]int, 7)
-	for index, key := range []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
-		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
-		"clip.vision.attention.head_count",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return HunyuanVLSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := HunyuanVLSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+	); err != nil {
+		return HunyuanVLSpec{}, err
 	}
 	merge := 2
 	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.spatial_merge_size"); valueErr != nil {
@@ -153,7 +153,7 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 	if err != nil {
 		return HunyuanVLSpec{}, err
 	}
-	factor := values[1] * merge
+	factor := spec.PatchSize * merge
 	if minPixels == 0 {
 		minPixels = uint32(factor * factor * 256)
 	}
@@ -180,14 +180,15 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 	if !ok || conv2.Dimensions != 4 {
 		return HunyuanVLSpec{}, errors.New("projector: Hunyuan-VL second convolution is unavailable or invalid")
 	}
-	spec := HunyuanVLSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
-		OutputHidden: values[4], Layers: values[5], Heads: values[6], MergeSize: merge,
-		MinPixels: int(minPixels), MaxPixels: int(maxPixels), ConvIntermediate: int(conv0.Shape[3]),
-		ProjectorInput: int(conv2.Shape[3]), LayerNormEpsilon: epsilon,
-		PreLayerNorm: hasTensor(file, "v.pre_ln.weight"), PostLayerNorm: hasTensor(file, "v.post_ln.weight"),
-		FusedQKV: make([]bool, values[5]),
-	}
+	spec.MergeSize = merge
+	spec.MinPixels = int(minPixels)
+	spec.MaxPixels = int(maxPixels)
+	spec.ConvIntermediate = int(conv0.Shape[3])
+	spec.ProjectorInput = int(conv2.Shape[3])
+	spec.LayerNormEpsilon = epsilon
+	spec.PreLayerNorm = hasTensor(file, "v.pre_ln.weight")
+	spec.PostLayerNorm = hasTensor(file, "v.post_ln.weight")
+	spec.FusedQKV = make([]bool, spec.Layers)
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	for layer := range spec.FusedQKV {
@@ -259,7 +260,9 @@ func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, er
 }
 
 func DefaultHunyuanVLPreprocessOptions(spec HunyuanVLSpec) HunyuanVLPreprocessOptions {
-	return HunyuanVLPreprocessOptions{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: 200}
+	return HunyuanVLPreprocessOptions{
+		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio,
+	}
 }
 
 func PreprocessHunyuanVLImage(source image.Image, spec HunyuanVLSpec, options HunyuanVLPreprocessOptions) (HunyuanVLImage, error) {

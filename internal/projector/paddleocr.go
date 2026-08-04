@@ -139,17 +139,19 @@ func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 	if !hasVision {
 		return PaddleOCRSpec{}, errors.New("projector: vision encoder is disabled")
 	}
-	values := make([]int, 9)
-	for index, key := range []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
-		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
-		"clip.vision.attention.head_count", "clip.vision.image_min_pixels", "clip.vision.image_max_pixels",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return PaddleOCRSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := PaddleOCRSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+		metadataIntField{"clip.vision.image_min_pixels", &spec.MinPixels},
+		metadataIntField{"clip.vision.image_max_pixels", &spec.MaxPixels},
+	); err != nil {
+		return PaddleOCRSpec{}, err
 	}
 	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
 	if err != nil {
@@ -171,13 +173,13 @@ func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 	if !ok || merger.Dimensions != 2 || merger.Shape[1] > uint64(^uint(0)>>1) {
 		return PaddleOCRSpec{}, errors.New("projector: PaddleOCR merger tensor is unavailable or invalid")
 	}
-	spec := PaddleOCRSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
-		OutputHidden: values[4], Layers: values[5], Heads: values[6], MinPixels: values[7], MaxPixels: values[8],
-		MergeSize: 2, ProjectorIntermediate: int(merger.Shape[1]), LayerNormEpsilon: epsilon, Activation: activation,
-		PreLayerNorm: hasTensor(file, "v.pre_ln.weight"), PostLayerNorm: hasTensor(file, "v.post_ln.weight"),
-		FusedQKV: make([]bool, values[5]),
-	}
+	spec.MergeSize = 2
+	spec.ProjectorIntermediate = int(merger.Shape[1])
+	spec.LayerNormEpsilon = epsilon
+	spec.Activation = activation
+	spec.PreLayerNorm = hasTensor(file, "v.pre_ln.weight")
+	spec.PostLayerNorm = hasTensor(file, "v.post_ln.weight")
+	spec.FusedQKV = make([]bool, spec.Layers)
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	for layer := range spec.FusedQKV {
@@ -268,7 +270,9 @@ func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, er
 }
 
 func DefaultPaddleOCRPreprocessOptions(spec PaddleOCRSpec) PaddleOCRPreprocessOptions {
-	return PaddleOCRPreprocessOptions{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: 200}
+	return PaddleOCRPreprocessOptions{
+		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio,
+	}
 }
 
 func PreprocessPaddleOCRImage(source image.Image, spec PaddleOCRSpec, options PaddleOCRPreprocessOptions) (PaddleOCRImage, error) {

@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	granite4VisionProjectorType = "granite4_vision"
-	granite4QFormerNormEpsilon  = 1e-12
+	granite4VisionProjectorType      = "granite4_vision"
+	granite4VisionAttentionHeadWidth = 64
+	granite4QFormerNormEpsilon       = 1e-12
 )
 
 type Granite4VisionResolution struct {
@@ -136,17 +137,19 @@ func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
 	if !hasVision {
 		return Granite4VisionSpec{}, errors.New("projector: vision encoder is disabled")
 	}
-	values := make([]int, 9)
-	for index, key := range []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
-		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
-		"clip.vision.attention.head_count", "clip.vision.projector.window_side", "clip.vision.projector.query_side",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return Granite4VisionSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := Granite4VisionSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.ProjectionDim},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+		metadataIntField{"clip.vision.projector.window_side", &spec.WindowSide},
+		metadataIntField{"clip.vision.projector.query_side", &spec.QuerySide},
+	); err != nil {
+		return Granite4VisionSpec{}, err
 	}
 	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
 	if err != nil {
@@ -176,12 +179,11 @@ func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
 	if !ok || qfUp.Dimensions != 2 {
 		return Granite4VisionSpec{}, errors.New("projector: Granite 4 Vision QFormer FFN is unavailable")
 	}
-	spec := Granite4VisionSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
-		ProjectionDim: values[4], Layers: values[5], Heads: values[6], WindowSide: values[7], QuerySide: values[8],
-		QFormerWidth: int(qfUp.Shape[1]), LayerNormEpsilon: epsilon,
-		FeatureLayers: features, SpatialOffsets: offsets, GridCandidates: candidates,
-	}
+	spec.QFormerWidth = int(qfUp.Shape[1])
+	spec.LayerNormEpsilon = epsilon
+	spec.FeatureLayers = features
+	spec.SpatialOffsets = offsets
+	spec.GridCandidates = candidates
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	if err := spec.validate(); err != nil {
@@ -251,7 +253,7 @@ func (s Granite4VisionSpec) validate() error {
 	}
 	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 || s.ProjectionDim <= 0 ||
 		s.QFormerWidth <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.WindowSide <= 0 || s.QuerySide <= 0 ||
-		s.ImageSize%s.PatchSize != 0 || s.Hidden%s.Heads != 0 || s.Hidden%64 != 0 || patchSide%s.WindowSide != 0 ||
+		s.ImageSize%s.PatchSize != 0 || s.Hidden%s.Heads != 0 || s.Hidden%granite4VisionAttentionHeadWidth != 0 || patchSide%s.WindowSide != 0 ||
 		s.WindowSide%s.QuerySide != 0 || newSide <= 0 || patchSide%newSide != 0 ||
 		len(s.FeatureLayers) == 0 || len(s.FeatureLayers) != len(s.SpatialOffsets) || s.LayerNormEpsilon <= 0 {
 		return fmt.Errorf("projector: invalid Granite 4 Vision metadata: %+v", s)
@@ -651,7 +653,10 @@ func (r *Granite4VisionRunner) qformerAttention(
 		}
 		parts[index] = linear(input, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
 	}
-	attention := granite4BatchedAttention(parts[0], parts[1], parts[2], windows, queryRows, keyRows, r.spec.Hidden, r.spec.Hidden/64)
+	attention := granite4BatchedAttention(
+		parts[0], parts[1], parts[2], windows, queryRows, keyRows,
+		r.spec.Hidden, r.spec.Hidden/granite4VisionAttentionHeadWidth,
+	)
 	outWeight, outBias, err := r.loadPair(ctx, prefix+"_out.weight", prefix+"_out.bias")
 	if err != nil {
 		return nil, err

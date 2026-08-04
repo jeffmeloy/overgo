@@ -17,6 +17,7 @@ import (
 const (
 	gemma3nVisionProjectorType = "gemma3nv"
 	gemma3nVisionNormEpsilon   = 1e-6
+	gemma3nVisionGridSide      = 16
 	Gemma3nImagePad            = "<image_soft_token>"
 )
 
@@ -117,15 +118,14 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 		}
 		return Gemma3nVisionSpec{}, errors.New("projector: vision encoder is disabled")
 	}
-	values := make([]int, 4)
-	for index, key := range []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length", "clip.vision.projection_dim",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return Gemma3nVisionSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := Gemma3nVisionSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.VisionHidden},
+		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+	); err != nil {
+		return Gemma3nVisionSpec{}, err
 	}
 	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
 	if err != nil {
@@ -135,12 +135,9 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 	if err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
-	spec := Gemma3nVisionSpec{
-		ImageSize: values[0], PatchSize: values[1], VisionHidden: values[2], OutputHidden: values[3],
-	}
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
-	if spec.ImageSize <= 0 || spec.PatchSize <= 0 || spec.ImageSize/spec.PatchSize != 16 ||
+	if spec.ImageSize <= 0 || spec.PatchSize <= 0 || spec.ImageSize/spec.PatchSize != gemma3nVisionGridSide ||
 		spec.VisionHidden <= 0 || spec.OutputHidden <= 0 {
 		return Gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n vision metadata: %+v", spec)
 	}
@@ -406,8 +403,8 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	if hasTensor(r.file, "v.msfa.ffn.pw_proj.bn.weight") {
 		cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.ffn.pw_proj.bn.weight"))
 	}
-	if cur.Shape.Dims[1] > 16 || cur.Shape.Dims[2] > 16 {
-		cur = gemma3nAveragePool(builder, cur, 16, 16)
+	if cur.Shape.Dims[1] > gemma3nVisionGridSide || cur.Shape.Dims[2] > gemma3nVisionGridSide {
+		cur = gemma3nAveragePool(builder, cur, gemma3nVisionGridSide, gemma3nVisionGridSide)
 	}
 	cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.norm.weight"))
 	channels := cur.Shape.Dims[0]

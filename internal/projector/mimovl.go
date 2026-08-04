@@ -131,20 +131,22 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 	if !useSiLU {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL SiLU is disabled")
 	}
-	keys := []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
-		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
-		"clip.vision.attention.head_count", "clip.vision.attention.head_count_kv",
-		"clip.vision.spatial_merge_size", "clip.vision.window_size",
-		"clip.vision.image_min_pixels", "clip.vision.image_max_pixels",
-	}
-	values := make([]int, len(keys))
-	for index, key := range keys {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return MiMoVLSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := MiMoVLSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.ProjectionDim},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+		metadataIntField{"clip.vision.attention.head_count_kv", &spec.KVHeads},
+		metadataIntField{"clip.vision.spatial_merge_size", &spec.MergeSize},
+		metadataIntField{"clip.vision.window_size", &spec.WindowSize},
+		metadataIntField{"clip.vision.image_min_pixels", &spec.MinPixels},
+		metadataIntField{"clip.vision.image_max_pixels", &spec.MaxPixels},
+	); err != nil {
+		return MiMoVLSpec{}, err
 	}
 	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
 	if err != nil {
@@ -166,7 +168,7 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 	if !ok || qkv.Dimensions != 2 {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV tensor is unavailable")
 	}
-	denominator := values[6] + 2*values[7]
+	denominator := spec.Heads + 2*spec.KVHeads
 	if denominator <= 0 || qkv.Shape[1]%uint64(denominator) != 0 {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
 	}
@@ -174,13 +176,10 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 	if !ok || merger.Dimensions != 2 {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL merger tensor is unavailable")
 	}
-	spec := MiMoVLSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
-		ProjectionDim: values[4], Layers: values[5], Heads: values[6], KVHeads: values[7],
-		MergeSize: values[8], WindowSize: values[9], MinPixels: values[10], MaxPixels: values[11],
-		HeadDim: int(qkv.Shape[1]) / denominator, MergerIntermediate: int(merger.Shape[1]),
-		LayerNormEpsilon: epsilon, WindowModes: modes,
-	}
+	spec.HeadDim = int(qkv.Shape[1]) / denominator
+	spec.MergerIntermediate = int(merger.Shape[1])
+	spec.LayerNormEpsilon = epsilon
+	spec.WindowModes = modes
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	if err := spec.validate(); err != nil {
@@ -271,7 +270,7 @@ func PreprocessMiMoVLImage(source image.Image, spec MiMoVLSpec) (MiMoVLInput, er
 		ImageMean: spec.ImageMean, ImageStd: spec.ImageStd,
 	}
 	input, err := preprocessQwen3VLFrames([]image.Image{source, source}, preprocessSpec, Qwen3VLPreprocessOptions{
-		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: 200,
+		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio,
 	})
 	if err != nil {
 		return MiMoVLInput{}, err

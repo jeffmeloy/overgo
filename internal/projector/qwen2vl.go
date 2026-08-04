@@ -113,17 +113,17 @@ func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
 	} else if !useGELU {
 		return Qwen2VLSpec{}, errors.New("projector: Qwen2-VL GELU is disabled")
 	}
-	values := make([]int, 7)
-	for index, key := range []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
-		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
-		"clip.vision.attention.head_count",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return Qwen2VLSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := Qwen2VLSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+	); err != nil {
+		return Qwen2VLSpec{}, err
 	}
 	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
 	if err != nil {
@@ -158,14 +158,14 @@ func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
 	}
 	legacyFFN := false
 	if down, ok := file.Tensor("v.blk.0.ffn_down.weight"); ok && down.Dimensions == 2 {
-		legacyFFN = down.Shape[0] == uint64(values[2])
+		legacyFFN = down.Shape[0] == uint64(spec.Hidden)
 	}
-	spec := Qwen2VLSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
-		OutputHidden: values[4], Layers: values[5], Heads: values[6], MergeSize: mergeSize,
-		LayerNormEpsilon: epsilon, MergerIntermediate: int(merger.Shape[1]),
-		PreLayerNorm: preWeight, PostLayerNorm: postWeight, LegacyFFNSwapped: legacyFFN,
-	}
+	spec.MergeSize = mergeSize
+	spec.LayerNormEpsilon = epsilon
+	spec.MergerIntermediate = int(merger.Shape[1])
+	spec.PreLayerNorm = preWeight
+	spec.PostLayerNorm = postWeight
+	spec.LegacyFFNSwapped = legacyFFN
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	if err := spec.validate(); err != nil {

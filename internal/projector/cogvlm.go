@@ -104,17 +104,17 @@ func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
 		}
 		return CogVLMVisionSpec{}, errors.New("projector: vision encoder is disabled")
 	}
-	values := make([]int, 7)
-	for index, key := range []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
-		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
-		"clip.vision.attention.head_count",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return CogVLMVisionSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := CogVLMVisionSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+	); err != nil {
+		return CogVLMVisionSpec{}, err
 	}
 	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
 	if err != nil {
@@ -132,11 +132,9 @@ func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
 	if !ok || up.Dimensions != 2 {
 		return CogVLMVisionSpec{}, errors.New("projector: CogVLM adapter up tensor is unavailable or invalid")
 	}
-	spec := CogVLMVisionSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
-		OutputHidden: values[4], AdapterIntermediate: int(up.Shape[1]), Layers: values[5], Heads: values[6],
-		LayerNormEpsilon: epsilon, GatedFFN: make([]bool, values[5]),
-	}
+	spec.AdapterIntermediate = int(up.Shape[1])
+	spec.LayerNormEpsilon = epsilon
+	spec.GatedFFN = make([]bool, spec.Layers)
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	for layer := range spec.GatedFFN {

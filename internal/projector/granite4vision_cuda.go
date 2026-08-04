@@ -165,11 +165,12 @@ func granite4AttentionGraph(
 	query = builder.GetRows(query, queryOrder)
 	key = builder.GetRows(key, keyOrder)
 	value = builder.GetRows(value, keyOrder)
-	heads := hidden / 64
-	query = builder.Reshape(query, 64, uint64(heads*windows), uint64(queryRows))
-	key = builder.Reshape(key, 64, uint64(heads*windows), uint64(keyRows))
-	value = builder.Reshape(value, 64, uint64(heads*windows), uint64(keyRows))
-	output := builder.Attention(query, key, value, 1/8.0, false)
+	heads := hidden / granite4VisionAttentionHeadWidth
+	headWidth := uint64(granite4VisionAttentionHeadWidth)
+	query = builder.Reshape(query, headWidth, uint64(heads*windows), uint64(queryRows))
+	key = builder.Reshape(key, headWidth, uint64(heads*windows), uint64(keyRows))
+	value = builder.Reshape(value, headWidth, uint64(heads*windows), uint64(keyRows))
+	output := builder.Attention(query, key, value, float32(1/math.Sqrt(float64(headWidth))), false)
 	output = builder.Reshape(output, uint64(hidden), uint64(windows*queryRows))
 	inverse := make([]uint32, 0, windows*queryRows)
 	for window := 0; window < windows; window++ {

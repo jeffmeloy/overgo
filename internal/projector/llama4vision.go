@@ -137,17 +137,17 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	if !hasVision {
 		return Llama4VisionSpec{}, errors.New("projector: vision encoder is disabled")
 	}
-	values := make([]int, 7)
-	for index, key := range []string{
-		"clip.vision.image_size", "clip.vision.patch_size", "clip.vision.embedding_length",
-		"clip.vision.feed_forward_length", "clip.vision.projection_dim", "clip.vision.block_count",
-		"clip.vision.attention.head_count",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return Llama4VisionSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := Llama4VisionSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+	); err != nil {
+		return Llama4VisionSpec{}, err
 	}
 	merge, ok, err := optionalMetadataUint32(file, "clip.vision.projector.scale_factor")
 	if err != nil {
@@ -176,13 +176,14 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	if !ok || mlp2.Dimensions != 2 {
 		return Llama4VisionSpec{}, errors.New("projector: Llama-4 second adapter tensor is unavailable or invalid")
 	}
-	spec := Llama4VisionSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2], Intermediate: values[3],
-		OutputHidden: values[4], AdapterIntermediate: int(mlp1.Shape[1]), AdapterHidden: int(mlp2.Shape[1]),
-		Layers: values[5], Heads: values[6], MergeSize: int(merge), LayerNormEpsilon: epsilon,
-		RopeTheta: 10000, PreLayerNorm: hasTensor(file, "v.pre_ln.weight"), PostLayerNorm: hasTensor(file, "v.post_ln.weight"),
-		FusedQKV: make([]bool, values[5]),
-	}
+	spec.AdapterIntermediate = int(mlp1.Shape[1])
+	spec.AdapterHidden = int(mlp2.Shape[1])
+	spec.MergeSize = int(merge)
+	spec.LayerNormEpsilon = epsilon
+	spec.RopeTheta = 10000
+	spec.PreLayerNorm = hasTensor(file, "v.pre_ln.weight")
+	spec.PostLayerNorm = hasTensor(file, "v.post_ln.weight")
+	spec.FusedQKV = make([]bool, spec.Layers)
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	for layer := range spec.FusedQKV {

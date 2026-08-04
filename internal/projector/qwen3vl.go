@@ -64,7 +64,7 @@ func DefaultQwen3VLPreprocessOptions() Qwen3VLPreprocessOptions {
 	return Qwen3VLPreprocessOptions{
 		MinPixels:      256 * 256,
 		MaxPixels:      4096 * 4096,
-		MaxAspectRatio: 200,
+		MaxAspectRatio: defaultVisionMaxAspectRatio,
 	}
 }
 
@@ -72,7 +72,7 @@ func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
 	return Qwen3VLPreprocessOptions{
 		MinPixels:      56 * 56,
 		MaxPixels:      3584 * 3584,
-		MaxAspectRatio: 200,
+		MaxAspectRatio: defaultVisionMaxAspectRatio,
 	}
 }
 
@@ -158,22 +158,18 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 		}
 		deepstackLayers = slices.Clone(layers)
 	}
-	values := make([]int, 8)
-	for index, key := range []string{
-		"clip.vision.image_size",
-		"clip.vision.patch_size",
-		"clip.vision.embedding_length",
-		"clip.vision.feed_forward_length",
-		"clip.vision.projection_dim",
-		"clip.vision.block_count",
-		"clip.vision.attention.head_count",
-		"clip.vision.spatial_merge_size",
-	} {
-		value, valueErr := metadataUint32(file, key)
-		if valueErr != nil {
-			return Qwen3VLSpec{}, valueErr
-		}
-		values[index] = int(value)
+	spec := Qwen3VLSpec{}
+	if err := readMetadataIntFields(file,
+		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
+		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
+		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
+		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
+		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+		metadataIntField{"clip.vision.block_count", &spec.Layers},
+		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
+		metadataIntField{"clip.vision.spatial_merge_size", &spec.MergeSize},
+	); err != nil {
+		return Qwen3VLSpec{}, err
 	}
 	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
 	if err != nil {
@@ -187,7 +183,7 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	if err != nil {
 		return Qwen3VLSpec{}, err
 	}
-	tensorDeepstack := make([]bool, values[5])
+	tensorDeepstack := make([]bool, spec.Layers)
 	for layer := range tensorDeepstack {
 		prefix := fmt.Sprintf("v.deepstack.%d.", layer)
 		count := 0
@@ -208,19 +204,15 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 				break
 			}
 		}
-	} else if len(deepstackLayers) == values[5] {
+	} else if len(deepstackLayers) == spec.Layers {
 		for layer := range tensorDeepstack {
 			if deepstackLayers[layer] != tensorDeepstack[layer] {
 				return Qwen3VLSpec{}, fmt.Errorf("projector: deepstack metadata differs from layer %d tensors", layer)
 			}
 		}
 	}
-	spec := Qwen3VLSpec{
-		ImageSize: values[0], PatchSize: values[1], Hidden: values[2],
-		Intermediate: values[3], OutputHidden: values[4], Layers: values[5],
-		Heads: values[6], MergeSize: values[7], LayerNormEpsilon: epsilon,
-		DeepstackLayers: deepstackLayers,
-	}
+	spec.LayerNormEpsilon = epsilon
+	spec.DeepstackLayers = deepstackLayers
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	merger, ok := file.Tensor("mm.0.weight")

@@ -1002,6 +1002,10 @@ func TestBuildGraniteMoEBlockUsesUngatedExpertsAndSharedSwiGLU(t *testing.T) {
 				attrs.Scale != 1 || rope != 2 || silu < 1 || scale != 2 {
 				t.Fatalf("unexpected GraniteMoE graph: attrs=%+v rope=%d silu=%d scale=%d", attrs, rope, silu, scale)
 			}
+			weights.FeedForwardSharedGate = nil
+			if _, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1}); err == nil {
+				t.Fatal("Granite MoE accepted an incomplete shared expert")
+			}
 		})
 	}
 }

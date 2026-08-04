@@ -71,6 +71,12 @@ func TestBuildGroveMoEGroupedChunkExperts(t *testing.T) {
 		moes[1].Inputs[2] != weights.FeedForwardRouter {
 		t.Fatalf("unexpected grouped GroveMoE pass: attrs=%+v inputs=%v", grouped, moes[1].Inputs)
 	}
+	spec.ExpertsPerGroup = 3
+	if _, err := BuildDenseBlockCachedForLayer(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
+	); err == nil {
+		t.Fatal("GroveMoE accepted invalid expert grouping")
+	}
 }
 
 func TestBuildGLM4MoEBlock(t *testing.T) {

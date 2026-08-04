@@ -11,13 +11,13 @@ import (
 	cudatest "llamacpp2go/internal/cuda/testutil"
 	"math"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/testutil"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -131,20 +131,9 @@ func compareProbes(t *testing.T, name string, values []float32, record struct {
 }
 
 func TestQwen3VLRunnerTinyFixture(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	metadata := tinyQwen3VLMetadata()
 	tensors := tinyQwen3VLTensors()
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	runner, err := OpenQwen3VL(path)
 	if err != nil {
 		t.Fatal(err)
@@ -177,21 +166,10 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	metadata := slices.DeleteFunc(tinyQwen3VLDeepstackMetadata(), func(item gguf.Metadata) bool {
 		return item.Key == "clip.vision.is_deepstack_layers"
 	})
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, metadata, tinyQwen3VLDeepstackTensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tinyQwen3VLDeepstackTensors())
 	runner, err := OpenQwen3VL(path)
 	if err != nil {
 		t.Fatal(err)
@@ -218,18 +196,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 
 func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors())
 	cpu, err := OpenQwen3VL(path)
 	if err != nil {
 		t.Fatal(err)
@@ -257,7 +224,6 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 }
 
 func TestQwen3VLMultipleImagePrompt(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	metadata := tinyQwen3VLDeepstackMetadata()
 	for index := range metadata {
 		switch metadata[index].Key {
@@ -270,17 +236,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	tensors := tinyQwen3VLDeepstackTensors()
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	runner, err := OpenQwen3VL(path)
 	if err != nil {
 		t.Fatal(err)
@@ -309,18 +265,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 
 func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyQwen3VLMetadata(), nonzeroTinyQwen3VLTensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLMetadata(), nonzeroTinyQwen3VLTensors())
 	cpu, err := OpenQwen3VL(path)
 	if err != nil {
 		t.Fatal(err)

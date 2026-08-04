@@ -4,12 +4,11 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"os"
-	"path/filepath"
 	"testing"
 
 	cudatest "llamacpp2go/internal/cuda/testutil"
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/testutil"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -34,18 +33,7 @@ func (t *qwen2VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 }
 
 func TestQwen2VLRunnerTinyFixture(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyQwen2VLMetadata(), tinyQwen2VLTensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), tinyQwen2VLTensors())
 	runner, err := OpenQwen2VL(path)
 	if err != nil {
 		t.Fatal(err)
@@ -77,20 +65,9 @@ func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestQwen2VLSpecOptionalNormPairs(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	tensors := tinyQwen2VLTensors()
 	tensors = append(tensors, f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyQwen2VLMetadata(), tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), tensors)
 	opened, err := gguf.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +79,6 @@ func TestQwen2VLSpecOptionalNormPairs(t *testing.T) {
 }
 
 func TestQwen2VLLegacyFFNNamesAndDefaultMerge(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	metadata := tinyQwen2VLMetadata()
 	for index := range metadata {
 		if metadata[index].Key == "clip.vision.spatial_merge_size" {
@@ -123,17 +99,7 @@ func TestQwen2VLLegacyFFNNamesAndDefaultMerge(t *testing.T) {
 			tensors[index] = f32Tensor(tensors[index].Name, []uint64{8}, nil)
 		}
 	}
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	runner, err := OpenQwen2VL(path)
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +115,6 @@ func TestQwen2VLLegacyFFNNamesAndDefaultMerge(t *testing.T) {
 }
 
 func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	metadata := tinyQwen2VLMetadata()
 	for index := range metadata {
 		switch metadata[index].Key {
@@ -162,17 +127,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	tensors := tinyQwen2VLTensors()
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	opened, err := OpenImageProjector(path)
 	if err != nil {
 		t.Fatal(err)
@@ -222,18 +177,7 @@ func TestQwen2VLVideoPositions(t *testing.T) {
 
 func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyQwen2VLMetadata(), nonzeroTinyQwen2VLTensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), nonzeroTinyQwen2VLTensors())
 	cpu, err := OpenQwen2VL(path)
 	if err != nil {
 		t.Fatal(err)

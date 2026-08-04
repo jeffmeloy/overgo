@@ -10,12 +10,12 @@ import (
 	cudatest "llamacpp2go/internal/cuda/testutil"
 	"math"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"llamacpp2go/internal/gguf"
+	"llamacpp2go/internal/testutil"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -43,18 +43,7 @@ func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.T
 }
 
 func TestGemma4RunnerTinyFixture(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
 	runner, err := OpenGemma4(path)
 	if err != nil {
 		t.Fatal(err)
@@ -82,18 +71,7 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 }
 
 func TestGemma4MultipleImagePrompt(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
 	runner, err := OpenGemma4(path)
 	if err != nil {
 		t.Fatal(err)
@@ -121,18 +99,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 
 func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
 	cpu, err := OpenGemma4(path)
 	if err != nil {
 		t.Fatal(err)
@@ -192,18 +159,7 @@ func compareExactFloat32(t *testing.T, name string, got, want []float32) {
 }
 
 func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err = file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
 	runner, err := OpenGemma4(path)
 	if err != nil {
 		t.Fatal(err)
@@ -235,18 +191,7 @@ func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 }
 
 func TestGemma4AudioTinyFixture(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mmproj.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, tinyGemma4Metadata(), tinyGemma4Tensors(), gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
 	runner, err := OpenGemma4(path)
 	if err != nil {
 		t.Fatal(err)

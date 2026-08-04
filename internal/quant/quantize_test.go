@@ -171,34 +171,20 @@ func TestQuantizeErrors(t *testing.T) {
 }
 
 func TestQuantizeDequantize(t *testing.T) {
-	for _, dataType := range []dtype.Type{
-		dtype.Q1_0,
-		dtype.Q2_0,
-		dtype.Q4_0,
-		dtype.Q4_1,
-		dtype.Q5_0,
-		dtype.Q5_1,
-		dtype.Q8_0,
-		dtype.Q8_1,
-		dtype.Q2K,
-		dtype.Q3K,
-		dtype.Q4K,
-		dtype.Q5K,
-		dtype.Q6K,
-		dtype.Q8K,
-		dtype.TQ1_0,
-		dtype.TQ2_0,
-		dtype.MXFP4,
-		dtype.NVFP4,
-		dtype.IQ4NL,
-		dtype.IQ4XS,
-		dtype.IQ2S,
-		dtype.IQ3XXS,
-		dtype.IQ3S,
-	} {
+	for _, dataType := range quantizableTypes {
 		traits, _ := dataType.Traits()
 		input := quantizeOracleValues(int(traits.BlockSize))
-		encoded, err := Quantize(dataType, input)
+		var encoded []byte
+		var err error
+		if RequiresImportance(dataType) {
+			weights := make([]float32, len(input))
+			for index := range weights {
+				weights[index] = 1
+			}
+			encoded, err = QuantizeWeighted(dataType, input, weights)
+		} else {
+			encoded, err = Quantize(dataType, input)
+		}
 		if err != nil {
 			t.Fatalf("%s encode: %v", dataType, err)
 		}

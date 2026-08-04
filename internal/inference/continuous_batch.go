@@ -83,10 +83,7 @@ func (r *Runner) NewContinuousBatch(
 		return nil, errors.New("inference: maximum sequence count must be positive")
 	}
 	if options.PageTokens == 0 {
-		options.PageTokens = r.cachePageTokens
-		if options.PageTokens == 0 {
-			options.PageTokens = 256
-		}
+		options.PageTokens = resolveCachePageTokens(r.cachePageTokens)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -403,9 +400,7 @@ func (b *ContinuousBatch) Close(ctx context.Context) error {
 }
 
 func sequencePages(tokens, pageTokens uint32) []SequenceCachePage {
-	if pageTokens == 0 {
-		pageTokens = 256
-	}
+	pageTokens = resolveCachePageTokens(pageTokens)
 	pageCount := (uint64(tokens) + uint64(pageTokens) - 1) / uint64(pageTokens)
 	pages := make([]SequenceCachePage, 0, int(pageCount))
 	for start := uint32(0); start < tokens; start += pageTokens {

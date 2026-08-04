@@ -842,9 +842,7 @@ func rebuildDeviceCachePages(
 	if cache == nil {
 		return errors.New("inference: device cache is nil")
 	}
-	if pageTokens == 0 {
-		pageTokens = 256
-	}
+	pageTokens = resolveCachePageTokens(pageTokens)
 	cache.PageTokens = pageTokens
 	cache.Pages = cache.Pages[:0]
 	for start := uint32(0); start < cache.Tokens; start += pageTokens {

@@ -196,7 +196,7 @@ type OpenOptions struct {
 	// PromptCacheEntries: bounds independently reusable prompt states
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
-	// CachePageTokens: retained CUDA KV page width; zero selects 256.
+	// CachePageTokens: retained CUDA KV page width; zero selects the default.
 	CachePageTokens uint32
 	LoRAAdapters    []LoRAConfig
 }
@@ -216,10 +216,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	if promptCacheCapacity == 0 {
 		promptCacheCapacity = 1
 	}
-	cachePageTokens := options.CachePageTokens
-	if cachePageTokens == 0 {
-		cachePageTokens = 256
-	}
+	cachePageTokens := resolveCachePageTokens(options.CachePageTokens)
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, err

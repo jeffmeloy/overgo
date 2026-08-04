@@ -39,158 +39,19 @@ func (e *UnsupportedArchitectureError) Error() string {
 // ReadSpec: validates common metadata for initial Llama and Qwen3
 // architecture families
 func ReadSpec(file *gguf.File) (Spec, error) {
-	if file == nil {
-		return Spec{}, errors.New("model file is nil")
-	}
-	values := make(map[string]gguf.Value, len(file.Metadata))
-	for _, item := range file.Metadata {
-		values[item.Key] = item.Value
-	}
-	architecture, err := required[string](values, "general.architecture", gguf.ValueTypeString)
+	metadata, err := newSpecMetadata(file)
 	if err != nil {
 		return Spec{}, err
 	}
-	profile, supported := LookupArchitecture(architecture)
-	if !supported {
-		return Spec{}, &UnsupportedArchitectureError{Architecture: architecture}
-	}
+	values, architecture, prefix, profile := metadata.values, metadata.architecture, metadata.prefix, metadata.profile
 	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture}, AttentionSpec: AttentionSpec{NonCausalAttention: profile.Has(ArchitectureNonCausal),
 		RopeDisabled: profile.Has(ArchitectureRoPEDisabled)},
 	}
-	if architecture == "chameleon" {
-		spec.QKNormEpsilon = chameleonQKNormEpsilon
-		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
-	}
-	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
-		spec.Name = value
-	}
-	prefix := architecture + "."
-	if spec.PoolingType, _ = optional[uint32](values, prefix+"pooling_type", gguf.ValueTypeUint32); spec.PoolingType > 4 {
-		return Spec{}, fmt.Errorf("metadata %q has unsupported pooling type %d", prefix+"pooling_type", spec.PoolingType)
-	}
-	if labels, ok, labelsErr := optionalArray[string](
-		values, prefix+"classifier.output_labels", gguf.ValueTypeString,
-	); labelsErr != nil {
-		return Spec{}, labelsErr
-	} else if ok {
-		spec.ClassifierLabels = slices.Clone(labels)
-	}
-	if profile.Has(ArchitectureDeepSeek2Layout) {
-		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
-		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
-			if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
-				return Spec{}, errors.New(`metadata "tokenizer.ggml.tokens" must be a string array`)
-			}
-			if tokens.Count() > int(^uint32(0)) {
-				return Spec{}, errors.New("tokenizer vocabulary exceeds uint32")
-			}
-			spec.VocabularySize = uint32(tokens.Count())
-		}
-	}
-	isLlamaMoE := false
-	if architecture == "llama" || architecture == "llama-embed" {
-		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
-			isLlamaMoE = true
-		}
-	}
-	if spec.BlockCount, err = required[uint32](values, prefix+"block_count", gguf.ValueTypeUint32); err != nil {
+	state, err := metadata.readBase(&spec)
+	if err != nil {
 		return Spec{}, err
 	}
-	declaredBlockCount := spec.BlockCount
-	if architecture == "qwen35" || architecture == "qwen35moe" {
-		spec.NextNPredictLayers, _ = optional[uint32](
-			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
-		)
-		if spec.NextNPredictLayers > 0 {
-			if spec.NextNPredictLayers != 1 || spec.NextNPredictLayers >= spec.BlockCount {
-				return Spec{}, errors.New("Qwen3.5 NextN/MTP layer count is invalid")
-			}
-			spec.BlockCount -= spec.NextNPredictLayers
-		}
-	}
-	if architecture == "deepseek32" {
-		spec.LayerNormEpsilon = deepSeek32LayerNormEpsilon
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("DeepSeek 3.2 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
-	}
-	if architecture == "glm-dsa" {
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("GLM-DSA NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
-	}
-	if spec.ContextLength, err = required[uint32](values, prefix+"context_length", gguf.ValueTypeUint32); err != nil {
-		return Spec{}, err
-	}
-	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
-		return Spec{}, err
-	}
-	if architecture == "gemma4-assistant" {
-		if spec.TargetHiddenSize, err = required[uint32](values, prefix+"embedding_length_out", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		nextN, nextErr := required[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32)
-		if nextErr != nil {
-			return Spec{}, nextErr
-		}
-		if nextN != spec.BlockCount {
-			return Spec{}, errors.New("Gemma 4 assistant NextN layer count must match block count")
-		}
-	}
-	if architecture == "gemma3n" {
-		spec.AltUpCount = 4
-		spec.AltUpActive = 0
-		spec.LaurelRank = 64
-		spec.EmbeddingPerLayer = 256
-		spec.KVFromStart = 20
-		spec.SparseLayerCount = 10
-		spec.SparsityStdMultiplier = 1.6448533535003662
-		if spec.BlockCount >= spec.KVFromStart {
-			spec.SharedKVLayers = spec.BlockCount - spec.KVFromStart
-		}
-	}
-	if architecture == "wavtokenizer-dec" {
-		spec.OutputEmbeddingLength = spec.EmbeddingLength
-		if spec.EmbeddingLength, err = required[uint32](values, prefix+"features_length", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		for key, destination := range map[string]*uint32{
-			"posnet.embedding_length":   &spec.PosNetEmbeddingLength,
-			"posnet.block_count":        &spec.PosNetBlockCount,
-			"convnext.embedding_length": &spec.ConvNextEmbeddingLength,
-			"convnext.block_count":      &spec.ConvNextBlockCount,
-		} {
-			if *destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32); err != nil {
-				return Spec{}, err
-			}
-		}
-	}
-	if architecture == "dflash" {
-		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
-			return Spec{}, err
-		}
-		spec.DFlashBlockSize = 16
-		if value, ok := optional[uint32](values, prefix+"block_size", gguf.ValueTypeUint32); ok {
-			spec.DFlashBlockSize = value
-		}
-	}
-	if architecture == "eagle3" {
-		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
-			return Spec{}, err
-		}
-		if spec.TargetHiddenSize, err = required[uint32](values, prefix+"target_hidden_size", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		spec.NormBeforeResidual, _ = optional[bool](values, prefix+"norm_before_residual", gguf.ValueTypeBool)
-	}
+	declaredBlockCount, isLlamaMoE := state.declaredBlockCount, state.llamaMoE
 	if architecture == "gemma4" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" {
 		if spec.LayerFeedForward, err = requiredLayerUint32Compatible(
 			values, prefix+"feed_forward_length", spec.BlockCount,

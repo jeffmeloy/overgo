@@ -227,17 +227,12 @@ func (h *Handler) streamAnthropicMessages(
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
 	writeEvent := stream.named
-	if err := writeEvent("message_start", map[string]any{
-		"type": "message_start",
-		"message": map[string]any{
-			"id":            messageID,
-			"type":          "message",
-			"role":          "assistant",
-			"content":       []any{},
-			"model":         h.config.ModelID,
-			"stop_reason":   nil,
-			"stop_sequence": nil,
-			"usage": anthropicUsage{
+	if err := writeEvent("message_start", anthropicStreamEvent{
+		Type: "message_start",
+		Message: anthropicMessageStart{
+			ID: messageID, Type: "message", Role: "assistant", Content: []any{},
+			Model: h.config.ModelID, StopReason: nil, StopSequence: nil,
+			Usage: anthropicUsage{
 				CacheReadInputTokens: 0,
 				InputTokens:          len(plan.prompt.TokenIDs),
 				OutputTokens:         0,
@@ -259,25 +254,17 @@ func (h *Handler) streamAnthropicMessages(
 			return nil
 		}
 		if !textStarted {
-			if err := writeEvent("content_block_start", map[string]any{
-				"type":  "content_block_start",
-				"index": 0,
-				"content_block": map[string]any{
-					"type": "text",
-					"text": "",
-				},
+			if err := writeEvent("content_block_start", anthropicStreamEvent{
+				Type: "content_block_start", Index: eventIndex(0),
+				ContentBlock: anthropicContentBlockStart{Type: "text", Text: eventString("")},
 			}); err != nil {
 				return err
 			}
 			textStarted = true
 		}
-		return writeEvent("content_block_delta", map[string]any{
-			"type":  "content_block_delta",
-			"index": 0,
-			"delta": map[string]any{
-				"type": "text_delta",
-				"text": piece,
-			},
+		return writeEvent("content_block_delta", anthropicStreamEvent{
+			Type: "content_block_delta", Index: eventIndex(0),
+			Delta: anthropicContentDelta{Type: "text_delta", Text: eventString(piece)},
 		})
 	}
 	emitToolPiece := func(piece string) error {
@@ -286,9 +273,8 @@ func (h *Handler) streamAnthropicMessages(
 			Content: emitText,
 			Tool: func(delta inference.ChatToolCallDelta) error {
 				if delta.Started && textStarted && !textStopped {
-					if err := writeEvent("content_block_stop", map[string]any{
-						"type":  "content_block_stop",
-						"index": 0,
+					if err := writeEvent("content_block_stop", anthropicStreamEvent{
+						Type: "content_block_stop", Index: eventIndex(0),
 					}); err != nil {
 						return err
 					}
@@ -299,26 +285,21 @@ func (h *Handler) streamAnthropicMessages(
 					blockIndex++
 				}
 				if delta.Started {
-					if err := writeEvent("content_block_start", map[string]any{
-						"type":  "content_block_start",
-						"index": blockIndex,
-						"content_block": map[string]any{
-							"type":  "tool_use",
-							"id":    fmt.Sprintf("%s_%d", idPrefix, delta.Index),
-							"name":  delta.Name,
-							"input": map[string]any{},
+					if err := writeEvent("content_block_start", anthropicStreamEvent{
+						Type: "content_block_start", Index: eventIndex(blockIndex),
+						ContentBlock: anthropicContentBlockStart{
+							Type: "tool_use", ID: fmt.Sprintf("%s_%d", idPrefix, delta.Index),
+							Name: delta.Name, Input: emptyEventObject(),
 						},
 					}); err != nil {
 						return err
 					}
 				}
 				if delta.Arguments != "" {
-					if err := writeEvent("content_block_delta", map[string]any{
-						"type":  "content_block_delta",
-						"index": blockIndex,
-						"delta": map[string]any{
-							"type":         "input_json_delta",
-							"partial_json": delta.Arguments,
+					if err := writeEvent("content_block_delta", anthropicStreamEvent{
+						Type: "content_block_delta", Index: eventIndex(blockIndex),
+						Delta: anthropicContentDelta{
+							Type: "input_json_delta", PartialJSON: eventString(delta.Arguments),
 						},
 					}); err != nil {
 						return err
@@ -331,37 +312,39 @@ func (h *Handler) streamAnthropicMessages(
 	emitCompletedBlock := func(index int, block anthropicContentBlock) error {
 		switch block.Type {
 		case "thinking":
-			if err := writeEvent("content_block_start", map[string]any{
-				"type": "content_block_start", "index": index,
-				"content_block": map[string]any{"type": "thinking", "thinking": "", "signature": ""},
+			if err := writeEvent("content_block_start", anthropicStreamEvent{
+				Type: "content_block_start", Index: eventIndex(index),
+				ContentBlock: anthropicContentBlockStart{
+					Type: "thinking", Thinking: eventString(""), Signature: eventString(""),
+				},
 			}); err != nil {
 				return err
 			}
 			if block.Thinking != "" {
-				if err := writeEvent("content_block_delta", map[string]any{
-					"type": "content_block_delta", "index": index,
-					"delta": map[string]any{"type": "thinking_delta", "thinking": block.Thinking},
+				if err := writeEvent("content_block_delta", anthropicStreamEvent{
+					Type: "content_block_delta", Index: eventIndex(index),
+					Delta: anthropicContentDelta{Type: "thinking_delta", Thinking: eventString(block.Thinking)},
 				}); err != nil {
 					return err
 				}
 			}
-			if err := writeEvent("content_block_delta", map[string]any{
-				"type": "content_block_delta", "index": index,
-				"delta": map[string]any{"type": "signature_delta", "signature": block.Signature},
+			if err := writeEvent("content_block_delta", anthropicStreamEvent{
+				Type: "content_block_delta", Index: eventIndex(index),
+				Delta: anthropicContentDelta{Type: "signature_delta", Signature: eventString(block.Signature)},
 			}); err != nil {
 				return err
 			}
 		case "text":
-			if err := writeEvent("content_block_start", map[string]any{
-				"type": "content_block_start", "index": index,
-				"content_block": map[string]any{"type": "text", "text": ""},
+			if err := writeEvent("content_block_start", anthropicStreamEvent{
+				Type: "content_block_start", Index: eventIndex(index),
+				ContentBlock: anthropicContentBlockStart{Type: "text", Text: eventString("")},
 			}); err != nil {
 				return err
 			}
 			if block.Text != "" {
-				if err := writeEvent("content_block_delta", map[string]any{
-					"type": "content_block_delta", "index": index,
-					"delta": map[string]any{"type": "text_delta", "text": block.Text},
+				if err := writeEvent("content_block_delta", anthropicStreamEvent{
+					Type: "content_block_delta", Index: eventIndex(index),
+					Delta: anthropicContentDelta{Type: "text_delta", Text: eventString(block.Text)},
 				}); err != nil {
 					return err
 				}
@@ -369,8 +352,8 @@ func (h *Handler) streamAnthropicMessages(
 		default:
 			return fmt.Errorf("unsupported completed Anthropic block %q", block.Type)
 		}
-		return writeEvent("content_block_stop", map[string]any{
-			"type": "content_block_stop", "index": index,
+		return writeEvent("content_block_stop", anthropicStreamEvent{
+			Type: "content_block_stop", Index: eventIndex(index),
 		})
 	}
 	result, err := plan.run(
@@ -437,9 +420,8 @@ func (h *Handler) streamAnthropicMessages(
 						streamIndex--
 					}
 					if toolStream.streamed(streamIndex) {
-						if err := writeEvent("content_block_stop", map[string]any{
-							"type":  "content_block_stop",
-							"index": index,
+						if err := writeEvent("content_block_stop", anthropicStreamEvent{
+							Type: "content_block_stop", Index: eventIndex(index),
 						}); err != nil {
 							return
 						}
@@ -447,45 +429,34 @@ func (h *Handler) streamAnthropicMessages(
 				}
 				continue
 			}
-			startBlock := map[string]any{
-				"type": block.Type,
-			}
+			startBlock := anthropicContentBlockStart{Type: block.Type}
 			if block.Type == "text" {
-				startBlock["text"] = ""
+				startBlock.Text = eventString("")
 			} else {
-				startBlock["id"] = block.ID
-				startBlock["name"] = block.Name
-				startBlock["input"] = map[string]any{}
+				startBlock.ID = block.ID
+				startBlock.Name = block.Name
+				startBlock.Input = emptyEventObject()
 			}
-			if err := writeEvent("content_block_start", map[string]any{
-				"type":          "content_block_start",
-				"index":         index,
-				"content_block": startBlock,
+			if err := writeEvent("content_block_start", anthropicStreamEvent{
+				Type: "content_block_start", Index: eventIndex(index), ContentBlock: startBlock,
 			}); err != nil {
 				return
 			}
-			var delta map[string]any
+			var delta anthropicContentDelta
 			if block.Type == "text" {
-				delta = map[string]any{
-					"type": "text_delta",
-					"text": block.Text,
-				}
+				delta = anthropicContentDelta{Type: "text_delta", Text: eventString(block.Text)}
 			} else {
-				delta = map[string]any{
-					"type":         "input_json_delta",
-					"partial_json": string(block.Input),
+				delta = anthropicContentDelta{
+					Type: "input_json_delta", PartialJSON: eventString(string(block.Input)),
 				}
 			}
-			if err := writeEvent("content_block_delta", map[string]any{
-				"type":  "content_block_delta",
-				"index": index,
-				"delta": delta,
+			if err := writeEvent("content_block_delta", anthropicStreamEvent{
+				Type: "content_block_delta", Index: eventIndex(index), Delta: delta,
 			}); err != nil {
 				return
 			}
-			if err := writeEvent("content_block_stop", map[string]any{
-				"type":  "content_block_stop",
-				"index": index,
+			if err := writeEvent("content_block_stop", anthropicStreamEvent{
+				Type: "content_block_stop", Index: eventIndex(index),
 			}); err != nil {
 				return
 			}
@@ -494,9 +465,8 @@ func (h *Handler) streamAnthropicMessages(
 			stopReason = "tool_use"
 		}
 	} else if textStarted && !textStopped {
-		if err := writeEvent("content_block_stop", map[string]any{
-			"type":  "content_block_stop",
-			"index": 0,
+		if err := writeEvent("content_block_stop", anthropicStreamEvent{
+			Type: "content_block_stop", Index: eventIndex(0),
 		}); err != nil {
 			return
 		}
@@ -505,17 +475,14 @@ func (h *Handler) streamAnthropicMessages(
 	if pump.stopped() && stopReason != "tool_use" {
 		stopSequence = pump.stoppingWord()
 	}
-	if err := writeEvent("message_delta", map[string]any{
-		"type": "message_delta",
-		"delta": map[string]any{
-			"stop_reason":   stopReason,
-			"stop_sequence": stopSequence,
-		},
-		"usage": map[string]int{"output_tokens": pump.generated},
+	if err := writeEvent("message_delta", anthropicStreamEvent{
+		Type:  "message_delta",
+		Delta: anthropicMessageDelta{StopReason: stopReason, StopSequence: stopSequence},
+		Usage: anthropicOutputUsage{OutputTokens: pump.generated},
 	}); err != nil {
 		return
 	}
-	_ = writeEvent("message_stop", map[string]any{"type": "message_stop"})
+	_ = writeEvent("message_stop", anthropicStreamEvent{Type: "message_stop"})
 }
 
 func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *http.Request) {

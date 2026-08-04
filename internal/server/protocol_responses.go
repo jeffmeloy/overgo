@@ -280,20 +280,14 @@ func (h *Handler) streamResponses(
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
 	writeEvent := stream.named
-	inProgress := map[string]any{
-		"id":     responseID,
-		"object": "response",
-		"status": "in_progress",
-	}
-	if err := writeEvent("response.created", map[string]any{
-		"type":     "response.created",
-		"response": inProgress,
+	inProgress := responsesProgress{ID: responseID, Object: "response", Status: "in_progress"}
+	if err := writeEvent("response.created", responsesStreamEvent{
+		Type: "response.created", Response: inProgress,
 	}); err != nil {
 		return
 	}
-	if err := writeEvent("response.in_progress", map[string]any{
-		"type":     "response.in_progress",
-		"response": inProgress,
+	if err := writeEvent("response.in_progress", responsesStreamEvent{
+		Type: "response.in_progress", Response: inProgress,
 	}); err != nil {
 		return
 	}
@@ -312,35 +306,25 @@ func (h *Handler) streamResponses(
 			return nil
 		}
 		if !textStarted {
-			if err := writeEvent("response.output_item.added", map[string]any{
-				"type": "response.output_item.added",
-				"item": map[string]any{
-					"content": []any{},
-					"id":      messageID,
-					"role":    "assistant",
-					"status":  "in_progress",
-					"type":    "message",
+			if err := writeEvent("response.output_item.added", responsesStreamEvent{
+				Type: "response.output_item.added",
+				Item: responsesMessageStart{
+					Content: []any{}, ID: messageID, Role: "assistant", Status: "in_progress", Type: "message",
 				},
 			}); err != nil {
 				return err
 			}
-			if err := writeEvent("response.content_part.added", map[string]any{
-				"type":    "response.content_part.added",
-				"item_id": messageID,
-				"part": map[string]any{
-					"type": "output_text",
-					"text": "",
-				},
+			if err := writeEvent("response.content_part.added", responsesStreamEvent{
+				Type: "response.content_part.added", ItemID: messageID,
+				Part: responsesTextStart{Type: "output_text", Text: ""},
 			}); err != nil {
 				return err
 			}
 			textStarted = true
 		}
 		output.WriteString(piece)
-		return writeEvent("response.output_text.delta", map[string]any{
-			"type":    "response.output_text.delta",
-			"item_id": messageID,
-			"delta":   piece,
+		return writeEvent("response.output_text.delta", responsesStreamEvent{
+			Type: "response.output_text.delta", ItemID: messageID, Delta: piece,
 		})
 	}
 	emitToolPiece := func(piece string) error {
@@ -357,11 +341,10 @@ func (h *Handler) streamResponses(
 				if delta.Started {
 					if err := writeEvent(
 						"response.output_item.added",
-						map[string]any{
-							"type":         "response.output_item.added",
-							"response_id":  responseID,
-							"output_index": outputIndex,
-							"item": responseOutputItem{
+						responsesStreamEvent{
+							Type: "response.output_item.added", ResponseID: responseID,
+							OutputIndex: eventIndex(outputIndex),
+							Item: responseOutputItem{
 								Arguments: "",
 								CallID:    callID,
 								ID:        itemID,
@@ -377,12 +360,9 @@ func (h *Handler) streamResponses(
 				if delta.Arguments != "" {
 					if err := writeEvent(
 						"response.function_call_arguments.delta",
-						map[string]any{
-							"type":         "response.function_call_arguments.delta",
-							"response_id":  responseID,
-							"item_id":      itemID,
-							"output_index": outputIndex,
-							"delta":        delta.Arguments,
+						responsesStreamEvent{
+							Type: "response.function_call_arguments.delta", ResponseID: responseID,
+							ItemID: itemID, OutputIndex: eventIndex(outputIndex), Delta: delta.Arguments,
 						},
 					); err != nil {
 						return err
@@ -400,43 +380,43 @@ func (h *Handler) streamResponses(
 		itemID := "rs_" + idSuffix
 		part := responseReasoningSummary{Type: "summary_text", Text: text}
 		added := responseOutputItem{ID: itemID, Status: "in_progress", Type: "reasoning"}
-		if err := writeEvent("response.output_item.added", map[string]any{
-			"type": "response.output_item.added", "response_id": responseID,
-			"output_index": 0, "item": added,
+		if err := writeEvent("response.output_item.added", responsesStreamEvent{
+			Type: "response.output_item.added", ResponseID: responseID,
+			OutputIndex: eventIndex(0), Item: added,
 		}); err != nil {
 			return err
 		}
-		if err := writeEvent("response.reasoning_summary_part.added", map[string]any{
-			"type": "response.reasoning_summary_part.added", "item_id": itemID,
-			"output_index": 0, "summary_index": 0,
-			"part": responseReasoningSummary{Type: "summary_text", Text: ""},
+		if err := writeEvent("response.reasoning_summary_part.added", responsesStreamEvent{
+			Type: "response.reasoning_summary_part.added", ItemID: itemID,
+			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0),
+			Part: responseReasoningSummary{Type: "summary_text", Text: ""},
 		}); err != nil {
 			return err
 		}
-		if err := writeEvent("response.reasoning_summary_text.delta", map[string]any{
-			"type": "response.reasoning_summary_text.delta", "item_id": itemID,
-			"output_index": 0, "summary_index": 0, "delta": text,
+		if err := writeEvent("response.reasoning_summary_text.delta", responsesStreamEvent{
+			Type: "response.reasoning_summary_text.delta", ItemID: itemID,
+			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0), Delta: text,
 		}); err != nil {
 			return err
 		}
-		if err := writeEvent("response.reasoning_summary_text.done", map[string]any{
-			"type": "response.reasoning_summary_text.done", "item_id": itemID,
-			"output_index": 0, "summary_index": 0, "text": text,
+		if err := writeEvent("response.reasoning_summary_text.done", responsesStreamEvent{
+			Type: "response.reasoning_summary_text.done", ItemID: itemID,
+			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0), Text: eventString(text),
 		}); err != nil {
 			return err
 		}
-		if err := writeEvent("response.reasoning_summary_part.done", map[string]any{
-			"type": "response.reasoning_summary_part.done", "item_id": itemID,
-			"output_index": 0, "summary_index": 0, "part": part,
+		if err := writeEvent("response.reasoning_summary_part.done", responsesStreamEvent{
+			Type: "response.reasoning_summary_part.done", ItemID: itemID,
+			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0), Part: part,
 		}); err != nil {
 			return err
 		}
 		completed := responseOutputItem{
 			ID: itemID, Status: "completed", Summary: []responseReasoningSummary{part}, Type: "reasoning",
 		}
-		if err := writeEvent("response.output_item.done", map[string]any{
-			"type": "response.output_item.done", "response_id": responseID,
-			"output_index": 0, "item": completed,
+		if err := writeEvent("response.output_item.done", responsesStreamEvent{
+			Type: "response.output_item.done", ResponseID: responseID,
+			OutputIndex: eventIndex(0), Item: completed,
 		}); err != nil {
 			return err
 		}
@@ -511,23 +491,18 @@ func (h *Handler) streamResponses(
 			Status:  "completed",
 			Type:    "message",
 		}
-		if err := writeEvent("response.output_text.done", map[string]any{
-			"type":    "response.output_text.done",
-			"item_id": messageID,
-			"text":    text,
+		if err := writeEvent("response.output_text.done", responsesStreamEvent{
+			Type: "response.output_text.done", ItemID: messageID, Text: eventString(text),
 		}); err != nil {
 			return
 		}
-		if err := writeEvent("response.content_part.done", map[string]any{
-			"type":    "response.content_part.done",
-			"item_id": messageID,
-			"part":    part,
+		if err := writeEvent("response.content_part.done", responsesStreamEvent{
+			Type: "response.content_part.done", ItemID: messageID, Part: part,
 		}); err != nil {
 			return
 		}
-		if err := writeEvent("response.output_item.done", map[string]any{
-			"type": "response.output_item.done",
-			"item": item,
+		if err := writeEvent("response.output_item.done", responsesStreamEvent{
+			Type: "response.output_item.done", Item: item,
 		}); err != nil {
 			return
 		}
@@ -558,22 +533,17 @@ func (h *Handler) streamResponses(
 		added.Arguments = ""
 		added.Status = "in_progress"
 		if !streamed {
-			if err := writeEvent("response.output_item.added", map[string]any{
-				"type":         "response.output_item.added",
-				"response_id":  responseID,
-				"output_index": outputIndex,
-				"item":         added,
+			if err := writeEvent("response.output_item.added", responsesStreamEvent{
+				Type: "response.output_item.added", ResponseID: responseID,
+				OutputIndex: eventIndex(outputIndex), Item: added,
 			}); err != nil {
 				return
 			}
 			if err := writeEvent(
 				"response.function_call_arguments.delta",
-				map[string]any{
-					"type":         "response.function_call_arguments.delta",
-					"response_id":  responseID,
-					"item_id":      item.ID,
-					"output_index": outputIndex,
-					"delta":        item.Arguments,
+				responsesStreamEvent{
+					Type: "response.function_call_arguments.delta", ResponseID: responseID,
+					ItemID: item.ID, OutputIndex: eventIndex(outputIndex), Delta: item.Arguments,
 				},
 			); err != nil {
 				return
@@ -581,21 +551,16 @@ func (h *Handler) streamResponses(
 		}
 		if err := writeEvent(
 			"response.function_call_arguments.done",
-			map[string]any{
-				"type":         "response.function_call_arguments.done",
-				"response_id":  responseID,
-				"item_id":      item.ID,
-				"output_index": outputIndex,
-				"arguments":    item.Arguments,
+			responsesStreamEvent{
+				Type: "response.function_call_arguments.done", ResponseID: responseID,
+				ItemID: item.ID, OutputIndex: eventIndex(outputIndex), Arguments: eventString(item.Arguments),
 			},
 		); err != nil {
 			return
 		}
-		if err := writeEvent("response.output_item.done", map[string]any{
-			"type":         "response.output_item.done",
-			"response_id":  responseID,
-			"output_index": outputIndex,
-			"item":         item,
+		if err := writeEvent("response.output_item.done", responsesStreamEvent{
+			Type: "response.output_item.done", ResponseID: responseID,
+			OutputIndex: eventIndex(outputIndex), Item: item,
 		}); err != nil {
 			return
 		}
@@ -621,9 +586,8 @@ func (h *Handler) streamResponses(
 	if store {
 		h.responseHistory.put(responseID, append(history, parsedMessage))
 	}
-	_ = writeEvent("response.completed", map[string]any{
-		"type":     "response.completed",
-		"response": final,
+	_ = writeEvent("response.completed", responsesStreamEvent{
+		Type: "response.completed", Response: final,
 	})
 }
 

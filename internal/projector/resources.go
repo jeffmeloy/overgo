@@ -14,6 +14,23 @@ type projectorResource interface {
 	Close() error
 }
 
+func openProjectorResource[R any](
+	path string,
+	build func(*gguf.File) (R, error),
+) (R, error) {
+	var zero R
+	file, err := gguf.Open(path)
+	if err != nil {
+		return zero, err
+	}
+	result, err := build(file)
+	if err != nil {
+		_ = file.Close()
+		return zero, err
+	}
+	return result, nil
+}
+
 func loadProjectorHostTensor(ctx context.Context, file *gguf.File, name string) (reference.Value, error) {
 	info, ok := file.Tensor(name)
 	if !ok {

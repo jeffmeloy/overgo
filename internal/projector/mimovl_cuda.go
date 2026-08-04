@@ -17,18 +17,9 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 		return MiMoVLOutput{}, errors.New("projector: MiMo-VL input geometry is inconsistent")
 	}
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
-	temporalWidth := 3 * patchArea
-	if len(input.PixelValues) != rows*temporalWidth*2 {
-		return MiMoVLOutput{}, errors.New("projector: MiMo-VL pixel tensor is inconsistent")
-	}
-	pixels0 := make([]float32, rows*temporalWidth)
-	pixels1 := make([]float32, rows*temporalWidth)
-	for row := 0; row < rows; row++ {
-		source := input.PixelValues[row*temporalWidth*2:]
-		for color := 0; color < 3; color++ {
-			copy(pixels0[row*temporalWidth+color*patchArea:], source[color*2*patchArea:color*2*patchArea+patchArea])
-			copy(pixels1[row*temporalWidth+color*patchArea:], source[color*2*patchArea+patchArea:(color+1)*2*patchArea])
-		}
+	pixels0, pixels1, temporalWidth, err := splitTemporalPatchPairs(input.PixelValues, rows, patchArea)
+	if err != nil {
+		return MiMoVLOutput{}, err
 	}
 	builder := tensor.NewBuilder()
 	input0 := builder.Input("pixel_values.0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
@@ -38,16 +29,6 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
 	hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
 	weight := graph.weight
-	addOptional := func(input *tensor.Tensor, name string) *tensor.Tensor {
-		if hasTensor(r.file, name) {
-			return builder.Add(input, weight(name))
-		}
-		return input
-	}
-	rmsNorm := func(input *tensor.Tensor, prefix string) *tensor.Tensor {
-		output := builder.WeightedRMSNorm(input, weight(prefix+".weight"), r.spec.LayerNormEpsilon)
-		return addOptional(output, prefix+".bias")
-	}
 	patch0 := builder.Reshape(weight("v.patch_embd.weight"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	patch1 := builder.Reshape(weight("v.patch_embd.weight.1"), uint64(temporalWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1))
@@ -68,7 +49,7 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 			positionsH, positionsW = intsToUint32(rowPositions), intsToUint32(columnPositions)
 		}
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		norm := rmsNorm(hidden, prefix+"ln1")
+		norm := graph.weightedRMSNorm(hidden, prefix+"ln1", r.spec.LayerNormEpsilon)
 		qkv := builder.Add(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), weight(prefix+"attn_qkv.bias"))
 		headDim := uint64(r.spec.HeadDim)
 		q := builder.GroupSlice(qkv, 0, headDim, uint64(r.spec.Heads), headDim)
@@ -87,8 +68,8 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 		}
 		attention = builder.Reshape(attention, uint64(qWidth), uint64(rows))
 		projected := builder.MulMat(weight(prefix+"attn_out.weight"), attention)
-		hidden = builder.Add(hidden, addOptional(projected, prefix+"attn_out.bias"))
-		norm = rmsNorm(hidden, prefix+"ln2")
+		hidden = builder.Add(hidden, graph.addOptionalBias(projected, prefix+"attn_out.bias"))
+		norm = graph.weightedRMSNorm(hidden, prefix+"ln2", r.spec.LayerNormEpsilon)
 		up := builder.Add(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), weight(prefix+"ffn_up.bias"))
 		gate := builder.Add(builder.MulMat(weight(prefix+"ffn_gate.weight"), norm), weight(prefix+"ffn_gate.bias"))
 		activated := builder.Multiply(builder.SiLU(gate), up)
@@ -100,13 +81,13 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 		hidden = builder.GetRows(hidden, intsToUint32(inverseColumnOrder))
 	}
 	normalized := builder.Multiply(builder.LayerNorm(hidden, 1e-6), weight("v.post_ln.weight"))
-	normalized = addOptional(normalized, "v.post_ln.bias")
+	normalized = graph.addOptionalBias(normalized, "v.post_ln.bias")
 	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
 	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*4), uint64(mergedRows))
 	fc1 := builder.MulMat(weight("mm.0.weight"), merged)
-	fc1 = qwen3VLGELUTanh(builder, addOptional(fc1, "mm.0.bias"), hostFeeds)
+	fc1 = qwen3VLGELUTanh(builder, graph.addOptionalBias(fc1, "mm.0.bias"), hostFeeds)
 	output := builder.MulMat(weight("mm.2.weight"), fc1)
-	output = addOptional(output, "mm.2.bias")
+	output = graph.addOptionalBias(output, "mm.2.bias")
 	results, err := graph.execute(output)
 	if err != nil {
 		return MiMoVLOutput{}, fmt.Errorf("projector: execute MiMo-VL graph: %w", err)

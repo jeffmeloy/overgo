@@ -86,30 +86,24 @@ type Qwen3VLOpenOptions struct {
 }
 
 func OpenQwen3VLWithOptions(path string, options Qwen3VLOpenOptions) (*Qwen3VLRunner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(openErr error) (*Qwen3VLRunner, error) {
-		_ = file.Close()
-		return nil, openErr
-	}
-	spec, err := ReadQwen3VLSpec(file)
-	if err != nil {
-		return fail(err)
-	}
-	catalog, err := validateQwen3VLCatalog(file, spec)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &Qwen3VLRunner{file: file, spec: spec}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*Qwen3VLRunner, error) {
+		spec, err := ReadQwen3VLSpec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize Qwen3-VL CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		catalog, err := validateQwen3VLCatalog(file, spec)
+		if err != nil {
+			return nil, err
+		}
+		runner := &Qwen3VLRunner{file: file, spec: spec}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize Qwen3-VL CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *Qwen3VLRunner) Close() error {

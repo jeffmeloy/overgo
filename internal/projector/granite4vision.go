@@ -74,30 +74,24 @@ func OpenGranite4Vision(path string) (*Granite4VisionRunner, error) {
 }
 
 func OpenGranite4VisionWithOptions(path string, options Granite4VisionOpenOptions) (*Granite4VisionRunner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(cause error) (*Granite4VisionRunner, error) {
-		_ = file.Close()
-		return nil, cause
-	}
-	spec, err := ReadGranite4VisionSpec(file)
-	if err != nil {
-		return fail(err)
-	}
-	catalog, err := validateGranite4VisionCatalog(file, spec)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &Granite4VisionRunner{file: file, spec: spec}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*Granite4VisionRunner, error) {
+		spec, err := ReadGranite4VisionSpec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize Granite 4 Vision CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		catalog, err := validateGranite4VisionCatalog(file, spec)
+		if err != nil {
+			return nil, err
+		}
+		runner := &Granite4VisionRunner{file: file, spec: spec}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize Granite 4 Vision CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *Granite4VisionRunner) Close() error {

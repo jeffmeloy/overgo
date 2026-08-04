@@ -17,20 +17,19 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 	if patchRows <= 0 || input.GridH != input.GridW || input.GridH%r.spec.MergeSize != 0 || len(input.PixelValues) != patchRows*patchWidth {
 		return reference.Value{}, errors.New("projector: Llama-4 CUDA tile shape is inconsistent")
 	}
+	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
+	if err != nil {
+		return reference.Value{}, err
+	}
 	rows := patchRows + 1
 	builder := tensor.NewBuilder()
 	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(patchRows)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{pixels: pixelsValue(pixels, input.PixelValues)}
-	binding := r.cuda.bindWeights(builder)
-	weight := binding.weight
-	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
-		if !hasTensor(r.file, name) {
-			return value
-		}
-		return builder.Add(value, weight(name))
-	}
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	hostFeeds := graph.hostFeeds
+	hostFeeds[pixels] = pixelsValue(pixels, input.PixelValues)
+	weight := graph.weight
 	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := addBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
+	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
 	class := builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1)
 	hidden = builder.Concat(hidden, class, 1)
 	hidden = builder.Add(hidden, weight("v.position_embd.weight"))
@@ -47,11 +46,11 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 		norm := builder.AffineLayerNorm(hidden, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)
 		var qkv *tensor.Tensor
 		if r.spec.FusedQKV[layer] {
-			qkv = addBias(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), prefix+"attn_qkv.bias")
+			qkv = graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), prefix+"attn_qkv.bias")
 		} else {
 			parts := make([]*tensor.Tensor, 3)
 			for index, part := range []string{"q", "k", "v"} {
-				parts[index] = addBias(builder.MulMat(weight(prefix+"attn_"+part+".weight"), norm), prefix+"attn_"+part+".bias")
+				parts[index] = graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_"+part+".weight"), norm), prefix+"attn_"+part+".bias")
 			}
 			qkv = builder.Concat(builder.Concat(parts[0], parts[1], 0), parts[2], 0)
 		}
@@ -63,51 +62,25 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 		k = llama4VisionRoPEGraph(builder, k, positionsW, positionsH, r.spec.RopeTheta)
 		attention := builder.Attention(q, k, v, float32(1/math.Sqrt(float64(headWidth))), false)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
-		projected := addBias(builder.MulMat(weight(prefix+"attn_out.weight"), attention), prefix+"attn_out.bias")
+		projected := graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_out.weight"), attention), prefix+"attn_out.bias")
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
-		up := addBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
+		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
 		up = r.llama4VisionActivationGraph(builder, up, hostFeeds)
-		down := addBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
+		down := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		hidden = builder.Add(hidden, down)
 	}
 	if r.spec.PostLayerNorm {
 		hidden = builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
 	}
 	hidden = builder.FlatSlice(hidden, 0, uint64(r.spec.Hidden), uint64(patchRows))
-	mergedH, mergedW := input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize
-	mergeFactor := r.spec.MergeSize * r.spec.MergeSize
-	indexSets := make([][]uint32, mergeFactor)
-	for index := range indexSets {
-		indexSets[index] = make([]uint32, 0, mergedH*mergedW)
-	}
-	for blockY := 0; blockY < mergedH; blockY++ {
-		for blockX := 0; blockX < mergedW; blockX++ {
-			for y := 0; y < r.spec.MergeSize; y++ {
-				for x := 0; x < r.spec.MergeSize; x++ {
-					offset := y*r.spec.MergeSize + x
-					indexSets[offset] = append(indexSets[offset], uint32((blockY*r.spec.MergeSize+y)*input.GridW+blockX*r.spec.MergeSize+x))
-				}
-			}
-		}
-	}
-	merged := builder.GetRows(hidden, indexSets[0])
-	for offset := 1; offset < len(indexSets); offset++ {
-		merged = builder.Concat(merged, builder.GetRows(hidden, indexSets[offset]), 0)
-	}
+	merged := mergePlan.graph(builder, hidden)
 	adapted := builder.MulMat(weight("mm.model.mlp.1.weight"), merged)
 	adapted = qwen3VLGELUTanh(builder, adapted, hostFeeds)
 	adapted = builder.MulMat(weight("mm.model.mlp.2.weight"), adapted)
 	adapted = qwen3VLGELUTanh(builder, adapted, hostFeeds)
 	output := builder.MulMat(weight("mm.model.fc.weight"), adapted)
-	deviceFeeds, err := binding.result()
-	if err != nil {
-		return reference.Value{}, fmt.Errorf("projector: build Llama-4 CUDA graph: %w", err)
-	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, fmt.Errorf("projector: build Llama-4 CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, []*tensor.Tensor{output}, hostFeeds, deviceFeeds)
+	results, err := graph.execute(output)
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("projector: execute Llama-4 CUDA graph: %w", err)
 	}

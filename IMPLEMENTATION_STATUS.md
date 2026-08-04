@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Projector opening now uses one failure-safe GGUF ownership transaction; shared graph math owns optional bias, linear, and normalization operations; checked geometry plans own pixel merging and paired temporal patch splitting.
 - All projector CUDA initialization now consumes validator- or spec-owned tensor catalogs through one generic loader; per-family CUDA tensor inventories and wrapper types are removed.
 - Host layer graph construction now binds every required and optional weight through the shared mirror catalog; Llama 4, Hunyuan-VL, PaddleOCR, and MiMo-VL shape validation now produces the authoritative ordered CUDA tensor catalog.
 - Required and optional layer tensors now share one reflected catalog for host loading and device graph binding; projected chunk execution carries one compiled request value and normalization plans are resolved once per model load.

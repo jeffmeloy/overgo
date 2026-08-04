@@ -20,20 +20,18 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage)
 	if input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 {
 		return PaddleOCROutput{}, errors.New("projector: PaddleOCR input is not merge aligned")
 	}
+	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
+	if err != nil {
+		return PaddleOCROutput{}, err
+	}
 	builder := tensor.NewBuilder()
 	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = reference.Value{Shape: pixels.Shape, Data: input.PixelValues}
 	weight := graph.weight
-	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
-		if !hasTensor(r.file, name) {
-			return value
-		}
-		return builder.Add(value, weight(name))
-	}
 	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := addBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
+	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
 	rowOrder, columnOrder := paddleOCRGrid(input.GridH, input.GridW)
 	hidden = r.paddleOCRPositionGraph(builder, hidden, weight("v.position_embd.weight"), input, rowOrder, columnOrder, hostFeeds)
 	if r.spec.PreLayerNorm {
@@ -50,11 +48,11 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage)
 		norm := builder.AffineLayerNorm(hidden, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)
 		var qkv *tensor.Tensor
 		if r.spec.FusedQKV[layer] {
-			qkv = addBias(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), prefix+"attn_qkv.bias")
+			qkv = graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), prefix+"attn_qkv.bias")
 		} else {
 			parts := make([]*tensor.Tensor, 3)
 			for index, part := range []string{"q", "k", "v"} {
-				parts[index] = addBias(builder.MulMat(weight(prefix+"attn_"+part+".weight"), norm), prefix+"attn_"+part+".bias")
+				parts[index] = graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_"+part+".weight"), norm), prefix+"attn_"+part+".bias")
 			}
 			qkv = builder.Concat(builder.Concat(parts[0], parts[1], 0), parts[2], 0)
 		}
@@ -66,37 +64,19 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage)
 		k = qwen3VLVisionRoPE(builder, k, positionsY, positionsX)
 		attention := builder.Attention(q, k, v, float32(1/math.Sqrt(float64(headWidth))), false)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
-		projected := addBias(builder.MulMat(weight(prefix+"attn_out.weight"), attention), prefix+"attn_out.bias")
+		projected := graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_out.weight"), attention), prefix+"attn_out.bias")
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
-		up := addBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
+		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
 		up = r.paddleOCRActivationGraph(builder, up, hostFeeds)
-		down := addBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
+		down := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		hidden = builder.Add(hidden, down)
 	}
 	if r.spec.PostLayerNorm {
 		hidden = builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
 	}
 	hidden = builder.AffineLayerNorm(hidden, weight("mm.input_norm.weight"), weight("mm.input_norm.bias"), 1e-5)
-	mergedH, mergedW := input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize
-	indexSets := [4][]uint32{}
-	for index := range indexSets {
-		indexSets[index] = make([]uint32, 0, mergedH*mergedW)
-	}
-	for blockY := 0; blockY < mergedH; blockY++ {
-		for blockX := 0; blockX < mergedW; blockX++ {
-			for y := 0; y < r.spec.MergeSize; y++ {
-				for x := 0; x < r.spec.MergeSize; x++ {
-					part := y*r.spec.MergeSize + x
-					indexSets[part] = append(indexSets[part], uint32((blockY*r.spec.MergeSize+y)*input.GridW+blockX*r.spec.MergeSize+x))
-				}
-			}
-		}
-	}
-	merged := builder.GetRows(hidden, indexSets[0])
-	for part := 1; part < len(indexSets); part++ {
-		merged = builder.Concat(merged, builder.GetRows(hidden, indexSets[part]), 0)
-	}
+	merged := mergePlan.graph(builder, hidden)
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
 	fc1 = r.paddleOCRActivationGraph(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))

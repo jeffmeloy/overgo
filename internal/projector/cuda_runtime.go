@@ -183,6 +183,45 @@ func (runtime *projectorGraphRuntime) weight(name string) *tensor.Tensor {
 	return node
 }
 
+func (runtime *projectorGraphRuntime) addOptionalBias(
+	input *tensor.Tensor,
+	name string,
+) *tensor.Tensor {
+	if !hasTensor(runtime.file, name) {
+		return input
+	}
+	return runtime.builder.Add(input, runtime.weight(name))
+}
+
+func (runtime *projectorGraphRuntime) linear(
+	input *tensor.Tensor,
+	prefix string,
+) *tensor.Tensor {
+	return runtime.builder.Add(
+		runtime.builder.MulMat(runtime.weight(prefix+".weight"), input),
+		runtime.weight(prefix+".bias"),
+	)
+}
+
+func (runtime *projectorGraphRuntime) affineNorm(
+	input *tensor.Tensor,
+	prefix string,
+	epsilon float32,
+) *tensor.Tensor {
+	return runtime.builder.AffineLayerNorm(
+		input, runtime.weight(prefix+".weight"), runtime.weight(prefix+".bias"), epsilon,
+	)
+}
+
+func (runtime *projectorGraphRuntime) weightedRMSNorm(
+	input *tensor.Tensor,
+	prefix string,
+	epsilon float32,
+) *tensor.Tensor {
+	output := runtime.builder.WeightedRMSNorm(input, runtime.weight(prefix+".weight"), epsilon)
+	return runtime.addOptionalBias(output, prefix+".bias")
+}
+
 func (runtime *projectorGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {
 	if runtime.err != nil {
 		return nil, runtime.err

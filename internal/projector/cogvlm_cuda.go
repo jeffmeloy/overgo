@@ -20,14 +20,8 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 	graph.hostFeeds[pixels] = pixelsValue(pixels, pixelsData)
 	weight := graph.weight
 	hostFeeds := graph.hostFeeds
-	addBias := func(value *tensor.Tensor, name string) *tensor.Tensor {
-		if !hasTensor(r.file, name) {
-			return value
-		}
-		return builder.Add(value, weight(name))
-	}
 	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := addBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
+	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
 	hidden = builder.Concat(hidden, builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1), 1)
 	hidden = builder.Add(hidden, weight("v.position_embd.weight"))
 	for layer := 0; layer < r.spec.Layers; layer++ {
@@ -42,14 +36,14 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 		attention = builder.Add(builder.MulMat(weight(prefix+"attn_out.weight"), attention), weight(prefix+"attn_out.bias"))
 		attention = builder.AffineLayerNorm(attention, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)
 		hidden = builder.Add(hidden, attention)
-		up := addBias(builder.MulMat(weight(prefix+"ffn_up.weight"), hidden), prefix+"ffn_up.bias")
+		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), hidden), prefix+"ffn_up.bias")
 		if r.spec.GatedFFN[layer] {
-			gate := addBias(builder.MulMat(weight(prefix+"ffn_gate.weight"), hidden), prefix+"ffn_gate.bias")
+			gate := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_gate.weight"), hidden), prefix+"ffn_gate.bias")
 			up = builder.Multiply(up, qwen3VLGELUTanh(builder, gate, hostFeeds))
 		} else {
 			up = qwen3VLGELUTanh(builder, up, hostFeeds)
 		}
-		ffn := addBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
+		ffn := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		ffn = builder.AffineLayerNorm(ffn, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		hidden = builder.Add(hidden, ffn)
 	}

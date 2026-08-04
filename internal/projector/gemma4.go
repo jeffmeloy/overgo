@@ -62,32 +62,26 @@ type Gemma4OpenOptions struct {
 }
 
 func OpenGemma4WithOptions(path string, options Gemma4OpenOptions) (*Gemma4Runner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(openErr error) (*Gemma4Runner, error) {
-		_ = file.Close()
-		return nil, openErr
-	}
-	spec, err := ReadGemma4Spec(file)
-	if err != nil {
-		return fail(err)
-	}
-	catalog, err := validateGemma4Catalog(file, spec)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &Gemma4Runner{file: file, spec: spec}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(
-			context.Background(), file, catalog, []string{"mm.a.input_projection.weight"}, options.DeviceOrdinal,
-		)
+	return openProjectorResource(path, func(file *gguf.File) (*Gemma4Runner, error) {
+		spec, err := ReadGemma4Spec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize Gemma 4 CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		catalog, err := validateGemma4Catalog(file, spec)
+		if err != nil {
+			return nil, err
+		}
+		runner := &Gemma4Runner{file: file, spec: spec}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(
+				context.Background(), file, catalog, []string{"mm.a.input_projection.weight"}, options.DeviceOrdinal,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize Gemma 4 CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *Gemma4Runner) Close() error {

@@ -2,7 +2,6 @@ package projector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 
@@ -14,18 +13,9 @@ import (
 func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qwen2VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
-	temporalWidth := 3 * patchArea
-	if len(input.PixelValues) != rows*temporalWidth*2 {
-		return Qwen2VLOutput{}, errors.New("projector: Qwen2-VL input shape is inconsistent")
-	}
-	pixels0 := make([]float32, rows*temporalWidth)
-	pixels1 := make([]float32, rows*temporalWidth)
-	for row := 0; row < rows; row++ {
-		source := input.PixelValues[row*temporalWidth*2:]
-		for color := 0; color < 3; color++ {
-			copy(pixels0[row*temporalWidth+color*patchArea:], source[color*2*patchArea:color*2*patchArea+patchArea])
-			copy(pixels1[row*temporalWidth+color*patchArea:], source[color*2*patchArea+patchArea:(color+1)*2*patchArea])
-		}
+	pixels0, pixels1, temporalWidth, err := splitTemporalPatchPairs(input.PixelValues, rows, patchArea)
+	if err != nil {
+		return Qwen2VLOutput{}, err
 	}
 	builder := tensor.NewBuilder()
 	input0 := builder.Input("pixel_values.0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))

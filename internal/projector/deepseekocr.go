@@ -50,37 +50,31 @@ func OpenDeepSeekOCR(path string) (*DeepSeekOCRRunner, error) {
 }
 
 func OpenDeepSeekOCRWithOptions(path string, options DeepSeekOCROpenOptions) (*DeepSeekOCRRunner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(cause error) (*DeepSeekOCRRunner, error) {
-		_ = file.Close()
-		return nil, cause
-	}
-	spec, err := ReadDeepSeekOCRSpec(file)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &DeepSeekOCRRunner{file: file, spec: spec}
-	runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
-	if err != nil {
-		return fail(err)
-	}
-	runner.clipPosition, err = loadProjectorHostTensor(context.Background(), file, "v.position_embd.weight")
-	if err != nil {
-		return fail(err)
-	}
-	if err := runner.validateGraph(); err != nil {
-		return fail(err)
-	}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*DeepSeekOCRRunner, error) {
+		spec, err := ReadDeepSeekOCRSpec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize DeepSeek-OCR CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		runner := &DeepSeekOCRRunner{file: file, spec: spec}
+		runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
+		if err != nil {
+			return nil, err
+		}
+		runner.clipPosition, err = loadProjectorHostTensor(context.Background(), file, "v.position_embd.weight")
+		if err != nil {
+			return nil, err
+		}
+		if err := runner.validateGraph(); err != nil {
+			return nil, err
+		}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize DeepSeek-OCR CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *DeepSeekOCRRunner) Close() error {

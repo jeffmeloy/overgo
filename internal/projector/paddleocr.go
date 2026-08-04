@@ -77,30 +77,24 @@ func OpenPaddleOCR(path string) (*PaddleOCRRunner, error) {
 }
 
 func OpenPaddleOCRWithOptions(path string, options PaddleOCROpenOptions) (*PaddleOCRRunner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(cause error) (*PaddleOCRRunner, error) {
-		_ = file.Close()
-		return nil, cause
-	}
-	spec, err := ReadPaddleOCRSpec(file)
-	if err != nil {
-		return fail(err)
-	}
-	catalog, err := validatePaddleOCRCatalog(file, spec)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &PaddleOCRRunner{file: file, spec: spec}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*PaddleOCRRunner, error) {
+		spec, err := ReadPaddleOCRSpec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize PaddleOCR CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		catalog, err := validatePaddleOCRCatalog(file, spec)
+		if err != nil {
+			return nil, err
+		}
+		runner := &PaddleOCRRunner{file: file, spec: spec}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize PaddleOCR CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *PaddleOCRRunner) Close() error {

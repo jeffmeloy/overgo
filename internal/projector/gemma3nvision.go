@@ -60,29 +60,23 @@ func OpenGemma3nVision(path string) (*Gemma3nVisionRunner, error) {
 }
 
 func OpenGemma3nVisionWithOptions(path string, options Gemma3nVisionOpenOptions) (*Gemma3nVisionRunner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(cause error) (*Gemma3nVisionRunner, error) {
-		_ = file.Close()
-		return nil, cause
-	}
-	spec, err := ReadGemma3nVisionSpec(file)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &Gemma3nVisionRunner{file: file, spec: spec}
-	if err := runner.validateGraph(); err != nil {
-		return fail(err)
-	}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*Gemma3nVisionRunner, error) {
+		spec, err := ReadGemma3nVisionSpec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize Gemma 3n CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		runner := &Gemma3nVisionRunner{file: file, spec: spec}
+		if err := runner.validateGraph(); err != nil {
+			return nil, err
+		}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize Gemma 3n CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *Gemma3nVisionRunner) Close() error {

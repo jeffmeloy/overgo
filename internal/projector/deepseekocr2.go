@@ -38,33 +38,27 @@ func OpenDeepSeekOCR2(path string) (*DeepSeekOCR2Runner, error) {
 }
 
 func OpenDeepSeekOCR2WithOptions(path string, options DeepSeekOCR2OpenOptions) (*DeepSeekOCR2Runner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(cause error) (*DeepSeekOCR2Runner, error) {
-		_ = file.Close()
-		return nil, cause
-	}
-	spec, err := ReadDeepSeekOCR2Spec(file)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &DeepSeekOCR2Runner{file: file, spec: spec}
-	runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
-	if err != nil {
-		return fail(err)
-	}
-	if err := runner.validateGraphs(); err != nil {
-		return fail(err)
-	}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*DeepSeekOCR2Runner, error) {
+		spec, err := ReadDeepSeekOCR2Spec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize DeepSeek-OCR-2 CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		runner := &DeepSeekOCR2Runner{file: file, spec: spec}
+		runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
+		if err != nil {
+			return nil, err
+		}
+		if err := runner.validateGraphs(); err != nil {
+			return nil, err
+		}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize DeepSeek-OCR-2 CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *DeepSeekOCR2Runner) Close() error {

@@ -19,15 +19,10 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 	}
 	builder := tensor.NewBuilder()
 	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
-	hostFeeds := map[*tensor.Tensor]reference.Value{pixels: pixelsValue(pixels, tile.PixelValues)}
-	binding := r.cuda.bindWeights(builder)
-	weight := binding.weight
-	linear := func(input *tensor.Tensor, prefix string) *tensor.Tensor {
-		return builder.Add(builder.MulMat(weight(prefix+".weight"), input), weight(prefix+".bias"))
-	}
-	affineNorm := func(input *tensor.Tensor, prefix string, epsilon float32) *tensor.Tensor {
-		return builder.AffineLayerNorm(input, weight(prefix+".weight"), weight(prefix+".bias"), epsilon)
-	}
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	hostFeeds := graph.hostFeeds
+	hostFeeds[pixels] = pixelsValue(pixels, tile.PixelValues)
+	weight := graph.weight
 	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.MulMat(patch, pixels), weight("v.patch_embd.bias"))
 	hidden = builder.Add(hidden, weight("v.position_embd.weight"))
@@ -35,25 +30,25 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 	headWidth := uint64(r.spec.Hidden / r.spec.Heads)
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d", layer)
-		norm := affineNorm(hidden, prefix+".ln1", r.spec.LayerNormEpsilon)
-		q := linear(norm, prefix+".attn_q")
-		k := linear(norm, prefix+".attn_k")
-		v := linear(norm, prefix+".attn_v")
+		norm := graph.affineNorm(hidden, prefix+".ln1", r.spec.LayerNormEpsilon)
+		q := graph.linear(norm, prefix+".attn_q")
+		k := graph.linear(norm, prefix+".attn_k")
+		v := graph.linear(norm, prefix+".attn_v")
 		q = builder.Reshape(q, headWidth, uint64(r.spec.Heads), uint64(rows))
 		k = builder.Reshape(k, headWidth, uint64(r.spec.Heads), uint64(rows))
 		v = builder.Reshape(v, headWidth, uint64(r.spec.Heads), uint64(rows))
 		attention := builder.Attention(q, k, v, float32(1/math.Sqrt(float64(headWidth))), false)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
-		hidden = builder.Add(hidden, linear(attention, prefix+".attn_out"))
-		norm = affineNorm(hidden, prefix+".ln2", r.spec.LayerNormEpsilon)
-		up := qwen3VLGELUTanh(builder, linear(norm, prefix+".ffn_up"), hostFeeds)
-		hidden = builder.Add(hidden, linear(up, prefix+".ffn_down"))
+		hidden = builder.Add(hidden, graph.linear(attention, prefix+".attn_out"))
+		norm = graph.affineNorm(hidden, prefix+".ln2", r.spec.LayerNormEpsilon)
+		up := qwen3VLGELUTanh(builder, graph.linear(norm, prefix+".ffn_up"), hostFeeds)
+		hidden = builder.Add(hidden, graph.linear(up, prefix+".ffn_down"))
 		layerOutputs[layer] = hidden
 	}
 	outputs := make([]*tensor.Tensor, len(r.spec.FeatureLayers))
 	for block, layer := range r.spec.FeatureLayers {
 		prefix := fmt.Sprintf("v.proj_blk.%d", block)
-		x := affineNorm(layerOutputs[layer], prefix+".norm", r.spec.LayerNormEpsilon)
+		x := graph.affineNorm(layerOutputs[layer], prefix+".norm", r.spec.LayerNormEpsilon)
 		windowSide, querySide := r.spec.WindowSide, r.spec.QuerySide
 		windowsPerSide := side / windowSide
 		windows := windowsPerSide * windowsPerSide
@@ -68,28 +63,21 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 		query = builder.Reshape(query, uint64(r.spec.Hidden), uint64(queryLength), uint64(windows))
 		query = builder.Add(query, weight(prefix+".query"))
 		query = builder.Reshape(query, uint64(r.spec.Hidden), uint64(windows*queryLength))
-		query = affineNorm(query, prefix+".post_norm", 1e-12)
-		self := granite4AttentionGraph(builder, query, query, windows, queryLength, queryLength, r.spec.Hidden, prefix+".self_attn", linear)
-		self = affineNorm(builder.Add(query, self), prefix+".self_attn_norm", 1e-12)
-		cross := granite4AttentionGraph(builder, self, enc, windows, queryLength, encLength, r.spec.Hidden, prefix+".cross_attn", linear)
-		cross = affineNorm(builder.Add(self, cross), prefix+".cross_attn_norm", 1e-12)
-		ffn := linear(builder.GELUErf(linear(cross, prefix+".ffn_up")), prefix+".ffn_down")
-		ffn = affineNorm(builder.Add(cross, ffn), prefix+".ffn_norm", 1e-12)
+		query = graph.affineNorm(query, prefix+".post_norm", 1e-12)
+		self := granite4AttentionGraph(graph, query, query, windows, queryLength, queryLength, r.spec.Hidden, prefix+".self_attn")
+		self = graph.affineNorm(builder.Add(query, self), prefix+".self_attn_norm", 1e-12)
+		cross := granite4AttentionGraph(graph, self, enc, windows, queryLength, encLength, r.spec.Hidden, prefix+".cross_attn")
+		cross = graph.affineNorm(builder.Add(self, cross), prefix+".cross_attn_norm", 1e-12)
+		ffn := graph.linear(builder.GELUErf(graph.linear(cross, prefix+".ffn_up")), prefix+".ffn_down")
+		ffn = graph.affineNorm(builder.Add(cross, ffn), prefix+".ffn_norm", 1e-12)
 		ffn = granite4UnwindowGraph(builder, ffn, newSide, querySide)
-		output := linear(ffn, prefix+".linear")
+		output := graph.linear(ffn, prefix+".linear")
 		if tile.AddNewline {
 			output = builder.Concat(output, builder.Reshape(weight("v.image_newline"), uint64(r.spec.ProjectionDim), 1), 1)
 		}
 		outputs[block] = output
 	}
-	deviceFeeds, err := binding.result()
-	if err != nil {
-		return nil, fmt.Errorf("projector: build Granite 4 Vision CUDA graph: %w", err)
-	}
-	if err := builder.Err(); err != nil {
-		return nil, fmt.Errorf("projector: build Granite 4 Vision CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
+	results, err := graph.execute(outputs...)
 	if err != nil {
 		return nil, fmt.Errorf("projector: execute Granite 4 Vision CUDA graph: %w", err)
 	}
@@ -163,15 +151,15 @@ func granite4DownsampleGraph(builder *tensor.Builder, input *tensor.Tensor, side
 }
 
 func granite4AttentionGraph(
-	builder *tensor.Builder,
+	graph *projectorGraphRuntime,
 	queryInput, keyValueInput *tensor.Tensor,
 	windows, queryRows, keyRows, hidden int,
 	prefix string,
-	linear func(*tensor.Tensor, string) *tensor.Tensor,
 ) *tensor.Tensor {
-	query := linear(queryInput, prefix+"_q")
-	key := linear(keyValueInput, prefix+"_k")
-	value := linear(keyValueInput, prefix+"_v")
+	builder := graph.builder
+	query := graph.linear(queryInput, prefix+"_q")
+	key := graph.linear(keyValueInput, prefix+"_k")
+	value := graph.linear(keyValueInput, prefix+"_v")
 	queryOrder := granite4AttentionOrder(windows, queryRows)
 	keyOrder := granite4AttentionOrder(windows, keyRows)
 	query = builder.GetRows(query, queryOrder)
@@ -189,7 +177,7 @@ func granite4AttentionGraph(
 			inverse = append(inverse, uint32(row*windows+window))
 		}
 	}
-	return linear(builder.GetRows(output, inverse), prefix+"_out")
+	return graph.linear(builder.GetRows(output, inverse), prefix+"_out")
 }
 
 func granite4AttentionOrder(windows, rows int) []uint32 {

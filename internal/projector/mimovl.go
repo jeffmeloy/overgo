@@ -62,30 +62,24 @@ func OpenMiMoVL(path string) (*MiMoVLRunner, error) {
 }
 
 func OpenMiMoVLWithOptions(path string, options MiMoVLOpenOptions) (*MiMoVLRunner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(cause error) (*MiMoVLRunner, error) {
-		_ = file.Close()
-		return nil, cause
-	}
-	spec, err := ReadMiMoVLSpec(file)
-	if err != nil {
-		return fail(err)
-	}
-	catalog, err := validateMiMoVLCatalog(file, spec)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &MiMoVLRunner{file: file, spec: spec}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*MiMoVLRunner, error) {
+		spec, err := ReadMiMoVLSpec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize MiMo-VL CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		catalog, err := validateMiMoVLCatalog(file, spec)
+		if err != nil {
+			return nil, err
+		}
+		runner := &MiMoVLRunner{file: file, spec: spec}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize MiMo-VL CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *MiMoVLRunner) Close() error {

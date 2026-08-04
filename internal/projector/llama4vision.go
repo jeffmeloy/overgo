@@ -78,30 +78,24 @@ func OpenLlama4Vision(path string) (*Llama4VisionRunner, error) {
 }
 
 func OpenLlama4VisionWithOptions(path string, options Llama4VisionOpenOptions) (*Llama4VisionRunner, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fail := func(cause error) (*Llama4VisionRunner, error) {
-		_ = file.Close()
-		return nil, cause
-	}
-	spec, err := ReadLlama4VisionSpec(file)
-	if err != nil {
-		return fail(err)
-	}
-	catalog, err := validateLlama4VisionCatalog(file, spec)
-	if err != nil {
-		return fail(err)
-	}
-	runner := &Llama4VisionRunner{file: file, spec: spec}
-	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+	return openProjectorResource(path, func(file *gguf.File) (*Llama4VisionRunner, error) {
+		spec, err := ReadLlama4VisionSpec(file)
 		if err != nil {
-			return fail(fmt.Errorf("projector: initialize Llama-4 CUDA: %w", err))
+			return nil, err
 		}
-	}
-	return runner, nil
+		catalog, err := validateLlama4VisionCatalog(file, spec)
+		if err != nil {
+			return nil, err
+		}
+		runner := &Llama4VisionRunner{file: file, spec: spec}
+		if options.CUDA {
+			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
+			if err != nil {
+				return nil, fmt.Errorf("projector: initialize Llama-4 CUDA: %w", err)
+			}
+		}
+		return runner, nil
+	})
 }
 
 func (r *Llama4VisionRunner) Close() error {
@@ -435,26 +429,20 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 		}
 	}
 	hidden = hidden[:patchRows*r.spec.Hidden]
-	mergedH, mergedW := input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize
+	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
+	if err != nil {
+		return reference.Value{}, err
+	}
 	shuffleWidth := r.spec.Hidden * r.spec.MergeSize * r.spec.MergeSize
-	shuffled := make([]float32, mergedH*mergedW*shuffleWidth)
-	for blockY := 0; blockY < mergedH; blockY++ {
-		for blockX := 0; blockX < mergedW; blockX++ {
-			destination := (blockY*mergedW + blockX) * shuffleWidth
-			for y := 0; y < r.spec.MergeSize; y++ {
-				for x := 0; x < r.spec.MergeSize; x++ {
-					source := ((blockY*r.spec.MergeSize+y)*input.GridW + blockX*r.spec.MergeSize + x) * r.spec.Hidden
-					copy(shuffled[destination:], hidden[source:source+r.spec.Hidden])
-					destination += r.spec.Hidden
-				}
-			}
-		}
+	shuffled, err := mergePlan.shuffle(hidden, r.spec.Hidden)
+	if err != nil {
+		return reference.Value{}, err
 	}
 	mlp1, err := r.load(ctx, "mm.model.mlp.1.weight")
 	if err != nil {
 		return reference.Value{}, err
 	}
-	adapted := linear(shuffled, mlp1.Data, nil, mergedH*mergedW, shuffleWidth, r.spec.AdapterIntermediate)
+	adapted := linear(shuffled, mlp1.Data, nil, mergePlan.outputRows, shuffleWidth, r.spec.AdapterIntermediate)
 	for index, value := range adapted {
 		adapted[index] = geluTanh(value)
 	}
@@ -462,7 +450,7 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	if err != nil {
 		return reference.Value{}, err
 	}
-	adapted = linear(adapted, mlp2.Data, nil, mergedH*mergedW, r.spec.AdapterIntermediate, r.spec.AdapterHidden)
+	adapted = linear(adapted, mlp2.Data, nil, mergePlan.outputRows, r.spec.AdapterIntermediate, r.spec.AdapterHidden)
 	for index, value := range adapted {
 		adapted[index] = geluTanh(value)
 	}
@@ -470,8 +458,8 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output := linear(adapted, projection.Data, nil, mergedH*mergedW, r.spec.AdapterHidden, r.spec.OutputHidden)
-	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(mergedH*mergedW)), output)
+	output := linear(adapted, projection.Data, nil, mergePlan.outputRows, r.spec.AdapterHidden, r.spec.OutputHidden)
+	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(mergePlan.outputRows)), output)
 }
 
 func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gridH, gridW, layer int) error {

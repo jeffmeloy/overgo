@@ -490,10 +490,7 @@ func BuildPLaMo2RecurrentBlockCached(
 	stateWidth := uint64(spec.SSMStateSize)
 	heads := uint64(spec.SSMTimeStepRank)
 	headWidth := inner / heads
-	dtWidth := uint64(64)
-	if candidate := uint64(spec.EmbeddingLength / 16); candidate > dtWidth {
-		dtWidth = candidate
-	}
+	dtWidth := plamo2TimeStepWidth(spec.EmbeddingLength)
 	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), inner)
 	ssmShape := tensor.MustShape(stateWidth, inner)
 	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {

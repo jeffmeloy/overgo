@@ -37,10 +37,7 @@ func loadStateSpaceLayer(
 		}
 	} else if spec.Architecture == "plamo2" && spec.IsRecurrentLayer(block) {
 		layer.Recurrent = true
-		dtDimension := uint64(64)
-		if candidate := uint64(spec.EmbeddingLength / 16); candidate > dtDimension {
-			dtDimension = candidate
-		}
+		dtDimension := plamo2TimeStepWidth(spec.EmbeddingLength)
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
 			requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),

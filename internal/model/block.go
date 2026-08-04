@@ -3126,7 +3126,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 			value = builder.Clamp(value, -spec.AttentionClamp, spec.AttentionClamp)
 		}
 	}
-	query, key, err := layerPlan.QKPreprocess.ApplyProjection(builder, query, key, spec, weights)
+	query, key, err := layerPlan.QKPreprocess.Apply(builder, query, key, spec, weights, qkProjection)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -3134,14 +3134,14 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(kvHeadCount), tokens)
 
-	query, key, err = layerPlan.QKPreprocess.ApplyHeads(builder, query, key, spec, weights)
+	query, key, err = layerPlan.QKPreprocess.Apply(builder, query, key, spec, weights, qkHeads)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
 	query, key = layerPlan.Rotary.Apply(
 		builder, query, key, positions, multiPositions, weights.RopeFactors,
 	)
-	query, key, err = layerPlan.QKPreprocess.ApplyPostRotary(builder, query, key, spec, weights)
+	query, key, err = layerPlan.QKPreprocess.Apply(builder, query, key, spec, weights, qkPostRotary)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -3166,12 +3166,12 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 		builder, query, cacheKey, cacheValue, weights.AttentionSinks, nil,
 		attentionScale, queryStart,
 	)
-	attention = layerPlan.AttentionOutput.ApplyHeadGate(
-		builder, attention, attentionGate, weights, headCount, tokens,
+	attention = layerPlan.AttentionOutput.ApplyGate(
+		builder, attention, attentionGate, weights, headCount, tokens, attentionGateHeads,
 	)
 	attention = builder.Reshape(attention, uint64(headCount)*uint64(spec.ValueLength), tokens)
-	attention = layerPlan.AttentionOutput.ApplyFlatGate(
-		builder, attention, attentionGate, weights, headCount,
+	attention = layerPlan.AttentionOutput.ApplyGate(
+		builder, attention, attentionGate, weights, headCount, tokens, attentionGateFlat,
 	)
 	attention, err = layerPlan.AttentionOutput.ApplyProjection(builder, attention, spec, weights)
 	if err != nil {

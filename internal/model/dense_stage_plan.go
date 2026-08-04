@@ -27,6 +27,14 @@ type QKPreprocessPlan struct {
 	PostRotary qkNormKind
 }
 
+type qkStage uint8
+
+const (
+	qkProjection qkStage = iota
+	qkHeads
+	qkPostRotary
+)
+
 func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
 	plan := QKPreprocessPlan{}
 	switch s.Architecture {
@@ -62,31 +70,15 @@ func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
 	return plan
 }
 
-func (p QKPreprocessPlan) ApplyProjection(
+func (p QKPreprocessPlan) Apply(
 	builder *tensor.Builder,
 	query, key *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	stage qkStage,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
-	return applyQKNorm(builder, query, key, spec, weights, p.Projection)
-}
-
-func (p QKPreprocessPlan) ApplyHeads(
-	builder *tensor.Builder,
-	query, key *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-) (*tensor.Tensor, *tensor.Tensor, error) {
-	return applyQKNorm(builder, query, key, spec, weights, p.Heads)
-}
-
-func (p QKPreprocessPlan) ApplyPostRotary(
-	builder *tensor.Builder,
-	query, key *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-) (*tensor.Tensor, *tensor.Tensor, error) {
-	return applyQKNorm(builder, query, key, spec, weights, p.PostRotary)
+	kinds := [...]qkNormKind{p.Projection, p.Heads, p.PostRotary}
+	return applyQKNorm(builder, query, key, spec, weights, kinds[stage])
 }
 
 func applyQKNorm(
@@ -162,6 +154,13 @@ const (
 	attentionGateSigmoid
 )
 
+type attentionGateStage uint8
+
+const (
+	attentionGateHeads attentionGateStage = iota
+	attentionGateFlat
+)
+
 // AttentionOutputPlan: compiled attention-output stages.
 type AttentionOutputPlan struct {
 	gate          attentionGateKind
@@ -215,30 +214,24 @@ func (p AttentionOutputPlan) PrepareGate(
 	return builder.Sigmoid(gate)
 }
 
-func (p AttentionOutputPlan) ApplyHeadGate(
+func (p AttentionOutputPlan) ApplyGate(
 	builder *tensor.Builder,
 	attention, gate *tensor.Tensor,
 	weights LayerGraphWeights,
 	headCount uint32,
 	tokens uint64,
-) *tensor.Tensor {
-	if !p.headGate || gate == nil || weights.AttentionOutputGate.Shape.Dims[1] != uint64(headCount) {
-		return attention
-	}
-	return builder.Multiply(attention, builder.Reshape(gate, 1, uint64(headCount), tokens))
-}
-
-func (p AttentionOutputPlan) ApplyFlatGate(
-	builder *tensor.Builder,
-	attention, gate *tensor.Tensor,
-	weights LayerGraphWeights,
-	headCount uint32,
+	stage attentionGateStage,
 ) *tensor.Tensor {
 	if gate == nil {
 		return attention
 	}
-	apply := p.flatGate || (p.flatGateElse && weights.AttentionOutputGate.Shape.Dims[1] != uint64(headCount))
-	if !apply {
+	headWidth := weights.AttentionOutputGate.Shape.Dims[1] == uint64(headCount)
+	if stage == attentionGateHeads {
+		if !p.headGate || !headWidth {
+			return attention
+		}
+		gate = builder.Reshape(gate, 1, uint64(headCount), tokens)
+	} else if !p.flatGate && !(p.flatGateElse && !headWidth) {
 		return attention
 	}
 	return builder.Multiply(attention, gate)

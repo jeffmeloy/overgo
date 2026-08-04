@@ -32,6 +32,14 @@ claims.
 
 ## Validated milestones
 
+- The August 4 ownership/schema consolidation wave replaced separate raw and
+  F32 CUDA weight state machines with one transactional tensor owner while
+  preserving their upload strategies and nil-safe public lifecycles. One
+  Mamba2 tensor schema now serves Mamba2, Granite Hybrid, Falcon-H1, and
+  recurrent Nemotron; dense Q/K and attention-gate stages use single typed
+  applicators; and MTP families share policy admission plus appended
+  dense-block coordination. Production surface fell by 4 lines; full CPU and
+  CUDA verification passed on the Windows amd64 RTX 4090 D host.
 - The August 4 dense-stage planning wave compiled weight requirements,
   routed/shared expert composition, Q/K normalization, query scaling,
   attention-output stages, residual/FFN flow, dense leaf selection, and Deci

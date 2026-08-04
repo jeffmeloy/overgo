@@ -38,6 +38,25 @@ func (p mtpPolicy) valid(spec Spec, offset uint32) bool {
 	return plan.Kind == p.kind && plan.HasHead(offset) && (!p.single || offset == 0 && plan.SessionEligible())
 }
 
+func buildMTPDenseBlock(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec, executable Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	policy mtpPolicy,
+	offset uint32,
+) (DenseBlockResult, error) {
+	if !policy.valid(spec, offset) {
+		return DenseBlockResult{}, errors.New(policy.label + " MTP block is invalid")
+	}
+	return BuildDenseBlockCachedForLayer(
+		builder, input, executable, weights, positions, pastKey, pastValue,
+		spec.BlockCount+offset,
+	)
+}
+
 func buildMTPInput(
 	builder *tensor.Builder,
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,

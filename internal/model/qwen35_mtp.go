@@ -27,7 +27,7 @@ func BuildQwen35MTPBlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	if plan := spec.Profile().DraftPlan(spec.NextNPredictLayers); plan.Kind != DraftQwen35MTP || !plan.SessionEligible() {
+	if !qwen35MTPPolicy.valid(spec, 0) {
 		return Qwen35BlockResult{}, errors.New("Qwen3.5 MTP architecture is invalid")
 	}
 	dense := spec

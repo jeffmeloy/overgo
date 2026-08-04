@@ -1,10 +1,6 @@
 package model
 
-import (
-	"errors"
-
-	"llamacpp2go/internal/tensor"
-)
+import "llamacpp2go/internal/tensor"
 
 // BuildStep35MTPInput: token/target-hidden fusion.
 func BuildStep35MTPInput(
@@ -29,12 +25,9 @@ func BuildStep35MTPBlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if plan := spec.Profile().DraftPlan(spec.NextNPredictLayers); plan.Kind != DraftStep35MTP || !plan.HasHead(offset) {
-		return DenseBlockResult{}, errors.New("Step3.5 MTP head is invalid")
-	}
-	return BuildDenseBlockCachedForLayer(
-		builder, input, spec, weights, positions, pastKey, pastValue,
-		spec.BlockCount+offset,
+	return buildMTPDenseBlock(
+		builder, input, spec, spec, weights, positions, pastKey, pastValue,
+		step35MTPPolicy, offset,
 	)
 }
 

@@ -1513,17 +1513,11 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				layer.Recurrent = true
 				convDimension := uint64(spec.SSMInnerSize) +
 					2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
-				inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), inputDimension),
-					requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), convDimension),
-					requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
-					requiredTensorPointer("ssm_a", &layer.SSMA, 1, uint64(spec.SSMTimeStepRank)),
-					requiredTensorPointer("ssm_d", &layer.SSMD, 1, uint64(spec.SSMTimeStepRank)),
-					requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount)),
-					requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
+				requirements := append(
+					mamba2TensorRequirements(spec, layer, true),
 					optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
-				}); itemErr != nil {
+				)
+				if itemErr := loadTensorRequirements(required, tensors, prefix, requirements); itemErr != nil {
 					return Weights{}, itemErr
 				}
 				continue

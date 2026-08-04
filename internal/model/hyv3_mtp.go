@@ -1,10 +1,6 @@
 package model
 
-import (
-	"errors"
-
-	"llamacpp2go/internal/tensor"
-)
+import "llamacpp2go/internal/tensor"
 
 // BuildHYV3MTPInput: post-norm hidden/token fusion.
 func BuildHYV3MTPInput(
@@ -29,12 +25,9 @@ func BuildHYV3MTPBlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	offset uint32,
 ) (DenseBlockResult, error) {
-	if plan := spec.Profile().DraftPlan(spec.NextNPredictLayers); plan.Kind != DraftHYV3MTP || !plan.HasHead(offset) {
-		return DenseBlockResult{}, errors.New("HY-V3 MTP head is invalid")
-	}
-	return BuildDenseBlockCachedForLayer(
-		builder, input, spec, weights, positions, pastKey, pastValue,
-		spec.BlockCount+offset,
+	return buildMTPDenseBlock(
+		builder, input, spec, spec, weights, positions, pastKey, pastValue,
+		hyv3MTPPolicy, offset,
 	)
 }
 

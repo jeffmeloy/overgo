@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Raw and F32 CUDA weights now share one transactional tensor owner; Mamba2-family recurrent tensors share one requirement schema; Q/K and attention-gate stages use single typed applicators; and MTP families share admission plus appended dense-block coordination.
 - Dense weight requirements, routed/shared expert composition, Q/K preprocessing, query scaling, attention-output stages, residual flow, and dense leaf selection now compile into `LayerPlan`; scheduler dispatch and dense execution share one typed cached-block context, and remaining production leaf attention/RoPE calls use typed option contracts.
 - `LayerPlan` now compiles detailed rotary, attention, and routed-expert graph controls; dense/Gemma 4 execution consumes the plans, paired RoPE and shared experts have one implementation, and production model MoE construction converges on one typed core.
 - Typed internal option contracts now own attention, MoE, and RoPE graph construction; specialized wrappers no longer forward positional nil/zero/boolean control streams or mutate completed graph nodes.

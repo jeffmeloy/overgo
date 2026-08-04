@@ -27,16 +27,16 @@ func BuildCohere2MTPBlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if plan := spec.Profile().DraftPlan(spec.NextNPredictLayers); plan.Kind != DraftCohere2MTP || !plan.SessionEligible() ||
-		weights.FeedForwardRouter == nil {
+	if weights.FeedForwardRouter == nil {
 		return DenseBlockResult{}, errors.New("Cohere2-MoE MTP block is invalid")
 	}
 	mtp := spec
 	mtp.BlockCount++
 	mtp.LeadingDenseBlocks = mtp.BlockCount
 	mtp.SlidingWindow = 0
-	return BuildDenseBlockCachedForLayer(
-		builder, input, mtp, weights, positions, pastKey, pastValue, spec.BlockCount,
+	return buildMTPDenseBlock(
+		builder, input, spec, mtp, weights, positions, pastKey, pastValue,
+		cohere2MTPPolicy, 0,
 	)
 }
 

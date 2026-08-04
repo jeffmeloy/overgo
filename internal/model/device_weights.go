@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sync"
 
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -18,16 +17,14 @@ const defaultWeightChunkSize = 16 << 20
 // DeviceTensor: valid only while used on DeviceWeights' worker thread
 type DeviceTensor struct {
 	Info    gguf.TensorInfo
+	Shape   tensor.Shape
 	Pointer driver.DevicePtr
+	Size    uint64
 }
 
 // DeviceWeights: owns persistent raw GGUF tensors in one CUDA context
 type DeviceWeights struct {
-	worker *device.Worker
-
-	mu      sync.RWMutex
-	tensors map[string]DeviceTensor
-	closed  bool
+	*deviceTensorStore
 }
 
 func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
@@ -35,8 +32,7 @@ func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
 		return nil, errors.New("device weights require a CUDA worker")
 	}
 	return &DeviceWeights{
-		worker:  worker,
-		tensors: make(map[string]DeviceTensor),
+		deviceTensorStore: newDeviceTensorStore(worker, "device"),
 	}, nil
 }
 
@@ -49,37 +45,9 @@ func (w *DeviceWeights) Load(
 	if file == nil {
 		return errors.New("device weights: GGUF file is nil")
 	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.closed {
-		return errors.New("device weights are closed")
-	}
-	var added []string
-	defer func() {
-		if returnErr == nil {
-			return
-		}
-		var pointers []driver.DevicePtr
-		for _, name := range added {
-			pointers = append(pointers, w.tensors[name].Pointer)
-			delete(w.tensors, name)
-		}
-		_ = w.worker.Do(context.Background(), func(state *device.State) error {
-			for _, pointer := range pointers {
-				_ = state.Driver.MemFree(pointer)
-			}
-			return nil
-		})
-	}()
-	for _, info := range tensors {
-		if _, exists := w.tensors[info.Name]; exists {
-			return fmt.Errorf("device tensor %q is already loaded", info.Name)
-		}
+	return w.load(ctx, tensors, func(info gguf.TensorInfo) (DeviceTensor, error) {
 		if info.Size == 0 {
-			return fmt.Errorf("device tensor %q has zero size", info.Name)
-		}
-		if err := ctx.Err(); err != nil {
-			return err
+			return DeviceTensor{}, fmt.Errorf("device tensor %q has zero size", info.Name)
 		}
 		var pointer driver.DevicePtr
 		if err := w.worker.Do(ctx, func(state *device.State) error {
@@ -87,18 +55,16 @@ func (w *DeviceWeights) Load(
 			pointer, allocErr = state.Driver.MemAlloc(info.Size)
 			return allocErr
 		}); err != nil {
-			return fmt.Errorf("allocate tensor %q: %w", info.Name, err)
+			return DeviceTensor{}, fmt.Errorf("allocate tensor %q: %w", info.Name, err)
 		}
 		if err := w.streamTensor(ctx, file, info, pointer); err != nil {
 			_ = w.worker.Do(context.Background(), func(state *device.State) error {
 				return state.Driver.MemFree(pointer)
 			})
-			return err
+			return DeviceTensor{}, err
 		}
-		w.tensors[info.Name] = DeviceTensor{Info: info, Pointer: pointer}
-		added = append(added, info.Name)
-	}
-	return nil
+		return DeviceTensor{Info: info, Pointer: pointer}, nil
+	})
 }
 
 func (w *DeviceWeights) streamTensor(
@@ -146,6 +112,9 @@ func (w *DeviceWeights) Do(
 	if function == nil {
 		return errors.New("device weights: nil callback")
 	}
+	if w == nil || w.deviceTensorStore == nil {
+		return errors.New("device weights are closed")
+	}
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	if w.closed {
@@ -154,19 +123,6 @@ func (w *DeviceWeights) Do(
 	return w.worker.Do(ctx, func(state *device.State) error {
 		return function(state, w.tensors)
 	})
-}
-
-func (w *DeviceWeights) Lookup(name string) (DeviceTensor, bool) {
-	if w == nil {
-		return DeviceTensor{}, false
-	}
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	if w.closed {
-		return DeviceTensor{}, false
-	}
-	value, ok := w.tensors[name]
-	return value, ok
 }
 
 // Input: adds graph input using tensor's original GGUF storage type
@@ -192,38 +148,23 @@ func (w *DeviceWeights) Input(
 	return node, value.Pointer, nil
 }
 
+func (w *DeviceWeights) Lookup(name string) (DeviceTensor, bool) {
+	if w == nil {
+		return DeviceTensor{}, false
+	}
+	return w.deviceTensorStore.Lookup(name)
+}
+
 func (w *DeviceWeights) Count() int {
 	if w == nil {
 		return 0
 	}
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return len(w.tensors)
+	return w.deviceTensorStore.Count()
 }
 
-// Close: frees every loaded tensor in owning CUDA context
 func (w *DeviceWeights) Close() error {
 	if w == nil {
 		return nil
 	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.closed {
-		return nil
-	}
-	w.closed = true
-	var pointers []driver.DevicePtr
-	for _, tensor := range w.tensors {
-		pointers = append(pointers, tensor.Pointer)
-	}
-	clear(w.tensors)
-	return w.worker.Do(context.Background(), func(state *device.State) error {
-		var errs []error
-		for _, pointer := range pointers {
-			if err := state.Driver.MemFree(pointer); err != nil {
-				errs = append(errs, err)
-			}
-		}
-		return errors.Join(errs...)
-	})
+	return w.deviceTensorStore.Close()
 }

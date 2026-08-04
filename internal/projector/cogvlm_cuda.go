@@ -5,42 +5,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-type cogVLMVisionCUDA = projectorCUDA
-
-func openCogVLMVisionCUDA(ctx context.Context, file *gguf.File, spec CogVLMVisionSpec, ordinal int) (*cogVLMVisionCUDA, error) {
-	names := []string{
-		"v.patch_embd.weight", "v.class_embd", "v.position_embd.weight",
-		"mm.model.fc.weight", "mm.post_fc_norm.weight", "mm.post_fc_norm.bias",
-		"mm.up.weight", "mm.gate.weight", "mm.down.weight", "v.boi", "v.eoi",
-	}
-	if hasTensor(file, "v.patch_embd.bias") {
-		names = append(names, "v.patch_embd.bias")
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"attn_qkv.weight", "attn_qkv.bias", "attn_out.weight", "attn_out.bias",
-			"ffn_up.weight", "ffn_down.weight", "ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-		if spec.GatedFFN[layer] {
-			names = append(names, prefix+"ffn_gate.weight")
-		}
-		for _, suffix := range []string{"ffn_up.bias", "ffn_gate.bias", "ffn_down.bias"} {
-			if hasTensor(file, prefix+suffix) {
-				names = append(names, prefix+suffix)
-			}
-		}
-	}
-	return openProjectorCUDA(ctx, file, names, nil, ordinal)
-}
 
 func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float32) (reference.Value, error) {
 	grid := r.spec.ImageSize / r.spec.PatchSize

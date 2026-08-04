@@ -47,15 +47,13 @@ type Gemma3nVisionSpec struct {
 type Gemma3nVisionRunner struct {
 	file *gguf.File
 	spec Gemma3nVisionSpec
-	cuda *gemma3nVisionCUDA
+	cuda *projectorCUDA
 }
 
 type Gemma3nVisionOpenOptions struct {
 	CUDA          bool
 	DeviceOrdinal int
 }
-
-type gemma3nVisionCUDA = projectorCUDA
 
 func OpenGemma3nVision(path string) (*Gemma3nVisionRunner, error) {
 	return OpenGemma3nVisionWithOptions(path, Gemma3nVisionOpenOptions{})
@@ -79,7 +77,7 @@ func OpenGemma3nVisionWithOptions(path string, options Gemma3nVisionOpenOptions)
 		return fail(err)
 	}
 	if options.CUDA {
-		runner.cuda, err = openGemma3nVisionCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize Gemma 3n CUDA: %w", err))
 		}
@@ -238,10 +236,6 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 		}
 	}
 	return spec, nil
-}
-
-func openGemma3nVisionCUDA(ctx context.Context, file *gguf.File, spec Gemma3nVisionSpec, ordinal int) (*gemma3nVisionCUDA, error) {
-	return openProjectorCUDA(ctx, file, spec.TensorNames, nil, ordinal)
 }
 
 func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([]float32, error) {

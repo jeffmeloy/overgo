@@ -61,7 +61,7 @@ type Granite4VisionOutput struct {
 type Granite4VisionRunner struct {
 	file *gguf.File
 	spec Granite4VisionSpec
-	cuda *granite4VisionCUDA
+	cuda *projectorCUDA
 }
 
 type Granite4VisionOpenOptions struct {
@@ -86,12 +86,13 @@ func OpenGranite4VisionWithOptions(path string, options Granite4VisionOpenOption
 	if err != nil {
 		return fail(err)
 	}
-	if err := validateGranite4VisionCatalog(file, spec); err != nil {
+	catalog, err := validateGranite4VisionCatalog(file, spec)
+	if err != nil {
 		return fail(err)
 	}
 	runner := &Granite4VisionRunner{file: file, spec: spec}
 	if options.CUDA {
-		runner.cuda, err = openGranite4VisionCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize Granite 4 Vision CUDA: %w", err))
 		}
@@ -281,7 +282,7 @@ func (s Granite4VisionSpec) validate() error {
 	return nil
 }
 
-func validateGranite4VisionCatalog(file *gguf.File, spec Granite4VisionSpec) error {
+func validateGranite4VisionCatalog(file *gguf.File, spec Granite4VisionSpec) ([]string, error) {
 	patches := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
 		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
@@ -328,7 +329,7 @@ func validateGranite4VisionCatalog(file *gguf.File, spec Granite4VisionSpec) err
 		required[prefix+"ffn_down.weight"] = []uint64{uint64(spec.QFormerWidth), uint64(spec.Hidden)}
 		required[prefix+"ffn_down.bias"] = []uint64{uint64(spec.Hidden)}
 	}
-	return validateProjectorTensorShapes(file, required)
+	return validateProjectorTensorCatalog(file, required)
 }
 
 func PreprocessGranite4VisionImage(source image.Image, spec Granite4VisionSpec) (Granite4VisionInput, error) {

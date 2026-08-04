@@ -25,7 +25,7 @@ type DeepSeekOCR2Runner struct {
 	file        *gguf.File
 	spec        DeepSeekOCR2Spec
 	samPosition reference.Value
-	cuda        *deepSeekOCRCuda
+	cuda        *projectorCUDA
 }
 
 type DeepSeekOCR2OpenOptions struct {
@@ -59,7 +59,7 @@ func OpenDeepSeekOCR2WithOptions(path string, options DeepSeekOCR2OpenOptions) (
 		return fail(err)
 	}
 	if options.CUDA {
-		runner.cuda, err = openDeepSeekOCRCuda(context.Background(), file, spec.DeepSeekOCRSpec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize DeepSeek-OCR-2 CUDA: %w", err))
 		}

@@ -37,7 +37,7 @@ type Qwen2VLOpenOptions struct {
 type Qwen2VLRunner struct {
 	file *gguf.File
 	spec Qwen2VLSpec
-	cuda *qwen3VLCUDA
+	cuda *projectorCUDA
 }
 
 type Qwen2VLImage = Qwen3VLImage
@@ -61,12 +61,13 @@ func OpenQwen2VLWithOptions(path string, options Qwen2VLOpenOptions) (*Qwen2VLRu
 	if err != nil {
 		return fail(err)
 	}
-	if err := validateQwen2VLCatalog(file, spec); err != nil {
+	catalog, err := validateQwen2VLCatalog(file, spec)
+	if err != nil {
 		return fail(err)
 	}
 	runner := &Qwen2VLRunner{file: file, spec: spec}
 	if options.CUDA {
-		runner.cuda, err = openQwen2VLCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize Qwen2-VL CUDA: %w", err))
 		}
@@ -204,7 +205,7 @@ func (s Qwen2VLSpec) preprocessSpec() Qwen3VLSpec {
 	}
 }
 
-func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) error {
+func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) ([]string, error) {
 	required := map[string][]uint64{
 		"v.patch_embd.weight":   {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
 		"v.patch_embd.weight.1": {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
@@ -244,7 +245,7 @@ func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) error {
 			required[prefix+name] = shape
 		}
 	}
-	return validateProjectorTensorShapes(file, required)
+	return validateProjectorTensorCatalog(file, required)
 }
 
 func PreprocessQwen2VLImage(source image.Image, spec Qwen2VLSpec, options Qwen2VLPreprocessOptions) (Qwen2VLImage, error) {

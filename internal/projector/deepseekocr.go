@@ -37,15 +37,13 @@ type DeepSeekOCRRunner struct {
 	file                      *gguf.File
 	spec                      DeepSeekOCRSpec
 	samPosition, clipPosition reference.Value
-	cuda                      *deepSeekOCRCuda
+	cuda                      *projectorCUDA
 }
 
 type DeepSeekOCROpenOptions struct {
 	CUDA          bool
 	DeviceOrdinal int
 }
-
-type deepSeekOCRCuda = projectorCUDA
 
 func OpenDeepSeekOCR(path string) (*DeepSeekOCRRunner, error) {
 	return OpenDeepSeekOCRWithOptions(path, DeepSeekOCROpenOptions{})
@@ -77,7 +75,7 @@ func OpenDeepSeekOCRWithOptions(path string, options DeepSeekOCROpenOptions) (*D
 		return fail(err)
 	}
 	if options.CUDA {
-		runner.cuda, err = openDeepSeekOCRCuda(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize DeepSeek-OCR CUDA: %w", err))
 		}
@@ -104,7 +102,7 @@ func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	spec.TensorNames = deepSeekOCRTensorNames(spec)
+	spec.TensorNames = deepSeekOCRTensorNames(file, spec)
 	if err := validateDeepSeekOCRCatalog(file, spec); err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
@@ -213,7 +211,7 @@ func (s DeepSeekOCRSpec) validate() error {
 	return nil
 }
 
-func deepSeekOCRTensorNames(spec DeepSeekOCRSpec) []string {
+func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 	names := deepSeekOCRSAMTensorNames(spec)
 	names = append(names,
 		"v.class_embd", "v.position_embd.weight",
@@ -226,6 +224,11 @@ func deepSeekOCRTensorNames(spec DeepSeekOCRSpec) []string {
 			"attn_out.weight", "attn_out.bias", "ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
 		} {
 			names = append(names, prefix+suffix)
+		}
+	}
+	for _, name := range []string{"v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias"} {
+		if hasTensor(file, name) {
+			names = append(names, name)
 		}
 	}
 	return names
@@ -291,12 +294,6 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 		}
 	}
 	return nil
-}
-
-func openDeepSeekOCRCuda(ctx context.Context, file *gguf.File, spec DeepSeekOCRSpec, ordinal int) (*deepSeekOCRCuda, error) {
-	return openProjectorCUDA(ctx, file, spec.TensorNames, []string{
-		"v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias",
-	}, ordinal)
 }
 
 func PreprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec) (DeepSeekOCRInput, error) {

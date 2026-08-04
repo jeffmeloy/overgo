@@ -6,36 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-func openQwen2VLCUDA(ctx context.Context, file *gguf.File, spec Qwen2VLSpec, ordinal int) (*qwen3VLCUDA, error) {
-	names := []string{
-		"v.patch_embd.weight", "v.patch_embd.weight.1",
-		"mm.0.weight", "mm.0.bias", "mm.2.weight", "mm.2.bias",
-	}
-	if spec.PreLayerNorm {
-		names = append(names, "v.pre_ln.weight", "v.pre_ln.bias")
-	}
-	if spec.PostLayerNorm {
-		names = append(names, "v.post_ln.weight", "v.post_ln.bias")
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"attn_q.weight", "attn_q.bias", "attn_k.weight", "attn_k.bias",
-			"attn_v.weight", "attn_v.bias", "attn_out.weight", "attn_out.bias",
-			"ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
-			"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-	}
-	return openProjectorCUDA(ctx, file, names, nil, ordinal)
-}
 
 func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qwen2VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW

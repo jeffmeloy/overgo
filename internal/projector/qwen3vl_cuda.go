@@ -6,39 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-type qwen3VLCUDA = projectorCUDA
-
-func openQwen3VLCUDA(ctx context.Context, file *gguf.File, spec Qwen3VLSpec, ordinal int) (*qwen3VLCUDA, error) {
-	names := []string{
-		"v.patch_embd.weight", "v.patch_embd.weight.1", "v.patch_embd.bias", "v.position_embd.weight",
-		"v.post_ln.weight", "v.post_ln.bias", "mm.0.weight", "mm.0.bias", "mm.2.weight", "mm.2.bias",
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"attn_qkv.weight", "attn_qkv.bias", "attn_out.weight", "attn_out.bias",
-			"ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
-			"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-		if len(spec.DeepstackLayers) > layer && spec.DeepstackLayers[layer] {
-			prefix = fmt.Sprintf("v.deepstack.%d.", layer)
-			for _, suffix := range []string{
-				"norm.weight", "norm.bias", "fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias",
-			} {
-				names = append(names, prefix+suffix)
-			}
-		}
-	}
-	return openProjectorCUDA(ctx, file, names, nil, ordinal)
-}
 
 func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW

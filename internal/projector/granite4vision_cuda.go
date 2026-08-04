@@ -6,45 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-type granite4VisionCUDA = projectorCUDA
-
-func openGranite4VisionCUDA(ctx context.Context, file *gguf.File, spec Granite4VisionSpec, ordinal int) (*granite4VisionCUDA, error) {
-	names := []string{"v.patch_embd.weight", "v.patch_embd.bias", "v.position_embd.weight", "v.image_newline"}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"attn_q.weight", "attn_q.bias", "attn_k.weight", "attn_k.bias", "attn_v.weight", "attn_v.bias",
-			"attn_out.weight", "attn_out.bias", "ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
-			"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-	}
-	for block := range spec.FeatureLayers {
-		prefix := fmt.Sprintf("v.proj_blk.%d.", block)
-		names = append(names, prefix+"img_pos", prefix+"query", prefix+"linear.weight", prefix+"linear.bias")
-		for _, name := range []string{"norm", "post_norm", "self_attn_norm", "cross_attn_norm", "ffn_norm"} {
-			names = append(names, prefix+name+".weight", prefix+name+".bias")
-		}
-		for _, name := range []string{
-			"self_attn_q", "self_attn_k", "self_attn_v", "self_attn_out",
-			"cross_attn_q", "cross_attn_k", "cross_attn_v", "cross_attn_out",
-		} {
-			names = append(names, prefix+name+".weight", prefix+name+".bias")
-		}
-		names = append(names,
-			prefix+"ffn_up.weight", prefix+"ffn_up.bias",
-			prefix+"ffn_down.weight", prefix+"ffn_down.bias",
-		)
-	}
-	return openProjectorCUDA(ctx, file, names, nil, ordinal)
-}
 
 func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4VisionTile) ([]reference.Value, error) {
 	side := r.spec.ImageSize / r.spec.PatchSize

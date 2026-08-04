@@ -32,7 +32,7 @@ type CogVLMVisionSpec struct {
 type CogVLMVisionRunner struct {
 	file *gguf.File
 	spec CogVLMVisionSpec
-	cuda *cogVLMVisionCUDA
+	cuda *projectorCUDA
 }
 
 type CogVLMVisionOpenOptions struct {
@@ -57,12 +57,13 @@ func OpenCogVLMVisionWithOptions(path string, options CogVLMVisionOpenOptions) (
 	if err != nil {
 		return fail(err)
 	}
-	if err := validateCogVLMVisionCatalog(file, spec); err != nil {
+	catalog, err := validateCogVLMVisionCatalog(file, spec)
+	if err != nil {
 		return fail(err)
 	}
 	runner := &CogVLMVisionRunner{file: file, spec: spec}
 	if options.CUDA {
-		runner.cuda, err = openCogVLMVisionCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize CogVLM CUDA: %w", err))
 		}
@@ -164,7 +165,7 @@ func (s CogVLMVisionSpec) validate() error {
 	return nil
 }
 
-func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) error {
+func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]string, error) {
 	grid := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
 		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
@@ -206,7 +207,7 @@ func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) error {
 			}
 		}
 	}
-	return validateProjectorTensorShapes(file, required)
+	return validateProjectorTensorCatalog(file, required)
 }
 
 func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32, error) {

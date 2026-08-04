@@ -6,32 +6,10 @@ import (
 	"fmt"
 
 	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-var gemma4VisionTensorNames = []string{
-	"v.patch_embd.weight",
-	"v.patch_embd.bias",
-	"v.patch_norm.1.weight",
-	"v.patch_norm.1.bias",
-	"v.patch_norm.2.weight",
-	"v.patch_norm.2.bias",
-	"v.position_embd.weight",
-	"v.patch_norm.3.weight",
-	"v.patch_norm.3.bias",
-	"mm.input_projection.weight",
-}
-
-type gemma4CUDA = projectorCUDA
-
-func openGemma4CUDA(ctx context.Context, file *gguf.File, ordinal int) (*gemma4CUDA, error) {
-	return openProjectorCUDA(
-		ctx, file, gemma4VisionTensorNames, []string{"mm.a.input_projection.weight"}, ordinal,
-	)
-}
 
 func (r *Gemma4Runner) encodeCUDAWithTrace(
 	ctx context.Context,

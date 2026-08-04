@@ -49,7 +49,7 @@ type Gemma4VideoOutput struct {
 type Gemma4Runner struct {
 	file *gguf.File
 	spec Gemma4Spec
-	cuda *gemma4CUDA
+	cuda *projectorCUDA
 }
 
 func OpenGemma4(path string) (*Gemma4Runner, error) {
@@ -74,12 +74,15 @@ func OpenGemma4WithOptions(path string, options Gemma4OpenOptions) (*Gemma4Runne
 	if err != nil {
 		return fail(err)
 	}
-	if err := validateGemma4Catalog(file, spec); err != nil {
+	catalog, err := validateGemma4Catalog(file, spec)
+	if err != nil {
 		return fail(err)
 	}
 	runner := &Gemma4Runner{file: file, spec: spec}
 	if options.CUDA {
-		runner.cuda, err = openGemma4CUDA(context.Background(), file, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(
+			context.Background(), file, catalog, []string{"mm.a.input_projection.weight"}, options.DeviceOrdinal,
+		)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize Gemma 4 CUDA: %w", err))
 		}
@@ -178,7 +181,7 @@ func (s Gemma4Spec) validate() error {
 	return nil
 }
 
-func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) error {
+func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) ([]string, error) {
 	required := map[string][]uint64{
 		"v.patch_embd.weight":        {uint64(spec.PatchWidth), uint64(spec.Hidden)},
 		"v.patch_embd.bias":          {uint64(spec.Hidden)},
@@ -191,7 +194,7 @@ func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) error {
 		"v.patch_norm.3.bias":        {uint64(spec.Hidden)},
 		"mm.input_projection.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
 	}
-	return validateProjectorTensorShapes(file, required)
+	return validateProjectorTensorCatalog(file, required)
 }
 
 func PreprocessGemma4Image(source image.Image, spec Gemma4Spec) (Gemma4Image, error) {

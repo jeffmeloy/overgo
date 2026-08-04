@@ -32,6 +32,12 @@ claims.
 
 ## Validated milestones
 
+- The August 3 projector catalog-convergence wave removed every per-family CUDA
+  opener and tensor inventory. Qwen2-VL, Qwen3-VL, CogVLM, Granite 4 Vision,
+  and Gemma 4 now load validator-produced catalogs; DeepSeek-OCR v1/v2 and
+  Gemma 3n load spec-owned catalogs. Gemma 4 audio remains an explicit optional
+  sidecar. The wave removed 146 net code lines; full CPU and CUDA verification
+  passed on the Windows amd64 RTX 4090 D host.
 - The August 3 graph/catalog follow-up removed the remaining host layer graph
   family switch: the reflected layer catalog now binds every required and
   optional host field, matching device binding. Llama 4, Hunyuan-VL,

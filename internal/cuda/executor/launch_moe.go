@@ -1,0 +1,181 @@
+package executor
+
+import (
+	"errors"
+	"fmt"
+	"math"
+	"runtime"
+	"unsafe"
+
+	"llamacpp2go/internal/cuda/device"
+	"llamacpp2go/internal/cuda/driver"
+	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/dtype"
+)
+
+func launchMoE(
+	state *device.State,
+	functions functionSet,
+	blas *blasState,
+	node *tensor.Tensor,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	output := pointers[node]
+	switch node.Op {
+	case tensor.OpMoE:
+		attributes, ok := node.Attrs.(tensor.MoEAttributes)
+		wantInputs := 5
+		if attributes.Gated && !attributes.FusedGateUp {
+			wantInputs = 6
+		}
+		expectedInputs := wantInputs
+		if attributes.HasSelectionBias {
+			expectedInputs++
+		}
+		if attributes.HasExpertScale {
+			expectedInputs++
+		}
+		if attributes.HasRouterBias {
+			expectedInputs++
+		}
+		if attributes.HasExpertBiases {
+			expectedInputs += 3
+		}
+		if attributes.HasSelectedExperts {
+			expectedInputs++
+		}
+		if !ok || len(node.Inputs) != expectedInputs ||
+			attributes.HasRouterBias != attributes.HasExpertBiases ||
+			(attributes.Activation == tensor.MoEActivationSwiGLUOAI) != attributes.HasExpertBiases ||
+			(attributes.Routing == tensor.MoERoutingSelectedSoftmax) != (attributes.Activation == tensor.MoEActivationSwiGLUOAI) ||
+			(attributes.Routing != tensor.MoERoutingSoftmax && attributes.Routing != tensor.MoERoutingSigmoid &&
+				attributes.Routing != tensor.MoERoutingSelectedSoftmax && attributes.Routing != tensor.MoERoutingSqrtSoftplus) ||
+			(attributes.Activation != tensor.MoEActivationSiLU && attributes.Activation != tensor.MoEActivationReLU &&
+				attributes.Activation != tensor.MoEActivationGELU && attributes.Activation != tensor.MoEActivationSwiGLUOAI &&
+				attributes.Activation != tensor.MoEActivationReLUSquared) ||
+			attributes.SwiGLUClamp < 0 ||
+			math.IsNaN(float64(attributes.SwiGLUClamp)) || math.IsInf(float64(attributes.SwiGLUClamp), 0) ||
+			attributes.SwiGLUClamp > 0 && (attributes.Activation != tensor.MoEActivationSiLU || !attributes.Gated) {
+			return errors.New("invalid MoE attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		hidden, err := uint32Checked(node.Shape.Dims[0], "MoE hidden width")
+		if err != nil {
+			return err
+		}
+		routerHidden, err := uint32Checked(node.Inputs[1].Shape.Dims[0], "MoE router hidden width")
+		if err != nil {
+			return err
+		}
+		tokens, err := uint32Checked(node.Shape.Dims[1], "MoE token count")
+		if err != nil {
+			return err
+		}
+		next := 3
+		var gate driver.DevicePtr
+		if attributes.Gated && !attributes.FusedGateUp {
+			gate = pointers[node.Inputs[next]]
+			next++
+		}
+		upNode, downNode := node.Inputs[next], node.Inputs[next+1]
+		intermediate, err := uint32Checked(upNode.Shape.Dims[1], "MoE intermediate width")
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		routerInput := pointers[node.Inputs[1]]
+		router := pointers[node.Inputs[2]]
+		up := pointers[upNode]
+		down := pointers[downNode]
+		if attributes.FusedGateUp {
+			gate = up
+			intermediate /= 2
+		}
+		if upNode.Type != downNode.Type || attributes.Gated && !attributes.FusedGateUp && node.Inputs[3].Type != upNode.Type {
+			return errors.New("MoE expert storage types differ")
+		}
+		var expertStorage uint32
+		if upNode.Type == dtype.F32 {
+			expertStorage = uint32(dtype.F32)
+		} else if nativeQuantizedType(upNode.Type) {
+			expertStorage = uint32(upNode.Type)
+		} else {
+			return fmt.Errorf("MoE expert storage type %s is unsupported", upNode.Type)
+		}
+		var selectionBias driver.DevicePtr
+		optionalIndex := wantInputs
+		if attributes.HasSelectionBias {
+			selectionBias = pointers[node.Inputs[optionalIndex]]
+			optionalIndex++
+		}
+		var expertScale driver.DevicePtr
+		if attributes.HasExpertScale {
+			expertScale = pointers[node.Inputs[optionalIndex]]
+			optionalIndex++
+		}
+		var routerBias, gateBias, upBias, downBias driver.DevicePtr
+		if attributes.HasRouterBias {
+			routerBias = pointers[node.Inputs[optionalIndex]]
+			optionalIndex++
+		}
+		if attributes.HasExpertBiases {
+			gateBias = pointers[node.Inputs[optionalIndex]]
+			upBias = pointers[node.Inputs[optionalIndex+1]]
+			downBias = pointers[node.Inputs[optionalIndex+2]]
+			optionalIndex += 3
+		}
+		var selectedExperts driver.DevicePtr
+		if attributes.HasSelectedExperts {
+			selectedExperts = pointers[node.Inputs[optionalIndex]]
+		}
+		experts := attributes.Experts
+		expertIndexDivisor := attributes.ExpertIndexDivisor
+		if expertIndexDivisor == 0 {
+			expertIndexDivisor = 1
+		}
+		topK := attributes.TopK
+		if experts%expertIndexDivisor != 0 || upNode.Shape.Dims[2] != uint64(experts/expertIndexDivisor) ||
+			downNode.Shape.Dims[2] != upNode.Shape.Dims[2] || uint64(topK) > upNode.Shape.Dims[2] {
+			return errors.New("invalid grouped MoE dimensions")
+		}
+		var normalize uint32
+		if attributes.NormalizeTopKProb {
+			normalize = 1
+		}
+		scale := attributes.Scale
+		routing := uint32(attributes.Routing)
+		activation := uint32(attributes.Activation)
+		swigluClamp := attributes.SwiGLUClamp
+		var gated uint32
+		if attributes.Gated {
+			gated = 1
+		}
+		var fusedGateUp uint32
+		if attributes.FusedGateUp {
+			fusedGateUp = 1
+		}
+		args := []unsafe.Pointer{
+			unsafe.Pointer(&input), unsafe.Pointer(&routerInput), unsafe.Pointer(&router), unsafe.Pointer(&gate),
+			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&expertScale),
+			unsafe.Pointer(&routerBias), unsafe.Pointer(&gateBias), unsafe.Pointer(&upBias), unsafe.Pointer(&downBias),
+			unsafe.Pointer(&selectedExperts),
+			unsafe.Pointer(&output),
+			unsafe.Pointer(&hidden), unsafe.Pointer(&routerHidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
+			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
+			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
+			unsafe.Pointer(&gated), unsafe.Pointer(&fusedGateUp), unsafe.Pointer(&activation),
+			unsafe.Pointer(&expertIndexDivisor),
+			unsafe.Pointer(&swigluClamp),
+			unsafe.Pointer(&count),
+		}
+		err = launch1D(state, functions.moe, count, args)
+		runtime.KeepAlive(args)
+		return err
+	default:
+		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
+	}
+}

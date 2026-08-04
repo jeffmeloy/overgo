@@ -50,6 +50,22 @@ const (
 	CachedGraphDense
 )
 
+// DenseGraphPolicy: dense-family leaf graph.
+type DenseGraphPolicy uint8
+
+const (
+	DenseGraphStandard DenseGraphPolicy = iota
+	DenseGraphBERT
+	DenseGraphModernBERT
+	DenseGraphGemmaEmbedding
+	DenseGraphTalkie
+	DenseGraphGemma4
+	DenseGraphGemma3n
+	DenseGraphRWKV6
+	DenseGraphRWKV6Qwen2
+	DenseGraphRWKV7
+)
+
 // DeepstackSource: compiled projected-stream source.
 type DeepstackSource int32
 
@@ -60,35 +76,43 @@ const (
 
 // LayerPlan: derived layer execution contract.
 type LayerPlan struct {
-	Layer           uint32
-	GraphFamily     ArchitectureFamily
-	CatalogFamily   ArchitectureFamily
-	Block           BlockPolicy
-	Cache           CachePolicy
-	Attention       AttentionPolicy
-	Position        PositionPolicy
-	Residual        ResidualPolicy
-	FeedForward     FeedForwardPolicy
-	CacheExtent     CacheExtent
-	Recurrent       bool
-	Sliding         bool
-	UsesRoPE        bool
-	MultiAxis       bool
-	HasKV           bool
-	SharedKV        bool
-	KVSource        uint32
-	DeepstackBefore DeepstackSource
-	DeepstackAfter  DeepstackSource
-	AuxiliaryInput  AuxiliaryFlow
-	AuxiliaryOutput AuxiliaryFlow
-	Temperature     AttentionTemperaturePolicy
-	AttentionBlocks AttentionBlockPolicy
-	EmbeddingSkip   bool
-	PerLayerInput   bool
-	Normalization   NormalizationPlan
-	Rotary          RotaryPlan
-	AttentionGraph  AttentionGraphPlan
-	Experts         MoEGraphPlan
+	Layer             uint32
+	GraphFamily       ArchitectureFamily
+	CatalogFamily     ArchitectureFamily
+	Block             BlockPolicy
+	Cache             CachePolicy
+	Attention         AttentionPolicy
+	Position          PositionPolicy
+	Residual          ResidualPolicy
+	FeedForward       FeedForwardPolicy
+	CacheExtent       CacheExtent
+	Recurrent         bool
+	Sliding           bool
+	UsesRoPE          bool
+	MultiAxis         bool
+	HasKV             bool
+	SharedKV          bool
+	KVSource          uint32
+	DeepstackBefore   DeepstackSource
+	DeepstackAfter    DeepstackSource
+	AuxiliaryInput    AuxiliaryFlow
+	AuxiliaryOutput   AuxiliaryFlow
+	Temperature       AttentionTemperaturePolicy
+	AttentionBlocks   AttentionBlockPolicy
+	EmbeddingSkip     bool
+	PerLayerInput     bool
+	Normalization     NormalizationPlan
+	Rotary            RotaryPlan
+	AttentionGraph    AttentionGraphPlan
+	Experts           MoEGraphPlan
+	ExpertComposition ExpertCompositionPlan
+	DenseWeights      DenseWeightPlan
+	DenseGraph        DenseGraphPolicy
+	DeciSparse        bool
+	QKPreprocess      QKPreprocessPlan
+	QueryScale        QueryScalePlan
+	AttentionOutput   AttentionOutputPlan
+	ResidualStages    ResidualStagePlan
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -108,36 +132,72 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	if temperature == AttentionTemperatureNoRoPE && s.UsesRoPE(layer) {
 		temperature = AttentionTemperatureNone
 	}
+	normalization := s.NormPlan()
 	return LayerPlan{
-		Layer:           layer,
-		GraphFamily:     profile.GraphFamily,
-		CatalogFamily:   profile.CatalogFamily,
-		Attention:       profile.Attention,
-		Position:        profile.Position,
-		Residual:        profile.Residual,
-		FeedForward:     profile.FeedForward,
-		Block:           blockPolicy(s, profile, recurrent),
-		Cache:           cachePolicy(s, profile, layer, recurrent),
-		CacheExtent:     PrimaryCacheExtent(s, int(layer), info),
-		Recurrent:       recurrent,
-		Sliding:         s.IsSlidingLayer(layer),
-		UsesRoPE:        s.UsesRoPE(layer),
-		MultiAxis:       profile.Has(ArchitectureMultiAxisPositions),
-		HasKV:           hasKV,
-		SharedKV:        sharedKV,
-		KVSource:        kvSource,
-		DeepstackBefore: deepstackBefore,
-		DeepstackAfter:  deepstackAfter,
-		AuxiliaryInput:  auxiliaryInput,
-		AuxiliaryOutput: auxiliaryOutput,
-		Temperature:     temperature,
-		AttentionBlocks: profile.AttentionBlocks,
-		EmbeddingSkip:   profile.Has(ArchitectureEmbeddingSkip),
-		PerLayerInput:   profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
-		Normalization:   s.NormPlan(),
-		Rotary:          s.rotaryPlan(profile, layer),
-		AttentionGraph:  s.attentionGraphPlan(layer),
-		Experts:         s.moeGraphPlan(layer),
+		Layer:             layer,
+		GraphFamily:       profile.GraphFamily,
+		CatalogFamily:     profile.CatalogFamily,
+		Attention:         profile.Attention,
+		Position:          profile.Position,
+		Residual:          profile.Residual,
+		FeedForward:       profile.FeedForward,
+		Block:             blockPolicy(s, profile, recurrent),
+		Cache:             cachePolicy(s, profile, layer, recurrent),
+		CacheExtent:       PrimaryCacheExtent(s, int(layer), info),
+		Recurrent:         recurrent,
+		Sliding:           s.IsSlidingLayer(layer),
+		UsesRoPE:          s.UsesRoPE(layer),
+		MultiAxis:         profile.Has(ArchitectureMultiAxisPositions),
+		HasKV:             hasKV,
+		SharedKV:          sharedKV,
+		KVSource:          kvSource,
+		DeepstackBefore:   deepstackBefore,
+		DeepstackAfter:    deepstackAfter,
+		AuxiliaryInput:    auxiliaryInput,
+		AuxiliaryOutput:   auxiliaryOutput,
+		Temperature:       temperature,
+		AttentionBlocks:   profile.AttentionBlocks,
+		EmbeddingSkip:     profile.Has(ArchitectureEmbeddingSkip),
+		PerLayerInput:     profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
+		Normalization:     normalization,
+		Rotary:            s.rotaryPlan(profile, layer),
+		AttentionGraph:    s.attentionGraphPlan(layer),
+		Experts:           s.moeGraphPlan(layer),
+		ExpertComposition: s.expertCompositionPlan(),
+		DenseWeights:      s.denseWeightPlan(profile, layer),
+		DenseGraph:        denseGraphPolicy(s),
+		DeciSparse: s.Architecture == "deci" &&
+			(s.LayerFeedForwardLength(layer) == 0 || s.LayerHeadCount(layer) == 0 ||
+				s.LayerKVHeadCount(layer) == 0),
+		QKPreprocess:    s.qkPreprocessPlan(layer),
+		QueryScale:      s.queryScalePlan(profile, layer),
+		AttentionOutput: s.attentionOutputPlan(normalization),
+		ResidualStages:  s.residualStagePlan(profile, normalization),
+	}
+}
+
+func denseGraphPolicy(s Spec) DenseGraphPolicy {
+	switch s.Architecture {
+	case "bert", "jina-bert-v2", "jina-bert-v3", "nomic-bert", "nomic-bert-moe":
+		return DenseGraphBERT
+	case "modern-bert":
+		return DenseGraphModernBERT
+	case "gemma-embedding":
+		return DenseGraphGemmaEmbedding
+	case "talkie":
+		return DenseGraphTalkie
+	case "gemma4":
+		return DenseGraphGemma4
+	case "gemma3n":
+		return DenseGraphGemma3n
+	case "rwkv6":
+		return DenseGraphRWKV6
+	case "rwkv6qwen2":
+		return DenseGraphRWKV6Qwen2
+	case "rwkv7", "arwkv7":
+		return DenseGraphRWKV7
+	default:
+		return DenseGraphStandard
 	}
 }
 

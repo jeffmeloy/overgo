@@ -64,13 +64,11 @@ func BuildEagle3BlockCached(
 	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if weights.RopeFactors != nil {
-		query = builder.RoPENormalScaledWithFactors(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
-		key = builder.RoPENormalScaledWithFactors(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
-	} else {
-		query = builder.RoPENormalScaled(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale)
-		key = builder.RoPENormalScaled(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale)
-	}
+	query, key = applyRoPEPairWithOptions(builder, query, key, tensor.RoPEOptions{
+		Layout: tensor.RoPELayoutNormal, Positions: positions,
+		FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount,
+		FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: frequencyScale,
+	})
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastKey != nil {
@@ -78,9 +76,10 @@ func BuildEagle3BlockCached(
 		cacheKey = builder.Concat(pastKey, key, 2)
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
-	attention := builder.AttentionWithOffset(
-		query, cacheKey, cacheValue, float32(1/math.Sqrt(float64(spec.KeyLength))), true, queryStart,
-	)
+	attention := builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{
+		Scale: float32(1 / math.Sqrt(float64(spec.KeyLength))), Causal: true,
+		QueryStart: queryStart,
+	})
 	attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	residualInput := targetFeature

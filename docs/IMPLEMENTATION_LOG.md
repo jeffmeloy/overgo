@@ -32,6 +32,14 @@ claims.
 
 ## Validated milestones
 
+- The August 4 dense-stage planning wave compiled weight requirements,
+  routed/shared expert composition, Q/K normalization, query scaling,
+  attention-output stages, residual/FFN flow, dense leaf selection, and Deci
+  sparse selection into per-layer policies. Scheduler and dense paths now
+  share one cached-block context, while remaining production leaf attention
+  and RoPE executions use typed option contracts. Contract tests cover dense
+  stages, expert composition, graph selection, and MoE weight requirements;
+  full CPU and CUDA verification passed on the Windows amd64 RTX 4090 D host.
 - The August 3 layer-graph planning wave promoted rotary, attention, and MoE
   controls into compiled `LayerPlan` values. Dense and Gemma 4 graph execution
   now share paired RoPE, planned attention, one typed routed-expert core, and

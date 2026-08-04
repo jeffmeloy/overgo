@@ -6,12 +6,10 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
-// BlockDispatchOptions: family-dispatch graph inputs.
-type BlockDispatchOptions struct {
+// CachedBlockContext: scheduler-owned layer state.
+type CachedBlockContext struct {
 	Builder          *tensor.Builder
 	Input            *tensor.Tensor
-	Spec             Spec
-	Weights          LayerGraphWeights
 	Positions        []uint32
 	MultiPositions   *[4][]uint32
 	TokenRows        []uint32
@@ -25,7 +23,14 @@ type BlockDispatchOptions struct {
 	PerLayerInput    *tensor.Tensor
 	Layer            uint32
 	Recurrent        bool
-	Plan             *LayerPlan
+}
+
+// BlockDispatchOptions: family-dispatch graph inputs.
+type BlockDispatchOptions struct {
+	Context CachedBlockContext
+	Spec    Spec
+	Weights LayerGraphWeights
+	Plan    *LayerPlan
 }
 
 // BuildArchitectureBlockCached: family-routed graph construction.
@@ -38,7 +43,8 @@ func BuildArchitectureBlockCached(
 			Architecture: options.Spec.Architecture,
 		}
 	}
-	plan := options.Spec.PlanLayer(options.Layer, options.Recurrent)
+	context := options.Context
+	plan := options.Spec.PlanLayer(context.Layer, context.Recurrent)
 	if options.Plan != nil {
 		plan = *options.Plan
 	}
@@ -50,62 +56,62 @@ func BuildArchitectureBlockCached(
 	switch plan.Block {
 	case BlockMamba:
 		return BuildMambaBlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.PastKey, options.PastValue,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.PastKey, context.PastValue,
 		)
 	case BlockMamba2:
 		return BuildMamba2BlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.PastKey, options.PastValue,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.PastKey, context.PastValue,
 		)
 	case BlockFalconH1:
 		return BuildFalconH1BlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, options.PastKey, options.PastValue,
-			options.PastConvState, options.PastSSMState,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.Positions, context.PastKey, context.PastValue,
+			context.PastConvState, context.PastSSMState,
 		)
 	case BlockJamba:
 		return BuildJambaRecurrentBlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.PastKey, options.PastValue,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.PastKey, context.PastValue,
 		)
 	case BlockGraniteHybrid:
 		return BuildGraniteHybridRecurrentBlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.PastKey, options.PastValue,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.PastKey, context.PastValue,
 		)
 	case BlockPLaMo2:
 		return BuildPLaMo2RecurrentBlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.PastKey, options.PastValue,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.PastKey, context.PastValue,
 		)
 	case BlockNemotronH:
 		return BuildNemotronHBlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, options.PastKey, options.PastValue, options.Layer,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.Positions, context.PastKey, context.PastValue, context.Layer,
 		)
 	case BlockKimiLinear:
 		return BuildKimiLinearBlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, plan.Recurrent, options.PastKey,
-			options.PastValue, options.Layer,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.Positions, plan.Recurrent, context.PastKey,
+			context.PastValue, context.Layer,
 		)
 	case BlockDSA:
 		return BuildDSABlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, options.PastKey, options.PastValue,
-			options.PastIndexerKey, options.PerLayerInput, options.Layer,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.Positions, context.PastKey, context.PastValue,
+			context.PastIndexerKey, context.PerLayerInput, context.Layer,
 		)
 	case BlockDeepSeek4:
 		return BuildDeepSeek4BlockCached(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, options.TokenRows, options.PastKey,
-			options.PastStates, options.CurrentPositions, options.Layer,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.Positions, context.TokenRows, context.PastKey,
+			context.PastStates, context.CurrentPositions, context.Layer,
 		)
 	case BlockMLA:
 		return BuildMLABlockCachedForLayer(
-			options.Builder, options.Input, options.Spec, options.Weights,
-			options.Positions, options.PastKey, options.PastValue, options.Layer,
+			context.Builder, context.Input, options.Spec, options.Weights,
+			context.Positions, context.PastKey, context.PastValue, context.Layer,
 		)
 	case BlockDense:
 		return buildAttentionFamilyBlock(options)
@@ -117,10 +123,8 @@ func BuildArchitectureBlockCached(
 func buildAttentionFamilyBlock(
 	options BlockDispatchOptions,
 ) (DenseBlockResult, error) {
+	context := options.Context
 	return BuildDenseBlockWithOptions(DenseBlockOptions{
-		Builder: options.Builder, Input: options.Input, Spec: options.Spec,
-		Weights: options.Weights, Positions: options.Positions,
-		MultiPositions: options.MultiPositions, PastKey: options.PastKey,
-		PastValue: options.PastValue, Layer: options.Layer, Plan: options.Plan,
+		Context: context, Spec: options.Spec, Weights: options.Weights, Plan: options.Plan,
 	})
 }

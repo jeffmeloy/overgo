@@ -72,28 +72,12 @@ func BuildGemma4AssistantBlock(
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	query := builder.Reshape(builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens)
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
-	frequencyBase := spec.RopeFrequencyBase
-	if spec.IsSlidingLayer(layerIndex) {
-		frequencyBase = spec.RopeFrequencySWA
-	}
-	if weights.RopeFactors != nil {
-		query = builder.RoPENeoXScaledWithFactors(
-			query, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1, weights.RopeFactors,
-		)
-	} else {
-		query = builder.RoPENeoXScaled(
-			query, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1,
-		)
-	}
+	plan := spec.PlanLayer(layerIndex, false)
+	query = plan.Rotary.ApplyOne(builder, query, positions, nil, weights.RopeFactors)
 	queryStart := positions[0] - 1
-	var attention *tensor.Tensor
-	if spec.IsSlidingLayer(layerIndex) {
-		attention = builder.AttentionWindowWithOffset(
-			query, sharedKey, sharedValue, 1, true, queryStart, spec.SlidingWindow,
-		)
-	} else {
-		attention = builder.AttentionWithOffset(query, sharedKey, sharedValue, 1, true, queryStart)
-	}
+	attention := plan.AttentionGraph.Build(
+		builder, query, sharedKey, sharedValue, nil, nil, 1, queryStart,
+	)
 	attention = builder.Reshape(attention, headCount*valueLength, tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)

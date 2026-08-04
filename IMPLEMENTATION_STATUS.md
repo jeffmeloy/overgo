@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Dense weight requirements, routed/shared expert composition, Q/K preprocessing, query scaling, attention-output stages, residual flow, and dense leaf selection now compile into `LayerPlan`; scheduler dispatch and dense execution share one typed cached-block context, and remaining production leaf attention/RoPE calls use typed option contracts.
 - `LayerPlan` now compiles detailed rotary, attention, and routed-expert graph controls; dense/Gemma 4 execution consumes the plans, paired RoPE and shared experts have one implementation, and production model MoE construction converges on one typed core.
 - Typed internal option contracts now own attention, MoE, and RoPE graph construction; specialized wrappers no longer forward positional nil/zero/boolean control streams or mutate completed graph nodes.
 - Named semantic constants now own projector/RWKV normalization contracts, quantizer thresholds, serialization/schema envelopes, GGUF buffers, server/CLI defaults, media security bounds, and derived validation diagnostics; fixture data and mathematical shapes remain literal.

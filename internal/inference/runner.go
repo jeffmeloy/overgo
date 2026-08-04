@@ -2065,24 +2065,24 @@ func (r *Runner) runLayerCached(
 		dispatchMultiPositions = &converted
 	}
 	result, err = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Builder:          builder,
-		Input:            input,
-		Spec:             r.spec,
-		Weights:          graphWeights,
-		Positions:        positions,
-		MultiPositions:   dispatchMultiPositions,
-		TokenRows:        tokenRows,
-		PastKey:          cacheInputs.key,
-		PastValue:        cacheInputs.value,
-		PastIndexerKey:   cacheInputs.indexerKey,
-		PastConvState:    cacheInputs.convState,
-		PastSSMState:     cacheInputs.ssmState,
-		PastStates:       cacheInputs.states,
-		CurrentPositions: boundSideInputs.currentPositions,
-		PerLayerInput:    graphWeights.PerLayerInput,
-		Layer:            uint32(layerIndex),
-		Recurrent:        info.Recurrent,
-		Plan:             &plan,
+		Context: model.CachedBlockContext{
+			Builder:          builder,
+			Input:            input,
+			Positions:        positions,
+			MultiPositions:   dispatchMultiPositions,
+			TokenRows:        tokenRows,
+			PastKey:          cacheInputs.key,
+			PastValue:        cacheInputs.value,
+			PastIndexerKey:   cacheInputs.indexerKey,
+			PastConvState:    cacheInputs.convState,
+			PastSSMState:     cacheInputs.ssmState,
+			PastStates:       cacheInputs.states,
+			CurrentPositions: boundSideInputs.currentPositions,
+			PerLayerInput:    graphWeights.PerLayerInput,
+			Layer:            uint32(layerIndex),
+			Recurrent:        info.Recurrent,
+		},
+		Spec: r.spec, Weights: graphWeights, Plan: &plan,
 	})
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err

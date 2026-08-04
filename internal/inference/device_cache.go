@@ -709,12 +709,15 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 		}
 		result, buildErr := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-			Builder: builder, Input: current, Spec: r.spec, Weights: graphWeights,
-			Positions: positions, TokenRows: rows, PastKey: pastKey, PastValue: pastValue,
-			PastConvState: pastConvState, PastSSMState: pastSSMState,
-			CurrentPositions: boundSideInputs.currentPositions,
-			PerLayerInput:    graphWeights.PerLayerInput,
-			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent, Plan: &plan,
+			Context: model.CachedBlockContext{
+				Builder: builder, Input: current, Positions: positions, TokenRows: rows,
+				PastKey: pastKey, PastValue: pastValue,
+				PastConvState: pastConvState, PastSSMState: pastSSMState,
+				CurrentPositions: boundSideInputs.currentPositions,
+				PerLayerInput:    graphWeights.PerLayerInput,
+				Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
+			},
+			Spec: r.spec, Weights: graphWeights, Plan: &plan,
 		})
 		if buildErr != nil {
 			return fail(buildErr)

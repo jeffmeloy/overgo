@@ -10,6 +10,14 @@ const (
 	rotaryGraphMulti
 )
 
+func applyRoPEPairWithOptions(
+	builder *tensor.Builder,
+	query, key *tensor.Tensor,
+	options tensor.RoPEOptions,
+) (*tensor.Tensor, *tensor.Tensor) {
+	return builder.RoPEWithOptions(query, options), builder.RoPEWithOptions(key, options)
+}
+
 // RotaryPlan: compiled per-layer rotary graph.
 type RotaryPlan struct {
 	kind             rotaryGraphKind

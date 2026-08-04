@@ -111,7 +111,9 @@ func BuildWavTokenizerDecoder(
 			query := builder.Reshape(builder.Conv1DSame(current, layer.AttentionQ, layer.AttentionQBias, false), width, 1, tokens)
 			key := builder.Reshape(builder.Conv1DSame(current, layer.AttentionK, layer.AttentionKBias, false), width, 1, tokens)
 			value := builder.Reshape(builder.Conv1DSame(current, layer.AttentionV, layer.AttentionVBias, false), width, 1, tokens)
-			current = builder.AttentionWithOffset(query, key, value, float32(1/math.Sqrt(float64(width))), false, 0)
+			current = builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
+				Scale: float32(1 / math.Sqrt(float64(width))),
+			})
 			current = builder.Reshape(current, width, tokens)
 			current = builder.Conv1DSame(current, layer.AttentionOutput, layer.AttentionOutBias, false)
 			current = builder.Add(current, residual)

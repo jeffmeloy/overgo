@@ -58,9 +58,11 @@ func BuildDFlashCacheInjection(
 	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	key = builder.RoPENeoXScaled(
-		key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
-	)
+	key = builder.RoPEWithOptions(key, tensor.RoPEOptions{
+		Layout: tensor.RoPELayoutNeoX, Positions: positions,
+		RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase,
+		FrequencyScale: frequencyScale,
+	})
 	if pastKey != nil {
 		key = builder.Concat(pastKey, key, 2)
 		value = builder.Concat(pastValue, value, 2)

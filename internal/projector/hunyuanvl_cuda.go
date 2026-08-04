@@ -6,51 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-type hunyuanVLCUDA = projectorCUDA
-
-func openHunyuanVLCUDA(ctx context.Context, file *gguf.File, spec HunyuanVLSpec, ordinal int) (*hunyuanVLCUDA, error) {
-	names := []string{
-		"v.patch_embd.weight", "v.position_embd.weight", "mm.pre_norm.weight",
-		"mm.0.bias", "mm.2.weight", "mm.2.bias", "v.image_newline",
-		"mm.model.fc.weight", "mm.model.fc.bias", "mm.image_begin", "mm.image_end", "mm.post_norm.weight",
-	}
-	for _, name := range []string{"v.patch_embd.bias", "v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias"} {
-		if hasTensor(file, name) {
-			names = append(names, name)
-		}
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		if spec.FusedQKV[layer] {
-			names = append(names, prefix+"attn_qkv.weight")
-			if hasTensor(file, prefix+"attn_qkv.bias") {
-				names = append(names, prefix+"attn_qkv.bias")
-			}
-		} else {
-			for _, part := range []string{"q", "k", "v"} {
-				names = append(names, prefix+"attn_"+part+".weight")
-				if hasTensor(file, prefix+"attn_"+part+".bias") {
-					names = append(names, prefix+"attn_"+part+".bias")
-				}
-			}
-		}
-		for _, suffix := range []string{"attn_out.weight", "ffn_up.weight", "ffn_down.weight", "ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias"} {
-			names = append(names, prefix+suffix)
-		}
-		for _, suffix := range []string{"attn_out.bias", "ffn_up.bias", "ffn_down.bias"} {
-			if hasTensor(file, prefix+suffix) {
-				names = append(names, prefix+suffix)
-			}
-		}
-	}
-	return openProjectorCUDA(ctx, file, names, nil, ordinal)
-}
 
 func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input HunyuanVLImage) (HunyuanVLOutput, error) {
 	rows := input.GridH * input.GridW

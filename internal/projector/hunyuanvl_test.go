@@ -136,6 +136,33 @@ func TestHunyuanVLCatalogRejectsIncompletePreNorm(t *testing.T) {
 	}
 }
 
+func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
+	file, err := gguf.Open(writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	spec, err := ReadHunyuanVLSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := validateHunyuanVLCatalog(file, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(names, "mm.0.weight") {
+		t.Fatal("host-reordered convolution entered device catalog")
+	}
+	if !slices.IsSorted(names) {
+		t.Fatalf("device catalog is not ordered: %v", names)
+	}
+	for _, name := range []string{"v.blk.0.attn_qkv.weight", "mm.0.bias", "mm.2.weight"} {
+		if !slices.Contains(names, name) {
+			t.Errorf("device catalog missing %q", name)
+		}
+	}
+}
+
 func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyHunyuanVL(t, nonzeroTinyHunyuanVLTensors())

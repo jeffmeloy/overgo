@@ -18,7 +18,6 @@ type layerGraphField struct {
 	name       string
 	inputName  string
 	optional   bool
-	hostAuto   bool
 	infoIndex  []int
 	hostIndex  []int
 	graphIndex []int
@@ -86,21 +85,11 @@ func compileLayerGraphFields() []layerGraphField {
 		}
 		fields = append(fields, layerGraphField{
 			name: infoField.Name, inputName: graphInputName(infoField.Name),
-			optional: optional, hostAuto: optional && hostAutoGraphField(infoField.Name),
+			optional:  optional,
 			infoIndex: infoField.Index, hostIndex: hostField.Index, graphIndex: graphField.Index,
 		})
 	}
 	return fields
-}
-
-func hostAutoGraphField(name string) bool {
-	switch name {
-	case "AttentionNormBias", "AttentionNorm2", "AttentionNorm2Bias", "FeedForwardNormBias",
-		"AttentionQKV", "AttentionGate":
-		return false
-	}
-	return !strings.HasPrefix(name, "SSM") && !strings.HasPrefix(name, "TimeMix") &&
-		!strings.HasPrefix(name, "ChannelMix") && !strings.HasPrefix(name, "ShortConv")
 }
 
 func graphInputName(name string) string {
@@ -127,17 +116,22 @@ func bindHostLayerGraphFields(
 	hostValue := reflect.ValueOf(layer).Elem()
 	graphValue := reflect.ValueOf(result).Elem()
 	for _, field := range layerGraphFields {
-		if !field.hostAuto {
-			continue
-		}
 		value := hostValue.FieldByIndex(field.hostIndex)
-		if value.IsNil() {
-			continue
+		var host reference.Value
+		if field.optional {
+			if value.IsNil() {
+				continue
+			}
+			host = *value.Interface().(*reference.Value)
+		} else {
+			host = value.Interface().(reference.Value)
+			if host.Shape.Rank == 0 {
+				continue
+			}
 		}
-		host := value.Interface().(*reference.Value)
 		node := builder.Input(prefix+field.inputName, dtype.F32, host.Shape)
 		if node != nil {
-			feeds[node] = *host
+			feeds[node] = host
 		}
 		graphValue.FieldByIndex(field.graphIndex).Set(reflect.ValueOf(node))
 	}

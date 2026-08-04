@@ -32,6 +32,13 @@ claims.
 
 ## Validated milestones
 
+- The August 3 graph/catalog follow-up removed the remaining host layer graph
+  family switch: the reflected layer catalog now binds every required and
+  optional host field, matching device binding. Llama 4, Hunyuan-VL,
+  PaddleOCR, and MiMo-VL validators now produce the ordered CUDA tensor set,
+  eliminating four device-side inventories while preserving Hunyuan's
+  host-reordered convolution exclusion. The wave removed 369 net code lines;
+  full CPU and CUDA verification passed on the Windows amd64 RTX 4090 D host.
 - The August 3 layer-catalog follow-up extended the validated mirror catalog
   across required and optional host tensor loading and device graph binding,
   replacing parallel inventories while retaining family-specific structural

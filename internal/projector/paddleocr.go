@@ -64,7 +64,7 @@ type PaddleOCROutput struct {
 type PaddleOCRRunner struct {
 	file *gguf.File
 	spec PaddleOCRSpec
-	cuda *paddleOCRCuda
+	cuda *projectorCUDA
 }
 
 type PaddleOCROpenOptions struct {
@@ -89,12 +89,13 @@ func OpenPaddleOCRWithOptions(path string, options PaddleOCROpenOptions) (*Paddl
 	if err != nil {
 		return fail(err)
 	}
-	if err := validatePaddleOCRCatalog(file, spec); err != nil {
+	catalog, err := validatePaddleOCRCatalog(file, spec)
+	if err != nil {
 		return fail(err)
 	}
 	runner := &PaddleOCRRunner{file: file, spec: spec}
 	if options.CUDA {
-		runner.cuda, err = openPaddleOCRCuda(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize PaddleOCR CUDA: %w", err))
 		}
@@ -248,7 +249,7 @@ func (s PaddleOCRSpec) validate() error {
 	return nil
 }
 
-func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) error {
+func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, error) {
 	required := map[string][]uint64{
 		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
 		"v.position_embd.weight": {uint64(spec.Hidden), uint64((spec.ImageSize / spec.PatchSize) * (spec.ImageSize / spec.PatchSize))},
@@ -258,60 +259,15 @@ func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) error {
 		"mm.2.weight": {uint64(spec.ProjectorIntermediate), uint64(spec.OutputHidden)},
 		"mm.2.bias":   {uint64(spec.OutputHidden)},
 	}
-	addOptionalPair := func(weight, bias string, shape []uint64) error {
-		hasWeight, hasBias := hasTensor(file, weight), hasTensor(file, bias)
-		if hasWeight != hasBias {
-			return fmt.Errorf("projector: tensors %q and %q must be paired", weight, bias)
-		}
-		if hasWeight {
-			required[weight], required[bias] = shape, shape
-		}
-		return nil
+	if err := addOptionalProjectorPair(file, required, "v.pre_ln.weight", "v.pre_ln.bias", []uint64{uint64(spec.Hidden)}); err != nil {
+		return nil, err
 	}
-	if err := addOptionalPair("v.pre_ln.weight", "v.pre_ln.bias", []uint64{uint64(spec.Hidden)}); err != nil {
-		return err
+	if err := addOptionalProjectorPair(file, required, "v.post_ln.weight", "v.post_ln.bias", []uint64{uint64(spec.Hidden)}); err != nil {
+		return nil, err
 	}
-	if err := addOptionalPair("v.post_ln.weight", "v.post_ln.bias", []uint64{uint64(spec.Hidden)}); err != nil {
-		return err
-	}
-	if hasTensor(file, "v.patch_embd.bias") {
-		required["v.patch_embd.bias"] = []uint64{uint64(spec.Hidden)}
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for name, shape := range map[string][]uint64{
-			"attn_out.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
-			"ffn_up.weight":   {uint64(spec.Hidden), uint64(spec.Intermediate)},
-			"ffn_down.weight": {uint64(spec.Intermediate), uint64(spec.Hidden)},
-			"ln1.weight":      {uint64(spec.Hidden)}, "ln1.bias": {uint64(spec.Hidden)},
-			"ln2.weight": {uint64(spec.Hidden)}, "ln2.bias": {uint64(spec.Hidden)},
-		} {
-			required[prefix+name] = shape
-		}
-		if spec.FusedQKV[layer] {
-			required[prefix+"attn_qkv.weight"] = []uint64{uint64(spec.Hidden), uint64(3 * spec.Hidden)}
-			if hasTensor(file, prefix+"attn_qkv.bias") {
-				required[prefix+"attn_qkv.bias"] = []uint64{uint64(3 * spec.Hidden)}
-			}
-		} else {
-			for _, part := range []string{"q", "k", "v"} {
-				required[prefix+"attn_"+part+".weight"] = []uint64{uint64(spec.Hidden), uint64(spec.Hidden)}
-				if hasTensor(file, prefix+"attn_"+part+".bias") {
-					required[prefix+"attn_"+part+".bias"] = []uint64{uint64(spec.Hidden)}
-				}
-			}
-		}
-		for _, name := range []string{"attn_out", "ffn_up", "ffn_down"} {
-			if hasTensor(file, prefix+name+".bias") {
-				width := spec.Hidden
-				if name == "ffn_up" {
-					width = spec.Intermediate
-				}
-				required[prefix+name+".bias"] = []uint64{uint64(width)}
-			}
-		}
-	}
-	return validateProjectorTensorShapes(file, required)
+	addOptionalProjectorTensor(file, required, "v.patch_embd.bias", []uint64{uint64(spec.Hidden)})
+	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV)
+	return validateProjectorTensorCatalog(file, required)
 }
 
 func DefaultPaddleOCRPreprocessOptions(spec PaddleOCRSpec) PaddleOCRPreprocessOptions {

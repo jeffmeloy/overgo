@@ -6,41 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-type mimoVLCUDA = projectorCUDA
-
-func openMiMoVLCUDA(ctx context.Context, file *gguf.File, spec MiMoVLSpec, ordinal int) (*mimoVLCUDA, error) {
-	names := []string{"v.patch_embd.weight", "v.patch_embd.weight.1", "v.post_ln.weight", "mm.0.weight", "mm.2.weight"}
-	for _, name := range []string{"v.post_ln.bias", "mm.0.bias", "mm.2.bias"} {
-		if hasTensor(file, name) {
-			names = append(names, name)
-		}
-	}
-	for layer, mode := range spec.WindowModes {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"attn_qkv.weight", "attn_qkv.bias", "attn_out.weight",
-			"ffn_up.weight", "ffn_up.bias", "ffn_gate.weight", "ffn_gate.bias",
-			"ffn_down.weight", "ffn_down.bias", "ln1.weight", "ln2.weight",
-		} {
-			names = append(names, prefix+suffix)
-		}
-		for _, suffix := range []string{"attn_out.bias", "ln1.bias", "ln2.bias"} {
-			if hasTensor(file, prefix+suffix) {
-				names = append(names, prefix+suffix)
-			}
-		}
-		if mode != -1 {
-			names = append(names, prefix+"attn_sinks")
-		}
-	}
-	return openProjectorCUDA(ctx, file, names, nil, ordinal)
-}
 
 func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
 	rows := input.GridH * input.GridW

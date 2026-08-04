@@ -49,7 +49,7 @@ type MiMoVLOutput struct {
 type MiMoVLRunner struct {
 	file *gguf.File
 	spec MiMoVLSpec
-	cuda *mimoVLCUDA
+	cuda *projectorCUDA
 }
 
 type MiMoVLOpenOptions struct {
@@ -74,12 +74,13 @@ func OpenMiMoVLWithOptions(path string, options MiMoVLOpenOptions) (*MiMoVLRunne
 	if err != nil {
 		return fail(err)
 	}
-	if err := validateMiMoVLCatalog(file, spec); err != nil {
+	catalog, err := validateMiMoVLCatalog(file, spec)
+	if err != nil {
 		return fail(err)
 	}
 	runner := &MiMoVLRunner{file: file, spec: spec}
 	if options.CUDA {
-		runner.cuda, err = openMiMoVLCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize MiMo-VL CUDA: %w", err))
 		}
@@ -212,7 +213,7 @@ func (s MiMoVLSpec) validate() error {
 	return nil
 }
 
-func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) error {
+func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
 	qWidth := spec.Heads * spec.HeadDim
 	kvWidth := spec.KVHeads * spec.HeadDim
 	required := map[string][]uint64{
@@ -221,6 +222,13 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) error {
 		"v.post_ln.weight":      {uint64(spec.Hidden)},
 		"mm.0.weight":           {uint64(spec.Hidden * 4), uint64(spec.MergerIntermediate)},
 		"mm.2.weight":           {uint64(spec.MergerIntermediate), uint64(spec.ProjectionDim)},
+	}
+	for name, width := range map[string]int{
+		"v.post_ln.bias": spec.Hidden,
+		"mm.0.bias":      spec.MergerIntermediate,
+		"mm.2.bias":      spec.ProjectionDim,
+	} {
+		addOptionalProjectorTensor(file, required, name, []uint64{uint64(width)})
 	}
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -242,39 +250,13 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) error {
 		if spec.WindowModes[layer] != -1 {
 			required[prefix+"attn_sinks"] = []uint64{uint64(spec.Heads)}
 		}
-	}
-	if err := validateProjectorTensorShapes(file, required); err != nil {
-		return err
-	}
-	for _, name := range []string{"v.post_ln.bias", "mm.0.bias", "mm.2.bias"} {
-		if err := validateMiMoVLOptionalVector(file, name, map[string]int{
-			"v.post_ln.bias": spec.Hidden, "mm.0.bias": spec.MergerIntermediate, "mm.2.bias": spec.ProjectionDim,
-		}[name]); err != nil {
-			return err
-		}
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		for name, width := range map[string]int{
 			"attn_out.bias": spec.Hidden, "ln1.bias": spec.Hidden, "ln2.bias": spec.Hidden,
 		} {
-			if err := validateMiMoVLOptionalVector(file, prefix+name, width); err != nil {
-				return err
-			}
+			addOptionalProjectorTensor(file, required, prefix+name, []uint64{uint64(width)})
 		}
 	}
-	return nil
-}
-
-func validateMiMoVLOptionalVector(file *gguf.File, name string, width int) error {
-	info, ok := file.Tensor(name)
-	if !ok {
-		return nil
-	}
-	if info.Dimensions != 1 || info.Shape[0] != uint64(width) {
-		return fmt.Errorf("projector: tensor %q shape %v, want [%d]", name, info.Shape[:info.Dimensions], width)
-	}
-	return nil
+	return validateProjectorTensorCatalog(file, required)
 }
 
 func PreprocessMiMoVLImage(source image.Image, spec MiMoVLSpec) (MiMoVLInput, error) {

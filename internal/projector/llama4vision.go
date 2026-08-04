@@ -65,7 +65,7 @@ type Llama4VisionOutput struct {
 type Llama4VisionRunner struct {
 	file *gguf.File
 	spec Llama4VisionSpec
-	cuda *llama4VisionCUDA
+	cuda *projectorCUDA
 }
 
 type Llama4VisionOpenOptions struct {
@@ -90,12 +90,13 @@ func OpenLlama4VisionWithOptions(path string, options Llama4VisionOpenOptions) (
 	if err != nil {
 		return fail(err)
 	}
-	if err := validateLlama4VisionCatalog(file, spec); err != nil {
+	catalog, err := validateLlama4VisionCatalog(file, spec)
+	if err != nil {
 		return fail(err)
 	}
 	runner := &Llama4VisionRunner{file: file, spec: spec}
 	if options.CUDA {
-		runner.cuda, err = openLlama4VisionCUDA(context.Background(), file, spec, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
 		if err != nil {
 			return fail(fmt.Errorf("projector: initialize Llama-4 CUDA: %w", err))
 		}
@@ -234,7 +235,7 @@ func (s Llama4VisionSpec) validate() error {
 	return nil
 }
 
-func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) error {
+func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) ([]string, error) {
 	patches := spec.ImageSize / spec.PatchSize
 	shuffleWidth := spec.Hidden * spec.MergeSize * spec.MergeSize
 	required := map[string][]uint64{
@@ -245,51 +246,16 @@ func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) error {
 		"mm.model.mlp.2.weight":  {uint64(spec.AdapterIntermediate), uint64(spec.AdapterHidden)},
 		"mm.model.fc.weight":     {uint64(spec.AdapterHidden), uint64(spec.OutputHidden)},
 	}
-	if hasTensor(file, "v.patch_embd.bias") {
-		required["v.patch_embd.bias"] = []uint64{uint64(spec.Hidden)}
-	}
+	addOptionalProjectorTensor(file, required, "v.patch_embd.bias", []uint64{uint64(spec.Hidden)})
 	for _, prefix := range []string{"v.pre_ln", "v.post_ln"} {
-		hasWeight, hasBias := hasTensor(file, prefix+".weight"), hasTensor(file, prefix+".bias")
-		if hasWeight != hasBias {
-			return fmt.Errorf("projector: tensors %q and %q must be paired", prefix+".weight", prefix+".bias")
-		}
-		if hasWeight {
-			required[prefix+".weight"], required[prefix+".bias"] = []uint64{uint64(spec.Hidden)}, []uint64{uint64(spec.Hidden)}
+		if err := addOptionalProjectorPair(
+			file, required, prefix+".weight", prefix+".bias", []uint64{uint64(spec.Hidden)},
+		); err != nil {
+			return nil, err
 		}
 	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for name, shape := range map[string][]uint64{
-			"attn_out.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
-			"ffn_up.weight":   {uint64(spec.Hidden), uint64(spec.Intermediate)},
-			"ffn_down.weight": {uint64(spec.Intermediate), uint64(spec.Hidden)},
-			"ln1.weight":      {uint64(spec.Hidden)}, "ln1.bias": {uint64(spec.Hidden)},
-			"ln2.weight": {uint64(spec.Hidden)}, "ln2.bias": {uint64(spec.Hidden)},
-		} {
-			required[prefix+name] = shape
-		}
-		if spec.FusedQKV[layer] {
-			required[prefix+"attn_qkv.weight"] = []uint64{uint64(spec.Hidden), uint64(3 * spec.Hidden)}
-		} else {
-			for _, part := range []string{"q", "k", "v"} {
-				required[prefix+"attn_"+part+".weight"] = []uint64{uint64(spec.Hidden), uint64(spec.Hidden)}
-			}
-		}
-		for _, name := range []string{"attn_qkv", "attn_q", "attn_k", "attn_v", "attn_out", "ffn_up", "ffn_down"} {
-			full := prefix + name + ".bias"
-			if hasTensor(file, full) {
-				width := spec.Hidden
-				if name == "attn_qkv" {
-					width = 3 * spec.Hidden
-				}
-				if name == "ffn_up" {
-					width = spec.Intermediate
-				}
-				required[full] = []uint64{uint64(width)}
-			}
-		}
-	}
-	return validateProjectorTensorShapes(file, required)
+	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV)
+	return validateProjectorTensorCatalog(file, required)
 }
 
 func PreprocessLlama4VisionImage(source image.Image, spec Llama4VisionSpec) (Llama4VisionInput, error) {

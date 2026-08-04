@@ -6,54 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
 )
-
-type paddleOCRCuda = projectorCUDA
-
-func openPaddleOCRCuda(ctx context.Context, file *gguf.File, spec PaddleOCRSpec, ordinal int) (*paddleOCRCuda, error) {
-	names := []string{
-		"v.patch_embd.weight", "v.position_embd.weight",
-		"mm.input_norm.weight", "mm.input_norm.bias",
-		"mm.1.weight", "mm.1.bias", "mm.2.weight", "mm.2.bias",
-	}
-	for _, name := range []string{"v.patch_embd.bias", "v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias"} {
-		if hasTensor(file, name) {
-			names = append(names, name)
-		}
-	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		if spec.FusedQKV[layer] {
-			names = append(names, prefix+"attn_qkv.weight")
-			if hasTensor(file, prefix+"attn_qkv.bias") {
-				names = append(names, prefix+"attn_qkv.bias")
-			}
-		} else {
-			for _, part := range []string{"q", "k", "v"} {
-				names = append(names, prefix+"attn_"+part+".weight")
-				if hasTensor(file, prefix+"attn_"+part+".bias") {
-					names = append(names, prefix+"attn_"+part+".bias")
-				}
-			}
-		}
-		for _, suffix := range []string{
-			"attn_out.weight", "ffn_up.weight", "ffn_down.weight",
-			"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-		for _, suffix := range []string{"attn_out.bias", "ffn_up.bias", "ffn_down.bias"} {
-			if hasTensor(file, prefix+suffix) {
-				names = append(names, prefix+suffix)
-			}
-		}
-	}
-	return openProjectorCUDA(ctx, file, names, nil, ordinal)
-}
 
 func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {
 	rows := input.GridH * input.GridW

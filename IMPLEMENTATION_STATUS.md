@@ -29,6 +29,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Host layer graph construction now binds every required and optional weight through the shared mirror catalog; Llama 4, Hunyuan-VL, PaddleOCR, and MiMo-VL shape validation now produces the authoritative ordered CUDA tensor catalog.
 - Required and optional layer tensors now share one reflected catalog for host loading and device graph binding; projected chunk execution carries one compiled request value and normalization plans are resolved once per model load.
 - Host and device layer graphs now bind mirrored optional weights through one drift-checked field catalog; Kimi KDA device fields are included automatically.
 - One plan-driven side-input binder now owns embedding skip, projected per-layer input, attention blocks, scheduled temperature, and DeepSeek4 positions across graph paths.

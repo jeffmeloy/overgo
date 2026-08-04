@@ -184,6 +184,18 @@ func renderQwenImagePrompt(text []string, items []imagePromptItem, history bool,
 	return prompt.String()
 }
 
+func renderDelimitedImagePrompt(text []string, items []imagePromptItem, placeholder, prefix, suffix string) string {
+	var prompt strings.Builder
+	for index, item := range items {
+		prompt.WriteString(text[index])
+		prompt.WriteString(prefix)
+		prompt.WriteString(strings.Repeat(placeholder, item.RunCount))
+		prompt.WriteString(suffix)
+	}
+	prompt.WriteString(text[len(text)-1])
+	return prompt.String()
+}
+
 func qwenImagePromptItem(output Qwen3VLOutput) (imagePromptItem, error) {
 	deepstack := make([][]float32, len(output.DeepstackEmbeddings))
 	for index, stream := range output.DeepstackEmbeddings {

@@ -7,7 +7,6 @@ import (
 	"image"
 	"math"
 	"slices"
-	"strings"
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
@@ -577,49 +576,14 @@ func (r *Gemma3nVisionRunner) buildImagesPrompt(
 	text []string,
 	history bool,
 ) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	if len(sources) == 0 || len(text) != len(sources)+1 {
-		return MultimodalPrompt{}, errors.New("projector: Gemma 3n history sequence is inconsistent")
-	}
-	counts := make([]int, len(sources))
-	var prompt strings.Builder
-	var embeddings []float32
-	for index, source := range sources {
-		prompt.WriteString(text[index])
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, imagePromptPlan{
+		Family: "Gemma 3n", Placeholder: Gemma3nImagePad, PlaceholderLabel: "Gemma 3n image placeholder",
+		History: history, EmbeddingWidth: r.spec.OutputHidden,
+		Render: func(text []string, items []imagePromptItem) string {
+			return renderDelimitedImagePrompt(text, items, Gemma3nImagePad, "<start_of_image>", "<end_of_image>")
+		},
+	}, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		value, err := r.EncodeImage(ctx, source)
-		if err != nil {
-			return MultimodalPrompt{}, fmt.Errorf("projector: encode Gemma 3n image %d: %w", index, err)
-		}
-		counts[index] = int(value.Shape.Dims[1])
-		embeddings = append(embeddings, value.Data...)
-		prompt.WriteString("<start_of_image>")
-		prompt.WriteString(strings.Repeat(Gemma3nImagePad, counts[index]))
-		prompt.WriteString("<end_of_image>")
-	}
-	prompt.WriteString(text[len(text)-1])
-	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 3n prompt: %w", err)
-	}
-	padIDs, err := tokenizer.TokenizeText(Gemma3nImagePad, false, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize Gemma 3n image placeholder: %w", err)
-	}
-	if len(padIDs) != 1 {
-		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 3n image placeholder maps to %d tokens", len(padIDs))
-	}
-	starts, err := variableTokenRuns(ids, padIDs[0], counts)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 3n prompt: %w", err)
-	}
-	indices := make([]uint32, 0, len(sources)*256)
-	for index, start := range starts {
-		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
-	}
-	return MultimodalPrompt{
-		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
-		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices,
-	}, nil
+		return imagePromptItem{Embeddings: value.Data, Count: int(value.Shape.Dims[1])}, err
+	})
 }

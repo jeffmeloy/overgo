@@ -1075,7 +1075,7 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 		}
 		if ok {
 			if err := controller.SetLoRAScales(adapters); err != nil {
-				writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+				writeInvalidRequest(response, err)
 				return
 			}
 		}
@@ -1117,7 +1117,7 @@ func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) 
 	}
 	tokens, err := tokenizeMixed(api, body.Content, body.AddSpecial, parseSpecial)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if body.WithPieces {
@@ -1130,7 +1130,7 @@ func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) 
 		for index, token := range tokens {
 			piece, err := pieceAPI.TokenPiece(token)
 			if err != nil {
-				writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+				writeInvalidRequest(response, err)
 				return
 			}
 			var rendered any = piece
@@ -1221,18 +1221,13 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 		return
 	}
 	if len(body.Tokens) > maxTokenListLength {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("token count exceeds %d", maxTokenListLength))
+		writeInvalidRequestMessage(response, fmt.Sprintf("token count exceeds %d", maxTokenListLength))
 		return
 	}
 	tokens := make([]tokenizer.TokenID, len(body.Tokens))
 	for index, token := range body.Tokens {
 		if token < 0 || token >= api.SamplingVocabularySize() {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				fmt.Sprintf("token %d is out of range", token),
-			)
+			writeInvalidRequestMessage(response, fmt.Sprintf("token %d is out of range", token))
 			return
 		}
 		tokens[index] = tokenizer.TokenID(token)
@@ -1243,7 +1238,7 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 		for _, token := range tokens {
 			piece, err := pieceAPI.TokenPiece(token)
 			if err != nil {
-				writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+				writeInvalidRequest(response, err)
 				return
 			}
 			result.WriteString(piece)
@@ -1253,7 +1248,7 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 		var err error
 		content, err = api.DetokenizeTokens(tokens)
 		if err != nil {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+			writeInvalidRequest(response, err)
 			return
 		}
 	}
@@ -1284,7 +1279,7 @@ func (h *Handler) decodeJSONWithLimit(
 ) bool {
 	request.Body = http.MaxBytesReader(response, request.Body, limit)
 	if err := strictjson.Decode(request.Body, target); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "invalid JSON request: "+err.Error())
+		writeInvalidRequestMessage(response, "invalid JSON request: "+err.Error())
 		return false
 	}
 	return true
@@ -1321,7 +1316,7 @@ func (h *Handler) applyTemplate(response http.ResponseWriter, request *http.Requ
 		TemplateKwargs: body.ChatTemplateKwargs,
 	})
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	prompt, err := formatChatRequest(
@@ -1332,7 +1327,7 @@ func (h *Handler) applyTemplate(response http.ResponseWriter, request *http.Requ
 		body.ChatTemplateKwargs,
 	)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]string{"prompt": prompt})
@@ -1610,7 +1605,7 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 	if body.Query == nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "query must be provided")
+		writeInvalidRequestMessage(response, "query must be provided")
 		return
 	}
 	tei := body.Texts != nil
@@ -1619,18 +1614,19 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 		documents = body.Texts
 	}
 	if len(documents) == 0 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "documents must be a non-empty string array")
+		writeInvalidRequestMessage(response, "documents must be a non-empty string array")
 		return
 	}
 	if len(documents) > h.config.MaxEmbeddingInputs {
-		writeError(response, http.StatusBadRequest, "invalid_request_error",
-			fmt.Sprintf("rerank document count exceeds %d", h.config.MaxEmbeddingInputs))
+		writeInvalidRequestMessage(
+			response, fmt.Sprintf("rerank document count exceeds %d", h.config.MaxEmbeddingInputs),
+		)
 		return
 	}
 	topN := len(documents)
 	if body.TopN != nil {
 		if *body.TopN < 0 {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", "top_n must be non-negative")
+			writeInvalidRequestMessage(response, "top_n must be non-negative")
 			return
 		}
 		topN = min(*body.TopN, len(documents))
@@ -1703,25 +1699,17 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 	if body.EncodingFormat != "" &&
 		body.EncodingFormat != "float" &&
 		body.EncodingFormat != "base64" {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"encoding_format must be float or base64",
-		)
+		writeInvalidRequestMessage(response, "encoding_format must be float or base64")
 		return
 	}
 	inputs, err := h.parseNativePrompts(request.Context(), body.Input)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "embedding input: "+err.Error())
+		writeInvalidRequestMessage(response, "embedding input: "+err.Error())
 		return
 	}
 	if len(inputs) > h.config.MaxEmbeddingInputs {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			fmt.Sprintf("embedding input count exceeds %d", h.config.MaxEmbeddingInputs),
+		writeInvalidRequestMessage(
+			response, fmt.Sprintf("embedding input count exceeds %d", h.config.MaxEmbeddingInputs),
 		)
 		return
 	}
@@ -1790,12 +1778,7 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 		return
 	}
 	if body.EncodingFormat != "" && body.EncodingFormat != "float" {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"encoding_format must be float for native embeddings",
-		)
+		writeInvalidRequestMessage(response, "encoding_format must be float for native embeddings")
 		return
 	}
 	pooling := inference.EmbeddingPooling(body.Pooling)
@@ -1805,12 +1788,7 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 	if pooling != inference.EmbeddingPoolingMean &&
 		pooling != inference.EmbeddingPoolingLast &&
 		pooling != inference.EmbeddingPoolingNone {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"pooling must be mean, last, or none",
-		)
+		writeInvalidRequestMessage(response, "pooling must be mean, last, or none")
 		return
 	}
 	normalize := 2
@@ -1823,15 +1801,12 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 	}
 	inputs, err := h.parseNativePrompts(request.Context(), raw)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "embedding input: "+err.Error())
+		writeInvalidRequestMessage(response, "embedding input: "+err.Error())
 		return
 	}
 	if len(inputs) > h.config.MaxEmbeddingInputs {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			fmt.Sprintf("embedding input count exceeds %d", h.config.MaxEmbeddingInputs),
+		writeInvalidRequestMessage(
+			response, fmt.Sprintf("embedding input count exceeds %d", h.config.MaxEmbeddingInputs),
 		)
 		return
 	}
@@ -2057,7 +2032,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 	}
 	prompts, err := h.parseNativePrompts(request.Context(), body.Prompt)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if !h.requireModel(response, body.Model) {
@@ -2067,25 +2042,19 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		body.N = 1
 	}
 	if body.N < 1 || body.N > maxCompletionChoices {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("n must be in [1,%d]", maxCompletionChoices))
+		writeInvalidRequestMessage(response, fmt.Sprintf("n must be in [1,%d]", maxCompletionChoices))
 		return
 	}
-	maxTokens := 16
-	if body.MaxTokens != nil {
-		maxTokens = *body.MaxTokens
-	}
-	if maxTokens < 0 || maxTokens > h.config.MaxTokens {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			fmt.Sprintf("max_tokens must be in [0,%d]", h.config.MaxTokens),
-		)
+	maxTokens, err := boundedProtocolTokens(
+		body.MaxTokens, 16, h.config.MaxTokens, "max_tokens", false,
+	)
+	if err != nil {
+		writeInvalidRequest(response, err)
 		return
 	}
 	stops, err := parseStopSequences(body.Stop)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if err := prepareStructuredOutput(
@@ -2093,25 +2062,22 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		body.JSONSchema,
 		nil,
 	); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
-	sampler, err := h.newSampler(body.samplingParameters)
-	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+	plan, ok := h.prepareProtocolBatchGenerationPlan(
+		response, request, prompts, body.samplingParameters, maxTokens, stops,
+	)
+	if !ok {
 		return
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
-	if !acquired {
-		return
-	}
-	defer h.releaseSlot(slotID)
+	defer plan.release()
 	id := "cmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
 	if body.Stream {
-		h.streamCompletion(response, request, slotID, prompts, sampler, maxTokens, id, stops, body.N)
+		h.streamCompletion(response, request, plan, id, body.N)
 		return
 	}
-	h.complete(response, request, slotID, prompts, sampler, maxTokens, id, stops, body.N)
+	h.complete(response, plan, id, body.N)
 }
 
 type nativeCompletionRequest struct {
@@ -2185,63 +2151,33 @@ func (h *Handler) infill(
 		return
 	}
 	if len(body.InputPrefix) == 0 || string(body.InputPrefix) == "null" {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"input_prefix is required",
-		)
+		writeInvalidRequestMessage(response, "input_prefix is required")
 		return
 	}
 	if len(body.InputSuffix) == 0 || string(body.InputSuffix) == "null" {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"input_suffix is required",
-		)
+		writeInvalidRequestMessage(response, "input_suffix is required")
 		return
 	}
 	prefix, err := tokenizeMixed(api, body.InputPrefix, false, false)
 	if err != nil {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"invalid input_prefix: "+err.Error(),
-		)
+		writeInvalidRequestMessage(response, "invalid input_prefix: "+err.Error())
 		return
 	}
 	suffix, err := tokenizeMixed(api, body.InputSuffix, false, false)
 	if err != nil {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			"invalid input_suffix: "+err.Error(),
-		)
+		writeInvalidRequestMessage(response, "invalid input_suffix: "+err.Error())
 		return
 	}
 	var prompt []tokenizer.TokenID
 	if len(body.Prompt) != 0 && string(body.Prompt) != "null" {
 		var promptText string
 		if err := json.Unmarshal(body.Prompt, &promptText); err != nil {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				"prompt must be a string",
-			)
+			writeInvalidRequestMessage(response, "prompt must be a string")
 			return
 		}
 		prompt, err = api.TokenizeText(promptText, false, true)
 		if err != nil {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				"tokenize prompt: "+err.Error(),
-			)
+			writeInvalidRequestMessage(response, "tokenize prompt: "+err.Error())
 			return
 		}
 	}
@@ -2249,23 +2185,15 @@ func (h *Handler) infill(
 	if len(body.InputExtra) != 0 {
 		if err := json.Unmarshal(body.InputExtra, &extraRequests); err != nil ||
 			string(body.InputExtra) == "null" {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				"input_extra must be an array",
-			)
+			writeInvalidRequestMessage(response, "input_extra must be an array")
 			return
 		}
 	}
 	extra := make([]inference.InfillExtra, len(extraRequests))
 	for index, chunk := range extraRequests {
 		if chunk.Text == nil {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				fmt.Sprintf("input_extra %d requires string text", index),
+			writeInvalidRequestMessage(
+				response, fmt.Sprintf("input_extra %d requires string text", index),
 			)
 			return
 		}
@@ -2279,11 +2207,8 @@ func (h *Handler) infill(
 			false,
 		)
 		if err != nil {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				fmt.Sprintf("tokenize input_extra %d: %v", index, err),
+			writeInvalidRequestMessage(
+				response, fmt.Sprintf("tokenize input_extra %d: %v", index, err),
 			)
 			return
 		}
@@ -2293,11 +2218,8 @@ func (h *Handler) infill(
 		maxTokens = *body.NPredict
 	}
 	if maxTokens < 0 || maxTokens > h.config.MaxTokens {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			fmt.Sprintf("n_predict must be -1 or in [0,%d]", h.config.MaxTokens),
+		writeInvalidRequestMessage(
+			response, fmt.Sprintf("n_predict must be -1 or in [0,%d]", h.config.MaxTokens),
 		)
 		return
 	}
@@ -2313,12 +2235,7 @@ func (h *Handler) infill(
 		},
 	)
 	if err != nil {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			err.Error(),
-		)
+		writeInvalidRequest(response, err)
 		return
 	}
 	body.Prompt, err = json.Marshal(formatted)
@@ -2462,26 +2379,26 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	}
 	prompts, err := h.parseNativePrompts(request.Context(), body.Prompt)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if !h.requireModel(response, body.Model) {
 		return
 	}
 	if err := validateNativeCompletionOptions(body); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	lora, loraConfigured, err := h.parseRequestLoRA(body.LoRA)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	var projectedInputs *inference.ProjectedInputs
 	if body.ProjectedInputs != nil {
 		projected, projectedErr := body.ProjectedInputs.ProjectedInputs()
 		if projectedErr != nil {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", projectedErr.Error())
+			writeInvalidRequest(response, projectedErr)
 			return
 		}
 		projectedInputs = &projected
@@ -2491,7 +2408,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		body.JSONSchema,
 		nil,
 	); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	requestedSlot := -1
@@ -2499,11 +2416,8 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		requestedSlot = *body.IDSlot
 	}
 	if requestedSlot < -1 || requestedSlot >= h.config.MaxConcurrent {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			fmt.Sprintf("id_slot must be -1 or in [0,%d]", h.config.MaxConcurrent-1),
+		writeInvalidRequestMessage(
+			response, fmt.Sprintf("id_slot must be -1 or in [0,%d]", h.config.MaxConcurrent-1),
 		)
 		return
 	}
@@ -2512,11 +2426,8 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		maxTokens = *body.NPredict
 	}
 	if maxTokens < 0 || maxTokens > h.config.MaxTokens {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			fmt.Sprintf("n_predict must be -1 or in [0,%d]", h.config.MaxTokens),
+		writeInvalidRequestMessage(
+			response, fmt.Sprintf("n_predict must be -1 or in [0,%d]", h.config.MaxTokens),
 		)
 		return
 	}
@@ -2524,30 +2435,30 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		body.NCmpl = 1
 	}
 	if body.NCmpl < 1 || body.NCmpl > maxCompletionChoices {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("n_cmpl must be in [1,%d]", maxCompletionChoices))
+		writeInvalidRequestMessage(response, fmt.Sprintf("n_cmpl must be in [1,%d]", maxCompletionChoices))
 		return
 	}
 	if projectedInputs != nil && (len(prompts) != 1 || body.NCmpl != 1) {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "projected_inputs requires one prompt and one completion")
+		writeInvalidRequestMessage(response, "projected_inputs requires one prompt and one completion")
 		return
 	}
 	multimodal := len(prompts) == 1 && nativePromptHasMedia(prompts[0])
 	if multimodal && (projectedInputs != nil || body.NCmpl != 1) {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal prompt requires one completion and no projected_inputs")
+		writeInvalidRequestMessage(response, "multimodal prompt requires one completion and no projected_inputs")
 		return
 	}
 	if multimodal && body.CachePrompt != nil && *body.CachePrompt {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "multimodal prompt cannot use cache_prompt")
+		writeInvalidRequestMessage(response, "multimodal prompt cannot use cache_prompt")
 		return
 	}
 	stops, err := parseStopSequences(body.Stop)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	sampler, err := h.newSampler(body.samplingParameters)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	slotID, acquired := h.acquireRequestSlot(response, requestedSlot)
@@ -4098,7 +4009,7 @@ func (h *Handler) streamNativeCompletion(
 				},
 			)
 			if err != nil {
-				_ = stream.write(errorEnvelope("generation_error", err.Error()))
+				_ = emitGenerationError(stream.write, err)
 				return
 			}
 			// native llama.cpp stream terminates with full metadata
@@ -4486,55 +4397,32 @@ type completionResponse struct {
 
 func (h *Handler) complete(
 	response http.ResponseWriter,
-	request *http.Request,
-	slotID int,
-	prompts []nativePrompt,
-	sampler *sampling.Sampler,
-	maxTokens int,
+	plan *protocolBatchGenerationPlan,
 	id string,
-	stops []string,
 	n int,
 ) {
-	choices := make([]completionChoice, 0, len(prompts)*n)
+	choices := make([]completionChoice, 0, len(plan.prompts)*n)
 	promptTokens := 0
 	totalCompletionTokens := 0
-	choiceIndex := 0
-	for _, prompt := range prompts {
-		for promptChoice := range n {
-			choiceSampler, err := samplerForChoice(sampler, choiceIndex)
-			if err != nil {
-				writeGenerationError(response, err)
-				return
-			}
-			ids, pump, err := h.generateWithPump(
-				request.Context(),
-				slotID,
-				prompt.Text,
-				inference.GenerateOptions{
-					MaxNewTokens:   maxTokens,
-					Sampler:        choiceSampler,
-					PromptTokenIDs: prompt.TokenIDs,
-					ContextShift:   h.config.ContextShift,
-				},
-				stops,
-				nil,
-			)
-			if err != nil {
-				writeGenerationError(response, err)
-				return
-			}
-			if promptChoice == 0 {
-				promptTokens += len(ids) - pump.generated
-			}
-			finishReason := pump.finishReason(maxTokens, "stop", "length")
-			totalCompletionTokens += pump.completion
-			choices = append(choices, completionChoice{
-				Text:         pump.text(),
-				Index:        choiceIndex,
-				FinishReason: finishReason,
-			})
-			choiceIndex++
+	err := plan.run(n, nil, func(
+		promptChoice, choiceIndex int,
+		result protocolGenerationResult,
+	) error {
+		if promptChoice == 0 {
+			promptTokens += result.promptTokens()
 		}
+		finishReason := result.pump.finishReason(plan.maxTokens, "stop", "length")
+		totalCompletionTokens += result.pump.completion
+		choices = append(choices, completionChoice{
+			Text:         result.pump.text(),
+			Index:        choiceIndex,
+			FinishReason: finishReason,
+		})
+		return nil
+	})
+	if err != nil {
+		writeGenerationError(response, err)
+		return
 	}
 	writeJSON(response, http.StatusOK, completionResponse{
 		ID:      id,
@@ -4567,12 +4455,8 @@ type streamResponse struct {
 func (h *Handler) streamCompletion(
 	response http.ResponseWriter,
 	request *http.Request,
-	slotID int,
-	prompts []nativePrompt,
-	sampler *sampling.Sampler,
-	maxTokens int,
+	plan *protocolBatchGenerationPlan,
 	id string,
-	stops []string,
 	n int,
 ) {
 	flusher, ok := beginSSE(response)
@@ -4581,47 +4465,26 @@ func (h *Handler) streamCompletion(
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
 	created := time.Now().Unix()
-	choiceIndex := 0
-	for _, prompt := range prompts {
-		for range n {
-			choiceSampler, err := samplerForChoice(sampler, choiceIndex)
-			if err != nil {
-				_ = stream.write(errorEnvelope("generation_error", err.Error()))
-				break
+	err := plan.run(
+		n,
+		func(choiceIndex int, piece string) error {
+			if piece == "" {
+				return request.Context().Err()
 			}
-			_, pump, err := h.generateWithPump(
-				request.Context(),
-				slotID,
-				prompt.Text,
-				inference.GenerateOptions{
-					MaxNewTokens:   maxTokens,
-					Sampler:        choiceSampler,
-					PromptTokenIDs: prompt.TokenIDs,
-					ContextShift:   h.config.ContextShift,
-				},
-				stops,
-				func(piece string) error {
-					if piece == "" {
-						return request.Context().Err()
-					}
-					chunk := streamResponse{
-						ID:      id,
-						Object:  "text_completion",
-						Created: created,
-						Model:   h.config.ModelID,
-						Choices: []streamChoice{{
-							Text:  piece,
-							Index: choiceIndex,
-						}},
-					}
-					return stream.write(chunk)
-				},
-			)
-			if err != nil {
-				_ = stream.write(errorEnvelope("generation_error", err.Error()))
-				break
+			chunk := streamResponse{
+				ID:      id,
+				Object:  "text_completion",
+				Created: created,
+				Model:   h.config.ModelID,
+				Choices: []streamChoice{{
+					Text:  piece,
+					Index: choiceIndex,
+				}},
 			}
-			reason := pump.finishReason(maxTokens, "stop", "length")
+			return stream.write(chunk)
+		},
+		func(_ int, choiceIndex int, result protocolGenerationResult) error {
+			reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
 			_ = stream.write(streamResponse{
 				ID:      id,
 				Object:  "text_completion",
@@ -4632,8 +4495,11 @@ func (h *Handler) streamCompletion(
 					FinishReason: &reason,
 				}},
 			})
-			choiceIndex++
-		}
+			return nil
+		},
+	)
+	if err != nil {
+		_ = emitGenerationError(stream.write, err)
 	}
 	_ = stream.done()
 }

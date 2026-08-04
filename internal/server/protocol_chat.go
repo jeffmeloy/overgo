@@ -370,14 +370,8 @@ func chatThinkingEnabled(kwargs map[string]any) (bool, error) {
 }
 
 func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
-	formatter, ok := h.requireChatFormatter(response)
+	formatter, ok := h.requireProtocolTokenCounting(response, request)
 	if !ok {
-		return
-	}
-	if !h.requireTokenCounting(response) {
 		return
 	}
 	var body chatCompletionRequest
@@ -389,12 +383,12 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 	}
 	toolSelection, err := selectChatTools(body)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	h.writeProtocolInputTokenCount(response, request, normalized, true)
@@ -416,32 +410,23 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		body.N = 1
 	}
 	if body.N < 1 || body.N > maxCompletionChoices {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("n must be in [1,%d]", maxCompletionChoices))
+		writeInvalidRequestMessage(response, fmt.Sprintf("n must be in [1,%d]", maxCompletionChoices))
 		return
 	}
 	toolSelection, err := selectChatTools(body)
 	if err != nil {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			err.Error(),
-		)
+		writeInvalidRequest(response, err)
 		return
 	}
 	normalizedPrompt, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
+	var parser ChatOutputParser
 	if len(toolSelection.active) != 0 {
-		if _, ok := h.generator.(ChatOutputParser); !ok {
-			writeError(
-				response,
-				http.StatusNotImplemented,
-				"unsupported_operation",
-				"tool-call output parsing is unavailable",
-			)
+		parser, ok = h.requireChatOutputParser(response, "tool-call")
+		if !ok {
 			return
 		}
 	}
@@ -449,17 +434,12 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		body.MaxTokens, 16, h.config.MaxTokens, "max_tokens", false,
 	)
 	if err != nil {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			err.Error(),
-		)
+		writeInvalidRequest(response, err)
 		return
 	}
 	stops, err := parseStopSequences(body.Stop)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if err := prepareStructuredOutput(
@@ -467,18 +447,13 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		body.JSONSchema,
 		body.ResponseFormat,
 	); err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if len(toolSelection.active) != 0 {
 		enableThinking, err := chatThinkingEnabled(body.TemplateKwargs)
 		if err != nil {
-			writeError(
-				response,
-				http.StatusBadRequest,
-				"invalid_request_error",
-				err.Error(),
-			)
+			writeInvalidRequest(response, err)
 			return
 		}
 		if !h.configureChatToolGrammar(
@@ -509,6 +484,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 			id,
 			body.N,
 			toolSelection.active,
+			parser,
 		)
 		return
 	}
@@ -519,6 +495,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		id,
 		body.N,
 		toolSelection.active,
+		parser,
 	)
 }
 
@@ -657,6 +634,7 @@ func (h *Handler) completeChat(
 	id string,
 	n int,
 	tools []inference.ChatTool,
+	parser ChatOutputParser,
 ) {
 	choices := make([]chatChoice, 0, n)
 	promptTokens := 0
@@ -678,7 +656,6 @@ func (h *Handler) completeChat(
 			Content: pump.text(),
 		}
 		if len(tools) != 0 {
-			parser := h.generator.(ChatOutputParser)
 			message, err = parser.ParseChatOutput(pump.text(), tools)
 			if err != nil {
 				writeGenerationError(response, err)
@@ -758,6 +735,7 @@ func (h *Handler) streamChatCompletion(
 	id string,
 	n int,
 	tools []inference.ChatTool,
+	parser ChatOutputParser,
 ) {
 	flusher, ok := beginSSE(response)
 	if !ok {
@@ -784,7 +762,7 @@ func (h *Handler) streamChatCompletion(
 		}
 		toolStream, err := newToolDeltaStream(h.generator, tools)
 		if err != nil {
-			_ = stream.write(errorEnvelope("generation_error", err.Error()))
+			_ = emitGenerationError(stream.write, err)
 			break
 		}
 		emitToolPiece := func(piece string) error {
@@ -849,17 +827,14 @@ func (h *Handler) streamChatCompletion(
 			},
 		)
 		if err != nil {
-			_ = stream.write(errorEnvelope("generation_error", err.Error()))
+			_ = emitGenerationError(stream.write, err)
 			break
 		}
 		reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
 		if len(tools) != 0 {
-			parser := h.generator.(ChatOutputParser)
 			message, parseErr := parser.ParseChatOutput(toolStream.text(), tools)
 			if parseErr != nil {
-				_ = stream.write(
-					errorEnvelope("generation_error", parseErr.Error()),
-				)
+				_ = emitGenerationError(stream.write, parseErr)
 				break
 			}
 			if message.ReasoningContent != "" && !toolStream.started {

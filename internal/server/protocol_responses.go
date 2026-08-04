@@ -114,7 +114,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	}
 	reasoningSummary, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	toolSelection, err := selectResponsesTools(
@@ -124,33 +124,29 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if reasoningSummary && len(toolSelection.active) != 0 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "reasoning summaries cannot be combined with tools")
+		writeInvalidRequestMessage(response, "reasoning summaries cannot be combined with tools")
 		return
 	}
+	parserFeature := ""
 	if len(toolSelection.active) != 0 {
-		if _, ok := h.generator.(ChatOutputParser); !ok {
-			writeError(
-				response,
-				http.StatusNotImplemented,
-				"unsupported_operation",
-				"tool-call output parsing is unavailable",
-			)
-			return
-		}
+		parserFeature = "tool-call"
+	} else if reasoningSummary {
+		parserFeature = "reasoning"
 	}
-	if reasoningSummary {
-		if _, ok := h.generator.(ChatOutputParser); !ok {
-			writeError(response, http.StatusNotImplemented, "unsupported_operation", "reasoning output parsing is unavailable")
+	var parser ChatOutputParser
+	if parserFeature != "" {
+		parser, ok = h.requireChatOutputParser(response, parserFeature)
+		if !ok {
 			return
 		}
 	}
 	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	messages := responseRequestMessages(previous, current, body.Instructions)
@@ -170,24 +166,19 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		toolSelection.prompt,
 	)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	maxTokens, err := boundedProtocolTokens(
 		body.MaxOutputTokens, 16, h.config.MaxTokens, "max_output_tokens", false,
 	)
 	if err != nil {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			err.Error(),
-		)
+		writeInvalidRequest(response, err)
 		return
 	}
 	stops, err := parseStopSequences(body.Stop)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	samplingParams := body.samplingParameters
@@ -223,6 +214,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			history,
 			body.Store == nil || *body.Store,
 			reasoningSummary,
+			parser,
 		)
 		return
 	}
@@ -238,7 +230,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Content: result.pump.text(),
 	}
 	if len(toolSelection.active) != 0 || reasoningSummary {
-		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
+		message, err = parser.ParseChatOutput(
 			result.pump.text(),
 			toolSelection.active,
 		)
@@ -280,6 +272,7 @@ func (h *Handler) streamResponses(
 	history []inference.ChatMessage,
 	store bool,
 	reasoningSummary bool,
+	parser ChatOutputParser,
 ) {
 	flusher, ok := beginSSE(response)
 	if !ok {
@@ -311,10 +304,7 @@ func (h *Handler) streamResponses(
 	var reasoningOutput *responseOutputItem
 	toolStream, streamErr := newToolDeltaStream(h.generator, tools)
 	if streamErr != nil {
-		_ = writeEvent("response.failed", map[string]any{
-			"type":  "response.failed",
-			"error": errorEnvelope("generation_error", streamErr.Error()).Error,
-		})
+		_ = emitNamedGenerationError(writeEvent, "response.failed", streamErr)
 		return
 	}
 	emitText := func(piece string) error {
@@ -475,23 +465,17 @@ func (h *Handler) streamResponses(
 		},
 	)
 	if err != nil {
-		_ = writeEvent("response.failed", map[string]any{
-			"type":  "response.failed",
-			"error": errorEnvelope("generation_error", err.Error()).Error,
-		})
+		_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 		return
 	}
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
-		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(
+		parsedMessage, err = parser.ParseChatOutput(
 			toolStream.text(),
 			tools,
 		)
 		if err != nil {
-			_ = writeEvent("response.failed", map[string]any{
-				"type":  "response.failed",
-				"error": errorEnvelope("generation_error", err.Error()).Error,
-			})
+			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 			return
 		}
 		if !toolStream.started {
@@ -500,11 +484,9 @@ func (h *Handler) streamResponses(
 			}
 		}
 	} else if reasoningSummary {
-		parsedMessage, err = h.generator.(ChatOutputParser).ParseChatOutput(buffered.String(), nil)
+		parsedMessage, err = parser.ParseChatOutput(buffered.String(), nil)
 		if err != nil {
-			_ = writeEvent("response.failed", map[string]any{
-				"type": "response.failed", "error": errorEnvelope("generation_error", err.Error()).Error,
-			})
+			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 			return
 		}
 		if err := emitReasoning(parsedMessage.ReasoningContent); err != nil {
@@ -655,14 +637,8 @@ func (h *Handler) streamResponses(
 }
 
 func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
-	formatter, ok := h.requireChatFormatter(response)
+	formatter, ok := h.requireProtocolTokenCounting(response, request)
 	if !ok {
-		return
-	}
-	if !h.requireTokenCounting(response) {
 		return
 	}
 	var body responsesTokenCountRequest
@@ -675,7 +651,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	}
 	_, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	toolSelection, err := selectResponsesTools(
@@ -685,12 +661,12 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	messages := responseRequestMessages(previous, current, body.Instructions)
@@ -703,7 +679,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	}
 	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	h.writeProtocolInputTokenCount(response, request, normalized, true)

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -248,23 +247,11 @@ func (g *ContinuousGenerator) admit(
 		return
 	}
 	options := request.options
-	if options.MaxNewTokens < 0 || options.PostSamplingProbabilities < 0 {
-		request.response <- continuousGenerateResult{err: errors.New("inference: generation option is negative")}
-		return
-	}
-	if err := validateStopSequences(options.StopSequences); err != nil {
+	if err := normalizeGenerateOptions(&options); err != nil {
 		request.response <- continuousGenerateResult{err: err}
 		return
 	}
-	if options.Sampler == nil {
-		var err error
-		options.Sampler, err = sampling.New(sampling.Config{})
-		if err != nil {
-			request.response <- continuousGenerateResult{err: err}
-			return
-		}
-		request.options = options
-	}
+	request.options = options
 	ids, err := g.runner.promptTokenIDs(request.prompt, options)
 	if err != nil {
 		request.response <- continuousGenerateResult{err: err}
@@ -287,54 +274,19 @@ func (g *ContinuousGenerator) sample(
 	if err := state.request.ctx.Err(); err != nil {
 		return continuousGenerateResult{err: err}, true
 	}
-	history := make([]int, len(state.ids))
-	for index, id := range state.ids {
-		history[index] = int(id)
-	}
 	options := state.request.options
-	var (
-		next                int
-		selectedProbability float64
-		topProbabilities    []sampling.TokenProbability
-		err                 error
-	)
-	if options.PostSamplingProbabilities > 0 {
-		probabilities, sampleErr := options.Sampler.SampleWithHistoryProbabilities(
-			logits, history, options.PostSamplingProbabilities,
-		)
-		next = probabilities.Token
-		selectedProbability = probabilities.SelectedProbability
-		topProbabilities = probabilities.Top
-		err = sampleErr
-	} else {
-		next, err = options.Sampler.SampleWithHistory(logits, history)
-	}
+	event, err := sampleGenerationToken(logits, state.ids, options)
 	if err != nil {
 		return continuousGenerateResult{err: err}, true
 	}
-	nextID := tokenizer.TokenID(next)
-	state.ids = append(state.ids, nextID)
-	event := TokenEvent{
-		ID: nextID, Index: state.index, Logits: logits,
-		SelectedProbability: selectedProbability, TopProbabilities: topProbabilities,
-	}
-	if options.OnToken != nil || options.ShouldStop != nil || len(options.StopSequences) > 0 {
-		piece, decodeErr := g.runner.vocab.DecodePiece(nextID, false)
-		if decodeErr != nil {
-			return continuousGenerateResult{err: decodeErr}, true
-		}
-		event.Piece = piece
-		state.generated.WriteString(piece)
-		if options.OnToken != nil {
-			if callbackErr := options.OnToken(event); callbackErr != nil {
-				return continuousGenerateResult{err: callbackErr}, true
-			}
-		}
+	event.Index = state.index
+	state.ids = append(state.ids, event.ID)
+	stop, deliverErr := g.runner.deliverGenerationToken(&event, options, &state.generated)
+	if deliverErr != nil {
+		return continuousGenerateResult{err: deliverErr}, true
 	}
 	state.index++
-	complete := state.index >= options.MaxNewTokens || g.runner.vocab.IsEOG(nextID) ||
-		(options.ShouldStop != nil && options.ShouldStop(event)) ||
-		matchesStopSequence(state.generated.String(), options.StopSequences)
+	complete := state.index >= options.MaxNewTokens || stop
 	if !complete {
 		return continuousGenerateResult{}, false
 	}

@@ -289,21 +289,12 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	outputNormInfo := r.weights.OutputNorm
-	if mtp.OutputNorm != nil {
-		outputNormInfo = *mtp.OutputNorm
-	}
+	outputNormInfo := r.outputNormTensorFor(mtp.OutputNorm)
 	outputNorm, err := runtime.weight(outputNormInfo)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	outputInfo := r.weights.TokenEmbedding
-	if r.weights.Output != nil {
-		outputInfo = *r.weights.Output
-	}
-	if mtp.Output != nil {
-		outputInfo = *mtp.Output
-	}
+	outputInfo := r.outputTensorFor(mtp.Output)
 	output, err := runtime.weight(outputInfo)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err

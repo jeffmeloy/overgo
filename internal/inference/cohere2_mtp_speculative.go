@@ -66,28 +66,10 @@ func (r *Runner) advanceCohere2MTPVerification(
 	mtpSession *Cohere2MTPSession,
 	targetCache *KVCache,
 ) (reference.Value, *Cohere2MTPSession, error) {
-	hidden, nextTargetCache, err := target.ForwardCached(
-		ctx, []tokenizer.TokenID{currentToken}, targetCache,
+	return r.advanceSingleHeadMTPVerification(
+		ctx, target, currentToken, mtpSession, targetCache,
+		func(token tokenizer.TokenID, state *Qwen35MTPSession) (reference.Value, *Qwen35MTPSession, error) {
+			return r.AdvanceCohere2MTP(ctx, token, state)
+		},
 	)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	logits, err := target.projectHiddenLogits(ctx, hidden)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	_, nextSession, err := r.AdvanceCohere2MTP(ctx, currentToken, mtpSession)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	nextSession.PendingHidden = lastHiddenColumn(hidden)
-	nextSession.TrunkCache = nextTargetCache
-	return logits, nextSession, nil
-}
-
-func (r *Runner) cohere2MTPProjectLogits(
-	ctx context.Context,
-	hidden reference.Value,
-) (reference.Value, error) {
-	return r.projectHiddenLogits(ctx, hidden)
 }

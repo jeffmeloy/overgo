@@ -78,48 +78,39 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		body.MaxTokens, 0, h.config.MaxTokens, "max_tokens", true,
 	)
 	if err != nil {
-		writeError(
-			response,
-			http.StatusBadRequest,
-			"invalid_request_error",
-			err.Error(),
-		)
+		writeInvalidRequest(response, err)
 		return
 	}
 	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if thinkingEnabled && len(toolSelection.active) != 0 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
+		writeInvalidRequestMessage(response, "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
 		return
 	}
+	parserFeature := ""
 	if thinkingEnabled {
-		if _, ok := h.generator.(ChatOutputParser); !ok {
-			writeError(response, http.StatusNotImplemented, "unsupported_operation", "thinking output parsing is unavailable")
-			return
-		}
+		parserFeature = "thinking"
+	} else if len(toolSelection.active) != 0 {
+		parserFeature = "tool-call"
 	}
-	if len(toolSelection.active) != 0 {
-		if _, ok := h.generator.(ChatOutputParser); !ok {
-			writeError(
-				response,
-				http.StatusNotImplemented,
-				"unsupported_operation",
-				"tool-call output parsing is unavailable",
-			)
+	var parser ChatOutputParser
+	if parserFeature != "" {
+		parser, ok = h.requireChatOutputParser(response, parserFeature)
+		if !ok {
 			return
 		}
 	}
 	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
@@ -131,7 +122,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		request.Context(), formatter, normalizedBody, toolSelection.prompt,
 	)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	samplingParams := samplingParameters{
@@ -165,6 +156,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			messageID,
 			toolSelection.active,
 			thinkingEnabled,
+			parser,
 		)
 		return
 	}
@@ -182,7 +174,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 	}
 	message := inference.ChatMessage{Role: "assistant", Content: pump.text()}
 	if len(toolSelection.active) != 0 || thinkingEnabled {
-		message, err = h.generator.(ChatOutputParser).ParseChatOutput(
+		message, err = parser.ParseChatOutput(
 			pump.text(),
 			toolSelection.active,
 		)
@@ -227,6 +219,7 @@ func (h *Handler) streamAnthropicMessages(
 	messageID string,
 	tools []inference.ChatTool,
 	thinkingEnabled bool,
+	parser ChatOutputParser,
 ) {
 	flusher, ok := beginSSE(response)
 	if !ok {
@@ -258,10 +251,7 @@ func (h *Handler) streamAnthropicMessages(
 	var buffered strings.Builder
 	toolStream, streamErr := newToolDeltaStream(h.generator, tools)
 	if streamErr != nil {
-		_ = writeEvent("error", map[string]any{
-			"type":  "error",
-			"error": errorEnvelope("generation_error", streamErr.Error()).Error,
-		})
+		_ = emitNamedGenerationError(writeEvent, "error", streamErr)
 		return
 	}
 	emitText := func(piece string) error {
@@ -405,30 +395,23 @@ func (h *Handler) streamAnthropicMessages(
 		},
 	)
 	if err != nil {
-		_ = writeEvent("error", map[string]any{
-			"type":  "error",
-			"error": errorEnvelope("generation_error", err.Error()).Error,
-		})
+		_ = emitNamedGenerationError(writeEvent, "error", err)
 		return
 	}
 	pump := result.pump
 	stopReason := pump.finishReason(plan.maxTokens, "end_turn", "max_tokens")
 	if thinkingEnabled {
-		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(buffered.String(), nil)
+		message, parseErr := parser.ParseChatOutput(buffered.String(), nil)
 		if parseErr != nil || message.ReasoningContent == "" {
 			if parseErr == nil {
 				parseErr = errors.New("model output omitted required thinking content")
 			}
-			_ = writeEvent("error", map[string]any{
-				"type": "error", "error": errorEnvelope("generation_error", parseErr.Error()).Error,
-			})
+			_ = emitNamedGenerationError(writeEvent, "error", parseErr)
 			return
 		}
 		blocks, blockErr := h.anthropicBlocks(message, "")
 		if blockErr != nil {
-			_ = writeEvent("error", map[string]any{
-				"type": "error", "error": errorEnvelope("generation_error", blockErr.Error()).Error,
-			})
+			_ = emitNamedGenerationError(writeEvent, "error", blockErr)
 			return
 		}
 		for index, block := range blocks {
@@ -439,15 +422,12 @@ func (h *Handler) streamAnthropicMessages(
 		textStarted = true
 		textStopped = true
 	} else if len(tools) != 0 {
-		message, parseErr := h.generator.(ChatOutputParser).ParseChatOutput(
+		message, parseErr := parser.ParseChatOutput(
 			toolStream.text(),
 			tools,
 		)
 		if parseErr != nil {
-			_ = writeEvent("error", map[string]any{
-				"type":  "error",
-				"error": errorEnvelope("generation_error", parseErr.Error()).Error,
-			})
+			_ = emitNamedGenerationError(writeEvent, "error", parseErr)
 			return
 		}
 		blocks, blockErr := h.anthropicBlocks(
@@ -455,10 +435,7 @@ func (h *Handler) streamAnthropicMessages(
 			"toolu_"+strings.TrimPrefix(messageID, "msg_"),
 		)
 		if blockErr != nil {
-			_ = writeEvent("error", map[string]any{
-				"type":  "error",
-				"error": errorEnvelope("generation_error", blockErr.Error()).Error,
-			})
+			_ = emitNamedGenerationError(writeEvent, "error", blockErr)
 			return
 		}
 		for index, block := range blocks {
@@ -551,14 +528,8 @@ func (h *Handler) streamAnthropicMessages(
 }
 
 func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
-	formatter, ok := h.requireChatFormatter(response)
+	formatter, ok := h.requireProtocolTokenCounting(response, request)
 	if !ok {
-		return
-	}
-	if !h.requireTokenCounting(response) {
 		return
 	}
 	var body anthropicTokenCountRequest
@@ -567,21 +538,21 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 	}
 	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	if thinkingEnabled && len(toolSelection.active) != 0 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
+		writeInvalidRequestMessage(response, "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
 		return
 	}
 	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
@@ -593,7 +564,7 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		request.Context(), formatter, normalizedBody, toolSelection.prompt,
 	)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return
 	}
 	h.writeProtocolInputTokenCount(response, request, normalized, false)

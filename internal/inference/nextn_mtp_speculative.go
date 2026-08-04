@@ -56,20 +56,11 @@ func (r *Runner) VerifyNextNMTPGreedy(
 		token tokenizer.TokenID,
 		state *NextNMTPSession,
 	) (reference.Value, *NextNMTPSession, error) {
-		hidden, cache, err := target.ForwardCached(ctx, []tokenizer.TokenID{token}, state.TrunkCache)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		logits, err := target.projectHiddenLogits(ctx, hidden)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		_, next, err := r.AdvanceNextNMTP(ctx, token, state)
-		if err != nil {
-			return reference.Value{}, nil, err
-		}
-		next.PendingHidden = lastHiddenColumn(hidden)
-		next.TrunkCache = cache
-		return logits, next, nil
+		return r.advanceSingleHeadMTPVerification(
+			ctx, target, token, state, state.TrunkCache,
+			func(token tokenizer.TokenID, state *Qwen35MTPSession) (reference.Value, *Qwen35MTPSession, error) {
+				return r.AdvanceNextNMTP(ctx, token, state)
+			},
+		)
 	})
 }

@@ -192,10 +192,7 @@ func (b *ContinuousBatch) Step(
 			releaseCandidates()
 			return nil, fmt.Errorf("inference: sequence %d hidden state is incompatible", input.ID)
 		}
-		outputInfo := r.weights.TokenEmbedding
-		if r.weights.Output != nil {
-			outputInfo = *r.weights.Output
-		}
+		outputInfo := r.outputTensor()
 		logits, err := r.logits(ctx, outputInfo, hidden.Data[len(hidden.Data)-width:])
 		if err != nil {
 			releaseCandidates()

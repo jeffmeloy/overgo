@@ -73,20 +73,18 @@ func (r *Runner) advanceGemma4AssistantVerification(
 	assistantSession *Gemma4AssistantSession,
 	targetCache *KVCache,
 ) (reference.Value, *Gemma4AssistantSession, error) {
-	hidden, nextTargetCache, err := target.ForwardCached(ctx, []tokenizer.TokenID{currentToken}, targetCache)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	logits, err := target.projectHiddenLogits(ctx, hidden)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	_, nextSession, err := r.AdvanceGemma4Assistant(ctx, target, currentToken, assistantSession)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	nextSession.TargetCache = nextTargetCache
-	nextSession.PendingHidden = lastHiddenColumn(hidden)
-	nextSession.Position = effectiveCachePosition(nextTargetCache)
-	return logits, nextSession, nil
+	return advanceTargetVerification(
+		ctx, target, currentToken, targetCache,
+		func() (*Gemma4AssistantSession, error) {
+			_, next, err := r.AdvanceGemma4Assistant(
+				ctx, target, currentToken, assistantSession,
+			)
+			return next, err
+		},
+		func(next *Gemma4AssistantSession, hidden reference.Value, cache *KVCache) {
+			next.TargetCache = cache
+			next.PendingHidden = lastHiddenColumn(hidden)
+			next.Position = effectiveCachePosition(cache)
+		},
+	)
 }

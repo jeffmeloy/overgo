@@ -87,21 +87,12 @@ func (r *Runner) advanceSingleHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	outputNormInfo := r.weights.OutputNorm
-	if adapter.outputNorm != nil {
-		outputNormInfo = *adapter.outputNorm
-	}
+	outputNormInfo := r.outputNormTensorFor(adapter.outputNorm)
 	outputNorm, err := graph.weight(outputNormInfo)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	outputInfo := r.weights.TokenEmbedding
-	if r.weights.Output != nil {
-		outputInfo = *r.weights.Output
-	}
-	if adapter.output != nil {
-		outputInfo = *adapter.output
-	}
+	outputInfo := r.outputTensorFor(adapter.output)
 	output, err := graph.weight(outputInfo)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -150,6 +141,54 @@ func lastHiddenColumn(hidden reference.Value) reference.Value {
 		Shape: tensor.MustShape(uint64(width), 1),
 		Data:  slices.Clone(hidden.Data[len(hidden.Data)-width:]),
 	}
+}
+
+func advanceTargetVerification[S any](
+	ctx context.Context,
+	target *Runner,
+	token tokenizer.TokenID,
+	cache *KVCache,
+	advance func() (S, error),
+	sync func(S, reference.Value, *KVCache),
+) (reference.Value, S, error) {
+	var zero S
+	hidden, nextCache, err := target.ForwardCached(
+		ctx, []tokenizer.TokenID{token}, cache,
+	)
+	if err != nil {
+		return reference.Value{}, zero, err
+	}
+	logits, err := target.projectHiddenLogits(ctx, hidden)
+	if err != nil {
+		return reference.Value{}, zero, err
+	}
+	next, err := advance()
+	if err != nil {
+		return reference.Value{}, zero, err
+	}
+	sync(next, hidden, nextCache)
+	return logits, next, nil
+}
+
+func (r *Runner) advanceSingleHeadMTPVerification(
+	ctx context.Context,
+	target *Runner,
+	token tokenizer.TokenID,
+	session *Qwen35MTPSession,
+	targetCache *KVCache,
+	advance func(tokenizer.TokenID, *Qwen35MTPSession) (reference.Value, *Qwen35MTPSession, error),
+) (reference.Value, *Qwen35MTPSession, error) {
+	return advanceTargetVerification(
+		ctx, target, token, targetCache,
+		func() (*Qwen35MTPSession, error) {
+			_, next, err := advance(token, session)
+			return next, err
+		},
+		func(next *Qwen35MTPSession, hidden reference.Value, cache *KVCache) {
+			next.PendingHidden = lastHiddenColumn(hidden)
+			next.TrunkCache = cache
+		},
+	)
 }
 
 func (r *Runner) validateSingleHeadMTPSession(

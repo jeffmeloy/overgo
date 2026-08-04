@@ -59,13 +59,6 @@ func (r *Runner) VerifyQwen35MTPGreedy(
 	})
 }
 
-func (r *Runner) qwen35MTPProjectLogits(
-	ctx context.Context,
-	hidden reference.Value,
-) (reference.Value, error) {
-	return r.projectHiddenLogits(ctx, hidden)
-}
-
 func (r *Runner) projectHiddenLogits(
 	ctx context.Context,
 	hidden reference.Value,

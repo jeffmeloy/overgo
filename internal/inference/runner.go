@@ -876,10 +876,7 @@ func (r *Runner) projectAllLogits(
 	if hidden.Shape.Rank != 2 || hidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) {
 		return reference.Value{}, errors.New("inference: non-causal hidden-state shape is incompatible")
 	}
-	outputInfo := r.weights.TokenEmbedding
-	if r.weights.Output != nil {
-		outputInfo = *r.weights.Output
-	}
+	outputInfo := r.outputTensor()
 	shape := tensor.MustShape(uint64(r.spec.VocabularySize), hidden.Shape.Dims[1])
 	if !r.hasPreloadedWeights() {
 		elements, err := shape.Elements()

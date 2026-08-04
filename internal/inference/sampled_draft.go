@@ -60,7 +60,7 @@ func draftSampled[S any](
 		samplerStates: [][]byte{slices.Clone(initialState)},
 	}
 	currentToken, currentState := initialToken, base
-	currentHistory := tokenIDsAsInts(history)
+	currentHistory := tokenHistory(history)
 	for index := range maximum {
 		logits, next, advanceErr := advance(currentToken, currentState, index)
 		if advanceErr != nil {
@@ -127,7 +127,7 @@ func verifySampled[D, S, V any](
 	}
 	state := initial
 	currentToken := draft.InitialToken
-	history := tokenIDsAsInts(draft.History)
+	history := tokenHistory(draft.History)
 	accepted := 0
 	for {
 		logits, next, advanceErr := advance(currentToken, state)

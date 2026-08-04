@@ -188,13 +188,10 @@ func (r *Runner) stepEagle3(
 		return Eagle3StepResult{}, err
 	}
 	normalized := runtime.builder.WeightedRMSNorm(block.Output, norm, r.spec.RMSNormEpsilon)
-	outputInfo := target.weights.TokenEmbedding
+	outputInfo := target.outputTensor()
 	outputOwner := target
-	if target.weights.Output != nil {
-		outputInfo = *target.weights.Output
-	}
 	if r.weights.Output != nil {
-		outputInfo, outputOwner = *r.weights.Output, r
+		outputInfo, outputOwner = r.outputTensor(), r
 	}
 	var output *tensor.Tensor
 	if outputOwner == r {

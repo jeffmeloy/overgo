@@ -133,24 +133,12 @@ func (r *Runner) AdvanceNextNMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	outputNormInfo := r.weights.OutputNorm
-	if mtp.OutputNorm != nil {
-		outputNormInfo = *mtp.OutputNorm
-	}
-	if mtp.LayerOutputNorm != nil {
-		outputNormInfo = *mtp.LayerOutputNorm
-	}
+	outputNormInfo := r.outputNormTensorFor(mtp.OutputNorm, mtp.LayerOutputNorm)
 	outputNorm, err := graph.weight(outputNormInfo)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	outputInfo := r.weights.TokenEmbedding
-	if r.weights.Output != nil {
-		outputInfo = *r.weights.Output
-	}
-	if mtp.Output != nil {
-		outputInfo = *mtp.Output
-	}
+	outputInfo := r.outputTensorFor(mtp.Output)
 	output, err := graph.weight(outputInfo)
 	if err != nil {
 		return reference.Value{}, nil, err

@@ -160,6 +160,23 @@ func (r *Runner) outputTensor() gguf.TensorInfo {
 	return r.weights.TokenEmbedding
 }
 
+func (r *Runner) outputTensorFor(override *gguf.TensorInfo) gguf.TensorInfo {
+	if override != nil {
+		return *override
+	}
+	return r.outputTensor()
+}
+
+func (r *Runner) outputNormTensorFor(overrides ...*gguf.TensorInfo) gguf.TensorInfo {
+	selected := r.weights.OutputNorm
+	for _, override := range overrides {
+		if override != nil {
+			selected = *override
+		}
+	}
+	return selected
+}
+
 func (r *Runner) sampleHidden(
 	ctx context.Context,
 	outputTable gguf.TensorInfo,

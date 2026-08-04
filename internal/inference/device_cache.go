@@ -738,10 +738,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if err != nil {
 		return fail(err)
 	}
-	outputInfo := r.weights.TokenEmbedding
-	if r.weights.Output != nil {
-		outputInfo = *r.weights.Output
-	}
+	outputInfo := r.outputTensor()
 	outputTable, outputPointer, err := r.deviceInput(builder, outputInfo)
 	if err != nil {
 		return fail(err)

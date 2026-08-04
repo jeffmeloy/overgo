@@ -11,6 +11,28 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
+func writeInvalidRequest(response http.ResponseWriter, err error) {
+	writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+}
+
+func writeInvalidRequestMessage(response http.ResponseWriter, message string) {
+	writeError(response, http.StatusBadRequest, "invalid_request_error", message)
+}
+
+func emitGenerationError(write func(any) error, err error) error {
+	return write(errorEnvelope("generation_error", err.Error()))
+}
+
+func emitNamedGenerationError(
+	write func(string, any) error,
+	event string,
+	err error,
+) error {
+	return write(event, map[string]any{
+		"type": event, "error": errorEnvelope("generation_error", err.Error()).Error,
+	})
+}
+
 func (h *Handler) decodeProtocolJSON(
 	response http.ResponseWriter,
 	request *http.Request,
@@ -54,6 +76,83 @@ type protocolGenerationResult struct {
 	pump *generationPump
 }
 
+type protocolBatchGenerationPlan struct {
+	handler   *Handler
+	request   *http.Request
+	slotID    int
+	prompts   []nativePrompt
+	sampler   *sampling.Sampler
+	maxTokens int
+	stops     []string
+}
+
+func (h *Handler) prepareProtocolBatchGenerationPlan(
+	response http.ResponseWriter,
+	request *http.Request,
+	prompts []nativePrompt,
+	parameters samplingParameters,
+	maxTokens int,
+	stops []string,
+) (*protocolBatchGenerationPlan, bool) {
+	sampler, err := h.newSampler(parameters)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return nil, false
+	}
+	slotID, acquired := h.acquireRequestSlot(response, -1)
+	if !acquired {
+		return nil, false
+	}
+	return &protocolBatchGenerationPlan{
+		handler: h, request: request, slotID: slotID, prompts: prompts,
+		sampler: sampler, maxTokens: maxTokens, stops: stops,
+	}, true
+}
+
+func (plan *protocolBatchGenerationPlan) release() {
+	plan.handler.releaseSlot(plan.slotID)
+}
+
+func (plan *protocolBatchGenerationPlan) run(
+	choices int,
+	emit func(int, string) error,
+	accept func(int, int, protocolGenerationResult) error,
+) error {
+	choiceIndex := 0
+	for _, prompt := range plan.prompts {
+		for promptChoice := range choices {
+			sampler, err := samplerForChoice(plan.sampler, choiceIndex)
+			if err != nil {
+				return err
+			}
+			var emitChoice func(string) error
+			if emit != nil {
+				index := choiceIndex
+				emitChoice = func(piece string) error { return emit(index, piece) }
+			}
+			ids, pump, err := plan.handler.generateWithPump(
+				plan.request.Context(), plan.slotID, prompt.Text,
+				inference.GenerateOptions{
+					MaxNewTokens: plan.maxTokens, Sampler: sampler,
+					PromptTokenIDs: prompt.TokenIDs,
+					ContextShift:   plan.handler.config.ContextShift,
+				},
+				plan.stops, emitChoice,
+			)
+			if err != nil {
+				return err
+			}
+			if err := accept(
+				promptChoice, choiceIndex, protocolGenerationResult{ids: ids, pump: pump},
+			); err != nil {
+				return err
+			}
+			choiceIndex++
+		}
+	}
+	return nil
+}
+
 func (result protocolGenerationResult) promptTokens() int {
 	return len(result.ids) - result.pump.generated
 }
@@ -68,7 +167,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 ) (*protocolGenerationPlan, bool) {
 	sampler, err := h.newSampler(parameters)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return nil, false
 	}
 	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, prompt)
@@ -134,7 +233,7 @@ func (h *Handler) writeProtocolInputTokenCount(
 		if nativePromptHasMedia(prompt) {
 			writeGenerationError(response, err)
 		} else {
-			writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+			writeInvalidRequest(response, err)
 		}
 		return
 	}
@@ -166,6 +265,34 @@ func (h *Handler) requireChatFormatter(
 		)
 	}
 	return formatter, ok
+}
+
+func (h *Handler) requireProtocolTokenCounting(
+	response http.ResponseWriter,
+	request *http.Request,
+) (ChatFormatter, bool) {
+	if !requireMethod(response, request, http.MethodPost) {
+		return nil, false
+	}
+	formatter, ok := h.requireChatFormatter(response)
+	if !ok || !h.requireTokenCounting(response) {
+		return nil, false
+	}
+	return formatter, true
+}
+
+func (h *Handler) requireChatOutputParser(
+	response http.ResponseWriter,
+	feature string,
+) (ChatOutputParser, bool) {
+	parser, ok := h.generator.(ChatOutputParser)
+	if !ok {
+		writeError(
+			response, http.StatusNotImplemented, "unsupported_operation",
+			feature+" output parsing is unavailable",
+		)
+	}
+	return parser, ok
 }
 
 func (h *Handler) requireTokenCounting(response http.ResponseWriter) bool {
@@ -304,7 +431,7 @@ func (h *Handler) configureChatToolGrammar(
 		tools, required, thinking, parallel,
 	)
 	if err != nil {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeInvalidRequest(response, err)
 		return false
 	}
 	parameters.Grammar = source

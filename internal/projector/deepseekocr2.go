@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"strings"
 
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/tensor"
@@ -325,46 +324,14 @@ func (r *DeepSeekOCR2Runner) BuildImagesHistoryPrompt(ctx context.Context, token
 }
 
 func (r *DeepSeekOCR2Runner) buildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, history bool) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	if len(sources) == 0 || len(text) != len(sources)+1 {
-		return MultimodalPrompt{}, errors.New("projector: DeepSeek-OCR-2 image/text sequence is inconsistent")
-	}
-	counts := make([]int, len(sources))
-	var prompt strings.Builder
-	var embeddings []float32
-	for index, source := range sources {
-		prompt.WriteString(text[index])
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, imagePromptPlan{
+		Family: "DeepSeek-OCR-2", Placeholder: DeepSeekOCRImagePad, PlaceholderLabel: "DeepSeek-OCR-2 placeholder",
+		History: history, EmbeddingWidth: r.spec.OutputHidden,
+		Render: func(text []string, items []imagePromptItem) string {
+			return renderDelimitedImagePrompt(text, items, DeepSeekOCRImagePad, "", "\n")
+		},
+	}, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		value, err := r.EncodeImage(ctx, source)
-		if err != nil {
-			return MultimodalPrompt{}, fmt.Errorf("projector: encode DeepSeek-OCR-2 image %d: %w", index, err)
-		}
-		counts[index] = int(value.Shape.Dims[1])
-		embeddings = append(embeddings, value.Data...)
-		prompt.WriteString(strings.Repeat(DeepSeekOCRImagePad, counts[index]))
-		prompt.WriteByte('\n')
-	}
-	prompt.WriteString(text[len(text)-1])
-	ids, err := tokenizer.TokenizeText(prompt.String(), history, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize DeepSeek-OCR-2 prompt: %w", err)
-	}
-	padIDs, err := tokenizer.TokenizeText(DeepSeekOCRImagePad, false, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize DeepSeek-OCR-2 placeholder: %w", err)
-	}
-	if len(padIDs) != 1 {
-		return MultimodalPrompt{}, fmt.Errorf("projector: DeepSeek-OCR-2 placeholder maps to %d tokens", len(padIDs))
-	}
-	starts, err := variableTokenRuns(ids, padIDs[0], counts)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: DeepSeek-OCR-2 prompt: %w", err)
-	}
-	var indices []uint32
-	for index, start := range starts {
-		indices = append(indices, sequentialTokenIndices(start, counts[index])...)
-	}
-	return MultimodalPrompt{TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
-		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices}, nil
+		return imagePromptItem{Embeddings: value.Data, Count: int(value.Shape.Dims[1])}, err
+	})
 }

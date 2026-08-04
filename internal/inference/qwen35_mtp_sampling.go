@@ -75,29 +75,10 @@ func (r *Runner) advanceQwen35MTPVerification(
 	mtpSession *Qwen35MTPSession,
 	targetCache *KVCache,
 ) (reference.Value, *Qwen35MTPSession, error) {
-	hidden, nextTargetCache, err := target.ForwardCached(
-		ctx, []tokenizer.TokenID{currentToken}, targetCache,
+	return r.advanceSingleHeadMTPVerification(
+		ctx, target, currentToken, mtpSession, targetCache,
+		func(token tokenizer.TokenID, state *Qwen35MTPSession) (reference.Value, *Qwen35MTPSession, error) {
+			return r.AdvanceQwen35MTP(ctx, token, state)
+		},
 	)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	logits, err := target.qwen35MTPProjectLogits(ctx, hidden)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	_, nextMTPSession, err := r.AdvanceQwen35MTP(ctx, currentToken, mtpSession)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	nextMTPSession.PendingHidden = lastHiddenColumn(hidden)
-	nextMTPSession.TrunkCache = nextTargetCache
-	return logits, nextMTPSession, nil
-}
-
-func tokenIDsAsInts(ids []tokenizer.TokenID) []int {
-	result := make([]int, len(ids))
-	for index, id := range ids {
-		result[index] = int(id)
-	}
-	return result
 }

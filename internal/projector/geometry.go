@@ -8,6 +8,12 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
+const (
+	maxPixelMergeRows     uint64 = 1 << 32
+	temporalPatchChannels        = 3
+	temporalPatchFrames          = 2
+)
+
 type pixelMergePlan struct {
 	inputRows  int
 	outputRows int
@@ -23,7 +29,7 @@ func newPixelMergePlan(height, width, merge int) (pixelMergePlan, error) {
 		return pixelMergePlan{}, errors.New("projector: pixel merge input size overflow")
 	}
 	inputRows, ok := checked.Int(inputElements)
-	if !ok || inputElements > uint64(^uint32(0))+1 {
+	if !ok || inputElements > maxPixelMergeRows {
 		return pixelMergePlan{}, errors.New("projector: pixel merge input size overflow")
 	}
 	mergeElements, ok := checked.Mul64(uint64(merge), uint64(merge))
@@ -102,7 +108,7 @@ func splitTemporalPatchPairs(
 	if !ok {
 		return nil, nil, 0, errors.New("projector: temporal patch size overflow")
 	}
-	temporalElements, ok = checked.Mul64(temporalElements, 6)
+	temporalElements, ok = checked.Mul64(temporalElements, temporalPatchChannels*temporalPatchFrames)
 	if !ok {
 		return nil, nil, 0, errors.New("projector: temporal patch size overflow")
 	}
@@ -113,16 +119,16 @@ func splitTemporalPatchPairs(
 	if len(values) != expected {
 		return nil, nil, 0, fmt.Errorf("projector: temporal patch tensor has %d values, want %d", len(values), expected)
 	}
-	temporalWidth := 3 * patchArea
+	temporalWidth := temporalPatchChannels * patchArea
 	first := make([]float32, rows*temporalWidth)
 	second := make([]float32, rows*temporalWidth)
 	for row := range rows {
-		source := values[row*temporalWidth*2:]
-		for color := range 3 {
+		source := values[row*temporalWidth*temporalPatchFrames:]
+		for color := range temporalPatchChannels {
 			destination := row*temporalWidth + color*patchArea
-			pair := source[color*2*patchArea:]
+			pair := source[color*temporalPatchFrames*patchArea:]
 			copy(first[destination:destination+patchArea], pair[:patchArea])
-			copy(second[destination:destination+patchArea], pair[patchArea:2*patchArea])
+			copy(second[destination:destination+patchArea], pair[patchArea:temporalPatchFrames*patchArea])
 		}
 	}
 	return first, second, temporalWidth, nil

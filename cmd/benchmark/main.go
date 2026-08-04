@@ -16,6 +16,18 @@ import (
 	"llamacpp2go/internal/sampling"
 )
 
+const (
+	defaultBenchmarkTokens = 32
+	minBenchmarkTokens     = 1
+	maxBenchmarkTokens     = 1 << 20
+	defaultBenchmarkRuns   = 5
+	minBenchmarkRuns       = 1
+	maxBenchmarkRuns       = 1000
+	defaultBenchmarkWarmup = 1
+	minBenchmarkWarmup     = 0
+	maxBenchmarkWarmup     = 100
+)
+
 type options struct {
 	Model        string
 	Prompt       string
@@ -89,9 +101,9 @@ func parseOptions(args []string) (options, error) {
 	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
 		PreloadName: "preload", NativeQuantName: "native-quant",
 	})
-	flags.IntVar(&result.Tokens, "tokens", 32, "maximum generated tokens per run")
-	flags.IntVar(&result.Runs, "runs", 5, "measured runs")
-	flags.IntVar(&result.Warmup, "warmup", 1, "unmeasured warmup runs")
+	flags.IntVar(&result.Tokens, "tokens", defaultBenchmarkTokens, "maximum generated tokens per run")
+	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
+	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
 	flags.BoolVar(&result.ContextShift, "context-shift", false, "enable rolling context shift")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
@@ -107,14 +119,14 @@ func parseOptions(args []string) (options, error) {
 	if result.Prompt == "" {
 		return options{}, errors.New("benchmark: prompt must not be empty")
 	}
-	if result.Tokens < 1 || result.Tokens > 1<<20 {
-		return options{}, errors.New("benchmark: -tokens must be in [1,1048576]")
+	if result.Tokens < minBenchmarkTokens || result.Tokens > maxBenchmarkTokens {
+		return options{}, fmt.Errorf("benchmark: -tokens must be in [%d,%d]", minBenchmarkTokens, maxBenchmarkTokens)
 	}
-	if result.Runs < 1 || result.Runs > 1000 {
-		return options{}, errors.New("benchmark: -runs must be in [1,1000]")
+	if result.Runs < minBenchmarkRuns || result.Runs > maxBenchmarkRuns {
+		return options{}, fmt.Errorf("benchmark: -runs must be in [%d,%d]", minBenchmarkRuns, maxBenchmarkRuns)
 	}
-	if result.Warmup < 0 || result.Warmup > 100 {
-		return options{}, errors.New("benchmark: -warmup must be in [0,100]")
+	if result.Warmup < minBenchmarkWarmup || result.Warmup > maxBenchmarkWarmup {
+		return options{}, fmt.Errorf("benchmark: -warmup must be in [%d,%d]", minBenchmarkWarmup, maxBenchmarkWarmup)
 	}
 	if result.Preload && result.NativeQuant {
 		return options{}, errors.New("benchmark: -preload and -native-quant are mutually exclusive")

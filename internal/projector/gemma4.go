@@ -13,7 +13,13 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-const gemma4UVProjectorType = "gemma4uv"
+const (
+	gemma4UVProjectorType    = "gemma4uv"
+	gemma4ImageTokenLimit    = 280
+	gemma4MinimumImageTokens = 40
+	gemma4VideoTokenLimit    = 70
+	gemma4LayerNormEpsilon   = 1e-5
+)
 
 type Gemma4Spec struct {
 	TeacherPatch     int
@@ -157,8 +163,8 @@ func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
 	spec := Gemma4Spec{
 		TeacherPatch: int(teacherPatch), PoolKernel: modelPatch / int(teacherPatch),
 		ModelPatch: modelPatch, PatchWidth: patchWidth, Hidden: int(hidden),
-		PositionCount: int(position.Shape[1]), MaxImageTokens: 280,
-		LayerNormEpsilon: 1e-5, RMSNormEpsilon: rmsEpsilon,
+		PositionCount: int(position.Shape[1]), MaxImageTokens: gemma4ImageTokenLimit,
+		LayerNormEpsilon: gemma4LayerNormEpsilon, RMSNormEpsilon: rmsEpsilon,
 	}
 	if err := spec.validate(); err != nil {
 		return Gemma4Spec{}, err
@@ -243,7 +249,7 @@ func gemma4ResizeTarget(height, width int, spec Gemma4Spec) (int, int, error) {
 	resizedH := max(align, round(float64(height)))
 	resizedW := max(align, round(float64(width)))
 	maxPixels := spec.MaxImageTokens * align * align
-	minPixels := min(40, spec.MaxImageTokens) * align * align
+	minPixels := min(gemma4MinimumImageTokens, spec.MaxImageTokens) * align * align
 	if resizedH*resizedW > maxPixels {
 		beta := math.Sqrt(float64(height*width) / float64(maxPixels))
 		resizedH = max(align, floor(float64(height)/beta))
@@ -267,7 +273,7 @@ func (r *Gemma4Runner) EncodeImage(ctx context.Context, source image.Image) (Gem
 	return r.encode(ctx, input)
 }
 
-// EncodeVideoFrames: frame-major Gemma 4 projection with the 70-token frame budget.
+// EncodeVideoFrames: frame-major projection; bounded tokens per frame.
 func (r *Gemma4Runner) EncodeVideoFrames(ctx context.Context, frames []image.Image) (Gemma4VideoOutput, error) {
 	if r == nil || r.file == nil {
 		return Gemma4VideoOutput{}, errors.New("projector: runner is closed")
@@ -276,7 +282,7 @@ func (r *Gemma4Runner) EncodeVideoFrames(ctx context.Context, frames []image.Ima
 		return Gemma4VideoOutput{}, errors.New("projector: video has no frames")
 	}
 	videoSpec := r.spec
-	videoSpec.MaxImageTokens = 70
+	videoSpec.MaxImageTokens = gemma4VideoTokenLimit
 	var combined Gemma4Image
 	var gridH, gridW int
 	for index, frame := range frames {

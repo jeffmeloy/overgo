@@ -80,7 +80,7 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	if previousMode == 1 {
 		hidden = builder.GetRows(hidden, intsToUint32(inverseColumnOrder))
 	}
-	normalized := builder.Multiply(builder.LayerNorm(hidden, 1e-6), weight("v.post_ln.weight"))
+	normalized := builder.Multiply(builder.LayerNorm(hidden, mimoVLPostNormEpsilon), weight("v.post_ln.weight"))
 	normalized = graph.addOptionalBias(normalized, "v.post_ln.bias")
 	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
 	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*4), uint64(mergedRows))

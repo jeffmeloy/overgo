@@ -32,6 +32,13 @@ claims.
 
 ## Validated milestones
 
+- The August 3 semantic-literal wave named architecture-fixed projector/RWKV
+  normalization values, quantizer near-zero thresholds, sampler/schema state
+  envelopes, GGUF buffers, server and CLI defaults, completion/token bounds,
+  and SSRF/media policy limits. Diagnostics now derive their numeric bounds
+  from the same constants, while tensor shapes, fixture values, indexes, and
+  local formula coefficients remain literal. Full CPU and CUDA verification
+  passed on the Windows amd64 RTX 4090 D host.
 - The August 3 projector lifecycle/geometry wave moved all twelve projector
   openers to one failure-safe GGUF transaction, moved optional bias, linear, and
   normalization operations into the shared graph runtime, and replaced three

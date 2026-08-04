@@ -15,9 +15,13 @@ const (
 	samplerStateMagic         = "L2GSMP04"
 	previousSamplerStateMagic = "L2GSMP03"
 	legacySamplerStateMagic   = "L2GSMP02"
+	samplerStateMagicBytes    = uint64(len(samplerStateMagic))
 	samplerStateHeaderSize    = 60
 	previousSamplerHeaderSize = 44
-	maxGBNFHistoryTokens      = ((1 << 20) - samplerStateHeaderSize) / 4
+	legacySamplerStateSize    = 40
+	samplerTokenBytes         = 4
+	maxSamplerStateBytes      = 1 << 20
+	maxGBNFHistoryTokens      = (maxSamplerStateBytes - samplerStateHeaderSize) / samplerTokenBytes
 )
 
 // SaveState: stores random stream, Mirostat, adaptive-p, and grammar state
@@ -28,8 +32,8 @@ func (s *Sampler) SaveState() ([]byte, error) {
 	if len(s.gbnfHistory) > maxGBNFHistoryTokens {
 		return nil, errors.New("sampler GBNF history exceeds state limit")
 	}
-	size := uint64(samplerStateHeaderSize + len(s.gbnfHistory)*4)
-	encoder := statecodec.NewEncoderCapacity(1<<20, size)
+	size := uint64(samplerStateHeaderSize + len(s.gbnfHistory)*samplerTokenBytes)
+	encoder := statecodec.NewEncoderCapacity(maxSamplerStateBytes, size)
 	encoder.Raw([]byte(samplerStateMagic))
 	encoder.U64(configSignature(s.config))
 	encoder.U64(s.source.state)
@@ -50,15 +54,15 @@ func (s *Sampler) LoadState(data []byte) error {
 	if s == nil || s.source == nil {
 		return errors.New("sampler is nil")
 	}
-	decoder := statecodec.NewDecoder(data, 1<<20)
-	magic := string(decoder.Raw(8))
+	decoder := statecodec.NewDecoder(data, maxSamplerStateBytes)
+	magic := string(decoder.Raw(samplerStateMagicBytes))
 	legacy := magic == legacySamplerStateMagic
 	previous := magic == previousSamplerStateMagic
 	if magic != samplerStateMagic && !previous && !legacy {
 		return errors.New("sampler state has invalid magic or version")
 	}
 	if legacy {
-		if len(data) != 40 {
+		if len(data) != legacySamplerStateSize {
 			return errors.New("sampler state has invalid size")
 		}
 		if s.gbnf != nil {
@@ -135,7 +139,7 @@ func (s *Sampler) LoadState(data []byte) error {
 	if !legacy {
 		maxHistory := maxGBNFHistoryTokens
 		if previous {
-			maxHistory = ((1 << 20) - previousSamplerHeaderSize) / 4
+			maxHistory = (maxSamplerStateBytes - previousSamplerHeaderSize) / samplerTokenBytes
 		}
 		if count > uint32(maxHistory) {
 			return errors.New("sampler state has invalid GBNF history length")

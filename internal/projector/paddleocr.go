@@ -11,7 +11,10 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-const paddleOCRProjectorType = "paddleocr"
+const (
+	paddleOCRProjectorType    = "paddleocr"
+	paddleOCRInputNormEpsilon = 1e-5
+)
 
 type paddleOCRActivation uint8
 

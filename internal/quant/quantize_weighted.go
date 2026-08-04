@@ -99,7 +99,7 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 			for _, value := range absoluteValues[1:] {
 				maximum = max(maximum, value)
 			}
-			if maximum < 1e-8 {
+			if maximum < iq2MinimumMagnitude {
 				continue
 			}
 			scale := maximum / 5
@@ -242,7 +242,7 @@ func makeQPQuants(values []float32, levels []int8, weights []float32, maximumLev
 	for _, value := range values {
 		maximum = max(maximum, value)
 	}
-	if maximum < 1e-15 {
+	if maximum < negligibleQuantizationMagnitude {
 		clear(levels)
 		return 0
 	}
@@ -416,7 +416,7 @@ func quantizeIQ1SWeighted(values, importance []float32, output []byte) error {
 				maximum = max(maximum, absoluteFloat32(value))
 			}
 			levels := make([]int8, groupWidth)
-			if maximum < 1e-12 {
+			if maximum < iq1MinimumMagnitude {
 				for index := range levels {
 					levels[index] = 1
 				}

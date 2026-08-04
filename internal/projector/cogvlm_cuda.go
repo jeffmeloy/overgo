@@ -49,7 +49,9 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 	}
 	hidden = builder.FlatSlice(hidden, 0, uint64(r.spec.Hidden), uint64(patchRows))
 	hidden = builder.MulMat(weight("mm.model.fc.weight"), hidden)
-	hidden = builder.AffineLayerNorm(hidden, weight("mm.post_fc_norm.weight"), weight("mm.post_fc_norm.bias"), 1e-5)
+	hidden = builder.AffineLayerNorm(
+		hidden, weight("mm.post_fc_norm.weight"), weight("mm.post_fc_norm.bias"), cogVLMAdapterNormEpsilon,
+	)
 	hidden = qwen3VLGELUTanh(builder, hidden, hostFeeds)
 	up := builder.MulMat(weight("mm.up.weight"), hidden)
 	gate := builder.SiLU(builder.MulMat(weight("mm.gate.weight"), hidden))

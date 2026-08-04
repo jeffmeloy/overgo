@@ -8,6 +8,11 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
+const (
+	rwkvHeadNormEpsilon = 64e-5
+	rwkvKeyNormEpsilon  = 1e-12
+)
+
 // LayerGraphWeights: graph inputs for one dense Llama/Qwen3 block
 type LayerGraphWeights struct {
 	AttentionNorm               *tensor.Tensor
@@ -2451,7 +2456,9 @@ func BuildRWKV6BlockCached(
 	attentionElements := embedding * tokens
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
-	attention = builder.Reshape(builder.LayerNorm(builder.Reshape(attention, width, heads, tokens), 64e-5), embedding, tokens)
+	attention = builder.Reshape(
+		builder.LayerNorm(builder.Reshape(attention, width, heads, tokens), rwkvHeadNormEpsilon), embedding, tokens,
+	)
 	attention = builder.Add(builder.Multiply(attention, weights.TimeMixLN), weights.TimeMixLNBias)
 	attention = builder.MulMat(weights.TimeMixOutput, builder.Multiply(attention, gate))
 	ffnInput := builder.Add(input, attention)
@@ -2582,7 +2589,7 @@ func BuildRWKV7BlockCached(
 	))
 	kk := builder.L2Norm(
 		builder.Reshape(builder.Multiply(key, weights.TimeMixKK), width, heads, tokens, 1),
-		1e-12,
+		rwkvKeyNormEpsilon,
 	)
 	ka := builder.Multiply(key, weights.TimeMixKA)
 	key = builder.Add(key, builder.Add(builder.Multiply(a, ka), builder.Scale(ka, -1)))
@@ -2596,7 +2603,9 @@ func BuildRWKV7BlockCached(
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
 	if weights.TimeMixLN != nil && weights.TimeMixLNBias != nil {
-		attention = builder.Reshape(builder.LayerNorm(builder.Reshape(attention, width, heads, tokens), 64e-5), embedding, tokens)
+		attention = builder.Reshape(
+			builder.LayerNorm(builder.Reshape(attention, width, heads, tokens), rwkvHeadNormEpsilon), embedding, tokens,
+		)
 		attention = builder.Add(builder.Multiply(attention, weights.TimeMixLN), weights.TimeMixLNBias)
 	}
 	rkWeight := builder.Reshape(weights.TimeMixRK, width, heads, 1, 1)

@@ -19,22 +19,30 @@ import (
 	llamaserver "llamacpp2go/internal/server"
 )
 
+const (
+	serverReadHeaderTimeout = 10 * time.Second
+	serverReadTimeout       = 30 * time.Second
+	serverIdleTimeout       = 2 * time.Minute
+	serverShutdownTimeout   = 30 * time.Second
+	serverMaxHeaderBytes    = 1 << 20
+)
+
 func main() {
 	clioptions.Main(run)
 }
 
 func run() error {
 	address := flag.String("listen", "127.0.0.1:8080", "HTTP listen address")
-	modelID := flag.String("model-id", "llamacpp2go", "API model identifier")
+	modelID := flag.String("model-id", llamaserver.DefaultModelID, "API model identifier")
 	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at global scale 1; repeatable")
 	loraDisabled := flag.Bool("lora-init-without-apply", false, "load adapters with global scale 0")
-	maxTokens := flag.Int("max-tokens", 4096, "maximum max_tokens accepted per request")
+	maxTokens := flag.Int("max-tokens", llamaserver.DefaultMaxTokens, "maximum max_tokens accepted per request")
 	contextShift := flag.Bool(
 		"context-shift",
 		false,
 		"discard oldest attention KV entries when generation reaches model context",
 	)
-	maxConcurrent := flag.Int("max-concurrent", 1, "maximum admitted generation requests")
+	maxConcurrent := flag.Int("max-concurrent", llamaserver.DefaultMaxConcurrent, "maximum admitted generation requests")
 	infillBatchSize := flag.Int(
 		"batch-size",
 		inference.DefaultInfillBatchSize,
@@ -50,7 +58,9 @@ func run() error {
 		1,
 		"maximum independently reusable prompt states retained by the Runner",
 	)
-	maxEmbeddingInputs := flag.Int("max-embedding-inputs", 16, "maximum strings accepted by one embedding request")
+	maxEmbeddingInputs := flag.Int(
+		"max-embedding-inputs", llamaserver.DefaultMaxEmbeddingInputs, "maximum strings accepted by one embedding request",
+	)
 	requestTimeout := flag.Duration(
 		"request-timeout",
 		0,
@@ -58,12 +68,12 @@ func run() error {
 	)
 	responseStoreEntries := flag.Int(
 		"response-store-entries",
-		128,
+		llamaserver.DefaultStoredResponses,
 		"maximum Responses continuation histories retained in memory",
 	)
 	responseStoreBytes := flag.Int(
 		"response-store-bytes",
-		64<<20,
+		llamaserver.DefaultResponseStoreBytes,
 		"maximum aggregate bytes retained for Responses continuation",
 	)
 	apiKeyFile := flag.String(
@@ -76,8 +86,8 @@ func run() error {
 	mediaPolicyPath := flag.String("media-policy", "media_policy.yaml", "remote-media YAML policy; empty disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "resource_policy.yaml", "Responses file-ID YAML policy; empty disables file IDs")
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("LLAMACPP2GO_FFMPEG"), "FFmpeg executable for encoded video")
-	videoFPS := flag.Float64("video-fps", 2, "video frame sampling rate")
-	videoMaxFrames := flag.Int("video-max-frames", 32, "maximum decoded video frames")
+	videoFPS := flag.Float64("video-fps", llamaserver.DefaultVideoFPS, "video frame sampling rate")
+	videoMaxFrames := flag.Int("video-max-frames", llamaserver.DefaultVideoFrameLimit, "maximum decoded video frames")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
@@ -163,11 +173,11 @@ func run() error {
 	httpServer := &http.Server{
 		Addr:              *address,
 		Handler:           handler,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
 		WriteTimeout:      0,
-		IdleTimeout:       2 * time.Minute,
-		MaxHeaderBytes:    1 << 20,
+		IdleTimeout:       serverIdleTimeout,
+		MaxHeaderBytes:    serverMaxHeaderBytes,
 	}
 	log.Printf("serving model %q on http://%s", *modelID, *address)
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -185,7 +195,7 @@ func run() error {
 	case <-shutdownContext.Done():
 	}
 	log.Print("shutting down")
-	deadline, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	deadline, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
 	defer cancel()
 	if err := httpServer.Shutdown(deadline); err != nil {
 		return fmt.Errorf("server shutdown: %w", err)

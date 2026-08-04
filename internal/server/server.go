@@ -61,6 +61,12 @@ import (
 )
 
 const (
+	DefaultModelID            = "llamacpp2go"
+	DefaultMaxTokens          = 4096
+	DefaultMaxConcurrent      = 1
+	DefaultMaxEmbeddingInputs = 16
+	DefaultVideoFPS           = 2
+	DefaultVideoFrameLimit    = 32
 	maxRequestBytes           = 1 << 20
 	maxMultimodalRequestBytes = 32 << 20
 	maxImageBytes             = 16 << 20
@@ -68,6 +74,12 @@ const (
 	maxImageDimension         = 16384
 	maxImagePixels            = 16 << 20
 	maxRequestImagePixels     = 32 << 20
+	maxConcurrentRequests     = 1 << 16
+	maxStoredResponses        = 1 << 16
+	maxResponseStoreBytes     = 1 << 30
+	maxTokenListLength        = 1 << 20
+	maxCompletionChoices      = 8
+	maxVideoFrameLimit        = 256
 )
 
 type Generator interface {
@@ -397,25 +409,25 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, errors.New("server: generator is nil")
 	}
 	if config.ModelID == "" {
-		config.ModelID = "llamacpp2go"
+		config.ModelID = DefaultModelID
 	}
 	if config.MaxTokens == 0 {
-		config.MaxTokens = 4096
+		config.MaxTokens = DefaultMaxTokens
 	}
 	if config.MaxTokens < 0 {
 		return nil, errors.New("server: max tokens must be positive")
 	}
 	if config.MaxConcurrent == 0 {
-		config.MaxConcurrent = 1
+		config.MaxConcurrent = DefaultMaxConcurrent
 	}
 	if config.MaxConcurrent < 0 {
 		return nil, errors.New("server: max concurrent requests must be positive")
 	}
-	if config.MaxConcurrent > 1<<16 {
-		return nil, errors.New("server: max concurrent requests exceeds 65536")
+	if config.MaxConcurrent > maxConcurrentRequests {
+		return nil, fmt.Errorf("server: max concurrent requests exceeds %d", maxConcurrentRequests)
 	}
 	if config.MaxEmbeddingInputs == 0 {
-		config.MaxEmbeddingInputs = 16
+		config.MaxEmbeddingInputs = DefaultMaxEmbeddingInputs
 	}
 	if config.MaxEmbeddingInputs < 0 {
 		return nil, errors.New("server: max embedding inputs must be positive")
@@ -440,28 +452,28 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, errors.New("server: response tool policy requires an external executor for non-deny modes")
 	}
 	if config.MaxStoredResponses == 0 {
-		config.MaxStoredResponses = defaultStoredResponses
+		config.MaxStoredResponses = DefaultStoredResponses
 	}
-	if config.MaxStoredResponses < 0 || config.MaxStoredResponses > 1<<16 {
-		return nil, errors.New("server: stored response count must be in [1,65536]")
+	if config.MaxStoredResponses < 0 || config.MaxStoredResponses > maxStoredResponses {
+		return nil, fmt.Errorf("server: stored response count must be in [1,%d]", maxStoredResponses)
 	}
 	if config.ResponseStoreBytes == 0 {
-		config.ResponseStoreBytes = defaultResponseStoreBytes
+		config.ResponseStoreBytes = DefaultResponseStoreBytes
 	}
-	if config.ResponseStoreBytes < 0 || config.ResponseStoreBytes > 1<<30 {
-		return nil, errors.New("server: response store bytes must be in [1,1073741824]")
+	if config.ResponseStoreBytes < 0 || config.ResponseStoreBytes > maxResponseStoreBytes {
+		return nil, fmt.Errorf("server: response store bytes must be in [1,%d]", maxResponseStoreBytes)
 	}
 	if config.VideoFPS == 0 {
-		config.VideoFPS = 2
+		config.VideoFPS = DefaultVideoFPS
 	}
 	if config.VideoFPS <= 0 || math.IsNaN(config.VideoFPS) || math.IsInf(config.VideoFPS, 0) {
 		return nil, errors.New("server: video FPS must be finite and positive")
 	}
 	if config.VideoMaxFrames == 0 {
-		config.VideoMaxFrames = 32
+		config.VideoMaxFrames = DefaultVideoFrameLimit
 	}
-	if config.VideoMaxFrames < 0 || config.VideoMaxFrames > 256 {
-		return nil, errors.New("server: video frame limit must be in [1,256]")
+	if config.VideoMaxFrames < 0 || config.VideoMaxFrames > maxVideoFrameLimit {
+		return nil, fmt.Errorf("server: video frame limit must be in [1,%d]", maxVideoFrameLimit)
 	}
 	mediaFetcher, err := newRemoteMediaFetcher(config.RemoteMediaPolicy)
 	if err != nil {
@@ -1151,8 +1163,8 @@ func tokenizeMixed(
 		if err != nil {
 			return nil, err
 		}
-		if len(tokens) > 1<<20 {
-			return nil, errors.New("token count exceeds 1048576")
+		if len(tokens) > maxTokenListLength {
+			return nil, fmt.Errorf("token count exceeds %d", maxTokenListLength)
 		}
 		return tokens, nil
 	}
@@ -1184,8 +1196,8 @@ func tokenizeMixed(
 			tokens = append(tokens, expanded...)
 		}
 		first = false
-		if len(tokens) > 1<<20 {
-			return nil, errors.New("token count exceeds 1048576")
+		if len(tokens) > maxTokenListLength {
+			return nil, fmt.Errorf("token count exceeds %d", maxTokenListLength)
 		}
 	}
 	return tokens, nil
@@ -1208,8 +1220,8 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	if len(body.Tokens) > 1<<20 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "token count exceeds 1048576")
+	if len(body.Tokens) > maxTokenListLength {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("token count exceeds %d", maxTokenListLength))
 		return
 	}
 	tokens := make([]tokenizer.TokenID, len(body.Tokens))
@@ -2054,8 +2066,8 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 	if body.N == 0 {
 		body.N = 1
 	}
-	if body.N < 1 || body.N > 8 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "n must be in [1,8]")
+	if body.N < 1 || body.N > maxCompletionChoices {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("n must be in [1,%d]", maxCompletionChoices))
 		return
 	}
 	maxTokens := 16
@@ -2511,8 +2523,8 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	if body.NCmpl == 0 {
 		body.NCmpl = 1
 	}
-	if body.NCmpl < 1 || body.NCmpl > 8 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "n_cmpl must be in [1,8]")
+	if body.NCmpl < 1 || body.NCmpl > maxCompletionChoices {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("n_cmpl must be in [1,%d]", maxCompletionChoices))
 		return
 	}
 	if projectedInputs != nil && (len(prompts) != 1 || body.NCmpl != 1) {
@@ -3299,7 +3311,6 @@ func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {
 	if !ok {
 		return nativePrompt{}, errors.New("generator cannot expand mixed prompt strings")
 	}
-	const maxPromptTokens = 1 << 20
 	tokenIDs := make([]tokenizer.TokenID, 0, len(parts))
 	for index, part := range parts {
 		var token int64
@@ -3322,8 +3333,8 @@ func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {
 			}
 			tokenIDs = append(tokenIDs, expanded...)
 		}
-		if len(tokenIDs) > maxPromptTokens {
-			return nativePrompt{}, errors.New("prompt token count exceeds 1048576")
+		if len(tokenIDs) > maxTokenListLength {
+			return nativePrompt{}, fmt.Errorf("prompt token count exceeds %d", maxTokenListLength)
 		}
 	}
 	if len(tokenIDs) == 0 {

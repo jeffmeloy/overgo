@@ -75,7 +75,9 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage)
 	if r.spec.PostLayerNorm {
 		hidden = builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
 	}
-	hidden = builder.AffineLayerNorm(hidden, weight("mm.input_norm.weight"), weight("mm.input_norm.bias"), 1e-5)
+	hidden = builder.AffineLayerNorm(
+		hidden, weight("mm.input_norm.weight"), weight("mm.input_norm.bias"), paddleOCRInputNormEpsilon,
+	)
 	merged := mergePlan.graph(builder, hidden)
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
 	fc1 = r.paddleOCRActivationGraph(builder, fc1, hostFeeds)

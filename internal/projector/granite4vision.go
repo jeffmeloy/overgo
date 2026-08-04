@@ -13,7 +13,10 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-const granite4VisionProjectorType = "granite4_vision"
+const (
+	granite4VisionProjectorType = "granite4_vision"
+	granite4QFormerNormEpsilon  = 1e-12
+)
 
 type Granite4VisionResolution struct {
 	Width  int
@@ -576,7 +579,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 			}
 		}
 	}
-	queryWindows, err = r.affineNormalize(ctx, queryWindows, windows*queryLength, prefix+"post_norm", 1e-12)
+	queryWindows, err = r.affineNormalize(ctx, queryWindows, windows*queryLength, prefix+"post_norm", granite4QFormerNormEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -587,7 +590,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	for index := range self {
 		self[index] += queryWindows[index]
 	}
-	self, err = r.affineNormalize(ctx, self, windows*queryLength, prefix+"self_attn_norm", 1e-12)
+	self, err = r.affineNormalize(ctx, self, windows*queryLength, prefix+"self_attn_norm", granite4QFormerNormEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -598,7 +601,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	for index := range cross {
 		cross[index] += self[index]
 	}
-	cross, err = r.affineNormalize(ctx, cross, windows*queryLength, prefix+"cross_attn_norm", 1e-12)
+	cross, err = r.affineNormalize(ctx, cross, windows*queryLength, prefix+"cross_attn_norm", granite4QFormerNormEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -618,7 +621,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	for index := range ffn {
 		ffn[index] += cross[index]
 	}
-	ffn, err = r.affineNormalize(ctx, ffn, windows*queryLength, prefix+"ffn_norm", 1e-12)
+	ffn, err = r.affineNormalize(ctx, ffn, windows*queryLength, prefix+"ffn_norm", granite4QFormerNormEpsilon)
 	if err != nil {
 		return nil, err
 	}

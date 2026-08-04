@@ -10,6 +10,12 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
+const (
+	negligibleQuantizationMagnitude = 1e-15
+	iq2MinimumMagnitude             = 1e-8
+	iq1MinimumMagnitude             = 1e-12
+)
+
 // Quantize: deterministic pinned GGML storage conversion.
 func Quantize(dataType dtype.Type, values []float32) ([]byte, error) {
 	return quantize(dataType, values, nil)
@@ -382,7 +388,7 @@ func quantizeIQ3Group(
 	}
 	epsilon := float32(0)
 	if paritySigns {
-		epsilon = 1e-8
+		epsilon = iq2MinimumMagnitude
 	}
 	if maximum <= epsilon {
 		return indices, signs, 0, nil
@@ -629,7 +635,7 @@ func quantizeIQ2S(values []float32, output []byte) error {
 				}
 				maximum = max(maximum, absoluteValues[index])
 			}
-			if maximum < 1e-8 {
+			if maximum < iq2MinimumMagnitude {
 				continue
 			}
 			best := float32(0)
@@ -919,7 +925,7 @@ func quantizeIQ4Group(
 			maximum = value
 		}
 	}
-	if maximumAbsolute < 1e-15 {
+	if maximumAbsolute < negligibleQuantizationMagnitude {
 		clear(levels)
 		return 0, nil
 	}
@@ -1599,7 +1605,7 @@ func makeQ3Quants(input []float32, levels []int8) (float32, error) {
 			maximum = value
 		}
 	}
-	if maximumAbsolute < 1e-15 {
+	if maximumAbsolute < negligibleQuantizationMagnitude {
 		clear(levels)
 		return 0, nil
 	}
@@ -1683,7 +1689,7 @@ func quantizeQ6K(values []float32, output []byte) error {
 				maxScale = scale
 			}
 		}
-		if maxAbsoluteScale < 1e-15 {
+		if maxAbsoluteScale < negligibleQuantizationMagnitude {
 			continue
 		}
 		inverse := -128 / maxScale
@@ -1748,7 +1754,7 @@ func makeQXQuants(
 			maximum = value
 		}
 	}
-	if maximumAbsolute < 1e-15 {
+	if maximumAbsolute < negligibleQuantizationMagnitude {
 		clear(levels)
 		return 0, nil
 	}

@@ -10,7 +10,10 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-const mimoVLProjectorType = "mimovl"
+const (
+	mimoVLProjectorType   = "mimovl"
+	mimoVLPostNormEpsilon = 1e-6
+)
 
 type MiMoVLSpec struct {
 	ImageSize          int

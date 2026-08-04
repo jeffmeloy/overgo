@@ -12,7 +12,10 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
-const cogVLMProjectorType = "cogvlm"
+const (
+	cogVLMProjectorType      = "cogvlm"
+	cogVLMAdapterNormEpsilon = 1e-5
+)
 
 type CogVLMVisionSpec struct {
 	ImageSize           int

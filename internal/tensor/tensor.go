@@ -9,6 +9,8 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
+const maxExactFloat32Integer = 1 << 24
+
 // Op: identifies typed graph operation
 type Op uint16
 
@@ -1098,7 +1100,7 @@ func (b *Builder) TopK(input *Tensor, k uint32) *Tensor {
 		b.setError(errors.New("TopK count exceeds dimension zero"))
 		return nil
 	}
-	if input.Shape.Dims[0] > 1<<24 {
+	if input.Shape.Dims[0] > maxExactFloat32Integer {
 		b.setError(errors.New("TopK dimension zero exceeds exact F32 index range"))
 		return nil
 	}

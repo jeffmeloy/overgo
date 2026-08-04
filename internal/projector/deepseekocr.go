@@ -15,8 +15,11 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-const deepSeekOCRProjectorType = "deepseekocr"
-const DeepSeekOCRImagePad = "<image>"
+const (
+	deepSeekOCRProjectorType      = "deepseekocr"
+	deepSeekOCRSpatialNormEpsilon = 1e-6
+	DeepSeekOCRImagePad           = "<image>"
+)
 
 type DeepSeekOCRSpec struct {
 	ImageSize, TileSize, MinTiles, MaxTiles int
@@ -418,7 +421,7 @@ func (r *DeepSeekOCRRunner) buildSAMGraph(builder *tensor.Builder, input *tensor
 	for layer := 0; layer < r.spec.SAMLayers; layer++ {
 		prefix := fmt.Sprintf("v.sam.blk.%d.", layer)
 		residual := cur
-		norm := deepSeekOCRSpatialLayerNorm(builder, cur, weight(prefix+"pre_ln.weight"), weight(prefix+"pre_ln.bias"), 1e-6)
+		norm := deepSeekOCRSpatialLayerNorm(builder, cur, weight(prefix+"pre_ln.weight"), weight(prefix+"pre_ln.bias"), deepSeekOCRSpatialNormEpsilon)
 		global := layer == 2 || layer == 5 || layer == 8 || layer == 11
 		width, height := uint32(norm.Shape.Dims[1]), uint32(norm.Shape.Dims[2])
 		window := r.spec.Window
@@ -451,7 +454,7 @@ func (r *DeepSeekOCRRunner) buildSAMGraph(builder *tensor.Builder, input *tensor
 		}
 		cur = builder.Add(residual, attention)
 		residual = cur
-		norm = deepSeekOCRSpatialLayerNorm(builder, cur, weight(prefix+"post_ln.weight"), weight(prefix+"post_ln.bias"), 1e-6)
+		norm = deepSeekOCRSpatialLayerNorm(builder, cur, weight(prefix+"post_ln.weight"), weight(prefix+"post_ln.bias"), deepSeekOCRSpatialNormEpsilon)
 		flat = builder.Reshape(norm, uint64(r.spec.SAMHidden), norm.Shape.Dims[1]*norm.Shape.Dims[2])
 		upWeight := weight(prefix + "mlp.lin1.weight")
 		up := builder.Add(builder.MulMat(upWeight, flat), builder.Reshape(weight(prefix+"mlp.lin1.bias"), upWeight.Shape.Dims[1], 1))
@@ -460,9 +463,9 @@ func (r *DeepSeekOCRRunner) buildSAMGraph(builder *tensor.Builder, input *tensor
 		cur = builder.Add(residual, builder.Reshape(down, residual.Shape.Dims[0], residual.Shape.Dims[1], residual.Shape.Dims[2]))
 	}
 	cur = builder.Conv2D(cur, weight("v.sam.neck.0.weight"), nil, 1, 1, 0, 0, 0, 0, false)
-	cur = deepSeekOCRSpatialLayerNorm(builder, cur, weight("v.sam.neck.1.weight"), weight("v.sam.neck.1.bias"), 1e-6)
+	cur = deepSeekOCRSpatialLayerNorm(builder, cur, weight("v.sam.neck.1.weight"), weight("v.sam.neck.1.bias"), deepSeekOCRSpatialNormEpsilon)
 	cur = builder.Conv2D(cur, weight("v.sam.neck.2.weight"), nil, 1, 1, 1, 1, 1, 1, false)
-	cur = deepSeekOCRSpatialLayerNorm(builder, cur, weight("v.sam.neck.3.weight"), weight("v.sam.neck.3.bias"), 1e-6)
+	cur = deepSeekOCRSpatialLayerNorm(builder, cur, weight("v.sam.neck.3.weight"), weight("v.sam.neck.3.bias"), deepSeekOCRSpatialNormEpsilon)
 	cur = builder.Conv2D(cur, weight("v.sam.net_2.weight"), nil, 2, 2, 1, 1, 1, 1, false)
 	cur = builder.Conv2D(cur, weight("v.sam.net_3.weight"), nil, 2, 2, 1, 1, 1, 1, false)
 	return cur

@@ -40,6 +40,8 @@ type HashResult struct {
 	Model   HashValues
 }
 
+const hashReadBufferBytes = 1 << 20
+
 var llamaCPPHashNamespace = [16]byte{
 	0xef, 0x00, 0x12, 0x06, 0xda, 0xdc, 0x5f, 0x6d,
 	0xa1, 0x5f, 0x33, 0x59, 0xe5, 0x77, 0xd4, 0xe5,
@@ -60,7 +62,7 @@ func (f *File) Hash(options HashOptions) (HashResult, error) {
 	if options.PerTensor {
 		result.Tensors = make([]TensorHash, 0, len(f.Tensors))
 	}
-	buffer := make([]byte, 1<<20)
+	buffer := make([]byte, hashReadBufferBytes)
 	for _, tensor := range f.Tensors {
 		var perTensor *hashAccumulator
 		if options.PerTensor {

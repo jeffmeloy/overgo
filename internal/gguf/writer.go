@@ -11,6 +11,11 @@ import (
 	"llamacpp2go/internal/checked"
 )
 
+const (
+	paddingBufferBytes = 4096
+	maxCopyChunkBytes  = 1 << 30
+)
+
 // WriteOptions: controls canonical GGUF serialization
 type WriteOptions struct {
 	Version   uint32
@@ -594,7 +599,7 @@ func (w *countingWriter) padTo(alignment uint64) error {
 		return errors.New("GGUF output alignment overflows uint64")
 	}
 	padding := aligned - w.offset
-	zeros := make([]byte, min(padding, 4096))
+	zeros := make([]byte, min(padding, paddingBufferBytes))
 	for padding > 0 {
 		count := min(padding, uint64(len(zeros)))
 		if err := w.write(zeros[:count]); err != nil {
@@ -611,7 +616,7 @@ func (w *countingWriter) copyExact(source io.Reader, size uint64) error {
 	}
 	remaining := size
 	for remaining > 0 {
-		chunk := min(remaining, uint64(1<<30))
+		chunk := min(remaining, uint64(maxCopyChunkBytes))
 		written, err := io.CopyN(w.destination, source, int64(chunk))
 		if written > 0 {
 			if uint64(written) > math.MaxUint64-w.offset {

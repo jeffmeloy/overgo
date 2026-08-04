@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+const (
+	maxDryBreakers      = 1 << 20
+	maxDryBreakerTokens = 64
+)
+
 type LogitBias struct {
 	Token int
 	Bias  float32
@@ -228,8 +233,8 @@ func New(config Config) (*Sampler, error) {
 	if config.DryPenaltyLastN < -1 {
 		return nil, errors.New("sampling DRY penalty-last-n must be at least -1")
 	}
-	if len(config.DryBreakers) > 1<<20 {
-		return nil, errors.New("sampling DRY breaker count exceeds 1048576")
+	if len(config.DryBreakers) > maxDryBreakers {
+		return nil, fmt.Errorf("sampling DRY breaker count exceeds %d", maxDryBreakers)
 	}
 	dryBreakers := make(map[int][][]int, len(config.DryBreakers))
 	config.DryBreakers = cloneBreakers(config.DryBreakers)
@@ -237,8 +242,8 @@ func New(config Config) (*Sampler, error) {
 		if len(breaker) == 0 {
 			return nil, fmt.Errorf("sampling DRY breaker %d is empty", index)
 		}
-		if len(breaker) > 64 {
-			return nil, fmt.Errorf("sampling DRY breaker %d exceeds 64 tokens", index)
+		if len(breaker) > maxDryBreakerTokens {
+			return nil, fmt.Errorf("sampling DRY breaker %d exceeds %d tokens", index, maxDryBreakerTokens)
 		}
 		for _, token := range breaker {
 			if token < 0 {

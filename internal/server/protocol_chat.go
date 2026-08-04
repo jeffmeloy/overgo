@@ -425,8 +425,8 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 	if body.N == 0 {
 		body.N = 1
 	}
-	if body.N < 1 || body.N > 8 {
-		writeError(response, http.StatusBadRequest, "invalid_request_error", "n must be in [1,8]")
+	if body.N < 1 || body.N > maxCompletionChoices {
+		writeError(response, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("n must be in [1,%d]", maxCompletionChoices))
 		return
 	}
 	toolSelection, err := selectChatTools(body)

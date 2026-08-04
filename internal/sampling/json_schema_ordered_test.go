@@ -34,11 +34,12 @@ func TestOrderedJSONRejectsDuplicateKeysTrailingDataAndExcessDepth(t *testing.T)
 		[]byte(`{"a":1,"a":2}`),
 		[]byte(`{} true`),
 	}
-	deep := make([]byte, 0, 600)
-	for range 258 {
+	const excessDepth = maxJSONSchemaDepth + 2
+	deep := make([]byte, 0, 2*excessDepth)
+	for range excessDepth {
 		deep = append(deep, '[')
 	}
-	for range 258 {
+	for range excessDepth {
 		deep = append(deep, ']')
 	}
 	cases = append(cases, deep)

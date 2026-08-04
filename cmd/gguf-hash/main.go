@@ -17,6 +17,8 @@ const (
 	exitManifestMissingEntry = 3
 	exitManifestUnknownHash  = 4
 	exitManifestFileError    = 5
+	manifestScannerBuffer    = 4096
+	maxManifestLineBytes     = 1 << 20
 )
 
 type parameters struct {
@@ -236,7 +238,7 @@ func readManifest(path string) (manifestData, error) {
 		algorithms: make(map[string]bool),
 	}
 	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 4096), 1<<20)
+	scanner.Buffer(make([]byte, manifestScannerBuffer), maxManifestLineBytes)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) < 3 {

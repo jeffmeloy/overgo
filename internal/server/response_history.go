@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	defaultStoredResponses    = 128
-	defaultResponseStoreBytes = 64 << 20
+	DefaultStoredResponses    = 128
+	DefaultResponseStoreBytes = 64 << 20
 )
 
 type responseHistoryEntry struct {

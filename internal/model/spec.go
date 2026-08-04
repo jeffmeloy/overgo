@@ -9,6 +9,15 @@ import (
 	"llamacpp2go/internal/gguf"
 )
 
+const (
+	chameleonQKNormEpsilon      = 1e-5
+	deepSeek32BlockCount        = 62
+	deepSeek32LayerNormEpsilon  = 1e-6
+	deepSeekDenseIndexerContext = 1 << 20
+	deepSeekInitialFullIndexers = 2
+	deepSeekFullIndexerPeriod   = 4
+)
+
 // UnsupportedArchitectureError: identifies valid GGUF architecture that
 // runtime cannot execute yet
 type UnsupportedArchitectureError struct {
@@ -49,7 +58,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		RopeDisabled: profile.Has(ArchitectureRoPEDisabled)},
 	}
 	if architecture == "chameleon" {
-		spec.QKNormEpsilon = 1e-5
+		spec.QKNormEpsilon = chameleonQKNormEpsilon
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
 	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
@@ -100,7 +109,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		}
 	}
 	if architecture == "deepseek32" {
-		spec.LayerNormEpsilon = 1e-6
+		spec.LayerNormEpsilon = deepSeek32LayerNormEpsilon
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("DeepSeek 3.2 NextN/MTP layer count is invalid")
@@ -2168,13 +2177,14 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 		spec.IndexerFullLayers = make([]bool, spec.BlockCount)
-		if architecture == "deepseek32" || spec.ContextLength < 1048576 {
+		if architecture == "deepseek32" || spec.ContextLength < deepSeekDenseIndexerContext {
 			for index := range spec.IndexerFullLayers {
 				spec.IndexerFullLayers[index] = true
 			}
 		} else {
 			for index := range spec.IndexerFullLayers {
-				spec.IndexerFullLayers[index] = index < 2 || (index >= 2 && (index-2)%4 == 0)
+				spec.IndexerFullLayers[index] = index < deepSeekInitialFullIndexers ||
+					(index-deepSeekInitialFullIndexers)%deepSeekFullIndexerPeriod == 0
 			}
 		}
 		indexerTypesKey := prefix + "attention.indexer.types"
@@ -3411,7 +3421,8 @@ func (s Spec) validate() error {
 			return errors.New("DSA indexer metadata is invalid")
 		case len(s.IndexerFullLayers) != int(s.BlockCount) || !s.IndexerFullLayers[0]:
 			return errors.New("DSA indexer schedule is invalid")
-		case s.Architecture == "deepseek32" && (s.BlockCount != 62 || s.LayerNormEpsilon != 1e-6):
+		case s.Architecture == "deepseek32" &&
+			(s.BlockCount != deepSeek32BlockCount || s.LayerNormEpsilon != deepSeek32LayerNormEpsilon):
 			return errors.New("DeepSeek 3.2 layer metadata is invalid")
 		}
 		var sectionPairs int32

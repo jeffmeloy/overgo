@@ -9,7 +9,11 @@ import (
 	"strconv"
 )
 
-const maxJSONSchemaBytes = 1 << 20
+const (
+	maxJSONSchemaBytes      = 1 << 20
+	maxJSONSchemaDepth      = 256
+	maxJSONSchemaArrayItems = 1 << 20
+)
 
 type orderedJSONMember struct {
 	Name  string
@@ -69,8 +73,8 @@ func parseOrderedJSON(input []byte) (any, error) {
 }
 
 func decodeOrderedJSONValue(decoder *json.Decoder, depth int) (any, error) {
-	if depth > 256 {
-		return nil, errors.New("JSON schema exceeds 256 nesting levels")
+	if depth > maxJSONSchemaDepth {
+		return nil, fmt.Errorf("JSON schema exceeds %d nesting levels", maxJSONSchemaDepth)
 	}
 	token, err := decoder.Token()
 	if err != nil {
@@ -121,8 +125,8 @@ func decodeOrderedJSONValue(decoder *json.Decoder, depth int) (any, error) {
 				return nil, valueErr
 			}
 			array = append(array, value)
-			if len(array) > 1<<20 {
-				return nil, errors.New("JSON array exceeds 1048576 items")
+			if len(array) > maxJSONSchemaArrayItems {
+				return nil, fmt.Errorf("JSON array exceeds %d items", maxJSONSchemaArrayItems)
 			}
 		}
 		if end, endErr := decoder.Token(); endErr != nil || end != json.Delim(']') {

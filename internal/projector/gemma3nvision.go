@@ -15,8 +15,11 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-const gemma3nVisionProjectorType = "gemma3nv"
-const Gemma3nImagePad = "<image_soft_token>"
+const (
+	gemma3nVisionProjectorType = "gemma3nv"
+	gemma3nVisionNormEpsilon   = 1e-6
+	Gemma3nImagePad            = "<image_soft_token>"
+)
 
 type gemma3nVisionBlockKind uint8
 
@@ -412,9 +415,9 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	cur = builder.Reshape(cur, channels, cur.Shape.Dims[1]*cur.Shape.Dims[2])
 	cur = builder.Scale(cur, float32(math.Sqrt(float64(channels))))
 	softNorm := builder.Reshape(weight("mm.soft_emb_norm.weight"), channels)
-	cur = builder.WeightedRMSNorm(cur, softNorm, 1e-6)
+	cur = builder.WeightedRMSNorm(cur, softNorm, gemma3nVisionNormEpsilon)
 	cur = builder.MulMat(weight("mm.input_projection.weight"), cur)
-	return builder.RMSNorm(cur, 1e-6)
+	return builder.RMSNorm(cur, gemma3nVisionNormEpsilon)
 }
 
 func (r *Gemma3nVisionRunner) buildAttentionGraph(
@@ -480,7 +483,7 @@ func gemma3nSpatialNorm(builder *tensor.Builder, input, weight *tensor.Tensor) *
 	channels, width, height := input.Shape.Dims[0], input.Shape.Dims[1], input.Shape.Dims[2]
 	flat := builder.Reshape(input, channels, width*height)
 	normWeight := builder.Reshape(weight, channels)
-	return builder.Reshape(builder.WeightedRMSNorm(flat, normWeight, 1e-6), channels, width, height)
+	return builder.Reshape(builder.WeightedRMSNorm(flat, normWeight, gemma3nVisionNormEpsilon), channels, width, height)
 }
 
 func gemma3nChannelScale(builder *tensor.Builder, input, weight *tensor.Tensor) *tensor.Tensor {

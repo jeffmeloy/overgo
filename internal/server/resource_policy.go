@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	defaultResponseFileBytes = 16 << 20
-	maxResourcePolicyBytes   = 1 << 20
+	responseFilePolicySchemaVersion = 1
+	defaultResponseFileBytes        = 16 << 20
+	maxResourcePolicyBytes          = 1 << 20
+	maxResponseFileIDBytes          = 120
 )
 
 type ResponseFile struct {
@@ -50,7 +52,9 @@ type responseFileRecord struct {
 	MediaType string `yaml:"media_type"`
 }
 
-var responseFileIDPattern = regexp.MustCompile(`^file_[A-Za-z0-9._-]{1,120}$`)
+var responseFileIDPattern = regexp.MustCompile(
+	fmt.Sprintf(`^file_[A-Za-z0-9._-]{1,%d}$`, maxResponseFileIDBytes),
+)
 
 func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	data, err := readBoundedFile(path, maxResourcePolicyBytes, false)
@@ -61,7 +65,7 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	if err := decodeStrictYAML(data, &policy, "response resource policy must contain exactly one YAML document"); err != nil {
 		return nil, fmt.Errorf("decode response resource policy: %w", err)
 	}
-	if policy.Schema != 1 {
+	if policy.Schema != responseFilePolicySchemaVersion {
 		return nil, fmt.Errorf("response resource policy schema %d is unsupported", policy.Schema)
 	}
 	if policy.ResponseTools.Hosted == "" {

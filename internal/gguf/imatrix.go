@@ -15,6 +15,12 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
+const (
+	maxLegacyIMatrixEntries      = 1 << 20
+	maxLegacyIMatrixNameBytes    = 1 << 20
+	maxLegacyIMatrixDatasetBytes = 1 << 20
+)
+
 // ImportanceMatrix: normalized tensor-column importance weights.
 type ImportanceMatrix struct {
 	Entries    map[string][]float32
@@ -168,13 +174,13 @@ func loadLegacyImportanceMatrix(path string) (*ImportanceMatrix, error) {
 		return value, err
 	}
 	entryCount, err := readInt32()
-	if err != nil || entryCount < 1 || entryCount > 1<<20 {
+	if err != nil || entryCount < 1 || entryCount > maxLegacyIMatrixEntries {
 		return nil, errors.New("legacy importance matrix entry count is invalid")
 	}
 	result := &ImportanceMatrix{Entries: make(map[string][]float32, entryCount), Legacy: true}
 	for entryIndex := int32(0); entryIndex < entryCount; entryIndex++ {
 		nameLength, err := readInt32()
-		if err != nil || nameLength < 1 || nameLength > 1<<20 {
+		if err != nil || nameLength < 1 || nameLength > maxLegacyIMatrixNameBytes {
 			return nil, fmt.Errorf("legacy importance entry %d name length is invalid", entryIndex)
 		}
 		nameBytes := make([]byte, int(nameLength))
@@ -212,7 +218,7 @@ func loadLegacyImportanceMatrix(path string) (*ImportanceMatrix, error) {
 		if trailingErr == nil && calls >= 0 {
 			result.ChunkCount = uint32(calls)
 			length, lengthErr := readInt32()
-			if lengthErr == nil && length > 0 && length <= 1<<20 {
+			if lengthErr == nil && length > 0 && length <= maxLegacyIMatrixDatasetBytes {
 				dataset := make([]byte, int(length))
 				if _, datasetErr := io.ReadFull(reader, dataset); datasetErr == nil {
 					result.Datasets = []string{string(dataset)}

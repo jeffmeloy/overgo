@@ -18,7 +18,7 @@ func (s Spec) validateAttentionFamilies() error {
 			}
 			sectionPairs += section
 		}
-		if s.RopeDimensionCount == 0 || s.RopeDimensionCount%2 != 0 ||
+		if !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, 2) ||
 			s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || sectionPairs == 0 ||
 			sectionPairs > int32(s.RopeDimensionCount/2) {
 			return fmt.Errorf("%s MRoPE metadata is invalid", s.Architecture)
@@ -230,7 +230,7 @@ func (s Spec) validateAttentionFamilies() error {
 		switch {
 		case s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength:
 			return errors.New("ModernBERT requires full-head matching key/value attention")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
+		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, 2):
 			return errors.New("ModernBERT rotary dimension count is invalid")
 		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0):
 			return errors.New("ModernBERT sliding attention metadata is invalid")
@@ -240,7 +240,7 @@ func (s Spec) validateAttentionFamilies() error {
 		switch {
 		case s.KeyLength != s.ValueLength:
 			return errors.New("Gemma embedding requires matching key/value head widths")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
+		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, 2):
 			return errors.New("Gemma embedding rotary dimension count is invalid")
 		case s.SlidingWindow == 0 || s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0:
 			return errors.New("Gemma embedding sliding attention metadata is invalid")

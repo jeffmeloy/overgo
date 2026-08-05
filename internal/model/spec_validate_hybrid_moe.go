@@ -41,39 +41,29 @@ func (s Spec) validateHybridMoEFamilies() error {
 		}
 	}
 	if (s.Architecture == "qwen3next" || s.Architecture == "qwen35moe") &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
-			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || s.SharedExpertFF == 0 ||
+			s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen3.5-MoE expert metadata is invalid")
 	}
 	if (s.Architecture == "qwen3moe" || s.Architecture == "qwen3vlmoe" || s.Architecture == "rnd1") &&
-		(!validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
-			s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "grovemoe" &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertChunkFeedForward == 0 ||
+		(!validExpertDimensions(s) || s.ExpertChunkFeedForward == 0 ||
 			s.ExpertsPerGroup == 0 || s.ExpertCount%s.ExpertsPerGroup != 0 ||
-			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0) || math.IsNaN(float64(s.ExpertGroupScale)) ||
-			math.IsInf(float64(s.ExpertGroupScale), 0)) {
+			s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale) || !finite(s.ExpertGroupScale)) {
 		return errors.New("GroveMoE expert metadata is invalid")
 	}
 	if s.Architecture == "mimo2" {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale == 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !validExpertDimensions(s) || s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale):
 			return errors.New("MiMo2 expert metadata is invalid")
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
 			return errors.New("MiMo2 rotary dimension count is invalid")
 		case s.SlidingWindow == 0 || (len(s.SlidingLayers) == 0 && s.SlidingPattern == 0) || s.RopeFrequencySWA <= 0:
 			return errors.New("MiMo2 sliding-attention metadata is invalid")
-		case math.IsNaN(float64(s.AttentionValueScale)) || math.IsInf(float64(s.AttentionValueScale), 0):
+		case !finite(s.AttentionValueScale):
 			return errors.New("MiMo2 attention value scale is invalid")
 		}
 		for block := uint32(0); block < s.BlockCount; block++ {
@@ -86,9 +76,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 	if s.Architecture == "step35" {
 		layerCount := int(s.BlockCount + s.NextNPredictLayers)
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("Step3.5 expert metadata is invalid")
 		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
 			return errors.New("Step3.5 expert routing function is unsupported")
@@ -112,29 +100,22 @@ func (s Spec) validateHybridMoEFamilies() error {
 			for _, limit := range []float32{
 				s.LayerExpertSwiGLUClamp(block), s.LayerSharedSwiGLUClampLimit(block),
 			} {
-				if limit < 0 || math.IsNaN(float64(limit)) || math.IsInf(float64(limit), 0) {
+				if !nonNegativeFinite(limit) {
 					return errors.New("Step3.5 SwiGLU clamp is invalid")
 				}
 			}
 		}
 	}
 	if s.Architecture == "llada-moe" &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("LLaDA-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "qwen2moe" &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
-			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || s.SharedExpertFF == 0 || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen2-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "arctic" &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Arctic expert metadata is invalid")
 	}
 	if s.Architecture == "bailingmoe" {

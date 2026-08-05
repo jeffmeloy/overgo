@@ -481,113 +481,24 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 			CatalogFamily: ArchitectureFamilyAttention,
 		}
 	}
-	update := func(names []string, apply func(*ArchitectureProfile)) {
-		for _, name := range names {
-			profile, ok := registry[name]
-			if !ok {
-				panic("unknown architecture profile: " + name)
-			}
-			apply(&profile)
-			registry[name] = profile
-		}
-	}
-	setCapabilities := func(capabilities ArchitectureCapability, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Capabilities |= capabilities })
-	}
-	setFamily := func(family ArchitectureFamily, names ...string) {
-		update(names, func(profile *ArchitectureProfile) {
-			profile.Family = family
-			profile.GraphFamily = family
-			profile.CatalogFamily = family
-		})
-	}
-	setDraftKind := func(kind DraftKind, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.DraftKind = kind })
-	}
-	setForward := func(policy ForwardPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Forward = policy })
-	}
-	setOutputNorm := func(policy OutputNormPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.OutputNorm = policy })
-	}
-	setNormalization := func(policy NormalizationPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Normalization = policy })
-	}
-	setFeedForward := func(policy FeedForwardPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.FeedForward = policy })
-	}
-	setOverrides := func(policy EmbeddingOverridePolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Overrides = policy })
-	}
-	setDeepstack := func(policy DeepstackPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Deepstack = policy })
-	}
-	setAttentionBlocks := func(policy AttentionBlockPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.AttentionBlocks = policy })
-	}
-	setAuxiliary := func(policy AuxiliaryFlow, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Auxiliary = policy })
-	}
-	setTemperature := func(policy AttentionTemperaturePolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Temperature = policy })
-	}
-	setPostNormLayout := func(policy PostNormLayoutPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.PostNormLayout = policy })
-	}
-	setFFNNormLayout := func(policy FeedForwardNormLayoutPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.FFNNormLayout = policy })
-	}
-	setBlock := func(policy BlockPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Block = policy })
-	}
-	setRecurrentBlock := func(policy BlockPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.RecurrentBlock = policy })
-	}
-	setCache := func(policy CachePolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Cache = policy })
-	}
-	setRecurrentCache := func(policy CachePolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.RecurrentCache = policy })
-	}
-	setCacheFallback := func(policy CacheFallbackPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.CacheFallback = policy })
-	}
-	setDenseGraph := func(policy DenseGraphPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.DenseGraph = policy })
-	}
-	setExperts := func(policy ExpertPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Experts = policy })
-	}
-	updateExperts := func(names []string, apply func(*ExpertPolicy)) {
-		update(names, func(profile *ArchitectureProfile) { apply(&profile.Experts) })
-	}
-	setCadence := func(policy LayerCadencePolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Cadence = policy })
-	}
-	setExpertCatalog := func(policy expertCatalogPolicy, names ...string) {
-		updateExperts(names, func(experts *ExpertPolicy) { experts.Catalog = policy })
-	}
-	setMetadataShape := func(policy MetadataShapePolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.Metadata = policy })
-	}
-	setEncoderGraph := func(kind encoderGraphKind, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.EncoderGraph.Kind = kind })
-	}
-	setMLAVariant := func(kind mlaVariantPolicy, names ...string) {
-		update(names, func(profile *ArchitectureProfile) { profile.MLAVariant = kind })
-	}
-	updateDenseStages := func(names []string, apply func(*DenseStagePolicy)) {
-		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseStages) })
-	}
-	updateDenseWeights := func(names []string, apply func(*DenseWeightPolicy)) {
-		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseWeights) })
-	}
-	updateRotary := func(names []string, apply func(*RotaryPolicy)) {
-		update(names, func(profile *ArchitectureProfile) { apply(&profile.Rotary) })
-	}
-	updateAttentionGraph := func(names []string, apply func(*AttentionGraphPolicy)) {
-		update(names, func(profile *ArchitectureProfile) { apply(&profile.AttentionGraph) })
-	}
+	editor := architectureRegistryEditor(registry)
+	update := editor.update
+	setCapabilities, setFamily := editor.setCapabilities, editor.setFamily
+	setDraftKind, setForward := editor.setDraftKind, editor.setForward
+	setOutputNorm, setNormalization := editor.setOutputNorm, editor.setNormalization
+	setFeedForward, setOverrides := editor.setFeedForward, editor.setOverrides
+	setDeepstack, setAttentionBlocks := editor.setDeepstack, editor.setAttentionBlocks
+	setAuxiliary, setTemperature := editor.setAuxiliary, editor.setTemperature
+	setPostNormLayout, setFFNNormLayout := editor.setPostNormLayout, editor.setFFNNormLayout
+	setBlock, setRecurrentBlock := editor.setBlock, editor.setRecurrentBlock
+	setCache, setRecurrentCache := editor.setCache, editor.setRecurrentCache
+	setCacheFallback, setDenseGraph := editor.setCacheFallback, editor.setDenseGraph
+	setExperts, updateExperts := editor.setExperts, editor.updateExperts
+	setCadence, setExpertCatalog := editor.setCadence, editor.setExpertCatalog
+	setMetadataShape, setEncoderGraph := editor.setMetadataShape, editor.setEncoderGraph
+	setMLAVariant := editor.setMLAVariant
+	updateDenseStages, updateDenseWeights := editor.updateDenseStages, editor.updateDenseWeights
+	updateRotary, updateAttentionGraph := editor.updateRotary, editor.updateAttentionGraph
 
 	setDraftKind(DraftQwen35MTP, "qwen35", "qwen35moe")
 	setDraftKind(DraftStep35MTP, "step35")

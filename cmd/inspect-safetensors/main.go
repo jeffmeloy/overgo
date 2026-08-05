@@ -71,7 +71,7 @@ func buildReport(repository *hfrepo.Repository, includeTensors, validateRuntime 
 		}
 	}
 	if validateRuntime {
-		spec, err := hfgguf.ValidateDenseRepository(repository)
+		spec, err := hfgguf.ValidateRepository(repository)
 		if err != nil {
 			return report{}, err
 		}

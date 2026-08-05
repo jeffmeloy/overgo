@@ -18,7 +18,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Area | State | Current boundary |
 | --- | --- | --- |
 | GGUF | Implemented | Bounded v2/v3 read/write, split discovery/creation/merge, hashing, streaming quantization |
-| Safetensors | Implemented ingestion | Bounded Hugging Face config, shard index, lazy tensor catalog, and repository inspection; standard Llama/Qwen2 metadata, catalogs, and payload streams bridge to GGUF runtime contracts |
+| Safetensors | Implemented ingestion | Bounded Hugging Face config, shard index, lazy tensor catalog, and repository inspection; Llama, Qwen2, and Qwen 3.5 text/recurrent/MTP metadata, catalogs, and payload streams bridge to GGUF runtime contracts |
 | Tokenization | Implemented | BPE, SPM, WordPiece, and UGM families with pinned oracle corpora |
 | Tensor graph | Implemented, expanding | Reference and CUDA execution for dense, MoE, recurrent, diffusion, encoder, and multimodal primitives |
 | Model runtime | Experimental breadth | Architecture-specific metadata, catalogs, graphs, cache state, and optional real-model oracles |
@@ -32,6 +32,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 - Safetensors repository ingestion now shares one bounded shard/index reader across inspection and Gemma 4 conversion; 14 local model repositories pass header-only validation.
 - Standard Llama and Qwen2 Safetensors names/shapes translate to GGUF runtime catalogs; Qwen2.5, Carbon, and MiniCPM5 local repositories pass full spec/weight validation, with shared streaming F16/BF16 vector promotion.
+- Qwen 3.5 Safetensors text, recurrent, and MTP tensors translate without repacking; the local 4B repository passes full runtime spec/weight validation, with its singleton convolution axis normalized and vision tensors kept outside the language catalog.
 - Token-row validation and positions, fixed-run audio/video prompt assembly, incremental tool-delta routing, and SSE/JSON transport now use shared inference, projector, and protocol components.
 - Raw and F32 CUDA weights now share one transactional tensor owner; Mamba2-family recurrent tensors share one requirement schema; Q/K and attention-gate stages use single typed applicators; and MTP families share admission plus appended dense-block coordination.
 - Dense weight requirements, routed/shared expert composition, Q/K preprocessing, query scaling, attention-output stages, residual flow, and dense leaf selection now compile into `LayerPlan`; scheduler dispatch and dense execution share one typed cached-block context, and remaining production leaf attention/RoPE calls use typed option contracts.

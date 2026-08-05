@@ -137,16 +137,27 @@ func denseTensorCatalog(source *safetensors.Source) ([]gguf.TensorInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	return mappedTensorCatalog(mappings)
+}
+
+type tensorMapping struct {
+	name   string
+	tensor safetensors.Tensor
+	shape  []uint64
+}
+
+func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 	tensors := make([]gguf.TensorInfo, 0, len(mappings))
 	for _, mapping := range mappings {
 		tensor, name := mapping.tensor, mapping.name
-		storage, ok := ggufStorage(tensor.DType, len(tensor.Shape) == 1)
+		shape := mapping.sourceShape()
+		storage, ok := ggufStorage(tensor.DType, len(shape) == 1)
 		if !ok {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
 		}
-		info := gguf.TensorInfo{Name: name, Type: storage, Dimensions: uint32(len(tensor.Shape))}
-		for index, dimension := range tensor.Shape {
-			info.Shape[len(tensor.Shape)-1-index] = dimension
+		info := gguf.TensorInfo{Name: name, Type: storage, Dimensions: uint32(len(shape))}
+		for index, dimension := range shape {
+			info.Shape[len(shape)-1-index] = dimension
 		}
 		traits, _ := storage.Traits()
 		elements := tensor.Elements()
@@ -159,13 +170,15 @@ func denseTensorCatalog(source *safetensors.Source) ([]gguf.TensorInfo, error) {
 	return tensors, nil
 }
 
-type denseTensorMapping struct {
-	name   string
-	tensor safetensors.Tensor
+func (m tensorMapping) sourceShape() []uint64 {
+	if m.shape != nil {
+		return m.shape
+	}
+	return m.tensor.Shape
 }
 
-func denseTensorMappings(source *safetensors.Source) ([]denseTensorMapping, error) {
-	mappings := make([]denseTensorMapping, 0, len(source.Tensors))
+func denseTensorMappings(source *safetensors.Source) ([]tensorMapping, error) {
+	mappings := make([]tensorMapping, 0, len(source.Tensors))
 	seen := make(map[string]string, len(source.Tensors))
 	for _, sourceName := range source.Names() {
 		tensor := source.Tensors[sourceName]
@@ -183,7 +196,7 @@ func denseTensorMappings(source *safetensors.Source) ([]denseTensorMapping, erro
 		if len(tensor.Shape) == 0 || len(tensor.Shape) > gguf.MaxDimensions {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q rank %d is unsupported", sourceName, len(tensor.Shape))
 		}
-		mappings = append(mappings, denseTensorMapping{name: name, tensor: tensor})
+		mappings = append(mappings, tensorMapping{name: name, tensor: tensor})
 	}
 	return mappings, nil
 }
@@ -197,26 +210,32 @@ func DenseTensorData(repository *hfrepo.Repository) ([]gguf.TensorData, error) {
 	if err != nil {
 		return nil, err
 	}
+	return mappedTensorData(mappings)
+}
+
+func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(mappings))
 	for _, mapping := range mappings {
 		tensor := mapping.tensor
-		storage, ok := ggufStorage(tensor.DType, len(tensor.Shape) == 1)
+		shape := mapping.sourceShape()
+		storage, ok := ggufStorage(tensor.DType, len(shape) == 1)
 		if !ok {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
 		}
 		var reader io.Reader = tensor.Reader()
-		if len(tensor.Shape) == 1 && tensor.DType != "F32" {
-			reader, err = safetensors.F32Reader(tensor)
+		if len(shape) == 1 && tensor.DType != "F32" {
+			converted, err := safetensors.F32Reader(tensor)
 			if err != nil {
 				return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
 			}
+			reader = converted
 		}
-		shape := make([]uint64, len(tensor.Shape))
-		for index, dimension := range tensor.Shape {
-			shape[len(tensor.Shape)-1-index] = dimension
+		ggmlShape := make([]uint64, len(shape))
+		for index, dimension := range shape {
+			ggmlShape[len(shape)-1-index] = dimension
 		}
 		tensors = append(tensors, gguf.TensorData{
-			Name: mapping.name, Shape: shape, Type: storage, Data: reader,
+			Name: mapping.name, Shape: ggmlShape, Type: storage, Data: reader,
 		})
 	}
 	return tensors, nil

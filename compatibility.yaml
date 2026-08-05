@@ -25,6 +25,14 @@ claims:
         contains: "func ValidateDenseRepository("
       - path: internal/hfgguf/catalog_test.go
         contains: "func TestValidateDenseRepositoryUsesRuntimeCatalog("
+  - id: safetensors-gguf-qwen35-bridge
+    status: implemented
+    summary: Qwen 3.5 Safetensors text, recurrent, and MTP metadata, names, shapes, and payload streams bridge to existing GGUF runtime catalogs.
+    evidence:
+      - path: internal/hfgguf/qwen35.go
+        contains: "func ValidateQwen35Repository("
+      - path: internal/hfgguf/catalog_test.go
+        contains: "func TestValidateQwen35RepositoryUsesRuntimeCatalog("
   - id: bounded-gguf-parsing
     status: implemented
     summary: GGUF parsing applies allocation, count, alignment, and split limits.

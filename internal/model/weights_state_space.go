@@ -17,7 +17,8 @@ func loadStateSpaceLayer(
 	queryLength, keyLength, valueLength, attentionOutputLength uint64,
 ) (bool, error) {
 	var err error
-	if spec.Architecture == "jamba" && spec.IsRecurrentLayer(block) {
+	plan := spec.stateSpacePlan(block)
+	if plan.kind == stateSpaceJamba {
 		layer.Recurrent = true
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
@@ -35,7 +36,7 @@ func loadStateSpaceLayer(
 		}); itemErr != nil {
 			return true, itemErr
 		}
-	} else if spec.Architecture == "plamo2" && spec.IsRecurrentLayer(block) {
+	} else if plan.kind == stateSpacePLaMo2 {
 		layer.Recurrent = true
 		dtDimension := plamo2TimeStepWidth(spec.EmbeddingLength)
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
@@ -53,12 +54,12 @@ func loadStateSpaceLayer(
 		}); itemErr != nil {
 			return true, itemErr
 		}
-	} else if spec.Architecture == "mamba" {
+	} else if plan.kind == stateSpaceMamba {
 		layer.Recurrent = true
 		if itemErr := loadTensorRequirements(required, tensors, prefix, mambaTensorRequirements(spec, layer)); itemErr != nil {
 			return true, itemErr
 		}
-	} else if spec.Architecture == "falcon-h1" {
+	} else if plan.kind == stateSpaceFalconH1 {
 		convDimension := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 		if itemErr := loadTensorRequirements(
@@ -111,8 +112,7 @@ func loadStateSpaceLayer(
 		); err != nil {
 			return true, err
 		}
-	} else if spec.Architecture == "mamba2" ||
-		(spec.Architecture == "granitehybrid" && spec.IsRecurrentLayer(block)) {
+	} else if plan.kind == stateSpaceMamba2 || plan.kind == stateSpaceGraniteHybrid {
 		layer.Recurrent = true
 		convDimension := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
@@ -126,15 +126,15 @@ func loadStateSpaceLayer(
 				return true, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
 			}
 			layer.SSMConv1DBias = &item
-		} else if spec.Architecture == "mamba2" {
+		} else if plan.kind == stateSpaceMamba2 {
 			return true, fmt.Errorf("required tensor %q is missing", prefix+"ssm_conv1d.bias")
 		}
-	} else if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe" {
-		layer.Recurrent = spec.IsRecurrentLayer(block)
+	} else if plan.kind == stateSpaceQwenGDN {
+		layer.Recurrent = plan.recurrent
 		if layer.Recurrent {
 			keyDimension := uint64(spec.SSMStateSize) * uint64(spec.SSMGroupCount)
 			valueDimension := uint64(spec.SSMInnerSize)
-			if spec.Architecture == "qwen3next" {
+			if plan.qwen == qwenGDNRepeatInterleave {
 				if _, ok := tensors[prefix+"attn_qkv.weight"]; ok {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight", uint64(spec.EmbeddingLength),
@@ -195,7 +195,7 @@ func loadStateSpaceLayer(
 			}); itemErr != nil {
 				return true, itemErr
 			}
-			if spec.Architecture != "qwen3next" {
+			if plan.qwen != qwenGDNRepeatInterleave {
 				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 					requiredTensorPointer("ssm_beta.weight", &layer.SSMBeta, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
 					requiredTensorPointer("ssm_alpha.weight", &layer.SSMAlpha, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
@@ -233,7 +233,7 @@ func loadStateSpaceLayer(
 				return true, err
 			}
 		}
-	} else if (spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && spec.IsRecurrentLayer(block) {
+	} else if plan.kind == stateSpaceLFM2 {
 		layer.Recurrent = true
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("shortconv.conv.weight", &layer.ShortConvKernel, uint64(spec.ShortConvCacheLength), uint64(spec.EmbeddingLength)),

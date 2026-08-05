@@ -17,7 +17,8 @@ func BuildMambaBlockCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Mamba block input/state is nil")
 	}
-	if (spec.Architecture != "mamba" && spec.Architecture != "jamba") || input.Shape.Rank != 2 ||
+	profile := spec.Profile()
+	if (profile.Block != BlockMamba && profile.RecurrentBlock != BlockJamba) || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Mamba block architecture/input is invalid")
 	}
@@ -36,7 +37,7 @@ func BuildMambaBlockCached(
 	if err := requireBlockWeights("Mamba block", required); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.Architecture == "jamba" {
+	if profile.RecurrentBlock == BlockJamba {
 		if err := requireBlockWeights("Jamba block", map[string]*tensor.Tensor{
 			"SSM time-step norm": weights.SSMTimeStepNorm,
 			"SSM B norm":         weights.SSMBNorm,
@@ -78,7 +79,7 @@ func BuildMambaBlockCached(
 		dt = builder.RMSNorm(dt, spec.RMSNormEpsilon)
 		beta = builder.RMSNorm(beta, spec.RMSNormEpsilon)
 		c = builder.RMSNorm(c, spec.RMSNormEpsilon)
-	} else if spec.Architecture == "jamba" {
+	} else if profile.RecurrentBlock == BlockJamba {
 		dt = builder.WeightedRMSNorm(dt, weights.SSMTimeStepNorm, spec.RMSNormEpsilon)
 		beta = builder.WeightedRMSNorm(beta, weights.SSMBNorm, spec.RMSNormEpsilon)
 		c = builder.WeightedRMSNorm(c, weights.SSMCNorm, spec.RMSNormEpsilon)
@@ -112,7 +113,7 @@ func BuildJambaRecurrentBlockCached(
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "jamba" {
+	if spec.Profile().RecurrentBlock != BlockJamba {
 		return DenseBlockResult{}, errors.New("Jamba recurrent block architecture is invalid")
 	}
 	result, err := BuildMambaBlockCached(builder, input, spec, weights, convState, ssmState)
@@ -157,8 +158,9 @@ func buildMamba2MixerCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Mamba2 block input/state is nil")
 	}
-	if (spec.Architecture != "mamba2" && spec.Architecture != "granitehybrid" && spec.Architecture != "falcon-h1" &&
-		spec.Architecture != "nemotron_h" && spec.Architecture != "nemotron_h_moe") || input.Shape.Rank != 2 ||
+	profile := spec.Profile()
+	if (profile.Block != BlockMamba2 && profile.RecurrentBlock != BlockGraniteHybrid &&
+		profile.Block != BlockFalconH1 && profile.Block != BlockNemotronH) || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Mamba2 mixer architecture/input is invalid")
 	}
@@ -171,7 +173,7 @@ func buildMamba2MixerCached(
 		"SSM D":              weights.SSMD,
 		"SSM output":         weights.SSMOutput,
 	}
-	if spec.Architecture != "falcon-h1" {
+	if profile.Block != BlockFalconH1 {
 		required["SSM norm"] = weights.SSMNorm
 	}
 	if err := requireBlockWeights("Mamba2 block", required); err != nil {
@@ -251,7 +253,7 @@ func BuildFalconH1BlockCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Falcon-H1 block input/state is nil")
 	}
-	if spec.Architecture != "falcon-h1" || input.Shape.Rank != 2 ||
+	if spec.Profile().Block != BlockFalconH1 || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Falcon-H1 block architecture/input is invalid")
 	}
@@ -369,7 +371,7 @@ func BuildMamba2BlockCached(
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "mamba2" {
+	if spec.Profile().Block != BlockMamba2 {
 		return DenseBlockResult{}, errors.New("Mamba2 block architecture is invalid")
 	}
 	if weights.SSMConv1DBias == nil {
@@ -393,7 +395,7 @@ func BuildGraniteHybridRecurrentBlockCached(
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "granitehybrid" {
+	if spec.Profile().RecurrentBlock != BlockGraniteHybrid {
 		return DenseBlockResult{}, errors.New("Granite Hybrid recurrent block architecture is invalid")
 	}
 	result, err := buildMamba2MixerCached(builder, input, spec, weights, convState, ssmState)
@@ -460,7 +462,7 @@ func BuildPLaMo2RecurrentBlockCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("PLaMo2 block input/state is nil")
 	}
-	if spec.Architecture != "plamo2" || input.Shape.Rank != 2 ||
+	if spec.Profile().RecurrentBlock != BlockPLaMo2 || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("PLaMo2 block architecture/input is invalid")
 	}
@@ -556,7 +558,7 @@ func BuildNemotronHBlockCached(
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil || input.Shape.Rank != 2 ||
-		(spec.Architecture != "nemotron_h" && spec.Architecture != "nemotron_h_moe") {
+		spec.Profile().Block != BlockNemotronH {
 		return DenseBlockResult{}, errors.New("Nemotron-H block architecture/input is invalid")
 	}
 	if weights.AttentionNorm == nil {
@@ -635,7 +637,7 @@ func BuildNemotronHBlockCached(
 		cacheValue = builder.Concat(pastValue, sentinel, 2)
 	}
 	var feedForward *tensor.Tensor
-	if spec.Architecture == "nemotron_h_moe" {
+	if spec.Profile().Has(ArchitectureMoE) {
 		if err := requireBlockWeights("Nemotron-H MoE", map[string]*tensor.Tensor{
 			"router": weights.FeedForwardRouter, "expert bias": weights.FeedForwardExpertBias,
 			"expert up": weights.FeedForwardUpExperts, "expert down": weights.FeedForwardDownExperts,

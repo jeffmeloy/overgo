@@ -20,6 +20,31 @@ type specReadState struct {
 	llamaMoE           bool
 }
 
+type metadataCardinality uint8
+
+const (
+	metadataScalar metadataCardinality = iota
+	metadataLayer
+	metadataLayerCompatible
+	metadataFixedOne
+	metadataFixedZero
+	metadataMirrorHeads
+	metadataMirrorHeadsOptional
+	metadataHybridLayers
+)
+
+// MetadataShapePolicy: base FFN and attention metadata layout.
+type MetadataShapePolicy struct {
+	FeedForward               metadataCardinality
+	Heads                     metadataCardinality
+	KVHeads                   metadataCardinality
+	PreserveLayerKV           bool
+	InferRecurrentFromZeroFFN bool
+	GroupNorm                 bool
+	MLAHeadLengths            bool
+	SWAHeadLengths            bool
+}
+
 func newSpecMetadata(file *gguf.File) (specMetadata, error) {
 	if file == nil {
 		return specMetadata{}, errors.New("model file is nil")
@@ -95,6 +120,137 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 		return specReadState{}, err
 	}
 	return state, nil
+}
+
+func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error {
+	values, prefix := m.values, m.prefix
+	policy := m.profile.Metadata
+	var err error
+	switch policy.FeedForward {
+	case metadataLayer:
+		spec.LayerFeedForward, err = requiredLayerUint32(values, prefix+"feed_forward_length", spec.BlockCount)
+	case metadataLayerCompatible:
+		spec.LayerFeedForward, err = requiredLayerUint32Compatible(values, prefix+"feed_forward_length", spec.BlockCount)
+	default:
+		spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32)
+	}
+	if err != nil {
+		return err
+	}
+	if len(spec.LayerFeedForward) > 0 {
+		spec.FeedForwardLength = firstPositive(spec.LayerFeedForward)
+	}
+	switch policy.Heads {
+	case metadataFixedOne:
+		spec.HeadCount = 1
+	case metadataLayer:
+		spec.LayerHeadCounts, err = requiredLayerUint32(values, prefix+"attention.head_count", spec.BlockCount)
+	case metadataLayerCompatible:
+		spec.LayerHeadCounts, err = requiredLayerUint32Compatible(values, prefix+"attention.head_count", state.declaredBlockCount)
+	default:
+		spec.HeadCount, err = required[uint32](values, prefix+"attention.head_count", gguf.ValueTypeUint32)
+	}
+	if err != nil {
+		return err
+	}
+	if len(spec.LayerHeadCounts) > 0 {
+		spec.HeadCount = firstPositive(spec.LayerHeadCounts)
+	}
+	switch policy.KVHeads {
+	case metadataFixedOne:
+		spec.HeadCountKV = 1
+	case metadataFixedZero:
+		spec.HeadCountKV = 0
+	case metadataMirrorHeads, metadataMirrorHeadsOptional:
+		spec.HeadCountKV = spec.HeadCount
+		if policy.KVHeads == metadataMirrorHeadsOptional {
+			if value, ok := optional[uint32](values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32); ok {
+				spec.HeadCountKV = value
+			}
+		}
+	case metadataLayer:
+		spec.LayerKVHeadCounts, err = requiredLayerUint32(values, prefix+"attention.head_count_kv", state.declaredBlockCount)
+		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
+	case metadataLayerCompatible:
+		spec.LayerKVHeadCounts, err = requiredLayerUint32Compatible(values, prefix+"attention.head_count_kv", state.declaredBlockCount)
+		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
+		if policy.InferRecurrentFromZeroFFN && err == nil {
+			spec.RecurrentLayers = make([]bool, spec.BlockCount)
+			for block := uint32(0); block < spec.BlockCount; block++ {
+				spec.RecurrentLayers[block] = spec.LayerKVHeadCounts[block] == 0 && spec.LayerFeedForward[block] == 0
+			}
+		}
+	case metadataHybridLayers:
+		var counts []uint32
+		counts, err = requiredArray[uint32](values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32)
+		if err == nil && len(counts) != int(spec.BlockCount) {
+			return fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.head_count_kv", len(counts), spec.BlockCount)
+		}
+		if err == nil {
+			spec.RecurrentLayers = make([]bool, len(counts))
+			if policy.PreserveLayerKV {
+				spec.LayerKVHeadCounts = slices.Clone(counts)
+			}
+			for index, count := range counts {
+				if count == 0 {
+					spec.RecurrentLayers[index] = true
+					continue
+				}
+				if spec.HeadCountKV == 0 {
+					spec.HeadCountKV = count
+				} else if spec.HeadCountKV != count {
+					return errors.New("hybrid attention layers use differing positive KV head counts")
+				}
+			}
+		}
+	default:
+		spec.HeadCountKV, err = required[uint32](values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32)
+	}
+	if err != nil {
+		return err
+	}
+	if policy.GroupNorm {
+		if spec.GroupNormEpsilon, err = required[float32](values, prefix+"attention.group_norm_epsilon", gguf.ValueTypeFloat32); err != nil {
+			return err
+		}
+		if spec.GroupNormGroups, err = required[uint32](values, prefix+"attention.group_norm_groups", gguf.ValueTypeUint32); err != nil {
+			return err
+		}
+	}
+	spec.KeyLength, _ = optional[uint32](values, prefix+"attention.key_length", gguf.ValueTypeUint32)
+	spec.ValueLength, _ = optional[uint32](values, prefix+"attention.value_length", gguf.ValueTypeUint32)
+	if policy.GroupNorm {
+		spec.KeyLength, spec.ValueLength = spec.PosNetEmbeddingLength, spec.PosNetEmbeddingLength
+	}
+	if policy.MLAHeadLengths {
+		if value, ok := optional[uint32](values, prefix+"attention.key_length_mla", gguf.ValueTypeUint32); ok {
+			spec.KeyLength = value
+		}
+		if value, ok := optional[uint32](values, prefix+"attention.value_length_mla", gguf.ValueTypeUint32); ok {
+			spec.ValueLength = value
+		}
+	}
+	if spec.HeadCount > 0 && (spec.KeyLength == 0 || spec.ValueLength == 0) {
+		if spec.EmbeddingLength%spec.HeadCount != 0 {
+			return errors.New("embedding length is not divisible by attention head count")
+		}
+		headLength := spec.EmbeddingLength / spec.HeadCount
+		if spec.KeyLength == 0 {
+			spec.KeyLength = headLength
+		}
+		if spec.ValueLength == 0 {
+			spec.ValueLength = headLength
+		}
+	}
+	if policy.SWAHeadLengths {
+		if spec.KeyLengthSWA, err = required[uint32](values, prefix+"attention.key_length_swa", gguf.ValueTypeUint32); err != nil {
+			return err
+		}
+		if spec.ValueLengthSWA, err = required[uint32](values, prefix+"attention.value_length_swa", gguf.ValueTypeUint32); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m specMetadata) readDraftLayers(spec *Spec) error {

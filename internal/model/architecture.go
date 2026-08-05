@@ -351,6 +351,7 @@ type ArchitectureProfile struct {
 	Rotary          RotaryPolicy
 	AttentionGraph  AttentionGraphPolicy
 	Experts         ExpertPolicy
+	Metadata        MetadataShapePolicy
 	Cadence         LayerCadencePolicy
 	DeciSparse      bool
 }
@@ -561,6 +562,9 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	}
 	setExpertCatalog := func(policy expertCatalogPolicy, names ...string) {
 		updateExperts(names, func(experts *ExpertPolicy) { experts.Catalog = policy })
+	}
+	setMetadataShape := func(policy MetadataShapePolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Metadata = policy })
 	}
 	updateDenseStages := func(names []string, apply func(*DenseStagePolicy)) {
 		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseStages) })
@@ -971,6 +975,33 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	})
 	updateAttentionGraph([]string{"llama4"}, func(policy *AttentionGraphPolicy) {
 		policy.ChunkedWindow = true
+	})
+
+	setMetadataShape(MetadataShapePolicy{FeedForward: metadataLayerCompatible, Heads: metadataScalar, KVHeads: metadataLayerCompatible}, "gemma4")
+	setMetadataShape(MetadataShapePolicy{
+		FeedForward: metadataLayerCompatible, Heads: metadataLayerCompatible,
+		KVHeads: metadataLayerCompatible, InferRecurrentFromZeroFFN: true,
+	}, "nemotron_h", "nemotron_h_moe")
+	setMetadataShape(MetadataShapePolicy{FeedForward: metadataLayer, Heads: metadataLayer, KVHeads: metadataLayer},
+		"deci", "openelm", "plamo3")
+	setMetadataShape(MetadataShapePolicy{Heads: metadataLayer, KVHeads: metadataLayer}, "laguna")
+	setMetadataShape(MetadataShapePolicy{Heads: metadataLayerCompatible, KVHeads: metadataLayerCompatible}, "step35")
+	setMetadataShape(MetadataShapePolicy{Heads: metadataFixedOne, KVHeads: metadataFixedOne, GroupNorm: true}, "wavtokenizer-dec")
+	setMetadataShape(MetadataShapePolicy{KVHeads: metadataFixedZero}, "mamba", "mamba2")
+	setMetadataShape(MetadataShapePolicy{KVHeads: metadataMirrorHeads},
+		"bert", "bloom", "gpt2", "gptj", "jais", "qwen", "starcoder", "t5", "t5encoder")
+	setMetadataShape(MetadataShapePolicy{KVHeads: metadataMirrorHeadsOptional},
+		"falcon", "gemma-embedding", "gptneox", "jina-bert-v2", "jina-bert-v3", "modern-bert",
+		"mpt", "neo-bert", "nomic-bert", "nomic-bert-moe")
+	setMetadataShape(MetadataShapePolicy{KVHeads: metadataLayerCompatible}, "mimo2")
+	setMetadataShape(MetadataShapePolicy{KVHeads: metadataHybridLayers}, "lfm2", "lfm2moe")
+	setMetadataShape(MetadataShapePolicy{KVHeads: metadataHybridLayers, PreserveLayerKV: true},
+		"jamba", "granitehybrid", "plamo2", "kimi-linear")
+	update([]string{"deepseek2", "deepseek32", "mistral4", "glm-dsa", "kimi-linear"}, func(profile *ArchitectureProfile) {
+		profile.Metadata.MLAHeadLengths = true
+	})
+	update([]string{"gemma4", "gemma4-assistant"}, func(profile *ArchitectureProfile) {
+		profile.Metadata.SWAHeadLengths = true
 	})
 
 	setExperts(ExpertPolicy{Composition: expertArctic}, "arctic")

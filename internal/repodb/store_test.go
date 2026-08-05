@@ -342,6 +342,28 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 	}
 }
 
+func TestLegacyArtifactFrameReplays(t *testing.T) {
+	root := t.TempDir()
+	batch := fixtureBatch(t)
+	payload, _, _, err := encodeBatch(batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, frame := encodeRecordVersion(minimumFrameVersion, 1, artifact.CommitID{}, payload)
+	data := append(encodeStoreHeader(), frame...)
+	if err := os.WriteFile(filepath.Join(root, storeFilename), data, storeFileMode); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, ok, err := store.Artifact(context.Background(), batch.Artifacts[0].ID); err != nil || !ok {
+		t.Fatalf("legacy artifact = (%v, %v)", ok, err)
+	}
+}
+
 func TestConcurrentCommitsSerialize(t *testing.T) {
 	store, err := Open(t.TempDir())
 	if err != nil {

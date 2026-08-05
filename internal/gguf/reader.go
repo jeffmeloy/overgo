@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/binaryschema"
@@ -49,6 +50,7 @@ type File struct {
 	metadataByKey   map[string]int
 	tensorByName    map[string]int
 	tensorLocations map[string]tensorLocation
+	sourcePaths     []string
 }
 
 type tensorLocation struct {
@@ -170,7 +172,16 @@ func openPath(path string, options Options) (*File, error) {
 		return nil, err
 	}
 	file.closers = []io.Closer{handle}
+	file.sourcePaths = []string{path}
 	return file, nil
+}
+
+// SourcePaths: ordered physical shards; empty for ReaderAt parsing
+func (f *File) SourcePaths() []string {
+	if f == nil {
+		return nil
+	}
+	return slices.Clone(f.sourcePaths)
 }
 
 // Parse: parses GGUF directory from random-access source
@@ -452,6 +463,7 @@ func (f *File) appendSplit(
 		return errors.New("combined split tensor data size overflows uint64")
 	}
 	f.DataSize += part.DataSize
+	f.sourcePaths = append(f.sourcePaths, part.sourcePaths...)
 	for _, original := range part.Tensors {
 		if previous, exists := f.tensorByName[original.Name]; exists {
 			return fmt.Errorf(

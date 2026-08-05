@@ -156,17 +156,19 @@ func (b AliasBinding) Validate() error {
 
 // Batch: one atomic repository commit
 type Batch struct {
-	Key       string         `json:"key"`
-	Artifacts []Descriptor   `json:"artifacts,omitempty"`
-	Lineage   []Lineage      `json:"lineage,omitempty"`
-	Aliases   []AliasBinding `json:"aliases,omitempty"`
+	Key       string          `json:"key"`
+	Artifacts []Descriptor    `json:"artifacts,omitempty"`
+	Manifests []Manifest      `json:"manifests,omitempty"`
+	Lineage   []Lineage       `json:"lineage,omitempty"`
+	Aliases   []AliasBinding  `json:"aliases,omitempty"`
+	Locations []LocationEvent `json:"locations,omitempty"`
 }
 
 func (b Batch) Validate() error {
 	if b.Key == "" || len(b.Key) > maxBatchKeyBytes || strings.TrimSpace(b.Key) != b.Key || strings.ContainsAny(b.Key, "\r\n") {
 		return errors.New("artifact: invalid batch key")
 	}
-	if len(b.Artifacts)+len(b.Lineage)+len(b.Aliases) == 0 {
+	if len(b.Artifacts)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0 {
 		return errors.New("artifact: empty batch")
 	}
 	for _, descriptor := range b.Artifacts {
@@ -179,8 +181,18 @@ func (b Batch) Validate() error {
 			return err
 		}
 	}
+	for _, manifest := range b.Manifests {
+		if err := manifest.Validate(); err != nil {
+			return err
+		}
+	}
 	for _, alias := range b.Aliases {
 		if err := alias.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, location := range b.Locations {
+		if err := location.Validate(); err != nil {
 			return err
 		}
 	}
@@ -201,9 +213,11 @@ func (id CommitID) Valid() bool {
 // Reader: storage-neutral artifact queries
 type Reader interface {
 	Artifact(context.Context, ID) (Descriptor, bool, error)
+	Manifest(context.Context, ID) (Manifest, bool, error)
 	ResolveAlias(context.Context, string) (ID, bool, error)
 	Parents(context.Context, ID) ([]Lineage, error)
 	Children(context.Context, ID) ([]Lineage, error)
+	Locations(context.Context, ID) ([]Location, error)
 }
 
 // Repository: transactional artifact catalog

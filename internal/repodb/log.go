@@ -14,17 +14,18 @@ import (
 )
 
 const (
-	storeFilename      = "repodb.log"
-	lockFilename       = "repodb.lock"
-	storeHeaderBytes   = 16
-	frameHeaderBytes   = 84
-	frameChecksumSize  = 4
-	storeVersion       = uint16(1)
-	frameVersion       = uint16(1)
-	frameKindBatch     = uint16(1)
-	maxFramePayload    = 64 << 20
-	storeFileMode      = 0o644
-	storeDirectoryMode = 0o755
+	storeFilename       = "repodb.log"
+	lockFilename        = "repodb.lock"
+	storeHeaderBytes    = 16
+	frameHeaderBytes    = 84
+	frameChecksumSize   = 4
+	storeVersion        = uint16(1)
+	minimumFrameVersion = uint16(1)
+	frameVersion        = uint16(2)
+	frameKindBatch      = uint16(1)
+	maxFramePayload     = 64 << 20
+	storeFileMode       = 0o644
+	storeDirectoryMode  = 0o755
 
 	storeMagicOffset    = 0
 	storeVersionOffset  = 8
@@ -52,6 +53,7 @@ var (
 )
 
 type logRecord struct {
+	version  uint16
 	sequence uint64
 	previous artifact.CommitID
 	id       artifact.CommitID
@@ -218,7 +220,7 @@ func (l *recordLog) replay(apply func(logRecord) error) (replayResult, error) {
 		if record.sequence != result.sequence+1 || record.previous != result.head {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d breaks commit chain", frameStart)
 		}
-		if record.id != commitIdentity(record.sequence, record.previous, record.payload) {
+		if record.id != commitIdentity(record.version, record.sequence, record.previous, record.payload) {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d has invalid commit identity", frameStart)
 		}
 		if err := apply(record); err != nil {
@@ -235,22 +237,23 @@ func decodeFrameHeader(header []byte) (uint32, logRecord, error) {
 	if binary.LittleEndian.Uint32(header[frameMagicOffset:frameVersionOffset]) != frameMagic {
 		return 0, logRecord{}, errors.New("invalid frame magic")
 	}
-	if binary.LittleEndian.Uint16(header[frameVersionOffset:frameKindOffset]) != frameVersion {
+	version := binary.LittleEndian.Uint16(header[frameVersionOffset:frameKindOffset])
+	if version < minimumFrameVersion || version > frameVersion {
 		return 0, logRecord{}, errors.New("unsupported frame version")
 	}
 	if binary.LittleEndian.Uint16(header[frameKindOffset:frameSequenceOffset]) != frameKindBatch {
 		return 0, logRecord{}, errors.New("unsupported frame kind")
 	}
-	record := logRecord{sequence: binary.LittleEndian.Uint64(header[frameSequenceOffset:framePreviousOffset])}
+	record := logRecord{version: version, sequence: binary.LittleEndian.Uint64(header[frameSequenceOffset:framePreviousOffset])}
 	copy(record.previous[:], header[framePreviousOffset:frameIDOffset])
 	copy(record.id[:], header[frameIDOffset:framePayloadSizeOffset])
 	return binary.LittleEndian.Uint32(header[framePayloadSizeOffset:frameHeaderBytes]), record, nil
 }
 
-func commitIdentity(sequence uint64, previous artifact.CommitID, payload []byte) artifact.CommitID {
+func commitIdentity(version uint16, sequence uint64, previous artifact.CommitID, payload []byte) artifact.CommitID {
 	hasher := sha256.New()
 	var prefix [commitPrefixBytes]byte
-	binary.LittleEndian.PutUint16(prefix[commitVersionOffset:commitKindOffset], frameVersion)
+	binary.LittleEndian.PutUint16(prefix[commitVersionOffset:commitKindOffset], version)
 	binary.LittleEndian.PutUint16(prefix[commitKindOffset:commitSequenceOffset], frameKindBatch)
 	binary.LittleEndian.PutUint64(prefix[commitSequenceOffset:commitPrefixBytes], sequence)
 	_, _ = hasher.Write(prefix[:])
@@ -262,10 +265,14 @@ func commitIdentity(sequence uint64, previous artifact.CommitID, payload []byte)
 }
 
 func encodeRecord(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte) {
-	id := commitIdentity(sequence, previous, payload)
+	return encodeRecordVersion(frameVersion, sequence, previous, payload)
+}
+
+func encodeRecordVersion(version uint16, sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte) {
+	id := commitIdentity(version, sequence, previous, payload)
 	header := make([]byte, frameHeaderBytes)
 	binary.LittleEndian.PutUint32(header[frameMagicOffset:frameVersionOffset], frameMagic)
-	binary.LittleEndian.PutUint16(header[frameVersionOffset:frameKindOffset], frameVersion)
+	binary.LittleEndian.PutUint16(header[frameVersionOffset:frameKindOffset], version)
 	binary.LittleEndian.PutUint16(header[frameKindOffset:frameSequenceOffset], frameKindBatch)
 	binary.LittleEndian.PutUint64(header[frameSequenceOffset:framePreviousOffset], sequence)
 	copy(header[framePreviousOffset:frameIDOffset], previous[:])

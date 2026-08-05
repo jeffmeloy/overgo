@@ -32,6 +32,7 @@ const (
 	KindCheckpoint
 	KindRecipe
 	KindOutput
+	KindFile
 )
 
 var kindNames = [...]string{
@@ -46,6 +47,7 @@ var kindNames = [...]string{
 	KindCheckpoint:   "checkpoint",
 	KindRecipe:       "recipe",
 	KindOutput:       "output",
+	KindFile:         "file",
 }
 
 func (k Kind) String() string {

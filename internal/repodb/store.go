@@ -31,6 +31,12 @@ type relationKey struct {
 	relation artifact.Relation
 }
 
+type locationKey struct {
+	artifact artifact.ID
+	kind     artifact.LocationKind
+	value    string
+}
+
 type committedBatch struct {
 	id      artifact.CommitID
 	payload [sha256.Size]byte
@@ -38,18 +44,22 @@ type committedBatch struct {
 
 type catalogState struct {
 	artifacts map[artifact.ID]artifact.Descriptor
+	manifests map[artifact.ID]artifact.Manifest
 	aliases   map[string]artifact.ID
 	lineage   map[relationKey]artifact.Lineage
 	parents   map[artifact.ID]map[artifact.ID]struct{}
+	locations map[locationKey]artifact.Location
 	commits   map[string]committedBatch
 }
 
 func newCatalogState() catalogState {
 	return catalogState{
 		artifacts: map[artifact.ID]artifact.Descriptor{},
+		manifests: map[artifact.ID]artifact.Manifest{},
 		aliases:   map[string]artifact.ID{},
 		lineage:   map[relationKey]artifact.Lineage{},
 		parents:   map[artifact.ID]map[artifact.ID]struct{}{},
+		locations: map[locationKey]artifact.Location{},
 		commits:   map[string]committedBatch{},
 	}
 }
@@ -61,6 +71,11 @@ func (s catalogState) validate(batch artifact.Batch) error {
 			return fmt.Errorf("%w: %s", ErrArtifactConflict, descriptor.ID)
 		}
 		added[descriptor.ID] = struct{}{}
+	}
+	for _, manifest := range batch.Manifests {
+		if current, ok := s.manifests[manifest.ID]; ok && !sameManifest(current, manifest) {
+			return fmt.Errorf("%w: manifest %s", ErrArtifactConflict, manifest.ID)
+		}
 	}
 	for _, binding := range batch.Aliases {
 		if _, stored := s.artifacts[binding.Target]; !stored {
@@ -98,6 +113,16 @@ func (s catalogState) validate(batch artifact.Batch) error {
 		}
 		parents[edge.Parent] = struct{}{}
 	}
+	for _, event := range batch.Locations {
+		if !s.hasArtifact(event.Artifact, added) {
+			return fmt.Errorf("repodb: location artifact is unknown: %s", event.Artifact)
+		}
+		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
+		_, exists := s.locations[key]
+		if event.Action == artifact.LocationRemove && !exists {
+			return fmt.Errorf("repodb: remove unknown location %q", event.Value)
+		}
+	}
 	return nil
 }
 
@@ -112,6 +137,9 @@ func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}
 func (s *catalogState) apply(batch artifact.Batch) {
 	for _, descriptor := range batch.Artifacts {
 		s.artifacts[descriptor.ID] = descriptor
+	}
+	for _, manifest := range batch.Manifests {
+		s.manifests[manifest.ID] = cloneManifest(manifest)
 	}
 	for _, binding := range batch.Aliases {
 		s.aliases[binding.Name] = binding.Target
@@ -129,6 +157,23 @@ func (s *catalogState) apply(batch artifact.Batch) {
 		}
 		parents[edge.Parent] = struct{}{}
 	}
+	for _, event := range batch.Locations {
+		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
+		if event.Action == artifact.LocationAdd {
+			s.locations[key] = event.Location
+		} else {
+			delete(s.locations, key)
+		}
+	}
+}
+
+func sameManifest(left, right artifact.Manifest) bool {
+	return left.Version == right.Version && left.ID == right.ID && slices.Equal(left.Components, right.Components)
+}
+
+func cloneManifest(manifest artifact.Manifest) artifact.Manifest {
+	manifest.Components = slices.Clone(manifest.Components)
+	return manifest
 }
 
 func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID]map[artifact.ID]struct{}) bool {
@@ -258,6 +303,19 @@ func (s *Store) Artifact(ctx context.Context, id artifact.ID) (artifact.Descript
 	return value, ok, nil
 }
 
+func (s *Store) Manifest(ctx context.Context, id artifact.ID) (artifact.Manifest, bool, error) {
+	if err := contextError(ctx); err != nil {
+		return artifact.Manifest{}, false, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return artifact.Manifest{}, false, err
+	}
+	value, ok := s.state.manifests[id]
+	return cloneManifest(value), ok, nil
+}
+
 func (s *Store) ResolveAlias(ctx context.Context, name string) (artifact.ID, bool, error) {
 	if err := contextError(ctx); err != nil {
 		return artifact.ID{}, false, err
@@ -277,6 +335,30 @@ func (s *Store) Parents(ctx context.Context, id artifact.ID) ([]artifact.Lineage
 
 func (s *Store) Children(ctx context.Context, id artifact.ID) ([]artifact.Lineage, error) {
 	return s.lineageFor(ctx, id, false)
+}
+
+func (s *Store) Locations(ctx context.Context, id artifact.ID) ([]artifact.Location, error) {
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return nil, err
+	}
+	result := make([]artifact.Location, 0)
+	for key, location := range s.state.locations {
+		if key.artifact == id {
+			result = append(result, location)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Kind != result[j].Kind {
+			return result[i].Kind < result[j].Kind
+		}
+		return result[i].Value < result[j].Value
+	})
+	return result, nil
 }
 
 func (s *Store) lineageFor(ctx context.Context, id artifact.ID, parents bool) ([]artifact.Lineage, error) {
@@ -400,8 +482,18 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	result := artifact.Batch{
 		Key:       batch.Key,
 		Artifacts: slices.Clone(batch.Artifacts),
+		Manifests: cloneManifests(batch.Manifests),
 		Lineage:   slices.Clone(batch.Lineage),
 		Aliases:   cloneAliases(batch.Aliases),
+		Locations: slices.Clone(batch.Locations),
+	}
+	for _, manifest := range result.Manifests {
+		descriptor, err := manifest.Descriptor()
+		if err != nil {
+			return artifact.Batch{}, err
+		}
+		result.Artifacts = append(result.Artifacts, descriptor)
+		result.Lineage = append(result.Lineage, manifest.Lineage()...)
 	}
 	if err := result.Validate(); err != nil {
 		return artifact.Batch{}, err
@@ -409,9 +501,23 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	sort.Slice(result.Artifacts, func(i, j int) bool {
 		return result.Artifacts[i].ID.String() < result.Artifacts[j].ID.String()
 	})
-	for index := 1; index < len(result.Artifacts); index++ {
-		if result.Artifacts[index-1].ID == result.Artifacts[index].ID {
-			return artifact.Batch{}, fmt.Errorf("repodb: duplicate artifact %s", result.Artifacts[index].ID)
+	artifacts := result.Artifacts[:0]
+	for _, descriptor := range result.Artifacts {
+		if len(artifacts) > 0 && artifacts[len(artifacts)-1].ID == descriptor.ID {
+			if artifacts[len(artifacts)-1] != descriptor {
+				return artifact.Batch{}, fmt.Errorf("%w: %s", ErrArtifactConflict, descriptor.ID)
+			}
+			continue
+		}
+		artifacts = append(artifacts, descriptor)
+	}
+	result.Artifacts = artifacts
+	sort.Slice(result.Manifests, func(i, j int) bool {
+		return result.Manifests[i].ID.String() < result.Manifests[j].ID.String()
+	})
+	for index := 1; index < len(result.Manifests); index++ {
+		if result.Manifests[index-1].ID == result.Manifests[index].ID {
+			return artifact.Batch{}, fmt.Errorf("repodb: duplicate manifest %s", result.Manifests[index].ID)
 		}
 	}
 	sort.Slice(result.Aliases, func(i, j int) bool {
@@ -432,12 +538,39 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		}
 		return left.Relation < right.Relation
 	})
-	for index := 1; index < len(result.Lineage); index++ {
-		if result.Lineage[index-1] == result.Lineage[index] {
-			return artifact.Batch{}, fmt.Errorf("repodb: duplicate lineage edge")
+	lineage := result.Lineage[:0]
+	for _, edge := range result.Lineage {
+		if len(lineage) > 0 && lineage[len(lineage)-1] == edge {
+			continue
+		}
+		lineage = append(lineage, edge)
+	}
+	result.Lineage = lineage
+	sort.Slice(result.Locations, func(i, j int) bool {
+		left, right := result.Locations[i], result.Locations[j]
+		if left.Artifact != right.Artifact {
+			return left.Artifact.String() < right.Artifact.String()
+		}
+		if left.Kind != right.Kind {
+			return left.Kind < right.Kind
+		}
+		return left.Value < right.Value
+	})
+	for index := 1; index < len(result.Locations); index++ {
+		left, right := result.Locations[index-1], result.Locations[index]
+		if left.Artifact == right.Artifact && left.Kind == right.Kind && left.Value == right.Value {
+			return artifact.Batch{}, fmt.Errorf("repodb: duplicate location mutation %q", right.Value)
 		}
 	}
 	return result, nil
+}
+
+func cloneManifests(manifests []artifact.Manifest) []artifact.Manifest {
+	result := slices.Clone(manifests)
+	for index := range result {
+		result[index] = cloneManifest(result[index])
+	}
+	return result
 }
 
 func cloneAliases(bindings []artifact.AliasBinding) []artifact.AliasBinding {

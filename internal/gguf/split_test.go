@@ -32,6 +32,10 @@ func TestOpenLoadsAndReadsSplitGGUF(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
+	paths := file.SourcePaths()
+	if len(paths) != 2 || paths[0] != firstPath || paths[1] != secondPath {
+		t.Fatalf("source paths = %v", paths)
+	}
 	if file.SplitCount != 2 || len(file.Tensors) != 3 || file.DataSize != 96 {
 		t.Fatalf(
 			"split/count/data = %d/%d/%d",

@@ -244,7 +244,7 @@ func PreprocessHunyuanVLImage(source image.Image, spec HunyuanVLSpec, options Hu
 					for x := 0; x < spec.PatchSize; x++ {
 						r, g, b, _ := resized.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
 						value := [3]uint32{r, g, b}[channel]
-						pixels[position] = (float32(value>>8)/255 - spec.ImageMean[channel]) / spec.ImageStd[channel]
+						pixels[position] = (normalizedImageChannel(value) - spec.ImageMean[channel]) / spec.ImageStd[channel]
 						position++
 					}
 				}

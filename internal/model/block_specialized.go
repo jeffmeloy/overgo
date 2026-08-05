@@ -7,6 +7,14 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
+const (
+	rwkvLayerRescale     = float32(0.5)
+	rwkv6TimeMixStreams  = uint64(5)
+	rwkv7TimeMixStreams  = uint64(5)
+	rwkv7GatedMixStreams = uint64(6)
+	rwkv7DecayScale      = float32(-0.606531)
+)
+
 // BuildDeepSeek4BlockCached: HC compressed-attention block.
 func BuildDeepSeek4BlockCached(
 	builder *tensor.Builder,
@@ -259,19 +267,19 @@ func BuildRWKV6Qwen2BlockCached(
 		weights.TimeMixW2,
 		builder.Reshape(
 			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
-			uint64(spec.TimeMixExtraDim), 5, tokens,
+			uint64(spec.TimeMixExtraDim), rwkv6TimeMixStreams, tokens,
 		),
 	)
-	adjustments = builder.Reshape(adjustments, embedding*5, tokens)
-	lerps := builder.Reshape(weights.TimeMixLerpFused, embedding*5, 1)
-	mixed := make([]*tensor.Tensor, 5)
-	for index := uint64(0); index < 5; index++ {
+	adjustments = builder.Reshape(adjustments, embedding*rwkv6TimeMixStreams, tokens)
+	lerps := builder.Reshape(weights.TimeMixLerpFused, embedding*rwkv6TimeMixStreams, 1)
+	mixed := make([]*tensor.Tensor, rwkv6TimeMixStreams)
+	for index := uint64(0); index < rwkv6TimeMixStreams; index++ {
 		adjustment := builder.Reshape(
-			builder.GroupSlice(adjustments, index*embedding, embedding, 1, embedding*5),
+			builder.GroupSlice(adjustments, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams),
 			embedding, tokens,
 		)
 		lerp := builder.Reshape(
-			builder.GroupSlice(lerps, index*embedding, embedding, 1, embedding*5),
+			builder.GroupSlice(lerps, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams),
 			embedding,
 		)
 		mixed[index] = builder.Add(normalized, builder.Multiply(sx, builder.Add(adjustment, lerp)))
@@ -313,7 +321,7 @@ func BuildRWKV6Qwen2BlockCached(
 	)
 	output := builder.Add(residual, feedForward)
 	if spec.RescaleEvery > 0 && (layerIndex+1)%spec.RescaleEvery == 0 {
-		output = builder.Scale(output, 0.5)
+		output = builder.Scale(output, rwkvLayerRescale)
 	}
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
@@ -373,22 +381,30 @@ func BuildRWKV6BlockCached(
 	base := builder.Add(attNorm, builder.Multiply(sx, builder.Reshape(weights.TimeMixLerpX, embedding, 1)))
 	adjustments := builder.GroupedMulMat(
 		weights.TimeMixW2,
-		builder.Reshape(builder.Tanh(builder.MulMat(weights.TimeMixW1, base)), uint64(spec.TimeMixExtraDim), 5, tokens),
+		builder.Reshape(
+			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
+			uint64(spec.TimeMixExtraDim), rwkv6TimeMixStreams, tokens,
+		),
 	)
-	adjustments = builder.Reshape(adjustments, embedding*5, tokens)
-	mixed := make([]*tensor.Tensor, 5)
+	adjustments = builder.Reshape(adjustments, embedding*rwkv6TimeMixStreams, tokens)
+	mixed := make([]*tensor.Tensor, rwkv6TimeMixStreams)
 	separate := []*tensor.Tensor{
 		weights.TimeMixLerpW, weights.TimeMixLerpK, weights.TimeMixLerpV,
 		weights.TimeMixLerpR, weights.TimeMixLerpG,
 	}
-	for index := uint64(0); index < 5; index++ {
+	for index := uint64(0); index < rwkv6TimeMixStreams; index++ {
 		adjustment := builder.Reshape(
-			builder.GroupSlice(adjustments, index*embedding, embedding, 1, embedding*5), embedding, tokens,
+			builder.GroupSlice(
+				adjustments, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
+			), embedding, tokens,
 		)
 		var lerp *tensor.Tensor
 		if weights.TimeMixLerpFused != nil {
-			fused := builder.Reshape(weights.TimeMixLerpFused, embedding*5, 1)
-			lerp = builder.Reshape(builder.GroupSlice(fused, index*embedding, embedding, 1, embedding*5), embedding)
+			fused := builder.Reshape(weights.TimeMixLerpFused, embedding*rwkv6TimeMixStreams, 1)
+			lerp = builder.Reshape(
+				builder.GroupSlice(fused, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams),
+				embedding,
+			)
 		} else {
 			lerp = builder.Reshape(separate[index], embedding)
 		}
@@ -423,7 +439,7 @@ func BuildRWKV6BlockCached(
 	channel = builder.Multiply(builder.Sigmoid(builder.MulMat(weights.ChannelMixReceptance, channelReceptanceInput)), channel)
 	output := builder.Add(ffnInput, channel)
 	if spec.RescaleEvery > 0 && (layerIndex+1)%spec.RescaleEvery == 0 {
-		output = builder.Scale(output, 0.5)
+		output = builder.Scale(output, rwkvLayerRescale)
 	}
 	nextAttShift := builder.FlatSlice(attNorm, embedding*(tokens-1), embedding)
 	nextFFNShift := builder.FlatSlice(ffnNorm, embedding*(tokens-1), embedding)
@@ -497,9 +513,9 @@ func BuildRWKV7BlockCached(
 		attPrev = builder.Concat(attPrev, builder.FlatSlice(attNorm, 0, embedding, tokens-1), 1)
 	}
 	sx := builder.Add(attPrev, builder.Scale(attNorm, -1))
-	lerpCount := uint64(6)
+	lerpCount := rwkv7GatedMixStreams
 	if spec.GateLoRARank == 0 {
-		lerpCount = 5
+		lerpCount = rwkv7TimeMixStreams
 	}
 	lerps := builder.Reshape(weights.TimeMixLerpFused, embedding*lerpCount, 1)
 	mixed := make([]*tensor.Tensor, lerpCount)
@@ -513,7 +529,7 @@ func BuildRWKV7BlockCached(
 		builder.MulMat(weights.TimeMixW2, builder.Tanh(builder.MulMat(weights.TimeMixW1, xw))),
 		weights.TimeMixW0,
 	)
-	decay = builder.Exp(builder.Scale(builder.Sigmoid(decay), -0.606531))
+	decay = builder.Exp(builder.Scale(builder.Sigmoid(decay), rwkv7DecayScale))
 	key := builder.MulMat(weights.TimeMixKey, xk)
 	value := builder.MulMat(weights.TimeMixValue, xv)
 	var auxiliary *tensor.Tensor

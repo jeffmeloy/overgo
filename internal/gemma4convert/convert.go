@@ -21,6 +21,8 @@ import (
 	"llamacpp2go/internal/tokenizer"
 )
 
+const gemma4ProjectorImageSize = 224
+
 type modelConfig struct {
 	Text struct {
 		FinalLogitSoftcap float32  `json:"final_logit_softcapping"`
@@ -496,7 +498,7 @@ func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
 		stringMetadata("general.name", name+" multimodal projector"),
 		stringMetadata("clip.vision.projector_type", "gemma4uv"),
 		boolMetadata("clip.has_vision_encoder", true),
-		uint32Metadata("clip.vision.image_size", 224),
+		uint32Metadata("clip.vision.image_size", gemma4ProjectorImageSize),
 		uint32Metadata("clip.vision.patch_size", config.Vision.PatchSize),
 		uint32Metadata("clip.vision.embedding_length", config.Vision.Embedding),
 		uint32Metadata("clip.vision.feed_forward_length", 0),

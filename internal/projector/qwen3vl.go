@@ -304,7 +304,7 @@ func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 				r, g, b, _ := resized.At(x, y).RGBA()
 				values := [3]uint32{r, g, b}
 				for channel := range values {
-					value := float32(values[channel]>>8) / 255
+					value := normalizedImageChannel(values[channel])
 					planes[frameIndex][channel][y*resizedW+x] = (value - spec.ImageMean[channel]) / spec.ImageStd[channel]
 				}
 			}
@@ -469,9 +469,9 @@ func resizeImageBicubic(source image.Image, width, height int) *image.RGBA {
 			for offset := 0; offset < xCount[outX]; offset++ {
 				r, g, b, _ := source.At(bounds.Min.X+xMin[outX]+offset, bounds.Min.Y+y).RGBA()
 				weight := xWeights[outX][offset]
-				values[0] += weight * float64(r>>8)
-				values[1] += weight * float64(g>>8)
-				values[2] += weight * float64(b>>8)
+				values[0] += weight * float64(r>>rgba16To8Shift)
+				values[1] += weight * float64(g>>rgba16To8Shift)
+				values[2] += weight * float64(b>>rgba16To8Shift)
 			}
 			for channel := range values {
 				intermediate[y*width+outX][channel] = clampUint8(values[channel])
@@ -494,7 +494,7 @@ func resizeImageBicubic(source image.Image, width, height int) *image.RGBA {
 			output.Pix[index] = clampUint8(values[0])
 			output.Pix[index+1] = clampUint8(values[1])
 			output.Pix[index+2] = clampUint8(values[2])
-			output.Pix[index+3] = 255
+			output.Pix[index+3] = opaqueAlpha
 		}
 	}
 	return output
@@ -546,8 +546,8 @@ func clampUint8(value float64) uint8 {
 	if value <= 0 {
 		return 0
 	}
-	if value >= 255 {
-		return 255
+	if value >= maxUint8Channel {
+		return maxUint8Channel
 	}
 	return uint8(value)
 }

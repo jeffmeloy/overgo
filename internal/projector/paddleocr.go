@@ -254,7 +254,7 @@ func PreprocessPaddleOCRImage(source image.Image, spec PaddleOCRSpec, options Pa
 					for x := 0; x < spec.PatchSize; x++ {
 						r, g, b, _ := resized.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
 						value := [3]uint32{r, g, b}[channel]
-						pixels[position] = (float32(value>>8)/255 - spec.ImageMean[channel]) / spec.ImageStd[channel]
+						pixels[position] = (normalizedImageChannel(value) - spec.ImageMean[channel]) / spec.ImageStd[channel]
 						position++
 					}
 				}
@@ -294,11 +294,11 @@ func resizeImageBilinear(source image.Image, width, height int) *image.RGBA {
 			for channel := 0; channel < 3; channel++ {
 				value := 0.0
 				for corner := range corners {
-					value += weights[corner] * float64(corners[corner][channel]>>8)
+					value += weights[corner] * float64(corners[corner][channel]>>rgba16To8Shift)
 				}
 				output.Pix[index+channel] = clampUint8(value)
 			}
-			output.Pix[index+3] = 255
+			output.Pix[index+3] = opaqueAlpha
 		}
 	}
 	return output

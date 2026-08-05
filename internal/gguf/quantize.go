@@ -11,6 +11,37 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
+const (
+	fileTypeAllF32       = 0
+	fileTypeMostlyF16    = 1
+	fileTypeMostlyQ4_0   = 2
+	fileTypeMostlyQ4_1   = 3
+	fileTypeMostlyQ8_0   = 7
+	fileTypeMostlyQ5_0   = 8
+	fileTypeMostlyQ5_1   = 9
+	fileTypeMostlyQ2K    = 10
+	fileTypeMostlyQ3K    = 12
+	fileTypeMostlyQ4K    = 15
+	fileTypeMostlyQ5K    = 17
+	fileTypeMostlyQ6K    = 18
+	fileTypeMostlyIQ2XXS = 19
+	fileTypeMostlyIQ2XS  = 20
+	fileTypeMostlyIQ3XXS = 23
+	fileTypeMostlyIQ1S   = 24
+	fileTypeMostlyIQ4NL  = 25
+	fileTypeMostlyIQ3S   = 26
+	fileTypeMostlyIQ2S   = 28
+	fileTypeMostlyIQ4XS  = 30
+	fileTypeMostlyIQ1M   = 31
+	fileTypeMostlyBF16   = 32
+	fileTypeMostlyTQ1_0  = 36
+	fileTypeMostlyTQ2_0  = 37
+	fileTypeMostlyMXFP4  = 38
+	fileTypeMostlyNVFP4  = 39
+	fileTypeMostlyQ1_0   = 40
+	fileTypeMostlyQ2_0   = 41
+)
+
 const quantizationVersion = 2
 
 // QuantizeOptions: model quantization controls.
@@ -228,61 +259,61 @@ func quantizedMetadata(metadata []Metadata, target DType, options QuantizeOption
 func quantizedFileType(target DType) (uint32, bool) {
 	switch target {
 	case dtype.F32:
-		return 0, true
+		return fileTypeAllF32, true
 	case dtype.F16:
-		return 1, true
+		return fileTypeMostlyF16, true
 	case dtype.Q4_0:
-		return 2, true
+		return fileTypeMostlyQ4_0, true
 	case dtype.Q4_1:
-		return 3, true
+		return fileTypeMostlyQ4_1, true
 	case dtype.Q8_0:
-		return 7, true
+		return fileTypeMostlyQ8_0, true
 	case dtype.Q5_0:
-		return 8, true
+		return fileTypeMostlyQ5_0, true
 	case dtype.Q5_1:
-		return 9, true
+		return fileTypeMostlyQ5_1, true
 	case dtype.Q2K:
-		return 10, true
+		return fileTypeMostlyQ2K, true
 	case dtype.Q3K:
-		return 12, true
+		return fileTypeMostlyQ3K, true
 	case dtype.Q4K:
-		return 15, true
+		return fileTypeMostlyQ4K, true
 	case dtype.Q5K:
-		return 17, true
+		return fileTypeMostlyQ5K, true
 	case dtype.Q6K:
-		return 18, true
+		return fileTypeMostlyQ6K, true
 	case dtype.BF16:
-		return 32, true
+		return fileTypeMostlyBF16, true
 	case dtype.IQ4NL:
-		return 25, true
+		return fileTypeMostlyIQ4NL, true
 	case dtype.IQ2S:
-		return 28, true
+		return fileTypeMostlyIQ2S, true
 	case dtype.IQ2XXS:
-		return 19, true
+		return fileTypeMostlyIQ2XXS, true
 	case dtype.IQ2XS:
-		return 20, true
+		return fileTypeMostlyIQ2XS, true
 	case dtype.IQ1S:
-		return 24, true
+		return fileTypeMostlyIQ1S, true
 	case dtype.IQ1M:
-		return 31, true
+		return fileTypeMostlyIQ1M, true
 	case dtype.IQ3XXS:
-		return 23, true
+		return fileTypeMostlyIQ3XXS, true
 	case dtype.IQ3S:
-		return 26, true
+		return fileTypeMostlyIQ3S, true
 	case dtype.IQ4XS:
-		return 30, true
+		return fileTypeMostlyIQ4XS, true
 	case dtype.TQ1_0:
-		return 36, true
+		return fileTypeMostlyTQ1_0, true
 	case dtype.TQ2_0:
-		return 37, true
+		return fileTypeMostlyTQ2_0, true
 	case dtype.MXFP4:
-		return 38, true
+		return fileTypeMostlyMXFP4, true
 	case dtype.NVFP4:
-		return 39, true
+		return fileTypeMostlyNVFP4, true
 	case dtype.Q1_0:
-		return 40, true
+		return fileTypeMostlyQ1_0, true
 	case dtype.Q2_0:
-		return 41, true
+		return fileTypeMostlyQ2_0, true
 	default:
 		return 0, false
 	}

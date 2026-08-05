@@ -9,6 +9,12 @@ import (
 	"llamacpp2go/internal/gguf"
 )
 
+const (
+	yarnLogFactorStep   = float32(0.1)
+	yarnDefaultBetaFast = float32(32)
+	yarnDefaultBetaSlow = float32(1)
+)
+
 type specMetadata struct {
 	values       map[string]gguf.Value
 	architecture string
@@ -303,8 +309,9 @@ func (m specMetadata) readPosition(spec *Spec) error {
 				}
 				spec.OriginalContextLength = value
 				spec.YaRNExtFactor = 1
-				spec.YaRNAttentionFactor = 1 / (1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
-				spec.YaRNBetaFast, spec.YaRNBetaSlow = 32, 1
+				spec.YaRNAttentionFactor =
+					1 / (1 + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
+				spec.YaRNBetaFast, spec.YaRNBetaSlow = yarnDefaultBetaFast, yarnDefaultBetaSlow
 				if architecture == "grok" {
 					spec.YaRNBetaFast = 8
 				}

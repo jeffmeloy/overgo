@@ -223,8 +223,9 @@ func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([
 	for y := 0; y < spec.ImageSize; y++ {
 		for x := 0; x < spec.ImageSize; x++ {
 			r, g, b, _ := resized.At(x, y).RGBA()
-			for channel, raw := range [3]uint32{r, g, b} {
-				pixels[channel+3*(x+spec.ImageSize*y)] = (float32(raw>>8)/255 - spec.ImageMean[channel]) / spec.ImageStd[channel]
+			for channel, raw := range [rgbChannelCount]uint32{r, g, b} {
+				pixels[channel+rgbChannelCount*(x+spec.ImageSize*y)] =
+					(normalizedImageChannel(raw) - spec.ImageMean[channel]) / spec.ImageStd[channel]
 			}
 		}
 	}

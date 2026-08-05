@@ -13,7 +13,15 @@ const (
 	defaultVisionMaxAspectRatio        = 200
 	temporalPatchChannels              = 3
 	temporalPatchFrames                = 2
+	rgbChannelCount                    = 3
+	rgba16To8Shift                     = 8
+	maxUint8Channel                    = 255
+	opaqueAlpha                        = 255
 )
+
+func normalizedImageChannel(value uint32) float32 {
+	return float32(value>>rgba16To8Shift) / maxUint8Channel
+}
 
 type pixelMergePlan struct {
 	inputRows  int

@@ -303,8 +303,8 @@ func buildMLABlockCachedForLayer(
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	if (isDeepSeek2 || isDSA) && spec.RopeScalingType == "yarn" {
 		logScale := float32(math.Log(float64(1 / frequencyScale)))
-		originalFactor := spec.YaRNAttentionFactor * (1 + 0.1*logScale)
-		magnitude := originalFactor * (1 + 0.1*spec.RopeYaRNLogMultiplier*logScale)
+		originalFactor := spec.YaRNAttentionFactor * (1 + yarnLogFactorStep*logScale)
+		magnitude := originalFactor * (1 + yarnLogFactorStep*spec.RopeYaRNLogMultiplier*logScale)
 		attentionScale *= magnitude * magnitude
 	}
 	var attention *tensor.Tensor

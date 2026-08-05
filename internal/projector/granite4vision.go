@@ -362,7 +362,7 @@ func granite4TilePixels(source image.Image, spec Granite4VisionSpec) []float32 {
 					for x := 0; x < spec.PatchSize; x++ {
 						r, g, b, _ := source.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
 						value := [3]uint32{r, g, b}[channel]
-						pixels[position] = (float32(value>>8)/255 - spec.ImageMean[channel]) / spec.ImageStd[channel]
+						pixels[position] = (normalizedImageChannel(value) - spec.ImageMean[channel]) / spec.ImageStd[channel]
 						position++
 					}
 				}

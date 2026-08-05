@@ -19,6 +19,7 @@ const (
 	deepSeekOCRSpatialNormEpsilon = 1e-6
 	deepSeekOCRDefaultTileSize    = 640
 	deepSeekOCRDefaultMaxTiles    = 9
+	deepSeekOCRPaddingGray        = 127
 	DeepSeekOCRImagePad           = "<image>"
 )
 
@@ -330,7 +331,9 @@ func deepSeekOCRFitPad(source image.Image, size int) image.Image {
 	height := max(1, min(size, int(math.Ceil(float64(bounds.Dy())*scale))))
 	resized := resizeImageBicubic(source, width, height)
 	output := image.NewRGBA(image.Rect(0, 0, size, size))
-	gray := color.RGBA{R: 127, G: 127, B: 127, A: 255}
+	gray := color.RGBA{
+		R: deepSeekOCRPaddingGray, G: deepSeekOCRPaddingGray, B: deepSeekOCRPaddingGray, A: opaqueAlpha,
+	}
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			output.SetRGBA(x, y, gray)
@@ -365,12 +368,13 @@ func (r *DeepSeekOCRRunner) EncodeImage(ctx context.Context, source image.Image)
 
 func (r *DeepSeekOCRRunner) tilePixels(source image.Image) []float32 {
 	size := source.Bounds().Dx()
-	pixels := make([]float32, 3*size*size)
+	pixels := make([]float32, rgbChannelCount*size*size)
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			rawR, rawG, rawB, _ := source.At(source.Bounds().Min.X+x, source.Bounds().Min.Y+y).RGBA()
-			for channel, raw := range [3]uint32{rawR, rawG, rawB} {
-				pixels[channel+3*(x+size*y)] = (float32(raw>>8)/255 - r.spec.ImageMean[channel]) / r.spec.ImageStd[channel]
+			for channel, raw := range [rgbChannelCount]uint32{rawR, rawG, rawB} {
+				pixels[channel+rgbChannelCount*(x+size*y)] =
+					(normalizedImageChannel(raw) - r.spec.ImageMean[channel]) / r.spec.ImageStd[channel]
 			}
 		}
 	}

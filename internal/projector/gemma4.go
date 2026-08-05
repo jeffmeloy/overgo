@@ -189,9 +189,9 @@ func PreprocessGemma4Image(source image.Image, spec Gemma4Spec) (Gemma4Image, er
 				for x := 0; x < spec.ModelPatch; x++ {
 					r, g, b, _ := resized.At(resizedBounds.Min.X+gridX*spec.ModelPatch+x, resizedBounds.Min.Y+gridY*spec.ModelPatch+y).RGBA()
 					base := (y*spec.ModelPatch + x) * 3
-					destination[base] = float32(r>>8) / 255
-					destination[base+1] = float32(g>>8) / 255
-					destination[base+2] = float32(b>>8) / 255
+					destination[base] = normalizedImageChannel(r)
+					destination[base+1] = normalizedImageChannel(g)
+					destination[base+2] = normalizedImageChannel(b)
 				}
 			}
 		}

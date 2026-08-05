@@ -15,14 +15,18 @@ import (
 )
 
 const (
-	cacheStateMagic       = "L2GKV003"
-	cacheStateV2Magic     = "L2GKV002"
-	legacyCacheStateMagic = "L2GKV001"
-	cacheStateHeaderSize  = 20
-	legacyCacheHeaderSize = 16
-	maxCacheStateLayers   = 4096
-	maxLayerCacheStates   = 16
-	maxCacheStateName     = 64
+	cacheStateMagic        = "L2GKV003"
+	cacheStateV2Magic      = "L2GKV002"
+	legacyCacheStateMagic  = "L2GKV001"
+	cacheStateHeaderSize   = 20
+	legacyCacheHeaderSize  = 16
+	maxCacheStateLayers    = 4096
+	maxLayerCacheStates    = 16
+	maxCacheStateName      = 64
+	cacheLayerCountBytes   = 4
+	cacheRecordPrefixBytes = 8
+	cacheRecordValueBytes  = 44
+	cacheScalarBytes       = 4
 )
 
 // SaveCache: validated named cache state.
@@ -560,7 +564,7 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count exceeds limit", index)
 		}
 		var ok bool
-		total, ok = checked.Add64(total, 4)
+		total, ok = checked.Add64(total, cacheLayerCountBytes)
 		if !ok {
 			return nil, errors.New("inference: KV cache state size overflows")
 		}
@@ -575,8 +579,10 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 			} else if err := validateStateValue(record.value); err != nil {
 				return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, record.name, err)
 			}
-			bytes, ok := checked.Bytes(uint64(len(record.value.Data)), 4)
-			recordSize, okSize := checked.Add64(8, uint64(len(record.name)), 44, bytes)
+			bytes, ok := checked.Bytes(uint64(len(record.value.Data)), cacheScalarBytes)
+			recordSize, okSize := checked.Add64(
+				cacheRecordPrefixBytes, uint64(len(record.name)), cacheRecordValueBytes, bytes,
+			)
 			if !ok || !okSize {
 				return nil, errors.New("inference: KV cache state size overflows")
 			}

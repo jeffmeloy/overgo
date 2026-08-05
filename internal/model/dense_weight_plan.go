@@ -7,6 +7,15 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
+type denseBiasCatalogPolicy uint8
+
+const (
+	denseBiasCatalogStandard denseBiasCatalogPolicy = iota
+	denseBiasCatalogGPTJ
+	denseBiasCatalogJais2
+	denseBiasCatalogJais
+)
+
 // DenseWeightPolicy: architecture-owned dense tensor requirements.
 type DenseWeightPolicy struct {
 	AllowUngatedExperts        bool
@@ -22,6 +31,7 @@ type DenseWeightPolicy struct {
 	SkipFeedForwardNorm        bool
 	RMSNormBias                bool
 	AllowActivationScale       bool
+	BiasCatalog                denseBiasCatalogPolicy
 }
 
 // DenseWeightPlan: compiled dense graph tensor contract.

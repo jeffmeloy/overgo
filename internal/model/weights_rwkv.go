@@ -11,7 +11,8 @@ func loadRWKVLayer(
 	block uint32,
 ) (bool, error) {
 	var err error
-	if spec.Architecture == "rwkv6" {
+	profile := spec.Profile()
+	if profile.DenseGraph == DenseGraphRWKV6 {
 		layer.Recurrent = true
 		embedding := uint64(spec.EmbeddingLength)
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
@@ -58,15 +59,16 @@ func loadRWKVLayer(
 		}
 		return true, nil
 	}
-	if spec.Architecture == "rwkv7" || spec.Architecture == "arwkv7" {
+	if profile.DenseGraph == DenseGraphRWKV7 {
 		layer.Recurrent = true
+		channelMix := profile.Normalization == NormalizationLayer
 		embedding := uint64(spec.EmbeddingLength)
 		valueRank := uint64(spec.ValueMixLoRARank)
 		if block == 0 {
 			valueRank = uint64(spec.ICLRLoRARank)
 		}
 		lerpCount := uint64(6)
-		if spec.Architecture == "arwkv7" && spec.GateLoRARank == 0 {
+		if !channelMix && spec.GateLoRARank == 0 {
 			lerpCount = 5
 		}
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
@@ -101,7 +103,7 @@ func loadRWKVLayer(
 			}
 			layer.TimeMixG1, layer.TimeMixG2 = &g1, &g2
 		}
-		if spec.Architecture == "rwkv7" {
+		if channelMix {
 			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, embedding),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, embedding),
@@ -138,7 +140,7 @@ func loadRWKVLayer(
 		}
 		return true, nil
 	}
-	if spec.Architecture == "rwkv6qwen2" {
+	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
 		layer.Recurrent = true
 		embedding := uint64(spec.EmbeddingLength)
 		keyValue := uint64(spec.HeadCountKV) * uint64(spec.WKVHeadSize)

@@ -16,14 +16,15 @@ func loadDenseFFNCatalog(
 	layer *LayerWeights,
 	block uint32,
 ) error {
+	profile := spec.Profile()
 	feedForwardLength := spec.LayerFeedForwardLength(block)
-	if spec.Architecture == "deci" && feedForwardLength == 0 {
+	if profile.DeciSparse && feedForwardLength == 0 {
 		return nil
 	}
-	if spec.Architecture == "arctic" {
+	if spec.expertCompositionPlan().kind == expertArctic {
 		feedForwardLength = spec.EmbeddingLength
 	}
-	if spec.Architecture == "jina-bert-v2" {
+	if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
 		if gate, ok := tensors[prefix+"ffn_gate.weight"]; ok {
 			if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) ||
 				gate.Shape[1] != uint64(feedForwardLength) {
@@ -72,7 +73,7 @@ func loadDenseFFNCatalog(
 		}
 		return nil
 	}
-	if spec.Profile().FeedForward == FeedForwardSwiGLU {
+	if profile.FeedForward == FeedForwardSwiGLU {
 		gate, err := required(
 			prefix+"ffn_gate.weight", uint64(spec.EmbeddingLength), uint64(feedForwardLength),
 		)
@@ -82,7 +83,7 @@ func loadDenseFFNCatalog(
 		layer.FeedForwardGate = gate
 	}
 	upLength := uint64(feedForwardLength)
-	if spec.Profile().FeedForward == FeedForwardFusedGateUp {
+	if profile.FeedForward == FeedForwardFusedGateUp {
 		upLength *= 2
 	}
 	up, err := required(prefix+"ffn_up.weight", uint64(spec.EmbeddingLength), upLength)
@@ -104,7 +105,7 @@ func loadDenseFFNCatalog(
 	}); err != nil {
 		return err
 	}
-	if spec.Profile().FeedForward == FeedForwardSequentialGELU {
+	if profile.FeedForward == FeedForwardSequentialGELU {
 		if err := requireCatalogBindings(prefix, []catalogBinding{
 			{name: "attn_output.bias", item: layer.AttentionOutputBias},
 			{name: "ffn_up.bias", item: layer.FeedForwardUpBias},
@@ -113,15 +114,15 @@ func loadDenseFFNCatalog(
 			return err
 		}
 	}
-	if spec.Architecture == "gptj" {
+	switch profile.DenseWeights.BiasCatalog {
+	case denseBiasCatalogGPTJ:
 		if err := requireCatalogBindings(prefix, []catalogBinding{
 			{name: "ffn_up.bias", item: layer.FeedForwardUpBias},
 			{name: "ffn_down.bias", item: layer.FeedForwardDownBias},
 		}); err != nil {
 			return err
 		}
-	}
-	if spec.Architecture == "jais2" {
+	case denseBiasCatalogJais2:
 		if err := requireCatalogBindings(prefix, []catalogBinding{
 			{name: "attn_q.bias", item: layer.AttentionQBias},
 			{name: "attn_k.bias", item: layer.AttentionKBias},
@@ -132,8 +133,7 @@ func loadDenseFFNCatalog(
 		}); err != nil {
 			return err
 		}
-	}
-	if spec.Architecture == "jais" {
+	case denseBiasCatalogJais:
 		if err := requireCatalogBindings(prefix, []catalogBinding{
 			{name: "attn_output.bias", item: layer.AttentionOutputBias},
 			{name: "ffn_gate.bias", item: layer.FeedForwardGateBias},
@@ -143,7 +143,7 @@ func loadDenseFFNCatalog(
 			return err
 		}
 	}
-	if spec.Architecture == "cogvlm" {
+	if profile.Overrides == EmbeddingOverrideCogVLM {
 		return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("vis_attn_qkv.weight", &layer.VisualAttentionQKV, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
 			requiredTensorPointer("vis_attn_output.weight", &layer.VisualAttentionOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),

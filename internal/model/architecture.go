@@ -967,6 +967,15 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	updateDenseWeights([]string{"mpt"}, func(policy *DenseWeightPolicy) {
 		policy.AllowActivationScale = true
 	})
+	updateDenseWeights([]string{"gptj"}, func(policy *DenseWeightPolicy) {
+		policy.BiasCatalog = denseBiasCatalogGPTJ
+	})
+	updateDenseWeights([]string{"jais2"}, func(policy *DenseWeightPolicy) {
+		policy.BiasCatalog = denseBiasCatalogJais2
+	})
+	updateDenseWeights([]string{"jais"}, func(policy *DenseWeightPolicy) {
+		policy.BiasCatalog = denseBiasCatalogJais
+	})
 	update([]string{"codeshell"}, func(profile *ArchitectureProfile) {
 		profile.ModelCatalog.TokenEmbeddingFallback = true
 	})

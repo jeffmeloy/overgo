@@ -264,17 +264,7 @@ type DenseBlockOptions struct {
 // BuildDenseBlockWithOptions: typed dense layer construction.
 func BuildDenseBlockWithOptions(options DenseBlockOptions) (DenseBlockResult, error) {
 	if options.Context.MultiPositions != nil {
-		switch options.Spec.Architecture {
-		case "glm4", "glm4moe":
-			if options.Spec.RopeSections[0] <= 0 || options.Spec.RopeSections[1] <= 0 {
-				return DenseBlockResult{}, errors.New("GLM4 multi-axis positions require multimodal RoPE sections")
-			}
-		case "hunyuan-dense", "hunyuan_vl":
-			if options.Spec.RopeSections[0] <= 0 || options.Spec.RopeSections[1] <= 0 {
-				return DenseBlockResult{}, errors.New("Hunyuan multi-axis positions require multimodal RoPE sections")
-			}
-		case "paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe":
-		default:
+		if !options.Spec.SupportsMultiAxisPositions() {
 			return DenseBlockResult{}, errors.New("dense block architecture does not support multi-axis positions")
 		}
 		options.Context.Positions = options.Context.MultiPositions[0]

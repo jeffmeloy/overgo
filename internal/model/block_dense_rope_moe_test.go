@@ -919,7 +919,7 @@ func TestBuildCohere2MoEBlockFusedExpertsAndSharedBranch(t *testing.T) {
 		SlidingWindow: 128,
 		SlidingLayers: []bool{false, true}}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertGatingFunc: 2, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
+		ExpertGatingFunc: expertGatingSigmoid, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
 		SharedExpertCount: 1, SharedExpertFF: 6},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
@@ -989,7 +989,7 @@ func TestBuildHYV3MoEBlockFusedExpertsAndPreRoPEQKNorm(t *testing.T) {
 		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertGatingFunc: 2, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
+		ExpertGatingFunc: expertGatingSigmoid, ExpertWeightsNorm: true, ExpertWeightsScale: 1.25,
 		SharedExpertFF: 6},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
@@ -1050,7 +1050,7 @@ func TestBuildDeepSeek2OCRMoEBlockUsesSplitQKVAndSharedExpert(t *testing.T) {
 		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertGatingFunc: 1, ExpertWeightsScale: 1, SharedExpertFF: 12},
+		ExpertGatingFunc: expertGatingSoftmax, ExpertWeightsScale: 1, SharedExpertFF: 12},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -1713,7 +1713,7 @@ func TestBuildDenseEXAOneMoEBlock(t *testing.T) {
 		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 500000,
 		SlidingWindow: 128, SlidingPattern: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.5,
-		SharedExpertFF: 12, ExpertGatingFunc: 2, ExpertWeightsNorm: true},
+		SharedExpertFF: 12, ExpertGatingFunc: expertGatingSigmoid, ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -1770,7 +1770,7 @@ func TestBuildSmallThinkerUsesSplitRouterReGLUAndSlidingRoPE(t *testing.T) {
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
 		SlidingWindow: 128, SlidingPattern: 4, NoRopeLayerStep: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2,
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: expertGatingSigmoid,
 		ExpertWeightsNorm: true},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))

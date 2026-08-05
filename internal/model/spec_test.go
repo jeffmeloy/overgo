@@ -125,7 +125,7 @@ func TestReadGPTOSSSpec(t *testing.T) {
 	}
 	if spec.KeyLength != 64 || spec.RopeDimensionCount != 64 || spec.SlidingWindow != 128 ||
 		spec.SlidingPattern != 2 || !spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
-		spec.RopeFrequencySWA != 10000 || spec.ExpertGatingFunc != 3 || spec.ExpertWeightsNorm {
+		spec.RopeFrequencySWA != 10000 || spec.ExpertGatingFunc != expertGatingSelectedSoftmax || spec.ExpertWeightsNorm {
 		t.Fatalf("unexpected GPT-OSS spec: %+v", spec)
 	}
 }
@@ -193,7 +193,7 @@ func TestReadGLM4MoESpec(t *testing.T) {
 	}
 	if spec.Architecture != "glm4moe" || spec.BlockCount != 2 || spec.NextNPredictLayers != 1 ||
 		spec.LeadingDenseBlocks != 1 || spec.SharedExpertFF != 12 ||
-		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.RopeSections[1] != 1 {
+		spec.ExpertGatingFunc != expertGatingSigmoid || !spec.ExpertWeightsNorm || spec.RopeSections[1] != 1 {
 		t.Fatalf("unexpected GLM4-MoE spec: %+v", spec)
 	}
 }
@@ -234,7 +234,7 @@ func TestReadMiMo2SpecTrimsMTPArrays(t *testing.T) {
 		len(spec.SlidingLayers) != 3 || !spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
 		!spec.IsSlidingLayer(2) || spec.AttentionValueScale != 0.5 ||
 		spec.RopeDimensionCount != 4 || spec.RopeFrequencySWA != 20000 ||
-		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm {
+		spec.ExpertGatingFunc != expertGatingSigmoid || !spec.ExpertWeightsNorm {
 		t.Fatalf("unexpected MiMo2 spec: %+v", spec)
 	}
 }
@@ -289,7 +289,7 @@ func TestReadStep35SpecPreservesMTPArrays(t *testing.T) {
 		spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) || spec.IsSlidingLayer(2) ||
 		spec.LayerExpertSwiGLUClamp(1) != 3 || spec.LayerSharedSwiGLUClampLimit(1) != 5 ||
 		spec.LayerExpertSwiGLUClamp(2) != 0 || spec.LayerSharedSwiGLUClampLimit(2) != 0 ||
-		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.SharedExpertFF != 8 {
+		spec.ExpertGatingFunc != expertGatingSigmoid || !spec.ExpertWeightsNorm || spec.SharedExpertFF != 8 {
 		t.Fatalf("unexpected Step3.5 spec: %+v", spec)
 	}
 }
@@ -546,7 +546,7 @@ func TestReadBailingMoE2SpecTrimsNextNLayers(t *testing.T) {
 		metadata("bailingmoe2.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("bailingmoe2.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
 		metadata("bailingmoe2.expert_weights_norm", gguf.ValueTypeBool, true),
-		metadata("bailingmoe2.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("bailingmoe2.expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 		metadata("bailingmoe2.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
 		metadata("bailingmoe2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("bailingmoe2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
@@ -563,7 +563,7 @@ func TestReadBailingMoE2SpecTrimsNextNLayers(t *testing.T) {
 	if spec.Architecture != "bailingmoe2" || spec.BlockCount != 2 || spec.NextNPredictLayers != 1 ||
 		spec.LeadingDenseBlocks != 1 || spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertCount != 2 || spec.SharedExpertFF != 10 ||
-		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
+		spec.ExpertGatingFunc != expertGatingSigmoid || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
 		spec.RopeDimensionCount != 4 || usesNormalRoPE(spec.Architecture) {
 		t.Fatalf("unexpected BailingMoE2 spec: %+v", spec)
 	}
@@ -665,7 +665,7 @@ func TestReadEXAOneMoESpec(t *testing.T) {
 		metadata("exaone-moe.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("exaone-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
 		metadata("exaone-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("exaone-moe.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("exaone-moe.expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 		metadata("exaone-moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.5)),
 		metadata("exaone-moe.expert_weights_norm", gguf.ValueTypeBool, true),
 		metadata("exaone-moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
@@ -683,7 +683,7 @@ func TestReadEXAOneMoESpec(t *testing.T) {
 	}
 	if spec.BlockCount != 4 || spec.NextNPredictLayers != 1 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 ||
-		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm ||
+		spec.ExpertGatingFunc != expertGatingSigmoid || !spec.ExpertWeightsNorm ||
 		!spec.IsSlidingLayer(0) || spec.IsSlidingLayer(2) || spec.UsesRoPE(2) {
 		t.Fatalf("unexpected EXAONE-MoE spec: %+v", spec)
 	}
@@ -1016,7 +1016,7 @@ func TestReadLagunaSpecPreservesPerLayerHeadsAndHybridRoPE(t *testing.T) {
 	if spec.LayerHeadCount(0) != 2 || spec.LayerHeadCount(1) != 4 ||
 		spec.LayerKVHeadCount(1) != 1 || spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
 		spec.RopeScalingType != "yarn" || spec.SharedExpertFF != 10 ||
-		!spec.ExpertWeightsNorm || spec.ExpertGatingFunc != 2 ||
+		!spec.ExpertWeightsNorm || spec.ExpertGatingFunc != expertGatingSigmoid ||
 		math.Abs(float64(spec.YaRNAttentionFactor-1/(1+0.1*float32(math.Log(4))))) > 1e-6 {
 		t.Fatalf("unexpected Laguna spec: %+v", spec)
 	}

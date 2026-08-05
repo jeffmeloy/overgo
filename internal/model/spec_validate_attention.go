@@ -6,6 +6,19 @@ import (
 	"math"
 )
 
+const (
+	gemma3nSmallBlockCount        = 30
+	gemma3nLargeBlockCount        = 35
+	gemma3nKVStartLayer           = 20
+	gemma3nAltUpCount             = 4
+	gemma3nAltUpActive            = 0
+	gemma3nLaurelRank             = 64
+	gemma3nLayerEmbeddingWidth    = 256
+	gemma3nSparseLayerCount       = 10
+	gemma3nSparsityStdMultiplier  = 1.6448533535003662
+	gemma3nSlidingAttentionPeriod = 5
+)
+
 func (s Spec) validateAttentionFamilies() error {
 	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
@@ -103,19 +116,22 @@ func (s Spec) validateAttentionFamilies() error {
 	}
 	if s.Architecture == "gemma3n" {
 		switch {
-		case s.BlockCount != 30 && s.BlockCount != 35:
+		case s.BlockCount != gemma3nSmallBlockCount && s.BlockCount != gemma3nLargeBlockCount:
 			return errors.New("Gemma 3n block count must be 30 or 35")
-		case s.KVFromStart != 20 || s.SharedKVLayers != s.BlockCount-s.KVFromStart:
+		case s.KVFromStart != gemma3nKVStartLayer || s.SharedKVLayers != s.BlockCount-s.KVFromStart:
 			return errors.New("Gemma 3n shared-KV boundary is invalid")
-		case s.AltUpCount != 4 || s.AltUpActive != 0 || s.LaurelRank != 64 || s.EmbeddingPerLayer != 256:
+		case s.AltUpCount != gemma3nAltUpCount || s.AltUpActive != gemma3nAltUpActive ||
+			s.LaurelRank != gemma3nLaurelRank || s.EmbeddingPerLayer != gemma3nLayerEmbeddingWidth:
 			return errors.New("Gemma 3n AltUp/Laurel dimensions are invalid")
-		case s.SparseLayerCount != 10 || s.SparsityStdMultiplier != 1.6448533535003662:
+		case s.SparseLayerCount != gemma3nSparseLayerCount ||
+			s.SparsityStdMultiplier != gemma3nSparsityStdMultiplier:
 			return errors.New("Gemma 3n sparsity parameters are invalid")
 		case s.KeyLength == 0 || s.KeyLength != s.ValueLength || s.HeadCount == 0 ||
 			s.HeadCountKV == 0 || s.HeadCount%s.HeadCountKV != 0:
 			return errors.New("Gemma 3n attention dimensions are invalid")
 		case s.RopeDimensionCount != s.KeyLength || s.KeyLength%2 != 0 ||
-			s.RopeFrequencySWA <= 0 || s.SlidingWindow == 0 || s.SlidingPattern != 5:
+			s.RopeFrequencySWA <= 0 || s.SlidingWindow == 0 ||
+			s.SlidingPattern != gemma3nSlidingAttentionPeriod:
 			return errors.New("Gemma 3n rotary/sliding metadata is invalid")
 		case s.FinalLogitSoftcap <= 0:
 			return errors.New("Gemma 3n final logit softcap must be positive")
@@ -194,7 +210,7 @@ func (s Spec) validateAttentionFamilies() error {
 	if s.Architecture == "cohere2moe" &&
 		(s.LeadingDenseBlocks >= s.BlockCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
 			s.ExpertUsedCount > s.ExpertCount || s.ExpertFeedForward == 0 ||
-			(s.ExpertGatingFunc != 2) || (s.SharedExpertCount > 0 && s.SharedExpertFF == 0)) {
+			(s.ExpertGatingFunc != expertGatingSigmoid) || (s.SharedExpertCount > 0 && s.SharedExpertFF == 0)) {
 		return errors.New("Cohere2-MoE expert metadata is invalid")
 	}
 	if s.Architecture == "ernie4_5-moe" &&
@@ -325,7 +341,7 @@ func (s Spec) validateAttentionFamilies() error {
 		(s.LeadingDenseBlocks >= s.BlockCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 ||
 			s.SharedExpertCount == 0 || s.SharedExpertFF == 0 ||
-			(s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2) ||
+			(s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid) ||
 			s.ExpertWeightsScale == 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("GLM4-MoE expert metadata is invalid")

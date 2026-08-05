@@ -20,7 +20,7 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 		SlidingWindow: 128,
 		SlidingLayers: []bool{false, true}}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertGatingFunc: 2, ExpertWeightsScale: 1, SharedExpertCount: 1, SharedExpertFF: 6},
+		ExpertGatingFunc: expertGatingSigmoid, ExpertWeightsScale: 1, SharedExpertCount: 1, SharedExpertFF: 6},
 	}
 	input := builder.Input("token", dtype.F32, tensor.MustShape(8, 2))
 	hidden := builder.Input("hidden", dtype.F32, tensor.MustShape(8, 2))

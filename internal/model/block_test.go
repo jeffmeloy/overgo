@@ -1016,8 +1016,8 @@ func TestBuildBailingMoE2BlockUsesFusedQKVNeoXAndSharedExpert(t *testing.T) {
 		gating  uint32
 		routing tensor.MoERouting
 	}{
-		{name: "softmax", gating: 1, routing: tensor.MoERoutingSoftmax},
-		{name: "sigmoid", gating: 2, routing: tensor.MoERoutingSigmoid},
+		{name: "softmax", gating: expertGatingSoftmax, routing: tensor.MoERoutingSoftmax},
+		{name: "sigmoid", gating: expertGatingSigmoid, routing: tensor.MoERoutingSigmoid},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			builder := tensor.NewBuilder()

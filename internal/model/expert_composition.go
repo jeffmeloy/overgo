@@ -140,7 +140,7 @@ func (p ExpertPolicy) compositionKind(spec Spec) expertCompositionKind {
 			return expertRoutedOnly
 		}
 	case expertCompositionUnlessSigmoidWithoutShared:
-		if spec.ExpertGatingFunc == 2 && spec.SharedExpertFF == 0 {
+		if spec.ExpertGatingFunc == expertGatingSigmoid && spec.SharedExpertFF == 0 {
 			return expertRoutedOnly
 		}
 	}

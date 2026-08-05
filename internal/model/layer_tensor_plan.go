@@ -381,7 +381,7 @@ func (p MoEGraphPlan) BuildLayer(
 func (s Spec) moeGraphPlan(layer uint32) MoEGraphPlan {
 	policy := s.Profile().Experts
 	routing := tensor.MoERoutingSoftmax
-	if s.ExpertGatingFunc == 2 {
+	if s.ExpertGatingFunc == expertGatingSigmoid {
 		routing = tensor.MoERoutingSigmoid
 	}
 	switch policy.Routing {

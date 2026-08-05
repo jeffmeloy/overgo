@@ -1135,7 +1135,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.ExpertWeightsScale = value
 		}
 		spec.MoELatentSize, _ = optional[uint32](values, prefix+"moe_latent_size", gguf.ValueTypeUint32)
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 	}
 	return spec, nil
 }
@@ -1202,11 +1202,11 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 				return Spec{}, err
 			}
 			spec.SharedExpertFF = spec.ExpertFeedForward
-			spec.ExpertGatingFunc = 2
+			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 		spec.ExpertWeightsScale = 1
 		if architecture == "gpt-oss" {
-			spec.ExpertGatingFunc = 3
+			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
 			spec.ExpertWeightsNorm = false
 		}
 		if value, ok := optional[float32](
@@ -1244,9 +1244,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsScale = value
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
-		spec.ExpertGatingFunc = 1
+		spec.ExpertGatingFunc = expertGatingSoftmax
 		if architecture == "glm-dsa" {
-			spec.ExpertGatingFunc = 2
+			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 		if architecture == "deepseek32" {
 			if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
@@ -1255,11 +1255,11 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		} else if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
 			spec.ExpertGatingFunc = value
 		} else if (spec.BlockCount == 47 || spec.BlockCount == 48) && spec.VocabularySize == 154880 {
-			spec.ExpertGatingFunc = 2
+			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 	}
 	if architecture == "mimo2" {
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 		spec.ExpertWeightsNorm = true
 	}
 	if architecture == "gemma4" {
@@ -1295,7 +1295,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if value, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok {
 			spec.MoELayerStep = value
 		}
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
 			spec.ExpertGatingFunc = value
 		}
@@ -1310,7 +1310,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, errors.New("GLM4-MoE shared expert width overflows")
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
 			spec.ExpertGatingFunc = value
 		}
@@ -1344,7 +1344,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
 			spec.ExpertGatingFunc = value
 		}
@@ -1376,7 +1376,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
 			spec.SharedExpertFF = value
 		}
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
 			spec.ExpertGatingFunc = value
 		}
@@ -1397,7 +1397,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, errors.New("DeepSeek2-OCR shared expert width overflows")
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
-		spec.ExpertGatingFunc = 1
+		spec.ExpertGatingFunc = expertGatingSoftmax
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
 			spec.ExpertGatingFunc = value
 		}
@@ -1640,7 +1640,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
 			spec.ExpertGatingFunc = value
 		}
@@ -1694,10 +1694,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.ExpertGatingFunc = 2
+		spec.ExpertGatingFunc = expertGatingSigmoid
 		spec.ExpertGatingFunc, _ = optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32)
-		if spec.ExpertGatingFunc == 0 {
-			spec.ExpertGatingFunc = 2
+		if spec.ExpertGatingFunc == expertGatingUnset {
+			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		sharedCount := uint32(1)

@@ -171,7 +171,7 @@ func TestReadAFMoESpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "afmoe" || spec.ExpertGatingFunc != 2 ||
+	if spec.Architecture != "afmoe" || spec.ExpertGatingFunc != expertGatingSigmoid ||
 		spec.SharedExpertCount != 2 || spec.SharedExpertFF != 12 ||
 		!spec.ExpertWeightsNorm || spec.NoRopeLayerStep != 4 ||
 		!spec.IsSlidingLayer(0) || spec.InputEmbeddingScale() != float32(math.Sqrt(8)) {
@@ -242,7 +242,7 @@ func TestReadLFM2MoEHybridSpec(t *testing.T) {
 		metadata("lfm2moe.expert_count", gguf.ValueTypeUint32, uint32(8)),
 		metadata("lfm2moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("lfm2moe.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
-		metadata("lfm2moe.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("lfm2moe.expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 		metadata("lfm2moe.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
 		metadata("lfm2moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
 		{Key: "lfm2moe.attention.head_count_kv", Value: gguf.Value{
@@ -263,7 +263,7 @@ func TestReadLFM2MoEHybridSpec(t *testing.T) {
 	if spec.Architecture != "lfm2moe" || spec.HeadCountKV != 1 ||
 		spec.ShortConvCacheLength != 4 || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
-		spec.ExpertWeightsScale != 1.25 || spec.ExpertGatingFunc != 2 ||
+		spec.ExpertWeightsScale != 1.25 || spec.ExpertGatingFunc != expertGatingSigmoid ||
 		!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(1) || !spec.IsRecurrentLayer(2) ||
 		!spec.IsSlidingLayer(1) {
 		t.Fatalf("unexpected LFM2-MoE spec: %+v", spec)
@@ -358,7 +358,7 @@ func TestReadDeepSeek2Spec(t *testing.T) {
 	if spec.QLoRARank != 3 || spec.KVLoRARank != 3 || spec.KeyLength != 6 || spec.ValueLength != 4 ||
 		spec.RopeDimensionCount != 2 || spec.RopeScalingType != "yarn" ||
 		spec.RopeYaRNLogMultiplier != 1 || spec.LeadingDenseBlocks != 1 ||
-		spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != 1 || spec.AttentionTempFloor != 8192 {
+		spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != expertGatingSoftmax || spec.AttentionTempFloor != 8192 {
 		t.Fatalf("unexpected DeepSeek2 spec: %+v", spec)
 	}
 	wantAttentionFactor := float32(1 / (1 + 0.1*math.Log(4)))
@@ -407,7 +407,7 @@ func TestReadGLMDSASpec(t *testing.T) {
 	}
 	if spec.Architecture != "glm-dsa" || spec.BlockCount != 6 || spec.NextNPredictLayers != 1 ||
 		spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 ||
-		spec.IndexerTopK != 4 || spec.ExpertGatingFunc != 2 || spec.RopeScalingType != "yarn" ||
+		spec.IndexerTopK != 4 || spec.ExpertGatingFunc != expertGatingSigmoid || spec.RopeScalingType != "yarn" ||
 		spec.RopeYaRNLogMultiplier != 1 || !spec.LayerHasFullIndexer(2) ||
 		spec.LayerHasFullIndexer(3) || spec.RopeSections != [4]int32{1, 0, 0, 0} {
 		t.Fatalf("unexpected GLM-DSA spec: %+v", spec)
@@ -451,7 +451,7 @@ func TestReadDeepSeek32Spec(t *testing.T) {
 		metadata(prefix+"expert_used_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata(prefix+"expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
 		metadata(prefix+"expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
-		metadata(prefix+"expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata(prefix+"expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 		metadata(prefix+"attention.indexer.head_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata(prefix+"attention.indexer.key_length", gguf.ValueTypeUint32, uint32(8)),
 		metadata(prefix+"attention.indexer.top_k", gguf.ValueTypeUint32, uint32(4)),
@@ -462,7 +462,7 @@ func TestReadDeepSeek32Spec(t *testing.T) {
 	}
 	if spec.Architecture != "deepseek32" || spec.BlockCount != 62 || spec.NextNPredictLayers != 1 ||
 		spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 || spec.IndexerTopK != 4 ||
-		spec.ExpertGatingFunc != 2 || spec.LayerNormEpsilon != 1e-6 ||
+		spec.ExpertGatingFunc != expertGatingSigmoid || spec.LayerNormEpsilon != 1e-6 ||
 		!spec.LayerHasFullIndexer(0) || !spec.LayerHasFullIndexer(61) {
 		t.Fatalf("unexpected DeepSeek 3.2 spec: %+v", spec)
 	}
@@ -499,7 +499,7 @@ func TestReadDeepSeek4Spec(t *testing.T) {
 		metadata(prefix+"expert_used_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata(prefix+"expert_feed_forward_length", gguf.ValueTypeUint32, uint32(8)),
 		metadata(prefix+"expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
-		metadata(prefix+"expert_gating_func", gguf.ValueTypeUint32, uint32(4)),
+		metadata(prefix+"expert_gating_func", gguf.ValueTypeUint32, expertGatingSqrtSoftplus),
 		metadata(prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
 		metadata(prefix+"expert_weights_norm", gguf.ValueTypeBool, true),
 		metadata(prefix+"swiglu_clamp_exp", gguf.ValueTypeFloat32, float32(7)),
@@ -519,7 +519,7 @@ func TestReadDeepSeek4Spec(t *testing.T) {
 	if spec.Architecture != "deepseek4" || spec.BlockCount != 43 || spec.QLoRARank != 3 ||
 		len(spec.CompressRatios) != 43 || spec.CompressRatios[1] != 4 || spec.CompressRatios[2] != 128 || spec.HyperConnectionCount != 4 ||
 		spec.AttentionOutputGroups != 1 || spec.AttentionOutputRank != 3 || spec.HashLayerCount != 1 ||
-		spec.ExpertGatingFunc != 4 || spec.SharedExpertFF != 8 || spec.LayerExpertSwiGLUClamp(0) != 7 ||
+		spec.ExpertGatingFunc != expertGatingSqrtSoftplus || spec.SharedExpertFF != 8 || spec.LayerExpertSwiGLUClamp(0) != 7 ||
 		spec.LayerSharedSwiGLUClampLimit(0) != 6 || !usesNormalRoPE(spec.Architecture) {
 		t.Fatalf("unexpected DeepSeek 4 spec: %+v", spec)
 	}
@@ -909,7 +909,7 @@ func TestReadCohere2MoESpec(t *testing.T) {
 		spec.NextNPredictLayers != 1 ||
 		spec.UsesWeightOnlyLayerNorm() || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 ||
-		spec.ExpertGatingFunc != 2 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
+		spec.ExpertGatingFunc != expertGatingSigmoid || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
 		spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
 		!spec.UsesRoPE(0) || !spec.UsesRoPE(1) || spec.UsesRoPE(2) ||
 		spec.OutputLogitMultiplier() != 0.5 {
@@ -941,7 +941,7 @@ func TestReadHYV3SpecPreservesNextNCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	if spec.Architecture != "hy_v3" || spec.BlockCount != 4 || spec.NextNPredictLayers != 1 || spec.RMSNormEpsilon != 1e-5 ||
-		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != 2 ||
+		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != expertGatingSigmoid ||
 		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
 		spec.RopeDimensionCount != 4 || usesNormalRoPE(spec.Architecture) {
 		t.Fatalf("unexpected HY-V3 spec: %+v", spec)
@@ -971,7 +971,7 @@ func TestReadDeepSeek2OCRSpec(t *testing.T) {
 	}
 	if spec.Architecture != "deepseek2-ocr" || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 ||
-		spec.ExpertGatingFunc != 1 || spec.RopeDimensionCount != 4 ||
+		spec.ExpertGatingFunc != expertGatingSoftmax || spec.RopeDimensionCount != 4 ||
 		spec.RopeFrequencyBase != 10000 || usesNormalRoPE(spec.Architecture) {
 		t.Fatalf("unexpected DeepSeek2-OCR spec: %+v", spec)
 	}

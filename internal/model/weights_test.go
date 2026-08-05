@@ -1015,7 +1015,7 @@ func TestReadWeightsSmallThinkerFusedQKV(t *testing.T) {
 		FeedForwardLength: 6,
 
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, ExpertWeightsScale: 1, ExpertGatingFunc: 1},
+		ExpertFeedForward: 6, ExpertWeightsScale: 1, ExpertGatingFunc: expertGatingSoftmax},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1045,7 +1045,7 @@ func TestReadWeightsDOTS1DenseThenMoE(t *testing.T) {
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2,
 		ExpertFeedForward: 6, SharedExpertCount: 2, SharedExpertFF: 12,
-		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2},
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1086,7 +1086,7 @@ func TestReadWeightsMiniMaxM2(t *testing.T) {
 		FeedForwardLength: 6,
 
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, ExpertWeightsScale: 1, ExpertGatingFunc: 2},
+		ExpertFeedForward: 6, ExpertWeightsScale: 1, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -1117,7 +1117,7 @@ func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2,
 		ExpertFeedForward: 6, SharedExpertCount: 2, SharedExpertFF: 10,
-		ExpertWeightsScale: 1.25, ExpertGatingFunc: 2},
+		ExpertWeightsScale: 1.25, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),

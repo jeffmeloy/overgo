@@ -78,7 +78,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		switch {
 		case !validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("Step3.5 expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("Step3.5 expert routing function is unsupported")
 		case len(s.LayerHeadCounts) != layerCount || len(s.LayerKVHeadCounts) != layerCount:
 			return errors.New("Step3.5 layer head metadata is invalid")
@@ -213,7 +213,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
 			return errors.New("HY-V3 expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("HY-V3 expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -231,7 +231,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("DeepSeek2-OCR expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("DeepSeek2-OCR expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -249,7 +249,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 			return errors.New("SmallThinker expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("SmallThinker expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -271,7 +271,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 			return errors.New("DOTS1 expert metadata is invalid")
 		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
 			return errors.New("DOTS1 shared expert width overflows")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("DOTS1 expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -287,7 +287,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 			return errors.New("MiniMax-M2 expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("MiniMax-M2 expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -313,7 +313,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("BailingMoE2 expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("BailingMoE2 expert routing function is unsupported")
 		case s.SharedExpertFF%s.SharedExpertCount != 0:
 			return errors.New("BailingMoE2 shared expert width is invalid")
@@ -364,7 +364,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 || s.MoELayerStep == 0:
 			return errors.New("Llama 4 expert metadata is invalid")
-		case s.ExpertGatingFunc != 2 || s.ExpertWeightsScale <= 0 ||
+		case s.ExpertGatingFunc != expertGatingSigmoid || s.ExpertWeightsScale <= 0 ||
 			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("Llama 4 expert routing metadata is invalid")
 		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
@@ -378,7 +378,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 	}
 	if s.Architecture == "gpt-oss" &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertGatingFunc != 3 ||
+			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertGatingFunc != expertGatingSelectedSoftmax ||
 			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0) ||
 			s.SlidingWindow == 0 || s.SlidingPattern < 2 || s.RopeDimensionCount != s.KeyLength ||
 			s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0 || s.RopeFrequencySWA <= 0) {
@@ -408,7 +408,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
 			return errors.New("Laguna expert metadata is invalid")
-		case s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("Laguna requires sigmoid expert routing")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -440,7 +440,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0:
 			return errors.New("AFMoE expert metadata is invalid")
-		case s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("AFMoE requires sigmoid expert routing")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 			math.IsInf(float64(s.ExpertWeightsScale), 0):
@@ -461,7 +461,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
 			return errors.New("EXAONE-MoE expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("EXAONE-MoE expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("EXAONE-MoE expert weight scale is invalid")
@@ -490,7 +490,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 			case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 				exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
 				return errors.New("LFM2-MoE expert metadata is invalid")
-			case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+			case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 				return errors.New("LFM2-MoE expert routing function is unsupported")
 			case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
 				math.IsInf(float64(s.ExpertWeightsScale), 0):

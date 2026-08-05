@@ -393,7 +393,7 @@ func TestReadWeightsEXAOneMoE(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "exaone-moe", BlockCount: 1, NextNPredictLayers: 1, EmbeddingLength: 8, FeedForwardLength: 16,
 
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, ExpertWeightsScale: 1.5,
-		SharedExpertFF: 12, ExpertGatingFunc: 2},
+		SharedExpertFF: 12, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -506,7 +506,7 @@ func TestReadWeightsLFM2MoEDenseThenHybridMoE(t *testing.T) {
 		VocabularySize: 32}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertWeightsScale: 1.25, ExpertGatingFunc: 2}, RecurrentSpec: RecurrentSpec{ShortConvCacheLength: 4, RecurrentLayers: []bool{true, false, true}},
+		ExpertWeightsScale: 1.25, ExpertGatingFunc: expertGatingSigmoid}, RecurrentSpec: RecurrentSpec{ShortConvCacheLength: 4, RecurrentLayers: []bool{true, false, true}},
 	}
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_embd_norm.weight", 8),

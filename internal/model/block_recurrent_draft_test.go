@@ -14,7 +14,7 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 2,
 		RopeDisabled: true, RopeDimensionCount: 2,
 		KVLoRARank: 3}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertFF: 6, LeadingDenseBlocks: 1, ExpertGatingFunc: 2,
+		SharedExpertFF: 6, LeadingDenseBlocks: 1, ExpertGatingFunc: expertGatingSigmoid,
 		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true}, RecurrentSpec: RecurrentSpec{KDAHeadDim: 2, SSMConvKernel: 3, SSMInnerSize: 4},
 	}
 	t.Run("kda", func(t *testing.T) {
@@ -819,7 +819,7 @@ func TestBuildLlama4AttentionAndMoE(t *testing.T) {
 		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 10000,
 		SlidingWindow: 4, SlidingPattern: 4, NoRopeLayerStep: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 6,
-		ExpertWeightsScale: 1, ExpertGatingFunc: 2, MoELayerStep: 4},
+		ExpertWeightsScale: 1, ExpertGatingFunc: expertGatingSigmoid, MoELayerStep: 4},
 	}
 	for _, test := range []struct {
 		name  string
@@ -933,7 +933,7 @@ func TestBuildGPTOSSBiasedMoEBlock(t *testing.T) {
 		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 2000,
 		SlidingWindow: 4, SlidingPattern: 2}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertWeightsScale: 1, ExpertGatingFunc: 3},
+		ExpertWeightsScale: 1, ExpertGatingFunc: expertGatingSelectedSoftmax},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)

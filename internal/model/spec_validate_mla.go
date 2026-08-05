@@ -77,7 +77,7 @@ func (s Spec) validateMLAFamilies() error {
 		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
 			return errors.New("DeepSeek 4 expert metadata is invalid")
-		case s.ExpertGatingFunc != uint32(4):
+		case s.ExpertGatingFunc != expertGatingSqrtSoftplus:
 			return errors.New("DeepSeek 4 expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("DeepSeek 4 expert weight scale is invalid")
@@ -110,7 +110,7 @@ func (s Spec) validateMLAFamilies() error {
 			s.ExpertFeedForward == 0 ||
 			s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
 			return errors.New("Kimi Linear expert metadata is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("Kimi Linear expert routing function is unsupported")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("Kimi Linear expert weight scale is invalid")
@@ -140,7 +140,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DeepSeek2 shared expert width overflows")
 		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
 			return errors.New("DeepSeek2 expert weight scale is invalid")
-		case s.ExpertGatingFunc != 1 && s.ExpertGatingFunc != 2:
+		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("DeepSeek2 expert routing function is unsupported")
 		case !lite && s.QLoRARank == 0:
 			return errors.New("DeepSeek2 query LoRA rank is missing")

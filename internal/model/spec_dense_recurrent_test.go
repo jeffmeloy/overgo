@@ -231,7 +231,7 @@ func TestReadSmallThinkerSpec(t *testing.T) {
 		metadata("smallthinker.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
 		metadata("smallthinker.expert_count", gguf.ValueTypeUint32, uint32(8)),
 		metadata("smallthinker.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("smallthinker.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("smallthinker.expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 		metadata("smallthinker.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("smallthinker.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
 		metadata("smallthinker.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
@@ -246,7 +246,7 @@ func TestReadSmallThinkerSpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.ExpertFeedForward != 6 || !spec.ExpertWeightsNorm || spec.ExpertGatingFunc != 2 ||
+	if spec.ExpertFeedForward != 6 || !spec.ExpertWeightsNorm || spec.ExpertGatingFunc != expertGatingSigmoid ||
 		spec.SlidingWindow != 4096 || spec.SlidingPattern != 4 || spec.NoRopeLayerStep != 4 ||
 		spec.RopeFrequencySWA != 20000 || spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
 		spec.IsSlidingLayer(4) || spec.UsesRoPE(0) || !spec.UsesRoPE(1) || spec.UsesRoPE(4) {
@@ -263,7 +263,7 @@ func TestReadSmallThinkerWithoutSlidingUsesRoPEEverywhere(t *testing.T) {
 		metadata("smallthinker.feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
 		metadata("smallthinker.expert_count", gguf.ValueTypeUint32, uint32(8)),
 		metadata("smallthinker.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
-		metadata("smallthinker.expert_gating_func", gguf.ValueTypeUint32, uint32(1)),
+		metadata("smallthinker.expert_gating_func", gguf.ValueTypeUint32, expertGatingSoftmax),
 		metadata("smallthinker.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("smallthinker.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
 		metadata("smallthinker.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
@@ -294,7 +294,7 @@ func TestReadDOTS1Spec(t *testing.T) {
 		metadata("dots1.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("dots1.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
 		metadata("dots1.expert_weights_norm", gguf.ValueTypeBool, true),
-		metadata("dots1.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("dots1.expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 		metadata("dots1.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
 		metadata("dots1.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("dots1.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
@@ -309,7 +309,7 @@ func TestReadDOTS1Spec(t *testing.T) {
 	}
 	if spec.ExpertFeedForward != 6 || spec.SharedExpertCount != 2 ||
 		spec.SharedExpertFF != 12 || spec.ExpertWeightsScale != 1.25 ||
-		!spec.ExpertWeightsNorm || spec.ExpertGatingFunc != 2 || spec.LeadingDenseBlocks != 1 {
+		!spec.ExpertWeightsNorm || spec.ExpertGatingFunc != expertGatingSigmoid || spec.LeadingDenseBlocks != 1 {
 		t.Fatalf("unexpected DOTS1 spec: %+v", spec)
 	}
 }
@@ -324,7 +324,7 @@ func TestReadMiniMaxM2Spec(t *testing.T) {
 		metadata("minimax-m2.expert_count", gguf.ValueTypeUint32, uint32(4)),
 		metadata("minimax-m2.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("minimax-m2.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
-		metadata("minimax-m2.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("minimax-m2.expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 		metadata("minimax-m2.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("minimax-m2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
 		metadata("minimax-m2.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
@@ -338,7 +338,7 @@ func TestReadMiniMaxM2Spec(t *testing.T) {
 		t.Fatal(err)
 	}
 	if spec.ExpertFeedForward != 6 || !spec.ExpertWeightsNorm ||
-		spec.ExpertGatingFunc != 2 || spec.RopeDimensionCount != 2 {
+		spec.ExpertGatingFunc != expertGatingSigmoid || spec.RopeDimensionCount != 2 {
 		t.Fatalf("unexpected MiniMax-M2 spec: %+v", spec)
 	}
 }
@@ -1042,7 +1042,7 @@ func TestReadKimiLinearSpec(t *testing.T) {
 		metadata("kimi-linear.expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
 		metadata("kimi-linear.leading_dense_block_count", gguf.ValueTypeUint32, uint32(1)),
 		metadata("kimi-linear.expert_weights_scale", gguf.ValueTypeFloat32, float32(2.446)),
-		metadata("kimi-linear.expert_gating_func", gguf.ValueTypeUint32, uint32(2)),
+		metadata("kimi-linear.expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid),
 	}}
 	spec, err := ReadSpec(file)
 	if err != nil {

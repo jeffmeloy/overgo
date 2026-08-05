@@ -708,7 +708,7 @@ func TestReadWeightsHYV3DetectsDenseAndFusedMoELayers(t *testing.T) {
 
 		VocabularySize: 32, RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertFF: 6, ExpertGatingFunc: 2},
+		SharedExpertFF: 6, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
@@ -801,7 +801,7 @@ func TestReadWeightsDeepSeek2OCRDensePrefixAndFusedExperts(t *testing.T) {
 		VocabularySize: 32, RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2,
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertCount: 2, SharedExpertFF: 12, ExpertGatingFunc: 1},
+		SharedExpertCount: 2, SharedExpertFF: 12, ExpertGatingFunc: expertGatingSoftmax},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),

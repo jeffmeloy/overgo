@@ -56,7 +56,7 @@ func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
 			KeyLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10_000,
 		},
 		MoESpec: MoESpec{
-			ExpertUsedCount: 2, ExpertWeightsScale: 1, ExpertGatingFunc: 2,
+			ExpertUsedCount: 2, ExpertWeightsScale: 1, ExpertGatingFunc: expertGatingSigmoid,
 			LayerSwiGLUClamp: []float32{7},
 		},
 	}

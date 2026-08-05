@@ -89,7 +89,7 @@ func TestBuildGLM4MoEBlock(t *testing.T) {
 		RopeFrequencyBase: 10000}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount:     4,
 		ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 12,
-		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2},
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -152,7 +152,7 @@ func TestBuildMiMo2UsesSinksValueScaleAndSigmoidMoE(t *testing.T) {
 		SlidingWindow: 128, SlidingLayers: []bool{false, true},
 		AttentionValueScale: 0.5}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
 		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertWeightsNorm: true,
-		ExpertGatingFunc: 2},
+		ExpertGatingFunc: expertGatingSigmoid},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -214,7 +214,7 @@ func TestBuildStep35UsesPartialRoPEHeadGateAndLimitedExperts(t *testing.T) {
 		RopeDimensionCount: 4, RopeFrequencyBase: 10000, RopeFrequencySWA: 20000,
 		SlidingWindow: 128, SlidingLayers: []bool{false, true}}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
 		ExpertFeedForward: 6, SharedExpertFF: 8, ExpertWeightsScale: 1.25,
-		ExpertWeightsNorm: true, ExpertGatingFunc: 2,
+		ExpertWeightsNorm: true, ExpertGatingFunc: expertGatingSigmoid,
 
 		LayerSwiGLUClamp: []float32{2, 0}, LayerSharedSwiGLUClamp: []float32{3, 0}},
 	}
@@ -283,7 +283,7 @@ func TestBuildDOTS1MoEBlock(t *testing.T) {
 		RopeFrequencyBase: 10000}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount: 4, ExpertUsedCount: 2,
 		ExpertFeedForward: 6, SharedExpertCount: 2, SharedExpertFF: 12,
-		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: 2},
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
@@ -341,7 +341,7 @@ func TestBuildMiniMaxM2Block(t *testing.T) {
 
 		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		RopeDimensionCount: 2, RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
-		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: 2},
+		ExpertFeedForward: 6, ExpertWeightsScale: 1.25, ExpertGatingFunc: expertGatingSigmoid},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{

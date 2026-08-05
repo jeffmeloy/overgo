@@ -485,7 +485,7 @@ func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 1, HeadCountKV: 1, KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
 
 		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		ExpertWeightsScale: 1.25, ExpertGatingFunc: 2}, RecurrentSpec: RecurrentSpec{ShortConvCacheLength: 3},
+		ExpertWeightsScale: 1.25, ExpertGatingFunc: expertGatingSigmoid}, RecurrentSpec: RecurrentSpec{ShortConvCacheLength: 3},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
 	weights := LayerGraphWeights{
@@ -908,7 +908,7 @@ func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string)
 		RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 4096,
 		YaRNExtFactor: 1, YaRNAttentionFactor: 1 / (1 + 0.1*float32(math.Log(4))),
 		YaRNBetaFast: 32, YaRNBetaSlow: 1, RopeYaRNLogMultiplier: 1}, MoESpec: MoESpec{LeadingDenseBlocks: 1, ExpertCount: 2, ExpertUsedCount: 1,
-		ExpertFeedForward: 6, SharedExpertFF: 6, ExpertWeightsScale: 1, ExpertGatingFunc: 1},
+		ExpertFeedForward: 6, SharedExpertFF: 6, ExpertWeightsScale: 1, ExpertGatingFunc: expertGatingSoftmax},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{

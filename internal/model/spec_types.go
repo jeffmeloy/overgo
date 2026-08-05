@@ -1,5 +1,14 @@
 package model
 
+// expert_gating_func serialized profile facts.
+const (
+	expertGatingUnset           uint32 = 0
+	expertGatingSoftmax         uint32 = 1
+	expertGatingSigmoid         uint32 = 2
+	expertGatingSelectedSoftmax uint32 = 3
+	expertGatingSqrtSoftplus    uint32 = 4
+)
+
 // Spec: architecture metadata grouped by runtime concern.
 type Spec struct {
 	CommonSpec

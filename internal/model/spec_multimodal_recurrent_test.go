@@ -512,7 +512,7 @@ func TestReadNemotronHMoESpec(t *testing.T) {
 		spec.LayerHeadCount(1) != 0 || spec.LayerKVHeadCount(0) != 1 || spec.SSMInnerSize != 16 ||
 		spec.SSMGroupCount != 2 || spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 5 || spec.MoELatentSize != 4 ||
-		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 || spec.ExpertGatingFunc != 2 {
+		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 || spec.ExpertGatingFunc != expertGatingSigmoid {
 		t.Fatalf("unexpected Nemotron-H MoE spec: %+v", spec)
 	}
 }

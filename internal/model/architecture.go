@@ -1035,6 +1035,46 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		Activation: tensor.MoEActivationSwiGLUOAI,
 	}, "gpt-oss")
 	setExperts(ExpertPolicy{Activation: tensor.MoEActivationGELU}, "gemma4")
+	updateExperts([]string{
+		"ernie4_5-moe", "deepseek2", "deepseek32", "mistral4", "glm-dsa",
+		"deepseek2-ocr", "exaone-moe", "bailingmoe2", "dots1", "mimo2", "step35",
+	}, func(policy *ExpertPolicy) { policy.BiasCatalog = expertBiasCatalogOptionalF32 })
+	updateExperts([]string{"hy_v3"}, func(policy *ExpertPolicy) {
+		policy.BiasCatalog = expertBiasCatalogOptionalF32Bare
+	})
+	updateExperts([]string{"laguna", "afmoe"}, func(policy *ExpertPolicy) {
+		policy.BiasCatalog = expertBiasCatalogRequired
+	})
+	updateExperts([]string{"glm4moe", "lfm2moe", "minimax-m2"}, func(policy *ExpertPolicy) {
+		policy.BiasCatalog = expertBiasCatalogRequiredF32
+	})
+	updateExperts([]string{
+		"llama4", "hunyuan-moe", "glm4moe", "hy_v3", "deepseek2", "deepseek32",
+		"mistral4", "glm-dsa", "deepseek2-ocr", "exaone-moe", "bailingmoe2",
+		"dots1", "bailingmoe", "deepseek",
+	}, func(policy *ExpertPolicy) { policy.SharedCatalog = sharedExpertCatalogAlways })
+	updateExperts([]string{
+		"granitemoe", "granitehybrid", "granite", "ernie4_5-moe", "laguna", "afmoe",
+		"cohere2moe", "step35",
+	}, func(policy *ExpertPolicy) { policy.SharedCatalog = sharedExpertCatalogWithWidth })
+	updateExperts([]string{"qwen2moe", "qwen3next", "qwen35moe"}, func(policy *ExpertPolicy) {
+		policy.SharedCatalog = sharedExpertCatalogGated
+	})
+	updateExperts([]string{"gemma4"}, func(policy *ExpertPolicy) {
+		policy.SupplementalCatalog = expertSupplementGemma4 | expertSupplementDenseFFN
+	})
+	updateExperts([]string{"gpt-oss"}, func(policy *ExpertPolicy) {
+		policy.SupplementalCatalog = expertSupplementOpenAIBiases
+	})
+	updateExperts([]string{"grovemoe"}, func(policy *ExpertPolicy) {
+		policy.SupplementalCatalog = expertSupplementGrouped
+	})
+	updateExperts([]string{"grok"}, func(policy *ExpertPolicy) {
+		policy.SupplementalCatalog = expertSupplementGrokDense
+	})
+	updateExperts([]string{"arctic"}, func(policy *ExpertPolicy) {
+		policy.SupplementalCatalog = expertSupplementExpertNorm | expertSupplementDenseFFN
+	})
 	setExpertCatalog(expertCatalogAlways,
 		"arctic", "bailingmoe", "dbrx", "grovemoe", "grok", "hunyuan-moe",
 		"llada-moe", "mellum", "minimax-m2", "qwen3moe", "qwen3vlmoe",

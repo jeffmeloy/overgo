@@ -57,6 +57,40 @@ const (
 	expertCatalogAfterDenseExceptNextN
 )
 
+type expertBiasCatalogPolicy uint8
+
+const (
+	expertBiasCatalogNone expertBiasCatalogPolicy = iota
+	expertBiasCatalogOptionalF32
+	expertBiasCatalogOptionalF32Bare
+	expertBiasCatalogRequired
+	expertBiasCatalogRequiredF32
+)
+
+type sharedExpertCatalogPolicy uint8
+
+const (
+	sharedExpertCatalogNone sharedExpertCatalogPolicy = iota
+	sharedExpertCatalogAlways
+	sharedExpertCatalogWithWidth
+	sharedExpertCatalogGated
+)
+
+type expertSupplementalCatalog uint8
+
+const (
+	expertSupplementGemma4 expertSupplementalCatalog = 1 << iota
+	expertSupplementOpenAIBiases
+	expertSupplementGrouped
+	expertSupplementGrokDense
+	expertSupplementExpertNorm
+	expertSupplementDenseFFN
+)
+
+func (c expertSupplementalCatalog) has(item expertSupplementalCatalog) bool {
+	return c&item != 0
+}
+
 // ExpertPolicy: routed/shared expert planning policy.
 type ExpertPolicy struct {
 	Composition         expertCompositionKind
@@ -71,6 +105,9 @@ type ExpertPolicy struct {
 	FusedGateUp         bool
 	OptionalGate        bool
 	Catalog             expertCatalogPolicy
+	BiasCatalog         expertBiasCatalogPolicy
+	SharedCatalog       sharedExpertCatalogPolicy
+	SupplementalCatalog expertSupplementalCatalog
 }
 
 func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN bool) bool {

@@ -26,24 +26,25 @@ func loadMoECatalog(
 	spec Spec,
 	layer *LayerWeights,
 ) (bool, error) {
+	policy := spec.Profile().Experts
 	_, err := loadMoECoreCatalog(required, tensors, prefix, spec, layer)
 	if err != nil {
 		return false, err
 	}
-	if spec.Profile().Experts.OptionalGate {
+	if policy.OptionalGate {
 		if err := loadOptionalExpertGate(tensors, prefix, spec, layer); err != nil {
 			return false, err
 		}
 	}
-	if spec.Architecture == "gemma4" {
+	if policy.SupplementalCatalog.has(expertSupplementGemma4) {
 		if err := loadGemma4MoECatalog(required, tensors, prefix, spec, layer); err != nil {
 			return false, err
 		}
 	}
-	if err := loadMoEFamilyCatalog(required, tensors, prefix, spec, layer); err != nil {
+	if err := loadMoEPolicyCatalog(required, tensors, prefix, spec, layer, policy); err != nil {
 		return false, err
 	}
-	if spec.Architecture == "gpt-oss" {
+	if policy.SupplementalCatalog.has(expertSupplementOpenAIBiases) {
 		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredF32TensorPointer("ffn_gate_inp.bias", &layer.FeedForwardRouterBias, uint64(spec.ExpertCount)),
 			requiredF32TensorPointer("ffn_gate_exps.bias", &layer.FeedForwardGateBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -53,7 +54,7 @@ func loadMoECatalog(
 			return false, err
 		}
 	}
-	if spec.Architecture == "grovemoe" {
+	if policy.SupplementalCatalog.has(expertSupplementGrouped) {
 		chunkExperts := uint64(spec.ExpertCount / spec.ExpertsPerGroup)
 		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("ffn_gate_chexps.weight", &layer.FeedForwardGateChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
@@ -63,17 +64,17 @@ func loadMoECatalog(
 			return false, err
 		}
 	}
-	if spec.Architecture == "grok" {
+	if policy.SupplementalCatalog.has(expertSupplementGrokDense) {
 		return false, loadGrokDenseCatalog(required, tensors, prefix, spec, layer)
 	}
-	if spec.Architecture == "arctic" {
+	if policy.SupplementalCatalog.has(expertSupplementExpertNorm) {
 		expertNorm, err := required(prefix+"ffn_norm_exps.weight", uint64(spec.EmbeddingLength))
 		if err != nil {
 			return false, err
 		}
 		layer.FeedForwardExpertNorm = &expertNorm
 	}
-	return spec.Architecture == "arctic" || spec.Architecture == "gemma4", nil
+	return policy.SupplementalCatalog.has(expertSupplementDenseFFN), nil
 }
 
 func loadMoECoreCatalog(
@@ -153,44 +154,40 @@ func loadGemma4MoECatalog(
 	})
 }
 
-func loadMoEFamilyCatalog(
+func loadMoEPolicyCatalog(
 	required weightRequirementLoader,
 	tensors map[string]gguf.TensorInfo,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
+	policy ExpertPolicy,
 ) error {
-	architecture := spec.Architecture
-	profile := spec.Profile()
-	if architecture == "ernie4_5-moe" || architecture == "hy_v3" ||
-		profile.Has(ArchitectureDeepSeek2Layout) || architecture == "deepseek2-ocr" ||
-		architecture == "exaone-moe" || architecture == "bailingmoe2" || architecture == "dots1" ||
-		architecture == "mimo2" || architecture == "step35" {
-		if err := loadOptionalF32ExpertBias(tensors, prefix, spec, layer, architecture == "hy_v3"); err != nil {
+	switch policy.BiasCatalog {
+	case expertBiasCatalogOptionalF32, expertBiasCatalogOptionalF32Bare:
+		if err := loadOptionalF32ExpertBias(
+			tensors, prefix, spec, layer, policy.BiasCatalog == expertBiasCatalogOptionalF32Bare,
+		); err != nil {
 			return err
 		}
-	}
-	if architecture == "laguna" || architecture == "afmoe" || architecture == "glm4moe" ||
-		architecture == "lfm2moe" || architecture == "minimax-m2" {
+	case expertBiasCatalogRequired, expertBiasCatalogRequiredF32:
 		bias, err := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
 		if err != nil {
 			return err
 		}
-		if (architecture == "glm4moe" || architecture == "lfm2moe" || architecture == "minimax-m2") && bias.Type != dtype.F32 {
+		if policy.BiasCatalog == expertBiasCatalogRequiredF32 && bias.Type != dtype.F32 {
 			return fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
 		}
 		layer.FeedForwardExpertBias = &bias
 	}
-	shared := architecture == "llama4" || architecture == "hunyuan-moe" || architecture == "glm4moe" ||
-		architecture == "hy_v3" || profile.Has(ArchitectureDeepSeek2Layout) ||
-		architecture == "deepseek2-ocr" || architecture == "exaone-moe" || architecture == "bailingmoe2" ||
-		architecture == "dots1" || architecture == "bailingmoe" || architecture == "deepseek"
-	shared = shared || spec.SharedExpertFF > 0 && (architecture == "granitemoe" || architecture == "granitehybrid" ||
-		architecture == "granite" || architecture == "ernie4_5-moe" || architecture == "laguna" ||
-		architecture == "afmoe" || architecture == "cohere2moe" || architecture == "step35")
-	sharedSwiGLU := architecture == "qwen2moe" || architecture == "qwen3next" || architecture == "qwen35moe"
-	if shared || sharedSwiGLU {
-		return loadSharedExpertWeights(required, prefix, spec, layer, sharedSwiGLU)
+	switch policy.SharedCatalog {
+	case sharedExpertCatalogAlways:
+		return loadSharedExpertWeights(required, prefix, spec, layer, false)
+	case sharedExpertCatalogWithWidth:
+		if spec.SharedExpertFF > 0 {
+			return loadSharedExpertWeights(required, prefix, spec, layer, false)
+		}
+	case sharedExpertCatalogGated:
+		return loadSharedExpertWeights(required, prefix, spec, layer, true)
 	}
 	return nil
 }

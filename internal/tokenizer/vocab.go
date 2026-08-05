@@ -178,8 +178,8 @@ func Load(file *gguf.File) (*Vocab, error) {
 		vocab.Mask = 103
 		vocab.AddBOS = true
 		vocab.AddSEP = true
-	} else if isLlama3Pre(pre) {
-		vocab.AddBOS = true
+	} else if policy := preTokenizers[pre]; policy.ignoreMerges {
+		vocab.AddBOS = policy.addBOS
 		vocab.IgnoreMerges = true
 	}
 	for i, text := range tokenTexts {
@@ -354,16 +354,47 @@ func Load(file *gguf.File) (*Vocab, error) {
 	return vocab, nil
 }
 
+type preTokenizerPolicy struct {
+	split        func(string) []string
+	addBOS       bool
+	ignoreMerges bool
+}
+
+var preTokenizers = map[string]preTokenizerPolicy{
+	"":                 {split: preTokenizeGPT2},
+	"default":          {split: preTokenizeGPT2},
+	"gpt-2":            {split: preTokenizeGPT2},
+	"phi-2":            {split: preTokenizeGPT2},
+	"qwen2":            {split: preTokenizeQwen2},
+	"deepseek-r1-qwen": {split: preTokenizeQwen2},
+	"kormo":            {split: preTokenizeQwen2},
+	"f2llmv2":          {split: preTokenizeQwen2},
+	"megrez":           {split: preTokenizeQwen2},
+	"bailingmoe":       {split: preTokenizeQwen2},
+	"bailingmoe2":      {split: preTokenizeQwen2},
+	"deepseek-llm":     {split: preTokenizeDeepSeekLLM},
+	"qwen35":           {split: preTokenizeQwen35},
+	"dbrx":             {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},
+	"llama3":           {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},
+	"llama-v3":         {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},
+	"llama-bpe":        {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},
+	"gpt-4o":           {split: preTokenizeGPT4O},
+	"llama4":           {split: preTokenizeGPT4O},
+	"kanana2":          {split: preTokenizeGPT4O},
+	"talkie":           {split: preTokenizeGPT4O},
+}
+
 func supportedPreTokenizer(pre string) bool {
-	switch pre {
-	case "", "default", "gpt-2", "phi-2", "qwen2", "deepseek-r1-qwen", "kormo", "f2llmv2", "megrez",
-		"bailingmoe", "bailingmoe2", "deepseek-llm",
-		"qwen35", "dbrx", "llama3", "llama-v3", "llama-bpe",
-		"gpt-4o", "llama4", "kanana2", "talkie":
-		return true
-	default:
-		return false
+	_, ok := preTokenizers[pre]
+	return ok
+}
+
+func preTokenizeFor(pre, text string) []string {
+	policy, ok := preTokenizers[pre]
+	if !ok {
+		policy = preTokenizers[""]
 	}
+	return policy.split(text)
 }
 
 func (v *Vocab) Len() int {

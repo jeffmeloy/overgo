@@ -58,23 +58,21 @@ func TestPreTokenizeQwen2(t *testing.T) {
 
 func TestBailingPreTokenizersUseQwen2Segmentation(t *testing.T) {
 	for _, pre := range []string{"bailingmoe", "bailingmoe2"} {
-		if !supportedPreTokenizer(pre) || !isQwen2Pre(pre) {
+		if got, want := preTokenizeFor(pre, "123"), preTokenizeQwen2("123"); !reflect.DeepEqual(got, want) {
 			t.Fatalf("pre-tokenizer %q is not mapped to Bailing segmentation", pre)
 		}
 	}
 }
 
 func TestDBRXPreTokenizerUsesLlama3Segmentation(t *testing.T) {
-	if !supportedPreTokenizer("dbrx") || !isLlama3Pre("dbrx") {
+	text := "Hello'S 1234"
+	if got, want := preTokenizeFor("dbrx", text), preTokenizeLlama3(text); !reflect.DeepEqual(got, want) {
 		t.Fatal("DBRX pre-tokenizer is not mapped to Llama 3 segmentation")
 	}
 }
 
 func TestLlama4PreTokenizerUsesGPT4OSegmentation(t *testing.T) {
-	if !supportedPreTokenizer("llama4") || !isGPT4OPre("llama4") {
-		t.Fatal("Llama 4 pre-tokenizer is not registered")
-	}
-	got := preTokenizeGPT4O("Hello'S 1234!!\n next")
+	got := preTokenizeFor("llama4", "Hello'S 1234!!\n next")
 	want := []string{"Hello'S", " ", "123", "4", "!!\n", " next"}
 	if len(got) != len(want) {
 		t.Fatalf("segments = %q, want %q", got, want)

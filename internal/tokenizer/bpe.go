@@ -73,20 +73,7 @@ func (v *Vocab) encodeText(text string) ([]TokenID, error) {
 	if v.Model == "gemma4" {
 		return v.encodeGemma4(text)
 	}
-	var words []string
-	if isDeepSeekLLMPre(v.Pre) {
-		words = preTokenizeDeepSeekLLM(text)
-	} else if isLlama3Pre(v.Pre) {
-		words = preTokenizeLlama3(text)
-	} else if isGPT4OPre(v.Pre) {
-		words = preTokenizeGPT4O(text)
-	} else if isQwen35Pre(v.Pre) {
-		words = preTokenizeQwen35(text)
-	} else if isQwen2Pre(v.Pre) {
-		words = preTokenizeQwen2(text)
-	} else {
-		words = preTokenizeGPT2(text)
-	}
+	words := preTokenizeFor(v.Pre, text)
 	output := make([]TokenID, 0, len(words))
 	for _, word := range words {
 		encoded := encodeBytes([]byte(word))
@@ -153,41 +140,6 @@ func splitGemma4Newlines(text string) []string {
 		start = end
 	}
 	return result
-}
-
-func isQwen35Pre(pre string) bool {
-	return pre == "qwen35"
-}
-
-func isDeepSeekLLMPre(pre string) bool {
-	return pre == "deepseek-llm"
-}
-
-func isQwen2Pre(pre string) bool {
-	switch pre {
-	case "qwen2", "deepseek-r1-qwen", "kormo", "f2llmv2", "megrez", "bailingmoe", "bailingmoe2":
-		return true
-	default:
-		return false
-	}
-}
-
-func isLlama3Pre(pre string) bool {
-	switch pre {
-	case "dbrx", "llama3", "llama-v3", "llama-bpe":
-		return true
-	default:
-		return false
-	}
-}
-
-func isGPT4OPre(pre string) bool {
-	switch pre {
-	case "gpt-4o", "llama4", "kanana2", "talkie":
-		return true
-	default:
-		return false
-	}
 }
 
 func (v *Vocab) applyBPE(word string) []string {

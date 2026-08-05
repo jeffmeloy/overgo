@@ -26,6 +26,7 @@ The implementation is currently experimental. See:
 - `IMPLEMENTATION_STATUS.md` for the live roadmap and current blockers;
 - `docs/COMPATIBILITY.md` for the generated model/feature matrix;
 - `docs/IMPLEMENTATION_LOG.md` for archived validation history;
+- `docs/REPODB.md` for artifact identity and provenance-store contracts;
 - `compatibility.yaml` for machine-checked compatibility claims;
 - `SBOM.cdx.json` and `LICENSES.md` for dependency/kernel provenance and the
   explicit license inventory.

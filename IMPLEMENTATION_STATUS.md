@@ -25,11 +25,13 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Generation | Implemented | Cached autoregressive, diffusion, encoder-decoder, embeddings, reranking, and speculative paths |
 | Multimodal | Implemented, constrained | CogVLM, DeepSeek-OCR, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, PaddleOCR-VL, Qwen2-VL, dense/MoE Qwen3-VL, and Gemma 4 image/video; Gemma 4 ordered image/audio history |
 | Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
+| RepoDB | Foundation implemented | Content-addressed artifacts, typed lineage, atomic hash-chained commits, strict replay, and fail-closed single-writer storage |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
 
 ## Recently completed
 
+- RepoDB now starts from storage-neutral artifact contracts: kind-qualified SHA-256 identities, immutable descriptors, acyclic typed lineage, compare-and-set aliases, canonical idempotent batches, and a versioned CRC32C/hash-chained store with strict corruption handling and torn-tail recovery.
 - Safetensors repository ingestion now shares one bounded shard/index reader across inspection and Gemma 4 conversion; 14 local model repositories pass header-only validation.
 - Standard Llama and Qwen2 Safetensors names/shapes translate to GGUF runtime catalogs; Qwen2.5, Carbon, and MiniCPM5 local repositories pass full spec/weight validation, with shared streaming F16/BF16 vector promotion.
 - Qwen 3.5 Safetensors text, recurrent, and MTP tensors translate without repacking; the local 4B repository passes full runtime spec/weight validation, with its singleton convolution axis normalized and vision tensors kept outside the language catalog.

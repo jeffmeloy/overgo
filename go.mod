@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/dlclark/regexp2/v2 v2.5.2
 	github.com/nikolalohinski/gonja/v2 v2.9.0
+	golang.org/x/sys v0.32.0
 	golang.org/x/text v0.37.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -18,5 +19,4 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/sys v0.32.0 // indirect
 )

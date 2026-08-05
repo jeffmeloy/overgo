@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"llamacpp2go/internal/clioptions"
+	"llamacpp2go/internal/hfgguf"
 	"llamacpp2go/internal/hfrepo"
 )
 
@@ -32,9 +33,17 @@ type report struct {
 	DataSize       uint64         `json:"dataSize"`
 	TypeCounts     map[string]int `json:"typeCounts"`
 	Tensors        []tensorReport `json:"tensors,omitempty"`
+	RuntimeCatalog *runtimeReport `json:"runtimeCatalog,omitempty"`
 }
 
-func buildReport(repository *hfrepo.Repository, includeTensors bool) (report, error) {
+type runtimeReport struct {
+	Architecture    string `json:"architecture"`
+	BlockCount      uint32 `json:"blockCount"`
+	EmbeddingLength uint32 `json:"embeddingLength"`
+	VocabularySize  uint32 `json:"vocabularySize"`
+}
+
+func buildReport(repository *hfrepo.Repository, includeTensors, validateRuntime bool) (report, error) {
 	result := report{
 		Path:          repository.Directory,
 		ModelType:     repository.Identity.ModelType,
@@ -61,12 +70,23 @@ func buildReport(repository *hfrepo.Repository, includeTensors bool) (report, er
 			})
 		}
 	}
+	if validateRuntime {
+		spec, err := hfgguf.ValidateDenseRepository(repository)
+		if err != nil {
+			return report{}, err
+		}
+		result.RuntimeCatalog = &runtimeReport{
+			Architecture: spec.Architecture, BlockCount: spec.BlockCount,
+			EmbeddingLength: spec.EmbeddingLength, VocabularySize: spec.VocabularySize,
+		}
+	}
 	return result, nil
 }
 
 func run(arguments []string) error {
 	flags := flag.NewFlagSet("inspect-safetensors", flag.ContinueOnError)
 	includeTensors := flags.Bool("tensors", false, "include every tensor descriptor")
+	validateRuntime := flags.Bool("validate-runtime", false, "validate supported metadata and weights through the GGUF runtime catalogs")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -78,7 +98,7 @@ func run(arguments []string) error {
 		return err
 	}
 	defer repository.Close()
-	result, err := buildReport(repository, *includeTensors)
+	result, err := buildReport(repository, *includeTensors, *validateRuntime)
 	if err != nil {
 		return err
 	}

@@ -444,7 +444,8 @@ func modelTensorReader(source *safetensors.Source, tensor safetensors.Tensor) (g
 		if tensor.DType != "BF16" {
 			return 0, nil, errors.New("layer scalar must use BF16")
 		}
-		return gguf.DTypeF32, &bf16F32Reader{source: tensor.Reader()}, nil
+		reader, err := safetensors.F32Reader(tensor)
+		return gguf.DTypeF32, reader, err
 	}
 	switch tensor.DType {
 	case "BF16":
@@ -563,7 +564,11 @@ func projectorTensors(source *safetensors.Source, outputF32 bool) ([]gguf.Tensor
 		dataType := gguf.DTypeBF16
 		if outputF32 {
 			dataType = gguf.DTypeF32
-			reader = &bf16F32Reader{source: reader}
+			promoted, promoteErr := safetensors.PromoteF32Reader(reader, "BF16")
+			if promoteErr != nil {
+				return nil, promoteErr
+			}
+			reader = promoted
 		}
 		tensors = append(tensors, gguf.TensorData{
 			Name: item.destination, Shape: shape, Type: dataType, Data: reader,

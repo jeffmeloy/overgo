@@ -62,7 +62,7 @@ Inspect or tokenize a GGUF model with:
 
 ```powershell
 go run ./cmd/inspect-gguf -metadata -tensors <model.gguf>
-go run ./cmd/inspect-safetensors -tensors <model-directory>
+go run ./cmd/inspect-safetensors -tensors -validate-runtime <model-directory>
 go run ./cmd/gguf-hash -all -uuid <model.gguf>
 go run ./cmd/gguf-merge -out merged.gguf <first-split-or-single.gguf>
 go run ./cmd/gguf-quantize <input.gguf> <output.gguf> q4_0
@@ -126,6 +126,9 @@ sizes, tensor counts, ranks, dtypes, byte ranges, duplicate names, overlaps,
 and index/catalog parity are bounded and checked. The report includes config
 identity, tokenizer/processor companions, shard names, dtype totals, parameter
 count, and optional tensor descriptors.
+For standard Llama and Qwen2 repositories, `-validate-runtime` translates the
+config and tensor inventory in memory and runs the existing GGUF model-spec and
+weight-catalog validators without copying tensor payloads.
 
 `gemma4-gguf-convert` streams a Hugging Face Gemma 4 unified checkpoint into
 runtime-ready language and multimodal GGUF files. ModelOpt `F8_E4M3` MLP

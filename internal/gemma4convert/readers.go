@@ -88,50 +88,6 @@ func fp8E4M3FN(encoded byte) float32 {
 	return sign * float32(math.Ldexp(1+float64(mantissa)/8, exponent-7))
 }
 
-type bf16F32Reader struct {
-	source io.Reader
-	input  []byte
-	output []byte
-	offset int
-}
-
-func (r *bf16F32Reader) Read(destination []byte) (int, error) {
-	written := 0
-	for len(destination) > 0 {
-		if r.offset < len(r.output) {
-			count := copy(destination, r.output[r.offset:])
-			r.offset += count
-			written += count
-			destination = destination[count:]
-			continue
-		}
-		if r.input == nil {
-			r.input = make([]byte, 4096)
-		}
-		count, err := r.source.Read(r.input)
-		if count%2 != 0 {
-			return written, errors.New("BF16 source returned partial element")
-		}
-		if count > 0 {
-			r.output = make([]byte, count*2)
-			for index := 0; index < count/2; index++ {
-				bits := uint32(binary.LittleEndian.Uint16(r.input[index*2:])) << 16
-				binary.LittleEndian.PutUint32(r.output[index*4:], bits)
-			}
-			r.offset = 0
-			continue
-		}
-		if err != nil {
-			if written > 0 && err == io.EOF {
-				return written, nil
-			}
-			return written, err
-		}
-		return written, io.ErrNoProgress
-	}
-	return written, nil
-}
-
 type positionReader struct {
 	source safetensors.Tensor
 	axis   int

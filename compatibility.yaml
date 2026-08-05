@@ -17,6 +17,14 @@ claims:
         contains: "func OpenSourceWithLimits("
       - path: internal/safetensors/source_test.go
         contains: "func TestOpenSourceRejectsInvalidRepositories("
+  - id: safetensors-gguf-dense-bridge
+    status: implemented
+    summary: Standard Llama and Qwen2 Safetensors metadata, names, shapes, storage, and payload streams bridge to existing GGUF runtime catalogs.
+    evidence:
+      - path: internal/hfgguf/catalog.go
+        contains: "func ValidateDenseRepository("
+      - path: internal/hfgguf/catalog_test.go
+        contains: "func TestValidateDenseRepositoryUsesRuntimeCatalog("
   - id: bounded-gguf-parsing
     status: implemented
     summary: GGUF parsing applies allocation, count, alignment, and split limits.

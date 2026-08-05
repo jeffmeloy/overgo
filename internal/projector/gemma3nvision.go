@@ -427,7 +427,7 @@ func (r *Gemma3nVisionRunner) buildAttentionGraph(
 	q = builder.Reshape(q, headWidth, heads, q.Shape.Dims[1]*q.Shape.Dims[2])
 	k = builder.Reshape(k, headWidth, 1, k.Shape.Dims[1]*k.Shape.Dims[2])
 	v = builder.Reshape(v, headWidth, 1, v.Shape.Dims[1]*v.Shape.Dims[2])
-	attention := builder.Attention(q, k, v, float32(1/math.Sqrt(float64(headWidth))), false)
+	attention := mustVisionAttentionPlan(int(headWidth*heads), int(heads), false).graph(builder, q, k, v)
 	if attention == nil {
 		return input
 	}
@@ -446,13 +446,7 @@ func (r *Gemma3nVisionRunner) buildAttentionGraph(
 }
 
 func gemma3nConvSame(builder *tensor.Builder, input, weight, bias *tensor.Tensor, stride uint32, depthwise bool) *tensor.Tensor {
-	kw, kh := uint32(weight.Shape.Dims[0]), uint32(weight.Shape.Dims[1])
-	w, h := uint32(input.Shape.Dims[1]), uint32(input.Shape.Dims[2])
-	outW, outH := (w+stride-1)/stride, (h+stride-1)/stride
-	padW := max(int((outW-1)*stride+kw-w), 0)
-	padH := max(int((outH-1)*stride+kh-h), 0)
-	return builder.Conv2D(input, weight, bias, stride, stride,
-		uint32(padW/2), uint32(padW-padW/2), uint32(padH/2), uint32(padH-padH/2), depthwise)
+	return sameConvolution(input, weight, stride, depthwise).graph(builder, input, weight, bias)
 }
 
 func gemma3nSpatialNorm(builder *tensor.Builder, input, weight *tensor.Tensor) *tensor.Tensor {

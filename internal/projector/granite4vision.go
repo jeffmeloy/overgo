@@ -481,7 +481,7 @@ func (r *Granite4VisionRunner) runVisionLayer(ctx context.Context, hidden []floa
 			copy(qkv[row*3*r.spec.Hidden+partIndex*r.spec.Hidden:], projected[row*r.spec.Hidden:(row+1)*r.spec.Hidden])
 		}
 	}
-	attention := visionAttention(qkv, rows, r.spec.Hidden, r.spec.Heads)
+	attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).cpu(qkv, rows)
 	outWeight, outBias, err := r.loadPair(ctx, prefix+"attn_out.weight", prefix+"attn_out.bias")
 	if err != nil {
 		return err

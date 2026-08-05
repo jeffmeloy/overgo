@@ -233,9 +233,8 @@ func PreprocessPaddleOCRImage(source image.Image, spec PaddleOCRSpec, options Pa
 		options = DefaultPaddleOCRPreprocessOptions(spec)
 	}
 	bounds := source.Bounds()
-	resizedH, resizedW, err := smartResizeAligned(
+	resizedH, resizedW, err := pixelBudget(options).resize(
 		bounds.Dy(), bounds.Dx(), spec.PatchSize*spec.MergeSize,
-		options.MinPixels, options.MaxPixels, options.MaxAspectRatio,
 	)
 	if err != nil {
 		return PaddleOCRImage{}, err

@@ -2,18 +2,18 @@ package projector
 
 import "math"
 
-func visionAttention(qkv []float32, rows, hidden, heads int) []float32 {
-	headWidth := hidden / heads
-	output := make([]float32, rows*hidden)
-	scale := 1 / math.Sqrt(float64(headWidth))
-	parallelRows(heads, func(startHead, endHead int) {
+func (p visionAttentionPlan) cpu(qkv []float32, rows int) []float32 {
+	headWidth := p.headWidth()
+	output := make([]float32, rows*p.hidden)
+	scale := float64(p.scale())
+	parallelRows(p.heads, func(startHead, endHead int) {
 		scores := make([]float64, rows)
 		for head := startHead; head < endHead; head++ {
 			for query := 0; query < rows; query++ {
-				qOffset := query*3*hidden + head*headWidth
+				qOffset := query*attentionProjectionCount*p.hidden + head*headWidth
 				maximum := math.Inf(-1)
 				for key := 0; key < rows; key++ {
-					kOffset := key*3*hidden + hidden + head*headWidth
+					kOffset := key*attentionProjectionCount*p.hidden + p.hidden + head*headWidth
 					dot := 0.0
 					for dimension := 0; dimension < headWidth; dimension++ {
 						dot += float64(qkv[qOffset+dimension]) * float64(qkv[kOffset+dimension])
@@ -29,10 +29,10 @@ func visionAttention(qkv []float32, rows, hidden, heads int) []float32 {
 				for dimension := 0; dimension < headWidth; dimension++ {
 					value := 0.0
 					for source := 0; source < rows; source++ {
-						vOffset := source*3*hidden + 2*hidden + head*headWidth
+						vOffset := source*attentionProjectionCount*p.hidden + 2*p.hidden + head*headWidth
 						value += scores[source] / total * float64(qkv[vOffset+dimension])
 					}
-					output[query*hidden+head*headWidth+dimension] = float32(value)
+					output[query*p.hidden+head*headWidth+dimension] = float32(value)
 				}
 			}
 		}

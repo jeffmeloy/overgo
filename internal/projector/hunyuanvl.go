@@ -223,9 +223,8 @@ func PreprocessHunyuanVLImage(source image.Image, spec HunyuanVLSpec, options Hu
 		options = DefaultHunyuanVLPreprocessOptions(spec)
 	}
 	bounds := source.Bounds()
-	resizedH, resizedW, err := smartResizeAligned(
+	resizedH, resizedW, err := pixelBudget(options).resize(
 		bounds.Dy(), bounds.Dx(), spec.PatchSize*spec.MergeSize,
-		options.MinPixels, options.MaxPixels, options.MaxAspectRatio,
 	)
 	if err != nil {
 		return HunyuanVLImage{}, err

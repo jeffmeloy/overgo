@@ -37,7 +37,7 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 		q = builder.Reshape(q, headWidth, uint64(r.spec.Heads), uint64(rows))
 		k = builder.Reshape(k, headWidth, uint64(r.spec.Heads), uint64(rows))
 		v = builder.Reshape(v, headWidth, uint64(r.spec.Heads), uint64(rows))
-		attention := builder.Attention(q, k, v, float32(1/math.Sqrt(float64(headWidth))), false)
+		attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).graph(builder, q, k, v)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
 		hidden = builder.Add(hidden, graph.linear(attention, prefix+".attn_out"))
 		norm = graph.affineNorm(hidden, prefix+".ln2", r.spec.LayerNormEpsilon)

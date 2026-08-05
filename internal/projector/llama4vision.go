@@ -434,7 +434,7 @@ func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gri
 		return err
 	}
 	llama4VisionRoPE(qkv, gridH, gridW, r.spec.Hidden, r.spec.Heads, r.spec.RopeTheta)
-	attention := visionAttention(qkv, rows, r.spec.Hidden, r.spec.Heads)
+	attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).cpu(qkv, rows)
 	outWeight, err := r.load(ctx, prefix+"attn_out.weight")
 	if err != nil {
 		return err

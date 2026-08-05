@@ -37,16 +37,14 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	)
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	weight := graph.weight
+	affineNorm := normalizationPlan{kind: normalizationAffineLayer, epsilon: r.spec.LayerNormEpsilon, bf16: true}
+	rmsNorm := normalizationPlan{kind: normalizationRMS, epsilon: r.spec.RMSNormEpsilon, bf16: true}
 	pixelsNode := builder.BF16Round(pixelInput)
-	ln1 := builder.BF16Round(builder.AffineLayerNorm(
-		pixelsNode, weight("v.patch_norm.1.weight"), weight("v.patch_norm.1.bias"), r.spec.LayerNormEpsilon,
-	))
+	ln1 := affineNorm.graph(builder, pixelsNode, weight("v.patch_norm.1.weight"), weight("v.patch_norm.1.bias"))
 	patchDense := builder.BF16Round(builder.Add(
 		builder.MulMat(weight("v.patch_embd.weight"), ln1), weight("v.patch_embd.bias"),
 	))
-	ln2 := builder.BF16Round(builder.AffineLayerNorm(
-		patchDense, weight("v.patch_norm.2.weight"), weight("v.patch_norm.2.bias"), r.spec.LayerNormEpsilon,
-	))
+	ln2 := affineNorm.graph(builder, patchDense, weight("v.patch_norm.2.weight"), weight("v.patch_norm.2.bias"))
 	position := builder.Reshape(
 		weight("v.position_embd.weight"), uint64(r.spec.Hidden), uint64(r.spec.PositionCount*2),
 	)
@@ -62,10 +60,8 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	}
 	positionSum := builder.BF16Round(builder.Add(builder.GetRows(position, xRows), builder.GetRows(position, yRows)))
 	positioned := builder.BF16Round(builder.Add(ln2, positionSum))
-	posNorm := builder.BF16Round(builder.AffineLayerNorm(
-		positioned, weight("v.patch_norm.3.weight"), weight("v.patch_norm.3.bias"), r.spec.LayerNormEpsilon,
-	))
-	preProjection := builder.BF16Round(builder.RMSNorm(posNorm, r.spec.RMSNormEpsilon))
+	posNorm := affineNorm.graph(builder, positioned, weight("v.patch_norm.3.weight"), weight("v.patch_norm.3.bias"))
+	preProjection := rmsNorm.graph(builder, posNorm, nil, nil)
 	embeddings := builder.BF16Round(builder.MulMat(weight("mm.input_projection.weight"), preProjection))
 	graph.hostFeeds[pixelInput] = reference.Value{Shape: pixelInput.Shape, Data: pixels}
 	outputs := []*tensor.Tensor{embeddings}
@@ -101,7 +97,9 @@ func (r *Gemma4Runner) encodeAudioCUDA(
 	)
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	projection := graph.weight("mm.a.input_projection.weight")
-	normed := builder.BF16Round(builder.RMSNorm(builder.BF16Round(input), spec.RMSNormEpsilon))
+	normed := (normalizationPlan{kind: normalizationRMS, epsilon: spec.RMSNormEpsilon, bf16: true}).graph(
+		builder, builder.BF16Round(input), nil, nil,
+	)
 	embeddings := builder.BF16Round(builder.MulMat(projection, normed))
 	graph.hostFeeds[input] = reference.Value{Shape: input.Shape, Data: frames}
 	results, err := graph.execute(embeddings)

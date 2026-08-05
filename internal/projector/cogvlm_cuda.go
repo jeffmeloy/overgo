@@ -3,7 +3,6 @@ package projector
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
@@ -31,7 +30,7 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		attention := builder.Attention(q, k, v, float32(1/math.Sqrt(float64(headWidth))), false)
+		attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).graph(builder, q, k, v)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
 		attention = builder.Add(builder.MulMat(weight(prefix+"attn_out.weight"), attention), weight(prefix+"attn_out.bias"))
 		attention = builder.AffineLayerNorm(attention, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)

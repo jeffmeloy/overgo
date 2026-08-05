@@ -282,9 +282,8 @@ func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 	}
 	bounds := frames[0].Bounds()
 	height, width := bounds.Dy(), bounds.Dx()
-	resizedH, resizedW, err := smartResizeAligned(
+	resizedH, resizedW, err := pixelBudget(options).resize(
 		height, width, spec.PatchSize*spec.MergeSize,
-		options.MinPixels, options.MaxPixels, options.MaxAspectRatio,
 	)
 	if err != nil {
 		return Qwen3VLImage{}, err

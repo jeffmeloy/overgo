@@ -517,7 +517,7 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		attention := builder.Attention(q, k, v, float32(1/math.Sqrt(float64(headWidth))), false)
+		attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).graph(builder, q, k, v)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), patches+1)
 		attention = builder.Add(builder.MulMat(weight(prefix+"attn_out.weight"), attention), builder.Reshape(weight(prefix+"attn_out.bias"), uint64(r.spec.Hidden), 1))
 		hidden = builder.Add(hidden, attention)

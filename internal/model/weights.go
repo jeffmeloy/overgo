@@ -527,7 +527,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 	draftPlan := profile.DraftPlan(spec.NextNPredictLayers)
 	normPlan := spec.NormPlan()
 	tokenEmbeddingName := "token_embd.weight"
-	if spec.Architecture == "codeshell" {
+	if profile.ModelCatalog.TokenEmbeddingFallback {
 		if _, ok := tensors[tokenEmbeddingName]; !ok {
 			tokenEmbeddingName = "output.weight"
 		}
@@ -539,7 +539,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 	); err != nil {
 		return Weights{}, err
 	}
-	if spec.Architecture == "bert" || spec.Architecture == "gpt2" || spec.Architecture == "starcoder" {
+	if profile.ModelCatalog.PositionEmbedding == positionEmbeddingRequired {
 		positionEmbedding, positionErr := required(
 			"position_embd.weight",
 			uint64(spec.EmbeddingLength),
@@ -559,7 +559,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			}
 			result.TokenTypeEmbedding = &typeEmbedding
 		}
-		if spec.Architecture == "jina-bert-v2" && result.TokenTypeEmbedding == nil {
+		if profile.ModelCatalog.RequireTokenTypes && result.TokenTypeEmbedding == nil {
 			return Weights{}, errors.New(`required tensor "token_types.weight" is missing`)
 		}
 		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
@@ -573,7 +573,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		result.TokenEmbeddingNorm = &tokenNorm
 		result.TokenEmbeddingNormBias = &tokenNormBias
 	}
-	if spec.Architecture == "modern-bert" {
+	if profile.ModelCatalog.TokenNorm == tokenNormWeight {
 		if normErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
 			requiredTensorPointer("token_embd_norm.weight", &result.TokenEmbeddingNorm,
 				uint64(spec.EmbeddingLength)),
@@ -581,7 +581,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			return Weights{}, normErr
 		}
 	}
-	if spec.Architecture == "mpt" {
+	if profile.ModelCatalog.PositionEmbedding == positionEmbeddingOptional {
 		if positionErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
 			optionalTensorPointer("position_embd.weight", &result.PositionEmbedding,
 				uint64(spec.EmbeddingLength), uint64(spec.ContextLength)),
@@ -589,19 +589,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			return Weights{}, positionErr
 		}
 	}
-	if spec.Architecture == "bloom" {
-		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
-		if normErr != nil {
-			return Weights{}, normErr
-		}
-		tokenNormBias, normErr := required("token_embd_norm.bias", uint64(spec.EmbeddingLength))
-		if normErr != nil {
-			return Weights{}, normErr
-		}
-		result.TokenEmbeddingNorm = &tokenNorm
-		result.TokenEmbeddingNormBias = &tokenNormBias
-	}
-	if spec.Architecture == "rwkv6" || spec.Architecture == "rwkv7" {
+	if profile.ModelCatalog.TokenNorm == tokenNormAffine {
 		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
 		if normErr != nil {
 			return Weights{}, normErr
@@ -626,7 +614,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		}
 		result.OutputNormBias = &outputNormBias
 	}
-	if spec.Architecture == "rwkv6qwen2" {
+	if profile.ModelCatalog.OptionalOutputNormBias {
 		if biasErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
 			optionalTensorPointer("output_norm.bias", &result.OutputNormBias,
 				uint64(spec.EmbeddingLength)),
@@ -634,7 +622,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			return Weights{}, biasErr
 		}
 	}
-	if spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
+	if !profile.ModelCatalog.SkipOutput {
 		if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
 			optionalTensorPointer("output.weight", &result.Output,
 				uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
@@ -662,10 +650,10 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			return Weights{}, classifierErr
 		}
 	}
-	if (spec.Architecture == "gptj" || spec.Architecture == "phi2" || spec.Architecture == "phimoe") && result.OutputBias == nil {
+	if profile.ModelCatalog.RequireOutputBias && result.OutputBias == nil {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
-	if spec.Architecture == "gemma-embedding" {
+	if profile.DenseGraph == DenseGraphGemmaEmbedding {
 		if item, ok := tensors["dense_2.weight"]; ok {
 			if spec.Dense2FeatureIn == 0 || spec.Dense2FeatureOut == 0 {
 				return Weights{}, errors.New("Gemma embedding dense-2 tensor has no shape metadata")
@@ -722,7 +710,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		result.PerLayerModelProjection = &perLayerModelProjection
 		result.PerLayerProjectionNorm = &perLayerProjectionNorm
 	}
-	if spec.Architecture == "gemma3n" {
+	if profile.DenseGraph == DenseGraphGemma3n {
 		projection, itemErr := required(
 			"altup_proj.weight", uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength), uint64(spec.AltUpCount-1),
 		)
@@ -920,7 +908,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				}
 			}
 		}
-		if spec.Architecture == "modern-bert" {
+		if profile.DenseGraph == DenseGraphModernBERT {
 			if item, ok := tensors[prefix+"attn_norm.weight"]; ok {
 				if item.Dimensions != 1 || item.Shape[0] != uint64(spec.EmbeddingLength) {
 					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
@@ -930,7 +918,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_norm.weight")
 			}
 		} else if normPlan.PreAttention &&
-			(spec.Architecture != "deci" || spec.LayerHeadCount(block) > 0) &&
+			(!profile.DeciSparse || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
@@ -946,7 +934,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				layer.AttentionNormBias = &attentionNormBias
 			}
 		}
-		if spec.Architecture == "kimi-linear" {
+		if layerPlan.Block == BlockKimiLinear {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
 				inner := uint64(spec.SSMInnerSize)
@@ -1093,7 +1081,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		} else if handled {
 			continue
 		}
-		if spec.Architecture == "nemotron_h" || spec.Architecture == "nemotron_h_moe" {
+		if profile.Block == BlockNemotronH {
 			if spec.IsRecurrentLayer(block) {
 				layer.Recurrent = true
 				convDimension := uint64(spec.SSMInnerSize) +
@@ -1122,7 +1110,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				}
 				continue
 			}
-			if spec.Architecture == "nemotron_h" {
+			if !profile.Has(ArchitectureMoE) {
 				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 					requiredTensor("ffn_up.weight", &layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))),
 					requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)),
@@ -1169,7 +1157,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				return Weights{}, normErr
 			}
 		}
-		if spec.Architecture == "bitnet" {
+		if profile.DenseWeights.RequireSubNorm {
 			attentionSubNorm, subNormErr := required(
 				prefix+"attn_sub_norm.weight", uint64(spec.EmbeddingLength),
 			)
@@ -1196,9 +1184,9 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				return Weights{}, scaleErr
 			}
 		}
-		if spec.Architecture == "deci" && spec.LayerHeadCount(block) == 0 {
+		if profile.DeciSparse && spec.LayerHeadCount(block) == 0 {
 			// Attention-free layer.
-		} else if spec.Architecture == "deci" && spec.LayerKVHeadCount(block) == 0 {
+		} else if profile.DeciSparse && spec.LayerKVHeadCount(block) == 0 {
 			if layer.AttentionOutput, err = required(
 				prefix+"attn_output.weight",
 				uint64(spec.EmbeddingLength),
@@ -1230,7 +1218,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 						return Weights{}, valueErr
 					}
 					layer.AttentionV = value
-				} else if spec.Architecture == "gemma3n" {
+				} else if profile.DenseGraph == DenseGraphGemma3n {
 					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_v.weight")
 				}
 			}
@@ -1241,7 +1229,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			}
 		} else if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-			if spec.Architecture == "minicpm3" || (profile.Has(ArchitectureDeepSeek2Layout) && spec.QLoRARank > 0) {
+			if profile.MLAVariant == mlaVariantMiniCPM3 || (profile.Has(ArchitectureDeepSeek2Layout) && spec.QLoRARank > 0) {
 				if layer.AttentionQ, err = required(
 					prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank),
 				); err != nil {
@@ -1415,7 +1403,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				return Weights{}, normErr
 			}
 		}
-		if spec.Architecture == "jina-bert-v2" {
+		if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
 			for _, binding := range []struct {
 				name   string
 				weight **gguf.TensorInfo
@@ -1446,7 +1434,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				return Weights{}, normErr
 			}
 		}
-		if !layer.Recurrent && spec.Architecture != "ernie4_5" && spec.Architecture != "ernie4_5-moe" {
+		if !layer.Recurrent && !profile.ModelCatalog.SkipAttentionOutputBias {
 			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				optionalF32TensorPointer("attn_output.bias", &layer.AttentionOutputBias,
 					uint64(spec.EmbeddingLength)),
@@ -1458,7 +1446,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 		}
 		if !layer.Recurrent && layer.AttentionQKV == nil &&
-			(spec.Architecture != "deci" || spec.LayerKVHeadCount(block) > 0) {
+			(!profile.DeciSparse || spec.LayerKVHeadCount(block) > 0) {
 			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, layer.AttentionQ.Shape[1]),
 				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, layer.AttentionK.Shape[1]),
@@ -1490,7 +1478,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			}
 		}
 		if profile.Has(ArchitecturePerLayerEmbeddings) {
-			if spec.Architecture == "gemma4" {
+			if profile.DenseGraph == DenseGraphGemma4 {
 				if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 					optionalF32TensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, 1),
 				}); scaleErr != nil {
@@ -1507,7 +1495,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				}
 			}
 		}
-		if spec.Architecture == "gemma3n" {
+		if profile.DenseGraph == DenseGraphGemma3n {
 			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("altup_correct_coef.weight", &layer.AltUpCorrectCoefficient, uint64(spec.AltUpCount), uint64(spec.AltUpCount)),
 				requiredTensorPointer("altup_correct_scale.weight", &layer.AltUpCorrectScale, uint64(spec.EmbeddingLength)),
@@ -1521,11 +1509,11 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 				return Weights{}, itemErr
 			}
 		}
-		if spec.Architecture == "mamba" || spec.Architecture == "mamba2" {
+		if layerPlan.Block == BlockMamba || layerPlan.Block == BlockMamba2 {
 			continue
 		}
 		feedForwardNormName := normPlan.FeedForwardNormTensor()
-		if spec.Architecture == "stablelm" {
+		if profile.DenseStages.Residual == residualStable {
 			if normErr := loadOptionalWeightBias(
 				required, tensors, prefix,
 				requiredTensor(feedForwardNormName, &layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
@@ -1534,8 +1522,8 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			); normErr != nil {
 				return Weights{}, normErr
 			}
-		} else if spec.Architecture != "gpt-oss" && normPlan.PreFeedForward &&
-			(spec.Architecture != "deci" || spec.LayerFeedForwardLength(block) > 0) &&
+		} else if !profile.DenseWeights.RequireOpenAIBiases && normPlan.PreFeedForward &&
+			(!profile.DeciSparse || spec.LayerFeedForwardLength(block) > 0) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
@@ -1654,7 +1642,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			}); loadErr != nil {
 				return Weights{}, loadErr
 			}
-			if spec.Architecture == "mimo2" || spec.Architecture == "bailingmoe2" {
+			if profile.ModelCatalog.DraftLayerOutputNorm {
 				loaded, loadErr := required(prefix+"layer_output_norm.weight", uint64(spec.EmbeddingLength))
 				if loadErr != nil {
 					return Weights{}, loadErr

@@ -348,6 +348,7 @@ type ArchitectureProfile struct {
 	DenseGraph      DenseGraphPolicy
 	DenseStages     DenseStagePolicy
 	DenseWeights    DenseWeightPolicy
+	ModelCatalog    ModelCatalogPolicy
 	Rotary          RotaryPolicy
 	AttentionGraph  AttentionGraphPolicy
 	Experts         ExpertPolicy
@@ -963,6 +964,39 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	})
 	updateDenseWeights([]string{"mpt"}, func(policy *DenseWeightPolicy) {
 		policy.AllowActivationScale = true
+	})
+	update([]string{"codeshell"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.TokenEmbeddingFallback = true
+	})
+	update([]string{"bert", "gpt2", "starcoder"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.PositionEmbedding = positionEmbeddingRequired
+	})
+	update([]string{"mpt"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.PositionEmbedding = positionEmbeddingOptional
+	})
+	update([]string{"modern-bert"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.TokenNorm = tokenNormWeight
+	})
+	update([]string{"bloom", "rwkv6", "rwkv7"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.TokenNorm = tokenNormAffine
+	})
+	update([]string{"jina-bert-v2"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.RequireTokenTypes = true
+	})
+	update([]string{"cohere2", "command-r"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.SkipOutput = true
+	})
+	update([]string{"gptj", "phi2", "phimoe"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.RequireOutputBias = true
+	})
+	update([]string{"rwkv6qwen2"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.OptionalOutputNormBias = true
+	})
+	update([]string{"ernie4_5", "ernie4_5-moe"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.SkipAttentionOutputBias = true
+	})
+	update([]string{"mimo2", "bailingmoe2"}, func(profile *ArchitectureProfile) {
+		profile.ModelCatalog.DraftLayerOutputNorm = true
 	})
 	updateRotary([]string{"paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe"}, func(policy *RotaryPolicy) {
 		policy.MultiAxis = multiAxisRotaryAlways

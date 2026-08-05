@@ -19,7 +19,7 @@ func BuildDeepSeek4BlockCached(
 	currentPositions *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "deepseek4" || builder == nil || input == nil ||
+	if spec.Profile().Block != BlockDeepSeek4 || builder == nil || input == nil ||
 		(input.Shape.Rank != 2 && input.Shape.Rank != 3) || layerIndex >= spec.BlockCount || len(positions) == 0 ||
 		uint64(len(positions)) != input.Shape.Dims[input.Shape.Rank-1] ||
 		currentPositions == nil || currentPositions.Shape != tensor.MustShape(1, 1, uint64(len(positions))) {
@@ -219,7 +219,7 @@ func BuildRWKV6Qwen2BlockCached(
 	pastShift, pastState *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "rwkv6qwen2" || builder == nil || input == nil || pastShift == nil || pastState == nil {
+	if spec.Profile().DenseGraph != DenseGraphRWKV6Qwen2 || builder == nil || input == nil || pastShift == nil || pastState == nil {
 		return DenseBlockResult{}, errors.New("RWKV6-Qwen2 block input/state is invalid")
 	}
 	required := map[string]*tensor.Tensor{
@@ -330,7 +330,7 @@ func BuildRWKV6BlockCached(
 	pastShift, pastState *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "rwkv6" || builder == nil || input == nil || pastShift == nil || pastState == nil {
+	if spec.Profile().DenseGraph != DenseGraphRWKV6 || builder == nil || input == nil || pastShift == nil || pastState == nil {
 		return DenseBlockResult{}, errors.New("RWKV6 block input/state is invalid")
 	}
 	required := map[string]*tensor.Tensor{
@@ -443,7 +443,8 @@ func BuildRWKV7BlockCached(
 	pastShift, pastState *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if (spec.Architecture != "rwkv7" && spec.Architecture != "arwkv7") ||
+	profile := spec.Profile()
+	if profile.DenseGraph != DenseGraphRWKV7 ||
 		builder == nil || input == nil || pastShift == nil || pastState == nil {
 		return DenseBlockResult{}, errors.New("RWKV7 block input/state is invalid")
 	}
@@ -457,7 +458,8 @@ func BuildRWKV7BlockCached(
 		"time key": weights.TimeMixKey, "time value": weights.TimeMixValue,
 		"time receptance": weights.TimeMixReceptance, "time output": weights.TimeMixOutput,
 	}
-	if spec.Architecture == "rwkv7" {
+	channelMix := profile.Normalization == NormalizationLayer
+	if channelMix {
 		required["attention norm bias"] = weights.AttentionNormBias
 		required["channel norm"] = weights.AttentionNorm2
 		required["channel norm bias"] = weights.AttentionNorm2Bias
@@ -566,7 +568,7 @@ func BuildRWKV7BlockCached(
 	attention = builder.MulMat(weights.TimeMixOutput, attention)
 	ffnInput := builder.Add(input, attention)
 	var ffnNorm, output *tensor.Tensor
-	if spec.Architecture == "rwkv7" {
+	if channelMix {
 		ffnNorm = ApplyNormalization(builder, ffnInput, weights.AttentionNorm2, weights.AttentionNorm2Bias, spec)
 		ffnPrev := builder.Reshape(builder.FlatSlice(pastShift, embedding, embedding), embedding, 1)
 		if tokens > 1 {
@@ -606,7 +608,7 @@ func BuildKimiLinearBlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "kimi-linear" {
+	if spec.Profile().Block != BlockKimiLinear {
 		return DenseBlockResult{}, errors.New("Kimi Linear block requires kimi-linear architecture")
 	}
 	if !recurrent {
@@ -749,7 +751,7 @@ func BuildLFM2BlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (LFM2BlockResult, error) {
-	if spec.Architecture != "lfm2" && spec.Architecture != "lfm2moe" {
+	if spec.Profile().Attention != AttentionLFM2 {
 		return LFM2BlockResult{}, errors.New("LFM2 block requires lfm2 or lfm2moe architecture")
 	}
 	if !recurrent {

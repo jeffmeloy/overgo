@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 
 	"llamacpp2go/internal/gguf"
@@ -249,6 +250,95 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 		if spec.ValueLengthSWA, err = required[uint32](values, prefix+"attention.value_length_swa", gguf.ValueTypeUint32); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (m specMetadata) readPosition(spec *Spec) error {
+	values, architecture, prefix, profile := m.values, m.architecture, m.prefix, m.profile
+	if architecture == "baichuan" && spec.BlockCount == 40 {
+		spec.RopeDisabled, spec.MaxALiBiBias = true, 8
+	}
+	if architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" ||
+		architecture == "refact" || architecture == "starcoder" {
+		spec.RopeDisabled = true
+	} else if !spec.RopeDisabled && profile.Forward != ForwardT5Encoder {
+		optionalBase := architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" ||
+			architecture == "gemma-embedding" || architecture == "jina-bert-v3" || architecture == "modern-bert" ||
+			architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" ||
+			profile.MLAVariant == mlaVariantMiniCPM3
+		if optionalBase {
+			spec.RopeFrequencyBase = 10000
+			if value, ok := optional[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); ok {
+				spec.RopeFrequencyBase = value
+			}
+		} else if value, err := required[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); err != nil {
+			return err
+		} else {
+			spec.RopeFrequencyBase = value
+		}
+		if scalingType, ok := optional[string](values, prefix+"rope.scaling.type", gguf.ValueTypeString); ok &&
+			scalingType != "" && scalingType != "none" {
+			qwenGDNMulti := profile.Attention == AttentionQwenGDN && profile.Has(ArchitectureMultiAxisPositions)
+			longRoPE := profile.Has(ArchitectureLongRoPE) && scalingType == "longrope"
+			yarn := scalingType == "yarn" && (profile.Has(ArchitectureDeepSeek2Layout) ||
+				profile.Block == BlockDeepSeek4 || architecture == "laguna" || architecture == "grok" ||
+				architecture == "mellum" || architecture == "llama" || architecture == "llama-embed" ||
+				architecture == "minicpm" || architecture == "mistral3")
+			if qwenGDNMulti || scalingType != "linear" && !longRoPE && !yarn {
+				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)
+			}
+			spec.RopeScalingType = scalingType
+			if scalingType == "linear" || scalingType == "yarn" {
+				value, err := required[float32](values, prefix+"rope.scaling.factor", gguf.ValueTypeFloat32)
+				if err != nil {
+					return err
+				}
+				spec.RopeScalingFactor = value
+			}
+			if scalingType == "yarn" {
+				value, err := required[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32)
+				if err != nil {
+					return err
+				}
+				spec.OriginalContextLength = value
+				spec.YaRNExtFactor = 1
+				spec.YaRNAttentionFactor = 1 / (1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
+				spec.YaRNBetaFast, spec.YaRNBetaSlow = 32, 1
+				if architecture == "grok" {
+					spec.YaRNBetaFast = 8
+				}
+				for key, destination := range map[string]*float32{
+					"rope.scaling.yarn_ext_factor": &spec.YaRNExtFactor, "rope.scaling.yarn_attn_factor": &spec.YaRNAttentionFactor,
+					"rope.scaling.yarn_beta_fast": &spec.YaRNBetaFast, "rope.scaling.yarn_beta_slow": &spec.YaRNBetaSlow,
+				} {
+					if value, ok := optional[float32](values, prefix+key, gguf.ValueTypeFloat32); ok {
+						*destination = value
+					}
+				}
+			}
+		}
+	}
+	if architecture == "bloom" || architecture == "jais" || profile.EncoderGraph.Kind == encoderGraphJinaV2 ||
+		architecture == "mpt" || architecture == "refact" {
+		if architecture != "mpt" {
+			spec.MaxALiBiBias = 8
+		}
+		if profile.EncoderGraph.Kind != encoderGraphJinaV2 {
+			if value, ok := optional[float32](values, prefix+"attention.max_alibi_bias", gguf.ValueTypeFloat32); ok {
+				spec.MaxALiBiBias = value
+			}
+		}
+	}
+	if profile.DenseWeights.AllowActivationScale {
+		spec.AttentionClamp, _ = optional[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
+	}
+	if architecture == "dbrx" {
+		value, err := required[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
+		if err != nil {
+			return err
+		}
+		spec.AttentionClamp = value
 	}
 	return nil
 }

@@ -500,6 +500,9 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		return Weights{}, err
 	}
 	profile := spec.Profile()
+	if profile.Block == BlockDeepSeek4 {
+		return readDeepSeek4WeightCatalog(catalog, spec)
+	}
 	switch profile.CatalogFamily {
 	case ArchitectureFamilyDraft:
 		return readDraftWeightCatalog(catalog, spec)
@@ -535,106 +538,6 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		uint64(spec.VocabularySize),
 	); err != nil {
 		return Weights{}, err
-	}
-	if spec.Architecture == "deepseek4" {
-		width := uint64(spec.EmbeddingLength)
-		headWidth := uint64(spec.KeyLength)
-		hyper := uint64(spec.HyperConnectionCount)
-		hyperWidth := hyper * width
-		mixWidth := (2 + hyper) * hyper
-		if result.OutputNorm, err = required("output_norm.weight", width); err != nil {
-			return Weights{}, err
-		}
-		output, loadErr := required("output.weight", width, uint64(spec.VocabularySize))
-		if loadErr != nil {
-			return Weights{}, loadErr
-		}
-		result.Output = &output
-		result.Layers = make([]LayerWeights, spec.BlockCount)
-		for block := uint32(0); block < spec.BlockCount; block++ {
-			prefix := fmt.Sprintf("blk.%d.", block)
-			layer := &result.Layers[block]
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-				requiredTensor("attn_q_a.weight", &layer.AttentionQ, width, uint64(spec.QLoRARank)),
-				requiredTensor("attn_kv.weight", &layer.AttentionK, width, headWidth),
-				requiredTensor("attn_output.weight", &layer.AttentionOutput, uint64(spec.AttentionOutputGroups*spec.AttentionOutputRank), width),
-				requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
-				requiredTensorPointer("attn_sinks.weight", &layer.AttentionSinks, uint64(spec.HeadCount)),
-				requiredTensorPointer("attn_q_a_norm.weight", &layer.AttentionQNorm, uint64(spec.QLoRARank)),
-				requiredTensorPointer("attn_q_b.weight", &layer.AttentionQB, uint64(spec.QLoRARank), uint64(spec.HeadCount)*headWidth),
-				requiredTensorPointer("attn_kv_a_norm.weight", &layer.AttentionKNorm, headWidth),
-				requiredTensorPointer("attn_output_a.weight", &layer.AttentionOutputA, uint64(spec.HeadCount)*headWidth/uint64(spec.AttentionOutputGroups), uint64(spec.AttentionOutputRank*spec.AttentionOutputGroups)),
-				requiredTensorPointer("hc_attn_fn.weight", &layer.HyperAttentionFN, hyperWidth, mixWidth),
-				requiredTensorPointer("hc_attn_base.weight", &layer.HyperAttentionBase, mixWidth),
-				requiredTensorPointer("hc_attn_scale.weight", &layer.HyperAttentionScale, 3),
-				requiredTensorPointer("hc_ffn_fn.weight", &layer.HyperFeedForwardFN, hyperWidth, mixWidth),
-				requiredTensorPointer("hc_ffn_base.weight", &layer.HyperFeedForwardBase, mixWidth),
-				requiredTensorPointer("hc_ffn_scale.weight", &layer.HyperFeedForwardScale, 3),
-				requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, width, uint64(spec.ExpertCount)),
-				requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
-				requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
-				requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), width, uint64(spec.ExpertCount)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-			if itemErr := loadSharedExpertWeightsForWidth(required, prefix, width, spec, layer, false); itemErr != nil {
-				return Weights{}, itemErr
-			}
-			if block < spec.HashLayerCount {
-				loaded, itemErr := required(prefix+"ffn_gate_tid2eid.weight", uint64(spec.ExpertUsedCount), uint64(spec.VocabularySize))
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				if loaded.Type != dtype.I32 {
-					return Weights{}, fmt.Errorf("tensor %q must use I32 storage", loaded.Name)
-				}
-				layer.FeedForwardHashExperts = &loaded
-			} else {
-				loaded, itemErr := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
-				if itemErr != nil {
-					return Weights{}, itemErr
-				}
-				layer.FeedForwardRouterBias = &loaded
-			}
-			ratio := spec.CompressRatios[block]
-			if ratio != 0 {
-				coefficient := uint64(1)
-				if ratio == 4 {
-					coefficient = 2
-				}
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensorPointer("attn_compressor_kv.weight", &layer.AttentionCompressorKV, width, coefficient*headWidth),
-					requiredTensorPointer("attn_compressor_gate.weight", &layer.AttentionCompressorGate, width, coefficient*headWidth),
-					requiredTensorPointer("attn_compressor_ape.weight", &layer.AttentionCompressorAPE, coefficient*headWidth, uint64(ratio)),
-					requiredTensorPointer("attn_compressor_norm.weight", &layer.AttentionCompressorNorm, headWidth),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-			}
-			if ratio == 4 {
-				indexerWidth := uint64(spec.IndexerKeyLength)
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, width, uint64(spec.IndexerHeadCount)),
-					requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*indexerWidth),
-					requiredTensorPointer("indexer_compressor_kv.weight", &layer.IndexerCompressorKV, width, 2*indexerWidth),
-					requiredTensorPointer("indexer_compressor_gate.weight", &layer.IndexerCompressorGate, width, 2*indexerWidth),
-					requiredTensorPointer("indexer_compressor_ape.weight", &layer.IndexerCompressorAPE, 2*indexerWidth, 4),
-					requiredTensorPointer("indexer_compressor_norm.weight", &layer.IndexerCompressorNorm, indexerWidth),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-			}
-		}
-		last := &result.Layers[len(result.Layers)-1]
-		if itemErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
-			requiredTensorPointer("output_hc_fn.weight", &last.HyperHeadFN, hyperWidth, hyper),
-			requiredTensorPointer("output_hc_base.weight", &last.HyperHeadBase, hyper),
-			requiredTensorPointer("output_hc_scale.weight", &last.HyperHeadScale, 1),
-		}); itemErr != nil {
-			return Weights{}, itemErr
-		}
-		return result, nil
 	}
 	if spec.Architecture == "bert" || spec.Architecture == "gpt2" || spec.Architecture == "starcoder" {
 		positionEmbedding, positionErr := required(
@@ -865,6 +768,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		}
 		prefix := fmt.Sprintf("blk.%d.", block)
 		isNextNBlock := block >= spec.BlockCount
+		layerPlan := spec.PlanLayer(block, false)
 		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerKeyLength(block))
 		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerKeyLength(block))
 		valueLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerValueLength(block))
@@ -903,7 +807,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			}
 		}
 		layer := &result.Layers[block]
-		if spec.Architecture == "mpt" {
+		if profile.DenseWeights.ValidateOptionalQKNorm && profile.DenseWeights.AllowActivationScale {
 			_, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
 			_, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
 			if hasQNorm != hasKNorm {
@@ -953,11 +857,11 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			}
 		}
 		ropeFactors, hasRopeFactors := tensors[prefix+"rope_freqs.weight"]
-		if (spec.Architecture == "step35" || spec.Architecture == "gemma4" && !spec.IsSlidingLayer(block)) && !hasRopeFactors {
+		if (profile.Rotary.FactorPairs || profile.DenseGraph == DenseGraphGemma4 && !layerPlan.Sliding) && !hasRopeFactors {
 			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
 		}
 		if hasRopeFactors {
-			if profile.Has(ArchitectureQwenGDN) {
+			if layerPlan.Attention == AttentionQwenGDN {
 				return Weights{}, fmt.Errorf(
 					"tensor %q requires unsupported hybrid RoPE factors",
 					ropeFactors.Name,
@@ -982,7 +886,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		if profile.Has(ArchitectureLongRoPE) {
 			longName := prefix + "rope_factors_long.weight"
 			shortName := prefix + "rope_factors_short.weight"
-			if spec.Architecture == "step35" {
+			if profile.Rotary.FactorPairs {
 				longName = "rope_factors_long.weight"
 				shortName = "rope_factors_short.weight"
 			}

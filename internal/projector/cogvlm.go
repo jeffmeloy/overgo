@@ -38,34 +38,18 @@ type CogVLMVisionRunner struct {
 	cuda *projectorCUDA
 }
 
-type CogVLMVisionOpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type CogVLMVisionOpenOptions = OpenOptions
 
 func OpenCogVLMVision(path string) (*CogVLMVisionRunner, error) {
 	return OpenCogVLMVisionWithOptions(path, CogVLMVisionOpenOptions{})
 }
 
 func OpenCogVLMVisionWithOptions(path string, options CogVLMVisionOpenOptions) (*CogVLMVisionRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*CogVLMVisionRunner, error) {
-		spec, err := ReadCogVLMVisionSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		catalog, err := validateCogVLMVisionCatalog(file, spec)
-		if err != nil {
-			return nil, err
-		}
-		runner := &CogVLMVisionRunner{file: file, spec: spec}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize CogVLM CUDA: %w", err)
-			}
-		}
-		return runner, nil
-	})
+	return openCatalogProjector(path, options, "CogVLM", nil,
+		ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
+		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
+			return &CogVLMVisionRunner{file: file, spec: spec, cuda: cuda}
+		})
 }
 
 func (r *CogVLMVisionRunner) Close() error {

@@ -68,34 +68,18 @@ type Llama4VisionRunner struct {
 	cuda *projectorCUDA
 }
 
-type Llama4VisionOpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type Llama4VisionOpenOptions = OpenOptions
 
 func OpenLlama4Vision(path string) (*Llama4VisionRunner, error) {
 	return OpenLlama4VisionWithOptions(path, Llama4VisionOpenOptions{})
 }
 
 func OpenLlama4VisionWithOptions(path string, options Llama4VisionOpenOptions) (*Llama4VisionRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*Llama4VisionRunner, error) {
-		spec, err := ReadLlama4VisionSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		catalog, err := validateLlama4VisionCatalog(file, spec)
-		if err != nil {
-			return nil, err
-		}
-		runner := &Llama4VisionRunner{file: file, spec: spec}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize Llama-4 CUDA: %w", err)
-			}
-		}
-		return runner, nil
-	})
+	return openCatalogProjector(path, options, "Llama-4", nil,
+		ReadLlama4VisionSpec, validateLlama4VisionCatalog,
+		func(file *gguf.File, spec Llama4VisionSpec, cuda *projectorCUDA) *Llama4VisionRunner {
+			return &Llama4VisionRunner{file: file, spec: spec, cuda: cuda}
+		})
 }
 
 func (r *Llama4VisionRunner) Close() error {

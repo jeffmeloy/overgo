@@ -53,10 +53,7 @@ type Gemma3nVisionRunner struct {
 	cuda *projectorCUDA
 }
 
-type Gemma3nVisionOpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type Gemma3nVisionOpenOptions = OpenOptions
 
 func OpenGemma3nVision(path string) (*Gemma3nVisionRunner, error) {
 	return OpenGemma3nVisionWithOptions(path, Gemma3nVisionOpenOptions{})

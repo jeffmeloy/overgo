@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/media"
 	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
@@ -179,7 +180,7 @@ func TestGemma4AudioEndToEndOracle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	samples, err := projector.DecodeFloat32LE(wave)
+	samples, err := media.DecodeFloat32LE(wave)
 	if err != nil {
 		t.Fatal(err)
 	}

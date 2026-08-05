@@ -58,34 +58,18 @@ type HunyuanVLRunner struct {
 	cuda *projectorCUDA
 }
 
-type HunyuanVLOpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type HunyuanVLOpenOptions = OpenOptions
 
 func OpenHunyuanVL(path string) (*HunyuanVLRunner, error) {
 	return OpenHunyuanVLWithOptions(path, HunyuanVLOpenOptions{})
 }
 
 func OpenHunyuanVLWithOptions(path string, options HunyuanVLOpenOptions) (*HunyuanVLRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*HunyuanVLRunner, error) {
-		spec, err := ReadHunyuanVLSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		catalog, err := validateHunyuanVLCatalog(file, spec)
-		if err != nil {
-			return nil, err
-		}
-		runner := &HunyuanVLRunner{file: file, spec: spec}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize Hunyuan-VL CUDA: %w", err)
-			}
-		}
-		return runner, nil
-	})
+	return openCatalogProjector(path, options, "Hunyuan-VL", nil,
+		ReadHunyuanVLSpec, validateHunyuanVLCatalog,
+		func(file *gguf.File, spec HunyuanVLSpec, cuda *projectorCUDA) *HunyuanVLRunner {
+			return &HunyuanVLRunner{file: file, spec: spec, cuda: cuda}
+		})
 }
 
 func (r *HunyuanVLRunner) Close() error {

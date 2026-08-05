@@ -29,10 +29,7 @@ type Qwen2VLSpec struct {
 	LegacyFFNSwapped   bool
 }
 
-type Qwen2VLOpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type Qwen2VLOpenOptions = OpenOptions
 
 type Qwen2VLRunner struct {
 	file *gguf.File
@@ -49,24 +46,11 @@ func OpenQwen2VL(path string) (*Qwen2VLRunner, error) {
 }
 
 func OpenQwen2VLWithOptions(path string, options Qwen2VLOpenOptions) (*Qwen2VLRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*Qwen2VLRunner, error) {
-		spec, err := ReadQwen2VLSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		catalog, err := validateQwen2VLCatalog(file, spec)
-		if err != nil {
-			return nil, err
-		}
-		runner := &Qwen2VLRunner{file: file, spec: spec}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize Qwen2-VL CUDA: %w", err)
-			}
-		}
-		return runner, nil
-	})
+	return openCatalogProjector(path, options, "Qwen2-VL", nil,
+		ReadQwen2VLSpec, validateQwen2VLCatalog,
+		func(file *gguf.File, spec Qwen2VLSpec, cuda *projectorCUDA) *Qwen2VLRunner {
+			return &Qwen2VLRunner{file: file, spec: spec, cuda: cuda}
+		})
 }
 
 func (r *Qwen2VLRunner) Close() error {

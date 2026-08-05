@@ -55,34 +55,18 @@ type MiMoVLRunner struct {
 	cuda *projectorCUDA
 }
 
-type MiMoVLOpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type MiMoVLOpenOptions = OpenOptions
 
 func OpenMiMoVL(path string) (*MiMoVLRunner, error) {
 	return OpenMiMoVLWithOptions(path, MiMoVLOpenOptions{})
 }
 
 func OpenMiMoVLWithOptions(path string, options MiMoVLOpenOptions) (*MiMoVLRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*MiMoVLRunner, error) {
-		spec, err := ReadMiMoVLSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		catalog, err := validateMiMoVLCatalog(file, spec)
-		if err != nil {
-			return nil, err
-		}
-		runner := &MiMoVLRunner{file: file, spec: spec}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize MiMo-VL CUDA: %w", err)
-			}
-		}
-		return runner, nil
-	})
+	return openCatalogProjector(path, options, "MiMo-VL", nil,
+		ReadMiMoVLSpec, validateMiMoVLCatalog,
+		func(file *gguf.File, spec MiMoVLSpec, cuda *projectorCUDA) *MiMoVLRunner {
+			return &MiMoVLRunner{file: file, spec: spec, cuda: cuda}
+		})
 }
 
 func (r *MiMoVLRunner) Close() error {

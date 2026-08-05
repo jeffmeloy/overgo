@@ -42,10 +42,7 @@ type DeepSeekOCRRunner struct {
 	cuda                      *projectorCUDA
 }
 
-type DeepSeekOCROpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type DeepSeekOCROpenOptions = OpenOptions
 
 func OpenDeepSeekOCR(path string) (*DeepSeekOCRRunner, error) {
 	return OpenDeepSeekOCRWithOptions(path, DeepSeekOCROpenOptions{})

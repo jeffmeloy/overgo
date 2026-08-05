@@ -70,34 +70,18 @@ type PaddleOCRRunner struct {
 	cuda *projectorCUDA
 }
 
-type PaddleOCROpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
-}
+type PaddleOCROpenOptions = OpenOptions
 
 func OpenPaddleOCR(path string) (*PaddleOCRRunner, error) {
 	return OpenPaddleOCRWithOptions(path, PaddleOCROpenOptions{})
 }
 
 func OpenPaddleOCRWithOptions(path string, options PaddleOCROpenOptions) (*PaddleOCRRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*PaddleOCRRunner, error) {
-		spec, err := ReadPaddleOCRSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		catalog, err := validatePaddleOCRCatalog(file, spec)
-		if err != nil {
-			return nil, err
-		}
-		runner := &PaddleOCRRunner{file: file, spec: spec}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, catalog, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize PaddleOCR CUDA: %w", err)
-			}
-		}
-		return runner, nil
-	})
+	return openCatalogProjector(path, options, "PaddleOCR", nil,
+		ReadPaddleOCRSpec, validatePaddleOCRCatalog,
+		func(file *gguf.File, spec PaddleOCRSpec, cuda *projectorCUDA) *PaddleOCRRunner {
+			return &PaddleOCRRunner{file: file, spec: spec, cuda: cuda}
+		})
 }
 
 func (r *PaddleOCRRunner) Close() error {

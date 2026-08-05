@@ -80,6 +80,27 @@ type mediaPromptRuns struct {
 	Indices  []uint32
 }
 
+type projectedPromptOutput struct {
+	TokenIDs        []tokenizer.TokenID
+	Embeddings      []float32
+	Deepstack       [][]float32
+	EmbeddingWidth  int
+	Starts          []int
+	Counts          []int
+	EmbeddingOffset int
+	Positions       [4][]uint32
+	AttentionBlocks []AttentionBlock
+}
+
+type projectedPromptPlan struct {
+	mediaPromptRunPlan
+	Embeddings      []float32
+	Deepstack       [][]float32
+	EmbeddingWidth  int
+	Positions       func(int, []int) ([4][]uint32, error)
+	AttentionBlocks func([]int, int) []AttentionBlock
+}
+
 func compileMediaPromptRuns(tokenizer ImageTokenizer, plan mediaPromptRunPlan) (mediaPromptRuns, error) {
 	if tokenizer == nil {
 		return mediaPromptRuns{}, errors.New("projector: tokenizer is nil")
@@ -100,6 +121,66 @@ func compileMediaPromptRuns(tokenizer ImageTokenizer, plan mediaPromptRunPlan) (
 	}
 	return mediaPromptRuns{
 		TokenIDs: ids, Starts: starts, Indices: embeddingTokenIndices(starts, counts, 0),
+	}, nil
+}
+
+func executeProjectedPromptPlan(tokenizer ImageTokenizer, plan projectedPromptPlan) (MultimodalPrompt, error) {
+	runs, err := compileMediaPromptRuns(tokenizer, plan.mediaPromptRunPlan)
+	if err != nil {
+		return MultimodalPrompt{}, err
+	}
+	positions := [4][]uint32{}
+	if plan.Positions != nil {
+		positions, err = plan.Positions(len(runs.TokenIDs), runs.Starts)
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+	}
+	var blocks []AttentionBlock
+	if plan.AttentionBlocks != nil {
+		blocks = plan.AttentionBlocks(runs.Starts, plan.TokensPerRun)
+	}
+	counts := make([]int, plan.Runs)
+	for index := range counts {
+		counts[index] = plan.TokensPerRun
+	}
+	return assembleProjectedPrompt(projectedPromptOutput{
+		TokenIDs: runs.TokenIDs, Embeddings: plan.Embeddings, Deepstack: plan.Deepstack,
+		EmbeddingWidth: plan.EmbeddingWidth, Starts: runs.Starts, Counts: counts,
+		Positions: positions, AttentionBlocks: blocks,
+	})
+}
+
+func assembleProjectedPrompt(output projectedPromptOutput) (MultimodalPrompt, error) {
+	if len(output.Starts) == 0 || len(output.Starts) != len(output.Counts) {
+		return MultimodalPrompt{}, errors.New("projector: projected prompt runs are inconsistent")
+	}
+	if output.EmbeddingWidth <= 0 {
+		return MultimodalPrompt{}, errors.New("projector: projected prompt embedding width is invalid")
+	}
+	tokenCount := 0
+	for _, count := range output.Counts {
+		if count <= 0 {
+			return MultimodalPrompt{}, errors.New("projector: projected prompt run is empty")
+		}
+		tokenCount += count
+	}
+	if len(output.Embeddings) != tokenCount*output.EmbeddingWidth {
+		return MultimodalPrompt{}, fmt.Errorf(
+			"projector: projected prompt embeddings = %d, want %d",
+			len(output.Embeddings), tokenCount*output.EmbeddingWidth,
+		)
+	}
+	for index, stream := range output.Deepstack {
+		if len(stream) != len(output.Embeddings) {
+			return MultimodalPrompt{}, fmt.Errorf("projector: deepstack stream %d shape differs from base embeddings", index)
+		}
+	}
+	return MultimodalPrompt{
+		TokenIDs: output.TokenIDs, Embeddings: output.Embeddings, DeepstackEmbeddings: output.Deepstack,
+		EmbeddingWidth: output.EmbeddingWidth, EmbeddingStart: output.Starts[0] + output.EmbeddingOffset,
+		EmbeddingTokenIndices: embeddingTokenIndices(output.Starts, output.Counts, output.EmbeddingOffset),
+		MultiAxisPositions:    output.Positions, AttentionBlocks: output.AttentionBlocks,
 	}, nil
 }
 
@@ -177,16 +258,11 @@ func executeImagePromptPlan(
 			return MultimodalPrompt{}, fmt.Errorf("projector: %s image %d embedding width changed", plan.Family, index)
 		}
 	}
-	return MultimodalPrompt{
-		TokenIDs:              ids,
-		Embeddings:            embeddings,
-		DeepstackEmbeddings:   deepstack,
-		EmbeddingWidth:        width,
-		EmbeddingStart:        starts[0] + plan.EmbeddingOffset,
-		EmbeddingTokenIndices: embeddingTokenIndices(starts, embeddingCounts, plan.EmbeddingOffset),
-		MultiAxisPositions:    positions,
-		AttentionBlocks:       imagePromptAttentionBlocks(plan, starts, items),
-	}, nil
+	return assembleProjectedPrompt(projectedPromptOutput{
+		TokenIDs: ids, Embeddings: embeddings, Deepstack: deepstack, EmbeddingWidth: width,
+		Starts: starts, Counts: embeddingCounts, EmbeddingOffset: plan.EmbeddingOffset,
+		Positions: positions, AttentionBlocks: imagePromptAttentionBlocks(plan, starts, items),
+	})
 }
 
 func executeMixedMediaPromptPlan(
@@ -248,17 +324,16 @@ func executeMixedMediaPromptPlan(
 	if err != nil {
 		return MultimodalPrompt{}, fmt.Errorf("projector: %s: %w", plan.PromptLabel, err)
 	}
-	indices := embeddingTokenIndices(starts, counts, 0)
 	blocks := make([]AttentionBlock, 0, len(items))
 	for index, item := range items {
 		if item.Attention {
 			blocks = append(blocks, AttentionBlock{Start: uint32(starts[index]), End: uint32(starts[index] + item.Count)})
 		}
 	}
-	return MultimodalPrompt{
+	return assembleProjectedPrompt(projectedPromptOutput{
 		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: embeddingWidth,
-		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices, AttentionBlocks: blocks,
-	}, nil
+		Starts: starts, Counts: counts, AttentionBlocks: blocks,
+	})
 }
 
 func renderMixedMediaHistory(text []string, items []mixedMediaPromptItem) string {

@@ -733,27 +733,20 @@ func (r *Qwen2VLRunner) BuildVideoPrompt(
 		return MultimodalPrompt{}, err
 	}
 	count := int(output.Embeddings.Shape.Dims[1])
-	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
-		Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
-			strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
-			"<|im_end|>\n<|im_start|>assistant\n",
-		Placeholder: Qwen3VLVideoPad, Runs: 1, TokensPerRun: count,
-		PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
-	})
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	start := runs.Starts[0]
 	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
-	positions, err := Qwen2VLVideoPositions(len(runs.TokenIDs), start, output.GridT, rows, columns)
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	return MultimodalPrompt{
-		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
-		EmbeddingStart: start, EmbeddingTokenIndices: runs.Indices,
-		MultiAxisPositions: positions,
-	}, nil
+	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+		mediaPromptRunPlan: mediaPromptRunPlan{
+			Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
+				strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
+				"<|im_end|>\n<|im_start|>assistant\n",
+			Placeholder: Qwen3VLVideoPad, Runs: 1, TokensPerRun: count,
+			PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
+		},
+		Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
+		Positions: func(tokenCount int, starts []int) ([4][]uint32, error) {
+			return Qwen2VLVideoPositions(tokenCount, starts[0], output.GridT, rows, columns)
+		},
+	})
 }
 
 func (r *Gemma4Runner) BuildImagePrompt(
@@ -896,20 +889,14 @@ func (r *Gemma4Runner) BuildAudioPrompt(
 		return MultimodalPrompt{}, err
 	}
 	audioTokens := int(output.Embeddings.Shape.Dims[1])
-	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
-		Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
-		Runs: 1, TokensPerRun: audioTokens,
-		PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
+	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+		mediaPromptRunPlan: mediaPromptRunPlan{
+			Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
+			Runs: 1, TokensPerRun: audioTokens,
+			PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
+		},
+		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]),
 	})
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	audioStart := runs.Starts[0]
-	return MultimodalPrompt{
-		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: audioStart,
-		EmbeddingTokenIndices: runs.Indices,
-	}, nil
 }
 
 func Gemma4AudioPromptText(question string, audioTokens int) string {
@@ -939,19 +926,15 @@ func (r *Gemma4Runner) BuildVideoPrompt(
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
-	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
-		Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
-		Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
-		PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
+	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+		mediaPromptRunPlan: mediaPromptRunPlan{
+			Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
+			Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
+			PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
+		},
+		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]),
+		AttentionBlocks: mediaPromptAttentionBlocks,
 	})
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	return MultimodalPrompt{
-		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]), EmbeddingStart: runs.Starts[0],
-		EmbeddingTokenIndices: runs.Indices, AttentionBlocks: mediaPromptAttentionBlocks(runs.Starts, output.TokensPerFrame),
-	}, nil
 }
 
 func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps float64) string {
@@ -1042,27 +1025,22 @@ func (r *Qwen3VLRunner) BuildQwen35VideoPrompt(
 	}
 	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
 	perGroup := rows * columns
-	runs, err := compileMediaPromptRuns(tokenizer, mediaPromptRunPlan{
-		Prompt:      Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking),
-		Placeholder: Qwen3VLVideoPad, Runs: output.GridT, TokensPerRun: perGroup,
-		PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
-	})
-	if err != nil {
-		return Qwen3VLPrompt{}, err
-	}
-	positions, err := Qwen3VLMultiChunkPositions(len(runs.TokenIDs), runs.Starts, perGroup, rows, columns)
-	if err != nil {
-		return Qwen3VLPrompt{}, err
-	}
 	item, err := qwenImagePromptItem(output)
 	if err != nil {
 		return Qwen3VLPrompt{}, err
 	}
-	return Qwen3VLPrompt{
-		TokenIDs: runs.TokenIDs, Embeddings: output.Embeddings.Data, DeepstackEmbeddings: item.Deepstack,
-		EmbeddingWidth:        int(output.Embeddings.Shape.Dims[0]),
-		EmbeddingTokenIndices: runs.Indices, MultiAxisPositions: positions,
-	}, nil
+	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+		mediaPromptRunPlan: mediaPromptRunPlan{
+			Prompt:      Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking),
+			Placeholder: Qwen3VLVideoPad, Runs: output.GridT, TokensPerRun: perGroup,
+			PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
+		},
+		Embeddings: output.Embeddings.Data, Deepstack: item.Deepstack,
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]),
+		Positions: func(tokenCount int, starts []int) ([4][]uint32, error) {
+			return Qwen3VLMultiChunkPositions(tokenCount, starts, perGroup, rows, columns)
+		},
+	})
 }
 
 func (r *Qwen3VLRunner) BuildVideoPrompt(

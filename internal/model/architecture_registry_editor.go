@@ -115,6 +115,10 @@ func (e architectureRegistryEditor) setMetadataShape(value MetadataShapePolicy, 
 	e.update(names, func(profile *ArchitectureProfile) { profile.Metadata = value })
 }
 
+func (e architectureRegistryEditor) setValidation(value ValidationPolicy, names ...string) {
+	e.update(names, func(profile *ArchitectureProfile) { profile.Validation = value })
+}
+
 func (e architectureRegistryEditor) setEncoderGraph(value encoderGraphKind, names ...string) {
 	e.update(names, func(profile *ArchitectureProfile) { profile.EncoderGraph.Kind = value })
 }

@@ -23,7 +23,8 @@ func (s Spec) validateAttentionFamilies() error {
 	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
 	}
-	if s.Architecture == "paddleocr" || s.Architecture == "qwen2vl" || s.Architecture == "qwen3vl" || s.Architecture == "qwen3vlmoe" {
+	validation := s.Profile().Validation
+	if validation.MultiAxisRoPE {
 		var sectionPairs int32
 		for _, section := range s.RopeSections {
 			if section < 0 {
@@ -36,7 +37,7 @@ func (s Spec) validateAttentionFamilies() error {
 			sectionPairs > int32(s.RopeDimensionCount/2) {
 			return fmt.Errorf("%s MRoPE metadata is invalid", s.Architecture)
 		}
-		if (s.Architecture == "qwen3vl" || s.Architecture == "qwen3vlmoe") && s.DeepstackLayerCount > s.BlockCount {
+		if validation.BoundDeepstack && s.DeepstackLayerCount > s.BlockCount {
 			return errors.New("Qwen3-VL deepstack layer count exceeds block count")
 		}
 	}

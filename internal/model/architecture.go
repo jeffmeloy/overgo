@@ -354,6 +354,7 @@ type ArchitectureProfile struct {
 	AttentionGraph  AttentionGraphPolicy
 	Experts         ExpertPolicy
 	Metadata        MetadataShapePolicy
+	Validation      ValidationPolicy
 	EncoderGraph    EncoderGraphPolicy
 	MLAVariant      mlaVariantPolicy
 	Cadence         LayerCadencePolicy
@@ -496,9 +497,18 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setExperts, updateExperts := editor.setExperts, editor.updateExperts
 	setCadence, setExpertCatalog := editor.setCadence, editor.setExpertCatalog
 	setMetadataShape, setEncoderGraph := editor.setMetadataShape, editor.setEncoderGraph
+	setValidation := editor.setValidation
 	setMLAVariant := editor.setMLAVariant
 	updateDenseStages, updateDenseWeights := editor.updateDenseStages, editor.updateDenseWeights
 	updateRotary, updateAttentionGraph := editor.updateRotary, editor.updateAttentionGraph
+
+	setValidation(ValidationPolicy{AttentionFree: true}, "mamba", "mamba2")
+	setValidation(ValidationPolicy{ClampQKV: true}, "mpt", "olmo")
+	setValidation(ValidationPolicy{RequireLogitScale: true}, "minicpm", "granite", "granitemoe", "talkie")
+	setValidation(ValidationPolicy{RelativeAttention: true, RequireDecoder: true}, "t5")
+	setValidation(ValidationPolicy{RelativeAttention: true}, "t5encoder")
+	setValidation(ValidationPolicy{MultiAxisRoPE: true}, "paddleocr", "qwen2vl")
+	setValidation(ValidationPolicy{MultiAxisRoPE: true, BoundDeepstack: true}, "qwen3vl", "qwen3vlmoe")
 
 	setDraftKind(DraftQwen35MTP, "qwen35", "qwen35moe")
 	setDraftKind(DraftStep35MTP, "step35")

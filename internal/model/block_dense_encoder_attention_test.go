@@ -81,16 +81,14 @@ func TestBuildGroveMoEGroupedChunkExperts(t *testing.T) {
 
 func TestBuildGLM4MoEBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "glm4moe", BlockCount: 2,
-		EmbeddingLength: 8, FeedForwardLength: 12,
-
-		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeDimensionCount: 4, RopeSections: [4]int32{1, 1, 0, 0},
-		RopeFrequencyBase: 10000}, MoESpec: MoESpec{LeadingDenseBlocks: 1,
+	spec := standardDecoderFixture.decoderSpec("glm4moe")
+	spec.BlockCount = 2
+	spec.RopeDimensionCount = fixtureHeadWidth
+	spec.RopeSections = [4]int32{1, 1, 0, 0}
+	spec.MoESpec = MoESpec{LeadingDenseBlocks: 1,
 		ExpertCount:     4,
 		ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 12,
-		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: expertGatingSigmoid},
-	}
+		ExpertWeightsScale: 1.25, ExpertWeightsNorm: true, ExpertGatingFunc: expertGatingSigmoid}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := LayerGraphWeights{
 		AttentionNorm:          builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),

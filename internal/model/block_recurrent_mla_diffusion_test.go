@@ -100,18 +100,8 @@ func TestBuildBERTMoEBlockUsesGateFreeGELUExperts(t *testing.T) {
 
 func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "dream",
-		EmbeddingLength:   8,
-		FeedForwardLength: 12,
-
-		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-
-		NonCausalAttention: true},
-	}
+	spec := standardDecoderFixture.decoderSpec("dream")
+	spec.NonCausalAttention = true
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := denseBlockInputs(builder, spec)
 	weights.AttentionQNorm = nil
@@ -156,11 +146,8 @@ func TestBuildLLaDABlocksUseNonCausalAttention(t *testing.T) {
 	for _, architecture := range []string{"llada", "llada-moe"} {
 		t.Run(architecture, func(t *testing.T) {
 			builder := tensor.NewBuilder()
-			spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
-
-				RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-				RopeFrequencyBase: 10000, NonCausalAttention: true},
-			}
+			spec := standardDecoderFixture.decoderSpec(architecture)
+			spec.NonCausalAttention = true
 			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 			weights := denseBlockInputs(builder, spec)
 			if architecture == "llada-moe" {

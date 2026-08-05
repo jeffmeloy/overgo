@@ -86,10 +86,10 @@ func loadMoECoreCatalog(
 ) (bool, error) {
 	fusedGateUp := false
 	policy := spec.Profile().Experts
+	shapes := spec.TensorShapes(0)
 	if policy.FusedGateUp {
 		if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
-			if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
-				item.Shape[1] != 2*uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
+			if !tensorInfoMatches(item, shapes.ExpertUp(2)) {
 				return false, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
 			}
 			layer.FeedForwardGateUpExperts = &item
@@ -97,19 +97,19 @@ func loadMoECoreCatalog(
 		}
 	}
 	requirements := []tensorRequirement{
-		requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
+		requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, shapes.ExpertRouter()...),
 	}
 	if !fusedGateUp {
 		requirements = append(requirements,
-			requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+			requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, shapes.ExpertUp(1)...),
 		)
 	}
 	requirements = append(requirements,
-		requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
+		requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, shapes.ExpertDown()...),
 	)
 	if !fusedGateUp && !policy.OptionalGate {
 		requirements = append(requirements,
-			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
+			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, shapes.ExpertUp(1)...),
 		)
 	}
 	return fusedGateUp, loadTensorRequirements(required, tensors, prefix, requirements)
@@ -120,8 +120,7 @@ func loadOptionalExpertGate(tensors map[string]gguf.TensorInfo, prefix string, s
 	if !ok {
 		return nil
 	}
-	if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
-		item.Shape[1] != uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
+	if !tensorInfoMatches(item, spec.TensorShapes(0).ExpertUp(1)) {
 		return fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
 	}
 	layer.FeedForwardGateExperts = &item

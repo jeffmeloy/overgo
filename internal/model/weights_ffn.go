@@ -24,6 +24,8 @@ func loadDenseFFNCatalog(
 	if spec.expertCompositionPlan().kind == expertArctic {
 		feedForwardLength = spec.EmbeddingLength
 	}
+	shapes := spec.TensorShapes(block)
+	shapes.FeedForward = uint64(feedForwardLength)
 	if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
 		if gate, ok := tensors[prefix+"ffn_gate.weight"]; ok {
 			if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) ||
@@ -74,26 +76,22 @@ func loadDenseFFNCatalog(
 		return nil
 	}
 	if profile.FeedForward == FeedForwardSwiGLU {
-		gate, err := required(
-			prefix+"ffn_gate.weight", uint64(spec.EmbeddingLength), uint64(feedForwardLength),
-		)
+		gate, err := required(prefix+"ffn_gate.weight", shapes.FeedForwardUp(1)...)
 		if err != nil {
 			return err
 		}
 		layer.FeedForwardGate = gate
 	}
-	upLength := uint64(feedForwardLength)
+	upMultiplier := uint64(1)
 	if profile.FeedForward == FeedForwardFusedGateUp {
-		upLength *= 2
+		upMultiplier = 2
 	}
-	up, err := required(prefix+"ffn_up.weight", uint64(spec.EmbeddingLength), upLength)
+	up, err := required(prefix+"ffn_up.weight", shapes.FeedForwardUp(upMultiplier)...)
 	if err != nil {
 		return err
 	}
 	layer.FeedForwardUp = up
-	down, err := required(
-		prefix+"ffn_down.weight", uint64(feedForwardLength), uint64(spec.EmbeddingLength),
-	)
+	down, err := required(prefix+"ffn_down.weight", shapes.FeedForwardDown()...)
 	if err != nil {
 		return err
 	}
@@ -101,7 +99,7 @@ func loadDenseFFNCatalog(
 	if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 		optionalF32TensorPointer("ffn_gate.bias", &layer.FeedForwardGateBias, uint64(feedForwardLength)),
 		optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, uint64(feedForwardLength)),
-		optionalF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
+		optionalF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, shapes.EmbeddingVector()...),
 	}); err != nil {
 		return err
 	}

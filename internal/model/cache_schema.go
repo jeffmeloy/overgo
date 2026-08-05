@@ -89,9 +89,10 @@ func CacheSchemaForPlan(
 		))
 	}
 	if plan.Cache == CacheT5 {
-		key := fixed(tensor.MustShape(uint64(spec.KeyLength), uint64(spec.HeadCountKV), 1))
+		shapes := spec.TensorShapes(plan.Layer)
+		key := fixed(shapes.KeyCache(1))
 		key.VariableLast = true
-		value := fixed(tensor.MustShape(uint64(spec.ValueLength), uint64(spec.HeadCountKV), 1))
+		value := fixed(shapes.ValueCache(1))
 		value.VariableLast = true
 		schema.States["cross_key"] = key
 		schema.States["cross_value"] = value
@@ -112,9 +113,8 @@ func CacheSchemaForPlan(
 		schema.Primary = [2]CacheValueSchema{token(shape), token(shape)}
 		return schema, nil
 	}
-	keyWidth := uint64(spec.LayerKeyLength(uint32(layerIndex)))
-	valueWidth := uint64(spec.LayerValueLength(uint32(layerIndex)))
-	heads := uint64(spec.LayerKVHeadCount(uint32(layerIndex)))
+	shapes := spec.TensorShapes(uint32(layerIndex))
+	keyWidth, valueWidth, heads := shapes.Key, shapes.Value, shapes.KVHeads
 	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.Block == BlockKimiLinear {
 		heads = uint64(spec.HeadCount)
 		if info.AttentionKB != nil {
@@ -123,10 +123,8 @@ func CacheSchemaForPlan(
 			heads = 1
 		}
 	}
-	schema.Primary = [2]CacheValueSchema{
-		token(tensor.MustShape(keyWidth, heads, uint64(shapeTokens))),
-		token(tensor.MustShape(valueWidth, heads, uint64(shapeTokens))),
-	}
+	shapes.Key, shapes.Value, shapes.KVHeads = keyWidth, valueWidth, heads
+	schema.Primary = [2]CacheValueSchema{token(shapes.KeyCache(shapeTokens)), token(shapes.ValueCache(shapeTokens))}
 	return schema, nil
 }
 

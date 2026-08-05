@@ -14,12 +14,9 @@ func TestBuildNormalRoPELongRoPEUsesFactorsAndAttentionScale(t *testing.T) {
 	for _, architecture := range []string{"llama", "llama-embed", "minicpm", "mistral3"} {
 		t.Run(architecture, func(t *testing.T) {
 			builder := tensor.NewBuilder()
-			spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
-
-				RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-				RopeDimensionCount: 4, RopeFrequencyBase: 10000,
-				RopeScalingType: "longrope", RopeAttentionFactor: 1.25},
-			}
+			spec := standardDecoderFixture.decoderSpec(architecture)
+			spec.RopeDimensionCount = fixtureHeadWidth
+			spec.RopeScalingType, spec.RopeAttentionFactor = "longrope", 1.25
 			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 			weights := denseBlockInputs(builder, spec)
 			weights.AttentionQNorm = nil
@@ -56,13 +53,11 @@ func TestBuildNormalRoPEYaRNUsesFactors(t *testing.T) {
 	for _, architecture := range []string{"llama", "llama-embed", "minicpm", "mistral3"} {
 		t.Run(architecture, func(t *testing.T) {
 			builder := tensor.NewBuilder()
-			spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12,
-
-				RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-				RopeDimensionCount: 4, RopeFrequencyBase: 10000,
-				RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 16,
-				YaRNExtFactor: 1, YaRNAttentionFactor: 0.9, YaRNBetaFast: 16, YaRNBetaSlow: 2},
-			}
+			spec := standardDecoderFixture.decoderSpec(architecture)
+			spec.RopeDimensionCount = fixtureHeadWidth
+			spec.RopeScalingType, spec.RopeScalingFactor, spec.OriginalContextLength = "yarn", 4, 16
+			spec.YaRNExtFactor, spec.YaRNAttentionFactor = 1, 0.9
+			spec.YaRNBetaFast, spec.YaRNBetaSlow = 16, 2
 			input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 			weights := denseBlockInputs(builder, spec)
 			weights.AttentionQNorm = nil

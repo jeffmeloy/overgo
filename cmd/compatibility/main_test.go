@@ -39,6 +39,11 @@ models:
     status: experimental
     features: [a]
     validated_fixture: alpha.gguf
+  multimodal:
+    status: experimental
+    features: [image]
+    real_model_validation: pending-language-model-oracle
+    multimodal_validated_fixture: projector.gguf + image.png + golden.json
 `)
 	output, err := generate(root)
 	if err != nil {
@@ -47,6 +52,7 @@ models:
 	text := string(output)
 	if strings.Index(text, "`alpha`") > strings.Index(text, "`zeta`") ||
 		!strings.Contains(text, "validated: alpha.gguf") ||
+		!strings.Contains(text, "multimodal: projector.gguf + image.png + golden.json; pending-language-model-oracle") ||
 		!strings.Contains(text, "[`func TestFeature(`](../internal/feature_test.go)") {
 		t.Fatalf("generated matrix:\n%s", text)
 	}

@@ -82,6 +82,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Gemma 4 Assistant projected image/audio target-prefix sessions.
 - Exact compatibility-manifest coverage for every registered architecture, enforced by the generator.
 - WavTokenizer pinned inverse-spectral waveform synthesis with 24 kHz mono output.
+- Gemma 4 real image preprocessing, full projector output, and prompt-token oracles pass against the local BF16 projector fixture.
 - DFlash greedy/sampled block drafting with target verification, sampler rollback, cache advancement, and feature-cache resynchronization.
 - Eagle3 greedy/sampled drafting with target verification, sampler rollback, target-cache advancement, and feature resynchronization.
 - Gemma 4 Assistant greedy/sampled drafting with target verification, sampler rollback, cache advancement, and hidden-state resynchronization.
@@ -155,7 +156,7 @@ rows require an upstream contract, external artifact, or additional platform.
 
 | Item | Reason | Resume condition |
 | --- | --- | --- |
-| Real-model validation for marked architectures | Local GGUF/oracle fixture unavailable | Fixture supplied or generated |
+| Real-model validation for marked architectures | Remaining rows lack paired model and oracle artifacts; Gemma 4 projector/prompt validation is complete, but language-model generation remains pending | Supply or generate the paired artifacts named by each pending row |
 | Release signing | No user-controlled signing certificate | Certificate and signing policy supplied |
 | Hosted-tool integration | No repository-wide hosted executor contract | Local bounded defaults implemented or external contract supplied |
 | Real speculative model pairs | Matching target/draft fixtures unavailable | Compatible pair supplied or generated |

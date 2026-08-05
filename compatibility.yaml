@@ -25,6 +25,14 @@ claims:
         contains: "func validateMultimodalImages("
       - path: internal/server/server_test.go
         contains: "func TestValidateMultimodalImagesEnforcesGeometryBudgets("
+  - id: gemma4-multimodal-oracle
+    status: implemented
+    summary: Gemma 4 image preprocessing, projector output, and prompt tokens have pinned real-model oracles.
+    evidence:
+      - path: internal/projector/gemma4_test.go
+        contains: "func TestGemma4RealFixture("
+      - path: internal/projector/gemma4_test.go
+        contains: "func TestGemma4RealPromptTokens("
   - id: validated-split-gguf
     status: implemented
     summary: Split GGUF models load, validate, write, merge, and round-trip.
@@ -3064,7 +3072,8 @@ models:
       - frame-block-video-projection
       - encoder-free-audio-projection
       - optional-cuda-projector-execution
-    real_model_validation: pending-fixture
+    real_model_validation: pending-language-model-oracle
+    multimodal_validated_fixture: gemma-4-12b-it-mmproj-bf16.gguf + gemma4_mm_image.png + gemma4_mm_golden.json
   llama4:
     status: experimental
     execution:

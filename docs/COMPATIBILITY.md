@@ -20,6 +20,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `constrained-generation` | implemented | GBNF and JSON Schema constraints match pinned upstream corpora. | [`func NewGBNFGrammar(`](../internal/sampling/gbnf.go)<br>[`func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(`](../internal/sampling/json_schema_test.go) |
 | `editable-prompt-cache` | implemented | Bounded prompt caches support selection, eviction, context edits, and exact media-signed replay. | [`func (r *Runner) selectPromptCache(`](../internal/inference/prompt_cache.go)<br>[`func TestProjectedPromptCacheRequiresExactMediaSignature(`](../internal/inference/prompt_cache_test.go) |
 | `explicit-response-tool-policy` | implemented | Hosted, MCP, and free-form custom Responses tools are classified and denied unless an external executor contract is added. | [`by response_tools.%s policy`](../internal/server/responses_tools.go)<br>[`func TestResponsesHostedAndCustomToolsUseExplicitPolicy(`](../internal/server/resource_policy_test.go) |
+| `gemma4-multimodal-oracle` | implemented | Gemma 4 image preprocessing, projector output, and prompt tokens have pinned real-model oracles. | [`func TestGemma4RealFixture(`](../internal/projector/gemma4_test.go)<br>[`func TestGemma4RealPromptTokens(`](../internal/projector/gemma4_test.go) |
 | `incremental-tool-streaming` | implemented | Chat, Responses, and Anthropic stream JSON and Hermes function arguments incrementally. | [`func (s *chatOutputStream) Accept(`](../internal/inference/chat_stream.go)<br>[`func TestStreamingResponsesFunctionCallLifecycle(`](../internal/server/server_responses_anthropic_runtime_test.go) |
 | `media-history` | implemented | Chat and Responses preserve projected images in earlier or final user turns through the complete formatted history. | [`func (r *Gemma4Runner) BuildImagesHistoryPrompt(`](../internal/projector/prompt.go)<br>[`func TestChatImageHistoryPreservesTurnPositionAndReplay(`](../internal/server/server_completion_chat_embedding_test.go) |
 | `mixed-media-history` | implemented | Gemma 4 preserves ordered image/audio chunks through native, Chat, and Responses history. | [`func (r *Gemma4Runner) BuildMediaHistoryPrompt(`](../internal/projector/prompt.go)<br>[`func TestChatMixedImageAudioPreservesChunkOrder(`](../internal/server/server_completion_chat_embedding_test.go) |
@@ -87,7 +88,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `gemma2` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `gemma3` | experimental | model-dependent | validated: gemma-3-12b-it-IQ4_XS.gguf | - |
 | `gemma3n` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | audio-encoder-absent-from-pinned-mtmd-execution, real-model-validation-pending-fixture |
-| `gemma4` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `gemma4` | experimental | bounded-host, f32-preload, native-quantized-experts | multimodal: gemma-4-12b-it-mmproj-bf16.gguf + gemma4_mm_image.png + gemma4_mm_golden.json; pending-language-model-oracle | - |
 | `gemma4-assistant` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-pair-pending |
 | `glm-dsa` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
 | `glm4` | experimental | model-dependent | pending-fixture | - |
@@ -157,7 +158,7 @@ Baseline: `ggml-org/llama.cpp` at `42fc243060709331ff9b158a9ed2cbe37219ae83`; ho
 | `qwen2moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `qwen2vl` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `qwen3` | experimental | bounded-host, f32-preload, native-q8, native-k-quant, native-iq4-xs | validated: Qwen3-4B-UD-Q8_K_XL.gguf | - |
-| `qwen35` | experimental | native-q8 | validated: Qwen3.5-9B-Q8_0.gguf, Bonsai-27B-Q1_0.gguf, Qwen3.5-4B-F16.gguf, qwen35_video_golden.json | - |
+| `qwen35` | experimental | native-q8 | validated: Qwen3.5-9B-Q8_0.gguf, Bonsai-27B-Q1_0.gguf; multimodal: Qwen3.5-4B-F16.gguf; video: qwen35_video_golden.json | - |
 | `qwen35moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `qwen3moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `qwen3next` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |

@@ -250,17 +250,25 @@ func scalarText(value any) string {
 }
 
 func modelValidation(item modelClaim) string {
-	fixtures := []string{
+	modelFixtures := []string{
 		item.ValidatedFixture,
 		item.AdditionalValidatedFixture,
-		item.MultimodalValidatedFixture,
-		item.VideoValidatedFixture,
 	}
-	fixtures = slices.DeleteFunc(fixtures, func(value string) bool { return value == "" })
-	if len(fixtures) != 0 {
-		return "validated: " + strings.Join(fixtures, ", ")
+	modelFixtures = slices.DeleteFunc(modelFixtures, func(value string) bool { return value == "" })
+	parts := make([]string, 0, 4)
+	if len(modelFixtures) != 0 {
+		parts = append(parts, "validated: "+strings.Join(modelFixtures, ", "))
 	}
-	return scalarText(item.RealModelValidation)
+	if item.MultimodalValidatedFixture != "" {
+		parts = append(parts, "multimodal: "+item.MultimodalValidatedFixture)
+	}
+	if item.VideoValidatedFixture != "" {
+		parts = append(parts, "video: "+item.VideoValidatedFixture)
+	}
+	if len(modelFixtures) == 0 {
+		parts = append(parts, scalarText(item.RealModelValidation))
+	}
+	return strings.Join(parts, "; ")
 }
 
 func escapeCell(value string) string {

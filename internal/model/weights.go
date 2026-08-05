@@ -849,23 +849,19 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		result.TokenEmbeddingNormBias = &tokenNormBias
 	}
 	if spec.Architecture == "modern-bert" {
-		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
-		if normErr != nil {
+		if normErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			requiredTensorPointer("token_embd_norm.weight", &result.TokenEmbeddingNorm,
+				uint64(spec.EmbeddingLength)),
+		}); normErr != nil {
 			return Weights{}, normErr
 		}
-		result.TokenEmbeddingNorm = &tokenNorm
 	}
 	if spec.Architecture == "mpt" {
-		if _, ok := tensors["position_embd.weight"]; ok {
-			positionEmbedding, positionErr := required(
-				"position_embd.weight",
-				uint64(spec.EmbeddingLength),
-				uint64(spec.ContextLength),
-			)
-			if positionErr != nil {
-				return Weights{}, positionErr
-			}
-			result.PositionEmbedding = &positionEmbedding
+		if positionErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			optionalTensorPointer("position_embd.weight", &result.PositionEmbedding,
+				uint64(spec.EmbeddingLength), uint64(spec.ContextLength)),
+		}); positionErr != nil {
+			return Weights{}, positionErr
 		}
 	}
 	if spec.Architecture == "bloom" {
@@ -906,12 +902,11 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		result.OutputNormBias = &outputNormBias
 	}
 	if spec.Architecture == "rwkv6qwen2" {
-		if item, ok := tensors["output_norm.bias"]; ok {
-			validated, biasErr := required(item.Name, uint64(spec.EmbeddingLength))
-			if biasErr != nil {
-				return Weights{}, biasErr
-			}
-			result.OutputNormBias = &validated
+		if biasErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			optionalTensorPointer("output_norm.bias", &result.OutputNormBias,
+				uint64(spec.EmbeddingLength)),
+		}); biasErr != nil {
+			return Weights{}, biasErr
 		}
 	}
 	if spec.Architecture == "t5encoder" {
@@ -1078,43 +1073,32 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		return result, nil
 	}
-	if output, ok := tensors["output.weight"]; ok &&
-		spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
-		if output.Dimensions != 2 ||
-			output.Shape[0] != uint64(spec.EmbeddingLength) ||
-			output.Shape[1] != uint64(spec.VocabularySize) {
-			return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", output.Name, output.Shape)
+	if spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
+		if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			optionalTensorPointer("output.weight", &result.Output,
+				uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
+		}); outputErr != nil {
+			return Weights{}, outputErr
 		}
-		result.Output = &output
 	}
 	if profile.Has(ArchitectureRequiresOutput) && result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
 	}
-	if outputBias, ok := tensors["output.bias"]; ok {
-		if outputBias.Type != dtype.F32 ||
-			outputBias.Dimensions != 1 ||
-			outputBias.Shape[0] != uint64(spec.VocabularySize) {
-			return Weights{}, fmt.Errorf(
-				"tensor %q has incompatible shape %v",
-				outputBias.Name,
-				outputBias.Shape,
-			)
-		}
-		result.OutputBias = &outputBias
+	if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+		optionalF32TensorPointer("output.bias", &result.OutputBias, uint64(spec.VocabularySize)),
+	}); outputErr != nil {
+		return Weights{}, outputErr
 	}
 	if profile.Has(ArchitectureClassifierHead) {
-		if item, ok := tensors["cls.output.weight"]; ok {
-			outputCount := uint64(1)
-			if len(spec.ClassifierLabels) > 0 {
-				outputCount = uint64(len(spec.ClassifierLabels))
-			}
-			validated, classifierErr := required(
-				item.Name, uint64(spec.EmbeddingLength), outputCount,
-			)
-			if classifierErr != nil {
-				return Weights{}, classifierErr
-			}
-			result.ClassifierOutput = &validated
+		outputCount := uint64(1)
+		if len(spec.ClassifierLabels) > 0 {
+			outputCount = uint64(len(spec.ClassifierLabels))
+		}
+		if classifierErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			optionalTensorPointer("cls.output.weight", &result.ClassifierOutput,
+				uint64(spec.EmbeddingLength), outputCount),
+		}); classifierErr != nil {
+			return Weights{}, classifierErr
 		}
 	}
 	if (spec.Architecture == "gptj" || spec.Architecture == "phi2" || spec.Architecture == "phimoe") && result.OutputBias == nil {
@@ -1613,20 +1597,14 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			continue
 		}
-		if spec.Architecture == "falcon" {
-			if item, ok := tensors[prefix+"attn_norm_2.weight"]; ok {
-				if item.Dimensions != 1 || item.Shape[0] != uint64(spec.EmbeddingLength) {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-				}
-				layer.AttentionNorm2 = &item
-				if bias, hasBias := tensors[prefix+"attn_norm_2.bias"]; hasBias {
-					if bias.Dimensions != 1 || bias.Shape[0] != uint64(spec.EmbeddingLength) {
-						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", bias.Name, bias.Shape)
-					}
-					layer.AttentionNorm2Bias = &bias
-				}
-			} else if _, ok := tensors[prefix+"attn_norm_2.bias"]; ok {
-				return Weights{}, errors.New("Falcon secondary attention norm bias has no weight")
+		if profile.DenseWeights.ValidateFalconNorm {
+			if normErr := loadOptionalWeightBias(
+				required, tensors, prefix,
+				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, uint64(spec.EmbeddingLength)),
+				"Falcon secondary attention norm bias has no weight",
+			); normErr != nil {
+				return Weights{}, normErr
 			}
 		}
 		if spec.Architecture == "bitnet" {
@@ -1845,19 +1823,13 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if qkPlan.Heads == qkNormAffine {
-			if _, ok := tensors[prefix+"attn_q_norm.bias"]; ok {
-				bias, biasErr := required(prefix+"attn_q_norm.bias", uint64(spec.KeyLength), uint64(spec.HeadCount))
-				if biasErr != nil {
-					return Weights{}, biasErr
-				}
-				layer.AttentionQNormBias = &bias
-			}
-			if _, ok := tensors[prefix+"attn_k_norm.bias"]; ok {
-				bias, biasErr := required(prefix+"attn_k_norm.bias", uint64(spec.KeyLength), uint64(spec.HeadCountKV))
-				if biasErr != nil {
-					return Weights{}, biasErr
-				}
-				layer.AttentionKNormBias = &bias
+			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				optionalTensorPointer("attn_q_norm.bias", &layer.AttentionQNormBias,
+					uint64(spec.KeyLength), uint64(spec.HeadCount)),
+				optionalTensorPointer("attn_k_norm.bias", &layer.AttentionKNormBias,
+					uint64(spec.KeyLength), uint64(spec.HeadCountKV)),
+			}); biasErr != nil {
+				return Weights{}, biasErr
 			}
 		}
 		if profile.DenseGraph == DenseGraphTalkie {
@@ -1956,11 +1928,12 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if profile.Has(ArchitecturePerLayerEmbeddings) {
-			if scale, ok := tensors[prefix+"layer_output_scale.weight"]; ok && spec.Architecture == "gemma4" {
-				if scale.Type != dtype.F32 || scale.Dimensions != 1 || scale.Shape[0] != 1 {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", scale.Name, scale.Shape)
+			if spec.Architecture == "gemma4" {
+				if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					optionalF32TensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, 1),
+				}); scaleErr != nil {
+					return Weights{}, scaleErr
 				}
-				layer.LayerOutputScale = &scale
 			}
 			if spec.EmbeddingPerLayer > 0 {
 				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{

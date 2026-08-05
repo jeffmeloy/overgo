@@ -316,6 +316,7 @@ const (
 	ArchitectureEmbeddingSkip
 	ArchitectureBERTNormLayout
 	ArchitectureDeepSeek2Layout
+	ArchitectureDiscreteImageTokens
 )
 
 // ArchitectureProfile: registry entry and capability set.
@@ -741,6 +742,7 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setCapabilities(ArchitectureAltUp, "gemma3n")
 	setCapabilities(ArchitecturePerLayerEmbeddings, "gemma3n", "gemma4")
 	setCapabilities(ArchitectureEmbeddingSkip, "talkie")
+	setCapabilities(ArchitectureDiscreteImageTokens, "chameleon")
 	setCapabilities(ArchitectureBERTNormLayout,
 		"bert", "jina-bert-v2", "jina-bert-v3", "nomic-bert", "nomic-bert-moe",
 	)

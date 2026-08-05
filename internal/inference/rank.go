@@ -22,7 +22,7 @@ type RankResult struct {
 
 func (r *Runner) SupportsRank() bool {
 	return r != nil && r.weights.ClassifierOutput != nil &&
-		(r.spec.Architecture == "qwen3" || r.spec.Architecture == "qwen3vl")
+		r.profile().Has(model.ArchitectureClassifierHead)
 }
 
 func (r *Runner) RankPair(
@@ -134,7 +134,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if r.closed {
 		return RankResult{}, errors.New("inference: runner is closed")
 	}
-	if r.spec.Architecture != "qwen3" && r.spec.Architecture != "qwen3vl" {
+	if !r.profile().Has(model.ArchitectureClassifierHead) {
 		return RankResult{}, fmt.Errorf(
 			"inference: architecture %q has no pinned Qwen rank graph",
 			r.spec.Architecture,
@@ -146,7 +146,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if len(input) == 0 {
 		return RankResult{}, errors.New("inference: rank token list is empty")
 	}
-	if inputs.MultiAxisPositions != nil && !supportsMultiAxisPositions(r.spec) {
+	if inputs.MultiAxisPositions != nil && !r.spec.SupportsMultiAxisPositions() {
 		return RankResult{}, errors.New("inference: model does not support multi-axis positions")
 	}
 	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec) {

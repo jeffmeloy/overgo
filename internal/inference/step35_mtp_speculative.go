@@ -168,7 +168,7 @@ func (r *Runner) multiHeadMTPTargetAdvance(
 	var hidden reference.Value
 	var nextCache *KVCache
 	var err error
-	if r.spec.Architecture == "step35" {
+	if r.usesStep35MTPGraph() {
 		hidden, nextCache, err = r.forwardCachedPreOutputNormLocked(
 			ctx, []tokenizer.TokenID{tokenID}, cache,
 		)
@@ -181,7 +181,7 @@ func (r *Runner) multiHeadMTPTargetAdvance(
 		return reference.Value{}, reference.Value{}, nil, err
 	}
 	normalized := hidden
-	if r.spec.Architecture == "step35" {
+	if r.usesStep35MTPGraph() {
 		normalized, err = r.runOutputNorm(ctx, hidden)
 		if err != nil {
 			return reference.Value{}, reference.Value{}, nil, err

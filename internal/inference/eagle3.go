@@ -36,7 +36,7 @@ func (r *Runner) FuseEagle3Features(ctx context.Context, features reference.Valu
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || r.spec.Architecture != "eagle3" || r.weights.FeatureProjection == nil {
+	if r.closed || r.profile().Forward != model.ForwardEagle3 || r.weights.FeatureProjection == nil {
 		return reference.Value{}, errors.New("inference: Eagle3 feature encoder is unavailable")
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
@@ -65,7 +65,7 @@ func (r *Runner) NewEagle3Session(
 	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
 		return nil, errors.New("inference: Eagle3 and target inputs are invalid")
 	}
-	if r.spec.Architecture != "eagle3" || target.spec.EmbeddingLength != r.spec.TargetHiddenSize {
+	if r.profile().Forward != model.ForwardEagle3 || target.spec.EmbeddingLength != r.spec.TargetHiddenSize {
 		return nil, errors.New("inference: Eagle3 target model is incompatible")
 	}
 	_, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
@@ -142,7 +142,7 @@ func (r *Runner) stepEagle3(
 	second.mu.Lock()
 	defer second.mu.Unlock()
 	defer first.mu.Unlock()
-	if r.closed || target.closed || r.spec.Architecture != "eagle3" {
+	if r.closed || target.closed || r.profile().Forward != model.ForwardEagle3 {
 		return Eagle3StepResult{}, errors.New("inference: Eagle3 runner is unavailable")
 	}
 	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {

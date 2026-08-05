@@ -169,7 +169,7 @@ func (r *Runner) AdvanceGemma4Assistant(
 }
 
 func (r *Runner) validateGemma4AssistantTarget(target *Runner) error {
-	if r.spec.Architecture != "gemma4-assistant" || target.spec.Architecture != "gemma4" ||
+	if r.profile().Forward != model.ForwardGemma4Assistant || target.profile().DenseGraph != model.DenseGraphGemma4 ||
 		target.spec.EmbeddingLength != r.spec.TargetHiddenSize ||
 		target.spec.VocabularySize != r.spec.VocabularySize || target.spec.BlockCount < 2 ||
 		!target.spec.IsSlidingLayer(target.spec.BlockCount-2) ||

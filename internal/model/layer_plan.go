@@ -185,6 +185,23 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	}
 }
 
+// SupportsMultiAxisPositions: model-level MRoPE contract.
+func (s Spec) SupportsMultiAxisPositions() bool {
+	profile := s.Profile()
+	if !profile.Has(ArchitectureMultiAxisPositions) {
+		return false
+	}
+	sections := false
+	for _, count := range s.RopeSections {
+		sections = sections || count > 0
+	}
+	if !sections {
+		return false
+	}
+	return profile.Rotary.MultiAxis != multiAxisRotaryWithSections ||
+		len(s.RopeSections) >= 2 && s.RopeSections[0] > 0 && s.RopeSections[1] > 0
+}
+
 func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (DeepstackSource, DeepstackSource) {
 	switch profile.Deepstack {
 	case DeepstackMappedBefore:

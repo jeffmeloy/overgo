@@ -141,7 +141,7 @@ func (r *Runner) applyCogVLMVisualWeights(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) error {
-	if r.spec.Architecture != "cogvlm" {
+	if r.profile().Overrides != model.EmbeddingOverrideCogVLM {
 		return errors.New("inference: visual expert weights require CogVLM architecture")
 	}
 	if weights == nil {
@@ -204,26 +204,6 @@ func selectCogVLMVisualGraphWeights(
 	weights.FeedForwardUp = nodes[3]
 	weights.FeedForwardDown = nodes[4]
 	return nil
-}
-
-func supportsMultiAxisPositions(spec model.Spec) bool {
-	sections := false
-	for _, count := range spec.RopeSections {
-		sections = sections || count > 0
-	}
-	if !sections {
-		return false
-	}
-	profile := spec.Profile()
-	if !profile.Has(model.ArchitectureMultiAxisPositions) {
-		return false
-	}
-	switch spec.Architecture {
-	case "glm4", "glm4moe", "hunyuan-dense", "hunyuan_vl":
-		return spec.RopeSections[0] > 0 && spec.RopeSections[1] > 0
-	default:
-		return true
-	}
 }
 
 func supportsDeepstackInputs(spec model.Spec) bool {

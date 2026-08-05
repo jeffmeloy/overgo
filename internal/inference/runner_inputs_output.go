@@ -253,7 +253,7 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 
 func (r *Runner) finalizeLogits(logits []float32) []float32 {
 	logits = applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap)
-	if r.spec.Architecture != "chameleon" || r.spec.VocabularySize == 0 {
+	if !r.profile().Has(model.ArchitectureDiscreteImageTokens) || r.spec.VocabularySize == 0 {
 		return logits
 	}
 	vocabulary := int(r.spec.VocabularySize)

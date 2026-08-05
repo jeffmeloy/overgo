@@ -68,7 +68,7 @@ func (r *Runner) newMultiHeadMTPSession(
 	var hidden reference.Value
 	var cache *KVCache
 	var err error
-	if r.spec.Architecture == "step35" {
+	if r.usesStep35MTPGraph() {
 		hidden, cache, err = r.forwardCachedPreOutputNormLocked(ctx, tokenIDs, nil)
 	} else {
 		hidden, cache, err = r.forwardCachedLocked(ctx, tokenIDs, nil)
@@ -250,7 +250,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	var current *tensor.Tensor
-	if r.spec.Architecture == "step35" {
+	if r.usesStep35MTPGraph() {
 		current, err = model.BuildStep35MTPInput(
 			runtime.builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
 		)
@@ -268,7 +268,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		pastValue = runtime.input("step35_mtp.past_value", past.Value)
 	}
 	var block model.DenseBlockResult
-	if r.spec.Architecture == "step35" {
+	if r.usesStep35MTPGraph() {
 		block, err = model.BuildStep35MTPBlockCached(
 			runtime.builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
 		)
@@ -291,7 +291,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	var logits, nextHidden *tensor.Tensor
-	if r.spec.Architecture == "step35" {
+	if r.usesStep35MTPGraph() {
 		logits, nextHidden, err = model.BuildStep35MTPOutputs(
 			runtime.builder, block.Output, outputNorm, output, r.spec, offset,
 		)
@@ -317,6 +317,10 @@ func (r *Runner) validateStep35MTP() error {
 		return errors.New("inference: model has no supported Step3.5 MTP heads")
 	}
 	return nil
+}
+
+func (r *Runner) usesStep35MTPGraph() bool {
+	return r != nil && r.profile().DraftKind == model.DraftStep35MTP
 }
 
 func (r *Runner) validateHYV3MTP() error {

@@ -189,7 +189,8 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 		return err
 	}
 	indexerState, hasIndexerState := session.Layer.States["indexer_key"]
-	if r.spec.Architecture == "deepseek32" {
+	profile := r.profile()
+	if profile.Attention == model.AttentionDSA && profile.Auxiliary != model.AuxiliaryDSATopK {
 		wantTokens := uint64(session.Position - session.MTPStart)
 		if (wantTokens == 0 && hasIndexerState) || (wantTokens > 0 &&
 			(!hasIndexerState || indexerState.Mode != CacheStateToken ||
@@ -199,7 +200,7 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	} else if hasIndexerState {
 		return errors.New("inference: NextN MTP session has unexpected indexer state")
 	}
-	if r.spec.Architecture == "glm-dsa" {
+	if profile.Auxiliary == model.AuxiliaryDSATopK {
 		if session.Layer.Auxiliary == nil ||
 			session.Layer.Auxiliary.Shape != tensor.MustShape(uint64(r.spec.IndexerTopK), 1) {
 			return errors.New("inference: GLM-DSA NextN MTP top-k handoff is incompatible")

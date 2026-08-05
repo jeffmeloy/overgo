@@ -29,7 +29,7 @@ func (r *Runner) compileProjectedRequestPlan(
 	}
 	profile := r.profile()
 	if inputs.MultiAxisPositions != nil {
-		if !supportsMultiAxisPositions(r.spec) {
+		if !r.spec.SupportsMultiAxisPositions() {
 			return projectedRequestPlan{}, errors.New("inference: model does not support multi-axis positions")
 		}
 		for axis := range inputs.MultiAxisPositions {

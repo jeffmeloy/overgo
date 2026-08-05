@@ -357,6 +357,65 @@ func loadSharedExpertWeightsForWidth(
 	return loadTensorRequirements(required, nil, prefix, requirements)
 }
 
+type t5CatalogPlan struct {
+	width, query, key, value, output, feedForward, heads, relativeBuckets uint64
+}
+
+func newT5CatalogPlan(spec Spec) t5CatalogPlan {
+	return t5CatalogPlan{
+		width:           uint64(spec.EmbeddingLength),
+		query:           uint64(spec.HeadCount) * uint64(spec.KeyLength),
+		key:             uint64(spec.HeadCountKV) * uint64(spec.KeyLength),
+		value:           uint64(spec.HeadCountKV) * uint64(spec.ValueLength),
+		output:          uint64(spec.HeadCount) * uint64(spec.ValueLength),
+		feedForward:     uint64(spec.FeedForwardLength),
+		heads:           uint64(spec.HeadCount),
+		relativeBuckets: uint64(spec.RelativeBuckets),
+	}
+}
+
+func (p t5CatalogPlan) loadLayer(
+	load weightRequirementLoader,
+	tensors map[string]gguf.TensorInfo,
+	prefix string,
+	layer *LayerWeights,
+	requireGate bool,
+	inheritedBias **gguf.TensorInfo,
+) error {
+	gate := optionalTensor("ffn_gate.weight", &layer.FeedForwardGate, p.width, p.feedForward)
+	gate.optional = !requireGate
+	if err := loadTensorRequirements(load, tensors, prefix, []tensorRequirement{
+		requiredTensor("attn_norm.weight", &layer.AttentionNorm, p.width),
+		requiredTensor("attn_q.weight", &layer.AttentionQ, p.width, p.query),
+		requiredTensor("attn_k.weight", &layer.AttentionK, p.width, p.key),
+		requiredTensor("attn_v.weight", &layer.AttentionV, p.width, p.value),
+		requiredTensor("attn_o.weight", &layer.AttentionOutput, p.output, p.width),
+		requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, p.width),
+		gate,
+		requiredTensor("ffn_up.weight", &layer.FeedForwardUp, p.width, p.feedForward),
+		requiredTensor("ffn_down.weight", &layer.FeedForwardDown, p.feedForward, p.width),
+	}); err != nil {
+		return err
+	}
+	bias := requiredTensorPointer(
+		"attn_rel_b.weight", &layer.AttentionRelativeBias, p.heads, p.relativeBuckets)
+	bias.optional = inheritedBias != nil
+	if err := loadTensorRequirements(load, tensors, prefix, []tensorRequirement{bias}); err != nil {
+		return err
+	}
+	if inheritedBias == nil {
+		return nil
+	}
+	if layer.AttentionRelativeBias != nil {
+		*inheritedBias = layer.AttentionRelativeBias
+	} else if *inheritedBias == nil {
+		return fmt.Errorf("required tensor %q is missing", prefix+bias.name)
+	} else {
+		layer.AttentionRelativeBias = *inheritedBias
+	}
+	return nil
+}
+
 // Weights: validated initial Llama/Qwen3 tensor catalog
 type Weights struct {
 	TokenEmbedding          gguf.TensorInfo
@@ -910,124 +969,31 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 	}
 	if spec.Architecture == "t5encoder" {
+		plan := newT5CatalogPlan(spec)
 		result.Layers = make([]LayerWeights, spec.BlockCount)
-		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-		attentionOutputLength := uint64(spec.HeadCount) * uint64(spec.ValueLength)
 		for block := uint32(0); block < spec.BlockCount; block++ {
 			prefix := fmt.Sprintf("enc.blk.%d.", block)
-			layer := &result.Layers[block]
-			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
-				return Weights{}, err
-			}
-			if layer.AttentionQ, err = required(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); err != nil {
-				return Weights{}, err
-			}
-			if layer.AttentionK, err = required(prefix+"attn_k.weight", uint64(spec.EmbeddingLength), keyLength); err != nil {
-				return Weights{}, err
-			}
-			if layer.AttentionV, err = required(prefix+"attn_v.weight", uint64(spec.EmbeddingLength), valueLength); err != nil {
-				return Weights{}, err
-			}
-			if layer.AttentionOutput, err = required(prefix+"attn_o.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); err != nil {
-				return Weights{}, err
-			}
-			relativeBias, biasErr := required(
-				prefix+"attn_rel_b.weight",
-				uint64(spec.HeadCount),
-				uint64(spec.RelativeBuckets),
-			)
-			if biasErr != nil {
-				return Weights{}, biasErr
-			}
-			layer.AttentionRelativeBias = &relativeBias
-			if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
-				return Weights{}, err
-			}
-			if layer.FeedForwardGate, err = required(prefix+"ffn_gate.weight", uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
-				return Weights{}, err
-			}
-			if layer.FeedForwardUp, err = required(prefix+"ffn_up.weight", uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
-				return Weights{}, err
-			}
-			if layer.FeedForwardDown, err = required(prefix+"ffn_down.weight", uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)); err != nil {
-				return Weights{}, err
+			if loadErr := plan.loadLayer(required, tensors, prefix, &result.Layers[block], true, nil); loadErr != nil {
+				return Weights{}, loadErr
 			}
 		}
 		return result, nil
 	}
 	if spec.Architecture == "t5" {
-		encoderNorm, normErr := required("enc.output_norm.weight", uint64(spec.EmbeddingLength))
-		if normErr != nil {
+		plan := newT5CatalogPlan(spec)
+		if normErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			requiredTensorPointer("enc.output_norm.weight", &result.EncoderOutputNorm, plan.width),
+		}); normErr != nil {
 			return Weights{}, normErr
-		}
-		result.EncoderOutputNorm = &encoderNorm
-		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-		attentionOutputLength := uint64(spec.HeadCount) * uint64(spec.ValueLength)
-		loadFFN := func(prefix string, layer *LayerWeights) error {
-			var loadErr error
-			if layer.FeedForwardNorm, loadErr = required(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
-				return loadErr
-			}
-			if item, ok := tensors[prefix+"ffn_gate.weight"]; ok {
-				gate, gateErr := required(item.Name, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength))
-				if gateErr != nil {
-					return gateErr
-				}
-				layer.FeedForwardGate = gate
-			}
-			if layer.FeedForwardUp, loadErr = required(prefix+"ffn_up.weight", uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); loadErr != nil {
-				return loadErr
-			}
-			if layer.FeedForwardDown, loadErr = required(prefix+"ffn_down.weight", uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)); loadErr != nil {
-				return loadErr
-			}
-			return nil
-		}
-		loadAttention := func(prefix string, layer *LayerWeights) error {
-			var loadErr error
-			if layer.AttentionNorm, loadErr = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
-				return loadErr
-			}
-			if layer.AttentionQ, loadErr = required(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); loadErr != nil {
-				return loadErr
-			}
-			if layer.AttentionK, loadErr = required(prefix+"attn_k.weight", uint64(spec.EmbeddingLength), keyLength); loadErr != nil {
-				return loadErr
-			}
-			if layer.AttentionV, loadErr = required(prefix+"attn_v.weight", uint64(spec.EmbeddingLength), valueLength); loadErr != nil {
-				return loadErr
-			}
-			if layer.AttentionOutput, loadErr = required(prefix+"attn_o.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); loadErr != nil {
-				return loadErr
-			}
-			return nil
 		}
 		result.EncoderLayers = make([]LayerWeights, spec.BlockCount)
 		var encoderRelativeBias *gguf.TensorInfo
 		for block := uint32(0); block < spec.BlockCount; block++ {
 			prefix := fmt.Sprintf("enc.blk.%d.", block)
-			layer := &result.EncoderLayers[block]
-			if loadErr := loadAttention(prefix, layer); loadErr != nil {
+			if loadErr := plan.loadLayer(
+				required, tensors, prefix, &result.EncoderLayers[block], false, &encoderRelativeBias,
+			); loadErr != nil {
 				return Weights{}, loadErr
-			}
-			if loadErr := loadFFN(prefix, layer); loadErr != nil {
-				return Weights{}, loadErr
-			}
-			if item, ok := tensors[prefix+"attn_rel_b.weight"]; ok {
-				bias, biasErr := required(item.Name, uint64(spec.HeadCount), uint64(spec.RelativeBuckets))
-				if biasErr != nil {
-					return Weights{}, biasErr
-				}
-				layer.AttentionRelativeBias = &bias
-				encoderRelativeBias = &bias
-			} else if block == 0 {
-				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_rel_b.weight")
-			} else {
-				layer.AttentionRelativeBias = encoderRelativeBias
 			}
 		}
 		result.Layers = make([]LayerWeights, spec.DecoderBlockCount)
@@ -1035,41 +1001,24 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		for block := uint32(0); block < spec.DecoderBlockCount; block++ {
 			prefix := fmt.Sprintf("dec.blk.%d.", block)
 			layer := &result.Layers[block]
-			if loadErr := loadAttention(prefix, layer); loadErr != nil {
+			if loadErr := plan.loadLayer(required, tensors, prefix, layer, false, &decoderRelativeBias); loadErr != nil {
 				return Weights{}, loadErr
 			}
-			if loadErr := loadFFN(prefix, layer); loadErr != nil {
+			if loadErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("cross_attn_norm.weight", &layer.CrossAttentionNorm, plan.width),
+				requiredTensorPointer("cross_attn_q.weight", &layer.CrossAttentionQ, plan.width, plan.query),
+				requiredTensorPointer("cross_attn_k.weight", &layer.CrossAttentionK, plan.width, plan.key),
+				requiredTensorPointer("cross_attn_v.weight", &layer.CrossAttentionV, plan.width, plan.value),
+				requiredTensorPointer("cross_attn_o.weight", &layer.CrossAttentionOutput, plan.output, plan.width),
+			}); loadErr != nil {
 				return Weights{}, loadErr
-			}
-			if item, ok := tensors[prefix+"attn_rel_b.weight"]; ok {
-				bias, biasErr := required(item.Name, uint64(spec.HeadCount), uint64(spec.RelativeBuckets))
-				if biasErr != nil {
-					return Weights{}, biasErr
-				}
-				layer.AttentionRelativeBias = &bias
-				decoderRelativeBias = &bias
-			} else if block == 0 {
-				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_rel_b.weight")
-			} else {
-				layer.AttentionRelativeBias = decoderRelativeBias
-			}
-			width := uint64(spec.EmbeddingLength)
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("cross_attn_norm.weight", &layer.CrossAttentionNorm, width),
-				requiredTensorPointer("cross_attn_q.weight", &layer.CrossAttentionQ, width, queryLength),
-				requiredTensorPointer("cross_attn_k.weight", &layer.CrossAttentionK, width, keyLength),
-				requiredTensorPointer("cross_attn_v.weight", &layer.CrossAttentionV, width, valueLength),
-				requiredTensorPointer("cross_attn_o.weight", &layer.CrossAttentionOutput, attentionOutputLength, width),
-			}); itemErr != nil {
-				return Weights{}, itemErr
 			}
 		}
-		if output, ok := tensors["output.weight"]; ok {
-			validated, outputErr := required(output.Name, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize))
-			if outputErr != nil {
-				return Weights{}, outputErr
-			}
-			result.Output = &validated
+		if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+			optionalTensorPointer("output.weight", &result.Output,
+				plan.width, uint64(spec.VocabularySize)),
+		}); outputErr != nil {
+			return Weights{}, outputErr
 		}
 		return result, nil
 	}

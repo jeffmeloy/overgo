@@ -20,6 +20,10 @@ func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) 
 	return tensorRequirement{name: name, shape: shape, destination: destination}
 }
 
+func optionalTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
+	return tensorRequirement{name: name, shape: shape, destination: destination, optional: true}
+}
+
 func requiredTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
 	return tensorRequirement{name: name, shape: shape, pointer: destination}
 }

@@ -87,24 +87,20 @@ func launchAttentionLayout(
 			relativeBias = pointers[node.Inputs[3]]
 		}
 		relativeBuckets := attributes.RelativeBuckets
-		var relativeBidirectional uint32
-		if attributes.RelativeBidirectional {
-			relativeBidirectional = 1
-		}
+		relativeBidirectional := kernelBool(attributes.RelativeBidirectional)
 		scale := attributes.Scale
 		softcap := attributes.Softcap
 		maxALiBiBias := attributes.MaxALiBiBias
-		var causal uint32
-		if attributes.Causal {
-			causal = 1
-		}
+		causal := kernelBool(attributes.Causal)
 		queryStart := attributes.QueryStart
 		window := attributes.Window
 		var symmetricWindow uint32
 		if attributes.SymmetricWindow {
-			symmetricWindow = 1
+			const symmetricWindowABI = 1
+			symmetricWindow = symmetricWindowABI
 		} else if attributes.ChunkedWindow {
-			symmetricWindow = 2
+			const chunkedWindowABI = 2
+			symmetricWindow = chunkedWindowABI
 		}
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&query),

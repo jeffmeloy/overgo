@@ -40,9 +40,37 @@ type HashResult struct {
 	Model   HashValues
 }
 
-const hashReadBufferBytes = 1 << 20
+const (
+	hashReadBufferBytes  = 1 << 20
+	uuidBytes            = 16
+	uuidVersionByte      = 6
+	uuidVariantByte      = 8
+	uuidTimeLowEnd       = 4
+	uuidTimeMidEnd       = 6
+	uuidTimeHighEnd      = 8
+	uuidClockSequenceEnd = 10
+	uuidVersionClearMask = 0x0f
+	uuidVariantClearMask = 0x3f
+	uuidVersion5Bits     = 0x50
+	uuidVariantBits      = 0x80
 
-var llamaCPPHashNamespace = [16]byte{
+	xxhStripeBytes          = 32
+	xxhLaneBytes            = 8
+	xxhHalfLaneBytes        = 4
+	xxhRoundRotation        = 31
+	xxhLaneRotation         = 27
+	xxhHalfLaneRotation     = 23
+	xxhTailRotation         = 11
+	xxhAccumulator1Rotation = 1
+	xxhAccumulator2Rotation = 7
+	xxhAccumulator3Rotation = 12
+	xxhAccumulator4Rotation = 18
+	xxhAvalancheFirst       = 33
+	xxhAvalancheSecond      = 29
+	xxhAvalancheThird       = 32
+)
+
+var llamaCPPHashNamespace = [uuidBytes]byte{
 	0xef, 0x00, 0x12, 0x06, 0xda, 0xdc, 0x5f, 0x6d,
 	0xa1, 0x5f, 0x33, 0x59, 0xe5, 0x77, 0xd4, 0xe5,
 }
@@ -151,22 +179,21 @@ func (a *hashAccumulator) values(includeUUID bool) HashValues {
 	}
 	if includeUUID && a.uuid != nil {
 		sum := a.uuid.Sum(nil)
-		var value [16]byte
+		var value [uuidBytes]byte
 		copy(value[:], sum)
-		value[6] = value[6]&0x0f | 0x50
-		value[8] = value[8]&0x3f | 0x80
+		value[uuidVersionByte] = value[uuidVersionByte]&uuidVersionClearMask | uuidVersion5Bits
+		value[uuidVariantByte] = value[uuidVariantByte]&uuidVariantClearMask | uuidVariantBits
+		var node uint64
+		for _, part := range value[uuidClockSequenceEnd:] {
+			node = node<<8 | uint64(part)
+		}
 		result.UUID = fmt.Sprintf(
 			"%08x-%04x-%04x-%04x-%012x",
-			binary.BigEndian.Uint32(value[0:4]),
-			binary.BigEndian.Uint16(value[4:6]),
-			binary.BigEndian.Uint16(value[6:8]),
-			binary.BigEndian.Uint16(value[8:10]),
-			uint64(value[10])<<40|
-				uint64(value[11])<<32|
-				uint64(value[12])<<24|
-				uint64(value[13])<<16|
-				uint64(value[14])<<8|
-				uint64(value[15]),
+			binary.BigEndian.Uint32(value[:uuidTimeLowEnd]),
+			binary.BigEndian.Uint16(value[uuidTimeLowEnd:uuidTimeMidEnd]),
+			binary.BigEndian.Uint16(value[uuidTimeMidEnd:uuidTimeHighEnd]),
+			binary.BigEndian.Uint16(value[uuidTimeHighEnd:uuidClockSequenceEnd]),
+			node,
 		)
 	}
 	return result
@@ -186,7 +213,7 @@ type xxh64Digest struct {
 	v2    uint64
 	v3    uint64
 	v4    uint64
-	tail  [32]byte
+	tail  [xxhStripeBytes]byte
 	used  int
 }
 
@@ -224,19 +251,19 @@ func (d *xxh64Digest) Write(data []byte) {
 }
 
 func (d *xxh64Digest) consume(block []byte) {
-	d.v1 = xxhRound(d.v1, binary.LittleEndian.Uint64(block[0:8]))
-	d.v2 = xxhRound(d.v2, binary.LittleEndian.Uint64(block[8:16]))
-	d.v3 = xxhRound(d.v3, binary.LittleEndian.Uint64(block[16:24]))
-	d.v4 = xxhRound(d.v4, binary.LittleEndian.Uint64(block[24:32]))
+	d.v1 = xxhRound(d.v1, binary.LittleEndian.Uint64(block[:xxhLaneBytes]))
+	d.v2 = xxhRound(d.v2, binary.LittleEndian.Uint64(block[xxhLaneBytes:2*xxhLaneBytes]))
+	d.v3 = xxhRound(d.v3, binary.LittleEndian.Uint64(block[2*xxhLaneBytes:3*xxhLaneBytes]))
+	d.v4 = xxhRound(d.v4, binary.LittleEndian.Uint64(block[3*xxhLaneBytes:xxhStripeBytes]))
 }
 
 func (d *xxh64Digest) Sum64() uint64 {
 	var result uint64
-	if d.total >= 32 {
-		result = bits.RotateLeft64(d.v1, 1) +
-			bits.RotateLeft64(d.v2, 7) +
-			bits.RotateLeft64(d.v3, 12) +
-			bits.RotateLeft64(d.v4, 18)
+	if d.total >= xxhStripeBytes {
+		result = bits.RotateLeft64(d.v1, xxhAccumulator1Rotation) +
+			bits.RotateLeft64(d.v2, xxhAccumulator2Rotation) +
+			bits.RotateLeft64(d.v3, xxhAccumulator3Rotation) +
+			bits.RotateLeft64(d.v4, xxhAccumulator4Rotation)
 		result = xxhMergeRound(result, d.v1)
 		result = xxhMergeRound(result, d.v2)
 		result = xxhMergeRound(result, d.v3)
@@ -246,32 +273,32 @@ func (d *xxh64Digest) Sum64() uint64 {
 	}
 	result += d.total
 	tail := d.tail[:d.used]
-	for len(tail) >= 8 {
-		lane := xxhRound(0, binary.LittleEndian.Uint64(tail[:8]))
+	for len(tail) >= xxhLaneBytes {
+		lane := xxhRound(0, binary.LittleEndian.Uint64(tail[:xxhLaneBytes]))
 		result ^= lane
-		result = bits.RotateLeft64(result, 27)*xxhPrime1 + xxhPrime4
-		tail = tail[8:]
+		result = bits.RotateLeft64(result, xxhLaneRotation)*xxhPrime1 + xxhPrime4
+		tail = tail[xxhLaneBytes:]
 	}
-	if len(tail) >= 4 {
-		result ^= uint64(binary.LittleEndian.Uint32(tail[:4])) * xxhPrime1
-		result = bits.RotateLeft64(result, 23)*xxhPrime2 + xxhPrime3
-		tail = tail[4:]
+	if len(tail) >= xxhHalfLaneBytes {
+		result ^= uint64(binary.LittleEndian.Uint32(tail[:xxhHalfLaneBytes])) * xxhPrime1
+		result = bits.RotateLeft64(result, xxhHalfLaneRotation)*xxhPrime2 + xxhPrime3
+		tail = tail[xxhHalfLaneBytes:]
 	}
 	for _, value := range tail {
 		result ^= uint64(value) * xxhPrime5
-		result = bits.RotateLeft64(result, 11) * xxhPrime1
+		result = bits.RotateLeft64(result, xxhTailRotation) * xxhPrime1
 	}
-	result ^= result >> 33
+	result ^= result >> xxhAvalancheFirst
 	result *= xxhPrime2
-	result ^= result >> 29
+	result ^= result >> xxhAvalancheSecond
 	result *= xxhPrime3
-	result ^= result >> 32
+	result ^= result >> xxhAvalancheThird
 	return result
 }
 
 func xxhRound(accumulator, input uint64) uint64 {
 	accumulator += input * xxhPrime2
-	accumulator = bits.RotateLeft64(accumulator, 31)
+	accumulator = bits.RotateLeft64(accumulator, xxhRoundRotation)
 	return accumulator * xxhPrime1
 }
 

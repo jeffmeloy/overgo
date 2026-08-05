@@ -267,10 +267,7 @@ func launchMathVision(
 		tokens := uint32(node.Inputs[0].Shape.Dims[1])
 		kernelWidth := uint32(node.Inputs[1].Shape.Dims[0])
 		channelsOut := uint32(node.Shape.Dims[0])
-		var depthwise uint32
-		if attributes.Depthwise {
-			depthwise = 1
-		}
+		depthwise := kernelBool(attributes.Depthwise)
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&bias), unsafe.Pointer(&output),
 			unsafe.Pointer(&channelsIn), unsafe.Pointer(&tokens), unsafe.Pointer(&kernelWidth),

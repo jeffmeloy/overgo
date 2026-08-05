@@ -142,22 +142,13 @@ func launchMoE(
 			downNode.Shape.Dims[2] != upNode.Shape.Dims[2] || uint64(topK) > upNode.Shape.Dims[2] {
 			return errors.New("invalid grouped MoE dimensions")
 		}
-		var normalize uint32
-		if attributes.NormalizeTopKProb {
-			normalize = 1
-		}
+		normalize := kernelBool(attributes.NormalizeTopKProb)
 		scale := attributes.Scale
 		routing := uint32(attributes.Routing)
 		activation := uint32(attributes.Activation)
 		swigluClamp := attributes.SwiGLUClamp
-		var gated uint32
-		if attributes.Gated {
-			gated = 1
-		}
-		var fusedGateUp uint32
-		if attributes.FusedGateUp {
-			fusedGateUp = 1
-		}
+		gated := kernelBool(attributes.Gated)
+		fusedGateUp := kernelBool(attributes.FusedGateUp)
 		args := []unsafe.Pointer{
 			unsafe.Pointer(&input), unsafe.Pointer(&routerInput), unsafe.Pointer(&router), unsafe.Pointer(&gate),
 			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&expertScale),

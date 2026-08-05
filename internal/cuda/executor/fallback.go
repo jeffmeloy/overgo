@@ -49,6 +49,13 @@ func nativeQuantizedType(value dtype.Type) bool {
 	return ok
 }
 
+func kernelBool(value bool) uint32 {
+	if value {
+		return 1
+	}
+	return 0
+}
+
 func launch1D(
 	state *device.State,
 	function driver.Function,

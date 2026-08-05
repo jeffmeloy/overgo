@@ -21,39 +21,6 @@ const (
 	iq2SGroupWidth                  = 16
 )
 
-var quantizableTypes = []dtype.Type{
-	dtype.F32,
-	dtype.F16,
-	dtype.BF16,
-	dtype.Q1_0,
-	dtype.Q2_0,
-	dtype.Q4_0,
-	dtype.Q4_1,
-	dtype.Q5_0,
-	dtype.Q5_1,
-	dtype.Q8_0,
-	dtype.Q8_1,
-	dtype.Q2K,
-	dtype.Q3K,
-	dtype.Q4K,
-	dtype.Q5K,
-	dtype.Q6K,
-	dtype.Q8K,
-	dtype.TQ1_0,
-	dtype.TQ2_0,
-	dtype.MXFP4,
-	dtype.NVFP4,
-	dtype.IQ4NL,
-	dtype.IQ4XS,
-	dtype.IQ2XXS,
-	dtype.IQ2XS,
-	dtype.IQ2S,
-	dtype.IQ1S,
-	dtype.IQ1M,
-	dtype.IQ3XXS,
-	dtype.IQ3S,
-}
-
 // Quantize: deterministic pinned GGML storage conversion.
 func Quantize(dataType dtype.Type, values []float32) ([]byte, error) {
 	return quantize(dataType, values, nil)
@@ -188,21 +155,6 @@ func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 		return nil, fmt.Errorf("quantization to %s is not implemented", dataType)
 	}
 	return output, nil
-}
-
-// CanQuantize: supported destination check.
-func CanQuantize(dataType dtype.Type) bool {
-	return slices.Contains(quantizableTypes, dataType)
-}
-
-// RequiresImportance: destination requires explicit element weights.
-func RequiresImportance(dataType dtype.Type) bool {
-	switch dataType {
-	case dtype.IQ2XXS, dtype.IQ2XS, dtype.IQ1S, dtype.IQ1M:
-		return true
-	default:
-		return false
-	}
 }
 
 type iq3QuantCodebook struct {

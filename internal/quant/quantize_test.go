@@ -171,7 +171,7 @@ func TestQuantizeErrors(t *testing.T) {
 }
 
 func TestQuantizeDequantize(t *testing.T) {
-	for _, dataType := range quantizableTypes {
+	for _, dataType := range Types() {
 		traits, _ := dataType.Traits()
 		input := quantizeOracleValues(int(traits.BlockSize))
 		var encoded []byte

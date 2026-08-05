@@ -103,27 +103,10 @@ func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
 }
 
 func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, maxTiles int) (DeepSeekOCRSpec, error) {
-	if file == nil {
-		return DeepSeekOCRSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", expectedType); err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return DeepSeekOCRSpec{}, err
-	}
-	if architecture != "clip" || projectorType != expectedType {
-		return DeepSeekOCRSpec{}, fmt.Errorf("projector: architecture/type %q/%q is not clip/%s", architecture, projectorType, expectedType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil || !hasVision {
-		if err != nil {
-			return DeepSeekOCRSpec{}, err
-		}
-		return DeepSeekOCRSpec{}, errors.New("projector: vision encoder is disabled")
-	}
+	var err error
 	read := func(key string) (int, error) {
 		value, valueErr := metadataUint32(file, key)
 		return int(value), valueErr

@@ -25,29 +25,10 @@ type Gemma4AudioOutput struct {
 }
 
 func ReadGemma4AudioSpec(file *gguf.File) (Gemma4AudioSpec, error) {
-	if file == nil {
-		return Gemma4AudioSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateProjector(
+		file, "clip.audio.projector_type", "clip.has_audio_encoder", gemma4UAProjectorType, "audio",
+	); err != nil {
 		return Gemma4AudioSpec{}, err
-	}
-	if architecture != "clip" {
-		return Gemma4AudioSpec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
-	}
-	projectorType, err := metadataString(file, "clip.audio.projector_type")
-	if err != nil {
-		return Gemma4AudioSpec{}, err
-	}
-	if projectorType != gemma4UAProjectorType {
-		return Gemma4AudioSpec{}, fmt.Errorf("projector: audio type %q is not %s", projectorType, gemma4UAProjectorType)
-	}
-	hasAudio, err := metadataBool(file, "clip.has_audio_encoder")
-	if err != nil {
-		return Gemma4AudioSpec{}, err
-	}
-	if !hasAudio {
-		return Gemma4AudioSpec{}, errors.New("projector: audio encoder is disabled")
 	}
 	inputWidth, err := metadataUint32(file, "clip.audio.embedding_length")
 	if err != nil {

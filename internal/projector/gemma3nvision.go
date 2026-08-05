@@ -94,26 +94,8 @@ func (r *Gemma3nVisionRunner) Spec() Gemma3nVisionSpec {
 }
 
 func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
-	if file == nil {
-		return Gemma3nVisionSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", gemma3nVisionProjectorType); err != nil {
 		return Gemma3nVisionSpec{}, err
-	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return Gemma3nVisionSpec{}, err
-	}
-	if architecture != "clip" || projectorType != gemma3nVisionProjectorType {
-		return Gemma3nVisionSpec{}, fmt.Errorf("projector: architecture/type %q/%q is not clip/%s", architecture, projectorType, gemma3nVisionProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil || !hasVision {
-		if err != nil {
-			return Gemma3nVisionSpec{}, err
-		}
-		return Gemma3nVisionSpec{}, errors.New("projector: vision encoder is disabled")
 	}
 	spec := Gemma3nVisionSpec{}
 	if err := readMetadataIntFields(file,

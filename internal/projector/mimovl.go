@@ -84,29 +84,8 @@ func (r *MiMoVLRunner) Spec() MiMoVLSpec {
 }
 
 func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
-	if file == nil {
-		return MiMoVLSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", mimoVLProjectorType); err != nil {
 		return MiMoVLSpec{}, err
-	}
-	if architecture != "clip" {
-		return MiMoVLSpec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
-	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return MiMoVLSpec{}, err
-	}
-	if projectorType != mimoVLProjectorType {
-		return MiMoVLSpec{}, fmt.Errorf("projector: type %q is not %s", projectorType, mimoVLProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil {
-		return MiMoVLSpec{}, err
-	}
-	if !hasVision {
-		return MiMoVLSpec{}, errors.New("projector: vision encoder is disabled")
 	}
 	useSiLU, err := metadataBool(file, "clip.use_silu")
 	if err != nil {

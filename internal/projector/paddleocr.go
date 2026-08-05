@@ -99,29 +99,8 @@ func (r *PaddleOCRRunner) Spec() PaddleOCRSpec {
 }
 
 func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
-	if file == nil {
-		return PaddleOCRSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", paddleOCRProjectorType); err != nil {
 		return PaddleOCRSpec{}, err
-	}
-	if architecture != "clip" {
-		return PaddleOCRSpec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
-	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return PaddleOCRSpec{}, err
-	}
-	if projectorType != paddleOCRProjectorType {
-		return PaddleOCRSpec{}, fmt.Errorf("projector: type %q is not %s", projectorType, paddleOCRProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil {
-		return PaddleOCRSpec{}, err
-	}
-	if !hasVision {
-		return PaddleOCRSpec{}, errors.New("projector: vision encoder is disabled")
 	}
 	spec := PaddleOCRSpec{}
 	if err := readMetadataIntFields(file,

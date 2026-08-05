@@ -87,29 +87,8 @@ func (r *Gemma4Runner) Spec() Gemma4Spec {
 }
 
 func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
-	if file == nil {
-		return Gemma4Spec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.vision.projector_type", gemma4UVProjectorType); err != nil {
 		return Gemma4Spec{}, err
-	}
-	if architecture != "clip" {
-		return Gemma4Spec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
-	}
-	projectorType, err := metadataString(file, "clip.vision.projector_type")
-	if err != nil {
-		return Gemma4Spec{}, err
-	}
-	if projectorType != gemma4UVProjectorType {
-		return Gemma4Spec{}, fmt.Errorf("projector: type %q is not %s", projectorType, gemma4UVProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil {
-		return Gemma4Spec{}, err
-	}
-	if !hasVision {
-		return Gemma4Spec{}, errors.New("projector: vision encoder is disabled")
 	}
 	teacherPatch, err := metadataUint32(file, "clip.vision.patch_size")
 	if err != nil {

@@ -97,29 +97,8 @@ func (r *Granite4VisionRunner) Spec() Granite4VisionSpec {
 }
 
 func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
-	if file == nil {
-		return Granite4VisionSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", granite4VisionProjectorType); err != nil {
 		return Granite4VisionSpec{}, err
-	}
-	if architecture != "clip" {
-		return Granite4VisionSpec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
-	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return Granite4VisionSpec{}, err
-	}
-	if projectorType != granite4VisionProjectorType {
-		return Granite4VisionSpec{}, fmt.Errorf("projector: type %q is not %s", projectorType, granite4VisionProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil {
-		return Granite4VisionSpec{}, err
-	}
-	if !hasVision {
-		return Granite4VisionSpec{}, errors.New("projector: vision encoder is disabled")
 	}
 	spec := Granite4VisionSpec{}
 	if err := readMetadataIntFields(file,

@@ -87,29 +87,8 @@ func (r *HunyuanVLRunner) Spec() HunyuanVLSpec {
 }
 
 func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
-	if file == nil {
-		return HunyuanVLSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", hunyuanVLProjectorType); err != nil {
 		return HunyuanVLSpec{}, err
-	}
-	if architecture != "clip" {
-		return HunyuanVLSpec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
-	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return HunyuanVLSpec{}, err
-	}
-	if projectorType != hunyuanVLProjectorType {
-		return HunyuanVLSpec{}, fmt.Errorf("projector: type %q is not %s", projectorType, hunyuanVLProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil {
-		return HunyuanVLSpec{}, err
-	}
-	if !hasVision {
-		return HunyuanVLSpec{}, errors.New("projector: vision encoder is disabled")
 	}
 	spec := HunyuanVLSpec{}
 	if err := readMetadataIntFields(file,

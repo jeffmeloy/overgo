@@ -105,29 +105,8 @@ func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
 }
 
 func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
-	if file == nil {
-		return Qwen3VLSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", qwen3VLProjectorType); err != nil {
 		return Qwen3VLSpec{}, err
-	}
-	if architecture != "clip" {
-		return Qwen3VLSpec{}, fmt.Errorf("projector: architecture %q is not clip", architecture)
-	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return Qwen3VLSpec{}, err
-	}
-	if projectorType != qwen3VLProjectorType {
-		return Qwen3VLSpec{}, fmt.Errorf("projector: type %q is not %s", projectorType, qwen3VLProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil {
-		return Qwen3VLSpec{}, err
-	}
-	if !hasVision {
-		return Qwen3VLSpec{}, errors.New("projector: vision encoder is disabled")
 	}
 	if useGELU, geluErr := metadataBool(file, "clip.use_gelu"); geluErr != nil {
 		return Qwen3VLSpec{}, geluErr

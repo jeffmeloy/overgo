@@ -67,26 +67,8 @@ func (r *CogVLMVisionRunner) Spec() CogVLMVisionSpec {
 }
 
 func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
-	if file == nil {
-		return CogVLMVisionSpec{}, errors.New("projector: GGUF file is nil")
-	}
-	architecture, err := metadataString(file, "general.architecture")
-	if err != nil {
+	if err := validateVisionProjector(file, "clip.projector_type", cogVLMProjectorType); err != nil {
 		return CogVLMVisionSpec{}, err
-	}
-	projectorType, err := metadataString(file, "clip.projector_type")
-	if err != nil {
-		return CogVLMVisionSpec{}, err
-	}
-	if architecture != "clip" || projectorType != cogVLMProjectorType {
-		return CogVLMVisionSpec{}, fmt.Errorf("projector: architecture/type %q/%q is not clip/%s", architecture, projectorType, cogVLMProjectorType)
-	}
-	hasVision, err := metadataBool(file, "clip.has_vision_encoder")
-	if err != nil || !hasVision {
-		if err != nil {
-			return CogVLMVisionSpec{}, err
-		}
-		return CogVLMVisionSpec{}, errors.New("projector: vision encoder is disabled")
 	}
 	spec := CogVLMVisionSpec{}
 	if err := readMetadataIntFields(file,

@@ -1277,11 +1277,11 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	applyOutputNorm bool,
 	capture *layerInputCapture,
 ) (reference.Value, *KVCache, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("model.input", dtype.F32, activation.Shape)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	builder := runtime.builder
+	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
 	var attentionBlockInput *tensor.Tensor
 	if len(attentionBlockIDs) > 0 {
 		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
@@ -1303,13 +1303,13 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		if capture.wants(layerIndex) {
 			captured[int32(layerIndex)] = current
 		}
-		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
+		graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 		if err != nil {
 			return reference.Value{}, nil, err
 		}
 		if visualMode {
 			if err := r.applyCogVLMVisualWeights(
-				ctx, builder, info, &graphWeights, nil, layerFeeds,
+				ctx, builder, info, &graphWeights, nil, deviceFeeds,
 			); err != nil {
 				return reference.Value{}, nil, err
 			}
@@ -1323,9 +1323,6 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			)
 			hostFeeds[perLayer] = perLayerInputs[layerIndex]
 			sideInputs.perLayerInput = perLayer
-		}
-		for node, pointer := range layerFeeds {
-			deviceFeeds[node] = pointer
 		}
 		if _, err := bindLayerSideInputs(
 			builder, r.spec, positions, plan, hostFeeds, &graphWeights, sideInputs,
@@ -1383,9 +1380,6 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 		current = normalized
 	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, nil, err
-	}
 	outputs := make([]*tensor.Tensor, 1, 1+2*len(keys))
 	outputs[0] = current
 	for layerIndex := range keys {
@@ -1398,7 +1392,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			}
 		}
 	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -1419,19 +1413,16 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	activation reference.Value,
 	positions []uint32,
 ) (reference.Value, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("model.input", dtype.F32, activation.Shape)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	builder := runtime.builder
+	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
 	for layerIndex, info := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, info.Recurrent)
-		graphWeights, layerFeeds, err := r.layerDeviceInputs(builder, info)
+		graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 		if err != nil {
 			return reference.Value{}, err
-		}
-		for node, pointer := range layerFeeds {
-			deviceFeeds[node] = pointer
 		}
 		if _, err := bindLayerSideInputs(
 			builder, r.spec, positions, plan, hostFeeds, &graphWeights, layerSideInputs{},
@@ -1458,15 +1449,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if err := builder.Err(); err != nil {
-		return reference.Value{}, err
-	}
-	results, err := r.cuda.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{current},
-		hostFeeds,
-		deviceFeeds,
-	)
+	results, err := runtime.execute(current)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1502,30 +1485,13 @@ func (r *Runner) runLayerCached(
 	if plan.Attention == model.AttentionLFM2 {
 		return r.runLFM2LayerCached(ctx, activation, info, layerIndex, positions, past)
 	}
-	builder := r.newGraphBuilder()
-	input := builder.Input("input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var graphWeights model.LayerGraphWeights
-	if r.hasPreloadedWeights() {
-		var err error
-		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-	} else {
-		hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-		var layerFeeds map[*tensor.Tensor]reference.Value
-		graphWeights, layerFeeds, err = hostLayer.GraphInputs(builder, fmt.Sprintf("blk.%d.", layerIndex))
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-		for node, value := range layerFeeds {
-			hostFeeds[node] = value
-		}
+	runtime := r.newInferenceGraphRuntime(ctx)
+	builder := runtime.builder
+	input := runtime.input("input", activation)
+	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
 	}
 	if visualMode {
 		if err := r.applyCogVLMVisualWeights(
@@ -1561,10 +1527,7 @@ func (r *Runner) runLayerCached(
 	if cacheErr != nil {
 		return reference.Value{}, LayerCache{}, cacheErr
 	}
-	var (
-		result model.DenseBlockResult
-		err    error
-	)
+	var result model.DenseBlockResult
 	var dispatchMultiPositions *[4][]uint32
 	if multiPositions != nil {
 		converted := [4][]uint32(*multiPositions)
@@ -1610,12 +1573,7 @@ func (r *Runner) runLayerCached(
 	for _, state := range result.FixedStates {
 		outputs = append(outputs, state)
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -1647,25 +1605,11 @@ func (r *Runner) runLFM2LayerCached(
 	positions []uint32,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var graphWeights model.LayerGraphWeights
-	var err error
-	if r.hasPreloadedWeights() {
-		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
-	} else {
-		var hostLayer model.HostLayer
-		hostLayer, err = model.LoadHostLayer(ctx, r.file, info)
-		if err == nil {
-			var layerFeeds map[*tensor.Tensor]reference.Value
-			graphWeights, layerFeeds, err = hostLayer.GraphInputs(builder, fmt.Sprintf("blk.%d.", layerIndex))
-			for node, value := range layerFeeds {
-				hostFeeds[node] = value
-			}
-		}
-	}
+	runtime := r.newInferenceGraphRuntime(ctx)
+	builder := runtime.builder
+	input := runtime.input("input", activation)
+	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -1706,12 +1650,7 @@ func (r *Runner) runLFM2LayerCached(
 		}
 	}
 	outputs := []*tensor.Tensor{output, result.Key, result.Value}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -1725,27 +1664,11 @@ func (r *Runner) runLFM2LayerNonCausal(
 	layerIndex int,
 	positions []uint32,
 ) (reference.Value, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var graphWeights model.LayerGraphWeights
-	var err error
-	if r.hasPreloadedWeights() {
-		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
-	} else {
-		var hostLayer model.HostLayer
-		hostLayer, err = model.LoadHostLayer(ctx, r.file, info)
-		if err == nil {
-			var layerFeeds map[*tensor.Tensor]reference.Value
-			graphWeights, layerFeeds, err = hostLayer.GraphInputs(
-				builder, fmt.Sprintf("blk.%d.", layerIndex),
-			)
-			for node, value := range layerFeeds {
-				hostFeeds[node] = value
-			}
-		}
-	}
+	runtime := r.newInferenceGraphRuntime(ctx)
+	builder := runtime.builder
+	input := runtime.input("input", activation)
+	hostFeeds := runtime.feeds.Host
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1776,14 +1699,7 @@ func (r *Runner) runLFM2LayerNonCausal(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(
-			ctx, []*tensor.Tensor{result.Output}, hostFeeds, deviceFeeds,
-		)
-	} else {
-		results, err = r.cuda.Execute(ctx, []*tensor.Tensor{result.Output}, hostFeeds)
-	}
+	results, err := runtime.execute(result.Output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1798,21 +1714,13 @@ func (r *Runner) runDenseLayerNoCache(
 	positions []uint32,
 ) (reference.Value, error) {
 	plan := r.layerPlan(layerIndex, info.Recurrent)
-	builder := r.newGraphBuilder()
-	input := builder.Input("input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
+	runtime := r.newInferenceGraphRuntime(ctx)
+	builder := runtime.builder
+	input := runtime.input("input", activation)
+	hostFeeds := runtime.feeds.Host
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err
-	}
-	graphWeights, layerFeeds, err := hostLayer.GraphInputs(
-		builder, fmt.Sprintf("blk.%d.", layerIndex),
-	)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	for node, value := range layerFeeds {
-		hostFeeds[node] = value
 	}
 	if _, err := bindLayerSideInputs(
 		builder, r.spec, positions, plan, hostFeeds, &graphWeights, layerSideInputs{},
@@ -1832,7 +1740,7 @@ func (r *Runner) runDenseLayerNoCache(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	results, err := r.cuda.Execute(ctx, []*tensor.Tensor{result.Output}, hostFeeds)
+	results, err := runtime.execute(result.Output)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -1848,30 +1756,13 @@ func (r *Runner) runQwen35LayerCached(
 	past *LayerCache,
 	multiPositions *MultiAxisPositions,
 ) (reference.Value, LayerCache, error) {
-	builder := r.newGraphBuilder()
-	input := builder.Input("input", dtype.F32, activation.Shape)
-	hostFeeds := map[*tensor.Tensor]reference.Value{input: activation}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	var graphWeights model.LayerGraphWeights
-	if r.hasPreloadedWeights() {
-		var err error
-		graphWeights, deviceFeeds, err = r.layerDeviceInputs(builder, info)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-	} else {
-		hostLayer, err := model.LoadHostLayer(ctx, r.file, info)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-		var layerFeeds map[*tensor.Tensor]reference.Value
-		graphWeights, layerFeeds, err = hostLayer.GraphInputs(builder, fmt.Sprintf("blk.%d.", layerIndex))
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-		for node, value := range layerFeeds {
-			hostFeeds[node] = value
-		}
+	runtime := r.newInferenceGraphRuntime(ctx)
+	builder := runtime.builder
+	input := runtime.input("input", activation)
+	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
 	}
 
 	var pastKey, pastValue, convState, ssmState *tensor.Tensor
@@ -1921,10 +1812,7 @@ func (r *Runner) runQwen35LayerCached(
 		hostFeeds[pastKey] = past.Key
 		hostFeeds[pastValue] = past.Value
 	}
-	var (
-		result model.Qwen35BlockResult
-		err    error
-	)
+	var result model.Qwen35BlockResult
 	if multiPositions != nil {
 		result, err = model.BuildQwen35BlockCachedWithMultiPositions(
 			builder, input, r.spec, graphWeights, [4][]uint32(*multiPositions),
@@ -1953,12 +1841,7 @@ func (r *Runner) runQwen35LayerCached(
 	} else {
 		outputs = append(outputs, result.Key, result.Value)
 	}
-	var results map[*tensor.Tensor]reference.Value
-	if r.hasPreloadedWeights() {
-		results, err = r.cuda.ExecuteWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
-	} else {
-		results, err = r.cuda.Execute(ctx, outputs, hostFeeds)
-	}
+	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}

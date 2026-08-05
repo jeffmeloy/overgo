@@ -257,6 +257,30 @@ type Cohere2MTPWeights singleMTPWeights
 
 type weightRequirementLoader func(string, ...uint64) (gguf.TensorInfo, error)
 
+func loadQKNormPair(
+	load weightRequirementLoader,
+	tensors map[string]gguf.TensorInfo,
+	prefix string,
+	layer *LayerWeights,
+	queryShape, keyShape []uint64,
+	optionalLabel string,
+) error {
+	if optionalLabel != "" {
+		_, hasQuery := tensors[prefix+"attn_q_norm.weight"]
+		_, hasKey := tensors[prefix+"attn_k_norm.weight"]
+		if hasQuery != hasKey {
+			return fmt.Errorf("%s Q/K norm tensors must both be present or absent", optionalLabel)
+		}
+		if !hasQuery {
+			return nil
+		}
+	}
+	return loadTensorRequirements(load, tensors, prefix, []tensorRequirement{
+		requiredTensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, queryShape...),
+		requiredTensorPointer("attn_k_norm.weight", &layer.AttentionKNorm, keyShape...),
+	})
+}
+
 type mtpCommonDestinations struct {
 	ehProjection, embeddingNorm, hiddenNorm *gguf.TensorInfo
 	tokenEmbedding, outputNorm, output      **gguf.TensorInfo
@@ -1717,64 +1741,34 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		); attentionErr != nil {
 			return Weights{}, attentionErr
 		}
-		if spec.Architecture == "apertus" || spec.Architecture == "afmoe" || spec.Architecture == "bailingmoe2" || spec.Architecture == "dots1" || spec.Architecture == "exaone4" || spec.Architecture == "exaone-moe" || spec.Architecture == "gemma-embedding" || spec.Architecture == "grovemoe" || spec.Architecture == "hunyuan-dense" || spec.Architecture == "hunyuan_vl" || spec.Architecture == "hy_v3" || spec.Architecture == "llada-moe" || spec.Architecture == "mellum" || spec.Architecture == "openelm" || spec.Architecture == "plamo3" || spec.Architecture == "qwen3" || spec.Architecture == "qwen3moe" || spec.Architecture == "qwen3vl" || spec.Architecture == "qwen3vlmoe" || spec.Architecture == "rnd1" || spec.Architecture == "laguna" || spec.Architecture == "gemma3" || spec.Architecture == "hunyuan-moe" ||
-			spec.Architecture == "maincoder" ||
-			((spec.Architecture == "qwen3next" || spec.Architecture == "qwen35" || spec.Architecture == "qwen35moe") && !layer.Recurrent) ||
-			((spec.Architecture == "lfm2" || spec.Architecture == "lfm2moe") && !layer.Recurrent) {
-			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
-			if normErr != nil {
+		qkPlan := spec.qkPreprocessPlan(block)
+		if !layer.Recurrent && profile.RecurrentBlock != BlockPLaMo2 &&
+			(qkPlan.Heads == qkNormWeighted || qkPlan.PostRotary == qkNormWeighted) {
+			shape := []uint64{uint64(spec.KeyLength)}
+			if normErr := loadQKNormPair(required, tensors, prefix, layer, shape, shape, ""); normErr != nil {
 				return Weights{}, normErr
 			}
-			kNorm, normErr := required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength))
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionQNorm = &qNorm
-			layer.AttentionKNorm = &kNorm
 		}
 		if profile.Has(ArchitectureSharedKV) {
-			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.LayerKeyLength(block)))
-			if normErr != nil {
+			shape := []uint64{uint64(spec.LayerKeyLength(block))}
+			requirements := []tensorRequirement{
+				requiredTensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, shape...),
+			}
+			if spec.LayerHasKV(block) {
+				requirements = append(requirements,
+					requiredTensorPointer("attn_k_norm.weight", &layer.AttentionKNorm, shape...))
+			}
+			if normErr := loadTensorRequirements(required, tensors, prefix, requirements); normErr != nil {
 				return Weights{}, normErr
 			}
-			layer.AttentionQNorm = &qNorm
-			if spec.LayerHasKV(block) {
-				kNorm, kNormErr := required(prefix+"attn_k_norm.weight", uint64(spec.LayerKeyLength(block)))
-				if kNormErr != nil {
-					return Weights{}, kNormErr
-				}
-				layer.AttentionKNorm = &kNorm
+		}
+		if qkPlan.Heads == qkNormOptionalWeighted {
+			shape := []uint64{uint64(spec.KeyLength)}
+			if normErr := loadQKNormPair(required, tensors, prefix, layer, shape, shape, spec.Architecture); normErr != nil {
+				return Weights{}, normErr
 			}
 		}
-		if spec.Architecture == "glm4moe" {
-			qNorm, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
-			kNorm, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
-			if hasQNorm != hasKNorm {
-				return Weights{}, errors.New("GLM4-MoE Q/K norm tensors must both be present or absent")
-			}
-			if hasQNorm {
-				if qNorm.Dimensions != 1 || qNorm.Shape[0] != uint64(spec.KeyLength) ||
-					kNorm.Dimensions != 1 || kNorm.Shape[0] != uint64(spec.KeyLength) {
-					return Weights{}, errors.New("GLM4-MoE Q/K norm tensor shape is invalid")
-				}
-				layer.AttentionQNorm = &qNorm
-				layer.AttentionKNorm = &kNorm
-			}
-		}
-		if spec.Architecture == "step35" {
-			qNorm, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
-			kNorm, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
-			if hasQNorm != hasKNorm {
-				return Weights{}, errors.New("Step3.5 Q/K norm tensors must both be present or absent")
-			}
-			if hasQNorm {
-				if qNorm.Dimensions != 1 || qNorm.Shape[0] != uint64(spec.KeyLength) ||
-					kNorm.Dimensions != 1 || kNorm.Shape[0] != uint64(spec.KeyLength) {
-					return Weights{}, errors.New("Step3.5 Q/K norm tensor shape is invalid")
-				}
-				layer.AttentionQNorm = &qNorm
-				layer.AttentionKNorm = &kNorm
-			}
+		if qkPlan.Heads == qkNormOptionalWeighted && profile.DenseStages.AttentionGate != attentionGateNone {
 			if gate, ok := tensors[prefix+"attn_gate.weight"]; ok {
 				if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) ||
 					gate.Shape[1] != uint64(spec.LayerHeadCount(block)) {
@@ -1783,7 +1777,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				layer.AttentionOutputGate = &gate
 			}
 		}
-		if spec.Architecture == "mimo2" || spec.Architecture == "gpt-oss" {
+		if profile.AttentionGraph.UseSinks {
 			if sinks, ok := tensors[prefix+"attn_sinks.weight"]; ok {
 				if sinks.Type != dtype.F32 || sinks.Dimensions != 1 ||
 					sinks.Shape[0] != uint64(spec.LayerHeadCount(block)) {
@@ -1791,18 +1785,18 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				}
 				layer.AttentionSinks = &sinks
 			}
-			if spec.Architecture == "gpt-oss" && layer.AttentionSinks == nil {
+			if profile.DenseWeights.RequireAttentionSinks && layer.AttentionSinks == nil {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_sinks.weight")
 			}
 		}
-		if spec.Architecture == "gpt-oss" {
+		if profile.DenseWeights.RequireAttentionSinks {
 			postNorm, normErr := required(prefix+"post_attention_norm.weight", uint64(spec.EmbeddingLength))
 			if normErr != nil {
 				return Weights{}, normErr
 			}
 			layer.AttentionPostNorm = &postNorm
 		}
-		if spec.Architecture == "laguna" || spec.Architecture == "afmoe" {
+		if profile.DenseWeights.RequireAttentionGate {
 			gate, ok := tensors[prefix+"attn_gate.weight"]
 			if !ok {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_gate.weight")
@@ -1811,29 +1805,30 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
 			}
 			heads := uint64(spec.LayerHeadCount(block))
-			if spec.Architecture == "afmoe" && gate.Shape[1] != heads*uint64(spec.ValueLength) {
+			if profile.DenseStages.AttentionFlatGate && gate.Shape[1] != heads*uint64(spec.ValueLength) {
 				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d", gate.Name, gate.Shape[1], heads*uint64(spec.ValueLength))
 			}
-			if spec.Architecture == "laguna" && gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
+			if profile.DenseStages.AttentionFlatGateElse && gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
 				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d or %d", gate.Name, gate.Shape[1], heads, heads*uint64(spec.ValueLength))
 			}
 			layer.AttentionOutputGate = &gate
 		}
-		if spec.Architecture == "chameleon" {
-			qNorm, normErr := required(
-				prefix+"attn_q_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCount),
-			)
-			if normErr != nil {
+		headQKNorm := qkPlan.Heads == qkNormAffine || qkPlan.Heads == qkNormConfiguredNoBias ||
+			qkPlan.Heads == qkNormLayer || profile.RecurrentBlock == BlockPLaMo2 && !layer.Recurrent
+		if headQKNorm {
+			optionalLabel := ""
+			if qkPlan.Heads == qkNormLayer {
+				optionalLabel = spec.Architecture
+			}
+			if normErr := loadQKNormPair(
+				required, tensors, prefix, layer,
+				[]uint64{uint64(spec.KeyLength), uint64(spec.HeadCount)},
+				[]uint64{uint64(spec.KeyLength), uint64(spec.HeadCountKV)}, optionalLabel,
+			); normErr != nil {
 				return Weights{}, normErr
 			}
-			kNorm, normErr := required(
-				prefix+"attn_k_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCountKV),
-			)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionQNorm = &qNorm
-			layer.AttentionKNorm = &kNorm
+		}
+		if qkPlan.Heads == qkNormAffine {
 			if _, ok := tensors[prefix+"attn_q_norm.bias"]; ok {
 				bias, biasErr := required(prefix+"attn_q_norm.bias", uint64(spec.KeyLength), uint64(spec.HeadCount))
 				if biasErr != nil {
@@ -1849,7 +1844,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				layer.AttentionKNormBias = &bias
 			}
 		}
-		if spec.Architecture == "talkie" {
+		if profile.DenseGraph == DenseGraphTalkie {
 			qNorm, normErr := required(
 				prefix+"attn_q_norm.weight", 1, uint64(spec.HeadCount),
 			)
@@ -1863,99 +1858,11 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 			layer.LayerOutputScale = &layerScale
 		}
-		if spec.Architecture == "olmo2" {
-			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)
-			if normErr != nil {
+		if qkPlan.Projection == qkNormWeighted {
+			if normErr := loadQKNormPair(
+				required, tensors, prefix, layer, []uint64{queryLength}, []uint64{keyLength}, "",
+			); normErr != nil {
 				return Weights{}, normErr
-			}
-			kNorm, normErr := required(prefix+"attn_k_norm.weight", keyLength)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionQNorm = &qNorm
-			layer.AttentionKNorm = &kNorm
-		}
-		if spec.Architecture == "olmoe" {
-			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			kNorm, normErr := required(prefix+"attn_k_norm.weight", keyLength)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionQNorm = &qNorm
-			layer.AttentionKNorm = &kNorm
-		}
-		if spec.Architecture == "minimax-m2" {
-			qNorm, normErr := required(prefix+"attn_q_norm.weight", queryLength)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			kNorm, normErr := required(prefix+"attn_k_norm.weight", keyLength)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionQNorm = &qNorm
-			layer.AttentionKNorm = &kNorm
-		}
-		if spec.Architecture == "command-r" && spec.BlockCount >= 64 {
-			qNorm, normErr := required(
-				prefix+"attn_q_norm.weight",
-				uint64(spec.KeyLength),
-				uint64(spec.HeadCount),
-			)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			kNorm, normErr := required(
-				prefix+"attn_k_norm.weight",
-				uint64(spec.KeyLength),
-				uint64(spec.HeadCountKV),
-			)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionQNorm = &qNorm
-			layer.AttentionKNorm = &kNorm
-		}
-		if spec.Architecture == "plamo2" && !layer.Recurrent {
-			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCount))
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			kNorm, normErr := required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength), uint64(spec.HeadCountKV))
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionQNorm = &qNorm
-			layer.AttentionKNorm = &kNorm
-		}
-		if spec.Architecture == "stablelm" {
-			_, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
-			_, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
-			if hasQNorm != hasKNorm {
-				return Weights{}, errors.New("StableLM Q/K norm tensors must both be present or absent")
-			}
-			if hasQNorm {
-				qNorm, normErr := required(
-					prefix+"attn_q_norm.weight",
-					uint64(spec.KeyLength),
-					uint64(spec.HeadCount),
-				)
-				if normErr != nil {
-					return Weights{}, normErr
-				}
-				kNorm, normErr := required(
-					prefix+"attn_k_norm.weight",
-					uint64(spec.KeyLength),
-					uint64(spec.HeadCountKV),
-				)
-				if normErr != nil {
-					return Weights{}, normErr
-				}
-				layer.AttentionQNorm = &qNorm
-				layer.AttentionKNorm = &kNorm
 			}
 		}
 		if spec.Architecture == "jina-bert-v2" {

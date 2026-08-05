@@ -833,9 +833,9 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	})
 	updateDenseStages([]string{
 		"apertus", "afmoe", "bailingmoe2", "dots1", "dflash", "exaone4",
-		"exaone-moe", "grovemoe", "hy_v3", "llada-moe", "mellum", "openelm",
+		"exaone-moe", "gemma-embedding", "grovemoe", "hy_v3", "llada-moe", "mellum", "openelm",
 		"plamo2", "plamo3", "qwen3", "qwen3moe", "qwen3vl", "qwen3vlmoe",
-		"rnd1", "laguna", "lfm2", "lfm2moe", "gemma3",
+		"qwen3next", "qwen35", "qwen35moe", "rnd1", "laguna", "lfm2", "lfm2moe", "gemma3",
 	}, func(policy *DenseStagePolicy) { policy.QK.Heads = qkNormWeighted })
 	updateDenseStages([]string{"glm4moe", "step35"}, func(policy *DenseStagePolicy) {
 		policy.QK.Heads = qkNormOptionalWeighted

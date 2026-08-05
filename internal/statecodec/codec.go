@@ -1,10 +1,10 @@
 package statecodec
 
 import (
-	"encoding/binary"
 	"errors"
 	"math"
 
+	"llamacpp2go/internal/binaryschema"
 	"llamacpp2go/internal/checked"
 )
 
@@ -12,19 +12,15 @@ var ErrLimit = errors.New("state codec size limit exceeded")
 var ErrTruncated = errors.New("state codec input is truncated")
 var ErrTrailing = errors.New("state codec input has trailing data")
 
-const (
-	uint32Bytes = 4
-	uint64Bytes = 8
-)
-
 type Encoder struct {
-	data  []byte
-	limit uint64
-	err   error
+	data   []byte
+	limit  uint64
+	err    error
+	schema binaryschema.Fixed
 }
 
 func NewEncoder(limit uint64) *Encoder {
-	return &Encoder{limit: limit}
+	return &Encoder{limit: limit, schema: binaryschema.LittleEndian}
 }
 
 func NewEncoderCapacity(limit, capacity uint64) *Encoder {
@@ -46,17 +42,17 @@ func (e *Encoder) Raw(value []byte) {
 }
 
 func (e *Encoder) U32(value uint32) {
-	if !e.grow(uint32Bytes) {
+	if !e.grow(binaryschema.Uint32Bytes) {
 		return
 	}
-	binary.LittleEndian.PutUint32(e.data[len(e.data)-uint32Bytes:], value)
+	e.schema.PutUint32(e.data[len(e.data)-binaryschema.Uint32Bytes:], value)
 }
 
 func (e *Encoder) U64(value uint64) {
-	if !e.grow(uint64Bytes) {
+	if !e.grow(binaryschema.Uint64Bytes) {
 		return
 	}
-	binary.LittleEndian.PutUint64(e.data[len(e.data)-uint64Bytes:], value)
+	e.schema.PutUint64(e.data[len(e.data)-binaryschema.Uint64Bytes:], value)
 }
 
 func (e *Encoder) F32(value float32) {
@@ -109,10 +105,11 @@ type Decoder struct {
 	data   []byte
 	offset uint64
 	err    error
+	schema binaryschema.Fixed
 }
 
 func NewDecoder(data []byte, limit uint64) *Decoder {
-	decoder := &Decoder{data: data}
+	decoder := &Decoder{data: data, schema: binaryschema.LittleEndian}
 	if uint64(len(data)) > limit {
 		decoder.err = ErrLimit
 	}
@@ -135,19 +132,19 @@ func (d *Decoder) Raw(size uint64) []byte {
 }
 
 func (d *Decoder) U32() uint32 {
-	data := d.Raw(uint32Bytes)
+	data := d.Raw(binaryschema.Uint32Bytes)
 	if data == nil {
 		return 0
 	}
-	return binary.LittleEndian.Uint32(data)
+	return d.schema.Uint32(data)
 }
 
 func (d *Decoder) U64() uint64 {
-	data := d.Raw(uint64Bytes)
+	data := d.Raw(binaryschema.Uint64Bytes)
 	if data == nil {
 		return 0
 	}
-	return binary.LittleEndian.Uint64(data)
+	return d.schema.Uint64(data)
 }
 
 func (d *Decoder) F32() float32 {

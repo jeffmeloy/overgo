@@ -1,7 +1,6 @@
 package gguf
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"llamacpp2go/internal/binaryschema"
 	"llamacpp2go/internal/checked"
 )
 
@@ -179,7 +179,7 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 		return nil, errors.New("GGUF source is nil")
 	}
 	options = normalizeOptions(options)
-	cursor := &cursor{source: source, size: size, options: options}
+	cursor := &cursor{source: source, size: size, options: options, schema: binaryschema.LittleEndian}
 
 	magic, err := cursor.bytes(4)
 	if err != nil {
@@ -525,6 +525,7 @@ type cursor struct {
 	size    uint64
 	offset  uint64
 	options Options
+	schema  binaryschema.Fixed
 }
 
 func (c *cursor) bytes(count uint64) ([]byte, error) {
@@ -555,27 +556,27 @@ func (c *cursor) uint8() (uint8, error) {
 }
 
 func (c *cursor) uint16() (uint16, error) {
-	data, err := c.bytes(2)
+	data, err := c.bytes(binaryschema.Uint16Bytes)
 	if err != nil {
 		return 0, err
 	}
-	return binary.LittleEndian.Uint16(data), nil
+	return c.schema.Uint16(data), nil
 }
 
 func (c *cursor) uint32() (uint32, error) {
-	data, err := c.bytes(4)
+	data, err := c.bytes(binaryschema.Uint32Bytes)
 	if err != nil {
 		return 0, err
 	}
-	return binary.LittleEndian.Uint32(data), nil
+	return c.schema.Uint32(data), nil
 }
 
 func (c *cursor) uint64() (uint64, error) {
-	data, err := c.bytes(8)
+	data, err := c.bytes(binaryschema.Uint64Bytes)
 	if err != nil {
 		return 0, err
 	}
-	return binary.LittleEndian.Uint64(data), nil
+	return c.schema.Uint64(data), nil
 }
 
 func (c *cursor) string() (string, error) {

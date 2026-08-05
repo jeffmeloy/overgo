@@ -1,7 +1,6 @@
 package safetensors
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"llamacpp2go/internal/binaryschema"
 	"llamacpp2go/internal/strictjson"
 )
 
@@ -313,7 +313,7 @@ func (s *Source) openShard(directory string, path string, limits Limits) error {
 	if _, err := io.ReadFull(file, sizeBytes[:]); err != nil {
 		return fmt.Errorf("safetensors: read %s header size: %w", filepath.Base(path), err)
 	}
-	headerSize := binary.LittleEndian.Uint64(sizeBytes[:])
+	headerSize := binaryschema.LittleEndian.Uint64(sizeBytes[:])
 	if headerSize == 0 || headerSize > uint64(info.Size()-headerLengthBytes) || headerSize > limits.MaxHeaderBytes {
 		return fmt.Errorf("safetensors: %s header size is invalid", filepath.Base(path))
 	}

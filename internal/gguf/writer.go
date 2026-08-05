@@ -1,13 +1,13 @@
 package gguf
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"slices"
 
+	"llamacpp2go/internal/binaryschema"
 	"llamacpp2go/internal/checked"
 )
 
@@ -76,7 +76,7 @@ func Write(
 		return err
 	}
 
-	writer := &countingWriter{destination: destination}
+	writer := &countingWriter{destination: destination, schema: binaryschema.LittleEndian}
 	if err := writer.write([]byte(Magic)); err != nil {
 		return err
 	}
@@ -416,7 +416,8 @@ func requireValueType(ok bool, name string) error {
 type countingWriter struct {
 	destination io.Writer
 	offset      uint64
-	buffer      [8]byte
+	buffer      [binaryschema.Uint64Bytes]byte
+	schema      binaryschema.Fixed
 }
 
 func (w *countingWriter) write(data []byte) error {
@@ -446,18 +447,18 @@ func (w *countingWriter) uint8(value uint8) error {
 }
 
 func (w *countingWriter) uint16(value uint16) error {
-	binary.LittleEndian.PutUint16(w.buffer[:2], value)
-	return w.write(w.buffer[:2])
+	w.schema.PutUint16(w.buffer[:binaryschema.Uint16Bytes], value)
+	return w.write(w.buffer[:binaryschema.Uint16Bytes])
 }
 
 func (w *countingWriter) uint32(value uint32) error {
-	binary.LittleEndian.PutUint32(w.buffer[:4], value)
-	return w.write(w.buffer[:4])
+	w.schema.PutUint32(w.buffer[:binaryschema.Uint32Bytes], value)
+	return w.write(w.buffer[:binaryschema.Uint32Bytes])
 }
 
 func (w *countingWriter) uint64(value uint64) error {
-	binary.LittleEndian.PutUint64(w.buffer[:8], value)
-	return w.write(w.buffer[:8])
+	w.schema.PutUint64(w.buffer[:binaryschema.Uint64Bytes], value)
+	return w.write(w.buffer[:binaryschema.Uint64Bytes])
 }
 
 func (w *countingWriter) string(value string) error {

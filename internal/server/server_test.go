@@ -941,8 +941,7 @@ func TestHealth(t *testing.T) {
 
 func TestMetricsOmitDeviceMemoryWhenSnapshotFails(t *testing.T) {
 	handler := newTestHandler(t, &failingMemoryGenerator{fakeGenerator: &fakeGenerator{}})
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	response := serveTestRequest(handler, http.MethodGet, "/metrics", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
@@ -953,8 +952,7 @@ func TestMetricsOmitDeviceMemoryWhenSnapshotFails(t *testing.T) {
 
 func TestLoraAdaptersEmptyControlPlane(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
-	get := httptest.NewRecorder()
-	handler.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/lora-adapters", nil))
+	get := serveTestRequest(handler, http.MethodGet, "/lora-adapters", "")
 	if get.Code != http.StatusOK || strings.TrimSpace(get.Body.String()) != "[]" {
 		t.Fatalf("GET status/body = %d %s", get.Code, get.Body.String())
 	}
@@ -986,8 +984,7 @@ func TestLoraAdaptersLoadedControlPlane(t *testing.T) {
 		adapters:      []inference.LoRAAdapterInfo{{ID: 0, Path: "adapter.gguf", Scale: 1}},
 	}
 	handler := newTestHandler(t, generator)
-	get := httptest.NewRecorder()
-	handler.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/lora-adapters", nil))
+	get := serveTestRequest(handler, http.MethodGet, "/lora-adapters", "")
 	if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), `"path":"adapter.gguf"`) {
 		t.Fatalf("GET status/body = %d %s", get.Code, get.Body.String())
 	}
@@ -1079,14 +1076,12 @@ func TestModelsArePublicAndStrictlyGet(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/models", "/v1/models"} {
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		response := serveTestRequest(handler, http.MethodGet, path, "")
 		if response.Code != http.StatusOK {
 			t.Fatalf("%s status = %d body=%s", path, response.Code, response.Body.String())
 		}
 	}
-	post := httptest.NewRecorder()
-	handler.ServeHTTP(post, httptest.NewRequest(http.MethodPost, "/models", nil))
+	post := serveTestRequest(handler, http.MethodPost, "/models", "")
 	if post.Code != http.StatusMethodNotAllowed ||
 		post.Header().Get("Allow") != http.MethodGet {
 		t.Fatalf("POST status = %d Allow=%q", post.Code, post.Header().Get("Allow"))
@@ -1261,8 +1256,7 @@ func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unauthorized := httptest.NewRecorder()
-	handler.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/slots", nil))
+	unauthorized := serveTestRequest(handler, http.MethodGet, "/slots", "")
 	if unauthorized.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthorized status = %d body=%s", unauthorized.Code, unauthorized.Body.String())
 	}
@@ -1326,8 +1320,7 @@ func TestNativeCompletionHonorsRequestedSlot(t *testing.T) {
 
 func TestPropertiesRejectsPost(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/props", nil))
+	response := serveTestRequest(handler, http.MethodPost, "/props", "")
 	if response.Code != http.StatusMethodNotAllowed ||
 		response.Header().Get("Allow") != http.MethodGet {
 		t.Fatalf(
@@ -1403,8 +1396,7 @@ func TestBearerAuthentication(t *testing.T) {
 	if authorized.Code != http.StatusOK {
 		t.Fatalf("authorized status = %d body=%s", authorized.Code, authorized.Body.String())
 	}
-	health := httptest.NewRecorder()
-	handler.ServeHTTP(health, httptest.NewRequest(http.MethodGet, "/health", nil))
+	health := serveTestRequest(handler, http.MethodGet, "/health", "")
 	if health.Code != http.StatusOK {
 		t.Fatalf("authenticated server health status = %d", health.Code)
 	}

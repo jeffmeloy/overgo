@@ -428,8 +428,7 @@ func TestAnthropicImageToolsAndTokenCounting(t *testing.T) {
 	body := `{"model":"test-model","messages":` + message + `,"max_tokens":1,` +
 		`"tool_choice":{"type":"any"},"tools":[{"name":"weather",` +
 		`"input_schema":{"type":"object"}}]}`
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body)))
+	response := serveTestRequest(handler, http.MethodPost, "/v1/messages", body)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"stop_reason":"tool_use"`) {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
@@ -475,8 +474,7 @@ func TestAnthropicThinkingBufferedStreamingImageAndReplay(t *testing.T) {
 
 	handler, generator := newHandler()
 	body := `{"model":"test-model","max_tokens":1025,` + thinking + `,"messages":` + imageMessage + `}`
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body)))
+	response := serveTestRequest(handler, http.MethodPost, "/v1/messages", body)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
@@ -572,8 +570,7 @@ func TestAnthropicThinkingValidationAndToolPolicy(t *testing.T) {
 			}
 			body := `{"model":"test-model","max_tokens":1025,"thinking":` + test.thinking +
 				`,"messages":[{"role":"user","content":"inspect"}]` + test.tools + `}`
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body)))
+			response := serveTestRequest(handler, http.MethodPost, "/v1/messages", body)
 			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), test.want) {
 				t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 			}
@@ -867,17 +864,12 @@ func TestResponsesValidationAndMethod(t *testing.T) {
 		`{"input":"hello","tool_choice":{"type":"function","name":"missing"},` +
 			`"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}]}`,
 	} {
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(
-			response,
-			httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)),
-		)
+		response := serveTestRequest(handler, http.MethodPost, "/v1/responses", body)
 		if response.Code < 400 {
 			t.Fatalf("body %s status = %d response=%s", body, response.Code, response.Body.String())
 		}
 	}
-	get := httptest.NewRecorder()
-	handler.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/responses", nil))
+	get := serveTestRequest(handler, http.MethodGet, "/responses", "")
 	if get.Code != http.StatusMethodNotAllowed || get.Header().Get("Allow") != http.MethodPost {
 		t.Fatalf("GET status = %d Allow=%q", get.Code, get.Header().Get("Allow"))
 	}
@@ -912,8 +904,7 @@ func TestResponsesInputTokensAuthentication(t *testing.T) {
 			t.Fatalf("%s status = %d body=%s", path, response.Code, response.Body.String())
 		}
 	}
-	health := httptest.NewRecorder()
-	handler.ServeHTTP(health, httptest.NewRequest(http.MethodGet, "/v1/health", nil))
+	health := serveTestRequest(handler, http.MethodGet, "/v1/health", "")
 	if health.Code != http.StatusOK {
 		t.Fatalf("public /v1/health status = %d", health.Code)
 	}
@@ -1099,11 +1090,7 @@ func TestAnthropicMessagesStopAndValidation(t *testing.T) {
 		`{"max_tokens":9,"messages":[{"role":"user","content":"hello"}]}`,
 		`{"max_tokens":1,"tools":[{"name":"x"}],"messages":[{"role":"user","content":"hello"}]}`,
 	} {
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(
-			response,
-			httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body)),
-		)
+		response := serveTestRequest(handler, http.MethodPost, "/v1/messages", body)
 		if response.Code < 400 {
 			t.Fatalf("body %s status = %d response=%s", body, response.Code, response.Body.String())
 		}
@@ -1393,11 +1380,7 @@ func TestApplyTemplateSuppliesToolsAndTemplateOptions(t *testing.T) {
 		"add_generation_prompt":false,
 		"chat_template_kwargs":{"enable_thinking":false}
 	}`
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(
-		response,
-		httptest.NewRequest(http.MethodPost, "/apply-template", strings.NewReader(body)),
-	)
+	response := serveTestRequest(handler, http.MethodPost, "/apply-template", body)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
@@ -1559,9 +1542,7 @@ func TestTokenizeRejectsInvalidMixedContent(t *testing.T) {
 		`{"content":[1.5]}`,
 		`{"content":{"text":"bad"}}`,
 	} {
-		request := httptest.NewRequest(http.MethodPost, "/tokenize", strings.NewReader(body))
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, request)
+		response := serveTestRequest(handler, http.MethodPost, "/tokenize", body)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("body %s: status = %d response=%s", body, response.Code, response.Body.String())
 		}
@@ -1642,9 +1623,7 @@ func TestRejectsInvalidRequest(t *testing.T) {
 		`{"prompt":"x","unknown":true}`,
 		`{"prompt":"x","temperature":-1}`,
 	} {
-		request := httptest.NewRequest(http.MethodPost, "/v1/completions", strings.NewReader(body))
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, request)
+		response := serveTestRequest(handler, http.MethodPost, "/v1/completions", body)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("body %s status = %d, want 400", body, response.Code)
 		}

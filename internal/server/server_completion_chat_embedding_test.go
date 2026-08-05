@@ -247,11 +247,7 @@ func TestNativeCompletionRejectsUnsupportedAndInvalidOptions(t *testing.T) {
 		`{"prompt":"hi","n_predict":1,"json_schema":{},"grammar_choices":["x"]}`,
 	}
 	for _, body := range cases {
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(
-			response,
-			httptest.NewRequest(http.MethodPost, "/completion", strings.NewReader(body)),
-		)
+		response := serveTestRequest(handler, http.MethodPost, "/completion", body)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("body %s status = %d response=%s", body, response.Code, response.Body.String())
 		}
@@ -301,8 +297,7 @@ func TestNativeCompletionRejectsUnsupportedAndInvalidOptions(t *testing.T) {
 			t.Fatalf("fields %#v status = %d body=%s", fields, response.Code, response.Body.String())
 		}
 	}
-	get := httptest.NewRecorder()
-	handler.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/completion", nil))
+	get := serveTestRequest(handler, http.MethodGet, "/completion", "")
 	if get.Code != http.StatusMethodNotAllowed ||
 		get.Header().Get("Allow") != http.MethodPost {
 		t.Fatalf("GET status = %d Allow=%q", get.Code, get.Header().Get("Allow"))
@@ -960,9 +955,7 @@ func TestEmbeddingsRejectInvalidInput(t *testing.T) {
 		`{"input":[1.5]}`,
 		`{"input":{}}`,
 	} {
-		request := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader(body))
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, request)
+		response := serveTestRequest(handler, http.MethodPost, "/v1/embeddings", body)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("body %s status = %d, want 400", body, response.Code)
 		}
@@ -1076,17 +1069,12 @@ func TestNativeEmbeddingsValidationAuthenticationAndMethod(t *testing.T) {
 		`{"content":"a","encoding_format":"base64"}`,
 		`{"content":"a","pooling":"rank"}`,
 	} {
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(
-			response,
-			httptest.NewRequest(http.MethodPost, "/embedding", strings.NewReader(body)),
-		)
+		response := serveTestRequest(handler, http.MethodPost, "/embedding", body)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("body %s status = %d response=%s", body, response.Code, response.Body.String())
 		}
 	}
-	get := httptest.NewRecorder()
-	handler.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/embedding", nil))
+	get := serveTestRequest(handler, http.MethodGet, "/embedding", "")
 	if get.Code != http.StatusMethodNotAllowed ||
 		get.Header().Get("Allow") != http.MethodPost {
 		t.Fatalf("GET status = %d Allow=%q", get.Code, get.Header().Get("Allow"))
@@ -1175,14 +1163,12 @@ func TestRerankValidationCapabilityAndMethod(t *testing.T) {
 		`{"query":"q","documents":[1]}`,
 		`{"query":"q","documents":["a"],"top_n":-1}`,
 	} {
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/rerank", strings.NewReader(body)))
+		response := serveTestRequest(handler, http.MethodPost, "/rerank", body)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("body %s status = %d response=%s", body, response.Code, response.Body.String())
 		}
 	}
-	method := httptest.NewRecorder()
-	handler.ServeHTTP(method, httptest.NewRequest(http.MethodGet, "/rerank", nil))
+	method := serveTestRequest(handler, http.MethodGet, "/rerank", "")
 	if method.Code != http.StatusMethodNotAllowed || method.Header().Get("Allow") != http.MethodPost {
 		t.Fatalf("GET status = %d Allow=%q", method.Code, method.Header().Get("Allow"))
 	}
@@ -2074,11 +2060,7 @@ func TestResponsesInputTokensAliasesAndValidation(t *testing.T) {
 			`{"input":[{"type":"message","role":"user","content":"hello"}]}`,
 			`{"input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`,
 		} {
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(
-				response,
-				httptest.NewRequest(http.MethodPost, path, strings.NewReader(body)),
-			)
+			response := serveTestRequest(handler, http.MethodPost, path, body)
 			if response.Code != http.StatusOK {
 				t.Fatalf("%s body %s: status = %d response=%s", path, body, response.Code, response.Body.String())
 			}

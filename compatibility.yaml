@@ -21,7 +21,7 @@ claims:
     status: implemented
     summary: Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels.
     evidence:
-      - path: internal/server/server.go
+      - path: internal/server/server_native_prompt.go
         contains: "func validateMultimodalImages("
       - path: internal/server/server_test.go
         contains: "func TestValidateMultimodalImagesEnforcesGeometryBudgets("
@@ -95,7 +95,7 @@ claims:
     evidence:
       - path: internal/projector/prompt.go
         contains: "func (r *Qwen3VLRunner) BuildImagesPrompt("
-      - path: internal/server/server_part3_test.go
+      - path: internal/server/server_responses_anthropic_runtime_test.go
         contains: "func TestResponsesMultipleImagesPreservesContentOrder("
   - id: media-history
     status: implemented
@@ -103,7 +103,7 @@ claims:
     evidence:
       - path: internal/projector/prompt.go
         contains: "func (r *Gemma4Runner) BuildImagesHistoryPrompt("
-      - path: internal/server/server_part2_test.go
+      - path: internal/server/server_completion_chat_embedding_test.go
         contains: "func TestChatImageHistoryPreservesTurnPositionAndReplay("
   - id: mixed-media-history
     status: implemented
@@ -111,7 +111,7 @@ claims:
     evidence:
       - path: internal/projector/prompt.go
         contains: "func (r *Gemma4Runner) BuildMediaHistoryPrompt("
-      - path: internal/server/server_part2_test.go
+      - path: internal/server/server_completion_chat_embedding_test.go
         contains: "func TestChatMixedImageAudioPreservesChunkOrder("
   - id: bounded-remote-media
     status: implemented
@@ -143,7 +143,7 @@ claims:
     evidence:
       - path: internal/projector/encoded_video.go
         contains: "func DecodeEncodedVideo("
-      - path: internal/server/server_part3_test.go
+      - path: internal/server/server_responses_anthropic_runtime_test.go
         contains: "func TestChatAndResponsesEncodedVideoProjection("
   - id: multimodal-token-counting
     status: implemented
@@ -151,17 +151,17 @@ claims:
     evidence:
       - path: internal/server/protocol_responses.go
         contains: "func (h *Handler) responsesInputTokens("
-      - path: internal/server/server_part2_test.go
+      - path: internal/server/server_completion_chat_embedding_test.go
         contains: "func TestMultimodalInputTokenCounting("
   - id: unified-prompt-preparation
     status: implemented
     summary: Native generation and the Chat, Responses, and Anthropic protocols share prepared prompts with token counting.
     evidence:
-      - path: internal/server/server.go
+      - path: internal/server/server_native_prompt.go
         contains: "func (h *Handler) preparePrompt("
       - path: internal/server/protocol_common.go
         contains: "func (h *Handler) prepareProtocolGeneration("
-      - path: internal/server/server_part2_test.go
+      - path: internal/server/server_completion_chat_embedding_test.go
         contains: "func TestPreparedPromptGenerationAndTokenCountParity("
   - id: incremental-tool-streaming
     status: implemented
@@ -169,7 +169,7 @@ claims:
     evidence:
       - path: internal/inference/chat_stream.go
         contains: "func (s *chatOutputStream) Accept("
-      - path: internal/server/server_part3_test.go
+      - path: internal/server/server_responses_anthropic_runtime_test.go
         contains: "func TestStreamingResponsesFunctionCallLifecycle("
   - id: multimodal-function-tools
     status: implemented
@@ -177,7 +177,7 @@ claims:
     evidence:
       - path: internal/server/protocol_chat.go
         contains: "promptTools []inference.ChatTool"
-      - path: internal/server/server_part3_test.go
+      - path: internal/server/server_responses_anthropic_runtime_test.go
         contains: "func TestChatAndResponsesMultimodalFunctionTools("
   - id: anthropic-image-input
     status: implemented
@@ -185,7 +185,7 @@ claims:
     evidence:
       - path: internal/server/anthropic_tools.go
         contains: "case \"image\":"
-      - path: internal/server/server_part3_test.go
+      - path: internal/server/server_responses_anthropic_runtime_test.go
         contains: "func TestAnthropicImageToolsAndTokenCounting("
   - id: anthropic-local-thinking
     status: implemented
@@ -193,7 +193,7 @@ claims:
     evidence:
       - path: internal/server/anthropic_thinking.go
         contains: "func validateAnthropicThinking("
-      - path: internal/server/server_part3_test.go
+      - path: internal/server/server_responses_anthropic_runtime_test.go
         contains: "func TestAnthropicThinkingBufferedStreamingImageAndReplay("
   - id: responses-continuation
     status: implemented
@@ -201,7 +201,7 @@ claims:
     evidence:
       - path: internal/server/response_history.go
         contains: "func (s *responseHistoryStore) put("
-      - path: internal/server/server_part2_test.go
+      - path: internal/server/server_completion_chat_embedding_test.go
         contains: "func TestResponsesPreviousResponseContinuation("
   - id: responses-reasoning
     status: implemented
@@ -209,7 +209,7 @@ claims:
     evidence:
       - path: internal/server/protocol_responses.go
         contains: "func validateResponsesReasoning("
-      - path: internal/server/server_part3_test.go
+      - path: internal/server/server_responses_anthropic_runtime_test.go
         contains: "func TestResponsesReasoningItemsBufferedAndStreaming("
   - id: architecture-profiles
     status: implemented

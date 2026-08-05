@@ -44,9 +44,6 @@ func loadMoECatalog(
 		return false, err
 	}
 	if spec.Architecture == "gpt-oss" {
-		if layer.AttentionOutputBias == nil {
-			return false, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
-		}
 		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredF32TensorPointer("ffn_gate_inp.bias", &layer.FeedForwardRouterBias, uint64(spec.ExpertCount)),
 			requiredF32TensorPointer("ffn_gate_exps.bias", &layer.FeedForwardGateBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -65,9 +62,6 @@ func loadMoECatalog(
 		}); err != nil {
 			return false, err
 		}
-	}
-	if spec.Architecture == "phimoe" && layer.AttentionOutputBias == nil {
-		return false, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 	}
 	if spec.Architecture == "grok" {
 		return false, loadGrokDenseCatalog(required, tensors, prefix, spec, layer)

@@ -281,6 +281,28 @@ func loadQKNormPair(
 	})
 }
 
+func loadOptionalWeightBias(
+	load weightRequirementLoader,
+	tensors map[string]gguf.TensorInfo,
+	prefix string,
+	weight, bias tensorRequirement,
+	orphanError string,
+) error {
+	_, hasWeight := tensors[prefix+weight.name]
+	_, hasBias := tensors[prefix+bias.name]
+	if !hasWeight {
+		if hasBias {
+			return errors.New(orphanError)
+		}
+		return nil
+	}
+	requirements := []tensorRequirement{weight}
+	if hasBias {
+		requirements = append(requirements, bias)
+	}
+	return loadTensorRequirements(load, tensors, prefix, requirements)
+}
+
 type mtpCommonDestinations struct {
 	ehProjection, embeddingNorm, hiddenNorm *gguf.TensorInfo
 	tokenEmbedding, outputNorm, output      **gguf.TensorInfo
@@ -1769,32 +1791,26 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			}
 		}
 		if qkPlan.Heads == qkNormOptionalWeighted && profile.DenseStages.AttentionGate != attentionGateNone {
-			if gate, ok := tensors[prefix+"attn_gate.weight"]; ok {
-				if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) ||
-					gate.Shape[1] != uint64(spec.LayerHeadCount(block)) {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
-				}
-				layer.AttentionOutputGate = &gate
+			if gateErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				optionalTensorPointer("attn_gate.weight", &layer.AttentionOutputGate,
+					uint64(spec.EmbeddingLength), uint64(spec.LayerHeadCount(block))),
+			}); gateErr != nil {
+				return Weights{}, gateErr
 			}
 		}
 		if profile.AttentionGraph.UseSinks {
-			if sinks, ok := tensors[prefix+"attn_sinks.weight"]; ok {
-				if sinks.Type != dtype.F32 || sinks.Dimensions != 1 ||
-					sinks.Shape[0] != uint64(spec.LayerHeadCount(block)) {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", sinks.Name, sinks.Shape)
-				}
-				layer.AttentionSinks = &sinks
+			sinkRequirement := optionalF32TensorPointer(
+				"attn_sinks.weight", &layer.AttentionSinks, uint64(spec.LayerHeadCount(block)))
+			requirements := []tensorRequirement{sinkRequirement}
+			if profile.DenseWeights.RequireAttentionSinks {
+				requirements[0] = requiredF32TensorPointer(
+					"attn_sinks.weight", &layer.AttentionSinks, uint64(spec.LayerHeadCount(block)))
+				requirements = append(requirements, requiredTensorPointer(
+					"post_attention_norm.weight", &layer.AttentionPostNorm, uint64(spec.EmbeddingLength)))
 			}
-			if profile.DenseWeights.RequireAttentionSinks && layer.AttentionSinks == nil {
-				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_sinks.weight")
+			if sinkErr := loadTensorRequirements(required, tensors, prefix, requirements); sinkErr != nil {
+				return Weights{}, sinkErr
 			}
-		}
-		if profile.DenseWeights.RequireAttentionSinks {
-			postNorm, normErr := required(prefix+"post_attention_norm.weight", uint64(spec.EmbeddingLength))
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionPostNorm = &postNorm
 		}
 		if profile.DenseWeights.RequireAttentionGate {
 			gate, ok := tensors[prefix+"attn_gate.weight"]
@@ -1867,67 +1883,44 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		if spec.Architecture == "jina-bert-v2" {
 			for _, binding := range []struct {
-				name, label string
-				weight      **gguf.TensorInfo
-				bias        **gguf.TensorInfo
+				name   string
+				weight **gguf.TensorInfo
+				bias   **gguf.TensorInfo
 			}{
-				{name: "attn_q_norm", label: "attn_q_norm.", weight: &layer.AttentionQNorm, bias: &layer.AttentionQNormBias},
-				{name: "attn_k_norm", label: "attn_k_norm.", weight: &layer.AttentionKNorm, bias: &layer.AttentionKNormBias},
+				{name: "attn_q_norm", weight: &layer.AttentionQNorm, bias: &layer.AttentionQNormBias},
+				{name: "attn_k_norm", weight: &layer.AttentionKNorm, bias: &layer.AttentionKNormBias},
 			} {
-				weightName := prefix + binding.name + ".weight"
-				biasName := prefix + binding.name + ".bias"
-				if _, ok := tensors[weightName]; ok {
-					norm, normErr := required(weightName, uint64(spec.EmbeddingLength))
-					if normErr != nil {
-						return Weights{}, normErr
-					}
-					*binding.weight = &norm
-					if _, hasBias := tensors[biasName]; hasBias {
-						bias, biasErr := required(biasName, uint64(spec.EmbeddingLength))
-						if biasErr != nil {
-							return Weights{}, biasErr
-						}
-						*binding.bias = &bias
-					}
-				} else if _, hasBias := tensors[biasName]; hasBias {
-					return Weights{}, fmt.Errorf("JinaBERT v2 %s bias has no weight", binding.label)
+				shape := []uint64{uint64(spec.EmbeddingLength)}
+				if normErr := loadOptionalWeightBias(
+					required, tensors, prefix,
+					requiredTensorPointer(binding.name+".weight", binding.weight, shape...),
+					requiredTensorPointer(binding.name+".bias", binding.bias, shape...),
+					"JinaBERT v2 "+binding.name+" bias has no weight",
+				); normErr != nil {
+					return Weights{}, normErr
 				}
 			}
 			if layer.AttentionKNorm != nil && keyLength != uint64(spec.EmbeddingLength) {
 				return Weights{}, errors.New("JinaBERT v2 K norm requires full-width KV projection")
 			}
-			if item, ok := tensors[prefix+"attn_norm_2.weight"]; ok {
-				norm, normErr := required(item.Name, uint64(spec.EmbeddingLength))
-				if normErr != nil {
-					return Weights{}, normErr
-				}
-				layer.AttentionNorm2 = &norm
-				if _, hasBias := tensors[prefix+"attn_norm_2.bias"]; hasBias {
-					bias, biasErr := required(prefix+"attn_norm_2.bias", uint64(spec.EmbeddingLength))
-					if biasErr != nil {
-						return Weights{}, biasErr
-					}
-					layer.AttentionNorm2Bias = &bias
-				}
-			} else if _, hasBias := tensors[prefix+"attn_norm_2.bias"]; hasBias {
-				return Weights{}, errors.New("JinaBERT v2 secondary norm bias has no weight")
+			if normErr := loadOptionalWeightBias(
+				required, tensors, prefix,
+				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, uint64(spec.EmbeddingLength)),
+				"JinaBERT v2 secondary norm bias has no weight",
+			); normErr != nil {
+				return Weights{}, normErr
 			}
 		}
 		if !layer.Recurrent && spec.Architecture != "ernie4_5" && spec.Architecture != "ernie4_5-moe" {
-			if item, ok := tensors[prefix+"attn_output.bias"]; ok {
-				if item.Type != dtype.F32 ||
-					item.Dimensions != 1 ||
-					item.Shape[0] != uint64(spec.EmbeddingLength) {
-					return Weights{}, fmt.Errorf(
-						"tensor %q has incompatible shape %v",
-						item.Name,
-						item.Shape,
-					)
-				}
-				layer.AttentionOutputBias = &item
+			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				optionalF32TensorPointer("attn_output.bias", &layer.AttentionOutputBias,
+					uint64(spec.EmbeddingLength)),
+			}); biasErr != nil {
+				return Weights{}, biasErr
 			}
 		}
-		if spec.Architecture == "pangu-embedded" && layer.AttentionOutputBias == nil {
+		if profile.DenseWeights.RequireAttentionOutputBias && layer.AttentionOutputBias == nil {
 			return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 		}
 		if !layer.Recurrent && layer.AttentionQKV == nil &&
@@ -1947,33 +1940,19 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 					normNames.FeedForwardWeight = normNames.FeedForwardFallback
 				}
 			}
-			attentionPostNorm, normErr := required(
-				prefix+normNames.AttentionWeight,
-				uint64(spec.EmbeddingLength),
-			)
-			if normErr != nil {
-				return Weights{}, normErr
+			width := uint64(spec.EmbeddingLength)
+			requirements := []tensorRequirement{
+				requiredTensorPointer(normNames.AttentionWeight, &layer.AttentionPostNorm, width),
+				requiredTensorPointer(normNames.FeedForwardWeight, &layer.FeedForwardPostNorm, width),
 			}
-			feedForwardPostNorm, normErr := required(
-				prefix+normNames.FeedForwardWeight,
-				uint64(spec.EmbeddingLength),
-			)
-			if normErr != nil {
-				return Weights{}, normErr
-			}
-			layer.AttentionPostNorm = &attentionPostNorm
-			layer.FeedForwardPostNorm = &feedForwardPostNorm
 			if normNames.AttentionBias != "" {
-				attentionBias, biasErr := required(prefix+normNames.AttentionBias, uint64(spec.EmbeddingLength))
-				if biasErr != nil {
-					return Weights{}, biasErr
-				}
-				feedForwardBias, biasErr := required(prefix+normNames.FeedForwardBias, uint64(spec.EmbeddingLength))
-				if biasErr != nil {
-					return Weights{}, biasErr
-				}
-				layer.AttentionPostNormBias = &attentionBias
-				layer.FeedForwardPostNormBias = &feedForwardBias
+				requirements = append(requirements,
+					requiredTensorPointer(normNames.AttentionBias, &layer.AttentionPostNormBias, width),
+					requiredTensorPointer(normNames.FeedForwardBias, &layer.FeedForwardPostNormBias, width),
+				)
+			}
+			if normErr := loadTensorRequirements(required, tensors, prefix, requirements); normErr != nil {
+				return Weights{}, normErr
 			}
 		}
 		if profile.Has(ArchitecturePerLayerEmbeddings) {
@@ -2012,22 +1991,13 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		feedForwardNormName := normPlan.FeedForwardNormTensor()
 		if spec.Architecture == "stablelm" {
-			if _, ok := tensors[prefix+feedForwardNormName]; ok {
-				if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
-					return Weights{}, err
-				}
-				if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
-					feedForwardNormBias, biasErr := required(
-						prefix+"ffn_norm.bias",
-						uint64(spec.EmbeddingLength),
-					)
-					if biasErr != nil {
-						return Weights{}, biasErr
-					}
-					layer.FeedForwardNormBias = &feedForwardNormBias
-				}
-			} else if _, ok := tensors[prefix+"ffn_norm.bias"]; ok {
-				return Weights{}, errors.New("StableLM FFN norm bias has no weight")
+			if normErr := loadOptionalWeightBias(
+				required, tensors, prefix,
+				requiredTensor(feedForwardNormName, &layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
+				requiredTensorPointer("ffn_norm.bias", &layer.FeedForwardNormBias, uint64(spec.EmbeddingLength)),
+				"StableLM FFN norm bias has no weight",
+			); normErr != nil {
+				return Weights{}, normErr
 			}
 		} else if spec.Architecture != "gpt-oss" && normPlan.PreFeedForward &&
 			(spec.Architecture != "deci" || spec.LayerFeedForwardLength(block) > 0) &&

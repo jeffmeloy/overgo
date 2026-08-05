@@ -1,6 +1,7 @@
 package projector
 
 import (
+	"context"
 	"image"
 	"slices"
 	"strings"
@@ -36,6 +37,36 @@ func TestMediaHistoryChunkContract(t *testing.T) {
 				t.Fatal("invalid media history accepted")
 			}
 		})
+	}
+}
+
+func TestMixedMediaPromptPlan(t *testing.T) {
+	media := []MediaInput{
+		NewImageMediaInput(image.NewRGBA(image.Rect(0, 0, 1, 1))),
+		NewAudioMediaInput([]float32{1}),
+	}
+	encode := func(count int) func(context.Context, MediaInput) (imagePromptItem, error) {
+		return func(context.Context, MediaInput) (imagePromptItem, error) {
+			return imagePromptItem{Embeddings: make([]float32, count*2), Count: count, Width: 2}, nil
+		}
+	}
+	prompt, err := executeMixedMediaPromptPlan(
+		context.Background(), gemma4PromptTokenizer{}, media, []string{"a", "b", "c"},
+		mixedMediaPromptPlan{
+			Family: "test", History: true, PromptLabel: "test history", Render: renderMixedMediaHistory,
+			Kinds: map[MediaKind]mixedMediaKindPlan{
+				MediaImage: {Placeholder: "<|image|>", PlaceholderLabel: "image placeholder", Open: "<i>", Close: "</i>", Attention: true, Encode: encode(2)},
+				MediaAudio: {Placeholder: "<|audio|>", PlaceholderLabel: "audio placeholder", Open: "<a>", Close: "</a>", Encode: encode(1)},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prompt.EmbeddingWidth != 2 || prompt.EmbeddingStart != 4 ||
+		!slices.Equal(prompt.EmbeddingTokenIndices, []uint32{4, 5, 14}) ||
+		!slices.Equal(prompt.AttentionBlocks, []AttentionBlock{{Start: 4, End: 6}}) {
+		t.Fatalf("mixed-media prompt = %+v", prompt)
 	}
 }
 

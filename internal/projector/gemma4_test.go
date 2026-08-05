@@ -28,6 +28,9 @@ func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.T
 	if text == "<|video|>" {
 		return []tokenizer.TokenID{9}, nil
 	}
+	if text == "<|audio|>" {
+		return []tokenizer.TokenID{10}, nil
+	}
 	ids := make([]tokenizer.TokenID, 0, len(text))
 	for len(text) > 0 {
 		switch {
@@ -35,6 +38,8 @@ func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.T
 			ids, text = append(ids, 8), text[len("<|image|>"):]
 		case strings.HasPrefix(text, "<|video|>"):
 			ids, text = append(ids, 9), text[len("<|video|>"):]
+		case strings.HasPrefix(text, "<|audio|>"):
+			ids, text = append(ids, 10), text[len("<|audio|>"):]
 		default:
 			ids, text = append(ids, 1), text[1:]
 		}

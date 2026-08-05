@@ -34,6 +34,35 @@ type imagePromptPlan struct {
 
 type imagePromptEncoder func(context.Context, image.Image) (imagePromptItem, error)
 
+type mixedMediaPromptItem struct {
+	Kind        MediaKind
+	Placeholder string
+	Open        string
+	Close       string
+	Embeddings  []float32
+	Token       tokenizer.TokenID
+	Count       int
+	Width       int
+	Attention   bool
+}
+
+type mixedMediaKindPlan struct {
+	Placeholder      string
+	PlaceholderLabel string
+	Open             string
+	Close            string
+	Attention        bool
+	Encode           func(context.Context, MediaInput) (imagePromptItem, error)
+}
+
+type mixedMediaPromptPlan struct {
+	Family      string
+	History     bool
+	PromptLabel string
+	Kinds       map[MediaKind]mixedMediaKindPlan
+	Render      func([]string, []mixedMediaPromptItem) string
+}
+
 type mediaPromptRunPlan struct {
 	Prompt           string
 	History          bool
@@ -158,6 +187,90 @@ func executeImagePromptPlan(
 		MultiAxisPositions:    positions,
 		AttentionBlocks:       imagePromptAttentionBlocks(plan, starts, items),
 	}, nil
+}
+
+func executeMixedMediaPromptPlan(
+	ctx context.Context,
+	tokenizerAPI ImageTokenizer,
+	media []MediaInput,
+	text []string,
+	plan mixedMediaPromptPlan,
+) (MultimodalPrompt, error) {
+	if err := validateMediaHistoryInputs(tokenizerAPI, media, text, plan.Family); err != nil {
+		return MultimodalPrompt{}, err
+	}
+	if plan.Render == nil || len(plan.Kinds) == 0 {
+		return MultimodalPrompt{}, errors.New("projector: mixed-media prompt plan is incomplete")
+	}
+	items := make([]mixedMediaPromptItem, len(media))
+	var embeddings []float32
+	embeddingWidth := 0
+	for index, input := range media {
+		kind, ok := plan.Kinds[input.Kind]
+		if !ok || kind.Encode == nil || kind.Placeholder == "" {
+			return MultimodalPrompt{}, fmt.Errorf("projector: %s media kind %d is unsupported", plan.Family, input.Kind)
+		}
+		placeholderIDs, err := tokenizerAPI.TokenizeText(kind.Placeholder, false, true)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: tokenize %s: %w", kind.PlaceholderLabel, err)
+		}
+		if len(placeholderIDs) != 1 {
+			return MultimodalPrompt{}, fmt.Errorf("projector: %s maps to %d tokens", kind.PlaceholderLabel, len(placeholderIDs))
+		}
+		encoded, err := kind.Encode(ctx, input)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode %s media %d: %w", plan.Family, index, err)
+		}
+		if encoded.Count <= 0 || encoded.Width <= 0 || len(encoded.Embeddings) != encoded.Count*encoded.Width {
+			return MultimodalPrompt{}, fmt.Errorf("projector: %s media %d embedding shape is invalid", plan.Family, index)
+		}
+		if embeddingWidth != 0 && encoded.Width != embeddingWidth {
+			return MultimodalPrompt{}, fmt.Errorf("projector: %s media embedding widths differ", plan.Family)
+		}
+		embeddingWidth = encoded.Width
+		items[index] = mixedMediaPromptItem{
+			Kind: input.Kind, Placeholder: kind.Placeholder, Open: kind.Open, Close: kind.Close,
+			Embeddings: encoded.Embeddings, Token: placeholderIDs[0], Count: encoded.Count,
+			Width: encoded.Width, Attention: kind.Attention,
+		}
+		embeddings = append(embeddings, encoded.Embeddings...)
+	}
+	ids, err := tokenizerAPI.TokenizeText(plan.Render(text, items), plan.History, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize %s: %w", plan.PromptLabel, err)
+	}
+	expectedTokens := make([]tokenizer.TokenID, len(items))
+	counts := make([]int, len(items))
+	for index, item := range items {
+		expectedTokens[index], counts[index] = item.Token, item.Count
+	}
+	starts, err := orderedVariableTokenRuns(ids, expectedTokens, counts)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: %s: %w", plan.PromptLabel, err)
+	}
+	indices := embeddingTokenIndices(starts, counts, 0)
+	blocks := make([]AttentionBlock, 0, len(items))
+	for index, item := range items {
+		if item.Attention {
+			blocks = append(blocks, AttentionBlock{Start: uint32(starts[index]), End: uint32(starts[index] + item.Count)})
+		}
+	}
+	return MultimodalPrompt{
+		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: embeddingWidth,
+		EmbeddingStart: starts[0], EmbeddingTokenIndices: indices, AttentionBlocks: blocks,
+	}, nil
+}
+
+func renderMixedMediaHistory(text []string, items []mixedMediaPromptItem) string {
+	var prompt strings.Builder
+	for index, item := range items {
+		prompt.WriteString(text[index])
+		prompt.WriteString(item.Open)
+		prompt.WriteString(strings.Repeat(item.Placeholder, item.Count))
+		prompt.WriteString(item.Close)
+	}
+	prompt.WriteString(text[len(text)-1])
+	return prompt.String()
 }
 
 func imagePromptAttentionBlocks(plan imagePromptPlan, starts []int, items []imagePromptItem) []AttentionBlock {

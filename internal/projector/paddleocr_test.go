@@ -38,7 +38,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	output, err := runner.EncodeImage(context.Background(), input, PaddleOCRPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -111,11 +111,11 @@ func TestPreprocessPaddleOCRImageRasterPatchOrder(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(y*16 + x), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(y*16 + x), A: fixtureOpaqueAlpha})
 		}
 	}
 	processed, err := PreprocessPaddleOCRImage(input, spec, PaddleOCRPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -157,10 +157,10 @@ func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 8; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := PaddleOCRPreprocessOptions{MinPixels: 32, MaxPixels: 32, MaxAspectRatio: 10}
+	options := PaddleOCRPreprocessOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
 	want, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +199,7 @@ func tinyPaddleOCRMetadata() []gguf.Metadata {
 func tinyPaddleOCRSpec() PaddleOCRSpec {
 	return PaddleOCRSpec{
 		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8, ProjectorIntermediate: 16,
-		OutputHidden: 6, Layers: 1, Heads: 1, MergeSize: 2, MinPixels: 16, MaxPixels: 64,
+		OutputHidden: 6, Layers: 1, Heads: 1, MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
 		LayerNormEpsilon: 1e-6, ImageStd: [3]float32{1, 1, 1}, FusedQKV: []bool{true},
 	}
 }

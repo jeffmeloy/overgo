@@ -10,6 +10,15 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
+const (
+	qwen3VLBilinearCornerCount = 4
+	qwen3VLRoPEComponentCount  = 4
+	qwen3VLRoPEAxisCount       = 2
+	qwen3VLRoPEFrequencyBase   = 10_000
+	qwen3VLGELUCubicFactor     = 0.044715
+	qwen3VLGELUOutputScale     = 0.5
+)
+
 func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
@@ -83,7 +92,7 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 		}
 	}
 	normalized := builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
-	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*4), uint64(mergedRows))
+	merged := builder.Reshape(normalized, uint64(mergedWidth), uint64(mergedRows))
 	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
@@ -112,8 +121,8 @@ func (r *Qwen3VLRunner) qwen3VLPositionGraph(
 	rows := input.GridT * input.GridH * input.GridW
 	spatial := input.GridH * input.GridW
 	side := r.spec.ImageSize / r.spec.PatchSize
-	indexes := [4][]uint32{}
-	weights := [4][]float32{}
+	indexes := [qwen3VLBilinearCornerCount][]uint32{}
+	weights := [qwen3VLBilinearCornerCount][]float32{}
 	for corner := range indexes {
 		indexes[corner] = make([]uint32, rows)
 		weights[corner] = make([]float32, rows)
@@ -131,8 +140,12 @@ func (r *Qwen3VLRunner) qwen3VLPositionGraph(
 		y0, x0 := int(math.Floor(y)), int(math.Floor(x))
 		y1, x1 := min(y0+1, side-1), min(x0+1, side-1)
 		wy, wx := y-float64(y0), x-float64(x0)
-		cornerIndexes := [4]int{y0*side + x0, y0*side + x1, y1*side + x0, y1*side + x1}
-		cornerWeights := [4]float64{(1 - wy) * (1 - wx), (1 - wy) * wx, wy * (1 - wx), wy * wx}
+		cornerIndexes := [qwen3VLBilinearCornerCount]int{
+			y0*side + x0, y0*side + x1, y1*side + x0, y1*side + x1,
+		}
+		cornerWeights := [qwen3VLBilinearCornerCount]float64{
+			(1 - wy) * (1 - wx), (1 - wy) * wx, wy * (1 - wx), wy * wx,
+		}
 		for corner := range indexes {
 			indexes[corner][row] = uint32(cornerIndexes[corner])
 			weights[corner][row] = float32(cornerWeights[corner])
@@ -158,13 +171,20 @@ func qwen3VLVisionRoPE(
 	positionsY, positionsX []uint32,
 ) *tensor.Tensor {
 	headWidth := input.Shape.Dims[0]
-	quarter := headWidth / 4
+	quarter := headWidth / qwen3VLRoPEComponentCount
 	heads := input.Shape.Dims[1]
 	rows := input.Shape.Dims[2]
-	y := builder.Reshape(builder.GroupSlice(input, 0, quarter, 2, headWidth/2), headWidth/2, heads, rows)
-	x := builder.Reshape(builder.GroupSlice(input, quarter, quarter, 2, headWidth/2), headWidth/2, heads, rows)
-	y = builder.RoPENeoX(y, positionsY, uint32(headWidth/2), 10000)
-	x = builder.RoPENeoX(x, positionsX, uint32(headWidth/2), 10000)
+	axisWidth := headWidth / qwen3VLRoPEAxisCount
+	y := builder.Reshape(
+		builder.GroupSlice(input, 0, quarter, qwen3VLRoPEAxisCount, axisWidth),
+		axisWidth, heads, rows,
+	)
+	x := builder.Reshape(
+		builder.GroupSlice(input, quarter, quarter, qwen3VLRoPEAxisCount, axisWidth),
+		axisWidth, heads, rows,
+	)
+	y = builder.RoPENeoX(y, positionsY, uint32(axisWidth), qwen3VLRoPEFrequencyBase)
+	x = builder.RoPENeoX(x, positionsX, uint32(axisWidth), qwen3VLRoPEFrequencyBase)
 	split := func(value *tensor.Tensor, offset uint64) *tensor.Tensor {
 		return builder.Reshape(builder.GroupSlice(value, offset, quarter, 1, quarter), quarter, heads, rows)
 	}
@@ -181,6 +201,12 @@ func qwen3VLGELUTanh(
 	ones := builder.Input(fmt.Sprintf("gelu_ones.%d", input.ID), dtype.F32, tensor.MustShape(1))
 	hostFeeds[ones] = reference.Value{Shape: ones.Shape, Data: []float32{1}}
 	cube := builder.Multiply(builder.Multiply(input, input), input)
-	inner := builder.Scale(builder.Add(input, builder.Scale(cube, 0.044715)), float32(math.Sqrt(2/math.Pi)))
-	return builder.Scale(builder.Multiply(input, builder.Add(ones, builder.Tanh(inner))), 0.5)
+	inner := builder.Scale(
+		builder.Add(input, builder.Scale(cube, qwen3VLGELUCubicFactor)),
+		float32(math.Sqrt(2/math.Pi)),
+	)
+	return builder.Scale(
+		builder.Multiply(input, builder.Add(ones, builder.Tanh(inner))),
+		qwen3VLGELUOutputScale,
+	)
 }

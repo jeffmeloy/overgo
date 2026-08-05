@@ -65,7 +65,7 @@ func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 8; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), G: uint8(y * 50), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), G: uint8(y * 50), A: fixtureOpaqueAlpha})
 		}
 	}
 	processed, err := PreprocessLlama4VisionImage(input, tinyLlama4VisionSpec())
@@ -142,7 +142,7 @@ func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 8; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
 	want, err := cpu.EncodeImage(context.Background(), input)

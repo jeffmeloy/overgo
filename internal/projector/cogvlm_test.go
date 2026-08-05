@@ -95,7 +95,7 @@ func TestCogVLMCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 45), G: uint8(y * 51), B: uint8((x + y) * 27), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 45), G: uint8(y * 51), B: uint8((x + y) * 27), A: fixtureOpaqueAlpha})
 		}
 	}
 	want, err := cpu.EncodeImage(context.Background(), input)

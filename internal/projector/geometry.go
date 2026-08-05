@@ -14,6 +14,7 @@ const (
 	temporalPatchChannels              = 3
 	temporalPatchFrames                = 2
 	rgbChannelCount                    = 3
+	attentionProjectionCount           = 3
 	rgba16To8Shift                     = 8
 	maxUint8Channel                    = 255
 	opaqueAlpha                        = 255

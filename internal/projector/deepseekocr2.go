@@ -138,13 +138,19 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 	}
 	grid := uint64(spec.ImageSize / spec.PatchSize)
 	requiredShapes := map[string][]uint64{
-		"v.sam.pos_embd.weight":        {uint64(spec.SAMHidden), grid, grid},
-		"v.sam.patch_embd.weight":      {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.SAMHidden)},
-		"v.sam.patch_embd.bias":        {uint64(spec.SAMHidden)},
-		"v.resample_query_768.weight":  {uint64(spec.Hidden), uint64((spec.TileSize / spec.PatchSize / 4) * (spec.TileSize / spec.PatchSize / 4))},
-		"v.resample_query_1024.weight": {uint64(spec.Hidden), uint64((spec.ImageSize / spec.PatchSize / 4) * (spec.ImageSize / spec.PatchSize / 4))},
-		"mm.model.fc.weight":           {uint64(spec.Hidden), uint64(spec.OutputHidden)},
-		"mm.model.fc.bias":             {uint64(spec.OutputHidden)},
+		"v.sam.pos_embd.weight":   {uint64(spec.SAMHidden), grid, grid},
+		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.SAMHidden)},
+		"v.sam.patch_embd.bias":   {uint64(spec.SAMHidden)},
+		"v.resample_query_768.weight": {uint64(spec.Hidden), uint64(
+			(spec.TileSize / spec.PatchSize / deepSeekOCRPositionDownsample) *
+				(spec.TileSize / spec.PatchSize / deepSeekOCRPositionDownsample),
+		)},
+		"v.resample_query_1024.weight": {uint64(spec.Hidden), uint64(
+			(spec.ImageSize / spec.PatchSize / deepSeekOCRPositionDownsample) *
+				(spec.ImageSize / spec.PatchSize / deepSeekOCRPositionDownsample),
+		)},
+		"mm.model.fc.weight": {uint64(spec.Hidden), uint64(spec.OutputHidden)},
+		"mm.model.fc.bias":   {uint64(spec.OutputHidden)},
 	}
 	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
 		return err
@@ -191,7 +197,7 @@ func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image,
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR-2 tile shape is invalid")
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(size), uint64(size)))
+	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
 	shared := DeepSeekOCRRunner{spec: r.spec.DeepSeekOCRSpec}
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, shared.tilePixels(source))
@@ -300,7 +306,10 @@ func (r *DeepSeekOCR2Runner) validateGraphs() error {
 		overview bool
 	}{{r.spec.TileSize, false}, {r.spec.ImageSize, true}} {
 		builder := tensor.NewBuilder()
-		input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(item.size), uint64(item.size)))
+		input := builder.Input(
+			"pixel_values", dtype.F32,
+			tensor.MustShape(rgbChannelCount, uint64(item.size), uint64(item.size)),
+		)
 		hostFeeds := make(map[*tensor.Tensor]reference.Value)
 		weight := func(name string) *tensor.Tensor {
 			info, _ := r.file.Tensor(name)

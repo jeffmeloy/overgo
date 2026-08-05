@@ -111,7 +111,7 @@ func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 51), G: uint8(y * 47), B: uint8((x + y) * 29), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 51), G: uint8(y * 47), B: uint8((x + y) * 29), A: fixtureOpaqueAlpha})
 		}
 	}
 	want, err := cpu.EncodeImage(context.Background(), input)

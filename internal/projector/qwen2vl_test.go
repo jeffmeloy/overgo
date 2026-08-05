@@ -42,11 +42,11 @@ func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
 	output, err := runner.EncodeImage(context.Background(), input, Qwen2VLPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestQwen2VLLegacyFFNNamesAndDefaultMerge(t *testing.T) {
 		t.Fatalf("legacy/default spec = %+v", runner.Spec())
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	if _, err := runner.EncodeImage(context.Background(), input, Qwen2VLPreprocessOptions{MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10}); err != nil {
+	if _, err := runner.EncodeImage(context.Background(), input, Qwen2VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -191,10 +191,10 @@ func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := Qwen2VLPreprocessOptions{MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10}
+	options := Qwen2VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
 	wantImage, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)

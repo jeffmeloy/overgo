@@ -142,11 +142,11 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
 	output, err := runner.EncodeImage(context.Background(), input, Qwen3VLPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -180,7 +180,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	output, err := runner.EncodeImage(context.Background(), input, Qwen3VLPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -208,7 +208,7 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	options := Qwen3VLPreprocessOptions{MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10}
+	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
 	want, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -279,10 +279,10 @@ func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := Qwen3VLPreprocessOptions{MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10}
+	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
 	wantImage, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -326,11 +326,11 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), A: fixtureOpaqueAlpha})
 		}
 	}
 	processed, err := PreprocessQwen3VLImage(input, spec, Qwen3VLPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -359,13 +359,13 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 		frame := image.NewRGBA(image.Rect(0, 0, 4, 4))
 		for y := 0; y < 4; y++ {
 			for x := 0; x < 4; x++ {
-				frame.SetRGBA(x, y, color.RGBA{R: red, A: 255})
+				frame.SetRGBA(x, y, color.RGBA{R: red, A: fixtureOpaqueAlpha})
 			}
 		}
 		frames[index] = frame
 	}
 	processed, err := PreprocessQwen3VLFrames(frames, spec, Qwen3VLPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -416,9 +416,9 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 		for y := 0; y < 224; y++ {
 			for x := 0; x < 224; x++ {
 				frame.SetRGBA(x, y, color.RGBA{
-					R: uint8((x*4 + temporal*8) % 256),
-					G: uint8((y*5 + temporal*4) % 256),
-					B: uint8(((x+y)*3 + temporal*16) % 256), A: 255,
+					R: uint8((x*4 + temporal*8) % fixtureChannelModulus),
+					G: uint8((y*5 + temporal*4) % fixtureChannelModulus),
+					B: uint8(((x+y)*3 + temporal*16) % fixtureChannelModulus), A: fixtureOpaqueAlpha,
 				})
 			}
 		}

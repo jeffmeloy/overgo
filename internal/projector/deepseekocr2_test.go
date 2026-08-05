@@ -88,7 +88,7 @@ func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 32, 32))
 	for y := 0; y < 32; y++ {
 		for x := 0; x < 32; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha})
 		}
 	}
 	want, err := cpu.EncodeImage(context.Background(), input)

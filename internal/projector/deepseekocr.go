@@ -18,8 +18,16 @@ const (
 	deepSeekOCRProjectorType      = "deepseekocr"
 	deepSeekOCRSpatialNormEpsilon = 1e-6
 	deepSeekOCRDefaultTileSize    = 640
+	deepSeekOCRDefaultMinTiles    = 2
 	deepSeekOCRDefaultMaxTiles    = 9
 	deepSeekOCRPaddingGray        = 127
+	deepSeekOCRPositionDownsample = 4
+	deepSeekOCRProjectionInputs   = 2
+	deepSeekOCRFirstGlobalLayer   = 2
+	deepSeekOCRGlobalLayerPeriod  = 3
+	deepSeekOCRSiLUCoefficient    = 1.702
+	deepSeekOCRUnitStride         = 1
+	deepSeekOCRDownsampleStride   = 2
 	DeepSeekOCRImagePad           = "<image>"
 )
 
@@ -29,7 +37,7 @@ type DeepSeekOCRSpec struct {
 	Heads, SAMHidden, SAMLayers, SAMHeads   int
 	Window, OutputHidden                    int
 	LayerNormEpsilon                        float32
-	ImageMean, ImageStd                     [3]float32
+	ImageMean, ImageStd                     [rgbChannelCount]float32
 	TensorNames                             []string
 }
 
@@ -140,7 +148,7 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 	} else if ok {
 		spec.TileSize = int(value)
 	}
-	spec.MinTiles, spec.MaxTiles = 2, maxTiles
+	spec.MinTiles, spec.MaxTiles = deepSeekOCRDefaultMinTiles, maxTiles
 	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.preproc_min_tiles"); valueErr != nil {
 		return DeepSeekOCRSpec{}, valueErr
 	} else if ok {
@@ -155,11 +163,11 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
+	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", rgbChannelCount)
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
+	std, err := metadataFloat32Array(file, "clip.vision.image_std", rgbChannelCount)
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
@@ -184,7 +192,7 @@ func (s DeepSeekOCRSpec) validate() error {
 		s.Window <= 0 || s.OutputHidden <= 0 || s.LayerNormEpsilon <= 0 {
 		return fmt.Errorf("projector: invalid DeepSeek-OCR metadata: %+v", s)
 	}
-	for channel := range 3 {
+	for channel := range rgbChannelCount {
 		if s.ImageStd[channel] <= 0 {
 			return fmt.Errorf("projector: invalid DeepSeek-OCR image standard deviation %d", channel)
 		}
@@ -248,11 +256,14 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 	}
 	requiredShapes := map[string][]uint64{
 		"v.sam.pos_embd.weight":   {uint64(spec.SAMHidden), uint64(spec.ImageSize / spec.PatchSize), uint64(spec.ImageSize / spec.PatchSize)},
-		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.SAMHidden)},
+		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.SAMHidden)},
 		"v.sam.patch_embd.bias":   {uint64(spec.SAMHidden)},
-		"v.position_embd.weight":  {uint64(spec.Hidden), uint64((spec.ImageSize/spec.PatchSize/4)*(spec.ImageSize/spec.PatchSize/4) + 1)},
-		"mm.model.fc.weight":      {uint64(2 * spec.Hidden), uint64(spec.OutputHidden)},
-		"mm.model.fc.bias":        {uint64(spec.OutputHidden)},
+		"v.position_embd.weight": {uint64(spec.Hidden), uint64(
+			(spec.ImageSize/spec.PatchSize/deepSeekOCRPositionDownsample)*
+				(spec.ImageSize/spec.PatchSize/deepSeekOCRPositionDownsample) + 1,
+		)},
+		"mm.model.fc.weight": {uint64(deepSeekOCRProjectionInputs * spec.Hidden), uint64(spec.OutputHidden)},
+		"mm.model.fc.bias":   {uint64(spec.OutputHidden)},
 	}
 	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
 		return err
@@ -387,7 +398,7 @@ func (r *DeepSeekOCRRunner) encodeTile(ctx context.Context, source image.Image) 
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR tile shape is invalid")
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(size), uint64(size)))
+	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, r.tilePixels(source))
 	output := r.buildGraph(builder, input, size, graph.weight, graph.hostFeeds)
@@ -409,7 +420,8 @@ func (r *DeepSeekOCRRunner) buildSAMGraph(builder *tensor.Builder, input *tensor
 		prefix := fmt.Sprintf("v.sam.blk.%d.", layer)
 		residual := cur
 		norm := deepSeekOCRSpatialLayerNorm(builder, cur, weight(prefix+"pre_ln.weight"), weight(prefix+"pre_ln.bias"), deepSeekOCRSpatialNormEpsilon)
-		global := layer == 2 || layer == 5 || layer == 8 || layer == 11
+		global := layer >= deepSeekOCRFirstGlobalLayer &&
+			(layer-deepSeekOCRFirstGlobalLayer)%deepSeekOCRGlobalLayerPeriod == 0
 		width, height := uint32(norm.Shape.Dims[1]), uint32(norm.Shape.Dims[2])
 		window := r.spec.Window
 		if global {
@@ -421,7 +433,9 @@ func (r *DeepSeekOCRRunner) buildSAMGraph(builder *tensor.Builder, input *tensor
 		batches := norm.Shape.Dims[2]
 		flat := builder.Reshape(norm, uint64(r.spec.SAMHidden), uint64(window*window)*batches)
 		qkv := builder.MulMat(weight(prefix+"attn.qkv.weight"), flat)
-		qkv = builder.Add(qkv, builder.Reshape(weight(prefix+"attn.qkv.bias"), uint64(3*r.spec.SAMHidden), 1))
+		qkv = builder.Add(qkv, builder.Reshape(
+			weight(prefix+"attn.qkv.bias"), uint64(attentionProjectionCount*r.spec.SAMHidden), 1,
+		))
 		headWidth := uint64(r.spec.SAMHidden / r.spec.SAMHeads)
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.SAMHeads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.SAMHidden), headWidth, uint64(r.spec.SAMHeads), headWidth)
@@ -451,11 +465,32 @@ func (r *DeepSeekOCRRunner) buildSAMGraph(builder *tensor.Builder, input *tensor
 	}
 	cur = builder.Conv2D(cur, weight("v.sam.neck.0.weight"), nil, 1, 1, 0, 0, 0, 0, false)
 	cur = deepSeekOCRSpatialLayerNorm(builder, cur, weight("v.sam.neck.1.weight"), weight("v.sam.neck.1.bias"), deepSeekOCRSpatialNormEpsilon)
-	cur = builder.Conv2D(cur, weight("v.sam.neck.2.weight"), nil, 1, 1, 1, 1, 1, 1, false)
+	cur = deepSeekOCRSamePadConv2D(
+		builder, cur, weight("v.sam.neck.2.weight"), deepSeekOCRUnitStride,
+	)
 	cur = deepSeekOCRSpatialLayerNorm(builder, cur, weight("v.sam.neck.3.weight"), weight("v.sam.neck.3.bias"), deepSeekOCRSpatialNormEpsilon)
-	cur = builder.Conv2D(cur, weight("v.sam.net_2.weight"), nil, 2, 2, 1, 1, 1, 1, false)
-	cur = builder.Conv2D(cur, weight("v.sam.net_3.weight"), nil, 2, 2, 1, 1, 1, 1, false)
+	cur = deepSeekOCRSamePadConv2D(
+		builder, cur, weight("v.sam.net_2.weight"), deepSeekOCRDownsampleStride,
+	)
+	cur = deepSeekOCRSamePadConv2D(
+		builder, cur, weight("v.sam.net_3.weight"), deepSeekOCRDownsampleStride,
+	)
 	return cur
+}
+
+func deepSeekOCRSamePadConv2D(
+	builder *tensor.Builder,
+	input, weight *tensor.Tensor,
+	stride uint32,
+) *tensor.Tensor {
+	const samePad = 1
+	return builder.Conv2D(
+		input, weight, nil,
+		stride, stride,
+		samePad, samePad,
+		samePad, samePad,
+		false,
+	)
 }
 
 func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Tensor, size int, weight func(string) *tensor.Tensor, hostFeeds map[*tensor.Tensor]reference.Value) *tensor.Tensor {
@@ -472,7 +507,12 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		norm := builder.AffineLayerNorm(hidden, builder.Reshape(weight(prefix+"ln1.weight"), uint64(r.spec.Hidden)), builder.Reshape(weight(prefix+"ln1.bias"), uint64(r.spec.Hidden)), r.spec.LayerNormEpsilon)
-		qkv := builder.Add(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), builder.Reshape(weight(prefix+"attn_qkv.bias"), uint64(3*r.spec.Hidden), 1))
+		qkv := builder.Add(
+			builder.MulMat(weight(prefix+"attn_qkv.weight"), norm),
+			builder.Reshape(
+				weight(prefix+"attn_qkv.bias"), uint64(attentionProjectionCount*r.spec.Hidden), 1,
+			),
+		)
 		headWidth := uint64(r.spec.Hidden / r.spec.Heads)
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
@@ -483,7 +523,7 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 		hidden = builder.Add(hidden, attention)
 		norm = builder.AffineLayerNorm(hidden, builder.Reshape(weight(prefix+"ln2.weight"), uint64(r.spec.Hidden)), builder.Reshape(weight(prefix+"ln2.bias"), uint64(r.spec.Hidden)), r.spec.LayerNormEpsilon)
 		up := builder.Add(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), builder.Reshape(weight(prefix+"ffn_up.bias"), uint64(r.spec.FeedForward), 1))
-		up = builder.Multiply(up, builder.Sigmoid(builder.Scale(up, 1.702)))
+		up = builder.Multiply(up, builder.Sigmoid(builder.Scale(up, deepSeekOCRSiLUCoefficient)))
 		down := builder.Add(builder.MulMat(weight(prefix+"ffn_down.weight"), up), builder.Reshape(weight(prefix+"ffn_down.bias"), uint64(r.spec.Hidden), 1))
 		hidden = builder.Add(hidden, down)
 	}
@@ -605,7 +645,7 @@ func (r *DeepSeekOCRRunner) assemble(values []reference.Value, gridW, gridH int)
 func (r *DeepSeekOCRRunner) validateGraph() error {
 	builder := tensor.NewBuilder()
 	size := r.spec.ImageSize
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(size), uint64(size)))
+	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	weight := func(name string) *tensor.Tensor {
 		info, _ := r.file.Tensor(name)

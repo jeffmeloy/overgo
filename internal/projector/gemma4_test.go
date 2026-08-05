@@ -57,7 +57,7 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
 	for y := 0; y < 3; y++ {
 		for x := 0; x < 3; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: fixtureOpaqueAlpha})
 		}
 	}
 	output, err := runner.EncodeImage(context.Background(), input)
@@ -118,7 +118,7 @@ func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
 	for y := 0; y < 3; y++ {
 		for x := 0; x < 3; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: fixtureOpaqueAlpha})
 		}
 	}
 	wantImage, err := cpu.EncodeImage(context.Background(), input)
@@ -239,7 +239,7 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), G: 20, B: 40, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), G: 20, B: 40, A: fixtureOpaqueAlpha})
 		}
 	}
 	processed, err := PreprocessGemma4Image(input, spec)

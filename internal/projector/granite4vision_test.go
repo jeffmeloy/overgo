@@ -67,7 +67,7 @@ func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 8; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), A: fixtureOpaqueAlpha})
 		}
 	}
 	processed, err := PreprocessGranite4VisionImage(input, tinyGranite4VisionSpec())
@@ -132,7 +132,7 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	for y := 0; y < 8; y++ {
 		for x := 0; x < 8; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 29), G: uint8(y * 31), B: uint8((x + y) * 13), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 29), G: uint8(y * 31), B: uint8((x + y) * 13), A: fixtureOpaqueAlpha})
 		}
 	}
 	want, err := cpu.EncodeImage(context.Background(), input)

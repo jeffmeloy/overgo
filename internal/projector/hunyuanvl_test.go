@@ -37,7 +37,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	}
 	defer runner.Close()
 	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 4, 4)), HunyuanVLPreprocessOptions{
-		MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -109,10 +109,10 @@ func TestPreprocessHunyuanVLImageRasterPatchOrder(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(y*16 + x), A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(y*16 + x), A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := PreprocessHunyuanVLImage(input, spec, HunyuanVLPreprocessOptions{MinPixels: 16, MaxPixels: 16, MaxAspectRatio: 10})
+	processed, err := PreprocessHunyuanVLImage(input, spec, HunyuanVLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,10 +179,10 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 8; x++ {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: 255})
+			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := HunyuanVLPreprocessOptions{MinPixels: 32, MaxPixels: 32, MaxAspectRatio: 10}
+	options := HunyuanVLPreprocessOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
 	want, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func tinyHunyuanVLMetadata() []gguf.Metadata {
 func tinyHunyuanVLSpec() HunyuanVLSpec {
 	return HunyuanVLSpec{
 		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8, OutputHidden: 6,
-		Layers: 1, Heads: 1, MergeSize: 2, MinPixels: 16, MaxPixels: 64,
+		Layers: 1, Heads: 1, MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
 		ConvIntermediate: 8, ProjectorInput: 5, LayerNormEpsilon: 1e-6,
 		ImageStd: [3]float32{1, 1, 1}, FusedQKV: []bool{true},
 	}

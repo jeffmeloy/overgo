@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 	"llamacpp2go/internal/tensor/reference"
@@ -36,8 +35,8 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	pixelInput := builder.Input(
 		"pixel_values", dtype.F32, tensor.MustShape(uint64(r.spec.PatchWidth), uint64(rows)),
 	)
-	binding := r.cuda.bindWeights(builder)
-	weight := binding.weight
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	weight := graph.weight
 	pixelsNode := builder.BF16Round(pixelInput)
 	ln1 := builder.BF16Round(builder.AffineLayerNorm(
 		pixelsNode, weight("v.patch_norm.1.weight"), weight("v.patch_norm.1.bias"), r.spec.LayerNormEpsilon,
@@ -68,23 +67,12 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	))
 	preProjection := builder.BF16Round(builder.RMSNorm(posNorm, r.spec.RMSNormEpsilon))
 	embeddings := builder.BF16Round(builder.MulMat(weight("mm.input_projection.weight"), preProjection))
-	deviceFeeds, err := binding.result()
-	if err != nil {
-		return Gemma4Output{}, fmt.Errorf("projector: build Gemma 4 CUDA graph: %w", err)
-	}
-	if err := builder.Err(); err != nil {
-		return Gemma4Output{}, fmt.Errorf("projector: build Gemma 4 CUDA graph: %w", err)
-	}
+	graph.hostFeeds[pixelInput] = reference.Value{Shape: pixelInput.Shape, Data: pixels}
 	outputs := []*tensor.Tensor{embeddings}
 	if trace != nil {
 		outputs = []*tensor.Tensor{ln1, patchDense, ln2, posNorm, preProjection, embeddings}
 	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(
-		ctx,
-		outputs,
-		map[*tensor.Tensor]reference.Value{pixelInput: {Shape: pixelInput.Shape, Data: pixels}},
-		deviceFeeds,
-	)
+	results, err := graph.execute(outputs...)
 	if err != nil {
 		return Gemma4Output{}, fmt.Errorf("projector: execute Gemma 4 CUDA graph: %w", err)
 	}
@@ -111,21 +99,12 @@ func (r *Gemma4Runner) encodeAudioCUDA(
 	input := builder.Input(
 		"audio_frames", dtype.F32, tensor.MustShape(uint64(spec.SamplesPerToken), uint64(rows)),
 	)
-	projection, pointer, err := r.cuda.weights.Input(builder, "mm.a.input_projection.weight")
-	if err != nil {
-		return Gemma4AudioOutput{}, fmt.Errorf("projector: build Gemma 4 audio CUDA graph: %w", err)
-	}
+	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
+	projection := graph.weight("mm.a.input_projection.weight")
 	normed := builder.BF16Round(builder.RMSNorm(builder.BF16Round(input), spec.RMSNormEpsilon))
 	embeddings := builder.BF16Round(builder.MulMat(projection, normed))
-	if err := builder.Err(); err != nil {
-		return Gemma4AudioOutput{}, fmt.Errorf("projector: build Gemma 4 audio CUDA graph: %w", err)
-	}
-	results, err := r.cuda.executor.ExecuteWithDeviceFeeds(
-		ctx,
-		[]*tensor.Tensor{embeddings},
-		map[*tensor.Tensor]reference.Value{input: {Shape: input.Shape, Data: frames}},
-		map[*tensor.Tensor]driver.DevicePtr{projection: pointer},
-	)
+	graph.hostFeeds[input] = reference.Value{Shape: input.Shape, Data: frames}
+	results, err := graph.execute(embeddings)
 	if err != nil {
 		return Gemma4AudioOutput{}, fmt.Errorf("projector: execute Gemma 4 audio CUDA graph: %w", err)
 	}

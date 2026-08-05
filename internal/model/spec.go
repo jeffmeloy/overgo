@@ -2314,43 +2314,15 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 }
 
 func (s Spec) IsRecurrentLayer(block uint32) bool {
-	if block >= s.BlockCount {
-		return false
-	}
-	if len(s.RecurrentLayers) == int(s.BlockCount) {
-		return s.RecurrentLayers[block]
-	}
-	return (s.Architecture == "qwen3next" || s.Architecture == "qwen35" || s.Architecture == "qwen35moe") &&
-		s.FullAttentionInterval > 0 &&
-		(block+1)%s.FullAttentionInterval != 0
+	return s.Profile().Cadence.recurrent(s, block)
 }
 
 func (s Spec) IsInterleavedMoELayer(block uint32) bool {
-	if s.Architecture == "jina-bert-v3" || s.Architecture == "nomic-bert-moe" {
-		return block < s.BlockCount && s.MoELayerStep > 1 && block%s.MoELayerStep == 1
-	}
-	return (s.Architecture == "ernie4_5-moe" && block >= s.LeadingDenseBlocks || s.Architecture == "llama4") &&
-		block < s.BlockCount && s.MoELayerStep > 0 && (block+1)%s.MoELayerStep == 0
+	return s.Profile().Cadence.moe(s, block)
 }
 
 func (s Spec) IsSlidingLayer(block uint32) bool {
-	if s.Architecture == "lfm2" || s.Architecture == "lfm2moe" {
-		return block < s.BlockCount && s.SlidingWindow > 0 && !s.IsRecurrentLayer(block)
-	}
-	if s.Architecture == "laguna" || s.Architecture == "modern-bert" || s.Architecture == "smallthinker" {
-		return block < s.BlockCount &&
-			s.SlidingWindow > 0 &&
-			s.SlidingPattern > 0 &&
-			block%s.SlidingPattern != 0
-	}
-	if block < uint32(len(s.SlidingLayers)) {
-		return s.SlidingLayers[block]
-	}
-	return s.Profile().Has(ArchitectureSlidingAttention) &&
-		block < s.BlockCount &&
-		s.SlidingWindow > 0 &&
-		s.SlidingPattern > 0 &&
-		block%s.SlidingPattern < s.SlidingPattern-1
+	return s.Profile().Cadence.sliding(s, block)
 }
 
 // LayerHeadCount: returns query-head count selected for layer; Laguna

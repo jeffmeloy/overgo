@@ -293,7 +293,6 @@ const (
 	ArchitectureGemma
 	ArchitecturePostNorm
 	ArchitecturePostOnlyNorm
-	ArchitectureSlidingAttention
 	ArchitectureNormalRoPE
 	ArchitectureParallelResidual
 	ArchitectureSequentialGELU
@@ -352,6 +351,7 @@ type ArchitectureProfile struct {
 	Rotary          RotaryPolicy
 	AttentionGraph  AttentionGraphPolicy
 	Experts         ExpertPolicy
+	Cadence         LayerCadencePolicy
 	DeciSparse      bool
 }
 
@@ -556,6 +556,9 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	updateExperts := func(names []string, apply func(*ExpertPolicy)) {
 		update(names, func(profile *ArchitectureProfile) { apply(&profile.Experts) })
 	}
+	setCadence := func(policy LayerCadencePolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.Cadence = policy })
+	}
 	setExpertCatalog := func(policy expertCatalogPolicy, names ...string) {
 		updateExperts(names, func(experts *ExpertPolicy) { experts.Catalog = policy })
 	}
@@ -646,11 +649,18 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		"bert", "exaone4", "jina-bert-v2", "jina-bert-v3", "nomic-bert",
 		"nomic-bert-moe",
 	)
-	setCapabilities(ArchitectureSlidingAttention,
+	setCadence(LayerCadencePolicy{Recurrent: recurrentCadenceAttentionInterval},
+		"qwen3next", "qwen35", "qwen35moe")
+	setCadence(LayerCadencePolicy{MoE: moeCadenceOffsetOne}, "jina-bert-v3", "nomic-bert-moe")
+	setCadence(LayerCadencePolicy{MoE: moeCadenceAfterDense}, "ernie4_5-moe")
+	setCadence(LayerCadencePolicy{MoE: moeCadenceEvery, Sliding: slidingCadenceExceptLast}, "llama4")
+	setCadence(LayerCadencePolicy{Sliding: slidingCadenceNonRecurrent}, "lfm2", "lfm2moe")
+	setCadence(LayerCadencePolicy{Sliding: slidingCadenceExceptFirst}, "laguna", "modern-bert", "smallthinker")
+	setCadence(LayerCadencePolicy{Sliding: slidingCadenceExceptLast},
 		"afmoe", "cohere2", "cohere2moe", "dflash", "exaone-moe", "exaone4",
 		"gemma-embedding", "gemma2", "gemma3", "gemma3n", "gemma4",
-		"gemma4-assistant", "gpt-oss", "llama4", "mellum", "mimo2", "olmo2",
-		"plamo3", "smallthinker", "step35",
+		"gemma4-assistant", "gpt-oss", "mellum", "mimo2", "olmo2",
+		"plamo3", "step35",
 	)
 	setCapabilities(ArchitectureNormalRoPE,
 		"arcee", "arctic", "baichuan", "bailingmoe", "chameleon", "chatglm",

@@ -329,11 +329,11 @@ func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
 
 func TestNativeCompletionAuthenticationAndTimeout(t *testing.T) {
 	authenticated, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -352,7 +352,7 @@ func TestNativeCompletionAuthenticationAndTimeout(t *testing.T) {
 		"/completion",
 		strings.NewReader(body),
 	)
-	authorizedRequest.Header.Set("Authorization", "Bearer test-secret")
+	authorizedRequest.Header.Set("Authorization", testBearerToken)
 	authorized := httptest.NewRecorder()
 	authenticated.ServeHTTP(authorized, authorizedRequest)
 	if authorized.Code != http.StatusOK {
@@ -364,10 +364,10 @@ func TestNativeCompletionAuthenticationAndTimeout(t *testing.T) {
 		release: make(chan struct{}),
 	}
 	timed, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
 		RequestTimeout:     20 * time.Millisecond,
 	}, blocked)
 	if err != nil {
@@ -598,10 +598,10 @@ func TestCompletionAcceptsInfillSampler(t *testing.T) {
 func TestNativeInfillFormatsAndGeneratesExactPromptTokens(t *testing.T) {
 	generator := &fakeGenerator{}
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
 		InfillBatchSize:    16,
 		SPMInfill:          true,
 	}, generator)
@@ -1080,11 +1080,11 @@ func TestNativeEmbeddingsValidationAuthenticationAndMethod(t *testing.T) {
 		t.Fatalf("GET status = %d Allow=%q", get.Code, get.Header().Get("Allow"))
 	}
 	protected, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 		MaxEmbeddingInputs: 1,
 	}, &fakeGenerator{})
 	if err != nil {
@@ -1107,7 +1107,7 @@ func TestNativeEmbeddingsValidationAuthenticationAndMethod(t *testing.T) {
 		"/embeddings",
 		strings.NewReader(`{"input":["a","b"]}`),
 	)
-	request.Header.Set("Authorization", "Bearer test-secret")
+	request.Header.Set("Authorization", testBearerToken)
 	oversized := httptest.NewRecorder()
 	protected.ServeHTTP(oversized, request)
 	if oversized.Code != http.StatusBadRequest {
@@ -1129,7 +1129,7 @@ func TestRerankJinaAndTEIFormats(t *testing.T) {
 	if err := json.Unmarshal(jina.Body.Bytes(), &jinaResult); err != nil {
 		t.Fatal(err)
 	}
-	if jinaResult.Model != "test-model" || jinaResult.Object != "list" ||
+	if jinaResult.Model != testModelID || jinaResult.Object != "list" ||
 		len(jinaResult.Results) != 1 || jinaResult.Results[0].Index != 1 ||
 		jinaResult.Results[0].RelevanceScore == nil || *jinaResult.Results[0].RelevanceScore != 0.6 ||
 		jinaResult.Usage != (embeddingUsage{PromptTokens: 9, TotalTokens: 9}) {
@@ -1645,8 +1645,8 @@ func TestChatImageContentPartProjectsPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -1696,7 +1696,7 @@ func TestChatMultipleImagesPreservesContentOrder(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -1736,8 +1736,8 @@ func TestStreamingChatAudioContentPartProjectsPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	audio := &fakeAudioProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		AudioProjector: audio,
 	}, generator)
 	if err != nil {
@@ -1783,8 +1783,8 @@ func TestStreamingChatAudioContentPartProjectsPrompt(t *testing.T) {
 func TestChatMultimodalValidation(t *testing.T) {
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, &fakeGenerator{})
 	if err != nil {
@@ -1817,8 +1817,8 @@ func TestChatImageHistoryPreservesTurnPositionAndReplay(t *testing.T) {
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -1876,8 +1876,8 @@ func TestChatMixedImageAudioPreservesChunkOrder(t *testing.T) {
 	vision := &fakeHistoryProjector{}
 	audio := &fakeAudioProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision, AudioProjector: audio,
 	}, generator)
 	if err != nil {
@@ -1937,8 +1937,8 @@ func TestChatRemoteImageUsesExplicitPolicy(t *testing.T) {
 	vision := &fakeQwen3VLProjector{}
 	generator := &fakeGenerator{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision, RemoteMediaPolicy: testRemoteMediaPolicy(t, mediaServer.URL),
 	}, generator)
 	if err != nil {
@@ -1967,8 +1967,8 @@ func TestChatImageHistoryOmissionUsesTextPath(t *testing.T) {
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -1991,8 +1991,8 @@ func TestChatImageHistoryOmissionUsesTextPath(t *testing.T) {
 func TestMultimodalInputTokenCounting(t *testing.T) {
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, &fakeGenerator{})
 	if err != nil {

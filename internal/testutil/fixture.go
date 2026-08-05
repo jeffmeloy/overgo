@@ -10,6 +10,18 @@ import (
 	"llamacpp2go/internal/gguf"
 )
 
+const (
+	wavPCMFormat         = 1
+	wavIEEEFloatFormat   = 3
+	wavMonoChannels      = 1
+	wavPCM16Bits         = 16
+	wavFloat32Bits       = 32
+	bitsPerByte          = 8
+	wavHeaderBytes       = 44
+	wavRIFFPayloadBytes  = 36
+	wavFormatPayloadSize = 16
+)
+
 func WriteGGUF(
 	t testing.TB,
 	path string,
@@ -43,38 +55,40 @@ func TempGGUF(
 }
 
 func MonoPCM16WAV(sampleRate uint32, samples []int16) []byte {
-	body := make([]byte, len(samples)*2)
+	bytesPerSample := wavPCM16Bits / bitsPerByte
+	body := make([]byte, len(samples)*bytesPerSample)
 	for index, sample := range samples {
-		binary.LittleEndian.PutUint16(body[index*2:], uint16(sample))
+		binary.LittleEndian.PutUint16(body[index*bytesPerSample:], uint16(sample))
 	}
-	return monoWAV(sampleRate, 1, 16, body)
+	return monoWAV(sampleRate, wavPCMFormat, wavPCM16Bits, body)
 }
 
 func MonoFloat32WAV(sampleRate uint32, samples []float32) []byte {
-	body := make([]byte, len(samples)*4)
+	bytesPerSample := wavFloat32Bits / bitsPerByte
+	body := make([]byte, len(samples)*bytesPerSample)
 	for index, sample := range samples {
-		binary.LittleEndian.PutUint32(body[index*4:], math.Float32bits(sample))
+		binary.LittleEndian.PutUint32(body[index*bytesPerSample:], math.Float32bits(sample))
 	}
-	return monoWAV(sampleRate, 3, 32, body)
+	return monoWAV(sampleRate, wavIEEEFloatFormat, wavFloat32Bits, body)
 }
 
 func monoWAV(sampleRate uint32, format, bits uint16, body []byte) []byte {
 	bodyBytes := len(body)
-	data := make([]byte, 44+bodyBytes)
-	copy(data[0:4], "RIFF")
-	binary.LittleEndian.PutUint32(data[4:8], uint32(36+bodyBytes))
-	copy(data[8:12], "WAVE")
-	copy(data[12:16], "fmt ")
-	binary.LittleEndian.PutUint32(data[16:20], 16)
-	binary.LittleEndian.PutUint16(data[20:22], format)
-	binary.LittleEndian.PutUint16(data[22:24], 1)
-	binary.LittleEndian.PutUint32(data[24:28], sampleRate)
-	bytesPerSample := bits / 8
-	binary.LittleEndian.PutUint32(data[28:32], sampleRate*uint32(bytesPerSample))
-	binary.LittleEndian.PutUint16(data[32:34], bytesPerSample)
-	binary.LittleEndian.PutUint16(data[34:36], bits)
-	copy(data[36:40], "data")
-	binary.LittleEndian.PutUint32(data[40:44], uint32(bodyBytes))
-	copy(data[44:], body)
+	data := make([]byte, 0, wavHeaderBytes+bodyBytes)
+	data = append(data, "RIFF"...)
+	data = binary.LittleEndian.AppendUint32(data, uint32(wavRIFFPayloadBytes+bodyBytes))
+	data = append(data, "WAVE"...)
+	data = append(data, "fmt "...)
+	data = binary.LittleEndian.AppendUint32(data, wavFormatPayloadSize)
+	data = binary.LittleEndian.AppendUint16(data, format)
+	data = binary.LittleEndian.AppendUint16(data, wavMonoChannels)
+	data = binary.LittleEndian.AppendUint32(data, sampleRate)
+	bytesPerSample := bits / bitsPerByte
+	data = binary.LittleEndian.AppendUint32(data, sampleRate*uint32(bytesPerSample))
+	data = binary.LittleEndian.AppendUint16(data, bytesPerSample)
+	data = binary.LittleEndian.AppendUint16(data, bits)
+	data = append(data, "data"...)
+	data = binary.LittleEndian.AppendUint32(data, uint32(bodyBytes))
+	data = append(data, body...)
 	return data
 }

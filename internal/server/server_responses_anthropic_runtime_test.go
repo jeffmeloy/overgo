@@ -60,8 +60,8 @@ func TestResponsesImageContentPartProjectsPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -137,7 +137,7 @@ func TestChatAndResponsesEncodedVideoProjection(t *testing.T) {
 			generator := &fakeGenerator{}
 			video := &fakeVideoProjector{}
 			handler, err := New(Config{
-				ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+				ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 				ImageProjector: video, VideoFPS: 2, VideoMaxFrames: 8,
 			}, generator)
 			if err != nil {
@@ -179,8 +179,8 @@ func TestResponsesMultipleImagesPreservesContentOrder(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -225,8 +225,8 @@ func TestResponsesImageHistoryPreservesTurnPosition(t *testing.T) {
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -278,8 +278,8 @@ func TestResponsesMixedImageAudioPreservesChunkOrder(t *testing.T) {
 	vision := &fakeHistoryProjector{}
 	audio := &fakeAudioProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision, AudioProjector: audio,
 	}, generator)
 	if err != nil {
@@ -321,8 +321,8 @@ func TestResponsesMixedImageAudioPreservesChunkOrder(t *testing.T) {
 func TestResponsesMultimodalValidation(t *testing.T) {
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, &fakeGenerator{})
 	if err != nil {
@@ -384,7 +384,7 @@ func TestChatAndResponsesMultimodalFunctionTools(t *testing.T) {
 			generator := &mediaToolGenerator{fakeGenerator: base}
 			vision := &fakeHistoryProjector{}
 			handler, err := New(Config{
-				ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+				ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 				ImageProjector: vision,
 			}, generator)
 			if err != nil {
@@ -415,7 +415,7 @@ func TestAnthropicImageToolsAndTokenCounting(t *testing.T) {
 	generator := &mediaToolGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -458,8 +458,8 @@ func TestAnthropicThinkingBufferedStreamingImageAndReplay(t *testing.T) {
 			pieces: []string{"check facts</think>", "final answer"},
 		}}
 		handler, err := New(Config{
-			ModelID: "test-model", MaxTokens: 2048,
-			DefaultTemperature: 1, DefaultTopP: 1,
+			ModelID: testModelID, MaxTokens: 2048,
+			DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 			ImageProjector: &fakeHistoryProjector{},
 		}, generator)
 		if err != nil {
@@ -562,8 +562,8 @@ func TestAnthropicThinkingValidationAndToolPolicy(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			handler, err := New(Config{
-				ModelID: "test-model", MaxTokens: 2048,
-				DefaultTemperature: 1, DefaultTopP: 1,
+				ModelID: testModelID, MaxTokens: 2048,
+				DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 			}, &reasoningGenerator{fakeGenerator: &fakeGenerator{}})
 			if err != nil {
 				t.Fatal(err)
@@ -877,11 +877,11 @@ func TestResponsesValidationAndMethod(t *testing.T) {
 
 func TestResponsesInputTokensAuthentication(t *testing.T) {
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -1287,11 +1287,11 @@ func TestChatInputTokensValidationAuthenticationAndMethod(t *testing.T) {
 	}
 
 	protected, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)

@@ -49,12 +49,34 @@ import (
 	"time"
 )
 
+const (
+	testModelID            = "test-model"
+	testMaxTokens          = 8
+	testNeutralTemperature = 1
+	testFullTopP           = 1
+	testAPIKey             = "test-secret"
+	testBearerToken        = "Bearer " + testAPIKey
+
+	testAudioSampleRate = 16_000
+	testAudioAmplitude  = 16_384
+
+	pngIHDRPayloadBytes  = 13
+	pngTruecolorBitDepth = 8
+	pngTruecolorType     = 2
+	pngDeflateMethod     = 0
+	pngAdaptiveFilter    = 0
+	pngNoInterlace       = 0
+)
+
 func tinyPCM16WAV() []byte {
-	return testutil.MonoPCM16WAV(16000, []int16{16384, -16384})
+	return testutil.MonoPCM16WAV(
+		testAudioSampleRate,
+		[]int16{testAudioAmplitude, -testAudioAmplitude},
+	)
 }
 
 func silentPCM16WAV() []byte {
-	return testutil.MonoPCM16WAV(16000, []int16{0, 0})
+	return testutil.MonoPCM16WAV(testAudioSampleRate, []int16{0, 0})
 }
 
 type fakeGenerator struct {
@@ -410,10 +432,10 @@ func (f *fakeGenerator) Generate(
 func TestServerContextShiftOptionReachesGenerator(t *testing.T) {
 	generator := &fakeGenerator{}
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
 		ContextShift:       true,
 	}, generator)
 	if err != nil {
@@ -440,10 +462,10 @@ func TestServerContextShiftOptionReachesGenerator(t *testing.T) {
 func TestNativeCompletionNKeepReachesGenerator(t *testing.T) {
 	generator := &fakeGenerator{}
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
 		ContextShift:       true,
 	}, generator)
 	if err != nil {
@@ -510,10 +532,10 @@ func TestServerRequestTimeoutCancelsGeneration(t *testing.T) {
 		release: make(chan struct{}),
 	}
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
 		RequestTimeout:     20 * time.Millisecond,
 	}, generator)
 	if err != nil {
@@ -873,10 +895,10 @@ func (f *fakeGenerator) DeviceExecutionStats(context.Context) (driver.ExecutionS
 func newTestHandler(t testing.TB, generator Generator) *Handler {
 	t.Helper()
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
 	}, generator)
 	if err != nil {
 		t.Fatal(err)
@@ -885,15 +907,23 @@ func newTestHandler(t testing.TB, generator Generator) *Handler {
 }
 
 func pngConfigFixture(width, height uint32) []byte {
-	data := make([]byte, 33)
-	copy(data, []byte("\x89PNG\r\n\x1a\n"))
-	binary.BigEndian.PutUint32(data[8:12], 13)
-	copy(data[12:16], "IHDR")
-	binary.BigEndian.PutUint32(data[16:20], width)
-	binary.BigEndian.PutUint32(data[20:24], height)
-	data[24] = 8
-	data[25] = 2
-	binary.BigEndian.PutUint32(data[29:33], crc32.ChecksumIEEE(data[12:29]))
+	chunk := make([]byte, 0, len("IHDR")+pngIHDRPayloadBytes)
+	chunk = append(chunk, "IHDR"...)
+	chunk = binary.BigEndian.AppendUint32(chunk, width)
+	chunk = binary.BigEndian.AppendUint32(chunk, height)
+	chunk = append(
+		chunk,
+		pngTruecolorBitDepth,
+		pngTruecolorType,
+		pngDeflateMethod,
+		pngAdaptiveFilter,
+		pngNoInterlace,
+	)
+
+	data := []byte("\x89PNG\r\n\x1a\n")
+	data = binary.BigEndian.AppendUint32(data, pngIHDRPayloadBytes)
+	data = append(data, chunk...)
+	data = binary.BigEndian.AppendUint32(data, crc32.ChecksumIEEE(chunk))
 	return data
 }
 
@@ -1051,7 +1081,7 @@ func TestModels(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(result.Models) != 1 ||
-		result.Models[0].Name != "test-model" ||
+		result.Models[0].Name != testModelID ||
 		!slices.Contains(result.Models[0].Capabilities, "completion") ||
 		result.Models[0].Details["format"] != "gguf" ||
 		result.Models[0].Details["family"] != "qwen3" ||
@@ -1066,11 +1096,11 @@ func TestModels(t *testing.T) {
 
 func TestModelsArePublicAndStrictlyGet(t *testing.T) {
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -1101,7 +1131,7 @@ func TestProperties(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.TotalSlots != 1 ||
-		result.ModelAlias != "test-model" ||
+		result.ModelAlias != testModelID ||
 		result.ModelFType != "Q8_0" ||
 		result.ModelPath != "fixture.gguf" ||
 		result.ModelMetadata.Architecture != "qwen3" ||
@@ -1129,12 +1159,12 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 		release: make(chan struct{}),
 	}
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
 		MaxConcurrent:      2,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, generator)
 	if err != nil {
 		t.Fatal(err)
@@ -1150,7 +1180,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 				"/v1/completions",
 				strings.NewReader(`{"prompt":"hi","max_tokens":1}`),
 			)
-			request.Header.Set("Authorization", "Bearer test-secret")
+			request.Header.Set("Authorization", testBearerToken)
 			responses[index] = httptest.NewRecorder()
 			handler.ServeHTTP(responses[index], request)
 		}(index)
@@ -1164,7 +1194,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 	}
 
 	slotRequest := httptest.NewRequest(http.MethodGet, "/slots", nil)
-	slotRequest.Header.Set("Authorization", "Bearer test-secret")
+	slotRequest.Header.Set("Authorization", testBearerToken)
 	slotResponse := httptest.NewRecorder()
 	handler.ServeHTTP(slotResponse, slotRequest)
 	if slotResponse.Code != http.StatusOK {
@@ -1191,7 +1221,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 	}
 
 	failRequest := httptest.NewRequest(http.MethodGet, "/slots?fail_on_no_slot=1", nil)
-	failRequest.Header.Set("Authorization", "Bearer test-secret")
+	failRequest.Header.Set("Authorization", testBearerToken)
 	failResponse := httptest.NewRecorder()
 	handler.ServeHTTP(failResponse, failRequest)
 	if failResponse.Code != http.StatusServiceUnavailable {
@@ -1206,7 +1236,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 		}
 	}
 	idleRequest := httptest.NewRequest(http.MethodGet, "/slots?fail_on_no_slot=1", nil)
-	idleRequest.Header.Set("Authorization", "Bearer test-secret")
+	idleRequest.Header.Set("Authorization", testBearerToken)
 	idleResponse := httptest.NewRecorder()
 	handler.ServeHTTP(idleResponse, idleRequest)
 	if idleResponse.Code != http.StatusOK {
@@ -1247,11 +1277,11 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 
 func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -1261,7 +1291,7 @@ func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
 		t.Fatalf("unauthorized status = %d body=%s", unauthorized.Code, unauthorized.Body.String())
 	}
 	request := httptest.NewRequest(http.MethodPost, "/slots", nil)
-	request.Header.Set("Authorization", "Bearer test-secret")
+	request.Header.Set("Authorization", testBearerToken)
 	method := httptest.NewRecorder()
 	handler.ServeHTTP(method, request)
 	if method.Code != http.StatusMethodNotAllowed ||
@@ -1272,11 +1302,11 @@ func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
 
 func TestNativeCompletionHonorsRequestedSlot(t *testing.T) {
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
 		MaxConcurrent:      2,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -1334,11 +1364,11 @@ func TestPropertiesRejectsPost(t *testing.T) {
 
 func TestPropertiesRequiresConfiguredBearerToken(t *testing.T) {
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -1352,7 +1382,7 @@ func TestPropertiesRequiresConfiguredBearerToken(t *testing.T) {
 		t.Fatalf("unauthorized status = %d body=%s", unauthorized.Code, unauthorized.Body.String())
 	}
 	request := httptest.NewRequest(http.MethodGet, "/props", nil)
-	request.Header.Set("Authorization", "Bearer test-secret")
+	request.Header.Set("Authorization", testBearerToken)
 	authorized := httptest.NewRecorder()
 	handler.ServeHTTP(authorized, request)
 	if authorized.Code != http.StatusOK {
@@ -1362,11 +1392,11 @@ func TestPropertiesRequiresConfiguredBearerToken(t *testing.T) {
 
 func TestBearerAuthentication(t *testing.T) {
 	handler, err := New(Config{
-		ModelID:            "test-model",
-		MaxTokens:          8,
-		DefaultTemperature: 1,
-		DefaultTopP:        1,
-		APIKey:             "test-secret",
+		ModelID:            testModelID,
+		MaxTokens:          testMaxTokens,
+		DefaultTemperature: testNeutralTemperature,
+		DefaultTopP:        testFullTopP,
+		APIKey:             testAPIKey,
 	}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -1390,7 +1420,7 @@ func TestBearerAuthentication(t *testing.T) {
 		"/v1/completions",
 		strings.NewReader(body),
 	)
-	authorizedRequest.Header.Set("Authorization", "Bearer test-secret")
+	authorizedRequest.Header.Set("Authorization", testBearerToken)
 	authorized := httptest.NewRecorder()
 	handler.ServeHTTP(authorized, authorizedRequest)
 	if authorized.Code != http.StatusOK {
@@ -1549,13 +1579,13 @@ func TestNativeCompletion(t *testing.T) {
 		result.StoppingWord != "" ||
 		result.TokensPredicted != 2 ||
 		result.TokensEvaluated != 2 ||
-		result.Model != "test-model" ||
+		result.Model != testModelID ||
 		result.Prompt != "hi" ||
 		result.Timings.PredictedN != 2 {
 		t.Fatalf("native completion = %+v", result)
 	}
 	if result.GenerationSettings["n_predict"] != float64(2) ||
-		result.GenerationSettings["model"] != "test-model" {
+		result.GenerationSettings["model"] != testModelID {
 		t.Fatalf("generation settings = %#v", result.GenerationSettings)
 	}
 }
@@ -1625,8 +1655,8 @@ func TestNativeCompletionImageProjectorMultimodalPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -1676,7 +1706,7 @@ func TestNativeCompletionMultipleImagesPreservesOrder(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 	}, generator)
 	if err != nil {
@@ -1765,8 +1795,8 @@ func TestValidateMultimodalImagesEnforcesGeometryBudgets(t *testing.T) {
 
 func TestNativeCompletionRejectsOversizedImageGeometry(t *testing.T) {
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: &fakeQwen3VLProjector{},
 	}, &fakeGenerator{})
 	if err != nil {
@@ -1798,8 +1828,8 @@ func TestNativeCompletionAudioProjectorMultimodalPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	audio := &fakeAudioProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		AudioProjector: audio,
 	}, generator)
 	if err != nil {
@@ -1838,8 +1868,8 @@ func TestNativeCompletionMixedMediaPreservesChunkOrder(t *testing.T) {
 	vision := &fakeHistoryProjector{}
 	audio := &fakeAudioProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8,
-		DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision, AudioProjector: audio,
 	}, generator)
 	if err != nil {

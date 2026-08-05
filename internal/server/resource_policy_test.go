@@ -149,7 +149,7 @@ func TestResponsesImageFileIDProjectsPrompt(t *testing.T) {
 	}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
-		ModelID: "test-model", MaxTokens: 8, DefaultTemperature: 1, DefaultTopP: 1,
+		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		ImageProjector: vision,
 		ResponseFiles: responseFileMap{
 			"file_image": {Data: encoded.Bytes(), Filename: "pixel.png", MediaType: "image/png"},

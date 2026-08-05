@@ -168,7 +168,7 @@ func BuildDeepSeek4BlockCached(
 		))
 	}
 	attributes := tensor.DeepSeek4AttentionAttributes{
-		Positions: positions, Ratio: ratio, Window: spec.SlidingWindow, Heads: spec.HeadCount,
+		Positions: positions, Ratio: tensor.DeepSeek4CompressionRatio(ratio), Window: spec.SlidingWindow, Heads: spec.HeadCount,
 		IndexerHeads: spec.IndexerHeadCount, IndexerTopK: spec.IndexerTopK,
 		RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: frequencyBase, FrequencyScale: frequencyScale,
 		OriginalContext: originalContext, ExtFactor: extFactor, AttentionFactor: attentionFactor,

@@ -193,9 +193,39 @@ type DeepSeek4HCAttributes struct {
 	Epsilon            float32
 }
 
+// DeepSeek4CompressionRatio: serialized layer compression policy.
+type DeepSeek4CompressionRatio uint32
+
+const (
+	DeepSeek4CompressionNone    DeepSeek4CompressionRatio = 0
+	DeepSeek4CompressionOverlap DeepSeek4CompressionRatio = 4
+	DeepSeek4CompressionWide    DeepSeek4CompressionRatio = 128
+)
+
+func (r DeepSeek4CompressionRatio) Valid() bool {
+	return r == DeepSeek4CompressionNone ||
+		r == DeepSeek4CompressionOverlap ||
+		r == DeepSeek4CompressionWide
+}
+
+func (r DeepSeek4CompressionRatio) Enabled() bool {
+	return r != DeepSeek4CompressionNone
+}
+
+func (r DeepSeek4CompressionRatio) UsesIndexer() bool {
+	return r == DeepSeek4CompressionOverlap
+}
+
+func (r DeepSeek4CompressionRatio) KVWidthMultiplier() uint64 {
+	if r.UsesIndexer() {
+		return 2
+	}
+	return 1
+}
+
 type DeepSeek4AttentionAttributes struct {
 	Positions        []uint32
-	Ratio            uint32
+	Ratio            DeepSeek4CompressionRatio
 	Window           uint32
 	Heads            uint32
 	IndexerHeads     uint32

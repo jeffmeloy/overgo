@@ -158,17 +158,14 @@ func (b *Builder) DeepSeek4Attention(
 		attributes.RotaryDimensions == 0 || attributes.RotaryDimensions%2 != 0 ||
 		uint64(attributes.RotaryDimensions) > query.Shape.Dims[0] ||
 		attributes.FrequencyBase <= 0 || attributes.FrequencyScale <= 0 || attributes.NormEpsilon <= 0 ||
-		(attributes.Ratio != 0 && attributes.Ratio != 4 && attributes.Ratio != 128) {
+		!attributes.Ratio.Valid() {
 		b.setError(errors.New("DeepSeek 4 attention metadata or base inputs are invalid"))
 		return nil
 	}
 	inputs := []*Tensor{query, cacheKV, cachePositions, sinks}
 	tokens := cacheKV.Shape.Dims[2]
-	if attributes.Ratio != 0 {
-		coefficient := uint64(1)
-		if attributes.Ratio == 4 {
-			coefficient = 2
-		}
+	if attributes.Ratio.Enabled() {
+		coefficient := attributes.Ratio.KVWidthMultiplier()
 		if compressorKV == nil || compressorScore == nil || compressorNorm == nil ||
 			compressorKV.Type != dtype.F32 || compressorScore.Type != dtype.F32 || compressorNorm.Type != dtype.F32 ||
 			compressorKV.Shape != MustShape(coefficient*query.Shape.Dims[0], 1, tokens) ||
@@ -179,7 +176,7 @@ func (b *Builder) DeepSeek4Attention(
 		}
 		inputs = append(inputs, compressorKV, compressorScore, compressorNorm)
 	}
-	if attributes.Ratio == 4 {
+	if attributes.Ratio.UsesIndexer() {
 		if attributes.IndexerHeads == 0 || attributes.IndexerTopK == 0 ||
 			indexerQuery == nil || indexerWeights == nil || indexerKV == nil || indexerScore == nil || indexerNorm == nil ||
 			indexerQuery.Type != dtype.F32 || indexerWeights.Type != dtype.F32 || indexerKV.Type != dtype.F32 ||

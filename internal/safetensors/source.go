@@ -23,6 +23,12 @@ const (
 	defaultMaxTensors     = 2_000_000
 	defaultMaxRank        = 64
 	defaultMaxNameBytes   = 16 << 10
+	headerLengthBytes     = 8
+	tensorRangeFieldCount = 2
+	byteStorageBytes      = 1
+	wordStorageBytes      = 2
+	dwordStorageBytes     = 4
+	qwordStorageBytes     = 8
 )
 
 // Limits: repository metadata bounds.
@@ -300,15 +306,15 @@ func (s *Source) openShard(directory string, path string, limits Limits) error {
 	if err != nil {
 		return fmt.Errorf("safetensors: stat %s: %w", filepath.Base(path), err)
 	}
-	if info.Size() < 8 {
+	if info.Size() < headerLengthBytes {
 		return fmt.Errorf("safetensors: %s is shorter than its header prefix", filepath.Base(path))
 	}
-	var sizeBytes [8]byte
+	var sizeBytes [headerLengthBytes]byte
 	if _, err := io.ReadFull(file, sizeBytes[:]); err != nil {
 		return fmt.Errorf("safetensors: read %s header size: %w", filepath.Base(path), err)
 	}
 	headerSize := binary.LittleEndian.Uint64(sizeBytes[:])
-	if headerSize == 0 || headerSize > uint64(info.Size()-8) || headerSize > limits.MaxHeaderBytes {
+	if headerSize == 0 || headerSize > uint64(info.Size()-headerLengthBytes) || headerSize > limits.MaxHeaderBytes {
 		return fmt.Errorf("safetensors: %s header size is invalid", filepath.Base(path))
 	}
 	headerBytes := make([]byte, int(headerSize))
@@ -335,7 +341,7 @@ func (s *Source) openShard(directory string, path string, limits Limits) error {
 	if len(s.Tensors)+len(raw) > limits.MaxTensors {
 		return fmt.Errorf("safetensors: tensor count exceeds limit %d", limits.MaxTensors)
 	}
-	payloadStart := int64(8 + headerSize)
+	payloadStart := int64(headerLengthBytes + headerSize)
 	payloadSize := uint64(info.Size() - payloadStart)
 	spans := make([]payloadSpan, 0, len(raw))
 	for name, encoded := range raw {
@@ -346,7 +352,7 @@ func (s *Source) openShard(directory string, path string, limits Limits) error {
 		if err := strictjson.DecodeBytes(encoded, &header); err != nil {
 			return fmt.Errorf("safetensors: parse tensor %q: %w", name, err)
 		}
-		if len(header.Shape) > limits.MaxRank || len(header.DataOffsets) != 2 {
+		if len(header.Shape) > limits.MaxRank || len(header.DataOffsets) != tensorRangeFieldCount {
 			return fmt.Errorf("safetensors: tensor %q metadata is invalid", name)
 		}
 		if _, duplicate := s.Tensors[name]; duplicate {
@@ -426,13 +432,13 @@ func TensorBytes(dataType string, shape []uint64) (uint64, error) {
 func DTypeBytes(dataType string) (uint64, bool) {
 	switch strings.ToUpper(dataType) {
 	case "BOOL", "U8", "I8", "F8_E4M3", "F8_E4M3FN", "F8_E5M2":
-		return 1, true
+		return byteStorageBytes, true
 	case "U16", "I16", "F16", "BF16":
-		return 2, true
+		return wordStorageBytes, true
 	case "U32", "I32", "F32":
-		return 4, true
+		return dwordStorageBytes, true
 	case "U64", "I64", "F64":
-		return 8, true
+		return qwordStorageBytes, true
 	default:
 		return 0, false
 	}

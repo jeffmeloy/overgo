@@ -345,15 +345,20 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 	}
 	var compressed, indexerCompressed []deepSeek4CompressedBlock
 	var err error
-	if attributes.Ratio != 0 {
-		compressed, err = deepSeek4CompressedBlocks(inputs[4], inputs[5], inputs[6], attributes.Ratio, width, cachePositions, attributes)
+	if attributes.Ratio.Enabled() {
+		compressed, err = deepSeek4CompressedBlocks(
+			inputs[4], inputs[5], inputs[6], uint32(attributes.Ratio), width, cachePositions, attributes,
+		)
 		if err != nil {
 			return Value{}, err
 		}
 	}
-	if attributes.Ratio == 4 {
+	if attributes.Ratio.UsesIndexer() {
 		indexerWidth := uint32(inputs[7].Shape.Dims[0])
-		indexerCompressed, err = deepSeek4CompressedBlocks(inputs[9], inputs[10], inputs[11], 4, indexerWidth, cachePositions, attributes)
+		indexerCompressed, err = deepSeek4CompressedBlocks(
+			inputs[9], inputs[10], inputs[11],
+			uint32(tensor.DeepSeek4CompressionOverlap), indexerWidth, cachePositions, attributes,
+		)
 		if err != nil {
 			return Value{}, err
 		}
@@ -367,11 +372,11 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 		position := attributes.Positions[token]
 		visibleCompressed := make([]int, 0, len(compressed))
 		for index, block := range compressed {
-			if block.position+attributes.Ratio <= position+1 {
+			if block.position+uint32(attributes.Ratio) <= position+1 {
 				visibleCompressed = append(visibleCompressed, index)
 			}
 		}
-		if attributes.Ratio == 4 && len(visibleCompressed) > 0 {
+		if attributes.Ratio.UsesIndexer() && len(visibleCompressed) > 0 {
 			type scored struct {
 				index int
 				score float64

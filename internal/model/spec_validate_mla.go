@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"llamacpp2go/internal/tensor"
 )
 
 func (s Spec) validateMLAFamilies() error {
@@ -88,7 +90,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DeepSeek 4 YaRN metadata is invalid")
 		}
 		for block, ratio := range s.CompressRatios {
-			if ratio != 0 && ratio != 4 && ratio != 128 {
+			if !tensor.DeepSeek4CompressionRatio(ratio).Valid() {
 				return fmt.Errorf("DeepSeek 4 layer %d compression ratio is invalid", block)
 			}
 			for _, limit := range []float32{s.LayerSwiGLUClamp[block], s.LayerSharedSwiGLUClamp[block]} {

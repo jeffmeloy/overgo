@@ -12,6 +12,11 @@ var ErrLimit = errors.New("state codec size limit exceeded")
 var ErrTruncated = errors.New("state codec input is truncated")
 var ErrTrailing = errors.New("state codec input has trailing data")
 
+const (
+	uint32Bytes = 4
+	uint64Bytes = 8
+)
+
 type Encoder struct {
 	data  []byte
 	limit uint64
@@ -41,17 +46,17 @@ func (e *Encoder) Raw(value []byte) {
 }
 
 func (e *Encoder) U32(value uint32) {
-	if !e.grow(4) {
+	if !e.grow(uint32Bytes) {
 		return
 	}
-	binary.LittleEndian.PutUint32(e.data[len(e.data)-4:], value)
+	binary.LittleEndian.PutUint32(e.data[len(e.data)-uint32Bytes:], value)
 }
 
 func (e *Encoder) U64(value uint64) {
-	if !e.grow(8) {
+	if !e.grow(uint64Bytes) {
 		return
 	}
-	binary.LittleEndian.PutUint64(e.data[len(e.data)-8:], value)
+	binary.LittleEndian.PutUint64(e.data[len(e.data)-uint64Bytes:], value)
 }
 
 func (e *Encoder) F32(value float32) {
@@ -130,7 +135,7 @@ func (d *Decoder) Raw(size uint64) []byte {
 }
 
 func (d *Decoder) U32() uint32 {
-	data := d.Raw(4)
+	data := d.Raw(uint32Bytes)
 	if data == nil {
 		return 0
 	}
@@ -138,7 +143,7 @@ func (d *Decoder) U32() uint32 {
 }
 
 func (d *Decoder) U64() uint64 {
-	data := d.Raw(8)
+	data := d.Raw(uint64Bytes)
 	if data == nil {
 		return 0
 	}

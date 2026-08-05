@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 
+	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tensor/dtype"
 )
 
@@ -67,11 +68,8 @@ func readDeepSeek4WeightCatalog(catalog weightCatalog, spec Spec) (Weights, erro
 			}
 			layer.FeedForwardRouterBias = &loaded
 		}
-		if ratio := spec.CompressRatios[block]; ratio != 0 {
-			coefficient := uint64(1)
-			if ratio == 4 {
-				coefficient = 2
-			}
+		if ratio := tensor.DeepSeek4CompressionRatio(spec.CompressRatios[block]); ratio.Enabled() {
+			coefficient := ratio.KVWidthMultiplier()
 			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("attn_compressor_kv.weight", &layer.AttentionCompressorKV, width, coefficient*headWidth),
 				requiredTensorPointer("attn_compressor_gate.weight", &layer.AttentionCompressorGate, width, coefficient*headWidth),
@@ -81,14 +79,19 @@ func readDeepSeek4WeightCatalog(catalog weightCatalog, spec Spec) (Weights, erro
 				return Weights{}, err
 			}
 		}
-		if spec.CompressRatios[block] == 4 {
+		if tensor.DeepSeek4CompressionRatio(spec.CompressRatios[block]).UsesIndexer() {
 			indexerWidth := uint64(spec.IndexerKeyLength)
 			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, width, uint64(spec.IndexerHeadCount)),
 				requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*indexerWidth),
 				requiredTensorPointer("indexer_compressor_kv.weight", &layer.IndexerCompressorKV, width, 2*indexerWidth),
 				requiredTensorPointer("indexer_compressor_gate.weight", &layer.IndexerCompressorGate, width, 2*indexerWidth),
-				requiredTensorPointer("indexer_compressor_ape.weight", &layer.IndexerCompressorAPE, 2*indexerWidth, 4),
+				requiredTensorPointer(
+					"indexer_compressor_ape.weight",
+					&layer.IndexerCompressorAPE,
+					2*indexerWidth,
+					uint64(tensor.DeepSeek4CompressionOverlap),
+				),
 				requiredTensorPointer("indexer_compressor_norm.weight", &layer.IndexerCompressorNorm, indexerWidth),
 			}); err != nil {
 				return Weights{}, err

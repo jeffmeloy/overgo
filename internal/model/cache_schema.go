@@ -63,19 +63,16 @@ func CacheSchemaForPlan(
 		))
 	}
 	if plan.Cache == CacheDeepSeek4 {
-		ratio := spec.CompressRatios[layerIndex]
+		ratio := tensor.DeepSeek4CompressionRatio(spec.CompressRatios[layerIndex])
 		schema.StrictStates = true
 		schema.States["positions"] = token(tensor.MustShape(1, 1, uint64(shapeTokens)))
-		if ratio != 0 {
-			coefficient := uint64(1)
-			if ratio == 4 {
-				coefficient = 2
-			}
+		if ratio.Enabled() {
+			coefficient := ratio.KVWidthMultiplier()
 			shape := tensor.MustShape(coefficient*uint64(spec.KeyLength), 1, uint64(shapeTokens))
 			schema.States["compressor_kv"] = token(shape)
 			schema.States["compressor_score"] = token(shape)
 		}
-		if ratio == 4 {
+		if ratio.UsesIndexer() {
 			shape := tensor.MustShape(2*uint64(spec.IndexerKeyLength), 1, uint64(shapeTokens))
 			schema.States["indexer_compressor_kv"] = token(shape)
 			schema.States["indexer_compressor_score"] = token(shape)

@@ -1524,25 +1524,26 @@ func TestDeepSeek4CompressedBlocksSkipIncompletePositionGroup(t *testing.T) {
 func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		ratio uint32
-	}{{"ratio_4", 4}, {"ratio_128", 128}} {
+		ratio tensor.DeepSeek4CompressionRatio
+	}{
+		{"overlap", tensor.DeepSeek4CompressionOverlap},
+		{"wide", tensor.DeepSeek4CompressionWide},
+	} {
 		t.Run(test.name, func(t *testing.T) {
 			ratio := test.ratio
+			ratioWidth := uint32(ratio)
 			builder := tensor.NewBuilder()
-			position := ratio - 1
+			position := ratioWidth - 1
 			query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 1))
-			cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, uint64(ratio)))
-			positions := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, uint64(ratio)))
+			cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, uint64(ratioWidth)))
+			positions := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, uint64(ratioWidth)))
 			sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-			coefficient := uint64(1)
-			if ratio == 4 {
-				coefficient = 2
-			}
-			compressorKV := builder.Input("compressor_kv", dtype.F32, tensor.MustShape(2*coefficient, 1, uint64(ratio)))
+			coefficient := ratio.KVWidthMultiplier()
+			compressorKV := builder.Input("compressor_kv", dtype.F32, tensor.MustShape(2*coefficient, 1, uint64(ratioWidth)))
 			compressorScore := builder.Input("compressor_score", dtype.F32, compressorKV.Shape)
 			compressorNorm := builder.Input("compressor_norm", dtype.F32, tensor.MustShape(2))
 			var indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm *tensor.Tensor
-			if ratio == 4 {
+			if ratio.UsesIndexer() {
 				indexerQuery = builder.Input("indexer_query", dtype.F32, tensor.MustShape(2, 1, 1))
 				indexerWeights = builder.Input("indexer_weights", dtype.F32, tensor.MustShape(1, 1))
 				indexerKV = builder.Input("indexer_kv", dtype.F32, tensor.MustShape(4, 1, 4))
@@ -1561,12 +1562,12 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 			if err := builder.Err(); err != nil {
 				t.Fatal(err)
 			}
-			cacheData := make([]float32, 2*ratio)
-			for token := uint32(0); token < ratio; token++ {
+			cacheData := make([]float32, 2*ratioWidth)
+			for token := uint32(0); token < ratioWidth; token++ {
 				cacheData[2*token] = 1
 			}
-			compressorData := make([]float32, 2*uint32(coefficient)*ratio)
-			for token := uint32(0); token < ratio; token++ {
+			compressorData := make([]float32, 2*uint32(coefficient)*ratioWidth)
+			for token := uint32(0); token < ratioWidth; token++ {
 				compressorData[token*2*uint32(coefficient)+2*(uint32(coefficient)-1)] = 2
 			}
 			feeds := map[*tensor.Tensor]Value{
@@ -1576,12 +1577,12 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 				compressorScore: {Shape: compressorScore.Shape, Data: make([]float32, len(compressorData))},
 				compressorNorm:  {Shape: compressorNorm.Shape, Data: []float32{1, 1}},
 			}
-			positionData := make([]float32, ratio)
+			positionData := make([]float32, ratioWidth)
 			for index := range positionData {
 				positionData[index] = float32(index)
 			}
 			feeds[positions] = Value{Shape: positions.Shape, Data: positionData}
-			if ratio == 4 {
+			if ratio.UsesIndexer() {
 				feeds[indexerQuery] = Value{Shape: indexerQuery.Shape, Data: []float32{0, 0}}
 				feeds[indexerWeights] = Value{Shape: indexerWeights.Shape, Data: []float32{1}}
 				feeds[indexerKV] = Value{Shape: indexerKV.Shape, Data: append([]float32(nil), compressorData...)}

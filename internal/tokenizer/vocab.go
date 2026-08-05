@@ -16,6 +16,20 @@ const NullToken TokenID = -1
 // TokenID: compatible with llama_token
 type TokenID int32
 
+const (
+	legacyDefaultSpecialTokenID TokenID = 11
+	llamaBOSTokenID             TokenID = 1
+	llamaEOSTokenID             TokenID = 2
+	llamaUNKTokenID             TokenID = 0
+	t5EOSTokenID                TokenID = 1
+	t5UNKTokenID                TokenID = 2
+	bertBOSTokenID              TokenID = 101
+	bertUNKTokenID              TokenID = 100
+	bertSEPTokenID              TokenID = 102
+	bertPADTokenID              TokenID = 0
+	bertMaskTokenID             TokenID = 103
+)
+
 // TokenType: legacy tokenizer.ggml.token_type value
 type TokenType int32
 
@@ -137,8 +151,8 @@ func Load(file *gguf.File) (*Vocab, error) {
 		Model:         model,
 		Pre:           pre,
 		Tokens:        make([]Token, len(tokenTexts)),
-		BOS:           11,
-		EOS:           11,
+		BOS:           legacyDefaultSpecialTokenID,
+		EOS:           legacyDefaultSpecialTokenID,
 		EOT:           NullToken,
 		EOM:           NullToken,
 		UNK:           NullToken,
@@ -159,23 +173,23 @@ func Load(file *gguf.File) (*Vocab, error) {
 		vocab.EOS = NullToken
 		vocab.AddBOS = true
 	} else if model == "llama" {
-		vocab.BOS = 1
-		vocab.EOS = 2
-		vocab.UNK = 0
+		vocab.BOS = llamaBOSTokenID
+		vocab.EOS = llamaEOSTokenID
+		vocab.UNK = llamaUNKTokenID
 		vocab.AddBOS = true
 		vocab.AddPrefix = true
 	} else if model == "t5" {
 		vocab.BOS = NullToken
-		vocab.EOS = 1
-		vocab.UNK = 2
+		vocab.EOS = t5EOSTokenID
+		vocab.UNK = t5UNKTokenID
 		vocab.AddPrefix = true
 	} else if model == "bert" {
-		vocab.BOS = 101
+		vocab.BOS = bertBOSTokenID
 		vocab.EOS = NullToken
-		vocab.UNK = 100
-		vocab.SEP = 102
-		vocab.PAD = 0
-		vocab.Mask = 103
+		vocab.UNK = bertUNKTokenID
+		vocab.SEP = bertSEPTokenID
+		vocab.PAD = bertPADTokenID
+		vocab.Mask = bertMaskTokenID
 		vocab.AddBOS = true
 		vocab.AddSEP = true
 	} else if policy := preTokenizers[pre]; policy.ignoreMerges {

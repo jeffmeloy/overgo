@@ -44,6 +44,7 @@ type committedBatch struct {
 
 type catalogState struct {
 	artifacts map[artifact.ID]artifact.Descriptor
+	contents  map[artifact.ID]artifact.Content
 	manifests map[artifact.ID]artifact.Manifest
 	aliases   map[string]artifact.ID
 	lineage   map[relationKey]artifact.Lineage
@@ -55,6 +56,7 @@ type catalogState struct {
 func newCatalogState() catalogState {
 	return catalogState{
 		artifacts: map[artifact.ID]artifact.Descriptor{},
+		contents:  map[artifact.ID]artifact.Content{},
 		manifests: map[artifact.ID]artifact.Manifest{},
 		aliases:   map[string]artifact.ID{},
 		lineage:   map[relationKey]artifact.Lineage{},
@@ -75,6 +77,11 @@ func (s catalogState) validate(batch artifact.Batch) error {
 	for _, manifest := range batch.Manifests {
 		if current, ok := s.manifests[manifest.ID]; ok && !sameManifest(current, manifest) {
 			return fmt.Errorf("%w: manifest %s", ErrArtifactConflict, manifest.ID)
+		}
+	}
+	for _, content := range batch.Contents {
+		if current, ok := s.contents[content.Descriptor.ID]; ok && !sameContent(current, content) {
+			return fmt.Errorf("%w: content %s", ErrArtifactConflict, content.Descriptor.ID)
 		}
 	}
 	for _, binding := range batch.Aliases {
@@ -138,6 +145,9 @@ func (s *catalogState) apply(batch artifact.Batch) {
 	for _, descriptor := range batch.Artifacts {
 		s.artifacts[descriptor.ID] = descriptor
 	}
+	for _, content := range batch.Contents {
+		s.contents[content.Descriptor.ID] = content.Clone()
+	}
 	for _, manifest := range batch.Manifests {
 		s.manifests[manifest.ID] = cloneManifest(manifest)
 	}
@@ -169,6 +179,10 @@ func (s *catalogState) apply(batch artifact.Batch) {
 
 func sameManifest(left, right artifact.Manifest) bool {
 	return left.Version == right.Version && left.ID == right.ID && slices.Equal(left.Components, right.Components)
+}
+
+func sameContent(left, right artifact.Content) bool {
+	return left.Descriptor == right.Descriptor && bytes.Equal(left.Data, right.Data)
 }
 
 func cloneManifest(manifest artifact.Manifest) artifact.Manifest {
@@ -314,6 +328,19 @@ func (s *Store) Manifest(ctx context.Context, id artifact.ID) (artifact.Manifest
 	}
 	value, ok := s.state.manifests[id]
 	return cloneManifest(value), ok, nil
+}
+
+func (s *Store) Content(ctx context.Context, id artifact.ID) (artifact.Content, bool, error) {
+	if err := contextError(ctx); err != nil {
+		return artifact.Content{}, false, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return artifact.Content{}, false, err
+	}
+	value, ok := s.state.contents[id]
+	return value.Clone(), ok, nil
 }
 
 func (s *Store) ResolveAlias(ctx context.Context, name string) (artifact.ID, bool, error) {
@@ -482,10 +509,14 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	result := artifact.Batch{
 		Key:       batch.Key,
 		Artifacts: slices.Clone(batch.Artifacts),
+		Contents:  cloneContents(batch.Contents),
 		Manifests: cloneManifests(batch.Manifests),
 		Lineage:   slices.Clone(batch.Lineage),
 		Aliases:   cloneAliases(batch.Aliases),
 		Locations: slices.Clone(batch.Locations),
+	}
+	for _, content := range result.Contents {
+		result.Artifacts = append(result.Artifacts, content.Descriptor)
 	}
 	for _, manifest := range result.Manifests {
 		descriptor, err := manifest.Descriptor()
@@ -512,6 +543,14 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		artifacts = append(artifacts, descriptor)
 	}
 	result.Artifacts = artifacts
+	sort.Slice(result.Contents, func(i, j int) bool {
+		return result.Contents[i].Descriptor.ID.String() < result.Contents[j].Descriptor.ID.String()
+	})
+	for index := 1; index < len(result.Contents); index++ {
+		if result.Contents[index-1].Descriptor.ID == result.Contents[index].Descriptor.ID {
+			return artifact.Batch{}, fmt.Errorf("repodb: duplicate content %s", result.Contents[index].Descriptor.ID)
+		}
+	}
 	sort.Slice(result.Manifests, func(i, j int) bool {
 		return result.Manifests[i].ID.String() < result.Manifests[j].ID.String()
 	})
@@ -569,6 +608,14 @@ func cloneManifests(manifests []artifact.Manifest) []artifact.Manifest {
 	result := slices.Clone(manifests)
 	for index := range result {
 		result[index] = cloneManifest(result[index])
+	}
+	return result
+}
+
+func cloneContents(contents []artifact.Content) []artifact.Content {
+	result := slices.Clone(contents)
+	for index := range result {
+		result[index] = result[index].Clone()
 	}
 	return result
 }

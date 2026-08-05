@@ -158,6 +158,7 @@ func (b AliasBinding) Validate() error {
 type Batch struct {
 	Key       string          `json:"key"`
 	Artifacts []Descriptor    `json:"artifacts,omitempty"`
+	Contents  []Content       `json:"contents,omitempty"`
 	Manifests []Manifest      `json:"manifests,omitempty"`
 	Lineage   []Lineage       `json:"lineage,omitempty"`
 	Aliases   []AliasBinding  `json:"aliases,omitempty"`
@@ -168,11 +169,16 @@ func (b Batch) Validate() error {
 	if b.Key == "" || len(b.Key) > maxBatchKeyBytes || strings.TrimSpace(b.Key) != b.Key || strings.ContainsAny(b.Key, "\r\n") {
 		return errors.New("artifact: invalid batch key")
 	}
-	if len(b.Artifacts)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0 {
+	if len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0 {
 		return errors.New("artifact: empty batch")
 	}
 	for _, descriptor := range b.Artifacts {
 		if err := descriptor.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, content := range b.Contents {
+		if err := content.Validate(); err != nil {
 			return err
 		}
 	}
@@ -213,6 +219,7 @@ func (id CommitID) Valid() bool {
 // Reader: storage-neutral artifact queries
 type Reader interface {
 	Artifact(context.Context, ID) (Descriptor, bool, error)
+	Content(context.Context, ID) (Content, bool, error)
 	Manifest(context.Context, ID) (Manifest, bool, error)
 	ResolveAlias(context.Context, string) (ID, bool, error)
 	Parents(context.Context, ID) ([]Lineage, error)

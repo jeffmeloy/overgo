@@ -18,6 +18,10 @@ Current foundation:
 - Fail-closed single-writer locking.
 - Concurrent read/query safety and read-only store access.
 - GGUF single/split and Hugging Face Safetensors inventory adapters.
+- Bounded inline content records for independently owned typed schemas.
+- Canonical typed recipe DAGs persisted as content-addressed documents.
+- Model recipe binding that compiles through the existing `ModelPlan` and
+  `LayerPlan` authority.
 
 Storage layout:
 
@@ -47,8 +51,8 @@ repository therefore preserves its manifest identity.
 
 Planned layers:
 
-1. Typed recipe DAGs with named ports, schemas, and placement.
-2. Recipe candidate, validation, activation, refusal, and supersession events.
+1. Recipe candidate, validation, activation, refusal, and supersession events.
+2. Generation, embedding, rerank, projector, and training module bindings.
 3. Dataset versions, assets, views, splits, and mixtures.
 4. Run, evaluation, evidence, and promotion records.
 5. Immutable segments plus versioned snapshots and rebuildable indexes.

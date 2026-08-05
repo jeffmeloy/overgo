@@ -509,23 +509,11 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		pastTokens = cache.Tokens
 		nextPosition = effectiveCachePosition(cache)
 	}
-	if uint64(pastTokens)+uint64(len(tokenIDs)) > uint64(r.spec.ContextLength) {
-		return reference.Value{}, nil, fmt.Errorf(
-			"inference: cached plus new token count %d exceeds context length %d",
-			uint64(pastTokens)+uint64(len(tokenIDs)),
-			r.spec.ContextLength,
-		)
-	}
-	if uint64(nextPosition)+uint64(len(tokenIDs)) > math.MaxUint32 {
-		return reference.Value{}, nil, errors.New(
-			"inference: absolute token position exceeds uint32",
-		)
-	}
-	rows, err := r.tokenRows(tokenIDs)
+	sequence, err := r.planForwardSequence(tokenIDs, pastTokens, nextPosition)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	positions := tokenPositions(nextPosition, len(tokenIDs))
+	rows, positions := sequence.rows, sequence.positions
 	if multiPositions != nil {
 		positions = append(positions[:0], (*multiPositions)[0]...)
 	}

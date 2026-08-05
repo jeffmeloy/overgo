@@ -538,20 +538,11 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(errors.New("device cache layer count differs"))
 		}
 	}
-	if uint64(pastTokens)+uint64(len(tokenIDs)) > uint64(r.spec.ContextLength) {
-		return fail(fmt.Errorf(
-			"cached plus new token count %d exceeds context length %d",
-			uint64(pastTokens)+uint64(len(tokenIDs)), r.spec.ContextLength,
-		))
-	}
-	if uint64(nextPosition)+uint64(len(tokenIDs)) > math.MaxUint32 {
-		return fail(errors.New("absolute token position exceeds uint32"))
-	}
-	rows, err := r.tokenRows(tokenIDs)
+	sequence, err := r.planForwardSequence(tokenIDs, pastTokens, nextPosition)
 	if err != nil {
 		return fail(err)
 	}
-	positions := tokenPositions(nextPosition, len(tokenIDs))
+	rows, positions := sequence.rows, sequence.positions
 	prefix := fmt.Sprintf("seq.%d.", branch)
 	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
 	if err != nil {
@@ -560,12 +551,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	current := builder.GetRows(embeddingTable, rows)
 	deviceFeeds[embeddingTable] = embeddingPointer
 	if r.weights.PositionEmbedding != nil {
-		for _, position := range positions {
-			if position >= r.spec.ContextLength {
-				return fail(fmt.Errorf(
-					"learned position %d exceeds context length %d", position, r.spec.ContextLength,
-				))
-			}
+		if positionErr := validateLearnedPositions(positions, r.spec.ContextLength); positionErr != nil {
+			return fail(positionErr)
 		}
 		positionTable, pointer, positionErr := r.deviceInput(builder, *r.weights.PositionEmbedding)
 		if positionErr != nil {

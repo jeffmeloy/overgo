@@ -97,14 +97,8 @@ func (r *Runner) addPositionEmbeddings(
 	if r.weights.PositionEmbedding == nil {
 		return activation, nil
 	}
-	for _, position := range positions {
-		if position >= r.spec.ContextLength {
-			return reference.Value{}, fmt.Errorf(
-				"inference: learned position %d exceeds context length %d",
-				position,
-				r.spec.ContextLength,
-			)
-		}
+	if err := validateLearnedPositions(positions, r.spec.ContextLength); err != nil {
+		return reference.Value{}, err
 	}
 	positionRows, err := r.loadRows(ctx, *r.weights.PositionEmbedding, positions)
 	if err != nil {

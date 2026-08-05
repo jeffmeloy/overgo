@@ -17,6 +17,7 @@ import (
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/projector"
+	"llamacpp2go/internal/safetensors"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -112,7 +113,7 @@ func Convert(options Options) (Report, error) {
 	if err := validateConfig(config); err != nil {
 		return Report{}, err
 	}
-	source, err := OpenSource(directory)
+	source, err := safetensors.OpenSource(directory)
 	if err != nil {
 		return Report{}, err
 	}
@@ -359,7 +360,7 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 var byteTokenPattern = regexp.MustCompile(`^<0x[0-9A-Fa-f]{2}>$`)
 var layerNamePattern = regexp.MustCompile(`^model\.language_model\.layers\.(\d+)\.(.+)$`)
 
-func modelTensors(source *Source, config modelConfig) ([]gguf.TensorData, error) {
+func modelTensors(source *safetensors.Source, config modelConfig) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(source.Tensors)+1)
 	for sourceName, tensor := range source.Tensors {
 		destinationName, include := modelTensorName(sourceName)
@@ -438,7 +439,7 @@ func modelTensorName(name string) (string, bool) {
 	return "blk." + match[1] + "." + suffix, true
 }
 
-func modelTensorReader(source *Source, tensor Tensor) (gguf.DType, io.Reader, error) {
+func modelTensorReader(source *safetensors.Source, tensor safetensors.Tensor) (gguf.DType, io.Reader, error) {
 	if strings.HasSuffix(tensor.Name, ".layer_scalar") {
 		if tensor.DType != "BF16" {
 			return 0, nil, errors.New("layer scalar must use BF16")
@@ -517,7 +518,7 @@ func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
 	}
 }
 
-func projectorTensors(source *Source, outputF32 bool) ([]gguf.TensorData, error) {
+func projectorTensors(source *safetensors.Source, outputF32 bool) ([]gguf.TensorData, error) {
 	mapping := []struct{ source, destination string }{
 		{"model.embed_vision.patch_dense.weight", "v.patch_embd.weight"},
 		{"model.embed_vision.patch_dense.bias", "v.patch_embd.bias"},

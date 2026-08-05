@@ -9,6 +9,14 @@ go:
   minimum: "1.26"
   cgo: false
 claims:
+  - id: bounded-safetensors-repositories
+    status: implemented
+    summary: Safetensors repositories apply config, index, shard, header, tensor, dtype, range, overlap, and catalog bounds.
+    evidence:
+      - path: internal/safetensors/source.go
+        contains: "func OpenSourceWithLimits("
+      - path: internal/safetensors/source_test.go
+        contains: "func TestOpenSourceRejectsInvalidRepositories("
   - id: bounded-gguf-parsing
     status: implemented
     summary: GGUF parsing applies allocation, count, alignment, and split limits.

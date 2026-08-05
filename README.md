@@ -62,6 +62,7 @@ Inspect or tokenize a GGUF model with:
 
 ```powershell
 go run ./cmd/inspect-gguf -metadata -tensors <model.gguf>
+go run ./cmd/inspect-safetensors -tensors <model-directory>
 go run ./cmd/gguf-hash -all -uuid <model.gguf>
 go run ./cmd/gguf-merge -out merged.gguf <first-split-or-single.gguf>
 go run ./cmd/gguf-quantize <input.gguf> <output.gguf> q4_0
@@ -118,6 +119,13 @@ GGUF or legacy importance matrices, including per-expert normalization and
 llama.cpp-compatible provenance metadata. The tool updates GGUF quantization
 metadata, accepts split input, never overwrites an existing output, and offers
 `-all` for compatible one-dimensional tensors.
+
+`inspect-safetensors` validates a Hugging Face repository without reading
+tensor bodies. Shard indexes own discovery when present; shard paths, header
+sizes, tensor counts, ranks, dtypes, byte ranges, duplicate names, overlaps,
+and index/catalog parity are bounded and checked. The report includes config
+identity, tokenizer/processor companions, shard names, dtype totals, parameter
+count, and optional tensor descriptors.
 
 `gemma4-gguf-convert` streams a Hugging Face Gemma 4 unified checkpoint into
 runtime-ready language and multimodal GGUF files. ModelOpt `F8_E4M3` MLP

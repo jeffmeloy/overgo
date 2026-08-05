@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"llamacpp2go/internal/safetensors"
 	"llamacpp2go/internal/tensor/dtype"
 )
 
@@ -25,8 +26,14 @@ func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 	if _, err := file.Write(append(weights, encodedScales...)); err != nil {
 		t.Fatal(err)
 	}
-	weight := Tensor{Name: "weight", DType: "F8_E4M3", Shape: []uint64{2, 4}, file: file, size: int64(len(weights))}
-	scale := Tensor{Name: "scale", DType: "F32", Shape: []uint64{2}, file: file, offset: int64(len(weights)), size: int64(len(encodedScales))}
+	weight, err := safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	scale, err := safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales)))
+	if err != nil {
+		t.Fatal(err)
+	}
 	reader, err := newFP8BF16Reader(weight, scale)
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +67,10 @@ func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	source := Tensor{DType: "BF16", Shape: []uint64{2, 2, 2}, file: file, size: 16}
+	source, err := safetensors.NewTensor("position", "BF16", []uint64{2, 2, 2}, file, 0, 16)
+	if err != nil {
+		t.Fatal(err)
+	}
 	reader, err := newPositionReader(source)
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +101,10 @@ func TestPatchPermutationReaderConvertsInterleavedToPlanar(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	source := Tensor{DType: "BF16", Shape: []uint64{2, 6}, file: file, size: 24}
+	source, err := safetensors.NewTensor("patch", "BF16", []uint64{2, 6}, file, 0, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
 	reader, err := newPatchPermutationReader(source)
 	if err != nil {
 		t.Fatal(err)

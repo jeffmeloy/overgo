@@ -6,11 +6,12 @@ import (
 	"io"
 	"math"
 
+	"llamacpp2go/internal/safetensors"
 	"llamacpp2go/internal/tensor/dtype"
 )
 
 type fp8BF16Reader struct {
-	weight Tensor
+	weight safetensors.Tensor
 	scales []float32
 	width  int
 	row    int
@@ -19,7 +20,7 @@ type fp8BF16Reader struct {
 	offset int
 }
 
-func newFP8BF16Reader(weight Tensor, scale Tensor) (*fp8BF16Reader, error) {
+func newFP8BF16Reader(weight safetensors.Tensor, scale safetensors.Tensor) (*fp8BF16Reader, error) {
 	if weight.DType != "F8_E4M3" || len(weight.Shape) != 2 || scale.DType != "F32" ||
 		len(scale.Shape) != 1 || scale.Shape[0] != weight.Shape[0] {
 		return nil, errors.New("FP8 weight/scale shape is incompatible")
@@ -132,7 +133,7 @@ func (r *bf16F32Reader) Read(destination []byte) (int, error) {
 }
 
 type positionReader struct {
-	source Tensor
+	source safetensors.Tensor
 	axis   int
 	row    int
 	rows   int
@@ -142,7 +143,7 @@ type positionReader struct {
 }
 
 type patchPermutationReader struct {
-	source Tensor
+	source safetensors.Tensor
 	rows   int
 	width  int
 	row    int
@@ -151,7 +152,7 @@ type patchPermutationReader struct {
 	offset int
 }
 
-func newPatchPermutationReader(source Tensor) (*patchPermutationReader, error) {
+func newPatchPermutationReader(source safetensors.Tensor) (*patchPermutationReader, error) {
 	if source.DType != "BF16" || (len(source.Shape) != 1 && len(source.Shape) != 2) {
 		return nil, errors.New("patch tensor must be rank-1 or rank-2 BF16")
 	}
@@ -203,7 +204,7 @@ func (r *patchPermutationReader) Read(destination []byte) (int, error) {
 	return written, nil
 }
 
-func newPositionReader(source Tensor) (*positionReader, error) {
+func newPositionReader(source safetensors.Tensor) (*positionReader, error) {
 	if source.DType != "BF16" || len(source.Shape) != 3 || source.Shape[1] != 2 ||
 		source.Shape[0] > math.MaxInt || source.Shape[2] > math.MaxInt {
 		return nil, errors.New("vision position tensor must be BF16 [position,2,hidden]")

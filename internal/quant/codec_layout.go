@@ -1,5 +1,45 @@
 package quant
 
+type codecField struct {
+	start int
+	size  int
+}
+
+func field(start, size int) codecField {
+	return codecField{start: start, size: size}
+}
+
+func (f codecField) bytes(block []byte) []byte {
+	return block[f.start : f.start+f.size]
+}
+
+type blockCodecLayout struct {
+	width int
+	size  int
+}
+
+func (l blockCodecLayout) input(values []float32, block int) []float32 {
+	return values[block*l.width : (block+1)*l.width]
+}
+
+func (l blockCodecLayout) storage(data []byte, block int) []byte {
+	return data[block*l.size : (block+1)*l.size]
+}
+
+func (l blockCodecLayout) storage64(data []byte, block uint64) []byte {
+	start := int(block) * l.size
+	return data[start : start+l.size]
+}
+
+type affineKCodecLayout struct {
+	block   blockCodecLayout
+	delta   codecField
+	minimum codecField
+	scales  codecField
+	high    codecField
+	packed  codecField
+}
+
 // GGML IQ block layout facts. Offsets derive from preceding fields.
 const (
 	iqScaleBytes      = 2
@@ -90,4 +130,33 @@ const (
 	q1BlockWidth  = 128
 	q1PackedBytes = q1BlockWidth / 8
 	q1BlockBytes  = iqScaleBytes + q1PackedBytes
+)
+
+var (
+	q2KCodec = affineKCodecLayout{
+		block: blockCodecLayout{width: kBlockWidth, size: q2KBlockBytes},
+		delta: field(q2KScaleStart, iqScaleBytes), minimum: field(q2KMinimumStart, iqScaleBytes),
+		scales: field(q2KScaleMinStart, q2KScaleMinBytes), packed: field(q2KPackedStart, q2KPackedBytes),
+	}
+	q3KCodec = affineKCodecLayout{
+		block: blockCodecLayout{width: kBlockWidth, size: q3KBlockBytes},
+		delta: field(q3KDeltaStart, iqScaleBytes), scales: field(q3KScaleStart, q3KScaleBytes),
+		high: field(q3KHighMaskStart, q3KHighMaskBytes), packed: field(q3KPackedStart, q3KPackedBytes),
+	}
+	q4KCodec = affineKCodecLayout{
+		block: blockCodecLayout{width: kBlockWidth, size: q4KBlockBytes},
+		delta: field(q45KDeltaStart, iqScaleBytes), minimum: field(q45KMinimumStart, iqScaleBytes),
+		scales: field(q45KScaleMinStart, q45KScaleMinBytes), packed: field(q45KPayloadStart, q45KPackedBytes),
+	}
+	q5KCodec = affineKCodecLayout{
+		block: blockCodecLayout{width: kBlockWidth, size: q5KBlockBytes},
+		delta: field(q45KDeltaStart, iqScaleBytes), minimum: field(q45KMinimumStart, iqScaleBytes),
+		scales: field(q45KScaleMinStart, q45KScaleMinBytes), high: field(q45KPayloadStart, q5KHighMaskBytes),
+		packed: field(q5KPackedStart, q45KPackedBytes),
+	}
+	q6KCodec = affineKCodecLayout{
+		block: blockCodecLayout{width: kBlockWidth, size: q6KBlockBytes},
+		delta: field(q6KDeltaStart, iqScaleBytes), scales: field(q6KScaleStart, q6KScaleBytes),
+		high: field(q6KHighStart, q6KHighBytes), packed: field(q6KLowerStart, q6KLowerBytes),
+	}
 )

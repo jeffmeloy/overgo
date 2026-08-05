@@ -617,12 +617,12 @@ func dequantizeIQ4XS(source []byte, output []float32, blocks uint64, traits dtyp
 
 func dequantizeQ2K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
 	for block := uint64(0); block < blocks; block++ {
-		sourceOffset := block * traits.TypeSize
+		storage := q2KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
-		scales := source[sourceOffset+q2KScaleMinStart : sourceOffset+q2KPackedStart]
-		quantized := source[sourceOffset+q2KPackedStart : sourceOffset+q2KScaleStart]
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q2KScaleStart:]))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q2KMinimumStart:]))
+		scales := q2KCodec.scales.bytes(storage)
+		quantized := q2KCodec.packed.bytes(storage)
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q2KCodec.delta.bytes(storage)))
+		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(q2KCodec.minimum.bytes(storage)))
 		for group := 0; group < 16; group++ {
 			scaleAndMin := scales[group]
 			delta := scale * float32(scaleAndMin&0x0f)
@@ -643,12 +643,12 @@ func dequantizeQ2K(source []byte, output []float32, blocks uint64, traits dtype.
 
 func dequantizeQ3K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
 	for block := uint64(0); block < blocks; block++ {
-		sourceOffset := block * traits.TypeSize
+		storage := q3KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
-		highMasks := source[sourceOffset+q3KHighMaskStart : sourceOffset+q3KPackedStart]
-		quantized := source[sourceOffset+q3KPackedStart : sourceOffset+q3KScaleStart]
-		scales := source[sourceOffset+q3KScaleStart : sourceOffset+q3KDeltaStart]
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q3KDeltaStart:]))
+		highMasks := q3KCodec.high.bytes(storage)
+		quantized := q3KCodec.packed.bytes(storage)
+		scales := q3KCodec.scales.bytes(storage)
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q3KCodec.delta.bytes(storage)))
 		for group := 0; group < 16; group++ {
 			lowScale := scales[group%8]
 			if group >= 8 {
@@ -688,12 +688,12 @@ func scaleMinK4(index int, packed []byte) (scale, minimum byte) {
 
 func dequantizeQ4K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
 	for block := uint64(0); block < blocks; block++ {
-		sourceOffset := block * traits.TypeSize
+		storage := q4KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KDeltaStart:]))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KMinimumStart:]))
-		scales := source[sourceOffset+q45KScaleMinStart : sourceOffset+q45KPayloadStart]
-		quantized := source[sourceOffset+q45KPayloadStart : sourceOffset+q4KBlockBytes]
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q4KCodec.delta.bytes(storage)))
+		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(q4KCodec.minimum.bytes(storage)))
+		scales := q4KCodec.scales.bytes(storage)
+		quantized := q4KCodec.packed.bytes(storage)
 		for group := 0; group < 8; group++ {
 			groupScale, groupMinimum := scaleMinK4(group, scales)
 			delta := scale * float32(groupScale)
@@ -716,13 +716,13 @@ func dequantizeQ4K(source []byte, output []float32, blocks uint64, traits dtype.
 
 func dequantizeQ5K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
 	for block := uint64(0); block < blocks; block++ {
-		sourceOffset := block * traits.TypeSize
+		storage := q5KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KDeltaStart:]))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KMinimumStart:]))
-		scales := source[sourceOffset+q45KScaleMinStart : sourceOffset+q45KPayloadStart]
-		highBits := source[sourceOffset+q45KPayloadStart : sourceOffset+q5KPackedStart]
-		quantized := source[sourceOffset+q5KPackedStart : sourceOffset+q5KBlockBytes]
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q5KCodec.delta.bytes(storage)))
+		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(q5KCodec.minimum.bytes(storage)))
+		scales := q5KCodec.scales.bytes(storage)
+		highBits := q5KCodec.high.bytes(storage)
+		quantized := q5KCodec.packed.bytes(storage)
 		for group := 0; group < 8; group++ {
 			groupScale, groupMinimum := scaleMinK4(group, scales)
 			delta := scale * float32(groupScale)
@@ -754,13 +754,13 @@ func dequantizeQ6K(
 	traits dtype.Traits,
 ) {
 	for block := uint64(0); block < blocks; block++ {
-		sourceOffset := block * traits.TypeSize
+		storage := q6KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
-		lower := source[sourceOffset+q6KLowerStart : sourceOffset+q6KHighStart]
-		high := source[sourceOffset+q6KHighStart : sourceOffset+q6KScaleStart]
-		scales := source[sourceOffset+q6KScaleStart : sourceOffset+q6KDeltaStart]
+		lower := q6KCodec.packed.bytes(storage)
+		high := q6KCodec.high.bytes(storage)
+		scales := q6KCodec.scales.bytes(storage)
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(
-			source[sourceOffset+q6KDeltaStart:],
+			q6KCodec.delta.bytes(storage),
 		))
 		for group := 0; group < 2; group++ {
 			lowerBase := group * 64

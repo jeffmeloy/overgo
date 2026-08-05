@@ -18,8 +18,7 @@ const (
 	deepSeekFullIndexerPeriod   = 4
 )
 
-// UnsupportedArchitectureError: identifies valid GGUF architecture that
-// runtime cannot execute yet
+// UnsupportedArchitectureError: valid, unsupported GGUF architecture.
 type UnsupportedArchitectureError struct {
 	Architecture string
 }
@@ -29,15 +28,14 @@ func (s Spec) LayerHasFullIndexer(layer uint32) bool {
 	if s.Architecture == "deepseek32" && layer < s.BlockCount+s.NextNPredictLayers {
 		return true
 	}
-	return s.Profile().Attention == AttentionDSA && int(layer) < len(s.IndexerFullLayers) && s.IndexerFullLayers[layer]
+	return s.Profile().Attention == AttentionDSA && layerValue(s.IndexerFullLayers, layer, false)
 }
 
 func (e *UnsupportedArchitectureError) Error() string {
 	return fmt.Sprintf("model architecture %q is not supported", e.Architecture)
 }
 
-// ReadSpec: validates common metadata for initial Llama and Qwen3
-// architecture families
+// ReadSpec: validates model metadata.
 func ReadSpec(file *gguf.File) (Spec, error) {
 	metadata, err := newSpecMetadata(file)
 	if err != nil {
@@ -2325,46 +2323,43 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 	return s.Profile().Cadence.sliding(s, block)
 }
 
-// LayerHeadCount: returns query-head count selected for layer; Laguna
-// stores this metadata as either scalar or one value per layer
-func (s Spec) LayerHeadCount(block uint32) uint32 {
-	if block < uint32(len(s.LayerHeadCounts)) {
-		return s.LayerHeadCounts[block]
+func layerValue[T any](values []T, layer uint32, fallback T) T {
+	if layer < uint32(len(values)) {
+		return values[layer]
 	}
-	return s.HeadCount
+	return fallback
 }
 
-// LayerKVHeadCount: returns key/value-head count selected for layer
+// LayerHeadCount: per-layer query heads; scalar fallback.
+func (s Spec) LayerHeadCount(block uint32) uint32 {
+	return layerValue(s.LayerHeadCounts, block, s.HeadCount)
+}
+
+// LayerKVHeadCount: per-layer KV heads; scalar fallback.
 func (s Spec) LayerKVHeadCount(block uint32) uint32 {
-	if block < uint32(len(s.LayerKVHeadCounts)) {
-		return s.LayerKVHeadCounts[block]
-	}
-	return s.HeadCountKV
+	return layerValue(s.LayerKVHeadCounts, block, s.HeadCountKV)
 }
 
 func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
-	if block < uint32(len(s.LayerFeedForward)) {
-		return s.LayerFeedForward[block]
-	}
-	return s.FeedForwardLength
+	return layerValue(s.LayerFeedForward, block, s.FeedForwardLength)
 }
 
 func (s Spec) LayerKeyLength(block uint32) uint32 {
-	if (s.Architecture == "gemma4" || s.Architecture == "gemma4-assistant") && s.IsSlidingLayer(block) {
+	if s.KeyLengthSWA > 0 && s.IsSlidingLayer(block) {
 		return s.KeyLengthSWA
 	}
 	return s.KeyLength
 }
 
 func (s Spec) LayerValueLength(block uint32) uint32 {
-	if (s.Architecture == "gemma4" || s.Architecture == "gemma4-assistant") && s.IsSlidingLayer(block) {
+	if s.ValueLengthSWA > 0 && s.IsSlidingLayer(block) {
 		return s.ValueLengthSWA
 	}
 	return s.ValueLength
 }
 
 func (s Spec) LayerHasKV(block uint32) bool {
-	return (s.Architecture != "gemma4" && s.Architecture != "gemma3n") || block < s.BlockCount-s.SharedKVLayers
+	return !s.Profile().Has(ArchitectureSharedKV) || block < s.BlockCount-s.SharedKVLayers
 }
 
 func (s Spec) LayerSharedKVSource(block uint32) uint32 {
@@ -2376,36 +2371,27 @@ func (s Spec) LayerSharedKVSource(block uint32) uint32 {
 }
 
 func (s Spec) LayerRopeDimensionCount(block uint32) uint32 {
-	if (s.Architecture == "gemma4" || s.Architecture == "gemma4-assistant") && s.IsSlidingLayer(block) {
+	if s.KeyLengthSWA > 0 && s.RopeDimensionSWA > 0 && s.IsSlidingLayer(block) {
 		return s.RopeDimensionSWA
 	}
-	if s.Architecture == "step35" && !s.IsSlidingLayer(block) {
+	if s.Profile().Rotary.FactorPairs && !s.IsSlidingLayer(block) {
 		return s.RopeDimensionCount / 2
 	}
 	return s.RopeDimensionCount
 }
 
 func (s Spec) LayerExpertSwiGLUClamp(block uint32) float32 {
-	if block < uint32(len(s.LayerSwiGLUClamp)) {
-		return s.LayerSwiGLUClamp[block]
-	}
-	return 0
+	return layerValue(s.LayerSwiGLUClamp, block, 0)
 }
 
 func (s Spec) LayerSharedSwiGLUClampLimit(block uint32) float32 {
-	if block < uint32(len(s.LayerSharedSwiGLUClamp)) {
-		return s.LayerSharedSwiGLUClamp[block]
-	}
-	return 0
+	return layerValue(s.LayerSharedSwiGLUClamp, block, 0)
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
-	if s.Architecture == "cohere2" && len(s.SlidingLayers) != 0 {
-		return !s.RopeDisabled && block < s.BlockCount && s.IsSlidingLayer(block)
-	}
-	if s.Architecture == "cohere2moe" {
+	if s.Architecture == "cohere2moe" || s.Architecture == "cohere2" && len(s.SlidingLayers) != 0 {
 		return !s.RopeDisabled && block < s.BlockCount &&
-			(block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
+			(s.Architecture == "cohere2moe" && block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
 	}
 	if s.Architecture == "smallthinker" {
 		return !s.RopeDisabled && block < s.BlockCount &&

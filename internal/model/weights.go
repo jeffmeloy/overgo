@@ -1104,7 +1104,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			return Weights{}, errors.New("Gemma embedding dense projection widths do not compose")
 		}
 	}
-	if (spec.Architecture == "gemma4" || spec.Architecture == "gemma3n") && spec.EmbeddingPerLayer > 0 {
+	if profile.Has(ArchitecturePerLayerEmbeddings) && spec.EmbeddingPerLayer > 0 {
 		perLayerTokenEmbedding, itemErr := required(
 			"per_layer_token_embd.weight",
 			uint64(spec.EmbeddingPerLayer)*uint64(spec.BlockCount),
@@ -1626,7 +1626,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		); familyErr != nil {
 			return Weights{}, familyErr
 		} else if handled {
-		} else if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
+		} else if profile.Has(ArchitectureSharedKV) {
 			if layer.AttentionQ, err = required(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
 			); err != nil {
@@ -1732,7 +1732,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 			layer.AttentionQNorm = &qNorm
 			layer.AttentionKNorm = &kNorm
 		}
-		if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
+		if profile.Has(ArchitectureSharedKV) {
 			qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.LayerKeyLength(block)))
 			if normErr != nil {
 				return Weights{}, normErr
@@ -2069,7 +2069,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 				layer.FeedForwardPostNormBias = &feedForwardBias
 			}
 		}
-		if spec.Architecture == "gemma4" || spec.Architecture == "gemma3n" {
+		if profile.Has(ArchitecturePerLayerEmbeddings) {
 			if scale, ok := tensors[prefix+"layer_output_scale.weight"]; ok && spec.Architecture == "gemma4" {
 				if scale.Type != dtype.F32 || scale.Dimensions != 1 || scale.Shape[0] != 1 {
 					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", scale.Name, scale.Shape)

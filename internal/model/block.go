@@ -963,7 +963,7 @@ func BuildGemma4PerLayerInputs(
 	if builder == nil || input == nil || tokenEmbedding == nil || modelProjection == nil || projectionNorm == nil {
 		return nil, errors.New("Gemma 4 per-layer input is incomplete")
 	}
-	if (spec.Architecture != "gemma4" && spec.Architecture != "gemma3n") ||
+	if !spec.Profile().Has(ArchitecturePerLayerEmbeddings) ||
 		spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New("Gemma 4 per-layer input configuration is invalid")

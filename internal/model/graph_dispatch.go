@@ -26,12 +26,7 @@ type CachedBlockContext struct {
 }
 
 // BlockDispatchOptions: family-dispatch graph inputs.
-type BlockDispatchOptions struct {
-	Context CachedBlockContext
-	Spec    Spec
-	Weights LayerGraphWeights
-	Plan    *LayerPlan
-}
+type BlockDispatchOptions DenseBlockOptions
 
 // BuildArchitectureBlockCached: family-routed graph construction.
 func BuildArchitectureBlockCached(
@@ -114,17 +109,8 @@ func BuildArchitectureBlockCached(
 			context.Positions, context.PastKey, context.PastValue, context.Layer,
 		)
 	case BlockDense:
-		return buildAttentionFamilyBlock(options)
+		return BuildDenseBlockWithOptions(DenseBlockOptions(options))
 	default:
 		return DenseBlockResult{}, errors.New("unknown compiled block policy")
 	}
-}
-
-func buildAttentionFamilyBlock(
-	options BlockDispatchOptions,
-) (DenseBlockResult, error) {
-	context := options.Context
-	return BuildDenseBlockWithOptions(DenseBlockOptions{
-		Context: context, Spec: options.Spec, Weights: options.Weights, Plan: options.Plan,
-	})
 }

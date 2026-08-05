@@ -32,11 +32,7 @@ type Qwen3VLSpec struct {
 	DeepstackLayers    []bool
 }
 
-type Qwen3VLPreprocessOptions struct {
-	MinPixels      int
-	MaxPixels      int
-	MaxAspectRatio int
-}
+type Qwen3VLPreprocessOptions pixelBudget
 
 type Qwen3VLImage struct {
 	PixelValues []float32

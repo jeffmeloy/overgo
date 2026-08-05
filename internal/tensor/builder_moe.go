@@ -15,7 +15,7 @@ type moeOptions struct {
 	routerInput, gate          *Tensor
 	selectionBias, expertScale *Tensor
 	selectedExperts            *Tensor
-	biases                     *moeBiases
+	biases                     *MoEBiases
 	topK                       uint32
 	normalizeTopKProb          bool
 	scale                      float32
@@ -57,19 +57,10 @@ func (b *Builder) MoEWithOptions(
 	input, router, up, down *Tensor,
 	options MoEOptions,
 ) *Tensor {
-	var biases *moeBiases
-	if options.Biases != nil {
-		biases = &moeBiases{
-			router: options.Biases.Router,
-			gate:   options.Biases.Gate,
-			up:     options.Biases.Up,
-			down:   options.Biases.Down,
-		}
-	}
 	return b.buildMoE(input, router, up, down, moeOptions{
 		routerInput: options.RouterInput, gate: options.Gate,
 		selectionBias: options.SelectionBias, expertScale: options.ExpertScale,
-		selectedExperts: options.SelectedExperts, biases: biases,
+		selectedExperts: options.SelectedExperts, biases: options.Biases,
 		topK: options.TopK, normalizeTopKProb: options.NormalizeTopKProb,
 		scale: options.Scale, routing: options.Routing, activation: options.Activation,
 		fusedGateUp: options.FusedGateUp, expertIndexDivisor: options.ExpertIndexDivisor,
@@ -291,7 +282,7 @@ func (b *Builder) MoEOpenAI(
 	return b.buildMoE(input, router, up, down, moeOptions{
 		gate: gate, topK: topK, scale: scale, routing: MoERoutingSelectedSoftmax,
 		activation: MoEActivationSwiGLUOAI, expertIndexDivisor: 1,
-		biases: &moeBiases{router: routerBias, gate: gateBias, up: upBias, down: downBias},
+		biases: &MoEBiases{Router: routerBias, Gate: gateBias, Up: upBias, Down: downBias},
 	})
 }
 
@@ -442,17 +433,17 @@ func (b *Builder) buildMoE(
 		inputs = append(inputs, expertScale)
 	}
 	if biases != nil {
-		if biases.router == nil || biases.gate == nil || biases.up == nil || biases.down == nil ||
-			biases.router.Type != dtype.F32 || biases.gate.Type != dtype.F32 ||
-			biases.up.Type != dtype.F32 || biases.down.Type != dtype.F32 ||
-			biases.router.Shape != MustShape(experts) ||
-			biases.gate.Shape != MustShape(intermediate, bankExperts) ||
-			biases.up.Shape != MustShape(intermediate, bankExperts) ||
-			biases.down.Shape != MustShape(hidden, bankExperts) {
+		if biases.Router == nil || biases.Gate == nil || biases.Up == nil || biases.Down == nil ||
+			biases.Router.Type != dtype.F32 || biases.Gate.Type != dtype.F32 ||
+			biases.Up.Type != dtype.F32 || biases.Down.Type != dtype.F32 ||
+			biases.Router.Shape != MustShape(experts) ||
+			biases.Gate.Shape != MustShape(intermediate, bankExperts) ||
+			biases.Up.Shape != MustShape(intermediate, bankExperts) ||
+			biases.Down.Shape != MustShape(hidden, bankExperts) {
 			b.setError(errors.New("MoE bias shapes are invalid"))
 			return nil
 		}
-		inputs = append(inputs, biases.router, biases.gate, biases.up, biases.down)
+		inputs = append(inputs, biases.Router, biases.Gate, biases.Up, biases.Down)
 	}
 	if selectedExperts != nil {
 		if selectedExperts.Type != dtype.F32 || selectedExperts.Shape != MustShape(uint64(topK), input.Shape.Dims[1]) {

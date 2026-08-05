@@ -43,11 +43,7 @@ type Llama4VisionSpec struct {
 	FusedQKV            []bool
 }
 
-type Llama4VisionTile struct {
-	PixelValues []float32
-	GridH       int
-	GridW       int
-}
+type Llama4VisionTile gridImage
 
 type Llama4VisionInput struct {
 	Tiles []Llama4VisionTile

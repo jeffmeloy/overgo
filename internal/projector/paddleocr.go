@@ -8,7 +8,6 @@ import (
 	"math"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
 )
 
 const (
@@ -45,24 +44,9 @@ type PaddleOCRSpec struct {
 	FusedQKV              []bool
 }
 
-type PaddleOCRPreprocessOptions struct {
-	MinPixels      int
-	MaxPixels      int
-	MaxAspectRatio int
-}
-
-type PaddleOCRImage struct {
-	PixelValues []float32
-	GridH       int
-	GridW       int
-}
-
-type PaddleOCROutput struct {
-	Embeddings reference.Value
-	GridH      int
-	GridW      int
-	MergeSize  int
-}
+type PaddleOCRPreprocessOptions pixelBudget
+type PaddleOCRImage gridImage
+type PaddleOCROutput gridOutput
 
 type PaddleOCRRunner struct {
 	file *gguf.File

@@ -226,8 +226,7 @@ type WavTokenizerWeights struct {
 	Output, OutputBias         gguf.TensorInfo
 }
 
-// Qwen35MTPWeights: one pinned dense NextN block.
-type Qwen35MTPWeights struct {
+type singleMTPWeights struct {
 	MTPOnly        bool
 	Layer          LayerWeights
 	EHProjection   gguf.TensorInfo
@@ -237,6 +236,9 @@ type Qwen35MTPWeights struct {
 	OutputNorm     *gguf.TensorInfo
 	Output         *gguf.TensorInfo
 }
+
+// Qwen35MTPWeights: one pinned dense NextN block.
+type Qwen35MTPWeights singleMTPWeights
 
 // Step35MTPWeights: one full Step3.5 draft head.
 type Step35MTPWeights struct {
@@ -251,16 +253,7 @@ type Step35MTPWeights struct {
 }
 
 // Cohere2MTPWeights: one full Cohere2-MoE draft block.
-type Cohere2MTPWeights struct {
-	MTPOnly        bool
-	Layer          LayerWeights
-	EHProjection   gguf.TensorInfo
-	EmbeddingNorm  gguf.TensorInfo
-	HiddenNorm     gguf.TensorInfo
-	TokenEmbedding *gguf.TensorInfo
-	OutputNorm     *gguf.TensorInfo
-	Output         *gguf.TensorInfo
-}
+type Cohere2MTPWeights singleMTPWeights
 
 type weightRequirementLoader func(string, ...uint64) (gguf.TensorInfo, error)
 

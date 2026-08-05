@@ -7,7 +7,6 @@ import (
 	"image"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
 )
 
 const (
@@ -36,18 +35,8 @@ type MiMoVLSpec struct {
 	WindowModes        []int
 }
 
-type MiMoVLInput struct {
-	PixelValues []float32
-	GridH       int
-	GridW       int
-}
-
-type MiMoVLOutput struct {
-	Embeddings reference.Value
-	GridH      int
-	GridW      int
-	MergeSize  int
-}
+type MiMoVLInput gridImage
+type MiMoVLOutput gridOutput
 
 type MiMoVLRunner struct {
 	file *gguf.File

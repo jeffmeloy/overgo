@@ -7,7 +7,6 @@ import (
 	"image"
 
 	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
 )
 
 const hunyuanVLProjectorType = "hunyuanvl"
@@ -33,24 +32,9 @@ type HunyuanVLSpec struct {
 	FusedQKV         []bool
 }
 
-type HunyuanVLPreprocessOptions struct {
-	MinPixels      int
-	MaxPixels      int
-	MaxAspectRatio int
-}
-
-type HunyuanVLImage struct {
-	PixelValues []float32
-	GridH       int
-	GridW       int
-}
-
-type HunyuanVLOutput struct {
-	Embeddings reference.Value
-	GridH      int
-	GridW      int
-	MergeSize  int
-}
+type HunyuanVLPreprocessOptions pixelBudget
+type HunyuanVLImage gridImage
+type HunyuanVLOutput gridOutput
 
 type HunyuanVLRunner struct {
 	file *gguf.File

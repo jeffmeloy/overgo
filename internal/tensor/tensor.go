@@ -238,13 +238,6 @@ const (
 	MoEActivationReLUSquared MoEActivation = 5
 )
 
-type moeBiases struct {
-	router *Tensor
-	gate   *Tensor
-	up     *Tensor
-	down   *Tensor
-}
-
 type RepeatHeadsAttributes struct {
 	Heads uint32
 }

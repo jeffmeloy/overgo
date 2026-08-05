@@ -352,6 +352,8 @@ type ArchitectureProfile struct {
 	AttentionGraph  AttentionGraphPolicy
 	Experts         ExpertPolicy
 	Metadata        MetadataShapePolicy
+	EncoderGraph    EncoderGraphPolicy
+	MLAVariant      mlaVariantPolicy
 	Cadence         LayerCadencePolicy
 	DeciSparse      bool
 }
@@ -565,6 +567,12 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	}
 	setMetadataShape := func(policy MetadataShapePolicy, names ...string) {
 		update(names, func(profile *ArchitectureProfile) { profile.Metadata = policy })
+	}
+	setEncoderGraph := func(kind encoderGraphKind, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.EncoderGraph.Kind = kind })
+	}
+	setMLAVariant := func(kind mlaVariantPolicy, names ...string) {
+		update(names, func(profile *ArchitectureProfile) { profile.MLAVariant = kind })
 	}
 	updateDenseStages := func(names []string, apply func(*DenseStagePolicy)) {
 		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseStages) })
@@ -828,6 +836,19 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setDenseGraph(DenseGraphRWKV6, "rwkv6")
 	setDenseGraph(DenseGraphRWKV6Qwen2, "rwkv6qwen2")
 	setDenseGraph(DenseGraphRWKV7, "rwkv7", "arwkv7")
+	setEncoderGraph(encoderGraphBERT, "bert")
+	setEncoderGraph(encoderGraphJinaV2, "jina-bert-v2")
+	setEncoderGraph(encoderGraphJinaV3, "jina-bert-v3")
+	setEncoderGraph(encoderGraphNomic, "nomic-bert")
+	setEncoderGraph(encoderGraphNomicMoE, "nomic-bert-moe")
+	setEncoderGraph(encoderGraphModernBERT, "modern-bert")
+	setEncoderGraph(encoderGraphGemmaEmbedding, "gemma-embedding")
+	setEncoderGraph(encoderGraphT5, "t5")
+	setEncoderGraph(encoderGraphT5Encoder, "t5encoder")
+	setMLAVariant(mlaVariantPLM, "plm")
+	setMLAVariant(mlaVariantMiniCPM3, "minicpm3")
+	setMLAVariant(mlaVariantDeepSeek32, "deepseek32")
+	setMLAVariant(mlaVariantKimi, "kimi-linear")
 
 	updateDenseStages([]string{"olmo2", "olmoe", "minimax-m2"}, func(policy *DenseStagePolicy) {
 		policy.QK.Projection = qkNormWeighted

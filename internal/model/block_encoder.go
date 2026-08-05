@@ -16,7 +16,8 @@ func buildBERTEncoderBlock(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "bert" && spec.Architecture != "jina-bert-v2" && spec.Architecture != "jina-bert-v3" && spec.Architecture != "nomic-bert" && spec.Architecture != "nomic-bert-moe" {
+	encoder := spec.Profile().EncoderGraph
+	if !encoder.bertFamily() {
 		return DenseBlockResult{}, errors.New("BERT-family block requires a supported encoder architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -35,7 +36,7 @@ func buildBERTEncoderBlock(
 		"feed-forward post norm":      weights.FeedForwardPostNorm,
 		"feed-forward post norm bias": weights.FeedForwardPostNormBias,
 	}
-	usesExperts := (spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert-moe") &&
+	usesExperts := encoder.usesExperts() &&
 		spec.IsInterleavedMoELayer(layerIndex)
 	if usesExperts {
 		required["feed-forward router"] = weights.FeedForwardRouter
@@ -48,7 +49,7 @@ func buildBERTEncoderBlock(
 	if err := requireBlockWeights("BERT-family block", required); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.Architecture == "nomic-bert" && weights.FeedForwardGate == nil {
+	if encoder.Kind == encoderGraphNomic && weights.FeedForwardGate == nil {
 		return DenseBlockResult{}, errors.New("NomicBERT block feed-forward gate weight is nil")
 	}
 	tokens := uint64(len(positions))
@@ -82,7 +83,7 @@ func buildBERTEncoderBlock(
 			value = builder.Add(value, weights.AttentionVBias)
 		}
 	}
-	if spec.Architecture == "jina-bert-v2" {
+	if encoder.Kind == encoderGraphJinaV2 {
 		if weights.AttentionQNorm != nil {
 			query = ApplyNormalization(builder, query, weights.AttentionQNorm, weights.AttentionQNormBias, spec)
 		}
@@ -93,7 +94,7 @@ func buildBERTEncoderBlock(
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
-	if spec.Architecture == "jina-bert-v3" || spec.Architecture == "nomic-bert" || spec.Architecture == "nomic-bert-moe" {
+	if encoder.usesRoPE() {
 		frequencyScale := float32(1)
 		if spec.RopeScalingType == "linear" {
 			frequencyScale = 1 / spec.RopeScalingFactor
@@ -106,7 +107,7 @@ func buildBERTEncoderBlock(
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	attentionOptions := tensor.AttentionOptions{Scale: attentionScale}
-	if spec.Architecture == "jina-bert-v2" {
+	if encoder.Kind == encoderGraphJinaV2 {
 		attentionOptions.MaxALiBiBias = spec.MaxALiBiBias
 	}
 	attention := builder.AttentionWithOptions(query, key, value, attentionOptions)
@@ -119,7 +120,7 @@ func buildBERTEncoderBlock(
 		builder.Add(input, attention), weights.AttentionPostNorm,
 		weights.AttentionPostNormBias, spec.LayerNormEpsilon,
 	)
-	if spec.Architecture == "jina-bert-v2" && weights.AttentionNorm2 != nil {
+	if encoder.Kind == encoderGraphJinaV2 && weights.AttentionNorm2 != nil {
 		attention = ApplyNormalization(
 			builder, builder.Add(attention, input),
 			weights.AttentionNorm2, weights.AttentionNorm2Bias, spec,
@@ -138,7 +139,7 @@ func buildBERTEncoderBlock(
 		}
 	}
 	if !usesExperts {
-		if spec.Architecture == "jina-bert-v2" {
+		if encoder.Kind == encoderGraphJinaV2 {
 			width := uint64(spec.FeedForwardLength)
 			if weights.FeedForwardGate != nil {
 				gate := builder.MulMat(weights.FeedForwardGate, attention)
@@ -150,7 +151,7 @@ func buildBERTEncoderBlock(
 			} else {
 				feedForward = builder.GELU(feedForward)
 			}
-		} else if spec.Architecture == "nomic-bert" {
+		} else if encoder.Kind == encoderGraphNomic {
 			gate := builder.MulMat(weights.FeedForwardGate, attention)
 			feedForward = builder.SwiGLU(gate, feedForward)
 		} else {
@@ -180,7 +181,7 @@ func buildModernBERTBlock(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "modern-bert" {
+	if spec.Profile().EncoderGraph.Kind != encoderGraphModernBERT {
 		return DenseBlockResult{}, errors.New("ModernBERT block requires ModernBERT architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -279,7 +280,7 @@ func buildGemmaEmbeddingBlock(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "gemma-embedding" {
+	if spec.Profile().EncoderGraph.Kind != encoderGraphGemmaEmbedding {
 		return DenseBlockResult{}, errors.New("Gemma embedding block requires gemma-embedding architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -520,7 +521,8 @@ func BuildT5EncoderBlock(
 	if builder == nil || input == nil {
 		return nil, errors.New("T5 encoder block input is nil")
 	}
-	if spec.Architecture != "t5" && spec.Architecture != "t5encoder" {
+	encoder := spec.Profile().EncoderGraph.Kind
+	if encoder != encoderGraphT5 && encoder != encoderGraphT5Encoder {
 		return nil, errors.New("T5 encoder block requires T5 architecture")
 	}
 	required := map[string]*tensor.Tensor{
@@ -606,7 +608,7 @@ func BuildT5DecoderBlockCached(
 	if builder == nil || input == nil {
 		return DenseBlockResult{}, errors.New("T5 decoder block input is nil")
 	}
-	if spec.Architecture != "t5" {
+	if spec.Profile().EncoderGraph.Kind != encoderGraphT5 {
 		return DenseBlockResult{}, errors.New("T5 decoder block requires T5 architecture")
 	}
 	required := map[string]*tensor.Tensor{

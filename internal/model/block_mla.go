@@ -16,7 +16,7 @@ func BuildPLMBlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Architecture != "plm" {
+	if spec.Profile().MLAVariant != mlaVariantPLM {
 		return DenseBlockResult{}, errors.New("PLM block requires plm architecture")
 	}
 	return BuildMLABlockCached(builder, input, spec, weights, positions, pastKey, pastValue)
@@ -90,14 +90,14 @@ func buildMLABlockCachedForLayer(
 ) (DenseBlockResult, error) {
 	profile := spec.Profile()
 	attentionPolicy := profile.Attention
-	if attentionPolicy != AttentionMLA && attentionPolicy != AttentionDSA && spec.Architecture != "kimi-linear" {
+	if attentionPolicy != AttentionMLA && attentionPolicy != AttentionDSA && profile.MLAVariant != mlaVariantKimi {
 		return DenseBlockResult{}, errors.New("MLA block architecture is unsupported")
 	}
-	isMiniCPM3 := spec.Architecture == "minicpm3"
+	isMiniCPM3 := profile.MLAVariant == mlaVariantMiniCPM3
 	isDeepSeek2 := profile.Has(ArchitectureDeepSeek2)
 	isDSA := attentionPolicy == AttentionDSA
-	isDeepSeek32 := spec.Architecture == "deepseek32"
-	isKimi := spec.Architecture == "kimi-linear"
+	isDeepSeek32 := profile.MLAVariant == mlaVariantDeepSeek32
+	isKimi := profile.MLAVariant == mlaVariantKimi
 	required := map[string]*tensor.Tensor{
 		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
 		"attention KV-A": weights.AttentionKVAMQA, "attention KV-A norm": weights.AttentionKVANorm,

@@ -15,34 +15,8 @@ func layerUsesMoECatalog(
 	block uint32,
 	isNextNBlock bool,
 ) bool {
-	_, selected := tensors[prefix+"ffn_gate_inp.weight"]
-	architecture := spec.Architecture
-	if (architecture == "llama" || architecture == "llama-embed" ||
-		architecture == "mistral3" || architecture == "refact") && spec.ExpertCount > 0 {
-		return true
-	}
-	switch architecture {
-	case "arctic", "bailingmoe", "dbrx", "grovemoe", "grok", "hunyuan-moe",
-		"llada-moe", "mellum", "minimax-m2", "qwen3moe", "qwen3vlmoe",
-		"qwen3next", "qwen35moe", "qwen2moe", "olmoe", "phimoe", "rnd1",
-		"smallthinker", "granitemoe", "gpt-oss":
-		return true
-	case "jamba", "mimo2", "step35", "gemma4", "hy_v3", "llama4":
-		return selected
-	case "granitehybrid", "granite":
-		return spec.ExpertCount > 0
-	case "glm4moe", "cohere2moe", "dots1", "deepseek", "bailingmoe2",
-		"lfm2moe", "afmoe", "laguna":
-		return block >= spec.LeadingDenseBlocks
-	case "nomic-bert-moe":
-		return spec.IsInterleavedMoELayer(block)
-	case "exaone-moe":
-		return block >= spec.LeadingDenseBlocks && !isNextNBlock
-	case "deepseek2-ocr":
-		return block >= spec.LeadingDenseBlocks
-	}
-	return spec.Profile().Has(ArchitectureDeepSeek2Layout) && block >= spec.LeadingDenseBlocks ||
-		spec.IsInterleavedMoELayer(block)
+	_, routerPresent := tensors[prefix+"ffn_gate_inp.weight"]
+	return spec.Profile().Experts.usesCatalog(spec, block, routerPresent, isNextNBlock)
 }
 
 func loadMoECatalog(

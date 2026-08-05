@@ -45,6 +45,18 @@ const (
 	expertRouteSelectedSoftmax
 )
 
+type expertCatalogPolicy uint8
+
+const (
+	expertCatalogNone expertCatalogPolicy = iota
+	expertCatalogAlways
+	expertCatalogWithExperts
+	expertCatalogWithRouter
+	expertCatalogAfterDense
+	expertCatalogInterleaved
+	expertCatalogAfterDenseExceptNextN
+)
+
 // ExpertPolicy: routed/shared expert planning policy.
 type ExpertPolicy struct {
 	Composition         expertCompositionKind
@@ -58,6 +70,26 @@ type ExpertPolicy struct {
 	ClampSwiGLU         bool
 	FusedGateUp         bool
 	OptionalGate        bool
+	Catalog             expertCatalogPolicy
+}
+
+func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN bool) bool {
+	switch p.Catalog {
+	case expertCatalogAlways:
+		return true
+	case expertCatalogWithExperts:
+		return spec.ExpertCount > 0
+	case expertCatalogWithRouter:
+		return routerPresent
+	case expertCatalogAfterDense:
+		return block >= spec.LeadingDenseBlocks
+	case expertCatalogInterleaved:
+		return spec.IsInterleavedMoELayer(block)
+	case expertCatalogAfterDenseExceptNextN:
+		return block >= spec.LeadingDenseBlocks && !nextN
+	default:
+		return false
+	}
 }
 
 func (p ExpertPolicy) compositionKind(spec Spec) expertCompositionKind {

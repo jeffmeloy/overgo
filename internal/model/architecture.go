@@ -556,6 +556,9 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	updateExperts := func(names []string, apply func(*ExpertPolicy)) {
 		update(names, func(profile *ArchitectureProfile) { apply(&profile.Experts) })
 	}
+	setExpertCatalog := func(policy expertCatalogPolicy, names ...string) {
+		updateExperts(names, func(experts *ExpertPolicy) { experts.Catalog = policy })
+	}
 	updateDenseStages := func(names []string, apply func(*DenseStagePolicy)) {
 		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseStages) })
 	}
@@ -1022,6 +1025,24 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		Activation: tensor.MoEActivationSwiGLUOAI,
 	}, "gpt-oss")
 	setExperts(ExpertPolicy{Activation: tensor.MoEActivationGELU}, "gemma4")
+	setExpertCatalog(expertCatalogAlways,
+		"arctic", "bailingmoe", "dbrx", "grovemoe", "grok", "hunyuan-moe",
+		"llada-moe", "mellum", "minimax-m2", "qwen3moe", "qwen3vlmoe",
+		"qwen3next", "qwen35moe", "qwen2moe", "olmoe", "phimoe", "rnd1",
+		"smallthinker", "granitemoe", "gpt-oss",
+	)
+	setExpertCatalog(expertCatalogWithExperts,
+		"llama", "llama-embed", "mistral3", "refact", "granitehybrid", "granite",
+	)
+	setExpertCatalog(expertCatalogWithRouter,
+		"jamba", "mimo2", "step35", "gemma4", "hy_v3", "llama4",
+	)
+	setExpertCatalog(expertCatalogAfterDense,
+		"glm4moe", "cohere2moe", "dots1", "deepseek", "bailingmoe2", "lfm2moe",
+		"afmoe", "laguna", "deepseek2-ocr", "deepseek2", "deepseek32", "mistral4", "glm-dsa",
+	)
+	setExpertCatalog(expertCatalogInterleaved, "nomic-bert-moe", "ernie4_5-moe", "jina-bert-v3")
+	setExpertCatalog(expertCatalogAfterDenseExceptNextN, "exaone-moe")
 	updateExperts([]string{
 		"cohere2moe", "deepseek2", "deepseek32", "mistral4", "glm-dsa",
 		"deepseek2-ocr", "gemma4", "hy_v3", "qwen3next", "qwen35moe",

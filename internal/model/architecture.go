@@ -553,6 +553,9 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	setExperts := func(policy ExpertPolicy, names ...string) {
 		update(names, func(profile *ArchitectureProfile) { profile.Experts = policy })
 	}
+	updateExperts := func(names []string, apply func(*ExpertPolicy)) {
+		update(names, func(profile *ArchitectureProfile) { apply(&profile.Experts) })
+	}
 	updateDenseStages := func(names []string, apply func(*DenseStagePolicy)) {
 		update(names, func(profile *ArchitectureProfile) { apply(&profile.DenseStages) })
 	}
@@ -1019,6 +1022,14 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		Activation: tensor.MoEActivationSwiGLUOAI,
 	}, "gpt-oss")
 	setExperts(ExpertPolicy{Activation: tensor.MoEActivationGELU}, "gemma4")
+	updateExperts([]string{
+		"cohere2moe", "deepseek2", "deepseek32", "mistral4", "glm-dsa",
+		"deepseek2-ocr", "gemma4", "hy_v3", "qwen3next", "qwen35moe",
+	}, func(policy *ExpertPolicy) { policy.FusedGateUp = true })
+	updateExperts([]string{
+		"granitemoe", "granitehybrid", "granite", "grok", "ernie4_5-moe",
+		"jina-bert-v3", "nomic-bert-moe", "refact",
+	}, func(policy *ExpertPolicy) { policy.OptionalGate = true })
 	update([]string{"deci"}, func(profile *ArchitectureProfile) { profile.DeciSparse = true })
 	for name, profile := range registry {
 		if profile.Has(ArchitectureBERTNormLayout) {

@@ -56,6 +56,8 @@ type ExpertPolicy struct {
 	RouterInputOriginal bool
 	ResidualScale       bool
 	ClampSwiGLU         bool
+	FusedGateUp         bool
+	OptionalGate        bool
 }
 
 func (p ExpertPolicy) compositionKind(spec Spec) expertCompositionKind {

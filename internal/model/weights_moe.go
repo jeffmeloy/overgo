@@ -56,7 +56,7 @@ func loadMoECatalog(
 	if err != nil {
 		return false, err
 	}
-	if spec.Architecture == "refact" || usesOptionalExpertGate(spec) {
+	if spec.Profile().Experts.OptionalGate {
 		if err := loadOptionalExpertGate(tensors, prefix, spec, layer); err != nil {
 			return false, err
 		}
@@ -116,7 +116,8 @@ func loadMoECoreCatalog(
 	layer *LayerWeights,
 ) (bool, error) {
 	fusedGateUp := false
-	if usesFusedExpertGateUp(spec.Architecture) {
+	policy := spec.Profile().Experts
+	if policy.FusedGateUp {
 		if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
 			if item.Dimensions != 3 || item.Shape[0] != uint64(spec.EmbeddingLength) ||
 				item.Shape[1] != 2*uint64(spec.ExpertFeedForward) || item.Shape[2] != uint64(spec.ExpertCount) {
@@ -137,33 +138,12 @@ func loadMoECoreCatalog(
 	requirements = append(requirements,
 		requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
 	)
-	if !fusedGateUp && !usesOptionalExpertGate(spec) && spec.Architecture != "refact" {
+	if !fusedGateUp && !policy.OptionalGate {
 		requirements = append(requirements,
 			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
 		)
 	}
 	return fusedGateUp, loadTensorRequirements(required, tensors, prefix, requirements)
-}
-
-func usesFusedExpertGateUp(architecture string) bool {
-	switch architecture {
-	case "cohere2moe", "deepseek2", "deepseek32", "mistral4", "glm-dsa", "deepseek2-ocr",
-		"gemma4", "hy_v3", "qwen3next", "qwen35moe":
-		return true
-	default:
-		return false
-	}
-}
-
-func usesOptionalExpertGate(spec Spec) bool {
-	switch spec.Architecture {
-	case "granitemoe", "granitehybrid", "grok", "ernie4_5-moe", "jina-bert-v3", "nomic-bert-moe":
-		return true
-	case "granite":
-		return spec.ExpertCount > 0
-	default:
-		return false
-	}
 }
 
 func loadOptionalExpertGate(tensors map[string]gguf.TensorInfo, prefix string, spec Spec, layer *LayerWeights) error {

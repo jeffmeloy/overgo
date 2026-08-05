@@ -1,10 +1,43 @@
 package projector
 
 import (
+	"image"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestMediaHistoryChunkContract(t *testing.T) {
+	imageChunk := NewImageMediaInput(image.NewRGBA(image.Rect(0, 0, 1, 1)))
+	audioChunk := NewAudioMediaInput([]float32{0})
+	if err := validateMediaHistoryInputs(
+		gemma4PromptTokenizer{}, []MediaInput{imageChunk, audioChunk}, []string{"a", "b", "c"}, "test",
+	); err != nil {
+		t.Fatal(err)
+	}
+	invalid := []struct {
+		name  string
+		media []MediaInput
+		text  []string
+	}{
+		{name: "empty", text: []string{"x"}},
+		{name: "text count", media: []MediaInput{imageChunk}, text: []string{"x"}},
+		{name: "nil image", media: []MediaInput{{Kind: MediaImage}}, text: []string{"", ""}},
+		{name: "image audio", media: []MediaInput{{Kind: MediaImage, Image: imageChunk.Image, Audio: []float32{0}}}, text: []string{"", ""}},
+		{name: "empty audio", media: []MediaInput{{Kind: MediaAudio}}, text: []string{"", ""}},
+		{name: "audio image", media: []MediaInput{{Kind: MediaAudio, Audio: []float32{0}, Image: imageChunk.Image}}, text: []string{"", ""}},
+		{name: "kind", media: []MediaInput{{Kind: 99}}, text: []string{"", ""}},
+	}
+	for _, test := range invalid {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateMediaHistoryInputs(
+				gemma4PromptTokenizer{}, test.media, test.text, "test",
+			); err == nil {
+				t.Fatal("invalid media history accepted")
+			}
+		})
+	}
+}
 
 func TestQwen35ImagePromptText(t *testing.T) {
 	prompt := Qwen35ImagePromptText("before", "after", 3, true)

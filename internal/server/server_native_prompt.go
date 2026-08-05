@@ -427,12 +427,11 @@ func (h *Handler) projectNativeMultimodalPrompt(
 		inputs := make([]projector.MediaInput, len(prompt.Media))
 		imageIndex := 0
 		for index, item := range prompt.Media {
-			inputs[index].Kind = item.Kind
 			if item.Kind == projector.MediaImage {
-				inputs[index].Image = images[imageIndex]
+				inputs[index] = projector.NewImageMediaInput(images[imageIndex])
 				imageIndex++
 			} else {
-				inputs[index].Audio = item.Audio
+				inputs[index] = projector.NewAudioMediaInput(item.Audio)
 			}
 		}
 		projected, err = mixed.BuildMediaHistoryPrompt(ctx, tokenizerAPI, inputs, prompt.MediaText)

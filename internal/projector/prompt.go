@@ -77,6 +77,38 @@ type MediaInput struct {
 	Audio []float32
 }
 
+// NewImageMediaInput: validated image chunk construction.
+func NewImageMediaInput(source image.Image) MediaInput {
+	return MediaInput{Kind: MediaImage, Image: source}
+}
+
+// NewAudioMediaInput: validated audio chunk construction.
+func NewAudioMediaInput(samples []float32) MediaInput {
+	return MediaInput{Kind: MediaAudio, Audio: samples}
+}
+
+func (input MediaInput) validate(family string, index int) error {
+	switch input.Kind {
+	case MediaImage:
+		if input.Image == nil {
+			return fmt.Errorf("projector: %s image %d is nil", family, index)
+		}
+		if len(input.Audio) != 0 {
+			return fmt.Errorf("projector: %s image %d contains audio", family, index)
+		}
+	case MediaAudio:
+		if len(input.Audio) == 0 {
+			return fmt.Errorf("projector: %s audio %d is empty", family, index)
+		}
+		if input.Image != nil {
+			return fmt.Errorf("projector: %s audio %d contains an image", family, index)
+		}
+	default:
+		return fmt.Errorf("projector: unsupported %s media kind %d", family, input.Kind)
+	}
+	return nil
+}
+
 type MediaHistoryProjector interface {
 	BuildMediaHistoryPrompt(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
 }
@@ -102,22 +134,45 @@ func validateImagePromptInputs(
 	text []string,
 	family string,
 ) error {
-	return validatePromptInputs(tokenizer, sources, text, family+" image/text")
+	return validatePromptSequence(tokenizer, len(sources), text, family+" image/text")
 }
 
-func validatePromptInputs(
+func validatePromptSequence(
 	tokenizer ImageTokenizer,
-	sources []image.Image,
+	itemCount int,
 	text []string,
 	sequenceLabel string,
 ) error {
 	if tokenizer == nil {
 		return errors.New("projector: tokenizer is nil")
 	}
-	if len(sources) == 0 || len(text) != len(sources)+1 {
+	if itemCount == 0 || len(text) != itemCount+1 {
 		return fmt.Errorf("projector: %s sequence is inconsistent", sequenceLabel)
 	}
 	return nil
+}
+
+func validateMediaHistoryInputs(
+	tokenizer ImageTokenizer,
+	media []MediaInput,
+	text []string,
+	family string,
+) error {
+	if err := validatePromptSequence(tokenizer, len(media), text, family+" media history"); err != nil {
+		return err
+	}
+	for index, input := range media {
+		if err := input.validate(family+" history", index); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type mediaPromptRun struct {
+	Kind  MediaKind
+	Token tokenizer.TokenID
+	Count int
 }
 
 func tokenizeImagePromptRuns(
@@ -793,18 +848,10 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 	media []MediaInput,
 	text []string,
 ) (MultimodalPrompt, error) {
-	if tokenizerAPI == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	if err := validateMediaHistoryInputs(tokenizerAPI, media, text, "Gemma 4"); err != nil {
+		return MultimodalPrompt{}, err
 	}
-	if len(media) == 0 || len(text) != len(media)+1 {
-		return MultimodalPrompt{}, errors.New("projector: Gemma 4 media history sequence is inconsistent")
-	}
-	type mediaRun struct {
-		token tokenizer.TokenID
-		count int
-		image bool
-	}
-	runs := make([]mediaRun, len(media))
+	runs := make([]mediaPromptRun, len(media))
 	var embeddings []float32
 	var prompt strings.Builder
 	embeddingWidth := 0
@@ -826,9 +873,6 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 		prompt.WriteString(text[index])
 		switch input.Kind {
 		case MediaImage:
-			if input.Image == nil {
-				return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 history image %d is nil", index)
-			}
 			output, encodeErr := r.EncodeImage(ctx, input.Image)
 			if encodeErr != nil {
 				return MultimodalPrompt{}, fmt.Errorf("projector: encode Gemma 4 history image %d: %w", index, encodeErr)
@@ -838,15 +882,12 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 				return MultimodalPrompt{}, errors.New("projector: Gemma 4 media embedding widths differ")
 			}
 			embeddingWidth = width
-			runs[index] = mediaRun{token: imagePadIDs[0], count: int(output.Embeddings.Shape.Dims[1]), image: true}
+			runs[index] = mediaPromptRun{Kind: MediaImage, Token: imagePadIDs[0], Count: int(output.Embeddings.Shape.Dims[1])}
 			prompt.WriteString("<|image>")
-			prompt.WriteString(strings.Repeat("<|image|>", runs[index].count))
+			prompt.WriteString(strings.Repeat("<|image|>", runs[index].Count))
 			prompt.WriteString("<image|>")
 			embeddings = append(embeddings, output.Embeddings.Data...)
 		case MediaAudio:
-			if len(input.Audio) == 0 {
-				return MultimodalPrompt{}, fmt.Errorf("projector: Gemma 4 history audio %d is empty", index)
-			}
 			output, encodeErr := r.EncodeAudio(ctx, input.Audio)
 			if encodeErr != nil {
 				return MultimodalPrompt{}, fmt.Errorf("projector: encode Gemma 4 history audio %d: %w", index, encodeErr)
@@ -856,13 +897,11 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 				return MultimodalPrompt{}, errors.New("projector: Gemma 4 media embedding widths differ")
 			}
 			embeddingWidth = width
-			runs[index] = mediaRun{token: audioPadIDs[0], count: int(output.Embeddings.Shape.Dims[1])}
+			runs[index] = mediaPromptRun{Kind: MediaAudio, Token: audioPadIDs[0], Count: int(output.Embeddings.Shape.Dims[1])}
 			prompt.WriteString("<|audio>")
-			prompt.WriteString(strings.Repeat("<|audio|>", runs[index].count))
+			prompt.WriteString(strings.Repeat("<|audio|>", runs[index].Count))
 			prompt.WriteString("<audio|>")
 			embeddings = append(embeddings, output.Embeddings.Data...)
-		default:
-			return MultimodalPrompt{}, fmt.Errorf("projector: unsupported Gemma 4 media kind %d", input.Kind)
 		}
 	}
 	prompt.WriteString(text[len(text)-1])
@@ -873,7 +912,7 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 	expectedTokens := make([]tokenizer.TokenID, len(runs))
 	counts := make([]int, len(runs))
 	for index, run := range runs {
-		expectedTokens[index], counts[index] = run.token, run.count
+		expectedTokens[index], counts[index] = run.Token, run.Count
 	}
 	starts, err := orderedVariableTokenRuns(ids, expectedTokens, counts)
 	if err != nil {
@@ -882,9 +921,9 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 	indices := make([]uint32, 0)
 	blocks := make([]AttentionBlock, 0, len(runs))
 	for index, start := range starts {
-		indices = append(indices, sequentialTokenIndices(start, runs[index].count)...)
-		if runs[index].image {
-			blocks = append(blocks, AttentionBlock{Start: uint32(start), End: uint32(start + runs[index].count)})
+		indices = append(indices, sequentialTokenIndices(start, runs[index].Count)...)
+		if runs[index].Kind == MediaImage {
+			blocks = append(blocks, AttentionBlock{Start: uint32(start), End: uint32(start + runs[index].Count)})
 		}
 	}
 	return MultimodalPrompt{

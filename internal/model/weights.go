@@ -520,12 +520,44 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 }
 
 func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	tensors, required := catalog.tensors, catalog.required
+	loader := &layerCatalogLoader{
+		catalog: catalog,
+		spec:    spec,
+		profile: spec.Profile(),
+	}
+	loader.draftPlan = loader.profile.DraftPlan(spec.NextNPredictLayers)
+	loader.normPlan = spec.NormPlan()
 	var result Weights
 	var err error
-	profile := spec.Profile()
-	draftPlan := profile.DraftPlan(spec.NextNPredictLayers)
-	normPlan := spec.NormPlan()
+	for _, stage := range []func(Weights) (Weights, error){
+		loader.loadModelCatalog,
+		loader.loadLayerCatalogs,
+		loader.loadDraftCatalogs,
+	} {
+		result, err = stage(result)
+		if err != nil {
+			return Weights{}, err
+		}
+	}
+	return result, nil
+}
+
+type layerCatalogLoader struct {
+	catalog         weightCatalog
+	spec            Spec
+	profile         ArchitectureProfile
+	draftPlan       DraftPlan
+	normPlan        NormalizationPlan
+	trunkBlockCount uint32
+	cohere2HasMTP   bool
+	cohere2MTPOnly  bool
+	mtpOnly         bool
+}
+
+func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
+	tensors, required := l.catalog.tensors, l.catalog.required
+	spec, profile, draftPlan, normPlan := l.spec, l.profile, l.draftPlan, l.normPlan
+	var err error
 	tokenEmbeddingName := "token_embd.weight"
 	if profile.ModelCatalog.TokenEmbeddingFallback {
 		if _, ok := tensors[tokenEmbeddingName]; !ok {
@@ -750,6 +782,18 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		trunkBlockCount = 0
 	}
 	result.Layers = make([]LayerWeights, trunkBlockCount)
+	l.trunkBlockCount = trunkBlockCount
+	l.cohere2HasMTP = cohere2HasMTP
+	l.cohere2MTPOnly = cohere2MTPOnly
+	l.mtpOnly = mtpOnly
+	return result, nil
+}
+
+func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) {
+	tensors, required := l.catalog.tensors, l.catalog.required
+	spec, profile, normPlan := l.spec, l.profile, l.normPlan
+	trunkBlockCount, cohere2MTPOnly := l.trunkBlockCount, l.cohere2MTPOnly
+	var err error
 	for block := uint32(0); block < trunkBlockCount; block++ {
 		if cohere2MTPOnly && block < spec.BlockCount {
 			continue
@@ -1553,6 +1597,13 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 			return Weights{}, ffnErr
 		}
 	}
+	return result, nil
+}
+
+func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) {
+	tensors, required := l.catalog.tensors, l.catalog.required
+	spec, profile, draftPlan, mtpOnly := l.spec, l.profile, l.draftPlan, l.mtpOnly
+	cohere2HasMTP, cohere2MTPOnly := l.cohere2HasMTP, l.cohere2MTPOnly
 	if draftPlan.Kind == DraftQwen35MTP && draftPlan.SessionEligible() {
 		prefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
 		mtp := &Qwen35MTPWeights{}

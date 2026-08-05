@@ -41,7 +41,7 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
-	values, architecture, prefix, profile := metadata.values, metadata.architecture, metadata.prefix, metadata.profile
+	architecture, profile := metadata.architecture, metadata.profile
 	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture}, AttentionSpec: AttentionSpec{NonCausalAttention: profile.Has(ArchitectureNonCausal),
 		RopeDisabled: profile.Has(ArchitectureRoPEDisabled)},
 	}
@@ -49,13 +49,29 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
-	declaredBlockCount, isLlamaMoE := state.declaredBlockCount, state.llamaMoE
 	if err := metadata.readAttentionShape(&spec, state); err != nil {
 		return Spec{}, err
 	}
 	if err := metadata.readPosition(&spec); err != nil {
 		return Spec{}, err
 	}
+	for _, stage := range []func(Spec, specReadState) (Spec, error){
+		metadata.readArchitectureCore,
+		metadata.readExpertMetadata,
+		metadata.readRuntimeMetadata,
+	} {
+		spec, err = stage(spec, state)
+		if err != nil {
+			return Spec{}, err
+		}
+	}
+	return spec, nil
+}
+
+func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec, error) {
+	values, architecture, prefix := m.values, m.architecture, m.prefix
+	declaredBlockCount := state.declaredBlockCount
+	var err error
 	if architecture == "refact" {
 		spec.ExpertCount, _ = optional[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
@@ -1121,6 +1137,13 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 		spec.MoELatentSize, _ = optional[uint32](values, prefix+"moe_latent_size", gguf.ValueTypeUint32)
 		spec.ExpertGatingFunc = 2
 	}
+	return spec, nil
+}
+
+func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, error) {
+	values, architecture, prefix, profile := m.values, m.architecture, m.prefix, m.profile
+	isLlamaMoE := state.llamaMoE
+	var err error
 	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || (architecture == "granite" && spec.ExpertCount > 0) || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
@@ -1706,6 +1729,12 @@ func ReadSpec(file *gguf.File) (Spec, error) {
 			}
 		}
 	}
+	return spec, nil
+}
+
+func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, error) {
+	values, architecture, prefix, profile := m.values, m.architecture, m.prefix, m.profile
+	var err error
 	if architecture == "lfm2" || architecture == "lfm2moe" {
 		if spec.ShortConvCacheLength, err = required[uint32](
 			values, prefix+"shortconv.l_cache", gguf.ValueTypeUint32,

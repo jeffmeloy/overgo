@@ -49,46 +49,47 @@ func ValidateDenseRepository(repository *hfrepo.Repository) (model.Spec, error) 
 	if err != nil {
 		return model.Spec{}, err
 	}
-	tensors, err := denseTensorCatalog(repository.Tensors)
+	mappings, err := denseTensorMappings(repository.Tensors)
 	if err != nil {
 		return model.Spec{}, err
+	}
+	return validateMappedRepository(metadata, mappings, "")
+}
+
+func validateMappedRepository(
+	metadata []gguf.Metadata,
+	mappings []tensorMapping,
+	label string,
+) (model.Spec, error) {
+	tensors, err := mappedTensorCatalog(mappings)
+	if err != nil {
+		return model.Spec{}, err
+	}
+	context := "HF/GGUF adapter"
+	if label != "" {
+		context += ": " + label
 	}
 	file := &gguf.File{Metadata: metadata, Tensors: tensors}
 	spec, err := model.ReadSpec(file)
 	if err != nil {
-		return model.Spec{}, fmt.Errorf("HF/GGUF adapter: model spec: %w", err)
+		return model.Spec{}, fmt.Errorf("%s model spec: %w", context, err)
 	}
 	if _, err := model.ReadWeights(file, spec); err != nil {
-		return model.Spec{}, fmt.Errorf("HF/GGUF adapter: weight catalog: %w", err)
+		return model.Spec{}, fmt.Errorf("%s weight catalog: %w", context, err)
 	}
 	return spec, nil
 }
 
 func denseMetadata(repository *hfrepo.Repository, architecture string) ([]gguf.Metadata, error) {
-	contextLength, err := required[uint32](repository.Config, "max_position_embeddings")
+	dimensions, err := requiredValues[uint32](repository.Config,
+		"max_position_embeddings", "hidden_size", "num_hidden_layers", "intermediate_size",
+		"num_attention_heads", "num_key_value_heads",
+	)
 	if err != nil {
 		return nil, err
 	}
-	embeddingLength, err := required[uint32](repository.Config, "hidden_size")
-	if err != nil {
-		return nil, err
-	}
-	blockCount, err := required[uint32](repository.Config, "num_hidden_layers")
-	if err != nil {
-		return nil, err
-	}
-	feedForwardLength, err := required[uint32](repository.Config, "intermediate_size")
-	if err != nil {
-		return nil, err
-	}
-	headCount, err := required[uint32](repository.Config, "num_attention_heads")
-	if err != nil {
-		return nil, err
-	}
-	kvHeadCount, err := required[uint32](repository.Config, "num_key_value_heads")
-	if err != nil {
-		return nil, err
-	}
+	contextLength, embeddingLength, blockCount := dimensions[0], dimensions[1], dimensions[2]
+	feedForwardLength, headCount, kvHeadCount := dimensions[3], dimensions[4], dimensions[5]
 	if headCount == 0 || embeddingLength == 0 {
 		return nil, errors.New("HF/GGUF adapter: invalid attention dimensions")
 	}
@@ -132,25 +133,20 @@ func denseMetadata(repository *hfrepo.Repository, architecture string) ([]gguf.M
 	}, nil
 }
 
-func denseTensorCatalog(source *safetensors.Source) ([]gguf.TensorInfo, error) {
-	mappings, err := denseTensorMappings(source)
-	if err != nil {
-		return nil, err
-	}
-	return mappedTensorCatalog(mappings)
-}
-
 type tensorMapping struct {
 	name   string
 	tensor safetensors.Tensor
 	shape  []uint64
 }
 
+type tensorNameMapper func(string) (string, bool, error)
+type tensorShapeMapper func(safetensors.Tensor) ([]uint64, error)
+
 func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 	tensors := make([]gguf.TensorInfo, 0, len(mappings))
 	for _, mapping := range mappings {
 		tensor, name := mapping.tensor, mapping.name
-		shape := mapping.sourceShape()
+		shape := mapping.shape
 		storage, ok := ggufStorage(tensor.DType, len(shape) == 1)
 		if !ok {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
@@ -170,19 +166,23 @@ func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 	return tensors, nil
 }
 
-func (m tensorMapping) sourceShape() []uint64 {
-	if m.shape != nil {
-		return m.shape
-	}
-	return m.tensor.Shape
+func denseTensorMappings(source *safetensors.Source) ([]tensorMapping, error) {
+	return collectTensorMappings(source, denseTensorName, nil)
 }
 
-func denseTensorMappings(source *safetensors.Source) ([]tensorMapping, error) {
+func collectTensorMappings(
+	source *safetensors.Source,
+	nameMapper tensorNameMapper,
+	shapeMapper tensorShapeMapper,
+) ([]tensorMapping, error) {
+	if source == nil || nameMapper == nil {
+		return nil, errors.New("HF/GGUF adapter: invalid tensor mapping source")
+	}
 	mappings := make([]tensorMapping, 0, len(source.Tensors))
 	seen := make(map[string]string, len(source.Tensors))
 	for _, sourceName := range source.Names() {
 		tensor := source.Tensors[sourceName]
-		name, include, err := denseTensorName(sourceName)
+		name, include, err := nameMapper(sourceName)
 		if err != nil {
 			return nil, err
 		}
@@ -193,10 +193,17 @@ func denseTensorMappings(source *safetensors.Source) ([]tensorMapping, error) {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensors %q and %q both map to %q", previous, sourceName, name)
 		}
 		seen[name] = sourceName
-		if len(tensor.Shape) == 0 || len(tensor.Shape) > gguf.MaxDimensions {
-			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q rank %d is unsupported", sourceName, len(tensor.Shape))
+		shape := tensor.Shape
+		if shapeMapper != nil {
+			shape, err = shapeMapper(tensor)
+			if err != nil {
+				return nil, err
+			}
 		}
-		mappings = append(mappings, tensorMapping{name: name, tensor: tensor})
+		if len(shape) == 0 || len(shape) > gguf.MaxDimensions {
+			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q rank %d is unsupported", sourceName, len(shape))
+		}
+		mappings = append(mappings, tensorMapping{name: name, tensor: tensor, shape: shape})
 	}
 	return mappings, nil
 }
@@ -217,7 +224,7 @@ func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(mappings))
 	for _, mapping := range mappings {
 		tensor := mapping.tensor
-		shape := mapping.sourceShape()
+		shape := mapping.shape
 		storage, ok := ggufStorage(tensor.DType, len(shape) == 1)
 		if !ok {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
@@ -254,26 +261,40 @@ func denseTensorName(name string) (string, bool, error) {
 	case "model.rotary_emb.inv_freq":
 		return "", false, nil
 	}
-	rest, ok := strings.CutPrefix(name, "model.layers.")
-	if !ok {
+	if strings.HasSuffix(name, ".self_attn.rotary_emb.inv_freq") {
+		return "", false, nil
+	}
+	mapped, _, err := mapLayerTensor(name, "model.layers.", 0, denseLayerNames)
+	if err != nil {
 		return "", false, fmt.Errorf("HF/GGUF adapter: tensor %q has no dense mapping", name)
+	}
+	return mapped, true, nil
+}
+
+func mapLayerTensor(
+	name string,
+	prefix string,
+	blockOffset uint32,
+	names map[string]string,
+) (string, uint64, error) {
+	rest, ok := strings.CutPrefix(name, prefix)
+	if !ok {
+		return "", 0, errors.New("tensor has no layer prefix")
 	}
 	layer, suffix, ok := strings.Cut(rest, ".")
 	if !ok {
-		return "", false, fmt.Errorf("HF/GGUF adapter: tensor %q has no layer suffix", name)
+		return "", 0, errors.New("tensor has no layer suffix")
 	}
 	index, err := strconv.ParseUint(layer, 10, 32)
 	if err != nil {
-		return "", false, fmt.Errorf("HF/GGUF adapter: tensor %q has invalid layer", name)
+		return "", 0, errors.New("tensor has invalid layer")
 	}
-	if suffix == "self_attn.rotary_emb.inv_freq" {
-		return "", false, nil
-	}
-	destination, ok := denseLayerNames[suffix]
+	destination, ok := names[suffix]
 	if !ok {
-		return "", false, fmt.Errorf("HF/GGUF adapter: tensor %q has no dense mapping", name)
+		return "", 0, errors.New("tensor has no layer mapping")
 	}
-	return fmt.Sprintf("blk.%d.%s", index, destination), true, nil
+	block := uint64(blockOffset) + index
+	return fmt.Sprintf("blk.%d.%s", block, destination), index, nil
 }
 
 func ggufStorage(dataType string, promoteVector bool) (gguf.DType, bool) {
@@ -310,6 +331,18 @@ func required[T any](config map[string]json.RawMessage, key string) (T, error) {
 		return value, fmt.Errorf("HF/GGUF adapter: config field %q is missing", key)
 	}
 	return value, nil
+}
+
+func requiredValues[T any](config map[string]json.RawMessage, keys ...string) ([]T, error) {
+	values := make([]T, len(keys))
+	for index, key := range keys {
+		value, err := required[T](config, key)
+		if err != nil {
+			return nil, err
+		}
+		values[index] = value
+	}
+	return values, nil
 }
 
 func optional[T any](config map[string]json.RawMessage, key string) (T, bool, error) {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"llamacpp2go/internal/gguf"
@@ -66,19 +65,7 @@ func ValidateQwen35Repository(repository *hfrepo.Repository) (model.Spec, error)
 	if err != nil {
 		return model.Spec{}, err
 	}
-	tensors, err := mappedTensorCatalog(mappings)
-	if err != nil {
-		return model.Spec{}, err
-	}
-	file := &gguf.File{Metadata: metadata, Tensors: tensors}
-	spec, err := model.ReadSpec(file)
-	if err != nil {
-		return model.Spec{}, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 model spec: %w", err)
-	}
-	if _, err := model.ReadWeights(file, spec); err != nil {
-		return model.Spec{}, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 weight catalog: %w", err)
-	}
-	return spec, nil
+	return validateMappedRepository(metadata, mappings, "Qwen 3.5")
 }
 
 // Qwen35TensorData: stream mapped Qwen 3.5 language payloads.
@@ -112,70 +99,23 @@ func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, err
 	if err != nil {
 		return nil, 0, err
 	}
-	contextLength, err := required[uint32](text, "max_position_embeddings")
+	dimensions, err := requiredValues[uint32](text,
+		"max_position_embeddings", "hidden_size", "num_hidden_layers", "mtp_num_hidden_layers",
+		"intermediate_size", "num_attention_heads", "num_key_value_heads", "head_dim", "vocab_size",
+		"full_attention_interval", "linear_conv_kernel_dim", "linear_key_head_dim",
+		"linear_num_key_heads", "linear_num_value_heads", "linear_value_head_dim",
+	)
 	if err != nil {
 		return nil, 0, err
 	}
-	embeddingLength, err := required[uint32](text, "hidden_size")
-	if err != nil {
-		return nil, 0, err
-	}
-	blockCount, err := required[uint32](text, "num_hidden_layers")
-	if err != nil {
-		return nil, 0, err
-	}
-	mtpBlocks, err := required[uint32](text, "mtp_num_hidden_layers")
-	if err != nil {
-		return nil, 0, err
-	}
+	contextLength, embeddingLength, blockCount, mtpBlocks := dimensions[0], dimensions[1], dimensions[2], dimensions[3]
+	feedForwardLength, headCount, kvHeadCount, headLength := dimensions[4], dimensions[5], dimensions[6], dimensions[7]
+	vocabulary, fullAttentionInterval, convKernel := dimensions[8], dimensions[9], dimensions[10]
+	stateSize, groupCount, timeStepRank, valueHeadLength := dimensions[11], dimensions[12], dimensions[13], dimensions[14]
 	if mtpBlocks != 1 || blockCount == math.MaxUint32 {
 		return nil, 0, errors.New("HF/GGUF adapter: Qwen 3.5 requires one valid MTP layer")
 	}
-	feedForwardLength, err := required[uint32](text, "intermediate_size")
-	if err != nil {
-		return nil, 0, err
-	}
-	headCount, err := required[uint32](text, "num_attention_heads")
-	if err != nil {
-		return nil, 0, err
-	}
-	kvHeadCount, err := required[uint32](text, "num_key_value_heads")
-	if err != nil {
-		return nil, 0, err
-	}
-	headLength, err := required[uint32](text, "head_dim")
-	if err != nil {
-		return nil, 0, err
-	}
 	normEpsilon, err := required[float32](text, "rms_norm_eps")
-	if err != nil {
-		return nil, 0, err
-	}
-	vocabulary, err := required[uint32](text, "vocab_size")
-	if err != nil {
-		return nil, 0, err
-	}
-	fullAttentionInterval, err := required[uint32](text, "full_attention_interval")
-	if err != nil {
-		return nil, 0, err
-	}
-	convKernel, err := required[uint32](text, "linear_conv_kernel_dim")
-	if err != nil {
-		return nil, 0, err
-	}
-	stateSize, err := required[uint32](text, "linear_key_head_dim")
-	if err != nil {
-		return nil, 0, err
-	}
-	groupCount, err := required[uint32](text, "linear_num_key_heads")
-	if err != nil {
-		return nil, 0, err
-	}
-	timeStepRank, err := required[uint32](text, "linear_num_value_heads")
-	if err != nil {
-		return nil, 0, err
-	}
-	valueHeadLength, err := required[uint32](text, "linear_value_head_dim")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -267,34 +207,20 @@ func checkedProduct(left, right uint32, label string) (uint32, error) {
 }
 
 func qwen35TensorMappings(source *safetensors.Source, blockCount uint32) ([]tensorMapping, error) {
-	mappings := make([]tensorMapping, 0, len(source.Tensors))
-	seen := make(map[string]string, len(source.Tensors))
-	for _, sourceName := range source.Names() {
-		tensor := source.Tensors[sourceName]
-		name, include, err := qwen35TensorName(sourceName, blockCount)
-		if err != nil {
-			return nil, err
-		}
-		if !include {
-			continue
-		}
-		if previous, duplicate := seen[name]; duplicate {
-			return nil, fmt.Errorf("HF/GGUF adapter: tensors %q and %q both map to %q", previous, sourceName, name)
-		}
-		seen[name] = sourceName
-		shape := tensor.Shape
-		if strings.HasSuffix(sourceName, ".linear_attn.conv1d.weight") {
-			if len(shape) != 3 || shape[1] != 1 {
-				return nil, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 convolution tensor %q has shape %v", sourceName, shape)
-			}
-			shape = []uint64{shape[0], shape[2]}
-		}
-		if len(shape) == 0 || len(shape) > gguf.MaxDimensions {
-			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q rank %d is unsupported", sourceName, len(shape))
-		}
-		mappings = append(mappings, tensorMapping{name: name, tensor: tensor, shape: shape})
+	return collectTensorMappings(source, func(name string) (string, bool, error) {
+		return qwen35TensorName(name, blockCount)
+	}, qwen35TensorShape)
+}
+
+func qwen35TensorShape(tensor safetensors.Tensor) ([]uint64, error) {
+	shape := tensor.Shape
+	if !strings.HasSuffix(tensor.Name, ".linear_attn.conv1d.weight") {
+		return shape, nil
 	}
-	return mappings, nil
+	if len(shape) != 3 || shape[1] != 1 {
+		return nil, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 convolution tensor %q has shape %v", tensor.Name, shape)
+	}
+	return []uint64{shape[0], shape[2]}, nil
 }
 
 func qwen35TensorName(name string, blockCount uint32) (string, bool, error) {
@@ -317,32 +243,18 @@ func qwen35TensorName(name string, blockCount uint32) (string, bool, error) {
 	if strings.HasPrefix(name, "model.visual.") {
 		return "", false, nil
 	}
-	if rest, ok := strings.CutPrefix(name, "model.language_model.layers."); ok {
-		return qwen35LayerTensorName(rest, 0, false)
+	if strings.HasPrefix(name, "model.language_model.layers.") {
+		mapped, _, err := mapLayerTensor(name, "model.language_model.layers.", 0, qwen35LayerNames)
+		return mapped, err == nil, err
 	}
-	if rest, ok := strings.CutPrefix(name, "mtp.layers."); ok {
-		return qwen35LayerTensorName(rest, blockCount, true)
+	if strings.HasPrefix(name, "mtp.layers.") {
+		mapped, index, err := mapLayerTensor(name, "mtp.layers.", blockCount, qwen35LayerNames)
+		if err == nil && index != 0 {
+			err = fmt.Errorf("HF/GGUF adapter: Qwen 3.5 MTP layer %d is unsupported", index)
+		}
+		return mapped, err == nil, err
 	}
 	return "", false, fmt.Errorf("HF/GGUF adapter: tensor %q has no Qwen 3.5 mapping", name)
-}
-
-func qwen35LayerTensorName(rest string, blockOffset uint32, mtp bool) (string, bool, error) {
-	layer, suffix, ok := strings.Cut(rest, ".")
-	if !ok {
-		return "", false, errors.New("HF/GGUF adapter: Qwen 3.5 tensor has no layer suffix")
-	}
-	index, err := strconv.ParseUint(layer, 10, 32)
-	if err != nil {
-		return "", false, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 layer %q is invalid", layer)
-	}
-	if mtp && index != 0 {
-		return "", false, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 MTP layer %d is unsupported", index)
-	}
-	destination, ok := qwen35LayerNames[suffix]
-	if !ok {
-		return "", false, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 tensor suffix %q has no mapping", suffix)
-	}
-	return fmt.Sprintf("blk.%d.%s", uint64(blockOffset)+index, destination), true, nil
 }
 
 func arrayMetadata(key string, elementType gguf.ValueType, value any) gguf.Metadata {

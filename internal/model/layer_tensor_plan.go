@@ -43,7 +43,16 @@ type RotaryPolicy struct {
 type AttentionGraphPolicy struct {
 	UseSinks      bool
 	ChunkedWindow bool
+	QwenGDN       qwenGDNPolicy
 }
+
+type qwenGDNPolicy uint8
+
+const (
+	qwenGDNNone qwenGDNPolicy = iota
+	qwenGDNStandard
+	qwenGDNRepeatInterleave
+)
 
 func applyRoPEPairWithOptions(
 	builder *tensor.Builder,

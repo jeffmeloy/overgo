@@ -135,7 +135,7 @@ const (
 	FeedForwardFusedGateUp
 	FeedForwardGELU
 	FeedForwardSquaredReLU
-	FeedForwardGateFreeSiLU
+	FeedForwardXIELU
 )
 
 // AttentionPolicy: primary attention implementation.
@@ -758,7 +758,7 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 		"bert", "falcon", "gptj", "jina-bert-v3", "mpt", "nomic-bert-moe",
 	)
 	setFeedForward(FeedForwardSquaredReLU, "arcee", "jais2", "nemotron", "plm")
-	setFeedForward(FeedForwardGateFreeSiLU, "apertus")
+	setFeedForward(FeedForwardXIELU, "apertus")
 
 	setFamily(ArchitectureFamilyMoE,
 		"afmoe", "bailingmoe", "bailingmoe2", "cohere2moe", "dbrx", "deepseek",
@@ -937,6 +937,12 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	updateDenseWeights([]string{"stablelm"}, func(policy *DenseWeightPolicy) {
 		policy.SkipFeedForwardNorm = true
 	})
+	updateDenseWeights([]string{"phimoe", "rwkv6qwen2"}, func(policy *DenseWeightPolicy) {
+		policy.RMSNormBias = true
+	})
+	updateDenseWeights([]string{"mpt"}, func(policy *DenseWeightPolicy) {
+		policy.AllowActivationScale = true
+	})
 	updateRotary([]string{"paddleocr", "qwen2vl", "qwen3vl", "qwen3vlmoe"}, func(policy *RotaryPolicy) {
 		policy.MultiAxis = multiAxisRotaryAlways
 	})
@@ -975,6 +981,12 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	})
 	updateAttentionGraph([]string{"llama4"}, func(policy *AttentionGraphPolicy) {
 		policy.ChunkedWindow = true
+	})
+	updateAttentionGraph([]string{"qwen35", "qwen35moe"}, func(policy *AttentionGraphPolicy) {
+		policy.QwenGDN = qwenGDNStandard
+	})
+	updateAttentionGraph([]string{"qwen3next"}, func(policy *AttentionGraphPolicy) {
+		policy.QwenGDN = qwenGDNRepeatInterleave
 	})
 
 	setMetadataShape(MetadataShapePolicy{FeedForward: metadataLayerCompatible, Heads: metadataScalar, KVHeads: metadataLayerCompatible}, "gemma4")
@@ -1090,6 +1102,9 @@ func buildArchitectureRegistry() map[string]ArchitectureProfile {
 	}, func(policy *ExpertPolicy) { policy.SharedCatalog = sharedExpertCatalogWithWidth })
 	updateExperts([]string{"qwen2moe", "qwen3next", "qwen35moe"}, func(policy *ExpertPolicy) {
 		policy.SharedCatalog = sharedExpertCatalogGated
+	})
+	updateExperts([]string{"qwen3next", "qwen35moe"}, func(policy *ExpertPolicy) {
+		policy.Composition = expertSharedGated
 	})
 	updateExperts([]string{"gemma4"}, func(policy *ExpertPolicy) {
 		policy.SupplementalCatalog = expertSupplementGemma4 | expertSupplementDenseFFN

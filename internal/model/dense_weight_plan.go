@@ -20,6 +20,8 @@ type DenseWeightPolicy struct {
 	RequireAttentionGate       bool
 	RequireAttentionSinks      bool
 	SkipFeedForwardNorm        bool
+	RMSNormBias                bool
+	AllowActivationScale       bool
 }
 
 // DenseWeightPlan: compiled dense graph tensor contract.
@@ -43,6 +45,7 @@ type DenseWeightPlan struct {
 	requireNormBias            bool
 	validateOptionalQKNorm     bool
 	validateFalconNorm         bool
+	allowActivationScale       bool
 }
 
 func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWeightPlan {
@@ -64,6 +67,7 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 		requireTemperature:     queryScale.kind == queryScaleTemperature,
 		validateOptionalQKNorm: policy.ValidateOptionalQKNorm,
 		validateFalconNorm:     policy.ValidateFalconNorm,
+		allowActivationScale:   policy.AllowActivationScale,
 	}
 	plan.allowUngatedExperts = policy.AllowUngatedExperts
 	plan.requireExpertBias = policy.RequireExpertBias

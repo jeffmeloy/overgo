@@ -199,9 +199,7 @@ type LayerGraphWeights struct {
 	ChannelMixReceptance *tensor.Tensor
 }
 
-// ApplyNormalization: applies architecture's learned pre/post
-// normalization; Affine LayerNorm architectures and PhiMoE's affine RMSNorm
-// require learned bias
+// ApplyNormalization: learned normalization stage.
 func ApplyNormalization(
 	builder *tensor.Builder,
 	input, weight, bias *tensor.Tensor,
@@ -224,7 +222,7 @@ func ApplyNormalization(
 		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
 	}
 	normalized := builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
-	if (spec.Architecture == "phimoe" || spec.Architecture == "rwkv6qwen2") && bias != nil {
+	if spec.Profile().DenseWeights.RMSNormBias && bias != nil {
 		return builder.Add(normalized, bias)
 	}
 	return normalized
@@ -413,7 +411,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 			builder, input, spec, weights, positions, pastKey, pastValue, layerIndex,
 		)
 	}
-	if spec.Architecture == "apertus" &&
+	if profile.FeedForward == FeedForwardXIELU &&
 		(int(layerIndex) >= len(spec.XIELUAlphaN) || int(layerIndex) >= len(spec.XIELUAlphaP) ||
 			int(layerIndex) >= len(spec.XIELUBeta) || int(layerIndex) >= len(spec.XIELUEpsilon)) {
 		return DenseBlockResult{}, errors.New("Apertus xIELU parameters are missing for layer")
@@ -428,7 +426,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 	if err := requireTensorPair(pastKey, pastValue, "dense block past key/value cache must both be present"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if spec.NonCausalAttention && spec.Architecture != "dflash" && pastKey != nil {
+	if spec.NonCausalAttention && profile.Forward != ForwardDFlash && pastKey != nil {
 		return DenseBlockResult{}, errors.New("non-causal dense block does not support a KV cache")
 	}
 
@@ -441,7 +439,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 	}
 	feedForwardNormalized := normalized
 	attentionGate := layerPlan.AttentionOutput.PrepareGate(builder, normalized, weights)
-	if spec.Architecture == "falcon" && weights.AttentionNorm2 != nil {
+	if layerPlan.DenseWeights.validateFalconNorm && weights.AttentionNorm2 != nil {
 		if weights.AttentionNorm2Bias == nil {
 			normalized = builder.Multiply(
 				builder.LayerNorm(input, spec.LayerNormEpsilon), weights.AttentionNorm2,
@@ -607,7 +605,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 			builder.GroupSlice(up, width, width, 1, stride), width, tokens,
 		)
 		activation = builder.SwiGLU(gate, up)
-	} else if spec.Architecture == "apertus" {
+	} else if profile.FeedForward == FeedForwardXIELU {
 		activation = builder.XIELU(
 			up,
 			spec.XIELUAlphaN[layerIndex],
@@ -633,12 +631,12 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 		}
 	}
 	if weights.FeedForwardActivationScale != nil {
-		if spec.Architecture != "mpt" {
+		if !layerPlan.DenseWeights.allowActivationScale {
 			return DenseBlockResult{}, errors.New("feed-forward activation scale requires MPT")
 		}
 		activation = builder.Divide(activation, weights.FeedForwardActivationScale)
 	}
-	if spec.Architecture == "bitnet" {
+	if layerPlan.DenseWeights.requireSubNorm {
 		activation = builder.WeightedRMSNorm(
 			activation, weights.FeedForwardSubNorm, spec.RMSNormEpsilon,
 		)
@@ -830,7 +828,7 @@ func BuildGemma3nAttentionStage(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (Gemma3nAttentionResult, error) {
-	if builder == nil || input == nil || spec.Architecture != "gemma3n" ||
+	if builder == nil || input == nil || spec.Profile().DenseGraph != DenseGraphGemma3n ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
 		return Gemma3nAttentionResult{}, errors.New("Gemma 3n attention input is invalid")
@@ -941,7 +939,7 @@ func BuildGemma3nFeedForwardOutput(
 	spec Spec,
 	weights LayerGraphWeights,
 ) (*tensor.Tensor, error) {
-	if builder == nil || residual == nil || activated == nil || spec.Architecture != "gemma3n" ||
+	if builder == nil || residual == nil || activated == nil || spec.Profile().DenseGraph != DenseGraphGemma3n ||
 		weights.FeedForwardDown == nil || weights.FeedForwardPostNorm == nil {
 		return nil, errors.New("Gemma 3n feed-forward output is incomplete")
 	}
@@ -1125,7 +1123,8 @@ func BuildQwen35BlockCachedWithMultiPositions(
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	if spec.Architecture != "qwen35" && spec.Architecture != "qwen35moe" {
+	profile := spec.Profile()
+	if profile.AttentionGraph.QwenGDN == qwenGDNNone || !profile.Has(ArchitectureMultiAxisPositions) {
 		return Qwen35BlockResult{}, errors.New("Qwen hybrid architecture does not support multi-axis positions")
 	}
 	return buildQwen35BlockCached(
@@ -1144,7 +1143,7 @@ func buildQwen35BlockCached(
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	if spec.Architecture != "qwen3next" && spec.Architecture != "qwen35" && spec.Architecture != "qwen35moe" {
+	if spec.Profile().AttentionGraph.QwenGDN == qwenGDNNone {
 		return Qwen35BlockResult{}, errors.New("Qwen hybrid block architecture is invalid")
 	}
 	if recurrent {
@@ -1236,7 +1235,7 @@ func buildQwen35AttentionBlock(
 	if spec.RopeScalingType == "linear" {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if spec.Architecture == "qwen3next" {
+	if spec.Profile().AttentionGraph.QwenGDN == qwenGDNRepeatInterleave {
 		query = builder.RoPENeoXScaled(
 			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
 		)
@@ -1321,7 +1320,8 @@ func buildQwen35RecurrentBlock(
 		"SSM output":          weights.SSMOutput,
 		"post-attention norm": weights.FeedForwardNorm,
 	}
-	if spec.Architecture == "qwen3next" {
+	qwenPolicy := spec.Profile().AttentionGraph.QwenGDN
+	if qwenPolicy == qwenGDNRepeatInterleave {
 		required["SSM beta/alpha"] = weights.SSMBetaAlpha
 		if weights.AttentionQKV.Shape.Dims[1] == uint64(spec.SSMInnerSize)+
 			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount) {
@@ -1355,7 +1355,7 @@ func buildQwen35RecurrentBlock(
 	qkvProjection := builder.MulMat(weights.AttentionQKV, normalized)
 	qkvMixed := qkvProjection
 	var z *tensor.Tensor
-	if spec.Architecture == "qwen3next" && weights.AttentionGate == nil {
+	if qwenPolicy == qwenGDNRepeatInterleave && weights.AttentionGate == nil {
 		valueHeadsPerGroup := valueHeads / keyHeads
 		valueWidthPerGroup := stateWidth * valueHeadsPerGroup
 		groupStride := 2*stateWidth + 2*valueWidthPerGroup
@@ -1382,7 +1382,7 @@ func buildQwen35RecurrentBlock(
 		z = builder.MulMat(weights.AttentionGate, normalized)
 	}
 	var beta, alpha *tensor.Tensor
-	if spec.Architecture == "qwen3next" {
+	if qwenPolicy == qwenGDNRepeatInterleave {
 		valueHeadsPerGroup := valueHeads / keyHeads
 		betaAlpha := builder.MulMat(weights.SSMBetaAlpha, normalized)
 		beta = builder.GroupSlice(
@@ -1428,7 +1428,7 @@ func buildQwen35RecurrentBlock(
 	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, 1)
 	value = builder.Reshape(value, stateWidth, valueHeads, tokens, 1)
 	var packed *tensor.Tensor
-	if spec.Architecture == "qwen3next" {
+	if qwenPolicy == qwenGDNRepeatInterleave {
 		packed = builder.GatedDeltaNetRepeatInterleave(query, key, value, gate, beta, ssmState)
 	} else {
 		packed = builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)
@@ -1482,7 +1482,7 @@ func buildQwen35FeedForward(
 		spec.RMSNormEpsilon,
 	)
 	var feedForward *tensor.Tensor
-	if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
+	if spec.expertCompositionPlan().kind == expertSharedGated {
 		plan := spec.moeGraphPlan(0)
 		plan.NormalizeTopKProb = true
 		feedForward = plan.BuildLayer(builder, normalized, nil, weights)
@@ -1511,7 +1511,7 @@ func addQwen35FeedForwardRequirements(
 	spec Spec,
 	weights LayerGraphWeights,
 ) {
-	if spec.Architecture == "qwen3next" || spec.Architecture == "qwen35moe" {
+	if spec.expertCompositionPlan().kind == expertSharedGated {
 		required["feed-forward router"] = weights.FeedForwardRouter
 		required["feed-forward expert down"] = weights.FeedForwardDownExperts
 		if weights.FeedForwardGateUpExperts != nil {

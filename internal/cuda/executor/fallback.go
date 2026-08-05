@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
+	"runtime"
 	"unsafe"
 
 	"llamacpp2go/internal/cuda/device"
@@ -75,6 +77,26 @@ func launch1D(
 		state.Stream,
 		arguments,
 	)
+}
+
+// launch1DABI: marshal typed scalar addresses; retain through launch.
+func launch1DABI(
+	state *device.State,
+	function driver.Function,
+	count uint32,
+	arguments ...any,
+) error {
+	pointers := make([]unsafe.Pointer, len(arguments))
+	for index, argument := range arguments {
+		value := reflect.ValueOf(argument)
+		if value.Kind() != reflect.Pointer || value.IsNil() {
+			panic("CUDA ABI argument must be a non-nil pointer")
+		}
+		pointers[index] = value.UnsafePointer()
+	}
+	err := launch1D(state, function, count, pointers)
+	runtime.KeepAlive(arguments)
+	return err
 }
 
 func elementCount32(shape tensor.Shape) (uint32, error) {

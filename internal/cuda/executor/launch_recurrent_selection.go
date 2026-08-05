@@ -3,8 +3,6 @@ package executor
 import (
 	"errors"
 	"fmt"
-	"runtime"
-	"unsafe"
 
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -40,24 +38,10 @@ func launchRecurrentSelection(
 		}
 		input := pointers[node.Inputs[0]]
 		weights := pointers[node.Inputs[1]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&weights),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&window),
-			unsafe.Pointer(&channels),
-			unsafe.Pointer(&tokens),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.ssmConv, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(weights)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(window)
-		runtime.KeepAlive(channels)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, functions.ssmConv, count,
+			&input, &weights, &output, &window, &channels, &tokens, &count,
+		)
 	case tensor.OpSSMScan:
 		stateWidth, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SSMScan state width")
 		if err != nil {
@@ -96,29 +80,11 @@ func launchRecurrentSelection(
 		a := pointers[node.Inputs[3]]
 		beta := pointers[node.Inputs[4]]
 		c := pointers[node.Inputs[5]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&inputState), unsafe.Pointer(&x), unsafe.Pointer(&dt),
-			unsafe.Pointer(&a), unsafe.Pointer(&beta), unsafe.Pointer(&c),
-			unsafe.Pointer(&output), unsafe.Pointer(&stateWidth), unsafe.Pointer(&dimension),
-			unsafe.Pointer(&heads), unsafe.Pointer(&tokens), unsafe.Pointer(&sequences),
-			unsafe.Pointer(&groups), unsafe.Pointer(&aWidth),
-		}
-		err = launch1D(state, functions.ssmScan, heads*sequences, args)
-		runtime.KeepAlive(inputState)
-		runtime.KeepAlive(x)
-		runtime.KeepAlive(dt)
-		runtime.KeepAlive(a)
-		runtime.KeepAlive(beta)
-		runtime.KeepAlive(c)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(stateWidth)
-		runtime.KeepAlive(dimension)
-		runtime.KeepAlive(heads)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(sequences)
-		runtime.KeepAlive(groups)
-		runtime.KeepAlive(aWidth)
-		return err
+		return launch1DABI(
+			state, functions.ssmScan, heads*sequences,
+			&inputState, &x, &dt, &a, &beta, &c, &output, &stateWidth, &dimension,
+			&heads, &tokens, &sequences, &groups, &aWidth,
+		)
 	case tensor.OpGatedDeltaNet:
 		attributes := node.Attrs.(tensor.GatedDeltaNetAttributes)
 		size, err := uint32Checked(node.Inputs[2].Shape.Dims[0], "GatedDeltaNet state width")
@@ -160,40 +126,11 @@ func launchRecurrentSelection(
 		gate := pointers[node.Inputs[3]]
 		beta := pointers[node.Inputs[4]]
 		stateInput := pointers[node.Inputs[5]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&query),
-			unsafe.Pointer(&key),
-			unsafe.Pointer(&value),
-			unsafe.Pointer(&gate),
-			unsafe.Pointer(&beta),
-			unsafe.Pointer(&stateInput),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&size),
-			unsafe.Pointer(&qHeads),
-			unsafe.Pointer(&kHeads),
-			unsafe.Pointer(&heads),
-			unsafe.Pointer(&tokens),
-			unsafe.Pointer(&sequences),
-			unsafe.Pointer(&gateWidth),
-			unsafe.Pointer(&repeatInterleave),
-		}
-		err = launch1D(state, functions.gatedDeltaNet, count, args)
-		runtime.KeepAlive(query)
-		runtime.KeepAlive(key)
-		runtime.KeepAlive(value)
-		runtime.KeepAlive(gate)
-		runtime.KeepAlive(beta)
-		runtime.KeepAlive(stateInput)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(size)
-		runtime.KeepAlive(qHeads)
-		runtime.KeepAlive(kHeads)
-		runtime.KeepAlive(heads)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(sequences)
-		runtime.KeepAlive(gateWidth)
-		runtime.KeepAlive(repeatInterleave)
-		return err
+		return launch1DABI(
+			state, functions.gatedDeltaNet, count,
+			&query, &key, &value, &gate, &beta, &stateInput, &output,
+			&size, &qHeads, &kHeads, &heads, &tokens, &sequences, &gateWidth, &repeatInterleave,
+		)
 	case tensor.OpGatedLinearAttention:
 		attributes, ok := node.Attrs.(tensor.GatedLinearAttentionAttributes)
 		if !ok {
@@ -228,26 +165,11 @@ func launchRecurrentSelection(
 		decay := pointers[node.Inputs[3]]
 		inputState := pointers[node.Inputs[4]]
 		scale := attributes.Scale
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&key), unsafe.Pointer(&value), unsafe.Pointer(&receptance),
-			unsafe.Pointer(&decay), unsafe.Pointer(&inputState), unsafe.Pointer(&output),
-			unsafe.Pointer(&width), unsafe.Pointer(&keyHeads), unsafe.Pointer(&heads), unsafe.Pointer(&tokens),
-			unsafe.Pointer(&sequences), unsafe.Pointer(&scale),
-		}
-		err = launch1D(state, functions.gatedLinearAttn, heads*sequences, args)
-		runtime.KeepAlive(key)
-		runtime.KeepAlive(value)
-		runtime.KeepAlive(receptance)
-		runtime.KeepAlive(decay)
-		runtime.KeepAlive(inputState)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(keyHeads)
-		runtime.KeepAlive(heads)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(sequences)
-		runtime.KeepAlive(scale)
-		return err
+		return launch1DABI(
+			state, functions.gatedLinearAttn, heads*sequences,
+			&key, &value, &receptance, &decay, &inputState, &output,
+			&width, &keyHeads, &heads, &tokens, &sequences, &scale,
+		)
 	case tensor.OpRWKV6:
 		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "RWKV6 width")
 		if err != nil {
@@ -274,25 +196,11 @@ func launchRecurrentSelection(
 		first := pointers[node.Inputs[3]]
 		decay := pointers[node.Inputs[4]]
 		inputState := pointers[node.Inputs[5]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&key), unsafe.Pointer(&value), unsafe.Pointer(&receptance),
-			unsafe.Pointer(&first), unsafe.Pointer(&decay), unsafe.Pointer(&inputState),
-			unsafe.Pointer(&output), unsafe.Pointer(&width), unsafe.Pointer(&heads),
-			unsafe.Pointer(&tokens), unsafe.Pointer(&sequences),
-		}
-		err = launch1D(state, functions.rwkv6, heads*sequences, args)
-		runtime.KeepAlive(key)
-		runtime.KeepAlive(value)
-		runtime.KeepAlive(receptance)
-		runtime.KeepAlive(first)
-		runtime.KeepAlive(decay)
-		runtime.KeepAlive(inputState)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(heads)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(sequences)
-		return err
+		return launch1DABI(
+			state, functions.rwkv6, heads*sequences,
+			&key, &value, &receptance, &first, &decay, &inputState, &output,
+			&width, &heads, &tokens, &sequences,
+		)
 	case tensor.OpSumRows:
 		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SumRows width")
 		if err != nil {
@@ -304,27 +212,14 @@ func launchRecurrentSelection(
 		}
 		rows := uint32(elements / uint64(width))
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width), unsafe.Pointer(&rows),
-		}
-		err = launch1D(state, functions.sumRows, rows, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(rows)
-		return err
+		return launch1DABI(state, functions.sumRows, rows, &input, &output, &width, &rows)
 	case tensor.OpFWHT:
 		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
 		if err != nil {
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width), unsafe.Pointer(&rows),
-		}
-		err = launch1D(state, functions.fwht, rows, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(state, functions.fwht, rows, &input, &output, &width, &rows)
 	case tensor.OpTopK:
 		attributes, ok := node.Attrs.(tensor.TopKAttributes)
 		if !ok || attributes.K == 0 {
@@ -336,13 +231,7 @@ func launchRecurrentSelection(
 		}
 		input := pointers[node.Inputs[0]]
 		k := attributes.K
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width),
-			unsafe.Pointer(&k), unsafe.Pointer(&rows),
-		}
-		err = launch1D(state, functions.topK, rows, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(state, functions.topK, rows, &input, &output, &width, &k, &rows)
 	case tensor.OpGatherLast:
 		inputNode, indicesNode := node.Inputs[0], node.Inputs[1]
 		inputRows, err := uint32Checked(
@@ -372,14 +261,10 @@ func launchRecurrentSelection(
 			return err
 		}
 		input, indices := pointers[inputNode], pointers[indicesNode]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&indices), unsafe.Pointer(&output),
-			unsafe.Pointer(&inner), unsafe.Pointer(&indexCount), unsafe.Pointer(&inputRows),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.gatherLast, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.gatherLast, count,
+			&input, &indices, &output, &inner, &indexCount, &inputRows, &count,
+		)
 	case tensor.OpSparseAttention:
 		attributes, ok := node.Attrs.(tensor.SparseAttentionAttributes)
 		if !ok {
@@ -422,16 +307,12 @@ func launchRecurrentSelection(
 		scale := attributes.Scale
 		causal := kernelBool(attributes.Causal)
 		queryStart := attributes.QueryStart
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&query), unsafe.Pointer(&key), unsafe.Pointer(&value), unsafe.Pointer(&indices),
-			unsafe.Pointer(&output), unsafe.Pointer(&keyWidth), unsafe.Pointer(&valueWidth),
-			unsafe.Pointer(&queryHeads), unsafe.Pointer(&keyValueHeads), unsafe.Pointer(&queryTokens),
-			unsafe.Pointer(&keyValueTokens), unsafe.Pointer(&selected), unsafe.Pointer(&scale),
-			unsafe.Pointer(&causal), unsafe.Pointer(&queryStart), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.sparseAttention, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.sparseAttention, count,
+			&query, &key, &value, &indices, &output, &keyWidth, &valueWidth,
+			&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &selected,
+			&scale, &causal, &queryStart, &count,
+		)
 	case tensor.OpIndexerScore:
 		attributes, ok := node.Attrs.(tensor.IndexerScoreAttributes)
 		if !ok {
@@ -459,14 +340,11 @@ func launchRecurrentSelection(
 		}
 		query, key, weights := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
 		scale, queryStart := attributes.Scale, attributes.QueryStart
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&query), unsafe.Pointer(&key), unsafe.Pointer(&weights), unsafe.Pointer(&output),
-			unsafe.Pointer(&width), unsafe.Pointer(&heads), unsafe.Pointer(&queryTokens),
-			unsafe.Pointer(&keyTokens), unsafe.Pointer(&scale), unsafe.Pointer(&queryStart), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.indexerScore, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.indexerScore, count,
+			&query, &key, &weights, &output, &width, &heads, &queryTokens,
+			&keyTokens, &scale, &queryStart, &count,
+		)
 	case tensor.OpRWKV7:
 		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "RWKV7 width")
 		if err != nil {
@@ -494,25 +372,11 @@ func launchRecurrentSelection(
 		a := pointers[node.Inputs[4]]
 		bVector := pointers[node.Inputs[5]]
 		inputState := pointers[node.Inputs[6]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&receptance), unsafe.Pointer(&decay), unsafe.Pointer(&key), unsafe.Pointer(&value),
-			unsafe.Pointer(&a), unsafe.Pointer(&bVector), unsafe.Pointer(&inputState), unsafe.Pointer(&output),
-			unsafe.Pointer(&width), unsafe.Pointer(&heads), unsafe.Pointer(&tokens), unsafe.Pointer(&sequences),
-		}
-		err = launch1D(state, functions.rwkv7, heads*sequences, args)
-		runtime.KeepAlive(receptance)
-		runtime.KeepAlive(decay)
-		runtime.KeepAlive(key)
-		runtime.KeepAlive(value)
-		runtime.KeepAlive(a)
-		runtime.KeepAlive(bVector)
-		runtime.KeepAlive(inputState)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(heads)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(sequences)
-		return err
+		return launch1DABI(
+			state, functions.rwkv7, heads*sequences,
+			&receptance, &decay, &key, &value, &a, &bVector, &inputState, &output,
+			&width, &heads, &tokens, &sequences,
+		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

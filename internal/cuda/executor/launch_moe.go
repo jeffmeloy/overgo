@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"runtime"
-	"unsafe"
 
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -149,23 +147,14 @@ func launchMoE(
 		swigluClamp := attributes.SwiGLUClamp
 		gated := kernelBool(attributes.Gated)
 		fusedGateUp := kernelBool(attributes.FusedGateUp)
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&routerInput), unsafe.Pointer(&router), unsafe.Pointer(&gate),
-			unsafe.Pointer(&up), unsafe.Pointer(&down), unsafe.Pointer(&selectionBias), unsafe.Pointer(&expertScale),
-			unsafe.Pointer(&routerBias), unsafe.Pointer(&gateBias), unsafe.Pointer(&upBias), unsafe.Pointer(&downBias),
-			unsafe.Pointer(&selectedExperts),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&hidden), unsafe.Pointer(&routerHidden), unsafe.Pointer(&tokens), unsafe.Pointer(&experts),
-			unsafe.Pointer(&topK), unsafe.Pointer(&intermediate), unsafe.Pointer(&normalize),
-			unsafe.Pointer(&routing), unsafe.Pointer(&scale), unsafe.Pointer(&expertStorage),
-			unsafe.Pointer(&gated), unsafe.Pointer(&fusedGateUp), unsafe.Pointer(&activation),
-			unsafe.Pointer(&expertIndexDivisor),
-			unsafe.Pointer(&swigluClamp),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.moe, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.moe, count,
+			&input, &routerInput, &router, &gate, &up, &down, &selectionBias, &expertScale,
+			&routerBias, &gateBias, &upBias, &downBias, &selectedExperts, &output,
+			&hidden, &routerHidden, &tokens, &experts, &topK, &intermediate, &normalize,
+			&routing, &scale, &expertStorage, &gated, &fusedGateUp, &activation,
+			&expertIndexDivisor, &swigluClamp, &count,
+		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

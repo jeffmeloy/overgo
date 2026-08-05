@@ -3,8 +3,6 @@ package executor
 import (
 	"errors"
 	"fmt"
-	"runtime"
-	"unsafe"
 
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -51,14 +49,10 @@ func launchMathVision(
 		}
 		base, a, b := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
 		scale := attributes.Scale
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&base), unsafe.Pointer(&a), unsafe.Pointer(&b), unsafe.Pointer(&output),
-			unsafe.Pointer(&inner), unsafe.Pointer(&rows), unsafe.Pointer(&rank), unsafe.Pointer(&groups),
-			unsafe.Pointer(&scale), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.loraMerge, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.loraMerge, count,
+			&base, &a, &b, &output, &inner, &rows, &rank, &groups, &scale, &count,
+		)
 	case tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
@@ -73,18 +67,7 @@ func launchMathVision(
 			} else if node.Op == tensor.OpDivide {
 				function = functions.divide
 			}
-			args := []unsafe.Pointer{
-				unsafe.Pointer(&left),
-				unsafe.Pointer(&right),
-				unsafe.Pointer(&output),
-				unsafe.Pointer(&count),
-			}
-			err = launch1D(state, function, count, args)
-			runtime.KeepAlive(left)
-			runtime.KeepAlive(right)
-			runtime.KeepAlive(output)
-			runtime.KeepAlive(count)
-			return err
+			return launch1DABI(state, function, count, &left, &right, &output, &count)
 		}
 		leftDimensions, err := shapeDimensions32(node.Inputs[0].Shape)
 		if err != nil {
@@ -104,32 +87,12 @@ func launchMathVision(
 		} else if node.Op == tensor.OpDivide {
 			function = functions.broadcastDivide
 		}
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&left),
-			unsafe.Pointer(&right),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&count),
-			unsafe.Pointer(&leftDimensions[0]),
-			unsafe.Pointer(&leftDimensions[1]),
-			unsafe.Pointer(&leftDimensions[2]),
-			unsafe.Pointer(&leftDimensions[3]),
-			unsafe.Pointer(&rightDimensions[0]),
-			unsafe.Pointer(&rightDimensions[1]),
-			unsafe.Pointer(&rightDimensions[2]),
-			unsafe.Pointer(&rightDimensions[3]),
-			unsafe.Pointer(&outputDimensions[0]),
-			unsafe.Pointer(&outputDimensions[1]),
-			unsafe.Pointer(&outputDimensions[2]),
-		}
-		err = launch1D(state, function, count, args)
-		runtime.KeepAlive(left)
-		runtime.KeepAlive(right)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(count)
-		runtime.KeepAlive(leftDimensions)
-		runtime.KeepAlive(rightDimensions)
-		runtime.KeepAlive(outputDimensions)
-		return err
+		return launch1DABI(
+			state, function, count, &left, &right, &output, &count,
+			&leftDimensions[0], &leftDimensions[1], &leftDimensions[2], &leftDimensions[3],
+			&rightDimensions[0], &rightDimensions[1], &rightDimensions[2], &rightDimensions[3],
+			&outputDimensions[0], &outputDimensions[1], &outputDimensions[2],
+		)
 	case tensor.OpScale:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
@@ -141,18 +104,7 @@ func launchMathVision(
 		}
 		input := pointers[node.Inputs[0]]
 		scale := attributes.Value
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&scale),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.scale, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(scale)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(state, functions.scale, count, &input, &output, &scale, &count)
 	case tensor.OpClamp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
@@ -164,40 +116,22 @@ func launchMathVision(
 		}
 		input := pointers[node.Inputs[0]]
 		minimum, maximum := attributes.Minimum, attributes.Maximum
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&minimum),
-			unsafe.Pointer(&maximum), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.clamp, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(minimum)
-		runtime.KeepAlive(maximum)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, functions.clamp, count, &input, &output, &minimum, &maximum, &count,
+		)
 	case tensor.OpBF16Round:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.bf16Round, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(state, functions.bf16Round, count, &input, &output, &count)
 	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&count),
-		}
 		function := functions.silu
 		if node.Op == tensor.OpGELU {
 			function = functions.gelu
@@ -216,11 +150,7 @@ func launchMathVision(
 		} else if node.Op == tensor.OpExp {
 			function = functions.exp
 		}
-		err = launch1D(state, function, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(state, function, count, &input, &output, &count)
 	case tensor.OpXIELU:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
@@ -235,24 +165,10 @@ func launchMathVision(
 		alphaP := attributes.AlphaP
 		beta := attributes.Beta
 		epsilon := attributes.Epsilon
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&alphaN),
-			unsafe.Pointer(&alphaP),
-			unsafe.Pointer(&beta),
-			unsafe.Pointer(&epsilon),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.xielu, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(alphaN)
-		runtime.KeepAlive(alphaP)
-		runtime.KeepAlive(beta)
-		runtime.KeepAlive(epsilon)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, functions.xielu, count,
+			&input, &output, &alphaN, &alphaP, &beta, &epsilon, &count,
+		)
 	case tensor.OpConv1DSame:
 		attributes, ok := node.Attrs.(tensor.Conv1DAttributes)
 		if !ok {
@@ -268,14 +184,11 @@ func launchMathVision(
 		kernelWidth := uint32(node.Inputs[1].Shape.Dims[0])
 		channelsOut := uint32(node.Shape.Dims[0])
 		depthwise := kernelBool(attributes.Depthwise)
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&bias), unsafe.Pointer(&output),
-			unsafe.Pointer(&channelsIn), unsafe.Pointer(&tokens), unsafe.Pointer(&kernelWidth),
-			unsafe.Pointer(&channelsOut), unsafe.Pointer(&depthwise), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.conv1DSame, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.conv1DSame, count,
+			&input, &weight, &bias, &output, &channelsIn, &tokens, &kernelWidth,
+			&channelsOut, &depthwise, &count,
+		)
 	case tensor.OpConv2D:
 		attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
 		if !ok {
@@ -304,17 +217,12 @@ func launchMathVision(
 		if attributes.HasBias {
 			hasBias = 1
 		}
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&bias), unsafe.Pointer(&output),
-			unsafe.Pointer(&channelsIn), unsafe.Pointer(&inputW), unsafe.Pointer(&inputH),
-			unsafe.Pointer(&kernelW), unsafe.Pointer(&kernelH), unsafe.Pointer(&weightChannels),
-			unsafe.Pointer(&channelsOut), unsafe.Pointer(&outputW), unsafe.Pointer(&outputH),
-			unsafe.Pointer(&strideX), unsafe.Pointer(&strideY), unsafe.Pointer(&padLeft), unsafe.Pointer(&padTop),
-			unsafe.Pointer(&depthwise), unsafe.Pointer(&hasBias), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.conv2D, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.conv2D, count,
+			&input, &weight, &bias, &output, &channelsIn, &inputW, &inputH,
+			&kernelW, &kernelH, &weightChannels, &channelsOut, &outputW, &outputH,
+			&strideX, &strideY, &padLeft, &padTop, &depthwise, &hasBias, &count,
+		)
 	case tensor.OpWindowPartition2D, tensor.OpWindowUnpartition2D:
 		attributes, ok := node.Attrs.(tensor.Window2DAttributes)
 		if !ok {
@@ -331,13 +239,9 @@ func launchMathVision(
 		if node.Op == tensor.OpWindowUnpartition2D {
 			function = functions.windowUnpartition2D
 		}
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&channels),
-			unsafe.Pointer(&width), unsafe.Pointer(&height), unsafe.Pointer(&window), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, function, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, function, count, &input, &output, &channels, &width, &height, &window, &count,
+		)
 	case tensor.OpSAMAttention:
 		attributes, ok := node.Attrs.(tensor.SAMAttentionAttributes)
 		if !ok {
@@ -359,17 +263,12 @@ func launchMathVision(
 		relativeWLength := uint32(node.Inputs[3].Shape.Dims[1])
 		relativeHLength := uint32(node.Inputs[4].Shape.Dims[1])
 		scale, relativeScale := attributes.Scale, attributes.RelativeScale
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&query), unsafe.Pointer(&key), unsafe.Pointer(&value),
-			unsafe.Pointer(&relativeW), unsafe.Pointer(&relativeH), unsafe.Pointer(&output),
-			unsafe.Pointer(&keyWidth), unsafe.Pointer(&valueWidth), unsafe.Pointer(&queryHeads),
-			unsafe.Pointer(&keyHeads), unsafe.Pointer(&tokens), unsafe.Pointer(&batches),
-			unsafe.Pointer(&spatialSize), unsafe.Pointer(&relativeWLength), unsafe.Pointer(&relativeHLength),
-			unsafe.Pointer(&scale), unsafe.Pointer(&relativeScale), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.samAttention, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.samAttention, count,
+			&query, &key, &value, &relativeW, &relativeH, &output,
+			&keyWidth, &valueWidth, &queryHeads, &keyHeads, &tokens, &batches,
+			&spatialSize, &relativeWLength, &relativeHLength, &scale, &relativeScale, &count,
+		)
 	case tensor.OpGroupNorm:
 		attributes, ok := node.Attrs.(tensor.GroupNormAttributes)
 		if !ok {
@@ -384,14 +283,10 @@ func launchMathVision(
 		tokens := uint32(node.Shape.Dims[1])
 		groups := attributes.Groups
 		epsilon := attributes.Epsilon
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&bias), unsafe.Pointer(&output),
-			unsafe.Pointer(&channels), unsafe.Pointer(&tokens), unsafe.Pointer(&groups),
-			unsafe.Pointer(&epsilon), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.groupNorm, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.groupNorm, count,
+			&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,
+		)
 	case tensor.OpL2Norm:
 		attributes, ok := node.Attrs.(tensor.L2NormAttributes)
 		if !ok {
@@ -403,20 +298,7 @@ func launchMathVision(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&rows),
-			unsafe.Pointer(&epsilon),
-		}
-		err = launch1D(state, functions.l2Norm, rows, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(rows)
-		runtime.KeepAlive(epsilon)
-		return err
+		return launch1DABI(state, functions.l2Norm, rows, &input, &output, &width, &rows, &epsilon)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

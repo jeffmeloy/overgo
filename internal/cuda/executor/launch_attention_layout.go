@@ -3,8 +3,6 @@ package executor
 import (
 	"errors"
 	"fmt"
-	"runtime"
-	"unsafe"
 
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -27,16 +25,7 @@ func launchAttentionLayout(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.copy, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(state, functions.copy, count, &input, &output, &count)
 	case tensor.OpAttention:
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 		if !ok {
@@ -102,56 +91,13 @@ func launchAttentionLayout(
 			const chunkedWindowABI = 2
 			symmetricWindow = chunkedWindowABI
 		}
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&query),
-			unsafe.Pointer(&key),
-			unsafe.Pointer(&value),
-			unsafe.Pointer(&relativeBias),
-			unsafe.Pointer(&sinks),
-			unsafe.Pointer(&blockIDs),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&keyWidth),
-			unsafe.Pointer(&valueWidth),
-			unsafe.Pointer(&queryHeads),
-			unsafe.Pointer(&keyValueHeads),
-			unsafe.Pointer(&queryTokens),
-			unsafe.Pointer(&keyValueTokens),
-			unsafe.Pointer(&scale),
-			unsafe.Pointer(&softcap),
-			unsafe.Pointer(&maxALiBiBias),
-			unsafe.Pointer(&causal),
-			unsafe.Pointer(&queryStart),
-			unsafe.Pointer(&window),
-			unsafe.Pointer(&symmetricWindow),
-			unsafe.Pointer(&relativeBuckets),
-			unsafe.Pointer(&relativeBidirectional),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.attention, count, args)
-		runtime.KeepAlive(query)
-		runtime.KeepAlive(key)
-		runtime.KeepAlive(value)
-		runtime.KeepAlive(relativeBias)
-		runtime.KeepAlive(sinks)
-		runtime.KeepAlive(blockIDs)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(keyWidth)
-		runtime.KeepAlive(valueWidth)
-		runtime.KeepAlive(queryHeads)
-		runtime.KeepAlive(keyValueHeads)
-		runtime.KeepAlive(queryTokens)
-		runtime.KeepAlive(keyValueTokens)
-		runtime.KeepAlive(scale)
-		runtime.KeepAlive(softcap)
-		runtime.KeepAlive(maxALiBiBias)
-		runtime.KeepAlive(causal)
-		runtime.KeepAlive(queryStart)
-		runtime.KeepAlive(window)
-		runtime.KeepAlive(symmetricWindow)
-		runtime.KeepAlive(relativeBuckets)
-		runtime.KeepAlive(relativeBidirectional)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, functions.attention, count,
+			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
+			&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
+			&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
+			&relativeBuckets, &relativeBidirectional, &count,
+		)
 	case tensor.OpConcat:
 		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
 		if !ok || (attributes.Axis != 0 && attributes.Axis != uint32(node.Shape.Rank-1)) {
@@ -176,26 +122,10 @@ func launchAttentionLayout(
 			return err
 		}
 		axis := attributes.Axis
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&left),
-			unsafe.Pointer(&right),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&leftCount),
-			unsafe.Pointer(&leftWidth),
-			unsafe.Pointer(&rightWidth),
-			unsafe.Pointer(&axis),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.concat, count, args)
-		runtime.KeepAlive(left)
-		runtime.KeepAlive(right)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(leftCount)
-		runtime.KeepAlive(leftWidth)
-		runtime.KeepAlive(rightWidth)
-		runtime.KeepAlive(axis)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, functions.concat, count,
+			&left, &right, &output, &leftCount, &leftWidth, &rightWidth, &axis, &count,
+		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

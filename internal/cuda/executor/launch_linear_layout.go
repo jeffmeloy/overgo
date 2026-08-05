@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"runtime"
-	"unsafe"
 
 	"llamacpp2go/internal/cuda/cublas"
 	"llamacpp2go/internal/cuda/device"
@@ -43,13 +42,10 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		heads := attributes.Heads
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&width),
-			unsafe.Pointer(&heads), unsafe.Pointer(&tokens), unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.repeatHeads, count, args)
-		runtime.KeepAlive(args)
-		return err
+		return launch1DABI(
+			state, functions.repeatHeads, count,
+			&input, &output, &width, &heads, &tokens, &count,
+		)
 	case tensor.OpTranspose2D:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
@@ -64,20 +60,7 @@ func launchLinearLayout(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&rows),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.transpose2D, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(rows)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(state, functions.transpose2D, count, &input, &output, &width, &rows, &count)
 	case tensor.OpGroupSlice:
 		attributes, ok := node.Attrs.(tensor.GroupSliceAttributes)
 		if !ok {
@@ -108,26 +91,10 @@ func launchLinearLayout(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&inputWidth),
-			unsafe.Pointer(&offset),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&groups),
-			unsafe.Pointer(&stride),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.groupSlice, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(inputWidth)
-		runtime.KeepAlive(offset)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(groups)
-		runtime.KeepAlive(stride)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, functions.groupSlice, count,
+			&input, &output, &inputWidth, &offset, &width, &groups, &stride, &count,
+		)
 	case tensor.OpFlatSlice:
 		attributes, ok := node.Attrs.(tensor.FlatSliceAttributes)
 		if !ok {
@@ -142,18 +109,7 @@ func launchLinearLayout(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&offset),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.flatSlice, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(offset)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(state, functions.flatSlice, count, &input, &output, &offset, &count)
 	case tensor.OpRMSNorm:
 		attributes, ok := node.Attrs.(tensor.RMSNormAttributes)
 		if !ok {
@@ -165,20 +121,7 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&rows),
-			unsafe.Pointer(&epsilon),
-		}
-		err = launch1D(state, functions.rmsNorm, rows, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(rows)
-		runtime.KeepAlive(epsilon)
-		return err
+		return launch1DABI(state, functions.rmsNorm, rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
 		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
 		if !ok {
@@ -190,38 +133,14 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&rows),
-			unsafe.Pointer(&epsilon),
-		}
-		err = launch1D(state, functions.layerNorm, rows, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(rows)
-		runtime.KeepAlive(epsilon)
-		return err
+		return launch1DABI(state, functions.layerNorm, rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpSoftmax:
 		width, rows, err := rowDimensions32(node.Shape)
 		if err != nil {
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&rows),
-		}
-		err = launch1D(state, functions.softmax, rows, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(rows)
-		return err
+		return launch1DABI(state, functions.softmax, rows, &input, &output, &width, &rows)
 	case tensor.OpMulMat:
 		leftNode := node.Inputs[0]
 		rightNode := node.Inputs[1]
@@ -251,23 +170,10 @@ func launchLinearLayout(
 				return fmt.Errorf("%s mul_mat output element count exceeds uint32", leftNode.Type)
 			}
 			count := leftRows * rightRows
-			args := []unsafe.Pointer{
-				unsafe.Pointer(&left),
-				unsafe.Pointer(&right),
-				unsafe.Pointer(&output),
-				unsafe.Pointer(&inner),
-				unsafe.Pointer(&leftRows),
-				unsafe.Pointer(&rightRows),
-			}
 			function := quantKernels[leftNode.Type].mulMat(functions)
-			err = launch1D(state, function, count, args)
-			runtime.KeepAlive(left)
-			runtime.KeepAlive(right)
-			runtime.KeepAlive(output)
-			runtime.KeepAlive(inner)
-			runtime.KeepAlive(leftRows)
-			runtime.KeepAlive(rightRows)
-			return err
+			return launch1DABI(
+				state, function, count, &left, &right, &output, &inner, &leftRows, &rightRows,
+			)
 		}
 		if blas == nil {
 			return errors.New("cuBLAS is unavailable for F32 mul_mat")
@@ -343,11 +249,10 @@ func launchLinearLayout(
 				}
 				function := quantKernels[leftNode.Type].mulMat(functions)
 				rightRows := uint32(1)
-				args := []unsafe.Pointer{
-					unsafe.Pointer(&left), unsafe.Pointer(&right), unsafe.Pointer(&groupOutput),
-					unsafe.Pointer(&inner), unsafe.Pointer(&leftRows), unsafe.Pointer(&rightRows),
-				}
-				if err = launch1D(state, function, leftRows, args); err != nil {
+				if err = launch1DABI(
+					state, function, leftRows,
+					&left, &right, &groupOutput, &inner, &leftRows, &rightRows,
+				); err != nil {
 					return err
 				}
 			}
@@ -377,13 +282,6 @@ func launchLinearLayout(
 		if len(attributes.Rows) == 0 {
 			return errors.New("get_rows row list is empty")
 		}
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&table),
-			unsafe.Pointer(&rows),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&count),
-		}
 		function := functions.getRows
 		if descriptor, ok := quantKernels[node.Inputs[0].Type]; ok {
 			traits, _ := node.Inputs[0].Type.Traits()
@@ -392,13 +290,7 @@ func launchLinearLayout(
 			}
 			function = descriptor.getRows(functions)
 		}
-		err = launch1D(state, function, count, args)
-		runtime.KeepAlive(table)
-		runtime.KeepAlive(rows)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(state, function, count, &table, &rows, &output, &width, &count)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

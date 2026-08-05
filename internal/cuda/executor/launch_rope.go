@@ -3,8 +3,6 @@ package executor
 import (
 	"errors"
 	"fmt"
-	"runtime"
-	"unsafe"
 
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -59,46 +57,16 @@ func launchRoPE(
 		attentionFactor := attributes.AttentionFactor
 		betaFast := attributes.BetaFast
 		betaSlow := attributes.BetaSlow
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&positions),
-			unsafe.Pointer(&frequencyFactors),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&heads),
-			unsafe.Pointer(&tokens),
-			unsafe.Pointer(&rotary),
-			unsafe.Pointer(&frequencyBase),
-			unsafe.Pointer(&frequencyScale),
-			unsafe.Pointer(&originalContext),
-			unsafe.Pointer(&extFactor),
-			unsafe.Pointer(&attentionFactor),
-			unsafe.Pointer(&betaFast),
-			unsafe.Pointer(&betaSlow),
-			unsafe.Pointer(&count),
-		}
 		function := functions.ropeNeoX
 		if node.Op == tensor.OpRoPENormal {
 			function = functions.ropeNormal
 		}
-		err = launch1D(state, function, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(positions)
-		runtime.KeepAlive(frequencyFactors)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(heads)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(rotary)
-		runtime.KeepAlive(frequencyBase)
-		runtime.KeepAlive(frequencyScale)
-		runtime.KeepAlive(originalContext)
-		runtime.KeepAlive(extFactor)
-		runtime.KeepAlive(attentionFactor)
-		runtime.KeepAlive(betaFast)
-		runtime.KeepAlive(betaSlow)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, function, count,
+			&input, &positions, &frequencyFactors, &output, &width, &heads, &tokens, &rotary,
+			&frequencyBase, &frequencyScale, &originalContext, &extFactor, &attentionFactor,
+			&betaFast, &betaSlow, &count,
+		)
 	case tensor.OpRoPEMulti:
 		attributes, ok := node.Attrs.(tensor.RoPEMultiAttributes)
 		if !ok {
@@ -135,35 +103,12 @@ func launchRoPE(
 			}
 			sections[index] = uint32(section)
 		}
-		args := []unsafe.Pointer{
-			unsafe.Pointer(&input),
-			unsafe.Pointer(&positions),
-			unsafe.Pointer(&output),
-			unsafe.Pointer(&width),
-			unsafe.Pointer(&heads),
-			unsafe.Pointer(&tokens),
-			unsafe.Pointer(&rotary),
-			unsafe.Pointer(&frequencyBase),
-			unsafe.Pointer(&frequencyScale),
-			unsafe.Pointer(&sections[0]),
-			unsafe.Pointer(&sections[1]),
-			unsafe.Pointer(&sections[2]),
-			unsafe.Pointer(&sections[3]),
-			unsafe.Pointer(&count),
-		}
-		err = launch1D(state, functions.ropeMulti, count, args)
-		runtime.KeepAlive(input)
-		runtime.KeepAlive(positions)
-		runtime.KeepAlive(output)
-		runtime.KeepAlive(width)
-		runtime.KeepAlive(heads)
-		runtime.KeepAlive(tokens)
-		runtime.KeepAlive(rotary)
-		runtime.KeepAlive(frequencyBase)
-		runtime.KeepAlive(frequencyScale)
-		runtime.KeepAlive(sections)
-		runtime.KeepAlive(count)
-		return err
+		return launch1DABI(
+			state, functions.ropeMulti, count,
+			&input, &positions, &output, &width, &heads, &tokens, &rotary,
+			&frequencyBase, &frequencyScale,
+			&sections[0], &sections[1], &sections[2], &sections[3], &count,
+		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

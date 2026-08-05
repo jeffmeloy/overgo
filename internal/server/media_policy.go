@@ -27,6 +27,8 @@ const (
 	maxRemoteMediaTimeout          = 2 * time.Minute
 	maxRemoteMediaHostBytes        = 253
 	maxRemoteMediaLabelBytes       = 63
+	defaultHTTPPort                = "80"
+	defaultHTTPSPort               = "443"
 )
 
 type RemoteMediaPolicy struct {
@@ -281,9 +283,9 @@ func (f *remoteMediaFetcher) validateURL(target *url.URL) error {
 	port := target.Port()
 	if port == "" {
 		if strings.EqualFold(target.Scheme, "https") {
-			port = "443"
+			port = defaultHTTPSPort
 		} else {
-			port = "80"
+			port = defaultHTTPPort
 		}
 	}
 	portNumber, err := strconv.Atoi(port)
@@ -348,7 +350,7 @@ func (f *remoteMediaFetcher) fetchTyped(
 		return nil, "", fmt.Errorf("fetch remote media: %w", err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode > 299 {
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, "", fmt.Errorf("remote media returned HTTP status %d", response.StatusCode)
 	}
 	contentType := strings.ToLower(strings.TrimSpace(strings.Split(response.Header.Get("Content-Type"), ";")[0]))

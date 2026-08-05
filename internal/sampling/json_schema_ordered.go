@@ -150,8 +150,8 @@ func marshalOrderedJSON(value any) (string, error) {
 }
 
 func appendOrderedJSON(output *bytes.Buffer, value any, depth int) error {
-	if depth > 256 {
-		return errors.New("JSON value exceeds 256 nesting levels")
+	if depth > maxJSONSchemaDepth {
+		return fmt.Errorf("JSON value exceeds %d nesting levels", maxJSONSchemaDepth)
 	}
 	switch typed := value.(type) {
 	case orderedJSONObject:

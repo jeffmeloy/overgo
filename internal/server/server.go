@@ -27,27 +27,30 @@ import (
 )
 
 const (
-	DefaultModelID            = "llamacpp2go"
-	DefaultMaxTokens          = 4096
-	DefaultMaxConcurrent      = 1
-	DefaultMaxEmbeddingInputs = 16
-	DefaultVideoFPS           = 2
-	DefaultVideoFrameLimit    = 32
-	maxRequestBytes           = 1 << 20
-	maxMultimodalRequestBytes = 32 << 20
-	maxImageBytes             = 16 << 20
-	maxMediaBytes             = 24 << 20
-	maxImageDimension         = 16384
-	maxImagePixels            = 16 << 20
-	maxRequestImagePixels     = 32 << 20
-	maxConcurrentRequests     = 1 << 16
-	maxStoredResponses        = 1 << 16
-	maxResponseStoreBytes     = 1 << 30
-	maxTokenListLength        = 1 << 20
-	maxCompletionChoices      = 8
-	defaultProtocolMaxTokens  = 16
-	maxProtocolTools          = 128
-	maxVideoFrameLimit        = 256
+	DefaultModelID             = "llamacpp2go"
+	DefaultMaxTokens           = 4096
+	DefaultMaxConcurrent       = 1
+	DefaultMaxEmbeddingInputs  = 16
+	DefaultVideoFPS            = 2
+	DefaultVideoFrameLimit     = 32
+	DefaultSamplingTemperature = float32(1)
+	DefaultSamplingTopP        = float32(1)
+	DefaultSamplingTopK        = 40
+	maxRequestBytes            = 1 << 20
+	maxMultimodalRequestBytes  = 32 << 20
+	maxImageBytes              = 16 << 20
+	maxMediaBytes              = 24 << 20
+	maxImageDimension          = 16384
+	maxImagePixels             = 16 << 20
+	maxRequestImagePixels      = 32 << 20
+	maxConcurrentRequests      = 1 << 16
+	maxStoredResponses         = 1 << 16
+	maxResponseStoreBytes      = 1 << 30
+	maxTokenListLength         = 1 << 20
+	maxCompletionChoices       = 8
+	defaultProtocolMaxTokens   = 16
+	maxProtocolTools           = 128
+	maxVideoFrameLimit         = 256
 )
 
 type Generator interface {
@@ -401,10 +404,10 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, errors.New("server: max embedding inputs must be positive")
 	}
 	if config.DefaultTemperature == 0 {
-		config.DefaultTemperature = 1
+		config.DefaultTemperature = DefaultSamplingTemperature
 	}
 	if config.DefaultTopP == 0 {
-		config.DefaultTopP = 1
+		config.DefaultTopP = DefaultSamplingTopP
 	}
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")

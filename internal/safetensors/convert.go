@@ -10,6 +10,12 @@ import (
 	"llamacpp2go/internal/tensor/dtype"
 )
 
+const (
+	f32PromotionBufferBytes = 4 << 10
+	float16StorageBytes     = 2
+	float32StorageBytes     = 4
+)
+
 // F32Reader: stream F32, F16, or BF16 payload as F32.
 func F32Reader(tensor Tensor) (io.Reader, error) {
 	return PromoteF32Reader(tensor.Reader(), tensor.DType)
@@ -48,17 +54,17 @@ func (r *f32Reader) Read(destination []byte) (int, error) {
 			continue
 		}
 		if r.input == nil {
-			r.input = make([]byte, 4096)
+			r.input = make([]byte, f32PromotionBufferBytes)
 		}
 		count, err := r.source.Read(r.input)
-		if count%2 != 0 {
+		if count%float16StorageBytes != 0 {
 			return written, errors.New("safetensors: 16-bit source returned a partial element")
 		}
 		if count > 0 {
-			r.output = make([]byte, count*2)
-			for index := 0; index < count/2; index++ {
-				value := r.convert(binary.LittleEndian.Uint16(r.input[index*2:]))
-				binary.LittleEndian.PutUint32(r.output[index*4:], math.Float32bits(value))
+			r.output = make([]byte, count*float32StorageBytes/float16StorageBytes)
+			for index := 0; index < count/float16StorageBytes; index++ {
+				value := r.convert(binary.LittleEndian.Uint16(r.input[index*float16StorageBytes:]))
+				binary.LittleEndian.PutUint32(r.output[index*float32StorageBytes:], math.Float32bits(value))
 			}
 			r.offset = 0
 			continue

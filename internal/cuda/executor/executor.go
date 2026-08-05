@@ -257,13 +257,15 @@ type CompiledGraph struct {
 	needBlas bool
 }
 
+const graphArenaAlignment = 256
+
 // Compile: validates and plans an immutable tensor graph.
 func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	order, err := tensor.Topological(outputs...)
 	if err != nil {
 		return nil, err
 	}
-	memory, err := planner.Build(outputs, 256)
+	memory, err := planner.Build(outputs, graphArenaAlignment)
 	if err != nil {
 		return nil, err
 	}

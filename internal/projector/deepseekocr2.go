@@ -13,7 +13,11 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
-const deepSeekOCR2ProjectorType = "deepseekocr2"
+const (
+	deepSeekOCR2ProjectorType   = "deepseekocr2"
+	deepSeekOCR2DefaultTileSize = 768
+	deepSeekOCR2DefaultMaxTiles = 6
+)
 
 type DeepSeekOCR2Spec struct {
 	DeepSeekOCRSpec
@@ -72,7 +76,9 @@ func (r *DeepSeekOCR2Runner) Spec() DeepSeekOCR2Spec {
 }
 
 func ReadDeepSeekOCR2Spec(file *gguf.File) (DeepSeekOCR2Spec, error) {
-	base, err := readDeepSeekOCRBaseSpec(file, deepSeekOCR2ProjectorType, 768, 6)
+	base, err := readDeepSeekOCRBaseSpec(
+		file, deepSeekOCR2ProjectorType, deepSeekOCR2DefaultTileSize, deepSeekOCR2DefaultMaxTiles,
+	)
 	if err != nil {
 		return DeepSeekOCR2Spec{}, err
 	}

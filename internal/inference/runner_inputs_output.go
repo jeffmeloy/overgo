@@ -12,6 +12,11 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
+const (
+	chameleonTextTokenStart = 4
+	chameleonTextTokenEnd   = 8196
+)
+
 func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.Value, error) {
 	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
 }
@@ -254,12 +259,12 @@ func (r *Runner) finalizeLogits(logits []float32) []float32 {
 	if len(logits)%vocabulary != 0 {
 		return logits
 	}
-	end := 8196
+	end := chameleonTextTokenEnd
 	if end > vocabulary {
 		end = vocabulary
 	}
 	for base := 0; base < len(logits); base += vocabulary {
-		for token := 4; token < end; token++ {
+		for token := chameleonTextTokenStart; token < end; token++ {
 			logits[base+token] = -math.MaxFloat32
 		}
 	}

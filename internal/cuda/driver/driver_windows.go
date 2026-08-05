@@ -12,6 +12,8 @@ import (
 	"unsafe"
 )
 
+const cudaDeviceNameBytes = 256
+
 var (
 	kernel32      = syscall.NewLazyDLL("kernel32.dll")
 	lstrlenA      = kernel32.NewProc("lstrlenA")
@@ -175,7 +177,7 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 		return DeviceInfo{}, err
 	}
 
-	nameBytes := make([]byte, 256)
+	nameBytes := make([]byte, cudaDeviceNameBytes)
 	result, _, _ := l.cuDeviceGetName.Call(
 		uintptr(unsafe.Pointer(&nameBytes[0])),
 		uintptr(len(nameBytes)),
@@ -558,7 +560,7 @@ func (l *Library) result(operation string, value uintptr) error {
 	err := &ResultError{Operation: operation, Code: code}
 	var namePtr uintptr
 	if result, _, _ := l.cuGetErrorName.Call(uintptr(code), uintptr(unsafe.Pointer(&namePtr))); int32(result) == 0 {
-		err.Name = readCString(namePtr, 256)
+		err.Name = readCString(namePtr, cudaDeviceNameBytes)
 	}
 	var messagePtr uintptr
 	if result, _, _ := l.cuGetErrorString.Call(uintptr(code), uintptr(unsafe.Pointer(&messagePtr))); int32(result) == 0 {

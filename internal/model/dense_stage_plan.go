@@ -7,6 +7,8 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
+const gemmaSpecialQueryScaleBlocks = 46
+
 type qkNormKind uint8
 
 const (
@@ -374,7 +376,8 @@ func (s Spec) queryScalePlan(profile ArchitectureProfile, layer uint32) QuerySca
 		return QueryScalePlan{kind: queryScalePreDot}
 	case queryScalePolicyGemma:
 		return QueryScalePlan{
-			kind: queryScalePreDot, gemmaSpecial: profile.DenseStages.GemmaSpecial && s.BlockCount == 46,
+			kind:         queryScalePreDot,
+			gemmaSpecial: profile.DenseStages.GemmaSpecial && s.BlockCount == gemmaSpecialQueryScaleBlocks,
 		}
 	default:
 		return QueryScalePlan{kind: queryScaleScores}

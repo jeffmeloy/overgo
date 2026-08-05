@@ -13,6 +13,18 @@ import (
 const (
 	maxDryBreakers      = 1 << 20
 	maxDryBreakerTokens = 64
+	DefaultXTCThreshold = float32(0.1)
+	MaxAdaptiveDecay    = float32(0.99)
+	DefaultDryBase      = float32(1.75)
+	DefaultDryLength    = 2
+	DefaultMirostatTau  = float32(5)
+	DefaultMirostatEta  = float32(0.1)
+	maximumMirostat     = 2
+	xtcDisableThreshold = float32(0.5)
+	adaptiveTailCutoff  = 0.2
+	dynamicRangeWidth   = 0.3
+	dryBaseTolerance    = 1.000001
+	maxFloat32Log       = 88.7228391
 )
 
 type LogitBias struct {
@@ -175,7 +187,7 @@ func New(config Config) (*Sampler, error) {
 		return nil, errors.New("sampling XTC probability must be in [0,1]")
 	}
 	if config.XTCThreshold == 0 {
-		config.XTCThreshold = 0.1
+		config.XTCThreshold = DefaultXTCThreshold
 	}
 	if config.XTCThreshold < 0 || config.XTCThreshold > 1 ||
 		math.IsNaN(float64(config.XTCThreshold)) {
@@ -189,7 +201,7 @@ func New(config Config) (*Sampler, error) {
 		config.AdaptiveTarget > 1 {
 		return nil, errors.New("sampling adaptive-p target must be finite and at most 1")
 	}
-	if config.AdaptiveDecay < 0 || config.AdaptiveDecay > 0.99 ||
+	if config.AdaptiveDecay < 0 || config.AdaptiveDecay > MaxAdaptiveDecay ||
 		math.IsNaN(float64(config.AdaptiveDecay)) {
 		return nil, errors.New("sampling adaptive-p decay must be in [0,0.99]")
 	}
@@ -215,14 +227,14 @@ func New(config Config) (*Sampler, error) {
 		return nil, errors.New("sampling DRY multiplier must be finite and non-negative")
 	}
 	if config.DryBase == 0 {
-		config.DryBase = 1.75
+		config.DryBase = DefaultDryBase
 	}
 	if config.DryBase < 1 || math.IsNaN(float64(config.DryBase)) ||
 		math.IsInf(float64(config.DryBase), 0) {
 		return nil, errors.New("sampling DRY base must be finite and at least 1")
 	}
 	if config.DryAllowedLength == 0 {
-		config.DryAllowedLength = 2
+		config.DryAllowedLength = DefaultDryLength
 	}
 	if config.DryAllowedLength < 0 {
 		return nil, errors.New("sampling DRY allowed length must be non-negative")
@@ -253,18 +265,18 @@ func New(config Config) (*Sampler, error) {
 		head := breaker[0]
 		dryBreakers[head] = append(dryBreakers[head], breaker[1:])
 	}
-	if config.Mirostat < 0 || config.Mirostat > 2 {
+	if config.Mirostat < 0 || config.Mirostat > maximumMirostat {
 		return nil, errors.New("sampling Mirostat version must be 0, 1, or 2")
 	}
 	if config.MirostatTau == 0 {
-		config.MirostatTau = 5
+		config.MirostatTau = DefaultMirostatTau
 	}
 	if config.MirostatTau <= 0 || math.IsNaN(float64(config.MirostatTau)) ||
 		math.IsInf(float64(config.MirostatTau), 0) {
 		return nil, errors.New("sampling Mirostat tau must be finite and positive")
 	}
 	if config.MirostatEta == 0 {
-		config.MirostatEta = 0.1
+		config.MirostatEta = DefaultMirostatEta
 	}
 	if config.MirostatEta <= 0 || math.IsNaN(float64(config.MirostatEta)) ||
 		math.IsInf(float64(config.MirostatEta), 0) {
@@ -537,7 +549,7 @@ func (s *Sampler) adaptiveCandidates(candidates []candidate) (map[int]float64, f
 		}
 		adapted = math.Max(0, math.Min(1, adapted))
 		const (
-			distributionWidth = 0.3
+			distributionWidth = dynamicRangeWidth
 			peakLogit         = 5
 			sharpness         = 10
 		)
@@ -689,7 +701,7 @@ func (s *Sampler) applySamplerStage(
 		}
 	case SamplerXTC:
 		if s.config.XTCProbability > 0 &&
-			s.config.XTCThreshold <= 0.5 &&
+			s.config.XTCThreshold <= xtcDisableThreshold &&
 			len(candidates) >= 2 &&
 			s.random.Float32() <= s.config.XTCProbability {
 			sortCandidates(candidates)
@@ -820,7 +832,7 @@ func applyInfill(
 	nonEOG := 0
 	for _, item := range candidates {
 		isEOG := vocabulary.EOG[item.id]
-		if item.probability < 0.2 && !isEOG {
+		if item.probability < adaptiveTailCutoff && !isEOG {
 			continue
 		}
 		if !isEOG {
@@ -1355,8 +1367,8 @@ func (s *Sampler) applyDry(logits []float32, history []int) {
 		}
 	}
 	maxExponent := 0
-	if s.config.DryBase > 1.000001 {
-		maxExponent = int(88.7228391 / math.Log(float64(s.config.DryBase)))
+	if s.config.DryBase > dryBaseTolerance {
+		maxExponent = int(maxFloat32Log / math.Log(float64(s.config.DryBase)))
 	}
 	for token, repeatLength := range maxRepeat {
 		singleTokenBreaker := false

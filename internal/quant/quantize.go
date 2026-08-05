@@ -201,7 +201,7 @@ func quantizeIQ3(
 	output []byte,
 ) error {
 	const blockWidth = iqSuperBlockWidth
-	typeSize := 98
+	typeSize := iq3XXSBlockBytes
 	codebook := iq3XXSQuantCodebook
 	distanceTiers := 2
 	attempts := 15
@@ -210,7 +210,7 @@ func quantizeIQ3(
 	refineAll := false
 	scaleFudge := float32(1.0125)
 	if dataType == dtype.IQ3S {
-		typeSize = 110
+		typeSize = iq3SBlockBytes
 		codebook = iq3SQuantCodebook
 		distanceTiers = 3
 		attempts = 9
@@ -243,23 +243,23 @@ func quantizeIQ3(
 			}
 			if dataType == dtype.IQ3XXS {
 				for index, gridIndex := range indices {
-					destination[2+group*8+index] = byte(gridIndex)
+					destination[iqPackedGridStart+group*8+index] = byte(gridIndex)
 				}
 				packedSigns := uint32(signs[0]) |
 					uint32(signs[1])<<7 |
 					uint32(signs[2])<<14 |
 					uint32(signs[3])<<21
 				binary.LittleEndian.PutUint32(
-					destination[66+group*4:],
+					destination[iq3XXSScaleSignStart+group*4:],
 					packedSigns,
 				)
 			} else {
 				for index, gridIndex := range indices {
-					destination[2+group*8+index] = byte(gridIndex)
-					destination[66+group] |=
+					destination[iqPackedGridStart+group*8+index] = byte(gridIndex)
+					destination[iq3SHighStart+group] |=
 						byte(gridIndex>>8) << uint(index)
 				}
-				copy(destination[74+group*4:], signs[:])
+				copy(destination[iq3SSignStart+group*4:], signs[:])
 			}
 			scales[group] = scale
 			maxScale = max(maxScale, scale)
@@ -277,14 +277,14 @@ func quantizeIQ3(
 			quantized := nearestIntGGML(0.5 * (inverse*groupScale - 1))
 			quantized = max(0, min(15, quantized))
 			if dataType == dtype.IQ3XXS {
-				offset := 66 + group*4
+				offset := iq3XXSScaleSignStart + group*4
 				packed := binary.LittleEndian.Uint32(destination[offset:])
 				packed |= uint32(quantized) << 28
 				binary.LittleEndian.PutUint32(destination[offset:], packed)
 			} else if group%2 == 0 {
-				destination[106+group/2] = byte(quantized)
+				destination[iq3SScaleStart+group/2] = byte(quantized)
 			} else {
-				destination[106+group/2] |= byte(quantized << 4)
+				destination[iq3SScaleStart+group/2] |= byte(quantized << 4)
 			}
 		}
 	}
@@ -554,11 +554,11 @@ func quantizeIQ2S(values []float32, output []byte) error {
 		blockWidth       = iqSuperBlockWidth
 		groupWidth       = iq2SGroupWidth
 		subGroupCount    = groupWidth / iqCodebookLaneWidth
-		typeSize         = 82
-		gridLowOffset    = 2
-		signOffset       = 34
-		gridHighOffset   = 66
-		groupScaleOffset = 74
+		typeSize         = iq2SBlockBytes
+		gridLowOffset    = iq2SGridStart
+		signOffset       = iq2SSignStart
+		gridHighOffset   = iq2SHighStart
+		groupScaleOffset = iq2SScaleStart
 	)
 	for block := 0; block < len(values)/blockWidth; block++ {
 		input := values[block*blockWidth : (block+1)*blockWidth]
@@ -1020,10 +1020,10 @@ func quantizeTernary(
 	values []float32,
 	output []byte,
 ) error {
-	const width = 256
-	typeSize := 54
+	const width = tqBlockWidth
+	typeSize := tq1BlockBytes
 	if dataType == dtype.TQ2_0 {
-		typeSize = 66
+		typeSize = tq2BlockBytes
 	}
 	for block := 0; block < len(values)/width; block++ {
 		input := values[block*width : (block+1)*width]
@@ -1036,9 +1036,9 @@ func quantizeTernary(
 		if maximum != 0 {
 			inverse = 1 / maximum
 		}
-		scaleOffset := 52
+		scaleOffset := tq1ScaleStart
 		if dataType == dtype.TQ2_0 {
-			scaleOffset = 64
+			scaleOffset = tq2ScaleStart
 		}
 		binary.LittleEndian.PutUint16(
 			destination[scaleOffset:],
@@ -1105,16 +1105,16 @@ func quantizeQ4Or5K(
 	values []float32,
 	output []byte,
 ) error {
-	const width = 256
+	const width = kBlockWidth
 	maxLevel := 15
-	typeSize := 144
+	typeSize := q4KBlockBytes
 	highOffset := -1
-	quantizedOffset := 16
+	quantizedOffset := q45KPayloadStart
 	if dataType == dtype.Q5K {
 		maxLevel = 31
-		typeSize = 176
-		highOffset = 16
-		quantizedOffset = 48
+		typeSize = q5KBlockBytes
+		highOffset = q45KPayloadStart
+		quantizedOffset = q5KPackedStart
 	}
 	for block := 0; block < len(values)/width; block++ {
 		input := values[block*width : (block+1)*width]
@@ -1184,17 +1184,22 @@ func quantizeQ4Or5K(
 				63,
 				nearestIntGGML(inverseMinimum*minima[group]),
 			)
-			setKScaleMinimum(destination[4:16], group, scale, minimum)
+			setKScaleMinimum(
+				destination[q45KScaleMinStart:q45KPayloadStart],
+				group,
+				scale,
+				minimum,
+			)
 		}
 		scaleBits := Float32ToFloat16(maxScale / 63)
 		minimumBits := Float32ToFloat16(maxMinimum / 63)
 		binary.LittleEndian.PutUint16(destination, scaleBits)
-		binary.LittleEndian.PutUint16(destination[2:], minimumBits)
+		binary.LittleEndian.PutUint16(destination[q45KMinimumStart:], minimumBits)
 		blockScale := Float16ToFloat32(scaleBits)
 		blockMinimum := Float16ToFloat32(minimumBits)
 		for group := 0; group < width/32; group++ {
 			quantizedScale, quantizedMinimum :=
-				getKScaleMinimum(destination[4:16], group)
+				getKScaleMinimum(destination[q45KScaleMinStart:q45KPayloadStart], group)
 			scale := blockScale * float32(quantizedScale)
 			if scale == 0 {
 				continue
@@ -1267,8 +1272,8 @@ func getKScaleMinimum(data []byte, group int) (int, int) {
 
 func quantizeQ2K(values []float32, output []byte) error {
 	const (
-		width    = 256
-		typeSize = 84
+		width    = kBlockWidth
+		typeSize = q2KBlockBytes
 	)
 	for block := 0; block < len(values)/width; block++ {
 		input := values[block*width : (block+1)*width]
@@ -1314,7 +1319,7 @@ func quantizeQ2K(values []float32, output []byte) error {
 				destination[group] = byte(nearestIntGGML(inverse * scale))
 			}
 			bits := Float32ToFloat16(maxScale / 15)
-			binary.LittleEndian.PutUint16(destination[80:], bits)
+			binary.LittleEndian.PutUint16(destination[q2KScaleStart:], bits)
 			blockScale = Float16ToFloat32(bits)
 		}
 		var blockMinimum float32
@@ -1325,7 +1330,7 @@ func quantizeQ2K(values []float32, output []byte) error {
 					byte(nearestIntGGML(inverse*minimum) << 4)
 			}
 			bits := Float32ToFloat16(maxMinimum / 15)
-			binary.LittleEndian.PutUint16(destination[82:], bits)
+			binary.LittleEndian.PutUint16(destination[q2KMinimumStart:], bits)
 			blockMinimum = Float16ToFloat32(bits)
 		}
 		for group := 0; group < width/16; group++ {
@@ -1341,13 +1346,13 @@ func quantizeQ2K(values []float32, output []byte) error {
 				levels[group*16+index] = byte(max(0, min(3, level)))
 			}
 		}
-		for section := 0; section < width; section += 128 {
-			for lane := 0; lane < 32; lane++ {
-				destination[16+section/4+lane] =
+		for section := 0; section < width; section += width / 2 {
+			for lane := 0; lane < kLaneWidth; lane++ {
+				destination[q2KPackedStart+section/4+lane] =
 					levels[section+lane] |
-						levels[section+lane+32]<<2 |
-						levels[section+lane+64]<<4 |
-						levels[section+lane+96]<<6
+						levels[section+lane+kLaneWidth]<<2 |
+						levels[section+lane+2*kLaneWidth]<<4 |
+						levels[section+lane+3*kLaneWidth]<<6
 			}
 		}
 	}
@@ -1461,8 +1466,8 @@ func makeQKX2Quants(
 
 func quantizeQ3K(values []float32, output []byte) error {
 	const (
-		width    = 256
-		typeSize = 110
+		width    = kBlockWidth
+		typeSize = q3KBlockBytes
 	)
 	for block := 0; block < len(values)/width; block++ {
 		input := values[block*width : (block+1)*width]
@@ -1492,26 +1497,26 @@ func quantizeQ3K(values []float32, output []byte) error {
 				quantized := nearestIntGGML(inverse * scales[group])
 				quantized = max(-32, min(31, quantized)) + 32
 				if group < 8 {
-					destination[96+group] = byte(quantized & 0x0f)
+					destination[q3KScaleStart+group] = byte(quantized & 0x0f)
 				} else {
-					destination[96+group-8] |= byte((quantized & 0x0f) << 4)
+					destination[q3KScaleStart+group-8] |= byte((quantized & 0x0f) << 4)
 				}
-				destination[104+group%4] |=
+				destination[q3KScaleStart+8+group%4] |=
 					byte((quantized >> 4) << (2 * (group / 4)))
 			}
 			scaleBits := Float32ToFloat16(1 / inverse)
-			binary.LittleEndian.PutUint16(destination[108:], scaleBits)
+			binary.LittleEndian.PutUint16(destination[q3KDeltaStart:], scaleBits)
 			scale = Float16ToFloat32(scaleBits)
 		}
 		for group := 0; group < width/16; group++ {
-			quantizedScale := int(destination[96+group%8])
+			quantizedScale := int(destination[q3KScaleStart+group%8])
 			if group < 8 {
 				quantizedScale &= 0x0f
 			} else {
 				quantizedScale >>= 4
 			}
 			quantizedScale |= int(
-				(destination[104+group%4]>>uint(2*(group/4)))&3,
+				(destination[q3KScaleStart+8+group%4]>>uint(2*(group/4)))&3,
 			) << 4
 			quantizedScale -= 32
 			groupScale := scale * float32(quantizedScale)
@@ -1539,13 +1544,13 @@ func quantizeQ3K(values []float32, output []byte) error {
 				mask <<= 1
 			}
 		}
-		for section := 0; section < width; section += 128 {
-			for lane := 0; lane < 32; lane++ {
-				destination[32+section/4+lane] =
+		for section := 0; section < width; section += width / 2 {
+			for lane := 0; lane < kLaneWidth; lane++ {
+				destination[q3KPackedStart+section/4+lane] =
 					byte(levels[section+lane]) |
-						byte(levels[section+lane+32])<<2 |
-						byte(levels[section+lane+64])<<4 |
-						byte(levels[section+lane+96])<<6
+						byte(levels[section+lane+kLaneWidth])<<2 |
+						byte(levels[section+lane+2*kLaneWidth])<<4 |
+						byte(levels[section+lane+3*kLaneWidth])<<6
 			}
 		}
 	}
@@ -1626,8 +1631,8 @@ func makeQ3Quants(input []float32, levels []int8) (float32, error) {
 
 func quantizeQ6K(values []float32, output []byte) error {
 	const (
-		width    = 256
-		typeSize = 210
+		width    = kBlockWidth
+		typeSize = q6KBlockBytes
 	)
 	for block := 0; block < len(values)/width; block++ {
 		input := values[block*width : (block+1)*width]
@@ -1638,7 +1643,7 @@ func quantizeQ6K(values []float32, output []byte) error {
 		for group := 0; group < width/16; group++ {
 			scale, err := makeQXQuants(
 				input[group*16:(group+1)*16],
-				32,
+				q6KLevelMagnitude,
 				levels[group*16:(group+1)*16],
 			)
 			if err != nil {
@@ -1654,17 +1659,17 @@ func quantizeQ6K(values []float32, output []byte) error {
 		if maxAbsoluteScale < negligibleQuantizationMagnitude {
 			continue
 		}
-		inverse := -128 / maxScale
+		inverse := -q6KScaleMagnitude / maxScale
 		scaleBits := Float32ToFloat16(1 / inverse)
-		binary.LittleEndian.PutUint16(destination[208:], scaleBits)
+		binary.LittleEndian.PutUint16(destination[q6KDeltaStart:], scaleBits)
 		scale := Float16ToFloat32(scaleBits)
 		for group := 0; group < width/16; group++ {
 			quantizedScale := min(
-				127,
+				q6KScaleMagnitude-1,
 				nearestIntGGML(inverse*scales[group]),
 			)
-			destination[192+group] = byte(int8(quantizedScale))
-			groupScale := scale * float32(int8(destination[192+group]))
+			destination[q6KScaleStart+group] = byte(int8(quantizedScale))
+			groupScale := scale * float32(int8(destination[q6KScaleStart+group]))
 			if groupScale == 0 {
 				continue
 			}
@@ -1672,25 +1677,25 @@ func quantizeQ6K(values []float32, output []byte) error {
 				level := nearestIntGGML(
 					input[group*16+index] / groupScale,
 				)
-				level = max(-32, min(31, level))
-				levels[group*16+index] = int8(level + 32)
+				level = max(-q6KLevelMagnitude, min(q6KLevelMagnitude-1, level))
+				levels[group*16+index] = int8(level + q6KLevelMagnitude)
 			}
 		}
-		for section := 0; section < width; section += 128 {
+		for section := 0; section < width; section += width / 2 {
 			lowOffset := section / 2
-			highOffset := 128 + section/4
-			for lane := 0; lane < 32; lane++ {
+			highOffset := q6KHighStart + section/4
+			for lane := 0; lane < kLaneWidth; lane++ {
 				q1 := byte(levels[section+lane]) & 0x0f
-				q2 := byte(levels[section+lane+32]) & 0x0f
-				q3 := byte(levels[section+lane+64]) & 0x0f
-				q4 := byte(levels[section+lane+96]) & 0x0f
+				q2 := byte(levels[section+lane+kLaneWidth]) & 0x0f
+				q3 := byte(levels[section+lane+2*kLaneWidth]) & 0x0f
+				q4 := byte(levels[section+lane+3*kLaneWidth]) & 0x0f
 				destination[lowOffset+lane] = q1 | q3<<4
-				destination[lowOffset+32+lane] = q2 | q4<<4
+				destination[lowOffset+kLaneWidth+lane] = q2 | q4<<4
 				destination[highOffset+lane] =
 					byte(levels[section+lane])>>4 |
-						(byte(levels[section+lane+32])>>4)<<2 |
-						(byte(levels[section+lane+64])>>4)<<4 |
-						(byte(levels[section+lane+96])>>4)<<6
+						(byte(levels[section+lane+kLaneWidth])>>4)<<2 |
+						(byte(levels[section+lane+2*kLaneWidth])>>4)<<4 |
+						(byte(levels[section+lane+3*kLaneWidth])>>4)<<6
 			}
 		}
 	}
@@ -1806,10 +1811,10 @@ func quantizeQ8K(values []float32, output []byte) error {
 }
 
 func quantizeQ1_0(values []float32, output []byte) error {
-	const width = 128
+	const width = q1BlockWidth
 	for block := 0; block < len(values)/width; block++ {
 		input := values[block*width : (block+1)*width]
-		destination := output[block*18 : (block+1)*18]
+		destination := output[block*q1BlockBytes : (block+1)*q1BlockBytes]
 		var sumAbsolute float32
 		for _, value := range input {
 			if !finiteFloat32(value) {

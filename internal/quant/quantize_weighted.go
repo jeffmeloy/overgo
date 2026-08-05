@@ -18,16 +18,16 @@ var (
 
 const (
 	iq2XXSWeightedGroupWidth = 32
-	iq2XXSWeightedTypeSize   = 66
+	iq2XXSWeightedTypeSize   = iq2XXSBlockBytes
 	iq2XXSWeightedAttempts   = 6
 	iq2XSWeightedGroupWidth  = 16
-	iq2XSWeightedTypeSize    = 74
+	iq2XSWeightedTypeSize    = iq2XSBlockBytes
 	iq2XSWeightedAttempts    = 9
-	iq2ScaleHeaderBytes      = 2
+	iq2ScaleHeaderBytes      = iqScaleBytes
 	iq2XXSGroupBytes         = 8
 	iq2XXSSignWordOffset     = 6
 	iq2XSGridBytes           = 2
-	iq2XSScaleOffset         = 66
+	iq2XSScaleOffset         = iq2XSScaleStart
 )
 
 type iq1QuantCodebook struct {

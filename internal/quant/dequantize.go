@@ -197,7 +197,7 @@ func dequantizeIQ2XXS(source []byte, output []float32, blocks uint64, traits dty
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		quantized := source[sourceOffset+2 : sourceOffset+66]
+		quantized := source[sourceOffset+iqPackedGridStart : sourceOffset+iqAuxiliaryStart]
 		for group := 0; group < 8; group++ {
 			first := binary.LittleEndian.Uint32(quantized[group*8:])
 			second := binary.LittleEndian.Uint32(quantized[group*8+4:])
@@ -224,8 +224,8 @@ func dequantizeIQ2XS(source []byte, output []float32, blocks uint64, traits dtyp
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		quantized := source[sourceOffset+2 : sourceOffset+66]
-		scales := source[sourceOffset+66 : sourceOffset+74]
+		quantized := source[sourceOffset+iqPackedGridStart : sourceOffset+iqAuxiliaryStart]
+		scales := source[sourceOffset+iq2XSScaleStart : sourceOffset+iq2XSBlockBytes]
 		for group := 0; group < 8; group++ {
 			packedScale := scales[group]
 			groupScales := [2]float32{
@@ -256,9 +256,9 @@ func dequantizeIQ2S(source []byte, output []float32, blocks uint64, traits dtype
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		quantized := source[sourceOffset+2 : sourceOffset+66]
-		high := source[sourceOffset+66 : sourceOffset+74]
-		scales := source[sourceOffset+74 : sourceOffset+82]
+		quantized := source[sourceOffset+iqPackedGridStart : sourceOffset+iqAuxiliaryStart]
+		high := source[sourceOffset+iq2SHighStart : sourceOffset+iq2SScaleStart]
+		scales := source[sourceOffset+iq2SScaleStart : sourceOffset+iq2SBlockBytes]
 		for group := 0; group < 8; group++ {
 			packedScale := scales[group]
 			groupScales := [2]float32{
@@ -288,8 +288,8 @@ func dequantizeIQ3XXS(source []byte, output []float32, blocks uint64, traits dty
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		quantized := source[sourceOffset+2 : sourceOffset+66]
-		scalesAndSigns := source[sourceOffset+66 : sourceOffset+98]
+		quantized := source[sourceOffset+iqPackedGridStart : sourceOffset+iqAuxiliaryStart]
+		scalesAndSigns := source[sourceOffset+iq3XXSScaleSignStart : sourceOffset+iq3XXSBlockBytes]
 		for group := 0; group < 8; group++ {
 			packed := binary.LittleEndian.Uint32(scalesAndSigns[group*4:])
 			groupScale := scale * (0.5 + float32(packed>>28)) * 0.5
@@ -320,10 +320,10 @@ func dequantizeIQ3S(source []byte, output []float32, blocks uint64, traits dtype
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		quantized := source[sourceOffset+2 : sourceOffset+66]
-		high := source[sourceOffset+66 : sourceOffset+74]
-		signs := source[sourceOffset+74 : sourceOffset+106]
-		scales := source[sourceOffset+106 : sourceOffset+110]
+		quantized := source[sourceOffset+iqPackedGridStart : sourceOffset+iqAuxiliaryStart]
+		high := source[sourceOffset+iq3SHighStart : sourceOffset+iq3SSignStart]
+		signs := source[sourceOffset+iq3SSignStart : sourceOffset+iq3SScaleStart]
+		scales := source[sourceOffset+iq3SScaleStart : sourceOffset+iq3SBlockBytes]
 		for pair := 0; pair < 4; pair++ {
 			packedScale := scales[pair]
 			groupScales := [2]float32{
@@ -619,10 +619,10 @@ func dequantizeQ2K(source []byte, output []float32, blocks uint64, traits dtype.
 	for block := uint64(0); block < blocks; block++ {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
-		scales := source[sourceOffset : sourceOffset+16]
-		quantized := source[sourceOffset+16 : sourceOffset+80]
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+80:]))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+82:]))
+		scales := source[sourceOffset+q2KScaleMinStart : sourceOffset+q2KPackedStart]
+		quantized := source[sourceOffset+q2KPackedStart : sourceOffset+q2KScaleStart]
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q2KScaleStart:]))
+		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q2KMinimumStart:]))
 		for group := 0; group < 16; group++ {
 			scaleAndMin := scales[group]
 			delta := scale * float32(scaleAndMin&0x0f)
@@ -645,10 +645,10 @@ func dequantizeQ3K(source []byte, output []float32, blocks uint64, traits dtype.
 	for block := uint64(0); block < blocks; block++ {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
-		highMasks := source[sourceOffset : sourceOffset+32]
-		quantized := source[sourceOffset+32 : sourceOffset+96]
-		scales := source[sourceOffset+96 : sourceOffset+108]
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+108:]))
+		highMasks := source[sourceOffset+q3KHighMaskStart : sourceOffset+q3KPackedStart]
+		quantized := source[sourceOffset+q3KPackedStart : sourceOffset+q3KScaleStart]
+		scales := source[sourceOffset+q3KScaleStart : sourceOffset+q3KDeltaStart]
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q3KDeltaStart:]))
 		for group := 0; group < 16; group++ {
 			lowScale := scales[group%8]
 			if group >= 8 {
@@ -690,10 +690,10 @@ func dequantizeQ4K(source []byte, output []float32, blocks uint64, traits dtype.
 	for block := uint64(0); block < blocks; block++ {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+2:]))
-		scales := source[sourceOffset+4 : sourceOffset+16]
-		quantized := source[sourceOffset+16 : sourceOffset+144]
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KDeltaStart:]))
+		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KMinimumStart:]))
+		scales := source[sourceOffset+q45KScaleMinStart : sourceOffset+q45KPayloadStart]
+		quantized := source[sourceOffset+q45KPayloadStart : sourceOffset+q4KBlockBytes]
 		for group := 0; group < 8; group++ {
 			groupScale, groupMinimum := scaleMinK4(group, scales)
 			delta := scale * float32(groupScale)
@@ -718,11 +718,11 @@ func dequantizeQ5K(source []byte, output []float32, blocks uint64, traits dtype.
 	for block := uint64(0); block < blocks; block++ {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+2:]))
-		scales := source[sourceOffset+4 : sourceOffset+16]
-		highBits := source[sourceOffset+16 : sourceOffset+48]
-		quantized := source[sourceOffset+48 : sourceOffset+176]
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KDeltaStart:]))
+		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+q45KMinimumStart:]))
+		scales := source[sourceOffset+q45KScaleMinStart : sourceOffset+q45KPayloadStart]
+		highBits := source[sourceOffset+q45KPayloadStart : sourceOffset+q5KPackedStart]
+		quantized := source[sourceOffset+q5KPackedStart : sourceOffset+q5KBlockBytes]
 		for group := 0; group < 8; group++ {
 			groupScale, groupMinimum := scaleMinK4(group, scales)
 			delta := scale * float32(groupScale)
@@ -753,43 +753,38 @@ func dequantizeQ6K(
 	blocks uint64,
 	traits dtype.Traits,
 ) {
-	const (
-		lowerBytes = 128
-		highBytes  = 64
-		scaleBytes = 16
-	)
 	for block := uint64(0); block < blocks; block++ {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
-		lower := source[sourceOffset : sourceOffset+lowerBytes]
-		high := source[sourceOffset+lowerBytes : sourceOffset+lowerBytes+highBytes]
-		scales := source[sourceOffset+lowerBytes+highBytes : sourceOffset+lowerBytes+highBytes+scaleBytes]
+		lower := source[sourceOffset+q6KLowerStart : sourceOffset+q6KHighStart]
+		high := source[sourceOffset+q6KHighStart : sourceOffset+q6KScaleStart]
+		scales := source[sourceOffset+q6KScaleStart : sourceOffset+q6KDeltaStart]
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(
-			source[sourceOffset+lowerBytes+highBytes+scaleBytes:],
+			source[sourceOffset+q6KDeltaStart:],
 		))
 		for group := 0; group < 2; group++ {
 			lowerBase := group * 64
 			highBase := group * 32
 			scaleBase := group * 8
-			destination := outputOffset + uint64(group*128)
-			for column := 0; column < 32; column++ {
+			destination := outputOffset + uint64(group*(kBlockWidth/2))
+			for column := 0; column < kLaneWidth; column++ {
 				scaleIndex := column / 16
 				q1 := int(lower[lowerBase+column]&0x0f) |
 					int((high[highBase+column]>>0)&0x03)<<4
-				q2 := int(lower[lowerBase+column+32]&0x0f) |
+				q2 := int(lower[lowerBase+column+kLaneWidth]&0x0f) |
 					int((high[highBase+column]>>2)&0x03)<<4
 				q3 := int(lower[lowerBase+column]>>4) |
 					int((high[highBase+column]>>4)&0x03)<<4
-				q4 := int(lower[lowerBase+column+32]>>4) |
+				q4 := int(lower[lowerBase+column+kLaneWidth]>>4) |
 					int((high[highBase+column]>>6)&0x03)<<4
 				output[destination+uint64(column)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex])) * float32(q1-32)
-				output[destination+uint64(column+32)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex+2])) * float32(q2-32)
-				output[destination+uint64(column+64)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex+4])) * float32(q3-32)
-				output[destination+uint64(column+96)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex+6])) * float32(q4-32)
+					scale * float32(int8(scales[scaleBase+scaleIndex])) * float32(q1-q6KLevelMagnitude)
+				output[destination+uint64(column+kLaneWidth)] =
+					scale * float32(int8(scales[scaleBase+scaleIndex+2])) * float32(q2-q6KLevelMagnitude)
+				output[destination+uint64(column+2*kLaneWidth)] =
+					scale * float32(int8(scales[scaleBase+scaleIndex+4])) * float32(q3-q6KLevelMagnitude)
+				output[destination+uint64(column+3*kLaneWidth)] =
+					scale * float32(int8(scales[scaleBase+scaleIndex+6])) * float32(q4-q6KLevelMagnitude)
 			}
 		}
 	}

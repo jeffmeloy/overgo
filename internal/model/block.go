@@ -421,6 +421,10 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 	}
 
 	tokens := uint64(len(positions))
+	runtime := denseBlockRuntime{
+		builder: builder, spec: spec, weights: weights, plan: layerPlan,
+		profile: profile, layer: layerIndex, tokens: tokens,
+	}
 	normalized := input
 	if !isPostOnlyNorm && !spec.SandwichNorm {
 		normalized = ApplyNormalization(
@@ -440,62 +444,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 			)
 		}
 	}
-	var query, key, value *tensor.Tensor
-	if weights.AttentionQKV != nil {
-		queryLength := uint64(headCount) * uint64(spec.KeyLength)
-		keyLength := uint64(kvHeadCount) * uint64(spec.KeyLength)
-		valueLength := uint64(kvHeadCount) * uint64(spec.ValueLength)
-		mixed := builder.MulMat(weights.AttentionQKV, normalized)
-		if weights.AttentionQKVBias != nil {
-			mixed = builder.Add(mixed, weights.AttentionQKVBias)
-		}
-		if spec.AttentionClamp > 0 {
-			mixed = builder.Clamp(mixed, -spec.AttentionClamp, spec.AttentionClamp)
-		}
-		stride := queryLength + keyLength + valueLength
-		query = builder.Reshape(
-			builder.GroupSlice(mixed, 0, queryLength, 1, stride),
-			queryLength,
-			tokens,
-		)
-		key = builder.Reshape(
-			builder.GroupSlice(mixed, queryLength, keyLength, 1, stride),
-			keyLength,
-			tokens,
-		)
-		value = builder.Reshape(
-			builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride),
-			valueLength,
-			tokens,
-		)
-	} else {
-		query = builder.MulMat(weights.AttentionQ, normalized)
-		key = builder.MulMat(weights.AttentionK, normalized)
-		value = builder.MulMat(weights.AttentionV, normalized)
-		if weights.AttentionQScale != nil {
-			query = builder.Multiply(query, weights.AttentionQScale)
-		}
-		if weights.AttentionKScale != nil {
-			key = builder.Multiply(key, weights.AttentionKScale)
-		}
-		if weights.AttentionVScale != nil {
-			value = builder.Multiply(value, weights.AttentionVScale)
-		}
-		if weights.AttentionQBias != nil {
-			query = builder.Add(query, weights.AttentionQBias)
-		}
-		if weights.AttentionKBias != nil {
-			key = builder.Add(key, weights.AttentionKBias)
-		}
-		if weights.AttentionVBias != nil {
-			value = builder.Add(value, weights.AttentionVBias)
-		}
-		if spec.AttentionClamp > 0 {
-			query = builder.Clamp(query, -spec.AttentionClamp, spec.AttentionClamp)
-			key = builder.Clamp(key, -spec.AttentionClamp, spec.AttentionClamp)
-			value = builder.Clamp(value, -spec.AttentionClamp, spec.AttentionClamp)
-		}
-	}
+	query, key, value := runtime.projectAttention(normalized, headCount, kvHeadCount)
 	query, key, err := layerPlan.QKPreprocess.Apply(builder, query, key, spec, weights, qkProjection)
 	if err != nil {
 		return DenseBlockResult{}, err
@@ -577,75 +526,138 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 		}
 		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 	}
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	if weights.FeedForwardUpScale != nil {
-		up = builder.Multiply(up, weights.FeedForwardUpScale)
+	feedForward, err := runtime.buildFeedForward(normalized, normPlan)
+	if err != nil {
+		return DenseBlockResult{}, err
 	}
-	if weights.FeedForwardUpBias != nil {
-		up = builder.Add(up, weights.FeedForwardUpBias)
-	}
-	var activation *tensor.Tensor
-	if profile.FeedForward == FeedForwardFusedGateUp {
-		width := uint64(spec.FeedForwardLength)
-		stride := 2 * width
-		gate := builder.Reshape(
-			builder.GroupSlice(up, 0, width, 1, stride), width, tokens,
-		)
-		up = builder.Reshape(
-			builder.GroupSlice(up, width, width, 1, stride), width, tokens,
-		)
-		activation = builder.SwiGLU(gate, up)
-	} else if profile.FeedForward == FeedForwardXIELU {
-		activation = builder.XIELU(
-			up,
-			spec.XIELUAlphaN[layerIndex],
-			spec.XIELUAlphaP[layerIndex],
-			spec.XIELUBeta[layerIndex],
-			spec.XIELUEpsilon[layerIndex],
-		)
-	} else if profile.FeedForward == FeedForwardGELU || profile.FeedForward == FeedForwardSequentialGELU {
-		activation = builder.GELU(up)
-	} else if profile.FeedForward == FeedForwardSquaredReLU {
-		activation = builder.ReLUSquared(up)
-	} else {
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		if weights.FeedForwardGateScale != nil {
-			gate = builder.Multiply(gate, weights.FeedForwardGateScale)
-		}
-		if weights.FeedForwardGateBias != nil {
-			gate = builder.Add(gate, weights.FeedForwardGateBias)
-		}
-		activation = builder.SwiGLU(gate, up)
-		if profile.Has(ArchitectureGemma) {
-			activation = builder.GEGLU(gate, up)
-		}
-	}
-	if weights.FeedForwardActivationScale != nil {
-		if !layerPlan.DenseWeights.allowActivationScale {
-			return DenseBlockResult{}, errors.New("feed-forward activation scale requires MPT")
-		}
-		activation = builder.Divide(activation, weights.FeedForwardActivationScale)
-	}
-	if layerPlan.DenseWeights.requireSubNorm {
-		activation = builder.WeightedRMSNorm(
-			activation, weights.FeedForwardSubNorm, spec.RMSNormEpsilon,
-		)
-	}
-	feedForward := builder.MulMat(weights.FeedForwardDown, activation)
-	if weights.FeedForwardDownScale != nil {
-		feedForward = builder.Multiply(feedForward, weights.FeedForwardDownScale)
-	}
-	if weights.FeedForwardDownBias != nil {
-		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
-	}
-	feedForward = layerPlan.ResidualStages.ApplyFeedForwardOutput(
-		builder, feedForward, spec, weights, normPlan,
-	)
 	output := builder.Add(residual, feedForward)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+}
+
+type denseBlockRuntime struct {
+	builder *tensor.Builder
+	spec    Spec
+	weights LayerGraphWeights
+	plan    LayerPlan
+	profile ArchitectureProfile
+	layer   uint32
+	tokens  uint64
+}
+
+func (r denseBlockRuntime) projectAttention(
+	normalized *tensor.Tensor,
+	headCount, kvHeadCount uint32,
+) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor) {
+	if r.weights.AttentionQKV != nil {
+		queryLength := uint64(headCount) * uint64(r.spec.KeyLength)
+		keyLength := uint64(kvHeadCount) * uint64(r.spec.KeyLength)
+		valueLength := uint64(kvHeadCount) * uint64(r.spec.ValueLength)
+		mixed := r.builder.MulMat(r.weights.AttentionQKV, normalized)
+		if r.weights.AttentionQKVBias != nil {
+			mixed = r.builder.Add(mixed, r.weights.AttentionQKVBias)
+		}
+		if r.spec.AttentionClamp > 0 {
+			mixed = r.builder.Clamp(mixed, -r.spec.AttentionClamp, r.spec.AttentionClamp)
+		}
+		stride := queryLength + keyLength + valueLength
+		return r.builder.Reshape(
+				r.builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, r.tokens,
+			), r.builder.Reshape(
+				r.builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, r.tokens,
+			), r.builder.Reshape(
+				r.builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, r.tokens,
+			)
+	}
+	query := r.builder.MulMat(r.weights.AttentionQ, normalized)
+	key := r.builder.MulMat(r.weights.AttentionK, normalized)
+	value := r.builder.MulMat(r.weights.AttentionV, normalized)
+	for _, item := range []struct {
+		tensor **tensor.Tensor
+		scale  *tensor.Tensor
+		bias   *tensor.Tensor
+	}{
+		{&query, r.weights.AttentionQScale, r.weights.AttentionQBias},
+		{&key, r.weights.AttentionKScale, r.weights.AttentionKBias},
+		{&value, r.weights.AttentionVScale, r.weights.AttentionVBias},
+	} {
+		if item.scale != nil {
+			*item.tensor = r.builder.Multiply(*item.tensor, item.scale)
+		}
+		if item.bias != nil {
+			*item.tensor = r.builder.Add(*item.tensor, item.bias)
+		}
+		if r.spec.AttentionClamp > 0 {
+			*item.tensor = r.builder.Clamp(*item.tensor, -r.spec.AttentionClamp, r.spec.AttentionClamp)
+		}
+	}
+	return query, key, value
+}
+
+func (r denseBlockRuntime) buildFeedForward(
+	normalized *tensor.Tensor,
+	normPlan NormalizationPlan,
+) (*tensor.Tensor, error) {
+	up := r.builder.MulMat(r.weights.FeedForwardUp, normalized)
+	if r.weights.FeedForwardUpScale != nil {
+		up = r.builder.Multiply(up, r.weights.FeedForwardUpScale)
+	}
+	if r.weights.FeedForwardUpBias != nil {
+		up = r.builder.Add(up, r.weights.FeedForwardUpBias)
+	}
+	var activation *tensor.Tensor
+	switch r.profile.FeedForward {
+	case FeedForwardFusedGateUp:
+		width := uint64(r.spec.FeedForwardLength)
+		stride := 2 * width
+		gate := r.builder.Reshape(r.builder.GroupSlice(up, 0, width, 1, stride), width, r.tokens)
+		up = r.builder.Reshape(r.builder.GroupSlice(up, width, width, 1, stride), width, r.tokens)
+		activation = r.builder.SwiGLU(gate, up)
+	case FeedForwardXIELU:
+		activation = r.builder.XIELU(
+			up, r.spec.XIELUAlphaN[r.layer], r.spec.XIELUAlphaP[r.layer],
+			r.spec.XIELUBeta[r.layer], r.spec.XIELUEpsilon[r.layer],
+		)
+	case FeedForwardGELU, FeedForwardSequentialGELU:
+		activation = r.builder.GELU(up)
+	case FeedForwardSquaredReLU:
+		activation = r.builder.ReLUSquared(up)
+	default:
+		gate := r.builder.MulMat(r.weights.FeedForwardGate, normalized)
+		if r.weights.FeedForwardGateScale != nil {
+			gate = r.builder.Multiply(gate, r.weights.FeedForwardGateScale)
+		}
+		if r.weights.FeedForwardGateBias != nil {
+			gate = r.builder.Add(gate, r.weights.FeedForwardGateBias)
+		}
+		activation = r.builder.SwiGLU(gate, up)
+		if r.profile.Has(ArchitectureGemma) {
+			activation = r.builder.GEGLU(gate, up)
+		}
+	}
+	if r.weights.FeedForwardActivationScale != nil {
+		if !r.plan.DenseWeights.allowActivationScale {
+			return nil, errors.New("feed-forward activation scale requires MPT")
+		}
+		activation = r.builder.Divide(activation, r.weights.FeedForwardActivationScale)
+	}
+	if r.plan.DenseWeights.requireSubNorm {
+		activation = r.builder.WeightedRMSNorm(
+			activation, r.weights.FeedForwardSubNorm, r.spec.RMSNormEpsilon,
+		)
+	}
+	feedForward := r.builder.MulMat(r.weights.FeedForwardDown, activation)
+	if r.weights.FeedForwardDownScale != nil {
+		feedForward = r.builder.Multiply(feedForward, r.weights.FeedForwardDownScale)
+	}
+	if r.weights.FeedForwardDownBias != nil {
+		feedForward = r.builder.Add(feedForward, r.weights.FeedForwardDownBias)
+	}
+	return r.plan.ResidualStages.ApplyFeedForwardOutput(
+		r.builder, feedForward, r.spec, r.weights, normPlan,
+	), r.builder.Err()
 }
 
 func buildGemma4BlockCached(

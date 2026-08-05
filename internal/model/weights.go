@@ -449,227 +449,80 @@ type Weights struct {
 	NextNMTP                []Step35MTPWeights
 }
 
-func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
+type weightCatalog struct {
+	tensors map[string]gguf.TensorInfo
+}
+
+func newWeightCatalog(file *gguf.File) (weightCatalog, error) {
 	if file == nil {
-		return Weights{}, errors.New("model file is nil")
+		return weightCatalog{}, errors.New("model file is nil")
 	}
 	tensors := make(map[string]gguf.TensorInfo, len(file.Tensors))
 	for _, item := range file.Tensors {
 		if _, exists := tensors[item.Name]; exists {
-			return Weights{}, fmt.Errorf("duplicate tensor %q", item.Name)
+			return weightCatalog{}, fmt.Errorf("duplicate tensor %q", item.Name)
 		}
 		tensors[item.Name] = item
 	}
-	required := func(name string, shape ...uint64) (gguf.TensorInfo, error) {
-		item, ok := tensors[name]
-		if !ok {
-			return gguf.TensorInfo{}, fmt.Errorf("required tensor %q is missing", name)
-		}
-		if item.Dimensions != uint32(len(shape)) {
+	return weightCatalog{tensors: tensors}, nil
+}
+
+func (c weightCatalog) required(name string, shape ...uint64) (gguf.TensorInfo, error) {
+	item, ok := c.tensors[name]
+	if !ok {
+		return gguf.TensorInfo{}, fmt.Errorf("required tensor %q is missing", name)
+	}
+	if item.Dimensions != uint32(len(shape)) {
+		return gguf.TensorInfo{}, fmt.Errorf(
+			"tensor %q has rank %d, need %d",
+			name,
+			item.Dimensions,
+			len(shape),
+		)
+	}
+	for index, dimension := range shape {
+		if item.Shape[index] != dimension {
 			return gguf.TensorInfo{}, fmt.Errorf(
-				"tensor %q has rank %d, need %d",
+				"tensor %q dimension %d is %d, need %d",
 				name,
-				item.Dimensions,
-				len(shape),
+				index,
+				item.Shape[index],
+				dimension,
 			)
 		}
-		for index, dimension := range shape {
-			if item.Shape[index] != dimension {
-				return gguf.TensorInfo{}, fmt.Errorf(
-					"tensor %q dimension %d is %d, need %d",
-					name,
-					index,
-					item.Shape[index],
-					dimension,
-				)
-			}
-		}
-		return item, nil
 	}
+	return item, nil
+}
 
+func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
+	catalog, err := newWeightCatalog(file)
+	if err != nil {
+		return Weights{}, err
+	}
+	profile := spec.Profile()
+	switch profile.CatalogFamily {
+	case ArchitectureFamilyDraft:
+		return readDraftWeightCatalog(catalog, spec)
+	case ArchitectureFamilyEncoder:
+		switch profile.Forward {
+		case ForwardT5Encoder:
+			return readT5EncoderWeightCatalog(catalog, spec)
+		case ForwardWavTokenizer:
+			return readWavTokenizerWeightCatalog(catalog, spec)
+		}
+	case ArchitectureFamilyEncoderDecoder:
+		return readT5WeightCatalog(catalog, spec)
+	}
+	return readLayeredWeightCatalog(catalog, spec)
+}
+
+func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+	tensors, required := catalog.tensors, catalog.required
 	var result Weights
 	var err error
 	profile := spec.Profile()
 	draftPlan := profile.DraftPlan(spec.NextNPredictLayers)
 	normPlan := spec.NormPlan()
-	if spec.Architecture == "dflash" {
-		featureWidth := uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength)
-		projection, loadErr := required("fc.weight", featureWidth, uint64(spec.EmbeddingLength))
-		if loadErr != nil {
-			return Weights{}, loadErr
-		}
-		encoderNorm, loadErr := required("enc.output_norm.weight", uint64(spec.EmbeddingLength))
-		if loadErr != nil {
-			return Weights{}, loadErr
-		}
-		if result.OutputNorm, loadErr = required("output_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
-			return Weights{}, loadErr
-		}
-		result.FeatureProjection = &projection
-		result.EncoderOutputNorm = &encoderNorm
-		result.Layers = make([]LayerWeights, spec.BlockCount)
-		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-		for block := uint32(0); block < spec.BlockCount; block++ {
-			prefix := fmt.Sprintf("blk.%d.", block)
-			layer := &result.Layers[block]
-			width := uint64(spec.EmbeddingLength)
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-				requiredTensor("attn_q.weight", &layer.AttentionQ, width, queryLength),
-				requiredTensor("attn_k.weight", &layer.AttentionK, width, keyLength),
-				requiredTensor("attn_v.weight", &layer.AttentionV, width, valueLength),
-				requiredTensor("attn_output.weight", &layer.AttentionOutput, queryLength, width),
-				requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
-				requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
-				requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
-				requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-			qNorm, itemErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
-			if itemErr != nil {
-				return Weights{}, itemErr
-			}
-			kNorm, itemErr := required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength))
-			if itemErr != nil {
-				return Weights{}, itemErr
-			}
-			layer.AttentionQNorm, layer.AttentionKNorm = &qNorm, &kNorm
-		}
-		return result, nil
-	}
-	if spec.Architecture == "eagle3" {
-		draftVocabulary := uint64(spec.VocabularySize)
-		if item, ok := tensors["d2t"]; ok {
-			if item.Type != dtype.I64 || item.Dimensions != 1 || item.Shape[0] == 0 {
-				return Weights{}, fmt.Errorf("tensor %q has incompatible shape/type", item.Name)
-			}
-			draftVocabulary = item.Shape[0]
-			result.DraftToTarget = &item
-		}
-		projection, loadErr := required(
-			"fc.weight", 3*uint64(spec.TargetHiddenSize), uint64(spec.EmbeddingLength),
-		)
-		if loadErr != nil {
-			return Weights{}, loadErr
-		}
-		if result.OutputNorm, loadErr = required("output_norm.weight", uint64(spec.EmbeddingLength)); loadErr != nil {
-			return Weights{}, loadErr
-		}
-		result.FeatureProjection = &projection
-		if item, ok := tensors["token_embd.weight"]; ok {
-			validated, itemErr := required(item.Name, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize))
-			if itemErr != nil {
-				return Weights{}, itemErr
-			}
-			result.TokenEmbedding = validated
-		}
-		if item, ok := tensors["output.weight"]; ok {
-			validated, itemErr := required(item.Name, uint64(spec.EmbeddingLength), draftVocabulary)
-			if itemErr != nil {
-				return Weights{}, itemErr
-			}
-			result.Output = &validated
-		}
-		if result.DraftToTarget != nil && result.Output == nil {
-			return Weights{}, errors.New(`required tensor "output.weight" is missing for Eagle3 vocabulary mapping`)
-		}
-		result.Layers = make([]LayerWeights, 1)
-		layer := &result.Layers[0]
-		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-		width := uint64(spec.EmbeddingLength)
-		if itemErr := loadTensorRequirements(required, tensors, "blk.0.", []tensorRequirement{
-			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-			requiredTensor("attn_q.weight", &layer.AttentionQ, 2*width, queryLength),
-			requiredTensor("attn_k.weight", &layer.AttentionK, 2*width, keyLength),
-			requiredTensor("attn_v.weight", &layer.AttentionV, 2*width, valueLength),
-			requiredTensor("attn_output.weight", &layer.AttentionOutput, queryLength, width),
-			requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
-			requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
-			requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
-			requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
-		}); itemErr != nil {
-			return Weights{}, itemErr
-		}
-		hiddenNorm, itemErr := required("blk.0.attn_norm_2.weight", uint64(spec.EmbeddingLength))
-		if itemErr != nil {
-			return Weights{}, itemErr
-		}
-		layer.AttentionNorm2 = &hiddenNorm
-		if item, ok := tensors["blk.0.rope_freqs.weight"]; ok {
-			validated, itemErr := required(item.Name, uint64(spec.RopeDimensionCount/2))
-			if itemErr != nil {
-				return Weights{}, itemErr
-			}
-			layer.RopeFactors = &validated
-		}
-		return result, nil
-	}
-	if spec.Architecture == "gemma4-assistant" {
-		width := uint64(spec.EmbeddingLength)
-		targetWidth := uint64(spec.TargetHiddenSize)
-		if result.TokenEmbedding, err = required("token_embd.weight", width, uint64(spec.VocabularySize)); err != nil {
-			return Weights{}, err
-		}
-		if result.OutputNorm, err = required("output_norm.weight", width); err != nil {
-			return Weights{}, err
-		}
-		pre, loadErr := required("blk.0.nextn.pre_projection.weight", 2*targetWidth, width)
-		if loadErr != nil {
-			return Weights{}, loadErr
-		}
-		post, loadErr := required("nextn.post_projection.weight", width, targetWidth)
-		if loadErr != nil {
-			return Weights{}, loadErr
-		}
-		result.FeatureProjection = &pre
-		result.FeatureProjectionPost = &post
-		result.Layers = make([]LayerWeights, spec.BlockCount)
-		var sharedRope *gguf.TensorInfo
-		for block := uint32(0); block < spec.BlockCount; block++ {
-			prefix := fmt.Sprintf("blk.%d.", block)
-			layer := &result.Layers[block]
-			queryLength := uint64(spec.HeadCount) * uint64(spec.LayerKeyLength(block))
-			attentionOutputLength := uint64(spec.HeadCount) * uint64(spec.LayerValueLength(block))
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-				requiredTensor("attn_q.weight", &layer.AttentionQ, width, queryLength),
-				requiredTensor("attn_output.weight", &layer.AttentionOutput, attentionOutputLength, width),
-				requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
-				requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
-				requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
-				requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
-				requiredTensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, uint64(spec.LayerKeyLength(block))),
-				requiredTensorPointer("post_attention_norm.weight", &layer.AttentionPostNorm, width),
-				requiredTensorPointer("post_ffw_norm.weight", &layer.FeedForwardPostNorm, width),
-				requiredTensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, 1),
-			}); itemErr != nil {
-				return Weights{}, itemErr
-			}
-			if !spec.IsSlidingLayer(block) {
-				rope, ok := tensors[prefix+"rope_freqs.weight"]
-				if !ok {
-					rope, ok = tensors["rope_freqs.weight"]
-				}
-				if !ok && sharedRope != nil {
-					rope, ok = *sharedRope, true
-				}
-				if !ok {
-					return Weights{}, fmt.Errorf("required Gemma 4 assistant RoPE factors for layer %d are missing", block)
-				}
-				if rope.Type != dtype.F32 || rope.Dimensions != 1 || rope.Shape[0] != uint64(spec.RopeDimensionCount/2) {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible Gemma 4 assistant RoPE factors", rope.Name)
-				}
-				layer.RopeFactors = &rope
-				sharedRope = layer.RopeFactors
-			}
-		}
-		return result, nil
-	}
 	tokenEmbeddingName := "token_embd.weight"
 	if spec.Architecture == "codeshell" {
 		if _, ok := tensors[tokenEmbeddingName]; !ok {
@@ -783,96 +636,6 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}
 		return result, nil
 	}
-	if spec.Architecture == "wavtokenizer-dec" {
-		width := uint64(spec.PosNetEmbeddingLength)
-		ffn := uint64(spec.FeedForwardLength)
-		wav := &WavTokenizerWeights{
-			PosNet:   make([]WavPosNetWeights, spec.PosNetBlockCount),
-			ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
-		}
-		if err = loadTensorRequirements(required, tensors, "", []tensorRequirement{
-			requiredTensor("conv1d.weight", &wav.InputConv, 7, uint64(spec.EmbeddingLength), width),
-			requiredTensor("conv1d.bias", &wav.InputConvBias, 1, width),
-		}); err != nil {
-			return Weights{}, err
-		}
-		for block := uint32(0); block < spec.PosNetBlockCount; block++ {
-			prefix := fmt.Sprintf("posnet.%d.", block)
-			layer := &wav.PosNet[block]
-			switch block {
-			case 0, 1, 3, 4:
-				if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensor("norm1.weight", &layer.Norm1, 1, width),
-					requiredTensor("norm1.bias", &layer.Norm1Bias, 1, width),
-					requiredTensor("conv1.weight", &layer.Conv1, 3, width, width),
-					requiredTensor("conv1.bias", &layer.Conv1Bias, 1, width),
-					requiredTensor("norm2.weight", &layer.Norm2, 1, width),
-					requiredTensor("norm2.bias", &layer.Norm2Bias, 1, width),
-					requiredTensor("conv2.weight", &layer.Conv2, 3, width, width),
-					requiredTensor("conv2.bias", &layer.Conv2Bias, 1, width),
-				}); err != nil {
-					return Weights{}, err
-				}
-			case 2:
-				if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
-					requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
-					requiredTensor("attn_q.bias", &layer.AttentionQBias, 1, width),
-					requiredTensor("attn_k.bias", &layer.AttentionKBias, 1, width),
-					requiredTensor("attn_v.bias", &layer.AttentionVBias, 1, width),
-					requiredTensor("attn_output.bias", &layer.AttentionOutBias, 1, width),
-					requiredTensor("attn_q.weight", &layer.AttentionQ, 1, width, width),
-					requiredTensor("attn_k.weight", &layer.AttentionK, 1, width, width),
-					requiredTensor("attn_v.weight", &layer.AttentionV, 1, width, width),
-					requiredTensor("attn_output.weight", &layer.AttentionOutput, 1, width, width),
-				}); err != nil {
-					return Weights{}, err
-				}
-			case 5:
-				if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-					requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
-					requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
-				}); err != nil {
-					return Weights{}, err
-				}
-			}
-		}
-		if err = loadTensorRequirements(required, tensors, "", []tensorRequirement{
-			requiredTensor("token_embd_norm.weight", &wav.TokenNorm, width),
-			requiredTensor("token_embd_norm.bias", &wav.TokenNormBias, width),
-		}); err != nil {
-			return Weights{}, err
-		}
-		for block := uint32(0); block < spec.ConvNextBlockCount; block++ {
-			prefix := fmt.Sprintf("convnext.%d.", block)
-			layer := &wav.ConvNext[block]
-			if err = loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensor("dw.weight", &layer.Depthwise, 7, 1, width),
-				requiredTensor("dw.bias", &layer.DepthwiseBias, 1, width),
-				requiredTensor("norm.weight", &layer.Norm, width),
-				requiredTensor("norm.bias", &layer.NormBias, width),
-				requiredTensor("pw1.weight", &layer.Pointwise1, width, ffn),
-				requiredTensor("pw1.bias", &layer.Pointwise1Bias, ffn),
-				requiredTensor("pw2.weight", &layer.Pointwise2, ffn, width),
-				requiredTensor("pw2.bias", &layer.Pointwise2Bias, width),
-				requiredTensor("gamma.weight", &layer.Gamma, width),
-			}); err != nil {
-				return Weights{}, err
-			}
-		}
-		if err = loadTensorRequirements(required, tensors, "", []tensorRequirement{
-			requiredTensor("output_norm.weight", &wav.OutputNorm, width),
-			requiredTensor("output_norm.bias", &wav.OutputNormBias, width),
-			requiredTensor("output.weight", &wav.Output, width, uint64(spec.OutputEmbeddingLength)),
-			requiredTensor("output.bias", &wav.OutputBias, uint64(spec.OutputEmbeddingLength)),
-		}); err != nil {
-			return Weights{}, err
-		}
-		result.WavTokenizer = wav
-		result.Output = &wav.Output
-		result.OutputBias = &wav.OutputBias
-		return result, nil
-	}
 	if spec.Architecture == "bert" || spec.Architecture == "gpt2" || spec.Architecture == "starcoder" {
 		positionEmbedding, positionErr := required(
 			"position_embd.weight",
@@ -967,60 +730,6 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		}); biasErr != nil {
 			return Weights{}, biasErr
 		}
-	}
-	if spec.Architecture == "t5encoder" {
-		plan := newT5CatalogPlan(spec)
-		result.Layers = make([]LayerWeights, spec.BlockCount)
-		for block := uint32(0); block < spec.BlockCount; block++ {
-			prefix := fmt.Sprintf("enc.blk.%d.", block)
-			if loadErr := plan.loadLayer(required, tensors, prefix, &result.Layers[block], true, nil); loadErr != nil {
-				return Weights{}, loadErr
-			}
-		}
-		return result, nil
-	}
-	if spec.Architecture == "t5" {
-		plan := newT5CatalogPlan(spec)
-		if normErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
-			requiredTensorPointer("enc.output_norm.weight", &result.EncoderOutputNorm, plan.width),
-		}); normErr != nil {
-			return Weights{}, normErr
-		}
-		result.EncoderLayers = make([]LayerWeights, spec.BlockCount)
-		var encoderRelativeBias *gguf.TensorInfo
-		for block := uint32(0); block < spec.BlockCount; block++ {
-			prefix := fmt.Sprintf("enc.blk.%d.", block)
-			if loadErr := plan.loadLayer(
-				required, tensors, prefix, &result.EncoderLayers[block], false, &encoderRelativeBias,
-			); loadErr != nil {
-				return Weights{}, loadErr
-			}
-		}
-		result.Layers = make([]LayerWeights, spec.DecoderBlockCount)
-		var decoderRelativeBias *gguf.TensorInfo
-		for block := uint32(0); block < spec.DecoderBlockCount; block++ {
-			prefix := fmt.Sprintf("dec.blk.%d.", block)
-			layer := &result.Layers[block]
-			if loadErr := plan.loadLayer(required, tensors, prefix, layer, false, &decoderRelativeBias); loadErr != nil {
-				return Weights{}, loadErr
-			}
-			if loadErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensorPointer("cross_attn_norm.weight", &layer.CrossAttentionNorm, plan.width),
-				requiredTensorPointer("cross_attn_q.weight", &layer.CrossAttentionQ, plan.width, plan.query),
-				requiredTensorPointer("cross_attn_k.weight", &layer.CrossAttentionK, plan.width, plan.key),
-				requiredTensorPointer("cross_attn_v.weight", &layer.CrossAttentionV, plan.width, plan.value),
-				requiredTensorPointer("cross_attn_o.weight", &layer.CrossAttentionOutput, plan.output, plan.width),
-			}); loadErr != nil {
-				return Weights{}, loadErr
-			}
-		}
-		if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
-			optionalTensorPointer("output.weight", &result.Output,
-				plan.width, uint64(spec.VocabularySize)),
-		}); outputErr != nil {
-			return Weights{}, outputErr
-		}
-		return result, nil
 	}
 	if spec.Architecture != "cohere2" && spec.Architecture != "command-r" {
 		if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{

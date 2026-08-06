@@ -120,8 +120,8 @@ func (d ProfileDocument) validateShape() error {
 	if d.Version != ProfileVersion || d.Architecture == "" || d.Policy.Name != d.Architecture {
 		return errors.New("model recipe: invalid profile envelope")
 	}
-	if err := model.ValidateArchitectureName(d.Architecture); err != nil {
-		return fmt.Errorf("model recipe: invalid profile architecture: %w", err)
+	if err := model.ValidateArchitectureProfile(d.Policy); err != nil {
+		return fmt.Errorf("model recipe: invalid profile policy: %w", err)
 	}
 	return nil
 }

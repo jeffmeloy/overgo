@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 5 profile-validation wave added one fail-closed semantic gate for
+  every serialized architecture enum and policy bitset. Embedded catalogs,
+  RepoDB profile documents, bound metadata, and direct plan compilation reject
+  unknown values and inconsistent Qwen GDN, multi-axis rotary, or fused-QKV
+  contracts before policy activation.
 - The August 5 forward-policy sweep replaced the final specialized DFlash,
   Eagle3, Gemma 4 Assistant, and WavTokenizer name guards. Speculative sidecar
   compatibility now compares the complete resolved policy.

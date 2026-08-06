@@ -47,6 +47,9 @@ func ReadSpecWithProfile(file *gguf.File, profile ArchitectureProfile) (Spec, er
 
 // BindSpecProfile validates persisted metadata against an exact policy.
 func BindSpecProfile(spec Spec, profile ArchitectureProfile) (Spec, error) {
+	if err := ValidateArchitectureProfile(profile); err != nil {
+		return Spec{}, err
+	}
 	if profile.Name == "" || spec.Architecture != profile.Name {
 		return Spec{}, errors.New("model profile does not match persisted metadata")
 	}

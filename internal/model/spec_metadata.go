@@ -77,6 +77,9 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 		}
 	} else {
 		profile = *resolved
+		if err := ValidateArchitectureProfile(profile); err != nil {
+			return specMetadata{}, err
+		}
 		if profile.Name == "" || profile.Name != architecture {
 			return specMetadata{}, fmt.Errorf(
 				"model profile %q does not match architecture %q", profile.Name, architecture,

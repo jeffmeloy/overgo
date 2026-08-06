@@ -1,6 +1,14 @@
 package model
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+const (
+	fixtureArchitectureName = "fixture"
+	unsupportedPolicyValue  = ^uint8(0)
+)
 
 func TestArchitectureCatalogStrictParsing(t *testing.T) {
 	tests := map[string]string{
@@ -15,6 +23,45 @@ func TestArchitectureCatalogStrictParsing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if _, err := parseArchitectureRegistry([]byte(content)); err == nil {
 				t.Fatal("invalid catalog accepted")
+			}
+		})
+	}
+}
+
+func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
+	tests := map[string]func(*ArchitectureProfile){
+		"family": func(profile *ArchitectureProfile) {
+			profile.Family = ArchitectureFamily(unsupportedPolicyValue)
+		},
+		"nested validation": func(profile *ArchitectureProfile) {
+			profile.Validation.Hybrid = HybridValidationPolicy(unsupportedPolicyValue)
+		},
+		"capability bits": func(profile *ArchitectureProfile) {
+			profile.Capabilities = allArchitectureCapabilities + 1
+		},
+		"expert supplement bits": func(profile *ArchitectureProfile) {
+			profile.Experts.SupplementalCatalog = allExpertSupplements + 1
+		},
+		"Qwen GDN graph": func(profile *ArchitectureProfile) {
+			profile.AttentionGraph.QwenGDN = qwenGDNStandard
+		},
+		"multi-axis rotary": func(profile *ArchitectureProfile) {
+			profile.Rotary.MultiAxis = multiAxisRotaryAlways
+		},
+		"fused QKV requirement": func(profile *ArchitectureProfile) {
+			profile.Capabilities = ArchitectureRequiresFusedQKV
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			profile := ArchitectureProfile{Name: fixtureArchitectureName}
+			mutate(&profile)
+			content, err := json.Marshal([]ArchitectureProfile{profile})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := parseArchitectureRegistry(content); err == nil {
+				t.Fatal("invalid profile accepted")
 			}
 		})
 	}

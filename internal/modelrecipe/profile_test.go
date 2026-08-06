@@ -3,6 +3,7 @@ package modelrecipe
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -13,6 +14,8 @@ import (
 )
 
 const profileCatalogSemanticDigest = "55ba37484778982e2fdbff072c37521a81da8a27436e033f43f4c40835209c2e"
+
+const unsupportedProfilePolicyValue = ^uint8(0)
 
 func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 	documents, err := SeedProfileDocuments()
@@ -34,6 +37,23 @@ func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 		if parsed.ID != document.ID || parsed.Policy != document.Policy {
 			t.Fatalf("%s: profile round trip drifted", document.Architecture)
 		}
+	}
+}
+
+func TestProfileDocumentRejectsInvalidPolicy(t *testing.T) {
+	profile, _ := model.LookupArchitecture("llama")
+	profile.Forward = model.ForwardPolicy(unsupportedProfilePolicyValue)
+	if _, err := NewProfileDocument(profile); err == nil {
+		t.Fatal("invalid profile document accepted")
+	}
+	content, err := json.Marshal(profileBody{
+		Version: ProfileVersion, Architecture: profile.Name, Policy: profile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseProfileDocument(content); err == nil {
+		t.Fatal("invalid serialized profile accepted")
 	}
 }
 

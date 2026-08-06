@@ -261,6 +261,9 @@ func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
 
 // CompileModelPlanWithProfile: compiles a resolved policy without registry lookup.
 func CompileModelPlanWithProfile(spec Spec, weights Weights, profile ArchitectureProfile) (ModelPlan, error) {
+	if err := ValidateArchitectureProfile(profile); err != nil {
+		return ModelPlan{}, err
+	}
 	if profile.Name == "" || profile.Name != spec.Architecture {
 		return ModelPlan{}, fmt.Errorf(
 			"model plan profile %q does not match architecture %q", profile.Name, spec.Architecture,

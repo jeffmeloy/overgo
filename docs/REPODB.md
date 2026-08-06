@@ -37,7 +37,9 @@ Current foundation:
 - Canonical content-addressed architecture profiles seeded from a strict data
   catalog, embedded in exact recipe identities, and activated only with typed
   parity evidence. RepoDB may publish replacement catalogs without mutating the
-  bootstrap fallback; mutable profile side aliases are legacy-read-only.
+  bootstrap fallback; mutable profile side aliases are legacy-read-only. One
+  semantic validator bounds all serialized enums and policy bitsets at catalog,
+  document, metadata-binding, and graph-compilation boundaries.
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
   planning. Dispatch, catalog loading, and persistent-cache policy preserve the
   exact bound profile; unbound models retain the bootstrap path.

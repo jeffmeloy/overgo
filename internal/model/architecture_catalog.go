@@ -37,7 +37,7 @@ func parseArchitectureRegistry(content []byte) (map[string]ArchitectureProfile, 
 	registry := make(map[string]ArchitectureProfile, len(profiles))
 	previous := ""
 	for index, profile := range profiles {
-		if err := ValidateArchitectureName(profile.Name); err != nil {
+		if err := ValidateArchitectureProfile(profile); err != nil {
 			return nil, fmt.Errorf("model: architecture catalog entry %d: %w", index, err)
 		}
 		if profile.Name <= previous {

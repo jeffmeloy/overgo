@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 5 runtime-policy wave moved input/logit scaling, normalization
+  placement/bias/fallback, and layer-level RoPE schedules from architecture-name
+  predicates into serialized typed profiles. Bound RepoDB profiles now carry
+  these decisions through metadata, catalog, graph, and cache execution.
 - The August 5 resolved-definition wave introduced a canonical document that
   binds model, profile, tensor-inventory, architecture, and validated `Spec`
   identities. GGUF ingestion verifies that tensor facts match the same source,

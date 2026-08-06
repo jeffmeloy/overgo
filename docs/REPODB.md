@@ -41,6 +41,9 @@ Current foundation:
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
   planning. Dispatch, catalog loading, and persistent-cache policy preserve the
   exact bound profile; unbound models retain the bootstrap path.
+- Typed runtime profile policies own input/logit scaling, normalization
+  placement/bias/fallback, and layer-level RoPE schedules; model methods retain
+  only the reusable execution mechanisms.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

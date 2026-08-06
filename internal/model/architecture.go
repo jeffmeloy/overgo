@@ -355,6 +355,7 @@ type ArchitectureProfile struct {
 	EncoderGraph    EncoderGraphPolicy
 	MLAVariant      mlaVariantPolicy
 	Cadence         LayerCadencePolicy
+	Runtime         RuntimePolicy
 	DeciSparse      bool
 }
 

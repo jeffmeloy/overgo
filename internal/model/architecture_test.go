@@ -2,6 +2,13 @@ package model
 
 import "testing"
 
+const (
+	runtimePolicyFixtureArchitecture = "runtime-policy-fixture"
+	runtimePolicyFixtureWidth        = uint32(16)
+	runtimePolicyFixtureScale        = float32(4)
+	runtimePolicyFixtureBlocks       = uint32(2)
+)
+
 func TestArchitectureRegistryProfiles(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -53,6 +60,36 @@ func TestResolvedProfilePrefersExactBinding(t *testing.T) {
 	mismatch := spec.withProfile(ArchitectureProfile{Name: "other"})
 	if _, ok := mismatch.ResolvedProfile(); ok {
 		t.Fatal("mismatched bound profile accepted")
+	}
+}
+
+func TestRuntimeBehaviorUsesBoundProfilePolicies(t *testing.T) {
+	profile := ArchitectureProfile{
+		Name: runtimePolicyFixtureArchitecture, Normalization: NormalizationWeightOnlyLayer,
+		Rotary: RotaryPolicy{Usage: RotaryUsageSlidingOnly},
+		Runtime: RuntimePolicy{
+			EmbeddingScale: EmbeddingScaleSqrtWidth, LogitScale: LogitScaleDirect,
+			NormalizationPlacement: NormalizationPlacementPostOnly,
+			NormalizationBias:      NormalizationBiasAlways,
+			NormalizationFallback:  NormalizationFallbackRMSWithoutLayerEpsilon,
+		},
+	}
+	spec := Spec{
+		CommonSpec: CommonSpec{
+			Architecture: runtimePolicyFixtureArchitecture,
+			BlockCount:   runtimePolicyFixtureBlocks, EmbeddingLength: runtimePolicyFixtureWidth,
+			LogitScale: runtimePolicyFixtureScale,
+		},
+		AttentionSpec: AttentionSpec{SlidingLayers: []bool{false, true}},
+	}.withProfile(profile)
+	norm := spec.NormPlan()
+	if spec.InputEmbeddingScale() != runtimePolicyFixtureScale ||
+		spec.OutputLogitMultiplier() != runtimePolicyFixtureScale ||
+		norm.Operation != NormalizationRMS || norm.PreAttention || !norm.PostAttention || !norm.Bias ||
+		spec.UsesRoPE(0) || !spec.UsesRoPE(1) {
+		t.Fatalf("runtime policy result = (input=%g output=%g norm=%+v rope=%t/%t)",
+			spec.InputEmbeddingScale(), spec.OutputLogitMultiplier(), norm,
+			spec.UsesRoPE(0), spec.UsesRoPE(1))
 	}
 }
 

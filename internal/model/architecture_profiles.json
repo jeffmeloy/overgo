@@ -31,6 +31,9 @@
     "Name": "afmoe",
     "Rotary": {
       "SlidingFrequency": true
+    },
+    "Runtime": {
+      "EmbeddingScale": 1
     }
   },
   {
@@ -222,7 +225,11 @@
     "Residual": 1,
     "Rotary": {
       "Kind": 4,
-      "SlidingFrequency": true
+      "SlidingFrequency": true,
+      "Usage": 1
+    },
+    "Runtime": {
+      "LogitScale": 1
     }
   },
   {
@@ -249,7 +256,12 @@
     "Residual": 1,
     "Rotary": {
       "Kind": 4,
-      "SlidingFrequency": true
+      "SlidingFrequency": true,
+      "Usage": 2
+    },
+    "Runtime": {
+      "LogitScale": 1,
+      "NormalizationFallback": 1
     }
   },
   {
@@ -269,6 +281,9 @@
     "Residual": 1,
     "Rotary": {
       "Kind": 4
+    },
+    "Runtime": {
+      "LogitScale": 1
     }
   },
   {
@@ -281,7 +296,10 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "dbrx",
-    "Normalization": 1
+    "Normalization": 1,
+    "Runtime": {
+      "NormalizationBias": 1
+    }
   },
   {
     "CacheFallback": 2,
@@ -516,7 +534,8 @@
     "GraphFamily": 1,
     "Name": "exaone-moe",
     "Rotary": {
-      "SlidingFrequency": true
+      "SlidingFrequency": true,
+      "Usage": 4
     }
   },
   {
@@ -566,6 +585,9 @@
     "Name": "gemma",
     "Rotary": {
       "Kind": 5
+    },
+    "Runtime": {
+      "EmbeddingScale": 1
     }
   },
   {
@@ -593,6 +615,9 @@
     "Name": "gemma-embedding",
     "Rotary": {
       "Kind": 5
+    },
+    "Runtime": {
+      "EmbeddingScale": 1
     }
   },
   {
@@ -607,6 +632,9 @@
     "Name": "gemma2",
     "Rotary": {
       "Kind": 5
+    },
+    "Runtime": {
+      "EmbeddingScale": 1
     }
   },
   {
@@ -624,6 +652,9 @@
     "Rotary": {
       "Gemma3": true,
       "Kind": 5
+    },
+    "Runtime": {
+      "EmbeddingScale": 1
     }
   },
   {
@@ -639,6 +670,9 @@
     "Overrides": 2,
     "Rotary": {
       "Kind": 5
+    },
+    "Runtime": {
+      "EmbeddingScale": 1
     }
   },
   {
@@ -666,6 +700,9 @@
     "Overrides": 2,
     "Rotary": {
       "Kind": 5
+    },
+    "Runtime": {
+      "EmbeddingScale": 1
     }
   },
   {
@@ -917,6 +954,9 @@
     "PostNormLayout": 2,
     "Rotary": {
       "Kind": 2
+    },
+    "Runtime": {
+      "LogitScale": 1
     }
   },
   {
@@ -1488,6 +1528,9 @@
     },
     "Name": "mpt",
     "Normalization": 1,
+    "Runtime": {
+      "NormalizationBias": 1
+    },
     "Validation": {
       "ClampQKV": true
     }
@@ -1619,6 +1662,9 @@
     "Name": "olmo2",
     "Rotary": {
       "SlidingScaleReset": true
+    },
+    "Runtime": {
+      "NormalizationPlacement": 1
     }
   },
   {
@@ -1712,7 +1758,10 @@
     "ModelCatalog": {
       "RequireOutputBias": true
     },
-    "Name": "phimoe"
+    "Name": "phimoe",
+    "Runtime": {
+      "NormalizationBias": 2
+    }
   },
   {
     "Capabilities": 8404992,
@@ -2030,7 +2079,8 @@
     },
     "Name": "smallthinker",
     "Rotary": {
-      "SlidingFrequency": true
+      "SlidingFrequency": true,
+      "Usage": 3
     }
   },
   {
@@ -2150,6 +2200,9 @@
     "DenseGraph": 4,
     "Name": "talkie",
     "Normalization": 3,
+    "Runtime": {
+      "LogitScale": 1
+    },
     "Validation": {
       "RequireLogitScale": true
     }

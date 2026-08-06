@@ -29,10 +29,22 @@ const (
 	rotaryPolicyGemma
 )
 
+// RotaryUsagePolicy: layer-level RoPE schedule.
+type RotaryUsagePolicy uint8
+
+const (
+	RotaryUsageStandard RotaryUsagePolicy = iota
+	RotaryUsageSlidingMetadata
+	RotaryUsageDensePrefixOrSliding
+	RotaryUsagePeriodicZeroBased
+	RotaryUsageSlidingOnly
+)
+
 // RotaryPolicy: architecture-owned rotary selection.
 type RotaryPolicy struct {
 	Kind              rotaryPolicyKind
 	MultiAxis         multiAxisRotaryPolicy
+	Usage             RotaryUsagePolicy
 	SlidingFrequency  bool
 	SlidingScaleReset bool
 	Gemma3            bool

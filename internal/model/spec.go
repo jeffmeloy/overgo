@@ -2193,15 +2193,18 @@ func (s Spec) LayerSharedSwiGLUClampLimit(block uint32) float32 {
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
-	if s.Architecture == "cohere2moe" || s.Architecture == "cohere2" && len(s.SlidingLayers) != 0 {
-		return !s.RopeDisabled && block < s.BlockCount &&
-			(s.Architecture == "cohere2moe" && block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
+	usage := s.Profile().Rotary.Usage
+	if usage == RotaryUsageSlidingMetadata && len(s.SlidingLayers) == 0 {
+		usage = RotaryUsageStandard
 	}
-	if s.Architecture == "smallthinker" {
+	switch usage {
+	case RotaryUsageSlidingMetadata, RotaryUsageDensePrefixOrSliding:
+		return !s.RopeDisabled && block < s.BlockCount &&
+			(usage == RotaryUsageDensePrefixOrSliding && block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
+	case RotaryUsagePeriodicZeroBased:
 		return !s.RopeDisabled && block < s.BlockCount &&
 			(s.SlidingWindow == 0 || s.NoRopeLayerStep == 0 || block%s.NoRopeLayerStep != 0)
-	}
-	if s.Architecture == "exaone-moe" {
+	case RotaryUsageSlidingOnly:
 		return s.IsSlidingLayer(block)
 	}
 	blockCount := s.BlockCount
@@ -2214,23 +2217,11 @@ func (s Spec) UsesRoPE(block uint32) bool {
 }
 
 func (s Spec) InputEmbeddingScale() float32 {
-	if s.EmbeddingScale > 0 {
-		return s.EmbeddingScale
-	}
-	if s.Architecture == "afmoe" || s.Profile().Has(ArchitectureGemma) {
-		return float32(math.Sqrt(float64(s.EmbeddingLength)))
-	}
-	return 1
+	return s.Profile().Runtime.inputEmbeddingScale(s)
 }
 
 func (s Spec) OutputLogitMultiplier() float32 {
-	if s.LogitScale > 0 {
-		if s.Architecture == "cohere2" || s.Architecture == "cohere2moe" || s.Architecture == "command-r" || s.Architecture == "grok" || s.Architecture == "talkie" {
-			return s.LogitScale
-		}
-		return 1 / s.LogitScale
-	}
-	return 1
+	return s.Profile().Runtime.outputLogitMultiplier(s)
 }
 
 func (s Spec) IsEncoderOnly() bool {
@@ -2260,19 +2251,7 @@ func (s Spec) UsesWeightOnlyLayerNorm() bool {
 // NormPlan: compiles normalization behavior from profile and metadata.
 func (s Spec) NormPlan() NormalizationPlan {
 	profile := s.Profile()
-	operation := profile.Normalization
-	if operation == NormalizationWeightOnlyLayer && s.Architecture == "cohere2moe" && s.LayerNormEpsilon <= 0 {
-		operation = NormalizationRMS
-	}
-	post := profile.Has(ArchitecturePostNorm) || s.Architecture == "olmo2"
-	pre := !profile.Has(ArchitecturePostOnlyNorm) && s.Architecture != "olmo2"
-	return NormalizationPlan{
-		Operation: operation, PreAttention: pre, PreFeedForward: pre,
-		PostAttention: post, PostFeedForward: post,
-		Bias: s.Architecture == "phimoe" ||
-			(operation == NormalizationLayer && s.Architecture != "dbrx" && s.Architecture != "mpt"),
-		PostNormLayout: profile.PostNormLayout, FeedForwardLayout: profile.FFNNormLayout,
-	}
+	return profile.Runtime.normalizationPlan(s, profile)
 }
 
 func (s Spec) validate() error {

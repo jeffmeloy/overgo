@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 cache-transform wave added shared deterministic value appending
+  and representation mapping to `CacheStates`. Host/T5 result materialization,
+  deep cloning, and CUDA output collection now preserve names and modes through
+  the common collection contract rather than local loops.
 - The August 6 graph-state wave unified `DenseBlockResult` named outputs under
   `CacheStates[*tensor.Tensor]`. Each value now carries its cache mode through
   graph construction, host execution, and device retention; parallel

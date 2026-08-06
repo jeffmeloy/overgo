@@ -427,11 +427,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		outputs = append(outputs, graph.logits)
 		for layer := range graph.keys {
 			outputs = append(outputs, graph.keys[layer], graph.values[layer])
-			if len(graph.states[layer]) != 0 {
-				for _, name := range graph.states[layer].SortedNames() {
-					outputs = append(outputs, graph.states[layer][name].Value)
-				}
-			}
+			outputs = graph.states[layer].AppendValues(outputs)
 		}
 	}
 	if err := builder.Err(); err != nil {
@@ -692,12 +688,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		}
 		current = result.Output
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
-		if len(result.States) != 0 {
-			states[layerIndex] = make(deviceGraphStates, len(result.States))
-			for name, value := range result.States {
-				states[layerIndex][name] = value
-			}
-		}
+		states[layerIndex] = result.States
 	}
 	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {

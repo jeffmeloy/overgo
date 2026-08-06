@@ -38,12 +38,7 @@ func (s CacheStates[T]) Clone() CacheStates[T] {
 }
 
 func (s CacheStates[T]) CloneValues(clone func(T) T) CacheStates[T] {
-	result := maps.Clone(s)
-	for name, state := range result {
-		state.Value = clone(state.Value)
-		result[name] = state
-	}
-	return result
+	return MapCacheStateValues(s, clone)
 }
 
 func (s CacheStates[T]) SortedNames() []CacheStateName {
@@ -53,6 +48,24 @@ func (s CacheStates[T]) SortedNames() []CacheStateName {
 	}
 	slices.Sort(names)
 	return names
+}
+
+func (s CacheStates[T]) AppendValues(values []T) []T {
+	for _, name := range s.SortedNames() {
+		values = append(values, s[name].Value)
+	}
+	return values
+}
+
+func MapCacheStateValues[T, U any](states CacheStates[T], transform func(T) U) CacheStates[U] {
+	if states == nil {
+		return nil
+	}
+	result := make(CacheStates[U], len(states))
+	for name, state := range states {
+		result[name] = CacheState[U]{Mode: state.Mode, Value: transform(state.Value)}
+	}
+	return result
 }
 
 func (m CacheStateMode) Valid() bool {

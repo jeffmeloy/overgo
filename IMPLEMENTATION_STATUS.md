@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Cache-state collections now own deterministic value appending and typed
+  representation mapping. Host layer execution, T5 decoding, cache cloning,
+  and CUDA batch graph assembly reuse these operations instead of rebuilding
+  mode-preserving maps or output lists locally.
 - `DenseBlockResult` now carries one typed cache-state collection. Token/fixed
   mode travels with each graph value, removing the parallel `States` and
   `FixedStates` maps plus paired host/device result loops while preserving

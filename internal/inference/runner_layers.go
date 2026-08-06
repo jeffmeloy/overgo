@@ -316,9 +316,7 @@ func (r *Runner) runLayerCached(
 	if result.Auxiliary != nil {
 		outputs = append(outputs, result.Auxiliary)
 	}
-	for _, state := range result.States {
-		outputs = append(outputs, state.Value)
-	}
+	outputs = result.States.AppendValues(outputs)
 	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
@@ -332,10 +330,9 @@ func (r *Runner) runLayerCached(
 		layerCache.Auxiliary = &auxiliary
 	}
 	if len(result.States) > 0 {
-		layerCache.States = make(LayerStates, len(result.States))
-		for name, state := range result.States {
-			layerCache.States[name] = LayerState{Mode: state.Mode, Value: results[state.Value]}
-		}
+		layerCache.States = model.MapCacheStateValues(
+			result.States, func(value *tensor.Tensor) reference.Value { return results[value] },
+		)
 	}
 	return results[outputTensor], layerCache, nil
 }

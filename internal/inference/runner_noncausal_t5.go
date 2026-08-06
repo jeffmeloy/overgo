@@ -442,19 +442,16 @@ func (r *Runner) runT5DecoderLayer(
 		return reference.Value{}, LayerCache{}, err
 	}
 	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	for _, state := range result.States {
-		outputs = append(outputs, state.Value)
-	}
+	outputs = result.States.AppendValues(outputs)
 	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	layerCache := LayerCache{
 		Key: results[result.Key], Value: results[result.Value],
-		States: make(LayerStates, len(result.States)),
-	}
-	for name, state := range result.States {
-		layerCache.States[name] = LayerState{Mode: state.Mode, Value: results[state.Value]}
+		States: model.MapCacheStateValues(
+			result.States, func(value *tensor.Tensor) reference.Value { return results[value] },
+		),
 	}
 	return results[result.Output], layerCache, nil
 }

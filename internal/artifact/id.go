@@ -33,6 +33,7 @@ const (
 	KindRecipe
 	KindOutput
 	KindFile
+	KindEvidence
 )
 
 var kindNames = [...]string{
@@ -48,6 +49,7 @@ var kindNames = [...]string{
 	KindRecipe:       "recipe",
 	KindOutput:       "output",
 	KindFile:         "file",
+	KindEvidence:     "evidence",
 }
 
 func (k Kind) String() string {

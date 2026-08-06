@@ -31,6 +31,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Recipe lifecycle now records content-addressed candidate/validated/active/refused/superseded evidence, promotes status and active selection through compare-and-set aliases, atomically supersedes an older active recipe, and resolves active inference recipes into existing model plans.
 - Typed recipe DAGs now validate module task/placement policies, port schemas/cardinality, producer uniqueness, cycles, and bidirectional reachability; canonical recipe documents persist through generic content records, and the first binding compiles inference recipes through existing model/layer plans.
 - Canonical model manifests now bind ordered typed components without physical paths; GGUF single/split and Hugging Face Safetensors adapters reuse validated loader inventories, while RepoDB tracks relocatable file/directory availability independently.
 - RepoDB now starts from storage-neutral artifact contracts: kind-qualified SHA-256 identities, immutable descriptors, acyclic typed lineage, compare-and-set aliases, canonical idempotent batches, and a versioned CRC32C/hash-chained store with strict corruption handling and torn-tail recovery.

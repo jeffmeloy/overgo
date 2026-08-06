@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"sort"
 
 	"llamacpp2go/internal/artifact"
+	"llamacpp2go/internal/strictjson"
 )
 
 type definitionBody struct {
@@ -18,6 +20,28 @@ type definitionBody struct {
 	Edges   []Edge      `json:"edges,omitempty"`
 	Inputs  []Input     `json:"inputs,omitempty"`
 	Outputs []Output    `json:"outputs"`
+}
+
+func ParseDefinition(content []byte) (Definition, error) {
+	var body definitionBody
+	if err := strictjson.DecodeBytes(content, &body); err != nil {
+		return Definition{}, fmt.Errorf("recipe: decode definition: %w", err)
+	}
+	definition, err := NewDefinition(body.Task, body.Model, body.Nodes, body.Edges, body.Inputs, body.Outputs)
+	if err != nil {
+		return Definition{}, err
+	}
+	if body.Version != Version {
+		return Definition{}, errors.New("recipe: unsupported definition version")
+	}
+	canonical, err := definition.Content()
+	if err != nil {
+		return Definition{}, err
+	}
+	if !bytes.Equal(canonical, content) {
+		return Definition{}, errors.New("recipe: non-canonical definition content")
+	}
+	return definition, nil
 }
 
 func NewDefinition(task Task, model artifact.ID, nodes []Node, edges []Edge, inputs []Input, outputs []Output) (Definition, error) {

@@ -20,6 +20,8 @@ Current foundation:
 - GGUF single/split and Hugging Face Safetensors inventory adapters.
 - Bounded inline content records for independently owned typed schemas.
 - Canonical typed recipe DAGs persisted as content-addressed documents.
+- Append-only candidate, validated, active, refused, and superseded lifecycle
+  evidence with compare-and-set status and active-recipe aliases.
 - Model recipe binding that compiles through the existing `ModelPlan` and
   `LayerPlan` authority.
 
@@ -51,7 +53,7 @@ repository therefore preserves its manifest identity.
 
 Planned layers:
 
-1. Recipe candidate, validation, activation, refusal, and supersession events.
+1. Profile-policy recipe facts and registry parity compilation.
 2. Generation, embedding, rerank, projector, and training module bindings.
 3. Dataset versions, assets, views, splits, and mixtures.
 4. Run, evaluation, evidence, and promotion records.

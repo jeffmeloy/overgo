@@ -32,6 +32,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- All hybrid/MoE validation now selects one of 36 typed profile contracts. Dense/MoE variants, shared-expert layouts, routing/scaling, LongRoPE/YaRN, sliding attention, and hybrid convolution schedules retain family diagnostics without architecture-name dispatch in the shared validator.
 - Qwen3-Next/Qwen3.5, Qwen3-MoE/VL/RND1, GroveMoE, MiMo2, and Step3.5 hybrid/draft invariants now select typed profile contracts. Shared hybrid scheduling and expert checks no longer identify these families by architecture name, and rotary alignment relationships use named constants.
 - Recurrent validation now selects typed WavTokenizer, draft, Mamba, RWKV, Jamba, Granite Hybrid, PLaMo2, and Nemotron-H contracts from profiles. Shared recurrent validation contains no architecture-name dispatch; convolution widths, state multipliers, target cardinalities, token shifts, and rotary alignment are named facts.
 - MLA/DSA validation now uses typed DeepSeek 3.2, DeepSeek 4, Kimi Linear, Mistral 3, and MiniCPM3 profile contracts. The common MLA validator contains no architecture-name dispatch, and previously scattered model dimensions are named profile facts or validation constants.

@@ -29,6 +29,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "afmoe",
+    "Validation": {
+      "Hybrid": 33
+    },
     "Rotary": {
       "SlidingFrequency": true
     },
@@ -66,6 +69,9 @@
       "SupplementalCatalog": 48
     },
     "Name": "arctic",
+    "Validation": {
+      "Hybrid": 10
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -104,6 +110,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "bailingmoe",
+    "Validation": {
+      "Hybrid": 11
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -132,7 +141,10 @@
     "ModelCatalog": {
       "DraftLayerOutputNorm": true
     },
-    "Name": "bailingmoe2"
+    "Name": "bailingmoe2",
+    "Validation": {
+      "Hybrid": 25
+    }
   },
   {
     "Capabilities": 17247246355,
@@ -320,6 +332,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "dbrx",
+    "Validation": {
+      "Hybrid": 16
+    },
     "Normalization": 1,
     "Runtime": {
       "NormalizationBias": 1
@@ -355,6 +370,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "deepseek",
+    "Validation": {
+      "Hybrid": 12
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -393,7 +411,10 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "Name": "deepseek2-ocr"
+    "Name": "deepseek2-ocr",
+    "Validation": {
+      "Hybrid": 21
+    }
   },
   {
     "Attention": 2,
@@ -472,7 +493,10 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "Name": "dots1"
+    "Name": "dots1",
+    "Validation": {
+      "Hybrid": 23
+    }
   },
   {
     "Capabilities": 33,
@@ -575,6 +599,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "exaone-moe",
+    "Validation": {
+      "Hybrid": 34
+    },
     "Rotary": {
       "SlidingFrequency": true,
       "Usage": 4
@@ -882,6 +909,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "gpt-oss",
+    "Validation": {
+      "Hybrid": 30
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4,
@@ -960,6 +990,7 @@
       "Kind": 4
     },
     "Validation": {
+      "Hybrid": 13,
       "RequireLogitScale": true
     }
   },
@@ -985,6 +1016,7 @@
     },
     "Name": "granitehybrid",
     "Validation": {
+      "Hybrid": 15,
       "Recurrent": 12
     },
     "Position": 1,
@@ -1016,6 +1048,7 @@
       "Kind": 4
     },
     "Validation": {
+      "Hybrid": 14,
       "RequireLogitScale": true
     }
   },
@@ -1035,6 +1068,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "grok",
+    "Validation": {
+      "Hybrid": 17
+    },
     "PostNormLayout": 2,
     "Rotary": {
       "Kind": 2
@@ -1095,7 +1131,10 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "Name": "hunyuan-moe"
+    "Name": "hunyuan-moe",
+    "Validation": {
+      "Hybrid": 19
+    }
   },
   {
     "Capabilities": 71311424,
@@ -1134,7 +1173,10 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "Name": "hy_v3"
+    "Name": "hy_v3",
+    "Validation": {
+      "Hybrid": 20
+    }
   },
   {
     "Capabilities": 8396800,
@@ -1289,6 +1331,9 @@
       "KVHeads": 1
     },
     "Name": "laguna",
+    "Validation": {
+      "Hybrid": 32
+    },
     "Rotary": {
       "Kind": 1
     }
@@ -1311,6 +1356,9 @@
       "KVHeads": 7
     },
     "Name": "lfm2",
+    "Validation": {
+      "Hybrid": 35
+    },
     "OutputNorm": 4,
     "RecurrentCache": 9
   },
@@ -1343,6 +1391,9 @@
       "KVHeads": 7
     },
     "Name": "lfm2moe",
+    "Validation": {
+      "Hybrid": 36
+    },
     "OutputNorm": 4,
     "RecurrentCache": 9
   },
@@ -1373,7 +1424,10 @@
     "Family": 6,
     "Forward": 1,
     "GraphFamily": 6,
-    "Name": "llada-moe"
+    "Name": "llada-moe",
+    "Validation": {
+      "Hybrid": 8
+    }
   },
   {
     "Capabilities": 139264,
@@ -1381,6 +1435,9 @@
       "Catalog": 2
     },
     "Name": "llama",
+    "Validation": {
+      "Hybrid": 27
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 3
@@ -1396,6 +1453,9 @@
     "Forward": 1,
     "GraphFamily": 4,
     "Name": "llama-embed",
+    "Validation": {
+      "Hybrid": 27
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 3
@@ -1425,6 +1485,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "llama4",
+    "Validation": {
+      "Hybrid": 29
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4,
@@ -1491,6 +1554,9 @@
       "Catalog": 1
     },
     "Name": "mellum",
+    "Validation": {
+      "Hybrid": 18
+    },
     "Rotary": {
       "Kind": 2,
       "SlidingFrequency": true,
@@ -1537,6 +1603,7 @@
       "Kind": 3
     },
     "Validation": {
+      "Hybrid": 28,
       "RequireLogitScale": true
     }
   },
@@ -1568,7 +1635,10 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "Name": "minimax-m2"
+    "Name": "minimax-m2",
+    "Validation": {
+      "Hybrid": 24
+    }
   },
   {
     "Capabilities": 139264,
@@ -1580,6 +1650,7 @@
     },
     "Name": "mistral3",
     "Validation": {
+      "Hybrid": 28,
       "MLA": 4
     },
     "Position": 1,
@@ -1821,7 +1892,10 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "Name": "olmoe"
+    "Name": "olmoe",
+    "Validation": {
+      "Hybrid": 26
+    }
   },
   {
     "Capabilities": 67108864,
@@ -1912,7 +1986,8 @@
     },
     "Name": "phimoe",
     "Validation": {
-      "Attention": 17
+      "Attention": 17,
+      "Hybrid": 31
     },
     "Runtime": {
       "NormalizationBias": 2
@@ -2005,7 +2080,10 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "Name": "qwen2moe"
+    "Name": "qwen2moe",
+    "Validation": {
+      "Hybrid": 9
+    }
   },
   {
     "Capabilities": 71303232,
@@ -2270,6 +2348,9 @@
       "RouterInputOriginal": true
     },
     "Name": "smallthinker",
+    "Validation": {
+      "Hybrid": 22
+    },
     "Rotary": {
       "SlidingFrequency": true,
       "Usage": 3

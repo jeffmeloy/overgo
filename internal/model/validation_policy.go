@@ -106,6 +106,35 @@ const (
 	HybridValidationGroveMoE
 	HybridValidationMiMo2
 	HybridValidationStep35
+	HybridValidationLLaDAMoE
+	HybridValidationQwen2MoE
+	HybridValidationArctic
+	HybridValidationBailingMoE
+	HybridValidationDeepSeek
+	HybridValidationGranite
+	HybridValidationGraniteMoE
+	HybridValidationGraniteHybrid
+	HybridValidationDBRX
+	HybridValidationGrok
+	HybridValidationMellum
+	HybridValidationHunyuanMoE
+	HybridValidationHYV3
+	HybridValidationDeepSeek2OCR
+	HybridValidationSmallThinker
+	HybridValidationDOTS1
+	HybridValidationMiniMaxM2
+	HybridValidationBailingMoE2
+	HybridValidationOLMoE
+	HybridValidationLlama
+	HybridValidationRopeScaling
+	HybridValidationLlama4
+	HybridValidationGPTOSS
+	HybridValidationPhiMoE
+	HybridValidationLaguna
+	HybridValidationAFMoE
+	HybridValidationEXAOneMoE
+	HybridValidationLFM2
+	HybridValidationLFM2MoE
 )
 
 // ValidationPolicy: architecture-owned metadata invariants.

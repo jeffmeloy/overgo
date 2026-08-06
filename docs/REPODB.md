@@ -56,6 +56,9 @@ Current foundation:
   hybrid SSM, and Nemotron contracts with named dimensional facts.
 - Hybrid validation selectors now carry Qwen, GroveMoE, MiMo2, and Step3.5
   scheduling, rotary, and expert contracts.
+- Thirty-six hybrid/MoE contracts now cover dense/MoE variants, shared experts,
+  routing, scaling, position policy, and hybrid convolution schedules without
+  compiled architecture-name selection.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

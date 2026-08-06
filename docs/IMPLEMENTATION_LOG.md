@@ -32,6 +32,9 @@ claims.
 
 ## Validated milestones
 
+- The August 5 expert-validation wave completed the 36-contract hybrid/MoE
+  catalog. The shared validator now contains no architecture-name predicate;
+  exact profiles own dense/MoE, routing, scaling, position, and schedule facts.
 - The August 5 hybrid-validation wave moved Qwen hybrid/MoE, GroveMoE, MiMo2,
   and Step3.5 scheduling and expert selection into serialized profile policy.
 - The August 5 recurrent-validation wave replaced the architecture switch and

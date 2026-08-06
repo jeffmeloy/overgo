@@ -148,7 +148,10 @@
     "Name": "bert",
     "Normalization": 1,
     "OutputNorm": 1,
-    "PostNormLayout": 1
+    "PostNormLayout": 1,
+    "Validation": {
+      "Encoder": 1
+    }
   },
   {
     "DenseStages": {
@@ -843,6 +846,9 @@
     "Residual": 1,
     "Rotary": {
       "Kind": 4
+    },
+    "Validation": {
+      "BaseRotary": 1
     }
   },
   {
@@ -1107,7 +1113,10 @@
     "Name": "jina-bert-v2",
     "Normalization": 1,
     "OutputNorm": 1,
-    "PostNormLayout": 1
+    "PostNormLayout": 1,
+    "Validation": {
+      "Encoder": 2
+    }
   },
   {
     "Cadence": {
@@ -1133,7 +1142,10 @@
     "Name": "jina-bert-v3",
     "Normalization": 1,
     "OutputNorm": 1,
-    "PostNormLayout": 1
+    "PostNormLayout": 1,
+    "Validation": {
+      "Encoder": 3
+    }
   },
   {
     "Block": 8,
@@ -1588,6 +1600,9 @@
     "Position": 1,
     "Rotary": {
       "Kind": 4
+    },
+    "Validation": {
+      "Encoder": 4
     }
   },
   {
@@ -1606,7 +1621,10 @@
     "Name": "nomic-bert",
     "Normalization": 1,
     "OutputNorm": 1,
-    "PostNormLayout": 1
+    "PostNormLayout": 1,
+    "Validation": {
+      "Encoder": 5
+    }
   },
   {
     "Cadence": {
@@ -1632,7 +1650,10 @@
     "Name": "nomic-bert-moe",
     "Normalization": 1,
     "OutputNorm": 1,
-    "PostNormLayout": 1
+    "PostNormLayout": 1,
+    "Validation": {
+      "Encoder": 6
+    }
   },
   {
     "Capabilities": 8192,
@@ -2192,7 +2213,8 @@
     "Name": "t5encoder",
     "OutputNorm": 2,
     "Validation": {
-      "RelativeAttention": true
+      "RelativeAttention": true,
+      "RopeFrequencyOptional": true
     }
   },
   {

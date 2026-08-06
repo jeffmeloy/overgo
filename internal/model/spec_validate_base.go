@@ -28,9 +28,10 @@ func (s Spec) validateBaseMetadata() error {
 		return errors.New("attention head count is not divisible by KV head count")
 	case !policy.AttentionFree && (s.KeyLength == 0 || s.ValueLength == 0):
 		return errors.New("model attention key/value length is zero")
-	case s.Architecture == "gptj" && !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, 2):
+	case policy.BaseRotary == BaseRotaryValidationHalfWidth &&
+		!validRotaryDimension(s.RopeDimensionCount, s.KeyLength, 2):
 		return errors.New("GPT-J rotary dimension count is invalid")
-	case s.Architecture != "t5encoder" && !s.RopeDisabled && s.RopeFrequencyBase <= 0:
+	case !policy.RopeFrequencyOptional && !s.RopeDisabled && s.RopeFrequencyBase <= 0:
 		return errors.New("model RoPE frequency base must be positive")
 	case (s.UsesLayerNorm() || s.UsesWeightOnlyLayerNorm() || s.UsesUnweightedLayerNorm()) && s.LayerNormEpsilon <= 0:
 		return errors.New("model LayerNorm epsilon must be positive")

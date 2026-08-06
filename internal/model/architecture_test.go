@@ -7,6 +7,10 @@ const (
 	runtimePolicyFixtureWidth        = uint32(16)
 	runtimePolicyFixtureScale        = float32(4)
 	runtimePolicyFixtureBlocks       = uint32(2)
+	runtimePolicyFixtureHeads        = uint32(2)
+	runtimePolicyFixtureKVHeads      = runtimePolicyFixtureHeads - 1
+	runtimePolicyFixtureHeadWidth    = uint32(4)
+	runtimePolicyFixtureTokenTypes   = uint32(1)
 )
 
 func TestArchitectureRegistryProfiles(t *testing.T) {
@@ -90,6 +94,28 @@ func TestRuntimeBehaviorUsesBoundProfilePolicies(t *testing.T) {
 		t.Fatalf("runtime policy result = (input=%g output=%g norm=%+v rope=%t/%t)",
 			spec.InputEmbeddingScale(), spec.OutputLogitMultiplier(), norm,
 			spec.UsesRoPE(0), spec.UsesRoPE(1))
+	}
+}
+
+func TestEncoderValidationUsesBoundProfilePolicy(t *testing.T) {
+	profile := ArchitectureProfile{
+		Name:       runtimePolicyFixtureArchitecture,
+		Validation: ValidationPolicy{Encoder: EncoderValidationBERT},
+	}
+	spec := Spec{
+		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
+		AttentionSpec: AttentionSpec{
+			HeadCount: runtimePolicyFixtureHeads, HeadCountKV: runtimePolicyFixtureKVHeads,
+			KeyLength: runtimePolicyFixtureHeadWidth, ValueLength: runtimePolicyFixtureHeadWidth,
+		},
+	}.withProfile(profile)
+	if err := spec.validateEncoderFamilies(); err == nil {
+		t.Fatal("bound encoder policy accepted invalid metadata")
+	}
+	spec.TokenTypeCount = runtimePolicyFixtureTokenTypes
+	spec.HeadCountKV = spec.HeadCount
+	if err := spec.validateEncoderFamilies(); err != nil {
+		t.Fatalf("bound encoder policy rejected valid metadata: %v", err)
 	}
 }
 

@@ -44,6 +44,9 @@ Current foundation:
 - Typed runtime profile policies own input/logit scaling, normalization
   placement/bias/fallback, and layer-level RoPE schedules; model methods retain
   only the reusable execution mechanisms.
+- Typed validation selectors own base rotary and encoder-family invariants;
+  shared validators consume the resolved policy without architecture-name
+  dispatch.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

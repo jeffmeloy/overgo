@@ -32,6 +32,9 @@ claims.
 
 ## Validated milestones
 
+- The August 5 validation-policy wave moved base rotary and encoder-family
+  invariants into serialized profile selectors. Shared BERT-family shape and
+  optional-expert validators replaced six architecture-name branches.
 - The August 5 runtime-policy wave moved input/logit scaling, normalization
   placement/bias/fallback, and layer-level RoPE schedules from architecture-name
   predicates into serialized typed profiles. Bound RepoDB profiles now carry

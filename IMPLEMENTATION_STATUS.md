@@ -25,12 +25,13 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Generation | Implemented | Cached autoregressive, diffusion, encoder-decoder, embeddings, reranking, and speculative paths |
 | Multimodal | Implemented, constrained | CogVLM, DeepSeek-OCR, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, PaddleOCR-VL, Qwen2-VL, dense/MoE Qwen3-VL, and Gemma 4 image/video; Gemma 4 ordered image/audio history |
 | Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
-| RepoDB | Artifact and recipe foundations implemented | Content-addressed manifests/documents, typed lineage/locations/recipe DAGs, GGUF/Safetensors adapters, model-plan binding, atomic hash-chained commits, strict replay, and fail-closed single-writer storage |
+| RepoDB | Artifact, policy, and recipe foundations implemented | Content-addressed manifests/profile documents, typed lineage/locations/recipe DAGs, parity-gated runtime policy injection, GGUF/Safetensors adapters, atomic hash-chained commits, strict replay, and fail-closed single-writer storage |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
 
 ## Recently completed
 
+- Architecture profiles now persist as strict content-addressed RepoDB facts; candidate recipes bind an exact profile, registry/profile plan parity produces typed evidence, and only matching evidence unlocks active runtime policy injection through metadata, catalog, and graph planning.
 - Recipe lifecycle now records content-addressed candidate/validated/active/refused/superseded evidence, promotes status and active selection through compare-and-set aliases, atomically supersedes an older active recipe, and resolves active inference recipes into existing model plans.
 - Typed recipe DAGs now validate module task/placement policies, port schemas/cardinality, producer uniqueness, cycles, and bidirectional reachability; canonical recipe documents persist through generic content records, and the first binding compiles inference recipes through existing model/layer plans.
 - Canonical model manifests now bind ordered typed components without physical paths; GGUF single/split and Hugging Face Safetensors adapters reuse validated loader inventories, while RepoDB tracks relocatable file/directory availability independently.

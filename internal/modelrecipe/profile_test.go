@@ -94,6 +94,10 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 	if err != nil || !ok || plan.Model.Profile != profile {
 		t.Fatalf("active profile plan = (%+v, %v, %v)", plan.Model, ok, err)
 	}
+	activeProfile, ok, err := ActiveProfile(ctx, store, modelID, recipe.TaskInference)
+	if err != nil || !ok || activeProfile.ID != document.ID {
+		t.Fatalf("active profile = (%s, %v, %v)", activeProfile.ID, ok, err)
+	}
 }
 
 func TestProfileCandidateRejectsParityDrift(t *testing.T) {

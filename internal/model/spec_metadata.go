@@ -53,6 +53,10 @@ type MetadataShapePolicy struct {
 }
 
 func newSpecMetadata(file *gguf.File) (specMetadata, error) {
+	return newSpecMetadataWithProfile(file, nil)
+}
+
+func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) (specMetadata, error) {
 	if file == nil {
 		return specMetadata{}, errors.New("model file is nil")
 	}
@@ -64,9 +68,20 @@ func newSpecMetadata(file *gguf.File) (specMetadata, error) {
 	if err != nil {
 		return specMetadata{}, err
 	}
-	profile, supported := LookupArchitecture(architecture)
-	if !supported {
-		return specMetadata{}, &UnsupportedArchitectureError{Architecture: architecture}
+	var profile ArchitectureProfile
+	if resolved == nil {
+		var supported bool
+		profile, supported = LookupArchitecture(architecture)
+		if !supported {
+			return specMetadata{}, &UnsupportedArchitectureError{Architecture: architecture}
+		}
+	} else {
+		profile = *resolved
+		if profile.Name == "" || profile.Name != architecture {
+			return specMetadata{}, fmt.Errorf(
+				"model profile %q does not match architecture %q", profile.Name, architecture,
+			)
+		}
 	}
 	return specMetadata{
 		values: values, architecture: architecture, prefix: architecture + ".", profile: profile,

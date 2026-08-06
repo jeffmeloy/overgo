@@ -24,6 +24,11 @@ Current foundation:
   evidence with compare-and-set status and active-recipe aliases.
 - Model recipe binding that compiles through the existing `ModelPlan` and
   `LayerPlan` authority.
+- Canonical content-addressed architecture profiles seeded from the bootstrap
+  registry, bound to exact recipes, and activated only with typed parity
+  evidence.
+- Runtime profile injection across metadata parsing, weight catalogs, and graph
+  planning; unbound models retain the bootstrap path.
 
 Storage layout:
 
@@ -53,11 +58,10 @@ repository therefore preserves its manifest identity.
 
 Planned layers:
 
-1. Profile-policy recipe facts and registry parity compilation.
-2. Generation, embedding, rerank, projector, and training module bindings.
-3. Dataset versions, assets, views, splits, and mixtures.
-4. Run, evaluation, evidence, and promotion records.
-5. Immutable segments plus versioned snapshots and rebuildable indexes.
+1. Generation, embedding, rerank, projector, and training module bindings.
+2. Dataset versions, assets, views, splits, and mixtures.
+3. Run, evaluation, evidence, and promotion records.
+4. Immutable segments plus versioned snapshots and rebuildable indexes.
 
 The event log remains authoritative. Snapshots may accelerate replay but must
 carry a verified commit-chain anchor and never discard required provenance.

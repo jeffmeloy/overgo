@@ -37,13 +37,22 @@ func (e *UnsupportedArchitectureError) Error() string {
 
 // ReadSpec: validates model metadata.
 func ReadSpec(file *gguf.File) (Spec, error) {
-	metadata, err := newSpecMetadata(file)
+	return readSpec(file, nil)
+}
+
+// ReadSpecWithProfile: validates metadata against a resolved policy.
+func ReadSpecWithProfile(file *gguf.File, profile ArchitectureProfile) (Spec, error) {
+	return readSpec(file, &profile)
+}
+
+func readSpec(file *gguf.File, resolved *ArchitectureProfile) (Spec, error) {
+	metadata, err := newSpecMetadataWithProfile(file, resolved)
 	if err != nil {
 		return Spec{}, err
 	}
 	architecture, profile := metadata.architecture, metadata.profile
 	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture}, AttentionSpec: AttentionSpec{NonCausalAttention: profile.Has(ArchitectureNonCausal),
-		RopeDisabled: profile.Has(ArchitectureRoPEDisabled)},
+		RopeDisabled: profile.Has(ArchitectureRoPEDisabled)}, profile: &profile,
 	}
 	state, err := metadata.readBase(&spec)
 	if err != nil {

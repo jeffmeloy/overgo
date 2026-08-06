@@ -252,8 +252,8 @@ type ModelPlan struct {
 
 // CompileModelPlan: resolves architecture decisions before execution.
 func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
-	profile, ok := LookupArchitecture(spec.Architecture)
-	if !ok {
+	profile := spec.Profile()
+	if profile.Name == "" {
 		return ModelPlan{}, &UnsupportedArchitectureError{Architecture: spec.Architecture}
 	}
 	return CompileModelPlanWithProfile(spec, weights, profile)

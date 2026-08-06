@@ -22,24 +22,11 @@ func CompileActive(
 	if err != nil || !ok {
 		return Plan{}, ok, err
 	}
-	profileID, bound, err := store.ResolveAlias(ctx, recipeProfileAlias(definition.ID))
+	document, bound, err := activeBoundProfile(ctx, store, definition)
 	if err != nil {
 		return Plan{}, false, err
 	}
 	if bound {
-		document, loadErr := loadProfile(ctx, store, profileID)
-		if loadErr != nil {
-			return Plan{}, false, loadErr
-		}
-		event, eventErr := currentEvent(ctx, store, definition.ID)
-		if eventErr != nil {
-			return Plan{}, false, eventErr
-		}
-		if _, parityErr := matchingProfileParity(
-			ctx, store, event.Evidence, definition, document,
-		); parityErr != nil {
-			return Plan{}, false, parityErr
-		}
 		plan, compileErr := CompileWithProfile(definition, document, spec, weights)
 		return plan, compileErr == nil, compileErr
 	}
@@ -206,6 +193,45 @@ func Active(ctx context.Context, store *repodb.Store, modelID artifact.ID, task 
 	}
 	definition, err := loadDefinition(ctx, store, id)
 	return definition, err == nil, err
+}
+
+// ActiveProfile: parity-gated policy for runtime ingestion.
+func ActiveProfile(
+	ctx context.Context,
+	store *repodb.Store,
+	modelID artifact.ID,
+	task recipe.Task,
+) (ProfileDocument, bool, error) {
+	definition, ok, err := Active(ctx, store, modelID, task)
+	if err != nil || !ok {
+		return ProfileDocument{}, ok, err
+	}
+	return activeBoundProfile(ctx, store, definition)
+}
+
+func activeBoundProfile(
+	ctx context.Context,
+	store *repodb.Store,
+	definition recipe.Definition,
+) (ProfileDocument, bool, error) {
+	profileID, bound, err := store.ResolveAlias(ctx, recipeProfileAlias(definition.ID))
+	if err != nil || !bound {
+		return ProfileDocument{}, bound, err
+	}
+	document, err := loadProfile(ctx, store, profileID)
+	if err != nil {
+		return ProfileDocument{}, false, err
+	}
+	event, err := currentEvent(ctx, store, definition.ID)
+	if err != nil {
+		return ProfileDocument{}, false, err
+	}
+	if _, err := matchingProfileParity(
+		ctx, store, event.Evidence, definition, document,
+	); err != nil {
+		return ProfileDocument{}, false, err
+	}
+	return document, true, nil
 }
 
 func currentEvent(ctx context.Context, store *repodb.Store, recipeID artifact.ID) (recipe.LifecycleEvent, error) {

@@ -39,7 +39,12 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		_ = file.Close()
 		return nil, openErr
 	}
-	spec, err := model.ReadSpec(file)
+	var spec model.Spec
+	if options.Profile == nil {
+		spec, err = model.ReadSpec(file)
+	} else {
+		spec, err = model.ReadSpecWithProfile(file, *options.Profile)
+	}
 	if err != nil {
 		return fail(err)
 	}

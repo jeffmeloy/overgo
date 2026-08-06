@@ -188,6 +188,8 @@ type OpenOptions struct {
 	DeviceOrdinal           int
 	PreloadDeviceWeights    bool
 	PreloadQuantizedWeights bool
+	// Profile: prevalidated architecture policy; nil selects bootstrap registry.
+	Profile *model.ArchitectureProfile
 	// PromptCacheEntries: bounds independently reusable prompt states
 	// Zero: selects default capacity of one
 	PromptCacheEntries int

@@ -129,6 +129,30 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	}
 }
 
+func TestCompileModelPlanWithProfilePinsResolvedPolicy(t *testing.T) {
+	profile, ok := LookupArchitecture("llama")
+	if !ok {
+		t.Fatal("llama profile is absent")
+	}
+	profile.Attention = AttentionLFM2
+	plan, err := CompileModelPlanWithProfile(
+		Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}, Weights{}, profile,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Profile.Attention != AttentionLFM2 || plan.Layers[0].Attention != AttentionLFM2 {
+		t.Fatalf("resolved profile was not pinned: %+v", plan)
+	}
+
+	profile.Name = "qwen"
+	if _, err := CompileModelPlanWithProfile(
+		Spec{CommonSpec: CommonSpec{Architecture: "llama"}}, Weights{}, profile,
+	); err == nil {
+		t.Fatal("mismatched profile accepted")
+	}
+}
+
 func TestCompileModelPlanSelectsCachedGraphPolicy(t *testing.T) {
 	tests := []struct {
 		name    string

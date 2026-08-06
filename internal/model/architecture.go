@@ -447,8 +447,16 @@ func SupportedArchitectures() []string {
 
 // Profile: registered profile; zero profile for invalid specs.
 func (s Spec) Profile() ArchitectureProfile {
+	if s.profile != nil {
+		return *s.profile
+	}
 	profile, _ := LookupArchitecture(s.Architecture)
 	return profile
+}
+
+func (s Spec) withProfile(profile ArchitectureProfile) Spec {
+	s.profile = &profile
+	return s
 }
 
 var architectureRegistry = buildArchitectureRegistry()

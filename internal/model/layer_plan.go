@@ -256,9 +256,20 @@ func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
 	if !ok {
 		return ModelPlan{}, &UnsupportedArchitectureError{Architecture: spec.Architecture}
 	}
+	return CompileModelPlanWithProfile(spec, weights, profile)
+}
+
+// CompileModelPlanWithProfile: compiles a resolved policy without registry lookup.
+func CompileModelPlanWithProfile(spec Spec, weights Weights, profile ArchitectureProfile) (ModelPlan, error) {
+	if profile.Name == "" || profile.Name != spec.Architecture {
+		return ModelPlan{}, fmt.Errorf(
+			"model plan profile %q does not match architecture %q", profile.Name, spec.Architecture,
+		)
+	}
 	if profile.Forward == ForwardCached && spec.NonCausalAttention {
 		profile.Forward = ForwardNonCausal
 	}
+	spec = spec.withProfile(profile)
 	layers := spec.BlockCount
 	if profile.Family == ArchitectureFamilyEncoderDecoder && spec.DecoderBlockCount > layers {
 		layers = spec.DecoderBlockCount

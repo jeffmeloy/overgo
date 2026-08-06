@@ -17,6 +17,7 @@ type Spec struct {
 	RecurrentSpec
 	EncoderSpec
 	MultimodalSpec
+	profile *ArchitectureProfile
 }
 
 // CommonSpec: shared model metadata.

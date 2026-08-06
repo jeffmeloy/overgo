@@ -47,6 +47,19 @@ func InferenceWithProfile(
 	}, placement)
 }
 
+func InferenceWithModelDefinition(
+	modelID artifact.ID,
+	profileID artifact.ID,
+	definitionID artifact.ID,
+	placement recipe.Placement,
+) (recipe.Definition, error) {
+	return inference([]recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: modelID},
+		{Role: recipe.DependencyProfile, Artifact: profileID},
+		{Role: recipe.DependencyDefinition, Artifact: definitionID},
+	}, placement)
+}
+
 func inference(dependencies []recipe.Dependency, placement recipe.Placement) (recipe.Definition, error) {
 	compile := recipe.Node{ID: "compile", Module: ModuleCompileModelPlan, Placement: placement}
 	forward := recipe.Node{ID: "forward", Module: ModuleForwardTokens, Placement: placement}

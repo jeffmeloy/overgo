@@ -32,6 +32,12 @@ claims.
 
 ## Validated milestones
 
+- The August 5 resolved-definition wave introduced a canonical document that
+  binds model, profile, tensor-inventory, architecture, and validated `Spec`
+  identities. GGUF ingestion verifies that tensor facts match the same source,
+  RepoDB resolves the complete bound definition, and recipe v2 compilation
+  consumes its exact policy without consulting the bootstrap architecture
+  registry. Identical relocated models retain definition identity.
 - The August 5 tensor-inventory wave added one bounded, content-addressed model
   tensor schema shared by GGUF and Safetensors ingestion. Logical names,
   shapes, storage types, and payload sizes are sorted and canonical; physical

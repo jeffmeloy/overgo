@@ -235,7 +235,11 @@ func tensorInventoryContent(document TensorInventoryDocument) ([]byte, error) {
 	return content, nil
 }
 
-func tensorInventoryFromGGUF(model artifact.ID, file *gguf.File) (TensorInventoryDocument, error) {
+// NewGGUFTensorInventory captures logical facts from a validated GGUF.
+func NewGGUFTensorInventory(model artifact.ID, file *gguf.File) (TensorInventoryDocument, error) {
+	if file == nil {
+		return TensorInventoryDocument{}, errors.New("model artifact: nil GGUF tensor inventory source")
+	}
 	facts := make([]TensorFact, len(file.Tensors))
 	for index, tensor := range file.Tensors {
 		facts[index] = TensorFact{
@@ -247,7 +251,11 @@ func tensorInventoryFromGGUF(model artifact.ID, file *gguf.File) (TensorInventor
 	return NewTensorInventoryDocument(model, TensorFormatGGUF, facts)
 }
 
-func tensorInventoryFromSafetensors(model artifact.ID, source *safetensors.Source) (TensorInventoryDocument, error) {
+// NewSafetensorsTensorInventory captures logical facts from a validated source.
+func NewSafetensorsTensorInventory(model artifact.ID, source *safetensors.Source) (TensorInventoryDocument, error) {
+	if source == nil {
+		return TensorInventoryDocument{}, errors.New("model artifact: nil Safetensors tensor inventory source")
+	}
 	names := source.Names()
 	facts := make([]TensorFact, len(names))
 	for index, name := range names {

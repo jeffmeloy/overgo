@@ -21,6 +21,9 @@ Current foundation:
 - Canonical logical tensor inventories with ordered names, shapes, storage, and
   payload sizes, derived from model manifests and independent of paths, shard
   offsets, and runtime tensor loading.
+- Canonical model definitions binding an exact model manifest, architecture
+  profile, tensor inventory, and validated runtime metadata spec. Recipe v2 can
+  depend on and compile this definition without bootstrap-registry lookup.
 - Bounded inline content records for independently owned typed schemas.
 - Canonical typed recipe DAGs persisted as content-addressed documents.
 - Recipe v2 identities include a canonical role/slot dependency set for models,
@@ -53,7 +56,8 @@ Storage layout:
 
 Bulk tensors, datasets, checkpoints, and generated media remain external.
 RepoDB stores their identities, immutable facts, logical tensor inventories,
-lineage, aliases, recipes, evidence, and promotion decisions.
+resolved model definitions, lineage, aliases, recipes, evidence, and promotion
+decisions.
 
 Dependency direction:
 

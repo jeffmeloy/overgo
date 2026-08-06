@@ -88,7 +88,7 @@ func FromGGUF(file *gguf.File) (Inventory, error) {
 		}
 	}
 	locations = append(locations, artifact.Location{Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: root})
-	tensors, err := tensorInventoryFromGGUF(manifest.ID, file)
+	tensors, err := NewGGUFTensorInventory(manifest.ID, file)
 	if err != nil {
 		return Inventory{}, err
 	}
@@ -166,7 +166,7 @@ func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
 	locations = append(locations, artifact.Location{
 		Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: filepath.Clean(repository.Directory),
 	})
-	tensors, err := tensorInventoryFromSafetensors(manifest.ID, repository.Tensors)
+	tensors, err := NewSafetensorsTensorInventory(manifest.ID, repository.Tensors)
 	if err != nil {
 		return Inventory{}, err
 	}

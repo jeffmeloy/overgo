@@ -82,6 +82,7 @@ const (
 	DependencyAdapter    DependencyRole = "adapter"
 	DependencyDataset    DependencyRole = "dataset"
 	DependencyCheckpoint DependencyRole = "checkpoint"
+	DependencyDefinition DependencyRole = "model-definition"
 )
 
 type Dependency struct {
@@ -165,6 +166,8 @@ func validateDependency(dependency Dependency) error {
 		want = artifact.KindDataset
 	case DependencyCheckpoint:
 		want = artifact.KindCheckpoint
+	case DependencyDefinition:
+		want = artifact.KindModelDefinition
 	default:
 		return fmt.Errorf("recipe: invalid dependency role %q", dependency.Role)
 	}

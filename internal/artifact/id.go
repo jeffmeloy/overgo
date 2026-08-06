@@ -38,6 +38,7 @@ const (
 	KindRun
 	KindEvaluation
 	KindTensorInventory
+	KindModelDefinition
 )
 
 var kindNames = [...]string{
@@ -58,6 +59,7 @@ var kindNames = [...]string{
 	KindRun:             "run",
 	KindEvaluation:      "evaluation",
 	KindTensorInventory: "tensor-inventory",
+	KindModelDefinition: "model-definition",
 }
 
 func (k Kind) String() string {

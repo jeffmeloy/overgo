@@ -677,52 +677,44 @@ func buildGemma4BlockCached(
 	if err := requireTensorPair(pastKey, pastValue, "Gemma 4 cache pair is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":         weights.AttentionNorm,
-		"attention query":        weights.AttentionQ,
-		"attention query norm":   weights.AttentionQNorm,
-		"attention output":       weights.AttentionOutput,
-		"attention post norm":    weights.AttentionPostNorm,
-		"feed-forward norm":      weights.FeedForwardNorm,
-		"feed-forward gate":      weights.FeedForwardGate,
-		"feed-forward up":        weights.FeedForwardUp,
-		"feed-forward down":      weights.FeedForwardDown,
-		"feed-forward post norm": weights.FeedForwardPostNorm,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention query", weights.AttentionQ),
+		requireGraphWeight("attention query norm", weights.AttentionQNorm),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
 	}
 	if spec.LayerHasKV(layerIndex) {
-		required["attention key"] = weights.AttentionK
-		required["attention key norm"] = weights.AttentionKNorm
+		required.add("attention key", weights.AttentionK)
+		required.add("attention key norm", weights.AttentionKNorm)
 	} else if pastKey == nil {
 		return DenseBlockResult{}, errors.New("Gemma 4 shared-KV layer has no source cache")
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		for name, item := range map[string]*tensor.Tensor{
-			"expert router":           weights.FeedForwardRouter,
-			"expert router scale":     weights.FeedForwardRouterScale,
-			"expert down":             weights.FeedForwardDownExperts,
-			"expert pre norm":         weights.FeedForwardPreNorm2,
-			"dense expert post norm":  weights.FeedForwardPostNorm1,
-			"routed expert post norm": weights.FeedForwardPostNorm2,
-		} {
-			required[name] = item
-		}
+		required.add("expert router", weights.FeedForwardRouter)
+		required.add("expert router scale", weights.FeedForwardRouterScale)
+		required.add("expert down", weights.FeedForwardDownExperts)
+		required.add("expert pre norm", weights.FeedForwardPreNorm2)
+		required.add("dense expert post norm", weights.FeedForwardPostNorm1)
+		required.add("routed expert post norm", weights.FeedForwardPostNorm2)
 		if weights.FeedForwardGateUpExperts == nil {
-			required["expert gate"] = weights.FeedForwardGateExperts
-			required["expert up"] = weights.FeedForwardUpExperts
+			required.add("expert gate", weights.FeedForwardGateExperts)
+			required.add("expert up", weights.FeedForwardUpExperts)
 		}
 	}
 	if spec.EmbeddingPerLayer > 0 {
-		for name, item := range map[string]*tensor.Tensor{
-			"per-layer input":      weights.PerLayerInput,
-			"per-layer input gate": weights.PerLayerInputGate,
-			"per-layer projection": weights.PerLayerProjection,
-			"per-layer post norm":  weights.PerLayerPostNorm,
-		} {
-			required[name] = item
-		}
+		required.add("per-layer input", weights.PerLayerInput)
+		required.add("per-layer input gate", weights.PerLayerInputGate)
+		required.add("per-layer projection", weights.PerLayerProjection)
+		required.add("per-layer post norm", weights.PerLayerPostNorm)
 	}
-	if err := requireBlockWeights("Gemma 4 block", required); err != nil {
+	if err := required.validate("Gemma 4 block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
@@ -838,27 +830,27 @@ func BuildGemma3nAttentionStage(
 	if err := requireTensorPair(pastKey, pastValue, "Gemma 3n cache pair is incomplete"); err != nil {
 		return Gemma3nAttentionResult{}, err
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":          weights.AttentionNorm,
-		"attention query":         weights.AttentionQ,
-		"attention query norm":    weights.AttentionQNorm,
-		"attention output":        weights.AttentionOutput,
-		"attention post norm":     weights.AttentionPostNorm,
-		"feed-forward norm":       weights.FeedForwardNorm,
-		"feed-forward gate":       weights.FeedForwardGate,
-		"feed-forward up":         weights.FeedForwardUp,
-		"Laurel left projection":  weights.LaurelLeft,
-		"Laurel right projection": weights.LaurelRight,
-		"Laurel post norm":        weights.LaurelPostNorm,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention query", weights.AttentionQ),
+		requireGraphWeight("attention query norm", weights.AttentionQNorm),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("Laurel left projection", weights.LaurelLeft),
+		requireGraphWeight("Laurel right projection", weights.LaurelRight),
+		requireGraphWeight("Laurel post norm", weights.LaurelPostNorm),
 	}
 	if spec.LayerHasKV(layerIndex) {
-		required["attention key"] = weights.AttentionK
-		required["attention value"] = weights.AttentionV
-		required["attention key norm"] = weights.AttentionKNorm
+		required.add("attention key", weights.AttentionK)
+		required.add("attention value", weights.AttentionV)
+		required.add("attention key norm", weights.AttentionKNorm)
 	} else if pastKey == nil {
 		return Gemma3nAttentionResult{}, errors.New("Gemma 3n shared-KV layer has no source cache")
 	}
-	if err := requireBlockWeights("Gemma 3n", required); err != nil {
+	if err := required.validate("Gemma 3n"); err != nil {
 		return Gemma3nAttentionResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
@@ -1071,12 +1063,12 @@ func buildDeciSparseBlockCached(
 		}
 		ffnInput = builder.Add(projected, input)
 	}
-	if err := requireBlockWeights("Deci feed-forward", map[string]*tensor.Tensor{
-		"norm": weights.FeedForwardNorm,
-		"gate": weights.FeedForwardGate,
-		"up":   weights.FeedForwardUp,
-		"down": weights.FeedForwardDown,
-	}); err != nil {
+	if err := (graphWeights{
+		requireGraphWeight("norm", weights.FeedForwardNorm),
+		requireGraphWeight("gate", weights.FeedForwardGate),
+		requireGraphWeight("up", weights.FeedForwardUp),
+		requireGraphWeight("down", weights.FeedForwardDown),
+	}).validate("Deci feed-forward"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	normalized := builder.WeightedRMSNorm(ffnInput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
@@ -1191,18 +1183,18 @@ func buildQwen35AttentionBlock(
 	if builder == nil || input == nil {
 		return DenseBlockResult{}, errors.New("Qwen3.5 attention block input is nil")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":      weights.AttentionNorm,
-		"attention Q/gate":    weights.AttentionQ,
-		"attention K":         weights.AttentionK,
-		"attention V":         weights.AttentionV,
-		"attention output":    weights.AttentionOutput,
-		"attention Q norm":    weights.AttentionQNorm,
-		"attention K norm":    weights.AttentionKNorm,
-		"post-attention norm": weights.FeedForwardNorm,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention Q/gate", weights.AttentionQ),
+		requireGraphWeight("attention K", weights.AttentionK),
+		requireGraphWeight("attention V", weights.AttentionV),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
+		requireGraphWeight("attention K norm", weights.AttentionKNorm),
+		requireGraphWeight("post-attention norm", weights.FeedForwardNorm),
 	}
-	addQwen35FeedForwardRequirements(required, spec, weights)
-	if err := requireBlockWeights("Qwen3.5 attention block", required); err != nil {
+	addQwen35FeedForwardRequirements(&required, spec, weights)
+	if err := required.validate("Qwen3.5 attention block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
@@ -1312,30 +1304,30 @@ func buildQwen35RecurrentBlock(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return Qwen35BlockResult{}, errors.New("Qwen3.5 recurrent block input/state is nil")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":      weights.AttentionNorm,
-		"QKV":                 weights.AttentionQKV,
-		"SSM convolution":     weights.SSMConv1D,
-		"SSM time-step bias":  weights.SSMTimeStep,
-		"SSM A":               weights.SSMA,
-		"SSM norm":            weights.SSMNorm,
-		"SSM output":          weights.SSMOutput,
-		"post-attention norm": weights.FeedForwardNorm,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("QKV", weights.AttentionQKV),
+		requireGraphWeight("SSM convolution", weights.SSMConv1D),
+		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
+		requireGraphWeight("SSM A", weights.SSMA),
+		requireGraphWeight("SSM norm", weights.SSMNorm),
+		requireGraphWeight("SSM output", weights.SSMOutput),
+		requireGraphWeight("post-attention norm", weights.FeedForwardNorm),
 	}
 	qwenPolicy := spec.Profile().AttentionGraph.QwenGDN
 	if qwenPolicy == qwenGDNRepeatInterleave {
-		required["SSM beta/alpha"] = weights.SSMBetaAlpha
+		required.add("SSM beta/alpha", weights.SSMBetaAlpha)
 		if weights.AttentionQKV.Shape.Dims[1] == uint64(spec.SSMInnerSize)+
 			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount) {
-			required["attention gate"] = weights.AttentionGate
+			required.add("attention gate", weights.AttentionGate)
 		}
 	} else {
-		required["attention gate"] = weights.AttentionGate
-		required["SSM beta"] = weights.SSMBeta
-		required["SSM alpha"] = weights.SSMAlpha
+		required.add("attention gate", weights.AttentionGate)
+		required.add("SSM beta", weights.SSMBeta)
+		required.add("SSM alpha", weights.SSMAlpha)
 	}
-	addQwen35FeedForwardRequirements(required, spec, weights)
-	if err := requireBlockWeights("Qwen3.5 recurrent block", required); err != nil {
+	addQwen35FeedForwardRequirements(&required, spec, weights)
+	if err := required.validate("Qwen3.5 recurrent block"); err != nil {
 		return Qwen35BlockResult{}, err
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
@@ -1509,26 +1501,26 @@ func buildQwen35FeedForward(
 }
 
 func addQwen35FeedForwardRequirements(
-	required map[string]*tensor.Tensor,
+	required *graphWeights,
 	spec Spec,
 	weights LayerGraphWeights,
 ) {
 	if spec.expertCompositionPlan().kind == expertSharedGated {
-		required["feed-forward router"] = weights.FeedForwardRouter
-		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		required.add("feed-forward router", weights.FeedForwardRouter)
+		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
 		if weights.FeedForwardGateUpExperts != nil {
-			required["feed-forward fused expert gate/up"] = weights.FeedForwardGateUpExperts
+			required.add("feed-forward fused expert gate/up", weights.FeedForwardGateUpExperts)
 		} else {
-			required["feed-forward expert gate"] = weights.FeedForwardGateExperts
-			required["feed-forward expert up"] = weights.FeedForwardUpExperts
+			required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
+			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
 		}
-		required["feed-forward shared router"] = weights.FeedForwardSharedRouter
-		required["feed-forward shared gate"] = weights.FeedForwardSharedGate
-		required["feed-forward shared up"] = weights.FeedForwardSharedUp
-		required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		required.add("feed-forward shared router", weights.FeedForwardSharedRouter)
+		required.add("feed-forward shared gate", weights.FeedForwardSharedGate)
+		required.add("feed-forward shared up", weights.FeedForwardSharedUp)
+		required.add("feed-forward shared down", weights.FeedForwardSharedDown)
 		return
 	}
-	required["feed-forward gate"] = weights.FeedForwardGate
-	required["feed-forward up"] = weights.FeedForwardUp
-	required["feed-forward down"] = weights.FeedForwardDown
+	required.add("feed-forward gate", weights.FeedForwardGate)
+	required.add("feed-forward up", weights.FeedForwardUp)
+	required.add("feed-forward down", weights.FeedForwardDown)
 }

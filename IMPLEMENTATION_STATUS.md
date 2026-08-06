@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Ordered graph-weight schemas now replace per-family requirement maps across
+  dense, encoder, MLA/DSA, recurrent, state-space, multimodal, and specialized
+  graph builders. Conditional contracts compose through one typed API, retain
+  deterministic first-error ordering, and avoid transient map allocation.
 - Ordered typed metadata field schemas now replace repeated map-based scalar
   decoding across SSM, RWKV, expert, MLA/indexer, DeepSeek 4, YaRN, xIELU, and
   WavTokenizer ingestion. Required fields retain deterministic first-error

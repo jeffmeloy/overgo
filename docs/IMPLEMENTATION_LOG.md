@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 graph-weight wave replaced every execution-time requirement map
+  with one ordered typed schema. Dense, encoder, MLA/DSA, Mamba, RWKV,
+  DeepSeek 4, Gemma, Qwen, Kimi, LFM, and WavTokenizer builders now share
+  deterministic nil-weight validation without transient map allocation.
 - The August 6 metadata-field wave replaced eleven repeated map readers with
   ordered typed field schemas. SSM, RWKV, expert, MLA/indexer, DeepSeek 4,
   YaRN, xIELU, and WavTokenizer metadata now share deterministic scalar binding;

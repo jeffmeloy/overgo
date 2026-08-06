@@ -22,27 +22,27 @@ func BuildMambaBlockCached(
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Mamba block architecture/input is invalid")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":       weights.AttentionNorm,
-		"SSM input":            weights.SSMInput,
-		"SSM convolution":      weights.SSMConv1D,
-		"SSM convolution bias": weights.SSMConv1DBias,
-		"SSM X":                weights.SSMX,
-		"SSM time-step weight": weights.SSMTimeStepWeight,
-		"SSM time-step bias":   weights.SSMTimeStep,
-		"SSM A":                weights.SSMA,
-		"SSM D":                weights.SSMD,
-		"SSM output":           weights.SSMOutput,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("SSM input", weights.SSMInput),
+		requireGraphWeight("SSM convolution", weights.SSMConv1D),
+		requireGraphWeight("SSM convolution bias", weights.SSMConv1DBias),
+		requireGraphWeight("SSM X", weights.SSMX),
+		requireGraphWeight("SSM time-step weight", weights.SSMTimeStepWeight),
+		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
+		requireGraphWeight("SSM A", weights.SSMA),
+		requireGraphWeight("SSM D", weights.SSMD),
+		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	if err := requireBlockWeights("Mamba block", required); err != nil {
+	if err := required.validate("Mamba block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if profile.RecurrentBlock == BlockJamba {
-		if err := requireBlockWeights("Jamba block", map[string]*tensor.Tensor{
-			"SSM time-step norm": weights.SSMTimeStepNorm,
-			"SSM B norm":         weights.SSMBNorm,
-			"SSM C norm":         weights.SSMCNorm,
-		}); err != nil {
+		if err := (graphWeights{
+			requireGraphWeight("SSM time-step norm", weights.SSMTimeStepNorm),
+			requireGraphWeight("SSM B norm", weights.SSMBNorm),
+			requireGraphWeight("SSM C norm", weights.SSMCNorm),
+		}).validate("Jamba block"); err != nil {
 			return DenseBlockResult{}, err
 		}
 	}
@@ -164,19 +164,19 @@ func buildMamba2MixerCached(
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("Mamba2 mixer architecture/input is invalid")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":     weights.AttentionNorm,
-		"SSM input":          weights.SSMInput,
-		"SSM convolution":    weights.SSMConv1D,
-		"SSM time-step bias": weights.SSMTimeStep,
-		"SSM A":              weights.SSMA,
-		"SSM D":              weights.SSMD,
-		"SSM output":         weights.SSMOutput,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("SSM input", weights.SSMInput),
+		requireGraphWeight("SSM convolution", weights.SSMConv1D),
+		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
+		requireGraphWeight("SSM A", weights.SSMA),
+		requireGraphWeight("SSM D", weights.SSMD),
+		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
 	if profile.Block != BlockFalconH1 {
-		required["SSM norm"] = weights.SSMNorm
+		required.add("SSM norm", weights.SSMNorm)
 	}
-	if err := requireBlockWeights("Mamba2 block", required); err != nil {
+	if err := required.validate("Mamba2 block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	inner := uint64(spec.SSMInnerSize)
@@ -263,11 +263,14 @@ func BuildFalconH1BlockCached(
 	if err := requireTensorPair(pastKey, pastValue, "Falcon-H1 KV cache is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if err := requireBlockWeights("Falcon-H1 block", map[string]*tensor.Tensor{
-		"attention norm": weights.AttentionNorm, "attention output": weights.AttentionOutput,
-		"feed-forward norm": weights.FeedForwardNorm, "feed-forward gate": weights.FeedForwardGate,
-		"feed-forward up": weights.FeedForwardUp, "feed-forward down": weights.FeedForwardDown,
-	}); err != nil {
+	if err := (graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}).validate("Falcon-H1 block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if weights.AttentionQKV == nil && (weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
@@ -466,26 +469,26 @@ func BuildPLaMo2RecurrentBlockCached(
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("PLaMo2 block architecture/input is invalid")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":         weights.AttentionNorm,
-		"attention post norm":    weights.AttentionPostNorm,
-		"SSM input":              weights.SSMInput,
-		"SSM convolution":        weights.SSMConv1D,
-		"SSM X":                  weights.SSMX,
-		"SSM time-step weight":   weights.SSMTimeStepWeight,
-		"SSM time-step bias":     weights.SSMTimeStep,
-		"SSM time-step norm":     weights.SSMTimeStepNorm,
-		"SSM A":                  weights.SSMA,
-		"SSM D":                  weights.SSMD,
-		"SSM B norm":             weights.SSMBNorm,
-		"SSM C norm":             weights.SSMCNorm,
-		"SSM output":             weights.SSMOutput,
-		"feed-forward norm":      weights.FeedForwardNorm,
-		"feed-forward up":        weights.FeedForwardUp,
-		"feed-forward down":      weights.FeedForwardDown,
-		"feed-forward post norm": weights.FeedForwardPostNorm,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
+		requireGraphWeight("SSM input", weights.SSMInput),
+		requireGraphWeight("SSM convolution", weights.SSMConv1D),
+		requireGraphWeight("SSM X", weights.SSMX),
+		requireGraphWeight("SSM time-step weight", weights.SSMTimeStepWeight),
+		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
+		requireGraphWeight("SSM time-step norm", weights.SSMTimeStepNorm),
+		requireGraphWeight("SSM A", weights.SSMA),
+		requireGraphWeight("SSM D", weights.SSMD),
+		requireGraphWeight("SSM B norm", weights.SSMBNorm),
+		requireGraphWeight("SSM C norm", weights.SSMCNorm),
+		requireGraphWeight("SSM output", weights.SSMOutput),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
 	}
-	if err := requireBlockWeights("PLaMo2 block", required); err != nil {
+	if err := required.validate("PLaMo2 block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	inner := uint64(spec.SSMInnerSize)
@@ -581,10 +584,12 @@ func BuildNemotronHBlockCached(
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	tokens := input.Shape.Dims[1]
 	if spec.LayerFeedForwardLength(layerIndex) == 0 {
-		if err := requireBlockWeights("Nemotron-H", map[string]*tensor.Tensor{
-			"attention Q": weights.AttentionQ, "attention K": weights.AttentionK,
-			"attention V": weights.AttentionV, "attention output": weights.AttentionOutput,
-		}); err != nil {
+		if err := (graphWeights{
+			requireGraphWeight("attention Q", weights.AttentionQ),
+			requireGraphWeight("attention K", weights.AttentionK),
+			requireGraphWeight("attention V", weights.AttentionV),
+			requireGraphWeight("attention output", weights.AttentionOutput),
+		}).validate("Nemotron-H"); err != nil {
 			return DenseBlockResult{}, err
 		}
 		query := builder.MulMat(weights.AttentionQ, normalized)
@@ -638,11 +643,14 @@ func BuildNemotronHBlockCached(
 	}
 	var feedForward *tensor.Tensor
 	if spec.Profile().Has(ArchitectureMoE) {
-		if err := requireBlockWeights("Nemotron-H MoE", map[string]*tensor.Tensor{
-			"router": weights.FeedForwardRouter, "expert bias": weights.FeedForwardExpertBias,
-			"expert up": weights.FeedForwardUpExperts, "expert down": weights.FeedForwardDownExperts,
-			"shared up": weights.FeedForwardSharedUp, "shared down": weights.FeedForwardSharedDown,
-		}); err != nil {
+		if err := (graphWeights{
+			requireGraphWeight("router", weights.FeedForwardRouter),
+			requireGraphWeight("expert bias", weights.FeedForwardExpertBias),
+			requireGraphWeight("expert up", weights.FeedForwardUpExperts),
+			requireGraphWeight("expert down", weights.FeedForwardDownExperts),
+			requireGraphWeight("shared up", weights.FeedForwardSharedUp),
+			requireGraphWeight("shared down", weights.FeedForwardSharedDown),
+		}).validate("Nemotron-H MoE"); err != nil {
 			return DenseBlockResult{}, err
 		}
 		expertInput := normalized

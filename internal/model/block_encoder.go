@@ -29,24 +29,24 @@ func buildBERTEncoderBlock(
 	if pastKey != nil || pastValue != nil {
 		return DenseBlockResult{}, errors.New("BERT-family block does not support a KV cache")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention output":            weights.AttentionOutput,
-		"attention post norm":         weights.AttentionPostNorm,
-		"attention post norm bias":    weights.AttentionPostNormBias,
-		"feed-forward post norm":      weights.FeedForwardPostNorm,
-		"feed-forward post norm bias": weights.FeedForwardPostNormBias,
+	required := graphWeights{
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
+		requireGraphWeight("attention post norm bias", weights.AttentionPostNormBias),
+		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
+		requireGraphWeight("feed-forward post norm bias", weights.FeedForwardPostNormBias),
 	}
 	usesExperts := encoder.usesExperts() &&
 		spec.IsInterleavedMoELayer(layerIndex)
 	if usesExperts {
-		required["feed-forward router"] = weights.FeedForwardRouter
-		required["feed-forward expert up"] = weights.FeedForwardUpExperts
-		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		required.add("feed-forward router", weights.FeedForwardRouter)
+		required.add("feed-forward expert up", weights.FeedForwardUpExperts)
+		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
 	} else {
-		required["feed-forward up"] = weights.FeedForwardUp
-		required["feed-forward down"] = weights.FeedForwardDown
+		required.add("feed-forward up", weights.FeedForwardUp)
+		required.add("feed-forward down", weights.FeedForwardDown)
 	}
-	if err := requireBlockWeights("BERT-family block", required); err != nil {
+	if err := required.validate("BERT-family block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if encoder.Kind == encoderGraphNomic && weights.FeedForwardGate == nil {
@@ -193,17 +193,17 @@ func buildModernBERTBlock(
 	if pastKey != nil || pastValue != nil {
 		return DenseBlockResult{}, errors.New("ModernBERT block does not support a KV cache")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention QKV":     weights.AttentionQKV,
-		"attention output":  weights.AttentionOutput,
-		"feed-forward norm": weights.FeedForwardNorm,
-		"feed-forward up":   weights.FeedForwardUp,
-		"feed-forward down": weights.FeedForwardDown,
+	required := graphWeights{
+		requireGraphWeight("attention QKV", weights.AttentionQKV),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
 	}
 	if layerIndex > 0 {
-		required["attention norm"] = weights.AttentionNorm
+		required.add("attention norm", weights.AttentionNorm)
 	}
-	if err := requireBlockWeights("ModernBERT block", required); err != nil {
+	if err := required.validate("ModernBERT block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -299,26 +299,26 @@ func buildGemmaEmbeddingBlock(
 	if weights.AttentionQKV == nil && weights.AttentionQKVBias != nil {
 		return DenseBlockResult{}, errors.New("Gemma embedding fused QKV bias has no fused projection")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":         weights.AttentionNorm,
-		"attention output":       weights.AttentionOutput,
-		"attention Q norm":       weights.AttentionQNorm,
-		"attention K norm":       weights.AttentionKNorm,
-		"attention post norm":    weights.AttentionPostNorm,
-		"feed-forward norm":      weights.FeedForwardNorm,
-		"feed-forward gate":      weights.FeedForwardGate,
-		"feed-forward up":        weights.FeedForwardUp,
-		"feed-forward down":      weights.FeedForwardDown,
-		"feed-forward post norm": weights.FeedForwardPostNorm,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
+		requireGraphWeight("attention K norm", weights.AttentionKNorm),
+		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
 	}
 	if weights.AttentionQKV != nil {
-		required["attention QKV"] = weights.AttentionQKV
+		required.add("attention QKV", weights.AttentionQKV)
 	} else {
-		required["attention Q"] = weights.AttentionQ
-		required["attention K"] = weights.AttentionK
-		required["attention V"] = weights.AttentionV
+		required.add("attention Q", weights.AttentionQ)
+		required.add("attention K", weights.AttentionK)
+		required.add("attention V", weights.AttentionV)
 	}
-	if err := requireBlockWeights("Gemma embedding block", required); err != nil {
+	if err := required.validate("Gemma embedding block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -420,22 +420,22 @@ func buildTalkieBlock(
 	if weights.AttentionQKV == nil && weights.AttentionQKVBias != nil {
 		return DenseBlockResult{}, errors.New("Talkie fused QKV bias has no fused projection")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention output":   weights.AttentionOutput,
-		"attention Q norm":   weights.AttentionQNorm,
-		"feed-forward gate":  weights.FeedForwardGate,
-		"feed-forward up":    weights.FeedForwardUp,
-		"feed-forward down":  weights.FeedForwardDown,
-		"layer output scale": weights.LayerOutputScale,
+	required := graphWeights{
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+		requireGraphWeight("layer output scale", weights.LayerOutputScale),
 	}
 	if weights.AttentionQKV != nil {
-		required["attention QKV"] = weights.AttentionQKV
+		required.add("attention QKV", weights.AttentionQKV)
 	} else {
-		required["attention Q"] = weights.AttentionQ
-		required["attention K"] = weights.AttentionK
-		required["attention V"] = weights.AttentionV
+		required.add("attention Q", weights.AttentionQ)
+		required.add("attention K", weights.AttentionK)
+		required.add("attention V", weights.AttentionV)
 	}
-	if err := requireBlockWeights("Talkie block", required); err != nil {
+	if err := required.validate("Talkie block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 
@@ -525,18 +525,18 @@ func BuildT5EncoderBlock(
 	if encoder != encoderGraphT5 && encoder != encoderGraphT5Encoder {
 		return nil, errors.New("T5 encoder block requires T5 architecture")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":          weights.AttentionNorm,
-		"attention Q":             weights.AttentionQ,
-		"attention K":             weights.AttentionK,
-		"attention V":             weights.AttentionV,
-		"attention output":        weights.AttentionOutput,
-		"attention relative bias": weights.AttentionRelativeBias,
-		"feed-forward norm":       weights.FeedForwardNorm,
-		"feed-forward up":         weights.FeedForwardUp,
-		"feed-forward down":       weights.FeedForwardDown,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention Q", weights.AttentionQ),
+		requireGraphWeight("attention K", weights.AttentionK),
+		requireGraphWeight("attention V", weights.AttentionV),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention relative bias", weights.AttentionRelativeBias),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
 	}
-	if err := requireBlockWeights("T5 encoder block", required); err != nil {
+	if err := required.validate("T5 encoder block"); err != nil {
 		return nil, err
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -611,23 +611,23 @@ func BuildT5DecoderBlockCached(
 	if spec.Profile().EncoderGraph.Kind != encoderGraphT5 {
 		return DenseBlockResult{}, errors.New("T5 decoder block requires T5 architecture")
 	}
-	required := map[string]*tensor.Tensor{
-		"attention norm":          weights.AttentionNorm,
-		"attention Q":             weights.AttentionQ,
-		"attention K":             weights.AttentionK,
-		"attention V":             weights.AttentionV,
-		"attention output":        weights.AttentionOutput,
-		"attention relative bias": weights.AttentionRelativeBias,
-		"cross-attention norm":    weights.CrossAttentionNorm,
-		"cross-attention Q":       weights.CrossAttentionQ,
-		"cross-attention K":       weights.CrossAttentionK,
-		"cross-attention V":       weights.CrossAttentionV,
-		"cross-attention output":  weights.CrossAttentionOutput,
-		"feed-forward norm":       weights.FeedForwardNorm,
-		"feed-forward up":         weights.FeedForwardUp,
-		"feed-forward down":       weights.FeedForwardDown,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention Q", weights.AttentionQ),
+		requireGraphWeight("attention K", weights.AttentionK),
+		requireGraphWeight("attention V", weights.AttentionV),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention relative bias", weights.AttentionRelativeBias),
+		requireGraphWeight("cross-attention norm", weights.CrossAttentionNorm),
+		requireGraphWeight("cross-attention Q", weights.CrossAttentionQ),
+		requireGraphWeight("cross-attention K", weights.CrossAttentionK),
+		requireGraphWeight("cross-attention V", weights.CrossAttentionV),
+		requireGraphWeight("cross-attention output", weights.CrossAttentionOutput),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
 	}
-	if err := requireBlockWeights("T5 decoder block", required); err != nil {
+	if err := required.validate("T5 decoder block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {

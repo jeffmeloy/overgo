@@ -98,51 +98,56 @@ func buildMLABlockCachedForLayer(
 	isDSA := attentionPolicy == AttentionDSA
 	isDeepSeek32 := profile.MLAVariant == mlaVariantDeepSeek32
 	isKimi := profile.MLAVariant == mlaVariantKimi
-	required := map[string]*tensor.Tensor{
-		"attention norm": weights.AttentionNorm, "attention Q": weights.AttentionQ,
-		"attention KV-A": weights.AttentionKVAMQA, "attention KV-A norm": weights.AttentionKVANorm,
-		"attention output": weights.AttentionOutput, "feed-forward norm": weights.FeedForwardNorm,
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention Q", weights.AttentionQ),
+		requireGraphWeight("attention KV-A", weights.AttentionKVAMQA),
+		requireGraphWeight("attention KV-A norm", weights.AttentionKVANorm),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
 	}
 	if weights.AttentionKVB != nil {
-		required["attention KV-B"] = weights.AttentionKVB
+		required.add("attention KV-B", weights.AttentionKVB)
 	} else {
-		required["attention K-B"] = weights.AttentionKB
-		required["attention V-B"] = weights.AttentionVB
+		required.add("attention K-B", weights.AttentionKB)
+		required.add("attention V-B", weights.AttentionVB)
 	}
 	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
-		required["attention Q-B"] = weights.AttentionQB
-		required["attention Q-A norm"] = weights.AttentionQNorm
+		required.add("attention Q-B", weights.AttentionQB)
+		required.add("attention Q-A norm", weights.AttentionQNorm)
 	}
 	if (isDeepSeek2 || isDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
-		required["feed-forward router"] = weights.FeedForwardRouter
-		required["feed-forward expert down"] = weights.FeedForwardDownExperts
+		required.add("feed-forward router", weights.FeedForwardRouter)
+		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
 		if weights.FeedForwardGateUpExperts == nil {
-			required["feed-forward expert gate"] = weights.FeedForwardGateExperts
-			required["feed-forward expert up"] = weights.FeedForwardUpExperts
+			required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
+			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
 		}
-		required["feed-forward shared gate"] = weights.FeedForwardSharedGate
-		required["feed-forward shared up"] = weights.FeedForwardSharedUp
-		required["feed-forward shared down"] = weights.FeedForwardSharedDown
+		required.add("feed-forward shared gate", weights.FeedForwardSharedGate)
+		required.add("feed-forward shared up", weights.FeedForwardSharedUp)
+		required.add("feed-forward shared down", weights.FeedForwardSharedDown)
 	} else {
-		required["feed-forward up"] = weights.FeedForwardUp
-		required["feed-forward down"] = weights.FeedForwardDown
+		required.add("feed-forward up", weights.FeedForwardUp)
+		required.add("feed-forward down", weights.FeedForwardDown)
 		if isMiniCPM3 || isDeepSeek2 || isKimi {
-			required["feed-forward gate"] = weights.FeedForwardGate
+			required.add("feed-forward gate", weights.FeedForwardGate)
 		}
 	}
 	if isMiniCPM3 {
-		required["feed-forward gate"] = weights.FeedForwardGate
+		required.add("feed-forward gate", weights.FeedForwardGate)
 	}
 	if isDSA && spec.LayerHasFullIndexer(layerIndex) {
-		if err := requireBlockWeights("DSA", map[string]*tensor.Tensor{
-			"indexer K norm": weights.IndexerKNorm, "indexer K norm bias": weights.IndexerKNormBias,
-			"indexer projection": weights.IndexerProjection, "indexer K": weights.IndexerAttentionK,
-			"indexer Q-B": weights.IndexerAttentionQB,
-		}); err != nil {
+		if err := (graphWeights{
+			requireGraphWeight("indexer K norm", weights.IndexerKNorm),
+			requireGraphWeight("indexer K norm bias", weights.IndexerKNormBias),
+			requireGraphWeight("indexer projection", weights.IndexerProjection),
+			requireGraphWeight("indexer K", weights.IndexerAttentionK),
+			requireGraphWeight("indexer Q-B", weights.IndexerAttentionQB),
+		}).validate("DSA"); err != nil {
 			return DenseBlockResult{}, err
 		}
 	}
-	if err := requireBlockWeights("MLA block", required); err != nil {
+	if err := required.validate("MLA block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if builder == nil || input == nil || input.Shape.Rank != 2 || len(positions) == 0 ||

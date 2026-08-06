@@ -7,10 +7,25 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
-func requireBlockWeights(scope string, weights map[string]*tensor.Tensor) error {
-	for name, weight := range weights {
-		if weight == nil {
-			return fmt.Errorf("%s %s weight is nil", scope, name)
+type graphWeight struct {
+	name  string
+	value *tensor.Tensor
+}
+
+type graphWeights []graphWeight
+
+func requireGraphWeight(name string, value *tensor.Tensor) graphWeight {
+	return graphWeight{name: name, value: value}
+}
+
+func (w *graphWeights) add(name string, value *tensor.Tensor) {
+	*w = append(*w, requireGraphWeight(name, value))
+}
+
+func (w graphWeights) validate(scope string) error {
+	for _, weight := range w {
+		if weight.value == nil {
+			return fmt.Errorf("%s %s weight is nil", scope, weight.name)
 		}
 	}
 	return nil

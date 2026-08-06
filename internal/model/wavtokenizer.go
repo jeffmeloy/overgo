@@ -57,20 +57,16 @@ func BuildWavTokenizerDecoder(
 	if len(weights.PosNet) != int(spec.PosNetBlockCount) || len(weights.ConvNext) != int(spec.ConvNextBlockCount) {
 		return nil, errors.New("WavTokenizer decoder graph layer count is incompatible")
 	}
-	require := func(scope string, items map[string]*tensor.Tensor) error {
-		for name, item := range items {
-			if item == nil {
-				return fmt.Errorf("WavTokenizer %s %s weight is nil", scope, name)
-			}
-		}
-		return nil
-	}
-	if err := require("decoder", map[string]*tensor.Tensor{
-		"input convolution": weights.InputConv, "input convolution bias": weights.InputConvBias,
-		"token norm": weights.TokenNorm, "token norm bias": weights.TokenNormBias,
-		"output norm": weights.OutputNorm, "output norm bias": weights.OutputNormBias,
-		"output": weights.Output, "output bias": weights.OutputBias,
-	}); err != nil {
+	if err := (graphWeights{
+		requireGraphWeight("input convolution", weights.InputConv),
+		requireGraphWeight("input convolution bias", weights.InputConvBias),
+		requireGraphWeight("token norm", weights.TokenNorm),
+		requireGraphWeight("token norm bias", weights.TokenNormBias),
+		requireGraphWeight("output norm", weights.OutputNorm),
+		requireGraphWeight("output norm bias", weights.OutputNormBias),
+		requireGraphWeight("output", weights.Output),
+		requireGraphWeight("output bias", weights.OutputBias),
+	}).validate("WavTokenizer decoder"); err != nil {
 		return nil, err
 	}
 
@@ -80,12 +76,16 @@ func BuildWavTokenizerDecoder(
 		scope := fmt.Sprintf("PosNet block %d", block)
 		switch block {
 		case 0, 1, 3, 4:
-			if err := require(scope, map[string]*tensor.Tensor{
-				"norm-1": layer.Norm1, "norm-1 bias": layer.Norm1Bias,
-				"convolution-1": layer.Conv1, "convolution-1 bias": layer.Conv1Bias,
-				"norm-2": layer.Norm2, "norm-2 bias": layer.Norm2Bias,
-				"convolution-2": layer.Conv2, "convolution-2 bias": layer.Conv2Bias,
-			}); err != nil {
+			if err := (graphWeights{
+				requireGraphWeight("norm-1", layer.Norm1),
+				requireGraphWeight("norm-1 bias", layer.Norm1Bias),
+				requireGraphWeight("convolution-1", layer.Conv1),
+				requireGraphWeight("convolution-1 bias", layer.Conv1Bias),
+				requireGraphWeight("norm-2", layer.Norm2),
+				requireGraphWeight("norm-2 bias", layer.Norm2Bias),
+				requireGraphWeight("convolution-2", layer.Conv2),
+				requireGraphWeight("convolution-2 bias", layer.Conv2Bias),
+			}).validate("WavTokenizer " + scope); err != nil {
 				return nil, err
 			}
 			current = builder.GroupNorm(current, layer.Norm1, layer.Norm1Bias, spec.GroupNormGroups, spec.GroupNormEpsilon)
@@ -96,13 +96,18 @@ func BuildWavTokenizerDecoder(
 			current = builder.Conv1DSame(current, layer.Conv2, layer.Conv2Bias, false)
 			current = builder.Add(current, residual)
 		case 2:
-			if err := require(scope, map[string]*tensor.Tensor{
-				"attention norm": layer.AttentionNorm, "attention norm bias": layer.AttentionNormBias,
-				"attention Q": layer.AttentionQ, "attention Q bias": layer.AttentionQBias,
-				"attention K": layer.AttentionK, "attention K bias": layer.AttentionKBias,
-				"attention V": layer.AttentionV, "attention V bias": layer.AttentionVBias,
-				"attention output": layer.AttentionOutput, "attention output bias": layer.AttentionOutBias,
-			}); err != nil {
+			if err := (graphWeights{
+				requireGraphWeight("attention norm", layer.AttentionNorm),
+				requireGraphWeight("attention norm bias", layer.AttentionNormBias),
+				requireGraphWeight("attention Q", layer.AttentionQ),
+				requireGraphWeight("attention Q bias", layer.AttentionQBias),
+				requireGraphWeight("attention K", layer.AttentionK),
+				requireGraphWeight("attention K bias", layer.AttentionKBias),
+				requireGraphWeight("attention V", layer.AttentionV),
+				requireGraphWeight("attention V bias", layer.AttentionVBias),
+				requireGraphWeight("attention output", layer.AttentionOutput),
+				requireGraphWeight("attention output bias", layer.AttentionOutBias),
+			}).validate("WavTokenizer " + scope); err != nil {
 				return nil, err
 			}
 			current = builder.GroupNorm(current, layer.AttentionNorm, layer.AttentionNormBias, spec.GroupNormGroups, spec.GroupNormEpsilon)
@@ -118,9 +123,10 @@ func BuildWavTokenizerDecoder(
 			current = builder.Conv1DSame(current, layer.AttentionOutput, layer.AttentionOutBias, false)
 			current = builder.Add(current, residual)
 		case 5:
-			if err := require(scope, map[string]*tensor.Tensor{
-				"norm": layer.AttentionNorm, "norm bias": layer.AttentionNormBias,
-			}); err != nil {
+			if err := (graphWeights{
+				requireGraphWeight("norm", layer.AttentionNorm),
+				requireGraphWeight("norm bias", layer.AttentionNormBias),
+			}).validate("WavTokenizer " + scope); err != nil {
 				return nil, err
 			}
 			current = builder.GroupNorm(current, layer.AttentionNorm, layer.AttentionNormBias, spec.GroupNormGroups, spec.GroupNormEpsilon)
@@ -132,13 +138,17 @@ func BuildWavTokenizerDecoder(
 	current = builder.AffineLayerNorm(current, weights.TokenNorm, weights.TokenNormBias, spec.LayerNormEpsilon)
 	for block, layer := range weights.ConvNext {
 		scope := fmt.Sprintf("ConvNeXt block %d", block)
-		if err := require(scope, map[string]*tensor.Tensor{
-			"depthwise convolution": layer.Depthwise, "depthwise convolution bias": layer.DepthwiseBias,
-			"norm": layer.Norm, "norm bias": layer.NormBias,
-			"pointwise-1": layer.Pointwise1, "pointwise-1 bias": layer.Pointwise1Bias,
-			"pointwise-2": layer.Pointwise2, "pointwise-2 bias": layer.Pointwise2Bias,
-			"gamma": layer.Gamma,
-		}); err != nil {
+		if err := (graphWeights{
+			requireGraphWeight("depthwise convolution", layer.Depthwise),
+			requireGraphWeight("depthwise convolution bias", layer.DepthwiseBias),
+			requireGraphWeight("norm", layer.Norm),
+			requireGraphWeight("norm bias", layer.NormBias),
+			requireGraphWeight("pointwise-1", layer.Pointwise1),
+			requireGraphWeight("pointwise-1 bias", layer.Pointwise1Bias),
+			requireGraphWeight("pointwise-2", layer.Pointwise2),
+			requireGraphWeight("pointwise-2 bias", layer.Pointwise2Bias),
+			requireGraphWeight("gamma", layer.Gamma),
+		}).validate("WavTokenizer " + scope); err != nil {
 			return nil, err
 		}
 		residual := current

@@ -223,11 +223,11 @@ func (d ModelDefinitionDocument) Batch(key string) (artifact.Batch, error) {
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	return artifact.Batch{Key: key, Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{
+	return artifact.NewDocumentBatch(key, []artifact.Content{content}, []artifact.Lineage{
 		{Child: d.ID, Parent: d.Model, Relation: artifact.RelationDerivedFrom},
 		{Child: d.ID, Parent: d.Profile, Relation: artifact.RelationDependsOn},
 		{Child: d.ID, Parent: d.TensorInventory, Relation: artifact.RelationDependsOn},
-	}}, nil
+	}, nil)
 }
 
 func (d ModelDefinitionDocument) Resolve(
@@ -259,11 +259,11 @@ func ResolveModelDefinition(
 	store artifact.Reader,
 	id artifact.ID,
 ) (ResolvedModelDefinition, error) {
-	content, ok, err := store.Content(ctx, id)
+	content, ok, err := artifact.ReadDocument(ctx, store, id, modelDefinitionContract)
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	if !ok || modelDefinitionContract.ValidateContent(content, id) != nil {
+	if !ok {
 		return ResolvedModelDefinition{}, errors.New("model recipe: model definition content is absent or incompatible")
 	}
 	document, err := ParseModelDefinitionDocument(content.Data)
@@ -277,13 +277,13 @@ func ResolveModelDefinition(
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	tensorContent, ok, err := store.Content(ctx, document.TensorInventory)
+	tensorContent, ok, err := artifact.ReadDocument(
+		ctx, store, document.TensorInventory, modelartifact.TensorInventoryDocumentContract(),
+	)
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	if !ok || modelartifact.TensorInventoryDocumentContract().ValidateContent(
-		tensorContent, document.TensorInventory,
-	) != nil {
+	if !ok {
 		return ResolvedModelDefinition{}, errors.New("model recipe: tensor inventory content is absent or incompatible")
 	}
 	tensors, err := modelartifact.ParseTensorInventoryDocument(tensorContent.Data)

@@ -165,7 +165,8 @@ func PublishProfileCatalog(
 	if len(documents) == 0 {
 		return artifact.CommitID{}, errors.New("model recipe: profile catalog is empty")
 	}
-	batch := artifact.Batch{Key: key, Contents: make([]artifact.Content, 0, len(documents))}
+	contents := make([]artifact.Content, 0, len(documents))
+	aliases := make([]artifact.AliasBinding, 0, len(documents))
 	architectures := make(map[string]struct{}, len(documents))
 	for _, document := range documents {
 		if err := document.ValidateIdentity(); err != nil {
@@ -179,7 +180,7 @@ func PublishProfileCatalog(
 		if contentErr != nil {
 			return artifact.CommitID{}, contentErr
 		}
-		batch.Contents = append(batch.Contents, content)
+		contents = append(contents, content)
 		alias := registeredProfileAlias(document.Architecture)
 		current, ok, lookupErr := store.ResolveAlias(ctx, alias)
 		if lookupErr != nil {
@@ -192,7 +193,11 @@ func PublishProfileCatalog(
 		if ok {
 			binding.Previous = &current
 		}
-		batch.Aliases = append(batch.Aliases, binding)
+		aliases = append(aliases, binding)
+	}
+	batch, err := artifact.NewDocumentBatch(key, contents, nil, aliases)
+	if err != nil {
+		return artifact.CommitID{}, err
 	}
 	return store.Commit(ctx, batch)
 }
@@ -229,11 +234,11 @@ func SeedProfileDocuments() ([]ProfileDocument, error) {
 }
 
 func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (ProfileDocument, error) {
-	content, ok, err := store.Content(ctx, id)
+	content, ok, err := artifact.ReadDocument(ctx, store, id, profileContract)
 	if err != nil {
 		return ProfileDocument{}, err
 	}
-	if !ok || profileContract.ValidateContent(content, id) != nil {
+	if !ok {
 		return ProfileDocument{}, errors.New("model recipe: profile content is absent or incompatible")
 	}
 	document, err := ParseProfileDocument(content.Data)

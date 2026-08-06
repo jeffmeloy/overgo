@@ -1,6 +1,18 @@
 package artifact
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+type documentReader struct {
+	Reader
+	content Content
+}
+
+func (r documentReader) Content(context.Context, ID) (Content, bool, error) {
+	return r.content, true, nil
+}
 
 func TestDocumentContractBuildsAndValidatesContent(t *testing.T) {
 	contract := DocumentContract{
@@ -64,5 +76,32 @@ func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
 	*source[0].Previous = target
 	if cloned[0].Previous == source[0].Previous || *cloned[0].Previous != wantPrevious {
 		t.Fatal("alias clone retained caller pointer")
+	}
+}
+
+func TestReadDocumentAndBatchOwnContent(t *testing.T) {
+	contract := DocumentContract{
+		Kind: KindDataset, MediaType: "application/test+json", Schema: "test/v1",
+	}
+	data := []byte(`{"version":1}`)
+	id, err := contract.Identify(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := contract.Content(id, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, ok, err := ReadDocument(context.Background(), documentReader{content: content}, id, contract)
+	if err != nil || !ok {
+		t.Fatalf("read document = (%v, %v)", ok, err)
+	}
+	batch, err := NewDocumentBatch("document/batch", []Content{loaded}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded.Data[0] = 'x'
+	if batch.Contents[0].Data[0] != '{' {
+		t.Fatal("document batch retained caller bytes")
 	}
 }

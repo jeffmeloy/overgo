@@ -187,7 +187,11 @@ func transition(
 			})
 		}
 	}
-	commit, err := store.Commit(ctx, artifact.Batch{Key: key, Contents: contents, Aliases: aliases})
+	batch, err := artifact.NewDocumentBatch(key, contents, nil, aliases)
+	if err != nil {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
+	}
+	commit, err := store.Commit(ctx, batch)
 	return commit, event, err
 }
 
@@ -254,11 +258,11 @@ func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.
 	if !ok {
 		return recipe.LifecycleEvent{}, errors.New("model recipe: lifecycle status is absent")
 	}
-	content, ok, err := store.Content(ctx, eventID)
+	content, ok, err := artifact.ReadDocument(ctx, store, eventID, recipe.LifecycleDocumentContract())
 	if err != nil {
 		return recipe.LifecycleEvent{}, err
 	}
-	if !ok || recipe.LifecycleDocumentContract().ValidateContent(content, eventID) != nil {
+	if !ok {
 		return recipe.LifecycleEvent{}, errors.New("model recipe: lifecycle content is absent or incompatible")
 	}
 	return recipe.ParseLifecycleEvent(content.Data)

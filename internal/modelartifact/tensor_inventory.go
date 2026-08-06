@@ -177,11 +177,11 @@ func LoadTensorInventory(
 		if matched {
 			return TensorInventoryDocument{}, false, errors.New("model artifact: multiple tensor inventories")
 		}
-		content, ok, contentErr := store.Content(ctx, edge.Child)
+		content, ok, contentErr := artifact.ReadDocument(ctx, store, edge.Child, tensorInventoryContract)
 		if contentErr != nil {
 			return TensorInventoryDocument{}, false, contentErr
 		}
-		if !ok || tensorInventoryContract.ValidateContent(content, edge.Child) != nil {
+		if !ok {
 			return TensorInventoryDocument{}, false, errors.New("model artifact: tensor inventory content is absent or incompatible")
 		}
 		found, err = ParseTensorInventoryDocument(content.Data)

@@ -1,7 +1,9 @@
 package artifact
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"slices"
 )
 
@@ -58,6 +60,48 @@ func (c DocumentContract) ValidateContent(content Content, id ID) error {
 		return errors.New("artifact: incompatible document content")
 	}
 	return content.Validate()
+}
+
+func ReadDocument(
+	ctx context.Context,
+	reader Reader,
+	id ID,
+	contract DocumentContract,
+) (Content, bool, error) {
+	if ctx == nil || reader == nil {
+		return Content{}, false, errors.New("artifact: nil document reader or context")
+	}
+	if id.Kind() != contract.Kind {
+		return Content{}, false, errors.New("artifact: document kind differs from contract")
+	}
+	content, ok, err := reader.Content(ctx, id)
+	if err != nil || !ok {
+		return Content{}, ok, err
+	}
+	if err := contract.ValidateContent(content, id); err != nil {
+		return Content{}, false, fmt.Errorf("artifact: read document: %w", err)
+	}
+	return content.Clone(), true, nil
+}
+
+func NewDocumentBatch(
+	key string,
+	contents []Content,
+	lineage []Lineage,
+	aliases []AliasBinding,
+) (Batch, error) {
+	clonedContents := make([]Content, len(contents))
+	for index := range contents {
+		clonedContents[index] = contents[index].Clone()
+	}
+	batch := Batch{
+		Key: key, Contents: clonedContents, Lineage: slices.Clone(lineage),
+		Aliases: CloneAliasBindings(aliases),
+	}
+	if err := batch.Validate(); err != nil {
+		return Batch{}, err
+	}
+	return batch, nil
 }
 
 func (c DocumentContract) validateData(data []byte) error {

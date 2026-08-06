@@ -14,7 +14,8 @@ func PublicationBatch(
 	documents []Document,
 	aliases []artifact.AliasBinding,
 ) (artifact.Batch, error) {
-	batch := artifact.Batch{Key: key, Aliases: artifact.CloneAliasBindings(aliases)}
+	contents := make([]artifact.Content, 0, len(documents))
+	lineage := make([]artifact.Lineage, 0)
 	published := make(map[artifact.ID]struct{}, len(documents))
 	for _, document := range documents {
 		if _, duplicate := published[document.ID]; duplicate {
@@ -24,8 +25,8 @@ func PublicationBatch(
 		if err != nil {
 			return artifact.Batch{}, err
 		}
-		batch.Contents = append(batch.Contents, content)
-		batch.Lineage = append(batch.Lineage, document.Lineage()...)
+		contents = append(contents, content)
+		lineage = append(lineage, document.Lineage()...)
 		published[document.ID] = struct{}{}
 	}
 	for _, alias := range aliases {
@@ -33,10 +34,7 @@ func PublicationBatch(
 			return artifact.Batch{}, fmt.Errorf("dataset: alias %q targets unpublished document", alias.Name)
 		}
 	}
-	if err := batch.Validate(); err != nil {
-		return artifact.Batch{}, err
-	}
-	return batch, nil
+	return artifact.NewDocumentBatch(key, contents, lineage, aliases)
 }
 
 // Publish: commits one dataset document.
@@ -63,18 +61,9 @@ func Publish(
 
 // Load: resolves one inline dataset document.
 func Load(ctx context.Context, store artifact.Reader, id artifact.ID) (Document, bool, error) {
-	if store == nil {
-		return Document{}, false, errors.New("dataset: nil repository")
-	}
-	if id.Kind() != artifact.KindDataset {
-		return Document{}, false, errors.New("dataset: invalid document identity")
-	}
-	content, ok, err := store.Content(ctx, id)
+	content, ok, err := artifact.ReadDocument(ctx, store, id, documentContract)
 	if err != nil || !ok {
 		return Document{}, ok, err
-	}
-	if err := documentContract.ValidateContent(content, id); err != nil {
-		return Document{}, false, errors.New("dataset: incompatible content contract")
 	}
 	document, err := Parse(content.Data)
 	if err != nil {

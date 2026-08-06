@@ -189,7 +189,7 @@ func (r Run) Batch(key string) (artifact.Batch, error) {
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	return artifact.Batch{Key: key, Contents: []artifact.Content{content}, Lineage: r.Lineage()}, nil
+	return artifact.NewDocumentBatch(key, []artifact.Content{content}, r.Lineage(), nil)
 }
 
 func NewEvaluation(
@@ -279,7 +279,7 @@ func (e Evaluation) Batch(key string) (artifact.Batch, error) {
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	return artifact.Batch{Key: key, Contents: []artifact.Content{content}, Lineage: e.Lineage()}, nil
+	return artifact.NewDocumentBatch(key, []artifact.Content{content}, e.Lineage(), nil)
 }
 
 func canonicalizeRun(run *Run) error {

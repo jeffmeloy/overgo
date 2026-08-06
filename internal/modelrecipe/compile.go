@@ -122,7 +122,7 @@ func Batch(key string, definition recipe.Definition) (artifact.Batch, error) {
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	return artifact.Batch{Key: key, Contents: []artifact.Content{content}}, nil
+	return artifact.NewDocumentBatch(key, []artifact.Content{content}, nil, nil)
 }
 
 func mustCatalog() *recipe.Catalog {

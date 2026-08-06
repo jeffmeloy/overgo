@@ -22,6 +22,10 @@ const (
 	maxNameBytes = 1024
 )
 
+var documentContract = artifact.DocumentContract{
+	Kind: artifact.KindDataset, MediaType: MediaType, Schema: Schema,
+}
+
 // Type: canonical dataset document form.
 type Type string
 
@@ -123,11 +127,7 @@ func (d Document) ValidateIdentity() error {
 	if err != nil {
 		return fmt.Errorf("dataset: encode document: %w", err)
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindDataset, content)
-	if err != nil {
-		return err
-	}
-	if d.ID != want {
+	if err := documentContract.ValidateIdentity(d.ID, content); err != nil {
 		return errors.New("dataset: document identity mismatch")
 	}
 	return nil
@@ -151,9 +151,7 @@ func (d Document) Content() (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: artifact.Descriptor{
-		ID: d.ID, Size: uint64(len(content)), MediaType: MediaType, Schema: Schema,
-	}, Data: content}, nil
+	return documentContract.Content(d.ID, content)
 }
 
 func (d Document) Lineage() []artifact.Lineage {
@@ -188,7 +186,7 @@ func newDocument(document Document) (Document, error) {
 	if err != nil {
 		return Document{}, fmt.Errorf("dataset: encode document: %w", err)
 	}
-	id, err := artifact.IdentifyBytes(artifact.KindDataset, content)
+	id, err := documentContract.Identify(content)
 	if err != nil {
 		return Document{}, err
 	}

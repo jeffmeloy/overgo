@@ -18,6 +18,12 @@ const (
 	LifecycleSchema    = "llamacpp2go.recipe-lifecycle.v1"
 )
 
+var lifecycleContract = artifact.DocumentContract{
+	Kind: artifact.KindEvidence, MediaType: LifecycleMediaType, Schema: LifecycleSchema,
+}
+
+func LifecycleDocumentContract() artifact.DocumentContract { return lifecycleContract }
+
 type Status string
 
 const (
@@ -69,7 +75,7 @@ func NewLifecycleEvent(definition Definition, from, to Status, previousEvent, su
 	if err != nil {
 		return LifecycleEvent{}, err
 	}
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, content)
+	id, err := lifecycleContract.Identify(content)
 	if err != nil {
 		return LifecycleEvent{}, err
 	}
@@ -97,7 +103,7 @@ func ParseLifecycleEvent(content []byte) (LifecycleEvent, error) {
 	if !bytes.Equal(canonical, content) {
 		return LifecycleEvent{}, errors.New("recipe: non-canonical lifecycle content")
 	}
-	event.ID, err = artifact.IdentifyBytes(artifact.KindEvidence, content)
+	event.ID, err = lifecycleContract.Identify(content)
 	if err != nil {
 		return LifecycleEvent{}, err
 	}
@@ -112,9 +118,7 @@ func (e LifecycleEvent) Content() (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: artifact.Descriptor{
-		ID: e.ID, Size: uint64(len(data)), MediaType: LifecycleMediaType, Schema: LifecycleSchema,
-	}, Data: data}, nil
+	return lifecycleContract.Content(e.ID, data)
 }
 
 func (e LifecycleEvent) Validate() error {
@@ -130,11 +134,7 @@ func (e LifecycleEvent) Validate() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-	if err != nil {
-		return err
-	}
-	if want != e.ID {
+	if err := lifecycleContract.ValidateIdentity(e.ID, data); err != nil {
 		return errors.New("recipe: lifecycle identity mismatch")
 	}
 	return nil

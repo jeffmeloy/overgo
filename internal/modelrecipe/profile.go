@@ -20,6 +20,10 @@ const (
 	ProfileSchema           = "llamacpp2go/model-profile/v1"
 )
 
+var profileContract = artifact.DocumentContract{
+	Kind: artifact.KindProfile, MediaType: ProfileMediaType, Schema: ProfileSchema,
+}
+
 type profileBody struct {
 	Version      uint16                    `json:"version"`
 	Architecture string                    `json:"architecture"`
@@ -45,7 +49,7 @@ func NewProfileDocument(profile model.ArchitectureProfile) (ProfileDocument, err
 	if err != nil {
 		return ProfileDocument{}, err
 	}
-	id, err := artifact.IdentifyBytes(artifact.KindProfile, content)
+	id, err := profileContract.Identify(content)
 	if err != nil {
 		return ProfileDocument{}, err
 	}
@@ -89,11 +93,7 @@ func (d ProfileDocument) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindProfile, content)
-	if err != nil {
-		return err
-	}
-	if d.ID != want {
+	if err := profileContract.ValidateIdentity(d.ID, content); err != nil {
 		return errors.New("model recipe: profile identity mismatch")
 	}
 	return nil
@@ -111,9 +111,7 @@ func (d ProfileDocument) Descriptor() (artifact.Descriptor, error) {
 	if err != nil {
 		return artifact.Descriptor{}, err
 	}
-	return artifact.Descriptor{
-		ID: d.ID, Size: uint64(len(content)), MediaType: ProfileMediaType, Schema: ProfileSchema,
-	}, nil
+	return profileContract.Descriptor(d.ID, uint64(len(content)))
 }
 
 func (d ProfileDocument) validateShape() error {
@@ -137,15 +135,11 @@ func profileDocumentContent(d ProfileDocument) ([]byte, error) {
 }
 
 func ProfileContent(document ProfileDocument) (artifact.Content, error) {
-	descriptor, err := document.Descriptor()
-	if err != nil {
-		return artifact.Content{}, err
-	}
 	content, err := document.Content()
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: descriptor, Data: content}, nil
+	return profileContract.Content(document.ID, content)
 }
 
 func PublishProfiles(
@@ -239,10 +233,17 @@ func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Pr
 	if err != nil {
 		return ProfileDocument{}, err
 	}
-	if !ok || content.Descriptor.Schema != ProfileSchema {
+	if !ok || profileContract.ValidateContent(content, id) != nil {
 		return ProfileDocument{}, errors.New("model recipe: profile content is absent or incompatible")
 	}
-	return ParseProfileDocument(content.Data)
+	document, err := ParseProfileDocument(content.Data)
+	if err != nil {
+		return ProfileDocument{}, err
+	}
+	if document.ID != id {
+		return ProfileDocument{}, errors.New("model recipe: profile content identity differs")
+	}
+	return document, nil
 }
 
 func registeredProfileAlias(architecture string) string {

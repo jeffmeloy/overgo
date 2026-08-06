@@ -73,7 +73,7 @@ func Load(ctx context.Context, store artifact.Reader, id artifact.ID) (Document,
 	if err != nil || !ok {
 		return Document{}, ok, err
 	}
-	if content.Descriptor.MediaType != MediaType || content.Descriptor.Schema != Schema {
+	if err := documentContract.ValidateContent(content, id); err != nil {
 		return Document{}, false, errors.New("dataset: incompatible content contract")
 	}
 	document, err := Parse(content.Data)

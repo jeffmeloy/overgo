@@ -26,6 +26,12 @@ const (
 	maxInventoryStorageBytes        = 64
 )
 
+var tensorInventoryContract = artifact.DocumentContract{
+	Kind: artifact.KindTensorInventory, MediaType: TensorInventoryMediaType, Schema: TensorInventorySchema,
+}
+
+func TensorInventoryDocumentContract() artifact.DocumentContract { return tensorInventoryContract }
+
 // TensorFormat: source representation contract.
 type TensorFormat string
 
@@ -79,7 +85,7 @@ func NewTensorInventoryDocument(
 	if len(content) > artifact.MaxContentBytes {
 		return TensorInventoryDocument{}, errors.New("model artifact: tensor inventory exceeds inline content limit")
 	}
-	document.ID, err = artifact.IdentifyBytes(artifact.KindTensorInventory, content)
+	document.ID, err = tensorInventoryContract.Identify(content)
 	return document, err
 }
 
@@ -116,11 +122,7 @@ func (d TensorInventoryDocument) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindTensorInventory, content)
-	if err != nil {
-		return err
-	}
-	if d.ID != want {
+	if err := tensorInventoryContract.ValidateIdentity(d.ID, content); err != nil {
 		return errors.New("model artifact: tensor inventory identity mismatch")
 	}
 	return nil
@@ -138,9 +140,7 @@ func (d TensorInventoryDocument) Content() (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: artifact.Descriptor{
-		ID: d.ID, Size: uint64(len(content)), MediaType: TensorInventoryMediaType, Schema: TensorInventorySchema,
-	}, Data: content}, nil
+	return tensorInventoryContract.Content(d.ID, content)
 }
 
 func (d TensorInventoryDocument) Tensor(name string) (TensorFact, bool) {
@@ -181,7 +181,7 @@ func LoadTensorInventory(
 		if contentErr != nil {
 			return TensorInventoryDocument{}, false, contentErr
 		}
-		if !ok || content.Descriptor.Schema != TensorInventorySchema {
+		if !ok || tensorInventoryContract.ValidateContent(content, edge.Child) != nil {
 			return TensorInventoryDocument{}, false, errors.New("model artifact: tensor inventory content is absent or incompatible")
 		}
 		found, err = ParseTensorInventoryDocument(content.Data)

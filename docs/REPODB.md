@@ -32,6 +32,9 @@ Current foundation:
   depend on and compile this definition without bootstrap-registry lookup. One
   batch atomically publishes the physical model inventory and resolved facts.
 - Bounded inline content records for independently owned typed schemas.
+- One typed document contract owns kind, media type, schema, size bounds,
+  hashing, descriptor construction, byte ownership, and stored-content checks
+  across every RepoDB document family.
 - Canonical typed recipe DAGs persisted as content-addressed documents.
 - Recipe v2 identities include a canonical role/slot dependency set for models,
   profiles, tokenizers, projectors, adapters, datasets, and checkpoints; v1

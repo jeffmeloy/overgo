@@ -19,6 +19,10 @@ const (
 	ProfileParitySchema           = "llamacpp2go/model-profile-parity/v1"
 )
 
+var profileParityContract = artifact.DocumentContract{
+	Kind: artifact.KindEvidence, MediaType: ProfileParityMediaType, Schema: ProfileParitySchema,
+}
+
 type profileParityBody struct {
 	Version      uint16                  `json:"version"`
 	Recipe       artifact.ID             `json:"recipe"`
@@ -61,7 +65,7 @@ func newProfileParityEvidence(
 	if err != nil {
 		return ProfileParityEvidence{}, err
 	}
-	evidence.ID, err = artifact.IdentifyBytes(artifact.KindEvidence, content)
+	evidence.ID, err = profileParityContract.Identify(content)
 	return evidence, err
 }
 
@@ -85,7 +89,7 @@ func ParseProfileParityEvidence(content []byte) (ProfileParityEvidence, error) {
 	if !bytes.Equal(canonical, content) {
 		return ProfileParityEvidence{}, errors.New("model recipe: non-canonical profile parity content")
 	}
-	evidence.ID, err = artifact.IdentifyBytes(artifact.KindEvidence, content)
+	evidence.ID, err = profileParityContract.Identify(content)
 	return evidence, err
 }
 
@@ -97,9 +101,7 @@ func (e ProfileParityEvidence) Content() (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: artifact.Descriptor{
-		ID: e.ID, Size: uint64(len(content)), MediaType: ProfileParityMediaType, Schema: ProfileParitySchema,
-	}, Data: content}, nil
+	return profileParityContract.Content(e.ID, content)
 }
 
 func (e ProfileParityEvidence) ValidateIdentity() error {
@@ -113,11 +115,7 @@ func (e ProfileParityEvidence) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindEvidence, content)
-	if err != nil {
-		return err
-	}
-	if want != e.ID {
+	if err := profileParityContract.ValidateIdentity(e.ID, content); err != nil {
 		return errors.New("model recipe: profile parity identity mismatch")
 	}
 	return nil
@@ -230,7 +228,7 @@ func matchingProfileParity(
 		if err != nil {
 			return ProfileParityEvidence{}, err
 		}
-		if !ok || content.Descriptor.Schema != ProfileParitySchema {
+		if !ok || profileParityContract.ValidateContent(content, id) != nil {
 			continue
 		}
 		evidence, parseErr := ParseProfileParityEvidence(content.Data)

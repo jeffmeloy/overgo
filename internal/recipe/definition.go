@@ -113,7 +113,7 @@ func newDefinition(
 	if err != nil {
 		return Definition{}, err
 	}
-	id, err := artifact.IdentifyBytes(artifact.KindRecipe, content)
+	id, err := DefinitionDocumentContract(version).Identify(content)
 	if err != nil {
 		return Definition{}, err
 	}
@@ -136,11 +136,7 @@ func (d Definition) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindRecipe, content)
-	if err != nil {
-		return err
-	}
-	if d.ID != want {
+	if err := DefinitionDocumentContract(d.Version).ValidateIdentity(d.ID, content); err != nil {
 		return errors.New("recipe: identity mismatch")
 	}
 	return nil
@@ -158,11 +154,23 @@ func (d Definition) Descriptor() (artifact.Descriptor, error) {
 	if err != nil {
 		return artifact.Descriptor{}, err
 	}
+	return DefinitionDocumentContract(d.Version).Descriptor(d.ID, uint64(len(content)))
+}
+
+func (d Definition) ArtifactContent() (artifact.Content, error) {
+	content, err := d.Content()
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	return DefinitionDocumentContract(d.Version).Content(d.ID, content)
+}
+
+func DefinitionDocumentContract(version uint16) artifact.DocumentContract {
 	schema := Schema
-	if d.Version == LegacyVersion {
+	if version == LegacyVersion {
 		schema = LegacySchema
 	}
-	return artifact.Descriptor{ID: d.ID, Size: uint64(len(content)), MediaType: MediaType, Schema: schema}, nil
+	return artifact.DocumentContract{Kind: artifact.KindRecipe, MediaType: MediaType, Schema: schema}
 }
 
 func canonicalize(d *Definition) error {

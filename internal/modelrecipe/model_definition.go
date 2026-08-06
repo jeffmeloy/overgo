@@ -21,6 +21,10 @@ const (
 	ModelDefinitionSchema           = "llamacpp2go/model-definition/v1"
 )
 
+var modelDefinitionContract = artifact.DocumentContract{
+	Kind: artifact.KindModelDefinition, MediaType: ModelDefinitionMediaType, Schema: ModelDefinitionSchema,
+}
+
 type modelDefinitionBody struct {
 	Version         uint16      `json:"version"`
 	Model           artifact.ID `json:"model"`
@@ -133,7 +137,7 @@ func NewModelDefinitionDocument(
 		return ModelDefinitionDocument{}, err
 	}
 	document.Spec = cloned.Spec
-	document.ID, err = artifact.IdentifyBytes(artifact.KindModelDefinition, content)
+	document.ID, err = modelDefinitionContract.Identify(content)
 	return document, err
 }
 
@@ -178,7 +182,7 @@ func ParseModelDefinitionDocument(content []byte) (ModelDefinitionDocument, erro
 	if !bytes.Equal(content, canonical) {
 		return ModelDefinitionDocument{}, errors.New("model recipe: non-canonical model definition")
 	}
-	document.ID, err = artifact.IdentifyBytes(artifact.KindModelDefinition, content)
+	document.ID, err = modelDefinitionContract.Identify(content)
 	return document, err
 }
 
@@ -193,11 +197,7 @@ func (d ModelDefinitionDocument) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindModelDefinition, content)
-	if err != nil {
-		return err
-	}
-	if d.ID != want {
+	if err := modelDefinitionContract.ValidateIdentity(d.ID, content); err != nil {
 		return errors.New("model recipe: model definition identity mismatch")
 	}
 	return nil
@@ -215,9 +215,7 @@ func (d ModelDefinitionDocument) Content() (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: artifact.Descriptor{
-		ID: d.ID, Size: uint64(len(content)), MediaType: ModelDefinitionMediaType, Schema: ModelDefinitionSchema,
-	}, Data: content}, nil
+	return modelDefinitionContract.Content(d.ID, content)
 }
 
 func (d ModelDefinitionDocument) Batch(key string) (artifact.Batch, error) {
@@ -265,7 +263,7 @@ func ResolveModelDefinition(
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	if !ok || content.Descriptor.Schema != ModelDefinitionSchema {
+	if !ok || modelDefinitionContract.ValidateContent(content, id) != nil {
 		return ResolvedModelDefinition{}, errors.New("model recipe: model definition content is absent or incompatible")
 	}
 	document, err := ParseModelDefinitionDocument(content.Data)
@@ -283,7 +281,9 @@ func ResolveModelDefinition(
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	if !ok || tensorContent.Descriptor.Schema != modelartifact.TensorInventorySchema {
+	if !ok || modelartifact.TensorInventoryDocumentContract().ValidateContent(
+		tensorContent, document.TensorInventory,
+	) != nil {
 		return ResolvedModelDefinition{}, errors.New("model recipe: tensor inventory content is absent or incompatible")
 	}
 	tensors, err := modelartifact.ParseTensorInventoryDocument(tensorContent.Data)

@@ -114,15 +114,7 @@ func compileDefinition(
 }
 
 func Content(definition recipe.Definition) (artifact.Content, error) {
-	descriptor, err := definition.Descriptor()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	data, err := definition.Content()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return artifact.Content{Descriptor: descriptor, Data: data}, nil
+	return definition.ArtifactContent()
 }
 
 func Batch(key string, definition recipe.Definition) (artifact.Batch, error) {

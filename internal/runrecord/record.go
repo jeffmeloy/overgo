@@ -23,6 +23,15 @@ const (
 	maxLabelBytes              = 128
 )
 
+var (
+	runContract = artifact.DocumentContract{
+		Kind: artifact.KindRun, MediaType: RunMediaType, Schema: RunSchema,
+	}
+	evaluationContract = artifact.DocumentContract{
+		Kind: artifact.KindEvaluation, MediaType: EvaluationMediaType, Schema: EvaluationSchema,
+	}
+)
+
 type Outcome string
 
 const (
@@ -99,7 +108,7 @@ func NewRun(
 	if err != nil {
 		return Run{}, err
 	}
-	run.ID, err = artifact.IdentifyBytes(artifact.KindRun, content)
+	run.ID, err = runContract.Identify(content)
 	return run, err
 }
 
@@ -137,11 +146,7 @@ func (r Run) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindRun, content)
-	if err != nil {
-		return err
-	}
-	if r.ID != want {
+	if err := runContract.ValidateIdentity(r.ID, content); err != nil {
 		return errors.New("run record: run identity mismatch")
 	}
 	return nil
@@ -159,9 +164,7 @@ func (r Run) Content() (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: artifact.Descriptor{
-		ID: r.ID, Size: uint64(len(content)), MediaType: RunMediaType, Schema: RunSchema,
-	}, Data: content}, nil
+	return runContract.Content(r.ID, content)
 }
 
 func (r Run) Lineage() []artifact.Lineage {
@@ -204,7 +207,7 @@ func NewEvaluation(
 	if err != nil {
 		return Evaluation{}, err
 	}
-	evaluation.ID, err = artifact.IdentifyBytes(artifact.KindEvaluation, content)
+	evaluation.ID, err = evaluationContract.Identify(content)
 	return evaluation, err
 }
 
@@ -242,11 +245,7 @@ func (e Evaluation) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	want, err := artifact.IdentifyBytes(artifact.KindEvaluation, content)
-	if err != nil {
-		return err
-	}
-	if e.ID != want {
+	if err := evaluationContract.ValidateIdentity(e.ID, content); err != nil {
 		return errors.New("run record: evaluation identity mismatch")
 	}
 	return nil
@@ -264,9 +263,7 @@ func (e Evaluation) Content() (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.Content{Descriptor: artifact.Descriptor{
-		ID: e.ID, Size: uint64(len(content)), MediaType: EvaluationMediaType, Schema: EvaluationSchema,
-	}, Data: content}, nil
+	return evaluationContract.Content(e.ID, content)
 }
 
 func (e Evaluation) Lineage() []artifact.Lineage {

@@ -353,15 +353,10 @@ func executionBatch(
 	run runrecord.Run,
 	inputs, outputs artifactFacts,
 ) (artifact.Batch, error) {
-	recipeData, err := definition.Content()
+	recipeContent, err := definition.ArtifactContent()
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	recipeDescriptor, err := definition.Descriptor()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	recipeContent := artifact.Content{Descriptor: recipeDescriptor, Data: recipeData}
 	runBatch, err := run.Batch(key)
 	if err != nil {
 		return artifact.Batch{}, err

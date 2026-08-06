@@ -32,6 +32,11 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- RepoDB document families now share one typed artifact contract for kind,
+  media type, schema, inline bounds, identity hashing, descriptor construction,
+  owned bytes, and stored-content validation. Dataset, recipe, lifecycle,
+  profile, parity, model-definition, tensor-inventory, run, and evaluation paths
+  retain only their domain-specific canonicalization and shape rules.
 - RepoDB persistence now derives per-artifact lineage and location indexes from
   authoritative facts and can publish immutable versioned snapshot segments.
   Canonical bounded payloads carry SHA-256 integrity and exact commit-chain

@@ -258,7 +258,7 @@ func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.
 	if err != nil {
 		return recipe.LifecycleEvent{}, err
 	}
-	if !ok || content.Descriptor.Schema != recipe.LifecycleSchema {
+	if !ok || recipe.LifecycleDocumentContract().ValidateContent(content, eventID) != nil {
 		return recipe.LifecycleEvent{}, errors.New("model recipe: lifecycle content is absent or incompatible")
 	}
 	return recipe.ParseLifecycleEvent(content.Data)
@@ -272,7 +272,14 @@ func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) 
 	if !ok || !recipe.SupportsSchema(content.Descriptor.Schema) {
 		return recipe.Definition{}, errors.New("model recipe: definition content is absent or incompatible")
 	}
-	return recipe.ParseDefinition(content.Data)
+	definition, err := recipe.ParseDefinition(content.Data)
+	if err != nil {
+		return recipe.Definition{}, err
+	}
+	if recipe.DefinitionDocumentContract(definition.Version).ValidateContent(content, id) != nil || definition.ID != id {
+		return recipe.Definition{}, errors.New("model recipe: definition content identity differs")
+	}
+	return definition, nil
 }
 
 func statusAlias(recipeID artifact.ID) string {

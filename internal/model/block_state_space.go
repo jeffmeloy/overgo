@@ -363,7 +363,10 @@ func BuildFalconH1BlockCached(
 	}
 	return DenseBlockResult{
 		Output: output, Key: cacheKey, Value: cacheValue,
-		FixedStates: map[CacheStateName]*tensor.Tensor{CacheStateConvolution: ssm.Key, CacheStateSSM: ssm.Value},
+		States: CacheStates[*tensor.Tensor]{
+			CacheStateConvolution: {Mode: CacheStateFixed, Value: ssm.Key},
+			CacheStateSSM:         {Mode: CacheStateFixed, Value: ssm.Value},
+		},
 	}, nil
 }
 

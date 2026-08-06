@@ -224,7 +224,8 @@ func TestExecutorFalconH1BlockMatchesReference(t *testing.T) {
 	}
 	outputs := []*tensor.Tensor{
 		result.Output, result.Key, result.Value,
-		result.FixedStates["conv_state"], result.FixedStates["ssm_state"],
+		result.States[model.CacheStateConvolution].Value,
+		result.States[model.CacheStateSSM].Value,
 	}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {

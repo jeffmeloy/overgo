@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 graph-state wave unified `DenseBlockResult` named outputs under
+  `CacheStates[*tensor.Tensor]`. Each value now carries its cache mode through
+  graph construction, host execution, and device retention; parallel
+  token/fixed maps and their duplicate collection loops are removed.
 - The August 6 cache-collection wave introduced `CacheStates[T]` with shared
   cloning and deterministic ordering. Host cache serialization/editing and
   device batching no longer maintain independent map-clone or key-sort logic;

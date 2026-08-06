@@ -135,12 +135,12 @@ func BuildDeepSeek4BlockCached(
 		}
 		cacheKV = builder.Concat(pastKV, kv, 2)
 	}
-	states := make(map[CacheStateName]*tensor.Tensor)
+	states := make(CacheStates[*tensor.Tensor])
 	cachePositions := currentPositions
 	if previous := pastStates[CacheStatePositions]; previous != nil {
 		cachePositions = builder.Concat(previous, currentPositions, 2)
 	}
-	states[CacheStatePositions] = cachePositions
+	states[CacheStatePositions] = CacheState[*tensor.Tensor]{Mode: CacheStateToken, Value: cachePositions}
 	appendState := func(name CacheStateName, current *tensor.Tensor) *tensor.Tensor {
 		if current == nil {
 			return nil
@@ -149,7 +149,7 @@ func BuildDeepSeek4BlockCached(
 		if previous := pastStates[name]; previous != nil {
 			current = builder.Concat(previous, current, 2)
 		}
-		states[name] = current
+		states[name] = CacheState[*tensor.Tensor]{Mode: CacheStateToken, Value: current}
 		return current
 	}
 	var compressorKV, compressorScore, indexerQuery, indexerWeights, indexerKV, indexerScore *tensor.Tensor

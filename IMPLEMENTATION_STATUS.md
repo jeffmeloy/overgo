@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- `DenseBlockResult` now carries one typed cache-state collection. Token/fixed
+  mode travels with each graph value, removing the parallel `States` and
+  `FixedStates` maps plus paired host/device result loops while preserving
+  recurrent, DSA, DeepSeek 4, and T5 cache contracts.
 - `CacheStates[T]` now owns typed named-state collections, shallow/deep value
   cloning, and deterministic key ordering. Host serialization/editing and CUDA
   batching share these operations; bespoke clone helpers and duplicate sorting

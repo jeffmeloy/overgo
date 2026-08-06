@@ -692,13 +692,10 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		}
 		current = result.Output
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
-		if len(result.States)+len(result.FixedStates) != 0 {
-			states[layerIndex] = make(deviceGraphStates, len(result.States)+len(result.FixedStates))
+		if len(result.States) != 0 {
+			states[layerIndex] = make(deviceGraphStates, len(result.States))
 			for name, value := range result.States {
-				states[layerIndex][name] = deviceGraphState{Mode: CacheStateToken, Value: value}
-			}
-			for name, value := range result.FixedStates {
-				states[layerIndex][name] = deviceGraphState{Mode: CacheStateFixed, Value: value}
+				states[layerIndex][name] = value
 			}
 		}
 	}

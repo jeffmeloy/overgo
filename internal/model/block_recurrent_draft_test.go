@@ -449,9 +449,11 @@ func TestBuildT5DecoderBlockCached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	crossKey := result.States[CacheStateCrossKey]
 	if !result.Output.Shape.Equal(input.Shape) ||
 		!result.Key.Shape.Equal(tensor.MustShape(4, 2, 2)) ||
-		!result.FixedStates[CacheStateCrossKey].Shape.Equal(tensor.MustShape(4, 2, 3)) {
+		crossKey.Mode != CacheStateFixed ||
+		!crossKey.Value.Shape.Equal(tensor.MustShape(4, 2, 3)) {
 		t.Fatalf("unexpected T5 decoder result: %+v", result)
 	}
 	var causalRelative, crossAttention, relu bool

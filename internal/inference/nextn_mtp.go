@@ -148,9 +148,9 @@ func (r *Runner) AdvanceNextNMTP(
 		return reference.Value{}, nil, err
 	}
 	outputs := []*tensor.Tensor{logits, nextHidden, block.Key, block.Value}
-	indexerKey := block.States[model.CacheStateIndexerKey]
-	if indexerKey != nil {
-		outputs = append(outputs, indexerKey)
+	indexerState, hasIndexerState := block.States[model.CacheStateIndexerKey]
+	if hasIndexerState {
+		outputs = append(outputs, indexerState.Value)
 	}
 	results, err := graph.execute(outputs...)
 	if err != nil {
@@ -159,9 +159,11 @@ func (r *Runner) AdvanceNextNMTP(
 	logitValue := results[logits]
 	logitValue.Data = r.finalizeLogits(logitValue.Data)
 	nextLayer := LayerCache{Key: results[block.Key], Value: results[block.Value]}
-	if indexerKey != nil {
+	if hasIndexerState {
 		nextLayer.States = LayerStates{
-			model.CacheStateIndexerKey: {Mode: CacheStateToken, Value: results[indexerKey]},
+			model.CacheStateIndexerKey: {
+				Mode: indexerState.Mode, Value: results[indexerState.Value],
+			},
 		}
 	}
 	if block.Auxiliary != nil {

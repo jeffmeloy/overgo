@@ -689,13 +689,15 @@ func TestBuildFalconH1Block(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	convResult := result.States[CacheStateConvolution]
+	ssmResult := result.States[CacheStateSSM]
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(2, 1, 2)) ||
-		!result.Value.Shape.Equal(tensor.MustShape(2, 1, 2)) || len(result.FixedStates) != 2 ||
-		!result.FixedStates[CacheStateConvolution].Shape.Equal(convState.Shape) ||
-		!result.FixedStates[CacheStateSSM].Shape.Equal(ssmState.Shape) {
+		!result.Value.Shape.Equal(tensor.MustShape(2, 1, 2)) || len(result.States) != 2 ||
+		convResult.Mode != CacheStateFixed || ssmResult.Mode != CacheStateFixed ||
+		!convResult.Value.Shape.Equal(convState.Shape) || !ssmResult.Value.Shape.Equal(ssmState.Shape) {
 		t.Fatalf("unexpected Falcon-H1 result: %+v", result)
 	}
-	nodes, err := tensor.Topological(result.Output, result.Key, result.Value, result.FixedStates[CacheStateConvolution], result.FixedStates[CacheStateSSM])
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value, convResult.Value, ssmResult.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1039,11 +1041,13 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	indexerState, hasIndexerState := full.States[CacheStateIndexerKey]
 	if full.Auxiliary == nil || !full.Auxiliary.Shape.Equal(tensor.MustShape(2, 2)) ||
-		full.States[CacheStateIndexerKey] == nil || !full.States[CacheStateIndexerKey].Shape.Equal(tensor.MustShape(8, 1, 2)) {
+		!hasIndexerState || indexerState.Mode != CacheStateToken ||
+		!indexerState.Value.Shape.Equal(tensor.MustShape(8, 1, 2)) {
 		t.Fatalf("unexpected full indexer result: %+v", full)
 	}
-	nodes, err := tensor.Topological(full.Output, full.Auxiliary, full.States[CacheStateIndexerKey])
+	nodes, err := tensor.Topological(full.Output, full.Auxiliary, indexerState.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1128,7 +1132,7 @@ func TestBuildDeepSeek32FullIndexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nodes, err := tensor.Topological(result.Output, result.States[CacheStateIndexerKey])
+	nodes, err := tensor.Topological(result.Output, result.States[CacheStateIndexerKey].Value)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1212,7 +1216,9 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.States[CacheStateCompressorKV], result.States[CacheStateIndexerCompressorKV]}
+	compressorState := result.States[CacheStateCompressorKV]
+	indexerState := result.States[CacheStateIndexerCompressorKV]
+	outputs := []*tensor.Tensor{result.Output, result.Key, compressorState.Value, indexerState.Value}
 	nodes, err := tensor.Topological(outputs...)
 	if err != nil {
 		t.Fatal(err)
@@ -1237,8 +1243,9 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 	}
 	if attention != 1 || hcInit != 1 || hcPre != 2 || hcPost != 2 || hcHead != 1 ||
 		moe.Routing != tensor.MoERoutingSqrtSoftplus || !moe.HasSelectedExperts || moe.SwiGLUClamp != 7 ||
-		!result.States[CacheStateCompressorKV].Shape.Equal(tensor.MustShape(8, 1, 2)) ||
-		!result.States[CacheStateIndexerCompressorKV].Shape.Equal(tensor.MustShape(16, 1, 2)) {
+		compressorState.Mode != CacheStateToken || indexerState.Mode != CacheStateToken ||
+		!compressorState.Value.Shape.Equal(tensor.MustShape(8, 1, 2)) ||
+		!indexerState.Value.Shape.Equal(tensor.MustShape(16, 1, 2)) {
 		t.Fatalf("unexpected DeepSeek 4 graph: attention=%d HC=%d/%d/%d/%d MoE=%+v states=%v",
 			attention, hcInit, hcPre, hcPost, hcHead, moe, result.States)
 	}

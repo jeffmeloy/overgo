@@ -1333,7 +1333,8 @@ func TestExecutorT5DecoderBlockMatchesReference(t *testing.T) {
 	}
 	outputs := []*tensor.Tensor{
 		result.Output, result.Key, result.Value,
-		result.FixedStates["cross_key"], result.FixedStates["cross_value"],
+		result.States[model.CacheStateCrossKey].Value,
+		result.States[model.CacheStateCrossValue].Value,
 	}
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {

@@ -328,9 +328,11 @@ func buildMLABlockCachedForLayer(
 	}
 	residual := builder.Add(input, attention)
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	states := map[CacheStateName]*tensor.Tensor(nil)
+	states := CacheStates[*tensor.Tensor](nil)
 	if indexerKey != nil {
-		states = map[CacheStateName]*tensor.Tensor{CacheStateIndexerKey: indexerKey}
+		states = CacheStates[*tensor.Tensor]{
+			CacheStateIndexerKey: {Mode: CacheStateToken, Value: indexerKey},
+		}
 	}
 	auxiliary := topK
 	if isDeepSeek32 {

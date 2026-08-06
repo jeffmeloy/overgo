@@ -236,7 +236,10 @@ func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value, result.Auxiliary, result.States["indexer_key"]}
+	outputs := []*tensor.Tensor{
+		result.Output, result.Key, result.Value, result.Auxiliary,
+		result.States[model.CacheStateIndexerKey].Value,
+	}
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	for _, node := range builder.Nodes() {
 		if node.Op == tensor.OpInput {
@@ -290,7 +293,10 @@ func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value, result.States["indexer_key"]}
+	outputs := []*tensor.Tensor{
+		result.Output, result.Key, result.Value,
+		result.States[model.CacheStateIndexerKey].Value,
+	}
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	for _, node := range builder.Nodes() {
 		if node.Op == tensor.OpInput {

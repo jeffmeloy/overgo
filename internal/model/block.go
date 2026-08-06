@@ -229,12 +229,11 @@ func ApplyNormalization(
 }
 
 type DenseBlockResult struct {
-	Output      *tensor.Tensor
-	Key         *tensor.Tensor
-	Value       *tensor.Tensor
-	Auxiliary   *tensor.Tensor
-	States      map[CacheStateName]*tensor.Tensor
-	FixedStates map[CacheStateName]*tensor.Tensor
+	Output    *tensor.Tensor
+	Key       *tensor.Tensor
+	Value     *tensor.Tensor
+	Auxiliary *tensor.Tensor
+	States    CacheStates[*tensor.Tensor]
 }
 
 type Qwen35BlockResult struct {

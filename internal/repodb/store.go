@@ -43,26 +43,32 @@ type committedBatch struct {
 }
 
 type catalogState struct {
-	artifacts map[artifact.ID]artifact.Descriptor
-	contents  map[artifact.ID]artifact.Content
-	manifests map[artifact.ID]artifact.Manifest
-	aliases   map[string]artifact.ID
-	lineage   map[relationKey]artifact.Lineage
-	parents   map[artifact.ID]map[artifact.ID]struct{}
-	locations map[locationKey]artifact.Location
-	commits   map[string]committedBatch
+	artifacts           map[artifact.ID]artifact.Descriptor
+	contents            map[artifact.ID]artifact.Content
+	manifests           map[artifact.ID]artifact.Manifest
+	aliases             map[string]artifact.ID
+	lineage             map[relationKey]artifact.Lineage
+	parentEdges         map[artifact.ID]map[relationKey]artifact.Lineage
+	childEdges          map[artifact.ID]map[relationKey]artifact.Lineage
+	parents             map[artifact.ID]map[artifact.ID]struct{}
+	locations           map[locationKey]artifact.Location
+	locationsByArtifact map[artifact.ID]map[locationKey]artifact.Location
+	commits             map[string]committedBatch
 }
 
 func newCatalogState() catalogState {
 	return catalogState{
-		artifacts: map[artifact.ID]artifact.Descriptor{},
-		contents:  map[artifact.ID]artifact.Content{},
-		manifests: map[artifact.ID]artifact.Manifest{},
-		aliases:   map[string]artifact.ID{},
-		lineage:   map[relationKey]artifact.Lineage{},
-		parents:   map[artifact.ID]map[artifact.ID]struct{}{},
-		locations: map[locationKey]artifact.Location{},
-		commits:   map[string]committedBatch{},
+		artifacts:           map[artifact.ID]artifact.Descriptor{},
+		contents:            map[artifact.ID]artifact.Content{},
+		manifests:           map[artifact.ID]artifact.Manifest{},
+		aliases:             map[string]artifact.ID{},
+		lineage:             map[relationKey]artifact.Lineage{},
+		parentEdges:         map[artifact.ID]map[relationKey]artifact.Lineage{},
+		childEdges:          map[artifact.ID]map[relationKey]artifact.Lineage{},
+		parents:             map[artifact.ID]map[artifact.ID]struct{}{},
+		locations:           map[locationKey]artifact.Location{},
+		locationsByArtifact: map[artifact.ID]map[locationKey]artifact.Location{},
+		commits:             map[string]committedBatch{},
 	}
 }
 
@@ -160,6 +166,8 @@ func (s *catalogState) apply(batch artifact.Batch) {
 			continue
 		}
 		s.lineage[key] = edge
+		indexRelation(s.parentEdges, edge.Child, key, edge)
+		indexRelation(s.childEdges, edge.Parent, key, edge)
 		parents := s.parents[edge.Child]
 		if parents == nil {
 			parents = map[artifact.ID]struct{}{}
@@ -171,10 +179,35 @@ func (s *catalogState) apply(batch artifact.Batch) {
 		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
 		if event.Action == artifact.LocationAdd {
 			s.locations[key] = event.Location
+			locations := s.locationsByArtifact[event.Artifact]
+			if locations == nil {
+				locations = map[locationKey]artifact.Location{}
+				s.locationsByArtifact[event.Artifact] = locations
+			}
+			locations[key] = event.Location
 		} else {
 			delete(s.locations, key)
+			locations := s.locationsByArtifact[event.Artifact]
+			delete(locations, key)
+			if len(locations) == 0 {
+				delete(s.locationsByArtifact, event.Artifact)
+			}
 		}
 	}
+}
+
+func indexRelation(
+	index map[artifact.ID]map[relationKey]artifact.Lineage,
+	id artifact.ID,
+	key relationKey,
+	edge artifact.Lineage,
+) {
+	edges := index[id]
+	if edges == nil {
+		edges = map[relationKey]artifact.Lineage{}
+		index[id] = edges
+	}
+	edges[key] = edge
 }
 
 func sameManifest(left, right artifact.Manifest) bool {
@@ -373,11 +406,10 @@ func (s *Store) Locations(ctx context.Context, id artifact.ID) ([]artifact.Locat
 	if err := s.ready(false); err != nil {
 		return nil, err
 	}
-	result := make([]artifact.Location, 0)
-	for key, location := range s.state.locations {
-		if key.artifact == id {
-			result = append(result, location)
-		}
+	locations := s.state.locationsByArtifact[id]
+	result := make([]artifact.Location, 0, len(locations))
+	for _, location := range locations {
+		result = append(result, location)
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Kind != result[j].Kind {
@@ -397,11 +429,13 @@ func (s *Store) lineageFor(ctx context.Context, id artifact.ID, parents bool) ([
 	if err := s.ready(false); err != nil {
 		return nil, err
 	}
-	result := make([]artifact.Lineage, 0)
-	for _, edge := range s.state.lineage {
-		if parents && edge.Child == id || !parents && edge.Parent == id {
-			result = append(result, edge)
-		}
+	edges := s.state.childEdges[id]
+	if parents {
+		edges = s.state.parentEdges[id]
+	}
+	result := make([]artifact.Lineage, 0, len(edges))
+	for _, edge := range edges {
+		result = append(result, edge)
 	}
 	sort.Slice(result, func(i, j int) bool {
 		left, right := result[i], result[j]

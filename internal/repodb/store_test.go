@@ -75,6 +75,10 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 	if err != nil || len(parents) != 1 || parents[0] != batch.Lineage[0] {
 		t.Fatalf("parents = (%v, %v)", parents, err)
 	}
+	children, err := store.Children(context.Background(), batch.Lineage[0].Parent)
+	if err != nil || len(children) != 1 || children[0] != batch.Lineage[0] {
+		t.Fatalf("children = (%v, %v)", children, err)
+	}
 	head, sequence := store.Head()
 	if head != commit || sequence != 1 {
 		t.Fatalf("head = (%s, %d), want (%s, 1)", head, sequence, commit)

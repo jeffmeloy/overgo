@@ -57,12 +57,12 @@ func (r *Runner) hostLayerCacheInputs(
 				result.states[stateName] = node
 			}
 		}
-	} else if schema.Primary[0].Extent == model.CacheExtentFixed {
+	} else if schema.Primary[0].Mode == model.CacheStateFixed {
 		result.key = zero("state_0", schema.Primary[0].Shape)
 		result.value = zero("state_1", schema.Primary[1].Shape)
 	}
 	for stateName, stateSchema := range schema.States {
-		if stateSchema.Extent != model.CacheExtentFixed {
+		if stateSchema.Mode != model.CacheStateFixed {
 			continue
 		}
 		switch stateName {

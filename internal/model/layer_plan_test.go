@@ -13,17 +13,17 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 		spec      Spec
 		recurrent bool
 		attention AttentionPolicy
-		extent    CacheExtent
+		mode      CacheStateMode
 	}{
 		{
 			name:      "llama",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}},
-			attention: AttentionStandard, extent: CacheExtentToken,
+			attention: AttentionStandard, mode: CacheStateToken,
 		},
 		{
 			name:      "dsa",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			attention: AttentionDSA, extent: CacheExtentToken,
+			attention: AttentionDSA, mode: CacheStateToken,
 		},
 		{
 			name: "qwen-gdn",
@@ -31,18 +31,18 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 				CommonSpec:    CommonSpec{Architecture: "qwen35", BlockCount: 1},
 				RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}},
 			},
-			attention: AttentionQwenGDN, extent: CacheExtentFixed,
+			attention: AttentionQwenGDN, mode: CacheStateFixed,
 		},
 		{
 			name:      "lfm2",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "lfm2", BlockCount: 1}},
-			recurrent: true, attention: AttentionLFM2, extent: CacheExtentFixed,
+			recurrent: true, attention: AttentionLFM2, mode: CacheStateFixed,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			plan := test.spec.PlanLayer(0, test.recurrent)
-			if plan.Attention != test.attention || plan.CacheExtent != test.extent {
+			if plan.Attention != test.attention || plan.CacheMode != test.mode {
 				t.Fatalf("plan = %+v", plan)
 			}
 		})

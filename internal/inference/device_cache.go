@@ -116,9 +116,9 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
 	for layerIndex := range cache.Keys {
-		recurrent := model.PrimaryCacheExtent(
-			r.spec, layerIndex, r.weights.Layers[layerIndex],
-		) == model.CacheExtentFixed
+		recurrent := r.layerPlan(
+			layerIndex, r.weights.Layers[layerIndex].Recurrent,
+		).CacheMode == model.CacheStateFixed
 		if recurrent {
 			// Recurrent primary state: position-independent.
 		} else {
@@ -214,9 +214,9 @@ func (r *Runner) compactDeviceCacheForAppend(
 	stateTargets := make([]stateCopyTarget, 0)
 	stateCopies := make([]executor.DeviceCopy, 0)
 	for layerIndex := range cache.Keys {
-		recurrent := model.PrimaryCacheExtent(
-			r.spec, layerIndex, r.weights.Layers[layerIndex],
-		) == model.CacheExtentFixed
+		recurrent := r.layerPlan(
+			layerIndex, r.weights.Layers[layerIndex].Recurrent,
+		).CacheMode == model.CacheStateFixed
 		for _, item := range []struct {
 			label string
 			value executor.DeviceValue
@@ -780,7 +780,7 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if schema.Primary[0].Extent == model.CacheExtentFixed {
+	if schema.Primary[0].Mode == model.CacheStateFixed {
 		if past != nil {
 			return inputDevice(name("state_0"), past.Keys[layerIndex]),
 				inputDevice(name("state_1"), past.Values[layerIndex]), nil, nil, nil

@@ -42,6 +42,16 @@ const (
 	CacheDeepSeek4
 )
 
+func (p CachePolicy) PrimaryMode() CacheStateMode {
+	switch p {
+	case CacheMamba, CacheMamba2, CacheRWKV6, CacheRWKV6Qwen2, CacheRWKV7,
+		CacheKimiLinear, CacheQwenGDN, CacheLFM2:
+		return CacheStateFixed
+	default:
+		return CacheStateToken
+	}
+}
+
 // CacheFallbackPolicy: non-primary per-layer cache selection.
 type CacheFallbackPolicy uint8
 
@@ -94,7 +104,7 @@ type LayerPlan struct {
 	Position          PositionPolicy
 	Residual          ResidualPolicy
 	FeedForward       FeedForwardPolicy
-	CacheExtent       CacheExtent
+	CacheMode         CacheStateMode
 	Recurrent         bool
 	Sliding           bool
 	UsesRoPE          bool
@@ -127,7 +137,6 @@ type LayerPlan struct {
 // PlanLayer: derives graph and cache behavior once per layer.
 func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	profile := s.Profile()
-	info := LayerWeights{Recurrent: recurrent}
 	recurrent = recurrent || s.IsRecurrentLayer(layer)
 	hasKV := s.LayerHasKV(layer)
 	sharedKV := profile.Has(ArchitectureSharedKV) && !hasKV
@@ -142,6 +151,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		temperature = AttentionTemperatureNone
 	}
 	normalization := s.NormPlan()
+	cache := cachePolicy(s, profile, layer, recurrent)
 	return LayerPlan{
 		Layer:             layer,
 		GraphFamily:       profile.GraphFamily,
@@ -151,8 +161,8 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Residual:          profile.Residual,
 		FeedForward:       profile.FeedForward,
 		Block:             blockPolicy(profile, recurrent),
-		Cache:             cachePolicy(s, profile, layer, recurrent),
-		CacheExtent:       PrimaryCacheExtent(s, int(layer), info),
+		Cache:             cache,
+		CacheMode:         cache.PrimaryMode(),
 		Recurrent:         recurrent,
 		Sliding:           s.IsSlidingLayer(layer),
 		UsesRoPE:          s.UsesRoPE(layer),

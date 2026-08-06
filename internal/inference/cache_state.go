@@ -222,9 +222,8 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 		if !present {
 			return fmt.Errorf("required state %q is missing", name)
 		}
-		mode := expected.Extent.StateMode()
-		if state.Mode != mode || !cacheShapeMatches(state.Value.Shape, expected) {
-			return fmt.Errorf("state %q shape or extent is invalid", name)
+		if state.Mode != expected.Mode || !cacheShapeMatches(state.Value.Shape, expected) {
+			return fmt.Errorf("state %q shape or mode is invalid", name)
 		}
 	}
 	if schema.StrictStates {
@@ -325,13 +324,13 @@ func (r *Runner) RemoveCacheRange(
 			return nil, fmt.Errorf("inference: remove cache layer %d named states: %w", index, err)
 		}
 		key, err := editPrimaryCacheValue(
-			layer.Key, schema.Primary[0].Extent, cache.Tokens, start, discard,
+			layer.Key, schema.Primary[0].Mode, cache.Tokens, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d key range: %w", index, err)
 		}
 		value, err := editPrimaryCacheValue(
-			layer.Value, schema.Primary[1].Extent, cache.Tokens, start, discard,
+			layer.Value, schema.Primary[1].Mode, cache.Tokens, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d value range: %w", index, err)
@@ -343,10 +342,10 @@ func (r *Runner) RemoveCacheRange(
 
 func editPrimaryCacheValue(
 	value reference.Value,
-	extent model.CacheExtent,
+	mode model.CacheStateMode,
 	tokens, start, discard uint32,
 ) (reference.Value, error) {
-	if extent == model.CacheExtentFixed {
+	if mode == model.CacheStateFixed {
 		return value.Clone(), nil
 	}
 	return removeAttentionRange(value, tokens, start, discard)

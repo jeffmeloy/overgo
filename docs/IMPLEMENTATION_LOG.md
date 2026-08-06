@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 cache-policy wave removed the parallel cache-extent enum.
+  `CachePolicy` now derives the canonical fixed/token mode in `LayerPlan`, and
+  schemas, host editing, device compaction, named states, and wire validation
+  consume the same typed policy without conversion or re-dispatch.
 - The August 6 cache-transform wave added shared deterministic value appending
   and representation mapping to `CacheStates`. Host/T5 result materialization,
   deep cloning, and CUDA output collection now preserve names and modes through

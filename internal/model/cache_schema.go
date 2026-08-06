@@ -8,15 +8,7 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
-// CacheExtent: state range behavior.
-type CacheExtent uint8
-
-const (
-	CacheExtentFixed CacheExtent = iota
-	CacheExtentToken
-)
-
-// CacheStateMode: serialized range-edit behavior.
+// CacheStateMode: serialized range behavior.
 type CacheStateMode uint32
 
 const (
@@ -76,16 +68,6 @@ func (m CacheStateMode) TokenAligned() bool {
 	return m == CacheStateToken
 }
 
-func (e CacheExtent) StateMode() CacheStateMode {
-	if e == CacheExtentToken {
-		return CacheStateToken
-	}
-	if e == CacheExtentFixed {
-		return CacheStateFixed
-	}
-	return 0
-}
-
 // CacheStateName: serialized named-state ABI key.
 type CacheStateName string
 
@@ -104,7 +86,7 @@ const (
 
 // CacheValueSchema: named or primary state contract.
 type CacheValueSchema struct {
-	Extent       CacheExtent
+	Mode         CacheStateMode
 	Shape        tensor.Shape
 	VariableLast bool
 }
@@ -140,10 +122,10 @@ func CacheSchemaForPlan(
 		States: make(map[CacheStateName]CacheValueSchema),
 	}
 	fixed := func(shape tensor.Shape) CacheValueSchema {
-		return CacheValueSchema{Extent: CacheExtentFixed, Shape: shape}
+		return CacheValueSchema{Mode: CacheStateFixed, Shape: shape}
 	}
 	token := func(shape tensor.Shape) CacheValueSchema {
-		return CacheValueSchema{Extent: CacheExtentToken, Shape: shape}
+		return CacheValueSchema{Mode: CacheStateToken, Shape: shape}
 	}
 	if plan.Attention == AttentionDSA && spec.LayerHasFullIndexer(plan.Layer) {
 		schema.States[CacheStateIndexerKey] = token(tensor.MustShape(
@@ -216,31 +198,11 @@ func CacheSchemaForPlan(
 	return schema, nil
 }
 
-// PrimaryCacheExtent: primary state range behavior.
-func PrimaryCacheExtent(spec Spec, layerIndex int, info LayerWeights) CacheExtent {
-	if usesRecurrentPrimaryCache(spec, layerIndex, info) {
-		return CacheExtentFixed
-	}
-	return CacheExtentToken
-}
-
-func usesRecurrentPrimaryCache(spec Spec, layerIndex int, info LayerWeights) bool {
-	recurrent := info.Recurrent || spec.IsRecurrentLayer(uint32(layerIndex))
-	policy := cachePolicy(spec, spec.Profile(), uint32(layerIndex), recurrent)
-	switch policy {
-	case CacheMamba, CacheMamba2, CacheRWKV6, CacheRWKV6Qwen2, CacheRWKV7,
-		CacheKimiLinear, CacheQwenGDN, CacheLFM2:
-		return true
-	default:
-		return false
-	}
-}
-
 func recurrentCacheSchema(
 	spec Spec,
 	plan LayerPlan,
 ) (tensor.Shape, tensor.Shape, bool, string, error) {
-	if plan.CacheExtent != CacheExtentFixed {
+	if plan.CacheMode != CacheStateFixed {
 		return tensor.Shape{}, tensor.Shape{}, false, "", nil
 	}
 	embedding := uint64(spec.EmbeddingLength)

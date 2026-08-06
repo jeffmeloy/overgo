@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Cache schemas, layer plans, host states, device states, and serialized states
+  now share one fixed/token `CacheStateMode`. `CachePolicy` derives primary
+  mode once during layer planning; the duplicate extent enum, conversion, and
+  device-side policy re-derivation are removed.
 - Cache-state collections now own deterministic value appending and typed
   representation mapping. Host layer execution, T5 decoding, cache cloning,
   and CUDA batch graph assembly reuse these operations instead of rebuilding

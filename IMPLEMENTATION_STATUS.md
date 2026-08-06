@@ -32,6 +32,11 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- The RepoDB follow-through moved manifests onto the common artifact document
+  contract, centralized safe document reads, alias resolution, publication
+  batches, and commit validation, and replaced whole-catalog reconstruction
+  with owned recipe catalog clones plus direct module lookup. Production domain
+  code remains independent of the RepoDB storage package.
 - Artifact ownership helpers now clone optional IDs and compare-and-set alias
   bindings once. Dataset documents/publication, lifecycle transitions, and
   RepoDB batch normalization no longer carry parallel pointer-copy routines.

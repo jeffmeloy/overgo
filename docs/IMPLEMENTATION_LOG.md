@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 6 RepoDB follow-through moved manifests onto shared document and
+  clone contracts; centralized safe reads, alias resolution, document batches,
+  and commit gates; and replaced whole recipe-catalog reconstruction with owned
+  clones and direct module lookup. No production domain package imports the
+  RepoDB persistence implementation.
 - The August 6 artifact-ownership wave removed duplicate optional-ID and alias
   compare-and-set cloning from dataset, recipe, lifecycle, and persistence
   packages; one tested artifact helper now owns caller-pointer isolation.

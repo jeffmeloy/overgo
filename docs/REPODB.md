@@ -7,7 +7,8 @@ Current foundation:
 
 - Kind-qualified SHA-256 artifact identities.
 - Immutable artifact descriptors.
-- Canonical multi-file manifests with typed component roles and slots.
+- Canonical multi-file manifests with typed component roles and slots, using
+  the same document contract and owned-copy boundary as inline documents.
 - Acyclic, typed lineage.
 - Compare-and-set aliases.
 - Path-independent identity with append-only location availability.
@@ -35,6 +36,9 @@ Current foundation:
 - One typed document contract owns kind, media type, schema, size bounds,
   hashing, descriptor construction, byte ownership, and stored-content checks
   across every RepoDB document family.
+- Shared document-read, alias-resolution, document-batch, and commit gates keep
+  context, repository, ownership, and structural validation policy out of
+  domain publishers.
 - Canonical typed recipe DAGs persisted as content-addressed documents.
 - Recipe v2 identities include a canonical role/slot dependency set for models,
   profiles, tokenizers, projectors, adapters, datasets, and checkpoints; v1
@@ -117,6 +121,10 @@ artifact contracts <- recipe compiler <- runtime adapters
         |
 RepoDB persistence
 ```
+
+Recipe catalogs expose owned snapshots for callers and direct cloned module
+lookup for execution. Workflow registration and dispatch therefore avoid
+rebuilding complete catalogs for single-module checks.
 
 The model adapters hash exact component bytes after the existing loaders have
 validated their formats. Logical names and roles enter manifest identity;

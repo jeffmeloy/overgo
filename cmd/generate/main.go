@@ -13,6 +13,7 @@ import (
 
 	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/projector"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
@@ -302,7 +303,7 @@ func run() error {
 		options.ProjectedInputs = &projected
 	}
 	if mediaInputs > 0 {
-		if runner.Spec().Architecture == "t5" {
+		if runner.Spec().Profile().Forward == model.ForwardT5 {
 			return errors.New("generate: multimodal projection is unavailable for T5")
 		}
 		var promptIDs []tokenizer.TokenID
@@ -334,7 +335,7 @@ func run() error {
 	}
 	var ids []tokenizer.TokenID
 	var text string
-	if runner.Spec().Architecture == "t5" {
+	if runner.Spec().Profile().Forward == model.ForwardT5 {
 		ids, text, _, err = runner.GenerateT5(context.Background(), flag.Arg(1), options)
 	} else {
 		ids, text, err = runner.Generate(context.Background(), flag.Arg(1), options)

@@ -10,6 +10,7 @@ import (
 
 	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -43,7 +44,7 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
-	if runner.Spec().Architecture != "t5encoder" {
+	if runner.Spec().Profile().Forward != model.ForwardT5Encoder {
 		return fmt.Errorf("embedding: architecture %q is not an encoder", runner.Spec().Architecture)
 	}
 	ids, err := runner.Vocab().Encode(*prompt, tokenizer.EncodeOptions{AddSpecial: true})

@@ -193,7 +193,9 @@ func (r *Runtime) executePlan(
 		}
 		for _, edge := range plan.Recipe.Edges {
 			if edge.From.Node == step.ID {
-				bound[edge.To] = append(bound[edge.To], cloneValue(validated[edge.From.Port]))
+				if value, ok := validated[edge.From.Port]; ok {
+					bound[edge.To] = append(bound[edge.To], cloneValue(value))
+				}
 			}
 		}
 		for name, value := range validated {

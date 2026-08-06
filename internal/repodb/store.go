@@ -157,7 +157,7 @@ func (s *catalogState) apply(batch artifact.Batch) {
 		s.contents[content.Descriptor.ID] = content.Clone()
 	}
 	for _, manifest := range batch.Manifests {
-		s.manifests[manifest.ID] = cloneManifest(manifest)
+		s.manifests[manifest.ID] = manifest.Clone()
 	}
 	for _, binding := range batch.Aliases {
 		s.aliases[binding.Name] = binding.Target
@@ -218,11 +218,6 @@ func sameManifest(left, right artifact.Manifest) bool {
 
 func sameContent(left, right artifact.Content) bool {
 	return left.Descriptor == right.Descriptor && bytes.Equal(left.Data, right.Data)
-}
-
-func cloneManifest(manifest artifact.Manifest) artifact.Manifest {
-	manifest.Components = slices.Clone(manifest.Components)
-	return manifest
 }
 
 func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID]map[artifact.ID]struct{}) bool {
@@ -376,7 +371,7 @@ func (s *Store) Manifest(ctx context.Context, id artifact.ID) (artifact.Manifest
 		return artifact.Manifest{}, false, err
 	}
 	value, ok := s.state.manifests[id]
-	return cloneManifest(value), ok, nil
+	return value.Clone(), ok, nil
 }
 
 func (s *Store) Content(ctx context.Context, id artifact.ID) (artifact.Content, bool, error) {
@@ -657,7 +652,7 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 func cloneManifests(manifests []artifact.Manifest) []artifact.Manifest {
 	result := slices.Clone(manifests)
 	for index := range result {
-		result[index] = cloneManifest(result[index])
+		result[index] = result[index].Clone()
 	}
 	return result
 }

@@ -31,6 +31,11 @@ func TestManifestIdentityUsesCanonicalComponents(t *testing.T) {
 	if descriptor.ID != first.ID || descriptor.MediaType != ManifestMediaType || descriptor.Schema != ManifestSchema {
 		t.Fatalf("descriptor = %+v", descriptor)
 	}
+	cloned := first.Clone()
+	cloned.Components[0].Name = "changed"
+	if first.Components[0].Name == cloned.Components[0].Name {
+		t.Fatal("manifest clone retained component storage")
+	}
 }
 
 func TestManifestRejectsDuplicateSlotsAndNames(t *testing.T) {

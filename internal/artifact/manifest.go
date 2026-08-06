@@ -135,7 +135,7 @@ func NewManifest(kind Kind, components []Component) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	id, err := IdentifyBytes(kind, body)
+	id, err := ManifestDocumentContract(kind).Identify(body)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -157,11 +157,7 @@ func (m Manifest) Validate() error {
 	if err != nil {
 		return err
 	}
-	want, err := IdentifyBytes(m.ID.Kind(), body)
-	if err != nil {
-		return err
-	}
-	if want != m.ID {
+	if err := ManifestDocumentContract(m.ID.Kind()).ValidateIdentity(m.ID, body); err != nil {
 		return errors.New("artifact: manifest identity mismatch")
 	}
 	return nil
@@ -175,7 +171,16 @@ func (m Manifest) Descriptor() (Descriptor, error) {
 	if err != nil {
 		return Descriptor{}, err
 	}
-	return Descriptor{ID: m.ID, Size: uint64(len(body)), MediaType: ManifestMediaType, Schema: ManifestSchema}, nil
+	return ManifestDocumentContract(m.ID.Kind()).Descriptor(m.ID, uint64(len(body)))
+}
+
+func (m Manifest) Clone() Manifest {
+	m.Components = slices.Clone(m.Components)
+	return m
+}
+
+func ManifestDocumentContract(kind Kind) DocumentContract {
+	return DocumentContract{Kind: kind, MediaType: ManifestMediaType, Schema: ManifestSchema}
 }
 
 func (m Manifest) Lineage() []Lineage {

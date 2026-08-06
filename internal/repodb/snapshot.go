@@ -118,7 +118,7 @@ func snapshotDocumentFromState(state catalogState, sequence uint64, head artifac
 		document.Contents = append(document.Contents, content.Clone())
 	}
 	for _, manifest := range state.manifests {
-		document.Manifests = append(document.Manifests, cloneManifest(manifest))
+		document.Manifests = append(document.Manifests, manifest.Clone())
 	}
 	for name, target := range state.aliases {
 		document.Aliases = append(document.Aliases, snapshotAlias{Name: name, Target: target})

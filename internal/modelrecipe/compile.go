@@ -53,6 +53,15 @@ func Inference(modelID artifact.ID, placement recipe.Placement) (recipe.Definiti
 }
 
 func Compile(definition recipe.Definition, spec model.Spec, weights model.Weights) (Plan, error) {
+	return compileDefinition(definition, func() (model.ModelPlan, error) {
+		return model.CompileModelPlan(spec, weights)
+	})
+}
+
+func compileDefinition(
+	definition recipe.Definition,
+	compileModel func() (model.ModelPlan, error),
+) (Plan, error) {
 	if err := definition.Validate(catalog); err != nil {
 		return Plan{}, err
 	}
@@ -67,7 +76,7 @@ func Compile(definition recipe.Definition, spec model.Spec, weights model.Weight
 	if !foundCompile || !foundForward {
 		return Plan{}, errors.New("model recipe: inference path is incomplete")
 	}
-	modelPlan, err := model.CompileModelPlan(spec, weights)
+	modelPlan, err := compileModel()
 	if err != nil {
 		return Plan{}, err
 	}

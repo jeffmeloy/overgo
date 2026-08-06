@@ -2,6 +2,7 @@ package modelrecipe
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"llamacpp2go/internal/artifact"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/recipe"
+	"llamacpp2go/internal/repodb"
 	"llamacpp2go/internal/strictjson"
 )
 
@@ -152,6 +154,53 @@ func ProfileContent(document ProfileDocument) (artifact.Content, error) {
 	return artifact.Content{Descriptor: descriptor, Data: content}, nil
 }
 
+func PublishProfiles(
+	ctx context.Context,
+	store *repodb.Store,
+	key string,
+) (artifact.CommitID, []ProfileDocument, error) {
+	documents, err := SeedProfileDocuments()
+	if err != nil {
+		return artifact.CommitID{}, nil, err
+	}
+	batch := artifact.Batch{Key: key, Contents: make([]artifact.Content, 0, len(documents))}
+	for _, document := range documents {
+		content, contentErr := ProfileContent(document)
+		if contentErr != nil {
+			return artifact.CommitID{}, nil, contentErr
+		}
+		batch.Contents = append(batch.Contents, content)
+		alias := registeredProfileAlias(document.Architecture)
+		current, ok, lookupErr := store.ResolveAlias(ctx, alias)
+		if lookupErr != nil {
+			return artifact.CommitID{}, nil, lookupErr
+		}
+		if ok && current == document.ID {
+			continue
+		}
+		binding := artifact.AliasBinding{Name: alias, Target: document.ID}
+		if ok {
+			binding.Previous = &current
+		}
+		batch.Aliases = append(batch.Aliases, binding)
+	}
+	commit, err := store.Commit(ctx, batch)
+	return commit, documents, err
+}
+
+func RegisteredProfile(
+	ctx context.Context,
+	store *repodb.Store,
+	architecture string,
+) (ProfileDocument, bool, error) {
+	id, ok, err := store.ResolveAlias(ctx, registeredProfileAlias(architecture))
+	if err != nil || !ok {
+		return ProfileDocument{}, ok, err
+	}
+	document, err := loadProfile(ctx, store, id)
+	return document, err == nil, err
+}
+
 // SeedProfileDocuments: canonical snapshot of registered policies.
 func SeedProfileDocuments() ([]ProfileDocument, error) {
 	names := model.SupportedArchitectures()
@@ -170,36 +219,40 @@ func SeedProfileDocuments() ([]ProfileDocument, error) {
 	return documents, nil
 }
 
+func loadProfile(ctx context.Context, store *repodb.Store, id artifact.ID) (ProfileDocument, error) {
+	content, ok, err := store.Content(ctx, id)
+	if err != nil {
+		return ProfileDocument{}, err
+	}
+	if !ok || content.Descriptor.Schema != ProfileSchema {
+		return ProfileDocument{}, errors.New("model recipe: profile content is absent or incompatible")
+	}
+	return ParseProfileDocument(content.Data)
+}
+
+func registeredProfileAlias(architecture string) string {
+	return "profile.registered." + architecture
+}
+
+func recipeProfileAlias(recipeID artifact.ID) string {
+	return "recipe.profile." + recipeID.String()
+}
+
 func CompileWithProfile(
 	definition recipe.Definition,
 	document ProfileDocument,
 	spec model.Spec,
 	weights model.Weights,
 ) (Plan, error) {
-	if err := definition.Validate(catalog); err != nil {
-		return Plan{}, err
-	}
 	if err := document.ValidateIdentity(); err != nil {
 		return Plan{}, err
 	}
-	if definition.Task != recipe.TaskInference || document.Architecture != spec.Architecture {
+	if document.Architecture != spec.Architecture {
 		return Plan{}, errors.New("model recipe: profile does not match inference recipe")
 	}
-	foundCompile, foundForward := false, false
-	for _, node := range definition.Nodes {
-		foundCompile = foundCompile || node.Module == ModuleCompileModelPlan
-		foundForward = foundForward || node.Module == ModuleForwardTokens
-	}
-	if !foundCompile || !foundForward {
-		return Plan{}, errors.New("model recipe: inference path is incomplete")
-	}
-	modelPlan, err := model.CompileModelPlanWithProfile(spec, weights, document.Policy)
-	if err != nil {
-		return Plan{}, err
-	}
-	return Plan{
-		Recipe: definition, Model: modelPlan, Nodes: append([]recipe.Node(nil), definition.Nodes...),
-	}, nil
+	return compileDefinition(definition, func() (model.ModelPlan, error) {
+		return model.CompileModelPlanWithProfile(spec, weights, document.Policy)
+	})
 }
 
 // VerifyProfileParity: registry/profile plan equivalence gate.

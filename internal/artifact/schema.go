@@ -48,6 +48,7 @@ const (
 	RelationTokenizedBy
 	RelationProjectedBy
 	RelationProducedBy
+	RelationDependsOn
 )
 
 var relationNames = [...]string{
@@ -61,6 +62,7 @@ var relationNames = [...]string{
 	RelationTokenizedBy:   "tokenized-by",
 	RelationProjectedBy:   "projected-by",
 	RelationProducedBy:    "produced-by",
+	RelationDependsOn:     "depends-on",
 }
 
 func (r Relation) String() string {

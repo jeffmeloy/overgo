@@ -12,7 +12,7 @@ import (
 	"llamacpp2go/internal/strictjson"
 )
 
-type definitionBody struct {
+type legacyDefinitionBody struct {
 	Version uint16      `json:"version"`
 	Task    Task        `json:"task"`
 	Model   artifact.ID `json:"model"`
@@ -22,17 +22,47 @@ type definitionBody struct {
 	Outputs []Output    `json:"outputs"`
 }
 
+type definitionBody struct {
+	Version      uint16       `json:"version"`
+	Task         Task         `json:"task"`
+	Dependencies []Dependency `json:"dependencies"`
+	Nodes        []Node       `json:"nodes"`
+	Edges        []Edge       `json:"edges,omitempty"`
+	Inputs       []Input      `json:"inputs,omitempty"`
+	Outputs      []Output     `json:"outputs"`
+}
+
 func ParseDefinition(content []byte) (Definition, error) {
-	var body definitionBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return Definition{}, fmt.Errorf("recipe: decode definition: %w", err)
+	var envelope struct {
+		Version uint16 `json:"version"`
 	}
-	definition, err := NewDefinition(body.Task, body.Model, body.Nodes, body.Edges, body.Inputs, body.Outputs)
-	if err != nil {
-		return Definition{}, err
+	if err := json.Unmarshal(content, &envelope); err != nil {
+		return Definition{}, fmt.Errorf("recipe: decode definition version: %w", err)
 	}
-	if body.Version != Version {
+	var definition Definition
+	var err error
+	switch envelope.Version {
+	case LegacyVersion:
+		var body legacyDefinitionBody
+		if err = strictjson.DecodeBytes(content, &body); err == nil {
+			definition, err = newDefinition(
+				LegacyVersion, body.Task, body.Model, nil,
+				body.Nodes, body.Edges, body.Inputs, body.Outputs,
+			)
+		}
+	case Version:
+		var body definitionBody
+		if err = strictjson.DecodeBytes(content, &body); err == nil {
+			definition, err = newDefinition(
+				Version, body.Task, artifact.ID{}, body.Dependencies,
+				body.Nodes, body.Edges, body.Inputs, body.Outputs,
+			)
+		}
+	default:
 		return Definition{}, errors.New("recipe: unsupported definition version")
+	}
+	if err != nil {
+		return Definition{}, fmt.Errorf("recipe: decode definition: %w", err)
 	}
 	canonical, err := definition.Content()
 	if err != nil {
@@ -45,8 +75,34 @@ func ParseDefinition(content []byte) (Definition, error) {
 }
 
 func NewDefinition(task Task, model artifact.ID, nodes []Node, edges []Edge, inputs []Input, outputs []Output) (Definition, error) {
+	return NewDefinitionWithDependencies(
+		task, []Dependency{{Role: DependencyModel, Artifact: model}}, nodes, edges, inputs, outputs,
+	)
+}
+
+func NewDefinitionWithDependencies(
+	task Task,
+	dependencies []Dependency,
+	nodes []Node,
+	edges []Edge,
+	inputs []Input,
+	outputs []Output,
+) (Definition, error) {
+	return newDefinition(Version, task, artifact.ID{}, dependencies, nodes, edges, inputs, outputs)
+}
+
+func newDefinition(
+	version uint16,
+	task Task,
+	model artifact.ID,
+	dependencies []Dependency,
+	nodes []Node,
+	edges []Edge,
+	inputs []Input,
+	outputs []Output,
+) (Definition, error) {
 	definition := Definition{
-		Version: Version, Task: task, Model: model,
+		Version: version, Task: task, Model: model, Dependencies: slices.Clone(dependencies),
 		Nodes: slices.Clone(nodes), Edges: slices.Clone(edges),
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs),
 	}
@@ -66,7 +122,7 @@ func NewDefinition(task Task, model artifact.ID, nodes []Node, edges []Edge, inp
 }
 
 func (d Definition) ValidateIdentity() error {
-	if d.Version != Version || d.ID.Kind() != artifact.KindRecipe || d.Model.Kind() != artifact.KindModel {
+	if (d.Version != LegacyVersion && d.Version != Version) || d.ID.Kind() != artifact.KindRecipe {
 		return errors.New("recipe: invalid version, recipe identity, or model identity")
 	}
 	canonical := d
@@ -102,12 +158,43 @@ func (d Definition) Descriptor() (artifact.Descriptor, error) {
 	if err != nil {
 		return artifact.Descriptor{}, err
 	}
-	return artifact.Descriptor{ID: d.ID, Size: uint64(len(content)), MediaType: MediaType, Schema: Schema}, nil
+	schema := Schema
+	if d.Version == LegacyVersion {
+		schema = LegacySchema
+	}
+	return artifact.Descriptor{ID: d.ID, Size: uint64(len(content)), MediaType: MediaType, Schema: schema}, nil
 }
 
 func canonicalize(d *Definition) error {
-	if d == nil || d.Version != Version || d.Model.Kind() != artifact.KindModel {
+	if d == nil || (d.Version != LegacyVersion && d.Version != Version) {
 		return errors.New("recipe: invalid definition envelope")
+	}
+	if d.Version == LegacyVersion {
+		if d.Model.Kind() != artifact.KindModel || len(d.Dependencies) != 0 {
+			return errors.New("recipe: invalid legacy definition dependencies")
+		}
+	} else {
+		for _, dependency := range d.Dependencies {
+			if err := validateDependency(dependency); err != nil {
+				return err
+			}
+		}
+		sort.Slice(d.Dependencies, func(i, j int) bool {
+			return dependencyKey(d.Dependencies[i]) < dependencyKey(d.Dependencies[j])
+		})
+		if duplicateDependencies(d.Dependencies) {
+			return errors.New("recipe: duplicate dependency role and slot")
+		}
+		model, found := artifact.ID{}, false
+		for _, dependency := range d.Dependencies {
+			if dependency.Role == DependencyModel && dependency.Slot == 0 {
+				model, found = dependency.Artifact, true
+			}
+		}
+		if !found {
+			return errors.New("recipe: model dependency is absent")
+		}
+		d.Model = model
 	}
 	if err := validateTask(d.Task); err != nil {
 		return err
@@ -155,9 +242,17 @@ func canonicalize(d *Definition) error {
 }
 
 func definitionContent(d Definition) ([]byte, error) {
-	body := definitionBody{
-		Version: d.Version, Task: d.Task, Model: d.Model,
-		Nodes: d.Nodes, Edges: d.Edges, Inputs: d.Inputs, Outputs: d.Outputs,
+	var body any
+	if d.Version == LegacyVersion {
+		body = legacyDefinitionBody{
+			Version: d.Version, Task: d.Task, Model: d.Model,
+			Nodes: d.Nodes, Edges: d.Edges, Inputs: d.Inputs, Outputs: d.Outputs,
+		}
+	} else {
+		body = definitionBody{
+			Version: d.Version, Task: d.Task, Dependencies: d.Dependencies,
+			Nodes: d.Nodes, Edges: d.Edges, Inputs: d.Inputs, Outputs: d.Outputs,
+		}
 	}
 	content, err := json.Marshal(body)
 	if err != nil {
@@ -172,6 +267,29 @@ func validEndpoint(endpoint Endpoint) bool {
 
 func edgeKey(edge Edge) string {
 	return string(edge.To.Node) + "\x00" + string(edge.To.Port) + "\x00" + string(edge.From.Node) + "\x00" + string(edge.From.Port)
+}
+
+func dependencyKey(dependency Dependency) string {
+	return string(dependency.Role) + fmt.Sprintf("\x00%010d", dependency.Slot)
+}
+
+func duplicateDependencies(dependencies []Dependency) bool {
+	for index := 1; index < len(dependencies); index++ {
+		if dependencies[index-1].Role == dependencies[index].Role &&
+			dependencies[index-1].Slot == dependencies[index].Slot {
+			return true
+		}
+	}
+	return false
+}
+
+func (d Definition) Dependency(role DependencyRole, slot uint32) (artifact.ID, bool) {
+	for _, dependency := range d.Dependencies {
+		if dependency.Role == role && dependency.Slot == slot {
+			return dependency.Artifact, true
+		}
+	}
+	return artifact.ID{}, false
 }
 
 func duplicateNodes(nodes []Node) bool {
@@ -212,6 +330,7 @@ func duplicateOutputs(outputs []Output) bool {
 
 func sameDefinitionShape(left, right Definition) bool {
 	return left.Version == right.Version && left.Task == right.Task && left.Model == right.Model &&
+		slices.Equal(left.Dependencies, right.Dependencies) &&
 		slices.Equal(left.Nodes, right.Nodes) && slices.Equal(left.Edges, right.Edges) &&
 		slices.Equal(left.Inputs, right.Inputs) && slices.Equal(left.Outputs, right.Outputs)
 }

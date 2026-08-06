@@ -64,6 +64,91 @@ func TestDefinitionCanonicalIdentityAndValidation(t *testing.T) {
 	}
 }
 
+func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
+	definition, _ := fixtureRecipe(t)
+	profileID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("profile"))
+	tokenizerID, _ := artifact.IdentifyBytes(artifact.KindTokenizer, []byte("tokenizer"))
+	dependencies := []Dependency{
+		{Role: DependencyTokenizer, Artifact: tokenizerID},
+		{Role: DependencyModel, Artifact: definition.Model},
+		{Role: DependencyProfile, Artifact: profileID},
+	}
+	bound, err := NewDefinitionWithDependencies(
+		definition.Task, dependencies, definition.Nodes, definition.Edges,
+		definition.Inputs, definition.Outputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.Reverse(dependencies)
+	reordered, err := NewDefinitionWithDependencies(
+		definition.Task, dependencies, definition.Nodes, definition.Edges,
+		definition.Inputs, definition.Outputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reordered.ID != bound.ID {
+		t.Fatal("dependency order changed recipe identity")
+	}
+	if found, ok := bound.Dependency(DependencyProfile, 0); !ok || found != profileID {
+		t.Fatalf("profile dependency = (%s, %v)", found, ok)
+	}
+	otherProfile, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("other-profile"))
+	dependencies[0].Artifact = otherProfile
+	changed, err := NewDefinitionWithDependencies(
+		definition.Task, dependencies, definition.Nodes, definition.Edges,
+		definition.Inputs, definition.Outputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.ID == bound.ID {
+		t.Fatal("profile change preserved recipe identity")
+	}
+}
+
+func TestDefinitionReadsCanonicalLegacyVersion(t *testing.T) {
+	current, _ := fixtureRecipe(t)
+	legacy, err := newDefinition(
+		LegacyVersion, current.Task, current.Model, nil,
+		current.Nodes, current.Edges, current.Inputs, current.Outputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := legacy.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseDefinition(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, err := parsed.Descriptor()
+	if err != nil || parsed.ID != legacy.ID || parsed.Version != LegacyVersion || descriptor.Schema != LegacySchema {
+		t.Fatalf("legacy definition = (%+v, %+v, %v)", parsed, descriptor, err)
+	}
+}
+
+func TestDefinitionRejectsInvalidDependencies(t *testing.T) {
+	definition, _ := fixtureRecipe(t)
+	profileID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("profile"))
+	for _, dependencies := range [][]Dependency{
+		{{Role: DependencyProfile, Artifact: profileID}},
+		{{Role: DependencyModel, Artifact: definition.Model}, {Role: DependencyModel, Artifact: definition.Model}},
+		{{Role: DependencyProfile, Artifact: definition.Model}, {Role: DependencyModel, Artifact: definition.Model}},
+		{{Role: DependencyProfile, Artifact: profileID}, {Role: DependencyModel, Slot: 1, Artifact: definition.Model}},
+	} {
+		if _, err := NewDefinitionWithDependencies(
+			definition.Task, dependencies, definition.Nodes, definition.Edges,
+			definition.Inputs, definition.Outputs,
+		); err == nil {
+			t.Fatalf("accepted dependencies %+v", dependencies)
+		}
+	}
+}
+
 func TestDefinitionRejectsSchemaMismatchCycleAndDeadNode(t *testing.T) {
 	definition, catalog := fixtureRecipe(t)
 	for _, mutate := range []func(*Definition){

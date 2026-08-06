@@ -233,10 +233,6 @@ func registeredProfileAlias(architecture string) string {
 	return "profile.registered." + architecture
 }
 
-func recipeProfileAlias(recipeID artifact.ID) string {
-	return "recipe.profile." + recipeID.String()
-}
-
 func CompileWithProfile(
 	definition recipe.Definition,
 	document ProfileDocument,
@@ -248,6 +244,12 @@ func CompileWithProfile(
 	}
 	if document.Architecture != spec.Architecture {
 		return Plan{}, errors.New("model recipe: profile does not match inference recipe")
+	}
+	if definition.Version != recipe.LegacyVersion {
+		profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+		if !ok || profileID != document.ID {
+			return Plan{}, errors.New("model recipe: definition profile dependency mismatch")
+		}
 	}
 	return compileDefinition(definition, func() (model.ModelPlan, error) {
 		return model.CompileModelPlanWithProfile(spec, weights, document.Policy)

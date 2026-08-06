@@ -20,13 +20,16 @@ Current foundation:
 - GGUF single/split and Hugging Face Safetensors inventory adapters.
 - Bounded inline content records for independently owned typed schemas.
 - Canonical typed recipe DAGs persisted as content-addressed documents.
+- Recipe v2 identities include a canonical role/slot dependency set for models,
+  profiles, tokenizers, projectors, adapters, datasets, and checkpoints; v1
+  documents remain readable.
 - Append-only candidate, validated, active, refused, and superseded lifecycle
   evidence with compare-and-set status and active-recipe aliases.
 - Model recipe binding that compiles through the existing `ModelPlan` and
   `LayerPlan` authority.
 - Canonical content-addressed architecture profiles seeded from the bootstrap
-  registry, bound to exact recipes, and activated only with typed parity
-  evidence.
+  registry, embedded in exact recipe identities, and activated only with typed
+  parity evidence. Mutable profile side aliases are legacy-read-only.
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
   planning; unbound models retain the bootstrap path.
 

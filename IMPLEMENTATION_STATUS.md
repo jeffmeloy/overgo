@@ -31,6 +31,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Recipe v2 identities now hash canonical typed role/slot dependencies for models, profiles, tokenizers, projectors, adapters, datasets, and checkpoints; publication records dependency lineage, profile recipes no longer write mutable side aliases, and strict canonical v1 reads preserve existing logs.
 - Architecture profiles now persist as strict content-addressed RepoDB facts; candidate recipes bind an exact profile, registry/profile plan parity produces typed evidence, and only matching evidence unlocks active runtime policy injection through metadata, catalog, and graph planning.
 - Recipe lifecycle now records content-addressed candidate/validated/active/refused/superseded evidence, promotes status and active selection through compare-and-set aliases, atomically supersedes an older active recipe, and resolves active inference recipes into existing model plans.
 - Typed recipe DAGs now validate module task/placement policies, port schemas/cardinality, producer uniqueness, cycles, and bidirectional reachability; canonical recipe documents persist through generic content records, and the first binding compiles inference recipes through existing model/layer plans.

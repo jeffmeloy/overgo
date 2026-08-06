@@ -152,7 +152,7 @@ func ValidateProfileCandidate(
 	spec model.Spec,
 	weights model.Weights,
 ) (artifact.CommitID, recipe.LifecycleEvent, ProfileParityEvidence, error) {
-	document, err := boundProfile(ctx, store, definition.ID)
+	document, err := boundProfile(ctx, store, definition)
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, ProfileParityEvidence{}, err
 	}
@@ -182,7 +182,7 @@ func ActivateProfileCandidate(
 	definition recipe.Definition,
 	supersedes *artifact.ID,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	document, err := boundProfile(ctx, store, definition.ID)
+	document, err := boundProfile(ctx, store, definition)
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
@@ -202,11 +202,15 @@ func ActivateProfileCandidate(
 func boundProfile(
 	ctx context.Context,
 	store artifact.Reader,
-	recipeID artifact.ID,
+	definition recipe.Definition,
 ) (ProfileDocument, error) {
-	id, ok, err := store.ResolveAlias(ctx, recipeProfileAlias(recipeID))
-	if err != nil {
-		return ProfileDocument{}, err
+	id, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	if !ok && definition.Version == recipe.LegacyVersion {
+		var err error
+		id, ok, err = store.ResolveAlias(ctx, legacyRecipeProfileAlias(definition.ID))
+		if err != nil {
+			return ProfileDocument{}, err
+		}
 	}
 	if !ok {
 		return ProfileDocument{}, errors.New("model recipe: profile binding is absent")

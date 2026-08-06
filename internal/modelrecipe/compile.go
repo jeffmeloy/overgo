@@ -31,11 +31,28 @@ func Catalog() *recipe.Catalog {
 }
 
 func Inference(modelID artifact.ID, placement recipe.Placement) (recipe.Definition, error) {
+	return inference(
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, placement,
+	)
+}
+
+func InferenceWithProfile(
+	modelID artifact.ID,
+	profileID artifact.ID,
+	placement recipe.Placement,
+) (recipe.Definition, error) {
+	return inference([]recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: modelID},
+		{Role: recipe.DependencyProfile, Artifact: profileID},
+	}, placement)
+}
+
+func inference(dependencies []recipe.Dependency, placement recipe.Placement) (recipe.Definition, error) {
 	compile := recipe.Node{ID: "compile", Module: ModuleCompileModelPlan, Placement: placement}
 	forward := recipe.Node{ID: "forward", Module: ModuleForwardTokens, Placement: placement}
-	return recipe.NewDefinition(
+	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
-		modelID,
+		dependencies,
 		[]recipe.Node{compile, forward},
 		[]recipe.Edge{{
 			From: recipe.Endpoint{Node: compile.ID, Port: "plan"},

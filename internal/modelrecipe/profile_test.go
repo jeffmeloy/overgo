@@ -60,13 +60,13 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("parity-model"))
-	definition, err := Inference(modelID, recipe.PlacementHost)
+	modelID := commitFixtureModel(t, ctx, store, "fixture/profile/model", "parity-model")
+	profile, _ := model.LookupArchitecture("llama")
+	document, err := NewProfileDocument(profile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, _ := model.LookupArchitecture("llama")
-	document, err := NewProfileDocument(profile)
+	definition, err := InferenceWithProfile(modelID, document.ID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +74,13 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 		ctx, store, "fixture/profile/candidate", definition, document,
 	); err != nil {
 		t.Fatal(err)
+	}
+	if _, bound, err := store.ResolveAlias(ctx, legacyRecipeProfileAlias(definition.ID)); err != nil || bound {
+		t.Fatalf("legacy profile alias = (%v, %v)", bound, err)
+	}
+	parents, err := store.Parents(ctx, definition.ID)
+	if err != nil || len(parents) != len(definition.Dependencies) {
+		t.Fatalf("dependency lineage = (%+v, %v)", parents, err)
 	}
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}}
 	_, _, evidence, err := ValidateProfileCandidate(
@@ -107,14 +114,14 @@ func TestProfileCandidateRejectsParityDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("drift-model"))
-	definition, err := Inference(modelID, recipe.PlacementHost)
-	if err != nil {
-		t.Fatal(err)
-	}
+	modelID := commitFixtureModel(t, ctx, store, "fixture/drift/model", "drift-model")
 	profile, _ := model.LookupArchitecture("llama")
 	profile.Attention = model.AttentionLFM2
 	document, err := NewProfileDocument(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := InferenceWithProfile(modelID, document.ID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,15 +144,15 @@ func TestCompileWithProfileMatchesRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := Inference(modelID, recipe.PlacementHost)
-	if err != nil {
-		t.Fatal(err)
-	}
 	profile, ok := model.LookupArchitecture("llama")
 	if !ok {
 		t.Fatal("llama profile is absent")
 	}
 	document, err := NewProfileDocument(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := InferenceWithProfile(modelID, document.ID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,4 +182,25 @@ func TestProfileDocumentRejectsNonCanonicalContent(t *testing.T) {
 	if _, err := ParseProfileDocument(content); err == nil {
 		t.Fatal("unknown profile field accepted")
 	}
+}
+
+func commitFixtureModel(
+	t *testing.T,
+	ctx context.Context,
+	store artifact.Repository,
+	key string,
+	payload string,
+) artifact.ID {
+	t.Helper()
+	data := []byte(payload)
+	id, err := artifact.IdentifyBytes(artifact.KindModel, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: key, Contents: []artifact.Content{{
+		Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data))}, Data: data,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

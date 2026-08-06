@@ -47,6 +47,10 @@ func PublishProfileCandidate(
 	if err := document.ValidateIdentity(); err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
+	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	if !ok || profileID != document.ID {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: definition does not bind profile")
+	}
 	return publishCandidate(ctx, store, key, definition, &document)
 }
 
@@ -79,8 +83,10 @@ func publishCandidate(
 			return artifact.CommitID{}, recipe.LifecycleEvent{}, contentErr
 		}
 		batch.Contents = append(batch.Contents, profileContent)
-		batch.Aliases = append(batch.Aliases, artifact.AliasBinding{
-			Name: recipeProfileAlias(definition.ID), Target: document.ID,
+	}
+	for _, dependency := range definition.Dependencies {
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+			Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn,
 		})
 	}
 	commit, err := store.Commit(ctx, batch)
@@ -213,9 +219,16 @@ func activeBoundProfile(
 	store artifact.Reader,
 	definition recipe.Definition,
 ) (ProfileDocument, bool, error) {
-	profileID, bound, err := store.ResolveAlias(ctx, recipeProfileAlias(definition.ID))
-	if err != nil || !bound {
-		return ProfileDocument{}, bound, err
+	profileID, bound := definition.Dependency(recipe.DependencyProfile, 0)
+	if !bound && definition.Version == recipe.LegacyVersion {
+		var err error
+		profileID, bound, err = store.ResolveAlias(ctx, legacyRecipeProfileAlias(definition.ID))
+		if err != nil {
+			return ProfileDocument{}, false, err
+		}
+	}
+	if !bound {
+		return ProfileDocument{}, false, nil
 	}
 	document, err := loadProfile(ctx, store, profileID)
 	if err != nil {
@@ -256,7 +269,7 @@ func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) 
 	if err != nil {
 		return recipe.Definition{}, err
 	}
-	if !ok || content.Descriptor.Schema != recipe.Schema {
+	if !ok || !recipe.SupportsSchema(content.Descriptor.Schema) {
 		return recipe.Definition{}, errors.New("model recipe: definition content is absent or incompatible")
 	}
 	return recipe.ParseDefinition(content.Data)
@@ -268,6 +281,10 @@ func statusAlias(recipeID artifact.ID) string {
 
 func activeAlias(modelID artifact.ID, task recipe.Task) string {
 	return "recipe.active." + string(task) + "." + modelID.String()
+}
+
+func legacyRecipeProfileAlias(recipeID artifact.ID) string {
+	return "recipe.profile." + recipeID.String()
 }
 
 func cloneArtifactID(id *artifact.ID) *artifact.ID {

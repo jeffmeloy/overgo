@@ -9,10 +9,12 @@ import (
 )
 
 const (
-	Version   = uint16(1)
-	MediaType = "application/vnd.llamacpp2go.recipe+json"
-	Schema    = "llamacpp2go.recipe.v1"
-	maxName   = 128
+	LegacyVersion = uint16(1)
+	Version       = uint16(2)
+	MediaType     = "application/vnd.llamacpp2go.recipe+json"
+	LegacySchema  = "llamacpp2go.recipe.v1"
+	Schema        = "llamacpp2go.recipe.v2"
+	maxName       = 128
 )
 
 type Task string
@@ -63,6 +65,24 @@ type ModuleID string
 type NodeID string
 type PortName string
 
+type DependencyRole string
+
+const (
+	DependencyModel      DependencyRole = "model"
+	DependencyProfile    DependencyRole = "profile"
+	DependencyTokenizer  DependencyRole = "tokenizer"
+	DependencyProjector  DependencyRole = "projector"
+	DependencyAdapter    DependencyRole = "adapter"
+	DependencyDataset    DependencyRole = "dataset"
+	DependencyCheckpoint DependencyRole = "checkpoint"
+)
+
+type Dependency struct {
+	Role     DependencyRole `json:"role"`
+	Slot     uint32         `json:"slot,omitempty"`
+	Artifact artifact.ID    `json:"artifact"`
+}
+
 type Port struct {
 	Name        PortName    `json:"name"`
 	Data        DataKind    `json:"data"`
@@ -106,14 +126,45 @@ type Output struct {
 }
 
 type Definition struct {
-	Version uint16      `json:"version"`
-	ID      artifact.ID `json:"id"`
-	Task    Task        `json:"task"`
-	Model   artifact.ID `json:"model"`
-	Nodes   []Node      `json:"nodes"`
-	Edges   []Edge      `json:"edges,omitempty"`
-	Inputs  []Input     `json:"inputs,omitempty"`
-	Outputs []Output    `json:"outputs"`
+	Version      uint16       `json:"version"`
+	ID           artifact.ID  `json:"id"`
+	Task         Task         `json:"task"`
+	Model        artifact.ID  `json:"model"`
+	Dependencies []Dependency `json:"dependencies,omitempty"`
+	Nodes        []Node       `json:"nodes"`
+	Edges        []Edge       `json:"edges,omitempty"`
+	Inputs       []Input      `json:"inputs,omitempty"`
+	Outputs      []Output     `json:"outputs"`
+}
+
+func SupportsSchema(schema string) bool {
+	return schema == Schema || schema == LegacySchema
+}
+
+func validateDependency(dependency Dependency) error {
+	want := artifact.KindInvalid
+	switch dependency.Role {
+	case DependencyModel:
+		want = artifact.KindModel
+	case DependencyProfile:
+		want = artifact.KindProfile
+	case DependencyTokenizer:
+		want = artifact.KindTokenizer
+	case DependencyProjector:
+		want = artifact.KindProjector
+	case DependencyAdapter:
+		want = artifact.KindAdapter
+	case DependencyDataset:
+		want = artifact.KindDataset
+	case DependencyCheckpoint:
+		want = artifact.KindCheckpoint
+	default:
+		return fmt.Errorf("recipe: invalid dependency role %q", dependency.Role)
+	}
+	if dependency.Artifact.Kind() != want {
+		return fmt.Errorf("recipe: dependency %q has artifact kind %q, want %q", dependency.Role, dependency.Artifact.Kind(), want)
+	}
+	return nil
 }
 
 func validName(value string) bool {

@@ -16,7 +16,7 @@ func BuildGemma4AssistantInput(
 	if builder == nil || targetTokenEmbedding == nil || targetHidden == nil || projection == nil {
 		return nil, errors.New("Gemma 4 assistant input is nil")
 	}
-	if spec.Architecture != "gemma4-assistant" || targetTokenEmbedding.Shape.Rank != 2 ||
+	if spec.Profile().Forward != ForwardGemma4Assistant || targetTokenEmbedding.Shape.Rank != 2 ||
 		!targetTokenEmbedding.Shape.Equal(targetHidden.Shape) ||
 		targetHidden.Shape.Dims[0] != uint64(spec.TargetHiddenSize) {
 		return nil, errors.New("Gemma 4 assistant input shape is incompatible")
@@ -42,7 +42,7 @@ func BuildGemma4AssistantBlock(
 	if builder == nil || input == nil || sharedKey == nil || sharedValue == nil {
 		return nil, errors.New("Gemma 4 assistant block input is nil")
 	}
-	if spec.Architecture != "gemma4-assistant" || layerIndex >= spec.BlockCount ||
+	if spec.Profile().Forward != ForwardGemma4Assistant || layerIndex >= spec.BlockCount ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) != 1 || input.Shape.Dims[1] != 1 {
 		return nil, errors.New("Gemma 4 assistant block shape is incompatible")
@@ -103,7 +103,7 @@ func BuildGemma4AssistantOutputs(
 	if builder == nil || input == nil || outputNorm == nil || output == nil || postProjection == nil {
 		return nil, nil, errors.New("Gemma 4 assistant output is nil")
 	}
-	if spec.Architecture != "gemma4-assistant" || input.Shape.Rank != 2 ||
+	if spec.Profile().Forward != ForwardGemma4Assistant || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, nil, errors.New("Gemma 4 assistant output shape is incompatible")
 	}

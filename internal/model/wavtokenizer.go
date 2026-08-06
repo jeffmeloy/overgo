@@ -48,8 +48,8 @@ func BuildWavTokenizerDecoder(
 	if builder == nil || embeddings == nil {
 		return nil, errors.New("WavTokenizer decoder input is nil")
 	}
-	if spec.Architecture != "wavtokenizer-dec" {
-		return nil, errors.New("WavTokenizer decoder requires wavtokenizer-dec architecture")
+	if spec.Profile().Forward != ForwardWavTokenizer {
+		return nil, errors.New("WavTokenizer decoder requires WavTokenizer forward policy")
 	}
 	if embeddings.Shape.Rank != 2 || embeddings.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New("WavTokenizer decoder embedding shape is incompatible")

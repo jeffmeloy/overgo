@@ -32,6 +32,9 @@ claims.
 
 ## Validated milestones
 
+- The August 5 forward-policy sweep replaced the final specialized DFlash,
+  Eagle3, Gemma 4 Assistant, and WavTokenizer name guards. Speculative sidecar
+  compatibility now compares the complete resolved policy.
 - The August 5 validation-sweep wave moved the last production `Spec`
   architecture predicate—DeepSeek 3.2 full-indexer cadence—into profile data.
 - The August 5 expert-validation wave completed the 36-contract hybrid/MoE

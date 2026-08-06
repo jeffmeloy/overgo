@@ -16,8 +16,8 @@ func BuildEagle3FeatureEncoder(
 	if builder == nil || features == nil || projection == nil {
 		return nil, errors.New("Eagle3 feature encoder input is nil")
 	}
-	if spec.Architecture != "eagle3" || features.Shape.Rank != 2 ||
-		features.Shape.Dims[0] != 3*uint64(spec.TargetHiddenSize) {
+	if spec.Profile().Forward != ForwardEagle3 || features.Shape.Rank != 2 ||
+		features.Shape.Dims[0] != uint64(eagle3TargetLayerCount)*uint64(spec.TargetHiddenSize) {
 		return nil, errors.New("Eagle3 feature encoder shape is incompatible")
 	}
 	output := builder.MulMat(projection, features)
@@ -39,7 +39,7 @@ func BuildEagle3BlockCached(
 	if builder == nil || tokenEmbedding == nil || targetFeature == nil {
 		return DenseBlockResult{}, errors.New("Eagle3 block input is nil")
 	}
-	if spec.Architecture != "eagle3" || tokenEmbedding.Shape.Rank != 2 ||
+	if spec.Profile().Forward != ForwardEagle3 || tokenEmbedding.Shape.Rank != 2 ||
 		!tokenEmbedding.Shape.Equal(targetFeature.Shape) || tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) != int(tokenEmbedding.Shape.Dims[1]) || (pastKey == nil) != (pastValue == nil) {
 		return DenseBlockResult{}, errors.New("Eagle3 block shape is incompatible")

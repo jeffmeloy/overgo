@@ -32,6 +32,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- DFlash, Eagle3, Gemma 4 Assistant, and WavTokenizer executable guards now use typed forward policies; speculative target compatibility requires exact resolved-profile equality rather than matching architecture text. Remaining production architecture comparisons are identity/envelope checks only.
 - DeepSeek 3.2 full-indexer scheduling moved into typed layer cadence policy. Production `Spec` and every shared metadata validator now contain no architecture-name predicates; exact resolved profiles own all migrated selection facts.
 - All hybrid/MoE validation now selects one of 36 typed profile contracts. Dense/MoE variants, shared-expert layouts, routing/scaling, LongRoPE/YaRN, sliding attention, and hybrid convolution schedules retain family diagnostics without architecture-name dispatch in the shared validator.
 - Qwen3-Next/Qwen3.5, Qwen3-MoE/VL/RND1, GroveMoE, MiMo2, and Step3.5 hybrid/draft invariants now select typed profile contracts. Shared hybrid scheduling and expert checks no longer identify these families by architecture name, and rotary alignment relationships use named constants.

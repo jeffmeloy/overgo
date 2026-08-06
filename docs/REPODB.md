@@ -61,6 +61,8 @@ Current foundation:
   compiled architecture-name selection.
 - Full-indexer scheduling now travels in layer cadence policy. Production
   `Spec` and shared validators consume resolved policy without name predicates.
+- Specialized executable guards consume typed forward policy, and speculative
+  sidecars require exact resolved-profile equality instead of name equality.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

@@ -16,7 +16,7 @@ func BuildDFlashFeatureEncoder(
 	if builder == nil || features == nil || projection == nil || norm == nil {
 		return nil, errors.New("DFlash feature encoder input is nil")
 	}
-	if spec.Architecture != "dflash" || features.Shape.Rank != 2 ||
+	if spec.Profile().Forward != ForwardDFlash || features.Shape.Rank != 2 ||
 		features.Shape.Dims[0] != uint64(len(spec.TargetLayers))*uint64(spec.EmbeddingLength) {
 		return nil, errors.New("DFlash feature encoder shape is incompatible")
 	}
@@ -40,7 +40,7 @@ func BuildDFlashCacheInjection(
 	if builder == nil || fused == nil || weights.AttentionK == nil || weights.AttentionV == nil || weights.AttentionKNorm == nil {
 		return nil, nil, errors.New("DFlash cache injection input is nil")
 	}
-	if spec.Architecture != "dflash" || fused.Shape.Rank != 2 || fused.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
+	if spec.Profile().Forward != ForwardDFlash || fused.Shape.Rank != 2 || fused.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) != int(fused.Shape.Dims[1]) || (pastKey == nil) != (pastValue == nil) {
 		return nil, nil, errors.New("DFlash cache injection shape is incompatible")
 	}

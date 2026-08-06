@@ -94,10 +94,7 @@ const (
 )
 
 // LayerState: named persistent tensor.
-type LayerState struct {
-	Mode  CacheStateMode
-	Value reference.Value
-}
+type LayerState = model.CacheState[reference.Value]
 
 type KVCache struct {
 	Layers []LayerCache

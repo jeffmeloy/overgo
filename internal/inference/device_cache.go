@@ -29,10 +29,7 @@ type deviceKVCache struct {
 	Logits     []float32
 }
 
-type deviceLayerState struct {
-	Mode  CacheStateMode
-	Value executor.DeviceValue
-}
+type deviceLayerState = model.CacheState[executor.DeviceValue]
 
 // deviceCacheOwner: shared fused-execution allocation owner.
 type deviceCacheOwner struct {
@@ -409,10 +406,7 @@ type deviceBatchGraph struct {
 	tokenCount   uint32
 }
 
-type deviceGraphState struct {
-	mode  CacheStateMode
-	value *tensor.Tensor
-}
+type deviceGraphState = model.CacheState[*tensor.Tensor]
 
 // forwardDeviceCachedBatchLocked: one graph, variable independent branches.
 func (r *Runner) forwardDeviceCachedBatchLocked(
@@ -445,7 +439,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 				}
 				sort.Strings(names)
 				for _, name := range names {
-					outputs = append(outputs, graph.states[layer][model.CacheStateName(name)].value)
+					outputs = append(outputs, graph.states[layer][model.CacheStateName(name)].Value)
 				}
 			}
 		}
@@ -491,14 +485,14 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 			if len(graph.states[layer]) != 0 {
 				cache.States[layer] = make(map[model.CacheStateName]deviceLayerState, len(graph.states[layer]))
 				for name, state := range graph.states[layer] {
-					value, present := retained.Value(state.value)
+					value, present := retained.Value(state.Value)
 					if !present {
 						return fail(fmt.Errorf(
 							"inference: missing retained state %q for branch %d layer %d",
 							name, index, layer,
 						))
 					}
-					cache.States[layer][name] = deviceLayerState{Mode: state.mode, Value: value}
+					cache.States[layer][name] = deviceLayerState{Mode: state.Mode, Value: value}
 				}
 			}
 		}
@@ -711,10 +705,10 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if len(result.States)+len(result.FixedStates) != 0 {
 			states[layerIndex] = make(map[model.CacheStateName]deviceGraphState, len(result.States)+len(result.FixedStates))
 			for name, value := range result.States {
-				states[layerIndex][name] = deviceGraphState{mode: CacheStateToken, value: value}
+				states[layerIndex][name] = deviceGraphState{Mode: CacheStateToken, Value: value}
 			}
 			for name, value := range result.FixedStates {
-				states[layerIndex][name] = deviceGraphState{mode: CacheStateFixed, value: value}
+				states[layerIndex][name] = deviceGraphState{Mode: CacheStateFixed, Value: value}
 			}
 		}
 	}

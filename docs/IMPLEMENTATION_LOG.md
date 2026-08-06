@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 generic-cache-state wave replaced separate host, device, and
+  in-flight graph `{mode,value}` structs with `CacheState[T]`. Representation
+  aliases preserve call sites while the shared carrier removes duplicated
+  cache semantics and production surface.
 - The August 6 cache-mode wave moved serialized fixed/token values and their
   validity/alignment rules into the model cache schema. Inference aliases the
   shared ABI type and consumes one extent-to-mode relationship while preserving

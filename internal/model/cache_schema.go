@@ -22,6 +22,12 @@ const (
 	CacheStateToken CacheStateMode = 2
 )
 
+// CacheState: range behavior plus representation-specific value.
+type CacheState[T any] struct {
+	Mode  CacheStateMode
+	Value T
+}
+
 func (m CacheStateMode) Valid() bool {
 	return m == CacheStateFixed || m == CacheStateToken
 }

@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Generic `CacheState[T]` now carries mode plus value for host tensors,
+  CUDA-resident tensors, and in-flight device graph tensors. Existing aliases
+  preserve API vocabulary while removing three duplicated state structs and
+  keeping representation choice outside cache semantics.
 - The model cache schema now owns explicit serialized fixed/token mode values,
   mode validation, token-alignment semantics, and extent conversion. Inference
   retains source-compatible aliases, eliminating its duplicate enum and inline

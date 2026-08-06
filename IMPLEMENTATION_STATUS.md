@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- `CacheStates[T]` now owns typed named-state collections, shallow/deep value
+  cloning, and deterministic key ordering. Host serialization/editing and CUDA
+  batching share these operations; bespoke clone helpers and duplicate sorting
+  loops are removed, with `LayerStates` preserving the host API vocabulary.
 - Generic `CacheState[T]` now carries mode plus value for host tensors,
   CUDA-resident tensors, and in-flight device graph tensors. Existing aliases
   preserve API vocabulary while removing three duplicated state structs and

@@ -80,7 +80,7 @@ type LayerCache struct {
 	Key   reference.Value
 	Value reference.Value
 	// States: persistent architecture-specific tensors.
-	States map[model.CacheStateName]LayerState
+	States LayerStates
 	// Auxiliary: transient forward-pass state.
 	Auxiliary *reference.Value
 }
@@ -95,6 +95,9 @@ const (
 
 // LayerState: named persistent tensor.
 type LayerState = model.CacheState[reference.Value]
+
+// LayerStates: named persistent tensor collection.
+type LayerStates = model.CacheStates[reference.Value]
 
 type KVCache struct {
 	Layers []LayerCache

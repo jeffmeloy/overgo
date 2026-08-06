@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 cache-collection wave introduced `CacheStates[T]` with shared
+  cloning and deterministic ordering. Host cache serialization/editing and
+  device batching no longer maintain independent map-clone or key-sort logic;
+  existing round-trip and fork-isolation fixtures cover the common operations.
 - The August 6 generic-cache-state wave replaced separate host, device, and
   in-flight graph `{mode,value}` structs with `CacheState[T]`. Representation
   aliases preserve call sites while the shared carrier removes duplicated

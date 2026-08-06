@@ -160,7 +160,7 @@ func (r *Runner) AdvanceNextNMTP(
 	logitValue.Data = r.finalizeLogits(logitValue.Data)
 	nextLayer := LayerCache{Key: results[block.Key], Value: results[block.Value]}
 	if indexerKey != nil {
-		nextLayer.States = map[model.CacheStateName]LayerState{
+		nextLayer.States = LayerStates{
 			model.CacheStateIndexerKey: {Mode: CacheStateToken, Value: results[indexerKey]},
 		}
 	}

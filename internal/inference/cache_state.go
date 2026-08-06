@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sort"
 
 	"llamacpp2go/internal/checked"
 	"llamacpp2go/internal/model"
@@ -73,7 +72,7 @@ func upgradeDeepSeek4CachePositions(cache *KVCache) {
 			continue
 		}
 		if cache.Layers[index].States == nil {
-			cache.Layers[index].States = make(map[model.CacheStateName]LayerState)
+			cache.Layers[index].States = make(LayerStates)
 		}
 		cache.Layers[index].States[model.CacheStatePositions] = LayerState{
 			Mode: CacheStateToken, Value: reference.Value{Shape: shape, Data: slices.Clone(data)},
@@ -474,34 +473,24 @@ func cloneCache(cache *KVCache) *KVCache {
 	}
 	for index, layer := range cache.Layers {
 		result.Layers[index] = LayerCache{
-			Key:    layer.Key.Clone(),
-			Value:  layer.Value.Clone(),
-			States: cloneLayerStates(layer.States),
+			Key:   layer.Key.Clone(),
+			Value: layer.Value.Clone(),
+			States: layer.States.CloneValues(func(value reference.Value) reference.Value {
+				return value.Clone()
+			}),
 		}
 	}
 	return result
 }
 
-func cloneLayerStates(states map[model.CacheStateName]LayerState) map[model.CacheStateName]LayerState {
-	if states == nil {
-		return nil
-	}
-	result := make(map[model.CacheStateName]LayerState, len(states))
-	for name, state := range states {
-		state.Value = state.Value.Clone()
-		result[name] = state
-	}
-	return result
-}
-
 func editLayerStates(
-	states map[model.CacheStateName]LayerState,
+	states LayerStates,
 	tokens, start, discard uint32,
-) (map[model.CacheStateName]LayerState, error) {
+) (LayerStates, error) {
 	if states == nil {
 		return nil, nil
 	}
-	result := make(map[model.CacheStateName]LayerState, len(states))
+	result := make(LayerStates, len(states))
 	for name, state := range states {
 		switch state.Mode {
 		case CacheStateFixed:
@@ -621,14 +610,9 @@ func cacheLayerRecords(layer LayerCache) []cacheLayerRecord {
 		cacheLayerRecord{name: "key", value: layer.Key},
 		cacheLayerRecord{name: "value", value: layer.Value},
 	)
-	names := make([]string, 0, len(layer.States))
-	for name := range layer.States {
-		names = append(names, string(name))
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		state := layer.States[model.CacheStateName(name)]
-		records = append(records, cacheLayerRecord{name: name, mode: state.Mode, value: state.Value})
+	for _, name := range layer.States.SortedNames() {
+		state := layer.States[name]
+		records = append(records, cacheLayerRecord{name: string(name), mode: state.Mode, value: state.Value})
 	}
 	return records
 }
@@ -761,7 +745,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 					return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
 				}
 				if layer.States == nil {
-					layer.States = make(map[model.CacheStateName]LayerState)
+					layer.States = make(LayerStates)
 				}
 				layer.States[stateName] = state
 			}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sort"
 	"sync"
 
 	"llamacpp2go/internal/cuda/driver"
@@ -21,7 +20,7 @@ type deviceKVCache struct {
 	owner      *deviceCacheOwner
 	Keys       []executor.DeviceValue
 	Values     []executor.DeviceValue
-	States     []map[model.CacheStateName]deviceLayerState
+	States     []deviceLayerStates
 	Pages      []deviceKVPage
 	PageTokens uint32
 	Tokens     uint32
@@ -30,6 +29,7 @@ type deviceKVCache struct {
 }
 
 type deviceLayerState = model.CacheState[executor.DeviceValue]
+type deviceLayerStates = model.CacheStates[executor.DeviceValue]
 
 // deviceCacheOwner: shared fused-execution allocation owner.
 type deviceCacheOwner struct {
@@ -242,13 +242,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 			copies = append(copies, copySpec)
 		}
 		if layerIndex < len(cache.States) && len(cache.States[layerIndex]) != 0 {
-			names := make([]string, 0, len(cache.States[layerIndex]))
-			for name := range cache.States[layerIndex] {
-				names = append(names, string(name))
-			}
-			sort.Strings(names)
-			for _, name := range names {
-				stateName := model.CacheStateName(name)
+			for _, stateName := range cache.States[layerIndex].SortedNames() {
 				state := cache.States[layerIndex][stateName]
 				copySpec, copyErr := deviceCacheRangeCopy(
 					state.Value, cache.Tokens, keep, discard,
@@ -257,7 +251,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 				if copyErr != nil {
 					return nil, fmt.Errorf(
 						"inference: layer %d device cache state %q: %w",
-						layerIndex, name, copyErr,
+						layerIndex, stateName, copyErr,
 					)
 				}
 				stateCopies = append(stateCopies, copySpec)
@@ -276,7 +270,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 		owner:      newDeviceCacheOwner(outputs, 1),
 		Keys:       make([]executor.DeviceValue, len(cache.Keys)),
 		Values:     make([]executor.DeviceValue, len(cache.Values)),
-		States:     make([]map[model.CacheStateName]deviceLayerState, len(cache.States)),
+		States:     make([]deviceLayerStates, len(cache.States)),
 		Tokens:     cache.Tokens - discard,
 		Position:   cache.Position,
 		PageTokens: cache.PageTokens,
@@ -288,7 +282,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	stateOffset := 2 * len(next.Keys)
 	for index, target := range stateTargets {
 		if next.States[target.layer] == nil {
-			next.States[target.layer] = make(map[model.CacheStateName]deviceLayerState)
+			next.States[target.layer] = make(deviceLayerStates)
 		}
 		next.States[target.layer][target.name] = deviceLayerState{
 			Mode: target.mode, Value: values[stateOffset+index],
@@ -400,13 +394,14 @@ type deviceBatchGraph struct {
 	logits       *tensor.Tensor
 	keys         []*tensor.Tensor
 	values       []*tensor.Tensor
-	states       []map[model.CacheStateName]deviceGraphState
+	states       []deviceGraphStates
 	pastTokens   uint32
 	nextPosition uint32
 	tokenCount   uint32
 }
 
 type deviceGraphState = model.CacheState[*tensor.Tensor]
+type deviceGraphStates = model.CacheStates[*tensor.Tensor]
 
 // forwardDeviceCachedBatchLocked: one graph, variable independent branches.
 func (r *Runner) forwardDeviceCachedBatchLocked(
@@ -433,13 +428,8 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		for layer := range graph.keys {
 			outputs = append(outputs, graph.keys[layer], graph.values[layer])
 			if len(graph.states[layer]) != 0 {
-				names := make([]string, 0, len(graph.states[layer]))
-				for name := range graph.states[layer] {
-					names = append(names, string(name))
-				}
-				sort.Strings(names)
-				for _, name := range names {
-					outputs = append(outputs, graph.states[layer][model.CacheStateName(name)].Value)
+				for _, name := range graph.states[layer].SortedNames() {
+					outputs = append(outputs, graph.states[layer][name].Value)
 				}
 			}
 		}
@@ -466,7 +456,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		cache := &deviceKVCache{
 			Keys:       make([]executor.DeviceValue, len(graph.keys)),
 			Values:     make([]executor.DeviceValue, len(graph.values)),
-			States:     make([]map[model.CacheStateName]deviceLayerState, len(graph.states)),
+			States:     make([]deviceLayerStates, len(graph.states)),
 			Tokens:     graph.pastTokens + graph.tokenCount,
 			Position:   graph.nextPosition + graph.tokenCount,
 			PageTokens: r.cachePageTokens,
@@ -483,7 +473,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 				return fail(fmt.Errorf("inference: missing retained value for branch %d layer %d", index, layer))
 			}
 			if len(graph.states[layer]) != 0 {
-				cache.States[layer] = make(map[model.CacheStateName]deviceLayerState, len(graph.states[layer]))
+				cache.States[layer] = make(deviceLayerStates, len(graph.states[layer]))
 				for name, state := range graph.states[layer] {
 					value, present := retained.Value(state.Value)
 					if !present {
@@ -610,7 +600,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
-	states := make([]map[model.CacheStateName]deviceGraphState, len(r.weights.Layers))
+	states := make([]deviceGraphStates, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, info.Recurrent)
 		graphWeights, layerFeeds, layerErr := r.layerDeviceInputs(builder, info)
@@ -703,7 +693,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		current = result.Output
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		if len(result.States)+len(result.FixedStates) != 0 {
-			states[layerIndex] = make(map[model.CacheStateName]deviceGraphState, len(result.States)+len(result.FixedStates))
+			states[layerIndex] = make(deviceGraphStates, len(result.States)+len(result.FixedStates))
 			for name, value := range result.States {
 				states[layerIndex][name] = deviceGraphState{Mode: CacheStateToken, Value: value}
 			}

@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"llamacpp2go/internal/tensor"
 )
@@ -26,6 +28,31 @@ const (
 type CacheState[T any] struct {
 	Mode  CacheStateMode
 	Value T
+}
+
+// CacheStates: named representation-specific state collection.
+type CacheStates[T any] map[CacheStateName]CacheState[T]
+
+func (s CacheStates[T]) Clone() CacheStates[T] {
+	return maps.Clone(s)
+}
+
+func (s CacheStates[T]) CloneValues(clone func(T) T) CacheStates[T] {
+	result := maps.Clone(s)
+	for name, state := range result {
+		state.Value = clone(state.Value)
+		result[name] = state
+	}
+	return result
+}
+
+func (s CacheStates[T]) SortedNames() []CacheStateName {
+	names := make([]CacheStateName, 0, len(s))
+	for name := range s {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
 }
 
 func (m CacheStateMode) Valid() bool {

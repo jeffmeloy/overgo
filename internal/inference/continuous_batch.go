@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"sort"
 	"sync"
@@ -341,12 +340,12 @@ func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
 		result.Pages[index].Keys = slices.Clone(page.Keys)
 		result.Pages[index].Values = slices.Clone(page.Values)
 	}
-	result.States = make([]map[model.CacheStateName]deviceLayerState, len(source.States))
+	result.States = make([]deviceLayerStates, len(source.States))
 	for layer, states := range source.States {
 		if states == nil {
 			continue
 		}
-		result.States[layer] = maps.Clone(states)
+		result.States[layer] = states.Clone()
 	}
 	return &result, nil
 }

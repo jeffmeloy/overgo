@@ -137,10 +137,10 @@ func BuildDeepSeek4BlockCached(
 	}
 	states := make(map[string]*tensor.Tensor)
 	cachePositions := currentPositions
-	if previous := pastStates["positions"]; previous != nil {
+	if previous := pastStates[CacheStatePositions]; previous != nil {
 		cachePositions = builder.Concat(previous, currentPositions, 2)
 	}
-	states["positions"] = cachePositions
+	states[CacheStatePositions] = cachePositions
 	appendState := func(name string, current *tensor.Tensor) *tensor.Tensor {
 		if current == nil {
 			return nil
@@ -158,8 +158,8 @@ func BuildDeepSeek4BlockCached(
 		for index, position := range positions {
 			rows[index] = position % ratio
 		}
-		compressorKV = appendState("compressor_kv", builder.MulMat(weights.AttentionCompressorKV, current))
-		compressorScore = appendState("compressor_score", builder.Add(
+		compressorKV = appendState(CacheStateCompressorKV, builder.MulMat(weights.AttentionCompressorKV, current))
+		compressorScore = appendState(CacheStateCompressorScore, builder.Add(
 			builder.MulMat(weights.AttentionCompressorGate, current), builder.GetRows(weights.AttentionCompressorAPE, rows),
 		))
 	}
@@ -173,8 +173,8 @@ func BuildDeepSeek4BlockCached(
 		for index, position := range positions {
 			rows[index] = position % 4
 		}
-		indexerKV = appendState("indexer_compressor_kv", builder.MulMat(weights.IndexerCompressorKV, current))
-		indexerScore = appendState("indexer_compressor_score", builder.Add(
+		indexerKV = appendState(CacheStateIndexerCompressorKV, builder.MulMat(weights.IndexerCompressorKV, current))
+		indexerScore = appendState(CacheStateIndexerCompressorScore, builder.Add(
 			builder.MulMat(weights.IndexerCompressorGate, current), builder.GetRows(weights.IndexerCompressorAPE, rows),
 		))
 	}

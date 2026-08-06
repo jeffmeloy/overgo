@@ -422,8 +422,8 @@ func (r *Runner) runT5DecoderLayer(
 	} else {
 		pastSelfKey = runtime.input("past_self_key", past.Key)
 		pastSelfValue = runtime.input("past_self_value", past.Value)
-		crossKey, hasKey := past.States["cross_key"]
-		crossValue, hasValue := past.States["cross_value"]
+		crossKey, hasKey := past.States[model.CacheStateCrossKey]
+		crossValue, hasValue := past.States[model.CacheStateCrossValue]
 		if !hasKey || !hasValue {
 			return reference.Value{}, LayerCache{}, errors.New("T5 decoder cross cache is missing")
 		}

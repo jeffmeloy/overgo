@@ -120,7 +120,7 @@ func (r *Runner) AdvanceNextNMTP(
 		pastKey = graph.input("nextn_mtp.past_key", session.Layer.Key)
 		pastValue = graph.input("nextn_mtp.past_value", session.Layer.Value)
 	}
-	if state, ok := session.Layer.States["indexer_key"]; ok {
+	if state, ok := session.Layer.States[model.CacheStateIndexerKey]; ok {
 		pastIndexerKey = graph.input("nextn_mtp.past_indexer_key", state.Value)
 	}
 	if session.Layer.Auxiliary != nil {
@@ -148,7 +148,7 @@ func (r *Runner) AdvanceNextNMTP(
 		return reference.Value{}, nil, err
 	}
 	outputs := []*tensor.Tensor{logits, nextHidden, block.Key, block.Value}
-	indexerKey := block.States["indexer_key"]
+	indexerKey := block.States[model.CacheStateIndexerKey]
 	if indexerKey != nil {
 		outputs = append(outputs, indexerKey)
 	}
@@ -161,7 +161,7 @@ func (r *Runner) AdvanceNextNMTP(
 	nextLayer := LayerCache{Key: results[block.Key], Value: results[block.Value]}
 	if indexerKey != nil {
 		nextLayer.States = map[string]LayerState{
-			"indexer_key": {Mode: CacheStateToken, Value: results[indexerKey]},
+			model.CacheStateIndexerKey: {Mode: CacheStateToken, Value: results[indexerKey]},
 		}
 	}
 	if block.Auxiliary != nil {
@@ -188,7 +188,7 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	if err := r.validateSingleHeadMTPSession(session, "NextN MTP", false); err != nil {
 		return err
 	}
-	indexerState, hasIndexerState := session.Layer.States["indexer_key"]
+	indexerState, hasIndexerState := session.Layer.States[model.CacheStateIndexerKey]
 	profile := r.profile()
 	if profile.Attention == model.AttentionDSA && profile.Auxiliary != model.AuxiliaryDSATopK {
 		wantTokens := uint64(session.Position - session.MTPStart)

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -19,7 +20,7 @@ func TestSessionStateRoundTripRestoresSampler(t *testing.T) {
 		Cache:    cacheTestValue(t),
 	}
 	session.Cache.Layers[0].States = map[string]LayerState{
-		"indexer_key": {Mode: CacheStateToken, Value: session.Cache.Layers[0].Key.Clone()},
+		model.CacheStateIndexerKey: {Mode: CacheStateToken, Value: session.Cache.Layers[0].Key.Clone()},
 	}
 	config := sampling.Config{Temperature: 0.8, TopK: 3, Seed: 91}
 	source, err := sampling.New(config)

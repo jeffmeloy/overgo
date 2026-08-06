@@ -786,20 +786,20 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		convShape := schema.States["conv_state"].Shape
-		ssmShape := schema.States["ssm_state"].Shape
+		convShape := schema.States[model.CacheStateConvolution].Shape
+		ssmShape := schema.States[model.CacheStateSSM].Shape
 		var convState, ssmState *tensor.Tensor
 		if past != nil && layerIndex < len(past.States) {
-			conv, hasConv := past.States[layerIndex]["conv_state"]
-			ssm, hasSSM := past.States[layerIndex]["ssm_state"]
+			conv, hasConv := past.States[layerIndex][model.CacheStateConvolution]
+			ssm, hasSSM := past.States[layerIndex][model.CacheStateSSM]
 			if hasConv && hasSSM {
-				convState = inputDevice(name("conv_state"), conv.Value)
-				ssmState = inputDevice(name("ssm_state"), ssm.Value)
+				convState = inputDevice(name(model.CacheStateConvolution), conv.Value)
+				ssmState = inputDevice(name(model.CacheStateSSM), ssm.Value)
 			}
 		}
 		if convState == nil || ssmState == nil {
-			convState = inputZero(name("conv_state"), convShape)
-			ssmState = inputZero(name("ssm_state"), ssmShape)
+			convState = inputZero(name(model.CacheStateConvolution), convShape)
+			ssmState = inputZero(name(model.CacheStateSSM), ssmShape)
 		}
 		return pastKey, pastValue, convState, ssmState, nil
 	}

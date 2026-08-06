@@ -451,7 +451,7 @@ func TestBuildT5DecoderBlockCached(t *testing.T) {
 	}
 	if !result.Output.Shape.Equal(input.Shape) ||
 		!result.Key.Shape.Equal(tensor.MustShape(4, 2, 2)) ||
-		!result.FixedStates["cross_key"].Shape.Equal(tensor.MustShape(4, 2, 3)) {
+		!result.FixedStates[CacheStateCrossKey].Shape.Equal(tensor.MustShape(4, 2, 3)) {
 		t.Fatalf("unexpected T5 decoder result: %+v", result)
 	}
 	var causalRelative, crossAttention, relu bool
@@ -477,8 +477,8 @@ func TestBuildQwen35RecurrentBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := qwen35TestSpec()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
-	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+	convState := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 8))
+	ssmState := builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 2, 2, 1))
 	result, err := BuildQwen35BlockCached(
 		builder,
 		input,
@@ -538,8 +538,8 @@ func TestBuildQwen35MoEBlocks(t *testing.T) {
 			var convState, ssmState *tensor.Tensor
 			if recurrent {
 				weights = qwen35RecurrentInputs(builder, spec)
-				convState = builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
-				ssmState = builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+				convState = builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 8))
+				ssmState = builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 2, 2, 1))
 			}
 			setQwen35MoEInputs(builder, spec, &weights)
 			result, err := BuildQwen35BlockCached(
@@ -596,8 +596,8 @@ func TestBuildQwen3NextBlocks(t *testing.T) {
 				weights.SSMBeta = nil
 				weights.SSMAlpha = nil
 				weights.SSMBetaAlpha = builder.Input("ssm_ba", dtype.F32, tensor.MustShape(8, 4))
-				convState = builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
-				ssmState = builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+				convState = builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 8))
+				ssmState = builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 2, 2, 1))
 			}
 			setQwen35MoEInputs(builder, spec, &weights)
 			result, err := BuildQwen35BlockCached(
@@ -651,8 +651,8 @@ func TestBuildQwen3NextLegacyQKVZBlock(t *testing.T) {
 	weights.SSMAlpha = nil
 	weights.SSMBetaAlpha = builder.Input("ssm_ba", dtype.F32, tensor.MustShape(8, 4))
 	setQwen35MoEInputs(builder, spec, &weights)
-	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
-	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
+	convState := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 8))
+	ssmState := builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 2, 2, 1))
 	result, err := BuildQwen35BlockCached(
 		builder, input, spec, weights, []uint32{0, 1}, true,
 		nil, nil, convState, ssmState,

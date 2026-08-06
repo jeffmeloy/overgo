@@ -376,7 +376,7 @@ func (r *Runner) runLFM2LayerCached(
 		} else {
 			keyValue, valueValue = past.Key, past.Value
 		}
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, keyValue.Shape)
+		pastKey = builder.Input(fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateConvolution), dtype.F32, keyValue.Shape)
 		pastValue = builder.Input(fmt.Sprintf("blk.%d.reserved_state", layerIndex), dtype.F32, valueValue.Shape)
 		hostFeeds[pastKey], hostFeeds[pastValue] = keyValue, valueValue
 	} else if past != nil {
@@ -433,7 +433,7 @@ func (r *Runner) runLFM2LayerNonCausal(
 		reservedValue := reference.Value{
 			Shape: tensor.MustShape(1), Data: []float32{0},
 		}
-		state = builder.Input(fmt.Sprintf("blk.%d.conv_state", layerIndex), dtype.F32, stateShape)
+		state = builder.Input(fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateConvolution), dtype.F32, stateShape)
 		reserved = builder.Input(
 			fmt.Sprintf("blk.%d.reserved_state", layerIndex), dtype.F32, reservedValue.Shape,
 		)
@@ -536,12 +536,12 @@ func (r *Runner) runQwen35LayerCached(
 			ssmValue = past.Value
 		}
 		convState = builder.Input(
-			fmt.Sprintf("blk.%d.conv_state", layerIndex),
+			fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateConvolution),
 			dtype.F32,
 			convValue.Shape,
 		)
 		ssmState = builder.Input(
-			fmt.Sprintf("blk.%d.ssm_state", layerIndex),
+			fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateSSM),
 			dtype.F32,
 			ssmValue.Shape,
 		)

@@ -47,11 +47,11 @@ func (r *Runner) hostLayerCacheInputs(
 		for stateName, state := range past.States {
 			node := input(stateName, state.Value)
 			switch stateName {
-			case "indexer_key":
+			case model.CacheStateIndexerKey:
 				result.indexerKey = node
-			case "conv_state":
+			case model.CacheStateConvolution:
 				result.convState = node
-			case "ssm_state":
+			case model.CacheStateSSM:
 				result.ssmState = node
 			default:
 				result.states[stateName] = node
@@ -66,11 +66,11 @@ func (r *Runner) hostLayerCacheInputs(
 			continue
 		}
 		switch stateName {
-		case "conv_state":
+		case model.CacheStateConvolution:
 			if result.convState == nil {
 				result.convState = zero(stateName, stateSchema.Shape)
 			}
-		case "ssm_state":
+		case model.CacheStateSSM:
 			if result.ssmState == nil {
 				result.ssmState = zero(stateName, stateSchema.Shape)
 			}

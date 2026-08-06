@@ -69,13 +69,13 @@ func upgradeDeepSeek4CachePositions(cache *KVCache) {
 	}
 	shape := tensor.MustShape(1, 1, uint64(cache.Tokens))
 	for index := range cache.Layers {
-		if _, present := cache.Layers[index].States["positions"]; present {
+		if _, present := cache.Layers[index].States[model.CacheStatePositions]; present {
 			continue
 		}
 		if cache.Layers[index].States == nil {
 			cache.Layers[index].States = make(map[string]LayerState)
 		}
-		cache.Layers[index].States["positions"] = LayerState{
+		cache.Layers[index].States[model.CacheStatePositions] = LayerState{
 			Mode: CacheStateToken, Value: reference.Value{Shape: shape, Data: slices.Clone(data)},
 		}
 	}
@@ -132,7 +132,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			return fmt.Errorf("inference: KV cache layer %d: %w", index, err)
 		}
 		if plan.Attention == model.AttentionDSA {
-			state, present := layer.States["indexer_key"]
+			state, present := layer.States[model.CacheStateIndexerKey]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
 				if !present || state.Mode != CacheStateToken || !state.Value.Shape.Equal(want) {
@@ -143,7 +143,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 		}
 		if plan.Cache == model.CacheDeepSeek4 {
-			positions := layer.States["positions"].Value.Data
+			positions := layer.States[model.CacheStatePositions].Value.Data
 			for item, value := range positions {
 				position := uint32(value)
 				if value < 0 || float32(position) != value || position >= effectiveCachePosition(cache) ||
@@ -162,8 +162,8 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 		}
 		if plan.Cache == model.CacheT5 {
-			crossKey := layer.States["cross_key"].Value.Shape.Dims[2]
-			crossValue := layer.States["cross_value"].Value.Shape.Dims[2]
+			crossKey := layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2]
+			crossValue := layer.States[model.CacheStateCrossValue].Value.Shape.Dims[2]
 			if crossKey != crossValue {
 				return fmt.Errorf(
 					"inference: T5 cache layer %d cross-attention lengths differ",
@@ -274,10 +274,10 @@ func (r *Runner) validateT5Cache(cache *KVCache, encoderTokens uint64) error {
 		return err
 	}
 	for index, layer := range cache.Layers {
-		if layer.States["cross_key"].Value.Shape.Dims[2] != encoderTokens {
+		if layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2] != encoderTokens {
 			return fmt.Errorf(
 				"inference: T5 cache layer %d encoder length %d, need %d",
-				index, layer.States["cross_key"].Value.Shape.Dims[2], encoderTokens,
+				index, layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2], encoderTokens,
 			)
 		}
 	}

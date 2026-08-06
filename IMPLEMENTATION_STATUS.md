@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Cache schemas now own the serialized names for DSA indexer, DeepSeek 4
+  compression, recurrent convolution/SSM, position, and T5 cross-attention
+  states. Graph builders, host/device cache binding, validation, sessions, and
+  fixtures consume the canonical ABI facts instead of repeating literals.
 - Ordered graph-weight schemas now replace per-family requirement maps across
   dense, encoder, MLA/DSA, recurrent, state-space, multimodal, and specialized
   graph builders. Conditional contracts compose through one typed API, retain

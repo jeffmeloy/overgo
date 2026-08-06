@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 cache-ABI wave centralized every serialized named-state fact in
+  the model cache schema. Graph output, host/device binding, validation,
+  session paths, NextN drafting, and fixtures now consume the same DSA,
+  DeepSeek 4, recurrent, position, and T5 cross-attention state names.
 - The August 6 graph-weight wave replaced every execution-time requirement map
   with one ordered typed schema. Dense, encoder, MLA/DSA, Mamba, RWKV,
   DeepSeek 4, Gemma, Qwen, Kimi, LFM, and WavTokenizer builders now share

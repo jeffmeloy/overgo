@@ -45,8 +45,8 @@ func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 	cache.Layers[0].States = map[string]LayerState{
-		"indexer_key": {Mode: CacheStateToken, Value: tokenState},
-		"conv_state":  {Mode: CacheStateFixed, Value: fixedState},
+		model.CacheStateIndexerKey:  {Mode: CacheStateToken, Value: tokenState},
+		model.CacheStateConvolution: {Mode: CacheStateFixed, Value: fixedState},
 	}
 	payload, err := runner.SaveCache(cache)
 	if err != nil {
@@ -62,8 +62,8 @@ func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 
 	reordered := cacheTestValue(t)
 	reordered.Layers[0].States = map[string]LayerState{
-		"conv_state":  {Mode: CacheStateFixed, Value: fixedState},
-		"indexer_key": {Mode: CacheStateToken, Value: tokenState},
+		model.CacheStateConvolution: {Mode: CacheStateFixed, Value: fixedState},
+		model.CacheStateIndexerKey:  {Mode: CacheStateToken, Value: tokenState},
 	}
 	reorderedPayload, err := runner.SaveCache(reordered)
 	if err != nil {
@@ -77,14 +77,14 @@ func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := trimmed.Layers[0].States["indexer_key"].Value.Data; !reflect.DeepEqual(got, []float32{12}) {
+	if got := trimmed.Layers[0].States[model.CacheStateIndexerKey].Value.Data; !reflect.DeepEqual(got, []float32{12}) {
 		t.Fatalf("trimmed token state = %v, want [12]", got)
 	}
-	if got := trimmed.Layers[0].States["conv_state"].Value.Data; !reflect.DeepEqual(got, []float32{21, 22}) {
+	if got := trimmed.Layers[0].States[model.CacheStateConvolution].Value.Data; !reflect.DeepEqual(got, []float32{21, 22}) {
 		t.Fatalf("fixed state = %v, want [21 22]", got)
 	}
-	trimmed.Layers[0].States["conv_state"].Value.Data[0] = 99
-	if restored.Layers[0].States["conv_state"].Value.Data[0] != 21 {
+	trimmed.Layers[0].States[model.CacheStateConvolution].Value.Data[0] = 99
+	if restored.Layers[0].States[model.CacheStateConvolution].Value.Data[0] != 21 {
 		t.Fatal("edited fixed state aliases source cache")
 	}
 }
@@ -152,7 +152,7 @@ func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
 		Layers: []LayerCache{{
 			Key: key, Value: value,
 			States: map[string]LayerState{
-				"indexer_key": {Mode: CacheStateToken, Value: indexerKey},
+				model.CacheStateIndexerKey: {Mode: CacheStateToken, Value: indexerKey},
 			},
 		}},
 		Tokens: 2, Position: 2,
@@ -168,7 +168,7 @@ func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
 	if !reflect.DeepEqual(restored, cache) {
 		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
 	}
-	delete(cache.Layers[0].States, "indexer_key")
+	delete(cache.Layers[0].States, model.CacheStateIndexerKey)
 	if err := runner.validateCache(cache); err == nil {
 		t.Fatal("DeepSeek 3.2 cache without indexer state was accepted")
 	}
@@ -184,9 +184,11 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 		return LayerState{Mode: CacheStateToken, Value: value}
 	}
 	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: key, States: map[string]LayerState{
-		"positions":     {Mode: CacheStateToken, Value: reference.Value{Shape: tensor.MustShape(1, 1, 2), Data: []float32{0, 1}}},
-		"compressor_kv": state(8), "compressor_score": state(8),
-		"indexer_compressor_kv": state(16), "indexer_compressor_score": state(16),
+		model.CacheStatePositions:              {Mode: CacheStateToken, Value: reference.Value{Shape: tensor.MustShape(1, 1, 2), Data: []float32{0, 1}}},
+		model.CacheStateCompressorKV:           state(8),
+		model.CacheStateCompressorScore:        state(8),
+		model.CacheStateIndexerCompressorKV:    state(16),
+		model.CacheStateIndexerCompressorScore: state(16),
 	}}}, Tokens: 2, Position: 2}
 	payload, err := runner.SaveCache(cache)
 	if err != nil {
@@ -210,7 +212,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	for name, state := range cache.Layers[0].States {
 		width := state.Value.Shape.Dims[0]
 		data := make([]float32, int(4*width))
-		if name == "positions" {
+		if name == model.CacheStatePositions {
 			data = []float32{0, 1, 2, 3}
 		}
 		state.Value, _ = reference.NewValue(tensor.MustShape(width, 1, 4), data)
@@ -220,10 +222,10 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := edited.Layers[0].States["positions"].Value.Data; !reflect.DeepEqual(got, []float32{0, 2, 3}) {
+	if got := edited.Layers[0].States[model.CacheStatePositions].Value.Data; !reflect.DeepEqual(got, []float32{0, 2, 3}) {
 		t.Fatalf("DeepSeek 4 edited positions = %v", got)
 	}
-	delete(cache.Layers[0].States, "indexer_compressor_score")
+	delete(cache.Layers[0].States, model.CacheStateIndexerCompressorScore)
 	if err := runner.validateCache(cache); err == nil {
 		t.Fatal("DeepSeek 4 cache without indexer compressor score was accepted")
 	}
@@ -268,13 +270,13 @@ func TestFalconH1CacheValidation(t *testing.T) {
 	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value, States: map[string]LayerState{
-		"conv_state": {Mode: CacheStateFixed, Value: conv},
-		"ssm_state":  {Mode: CacheStateFixed, Value: ssm},
+		model.CacheStateConvolution: {Mode: CacheStateFixed, Value: conv},
+		model.CacheStateSSM:         {Mode: CacheStateFixed, Value: ssm},
 	}}}, Tokens: 2, Position: 2}
 	if err := runner.validateCache(cache); err != nil {
 		t.Fatal(err)
 	}
-	cache.Layers[0].States["conv_state"] = LayerState{Mode: CacheStateToken, Value: conv}
+	cache.Layers[0].States[model.CacheStateConvolution] = LayerState{Mode: CacheStateToken, Value: conv}
 	if err := runner.validateCache(cache); err == nil {
 		t.Fatal("Falcon-H1 token-mode recurrent state was accepted")
 	}
@@ -289,8 +291,8 @@ func TestT5CacheValidation(t *testing.T) {
 	cache := &KVCache{Layers: []LayerCache{{
 		Key: key, Value: value,
 		States: map[string]LayerState{
-			"cross_key":   {Mode: CacheStateFixed, Value: crossKey},
-			"cross_value": {Mode: CacheStateFixed, Value: crossValue},
+			model.CacheStateCrossKey:   {Mode: CacheStateFixed, Value: crossKey},
+			model.CacheStateCrossValue: {Mode: CacheStateFixed, Value: crossValue},
 		},
 	}}, Tokens: 2, Position: 2}
 	if err := runner.validateT5Cache(cache, 4); err != nil {
@@ -308,13 +310,13 @@ func TestT5CacheValidation(t *testing.T) {
 		!shifted.Layers[0].Value.Shape.Equal(tensor.MustShape(3, 1, 1)) {
 		t.Fatalf("shifted T5 cache = %+v", shifted)
 	}
-	if !shifted.Layers[0].States["cross_key"].Value.Shape.Equal(crossKey.Shape) ||
-		!shifted.Layers[0].States["cross_value"].Value.Shape.Equal(crossValue.Shape) {
+	if !shifted.Layers[0].States[model.CacheStateCrossKey].Value.Shape.Equal(crossKey.Shape) ||
+		!shifted.Layers[0].States[model.CacheStateCrossValue].Value.Shape.Equal(crossValue.Shape) {
 		t.Fatalf("shifted T5 cross cache changed: %+v", shifted.Layers[0].States)
 	}
-	state := cache.Layers[0].States["cross_key"]
+	state := cache.Layers[0].States[model.CacheStateCrossKey]
 	state.Mode = CacheStateToken
-	cache.Layers[0].States["cross_key"] = state
+	cache.Layers[0].States[model.CacheStateCrossKey] = state
 	if err := runner.validateCache(cache); err == nil {
 		t.Fatal("token-aligned T5 cross cache was accepted")
 	}

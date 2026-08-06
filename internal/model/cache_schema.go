@@ -14,6 +14,19 @@ const (
 	CacheExtentToken
 )
 
+const (
+	CacheStateIndexerKey             = "indexer_key"
+	CacheStatePositions              = "positions"
+	CacheStateCompressorKV           = "compressor_kv"
+	CacheStateCompressorScore        = "compressor_score"
+	CacheStateIndexerCompressorKV    = "indexer_compressor_kv"
+	CacheStateIndexerCompressorScore = "indexer_compressor_score"
+	CacheStateConvolution            = "conv_state"
+	CacheStateSSM                    = "ssm_state"
+	CacheStateCrossKey               = "cross_key"
+	CacheStateCrossValue             = "cross_value"
+)
+
 // CacheValueSchema: named or primary state contract.
 type CacheValueSchema struct {
 	Extent       CacheExtent
@@ -58,33 +71,33 @@ func CacheSchemaForPlan(
 		return CacheValueSchema{Extent: CacheExtentToken, Shape: shape}
 	}
 	if plan.Attention == AttentionDSA && spec.LayerHasFullIndexer(plan.Layer) {
-		schema.States["indexer_key"] = token(tensor.MustShape(
+		schema.States[CacheStateIndexerKey] = token(tensor.MustShape(
 			uint64(spec.IndexerKeyLength), 1, uint64(shapeTokens),
 		))
 	}
 	if plan.Cache == CacheDeepSeek4 {
 		ratio := tensor.DeepSeek4CompressionRatio(spec.CompressRatios[layerIndex])
 		schema.StrictStates = true
-		schema.States["positions"] = token(tensor.MustShape(1, 1, uint64(shapeTokens)))
+		schema.States[CacheStatePositions] = token(tensor.MustShape(1, 1, uint64(shapeTokens)))
 		if ratio.Enabled() {
 			coefficient := ratio.KVWidthMultiplier()
 			shape := tensor.MustShape(coefficient*uint64(spec.KeyLength), 1, uint64(shapeTokens))
-			schema.States["compressor_kv"] = token(shape)
-			schema.States["compressor_score"] = token(shape)
+			schema.States[CacheStateCompressorKV] = token(shape)
+			schema.States[CacheStateCompressorScore] = token(shape)
 		}
 		if ratio.UsesIndexer() {
 			shape := tensor.MustShape(2*uint64(spec.IndexerKeyLength), 1, uint64(shapeTokens))
-			schema.States["indexer_compressor_kv"] = token(shape)
-			schema.States["indexer_compressor_score"] = token(shape)
+			schema.States[CacheStateIndexerCompressorKV] = token(shape)
+			schema.States[CacheStateIndexerCompressorScore] = token(shape)
 		}
 	}
 	if plan.Cache == CacheFalconH1 {
 		channels := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
-		schema.States["conv_state"] = fixed(tensor.MustShape(
+		schema.States[CacheStateConvolution] = fixed(tensor.MustShape(
 			uint64(spec.SSMConvKernel-1), channels,
 		))
-		schema.States["ssm_state"] = fixed(tensor.MustShape(
+		schema.States[CacheStateSSM] = fixed(tensor.MustShape(
 			uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize),
 		))
 	}
@@ -94,8 +107,8 @@ func CacheSchemaForPlan(
 		key.VariableLast = true
 		value := fixed(shapes.ValueCache(1))
 		value.VariableLast = true
-		schema.States["cross_key"] = key
-		schema.States["cross_value"] = value
+		schema.States[CacheStateCrossKey] = key
+		schema.States[CacheStateCrossValue] = value
 	}
 
 	first, second, recurrent, label, err := recurrentCacheSchema(spec, plan)

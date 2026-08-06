@@ -714,7 +714,7 @@ func BuildT5DecoderBlockCached(
 		Key:    cacheKey,
 		Value:  cacheValue,
 		FixedStates: map[string]*tensor.Tensor{
-			"cross_key": crossKey, "cross_value": crossValue,
+			CacheStateCrossKey: crossKey, CacheStateCrossValue: crossValue,
 		},
 	}, nil
 }

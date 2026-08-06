@@ -2,19 +2,6 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "bom-ref": "component:adaptive_new-optimizer-mathematics",
-      "licenses": [
-        {
-          "license": {
-            "name": "MIT"
-          }
-        }
-      ],
-      "name": "adaptive_new optimizer mathematics",
-      "type": "library",
-      "version": "9d4b38364c2cacba3ee99b998bd84d4645bfbe46"
-    },
-    {
       "bom-ref": "component:nvidia-cuda-driver-api",
       "licenses": [
         {
@@ -716,7 +703,6 @@
   "dependencies": [
     {
       "dependsOn": [
-        "component:adaptive_new-optimizer-mathematics",
         "component:nvidia-cuda-driver-api",
         "component:nvidia-cuda-toolkit",
         "file:internal/cuda/kernel/ops_f32.ptx",
@@ -796,10 +782,6 @@
       {
         "name": "llamacpp2go:upstream-commit",
         "value": "42fc243060709331ff9b158a9ed2cbe37219ae83"
-      },
-      {
-        "name": "llamacpp2go:adaptive-optimizer-commit",
-        "value": "9d4b38364c2cacba3ee99b998bd84d4645bfbe46"
       }
     ],
     "tools": {

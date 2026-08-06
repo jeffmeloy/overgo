@@ -14,7 +14,7 @@ func PublicationBatch(
 	documents []Document,
 	aliases []artifact.AliasBinding,
 ) (artifact.Batch, error) {
-	batch := artifact.Batch{Key: key, Aliases: cloneAliases(aliases)}
+	batch := artifact.Batch{Key: key, Aliases: artifact.CloneAliasBindings(aliases)}
 	published := make(map[artifact.ID]struct{}, len(documents))
 	for _, document := range documents {
 		if _, duplicate := published[document.ID]; duplicate {
@@ -100,16 +100,4 @@ func Resolve(ctx context.Context, store artifact.Reader, alias string) (Document
 		return Document{}, false, fmt.Errorf("dataset: resolve %q: %w", alias, err)
 	}
 	return document, found, nil
-}
-
-func cloneAliases(aliases []artifact.AliasBinding) []artifact.AliasBinding {
-	result := make([]artifact.AliasBinding, len(aliases))
-	for index, alias := range aliases {
-		result[index] = alias
-		if alias.Previous != nil {
-			previous := *alias.Previous
-			result[index].Previous = &previous
-		}
-	}
-	return result
 }

@@ -32,6 +32,9 @@ claims.
 
 ## Validated milestones
 
+- The August 6 artifact-ownership wave removed duplicate optional-ID and alias
+  compare-and-set cloning from dataset, recipe, lifecycle, and persistence
+  packages; one tested artifact helper now owns caller-pointer isolation.
 - The August 6 RepoDB document-contract wave consolidated kind/media/schema
   facts, bounded identity hashing, descriptor construction, byte ownership, and
   stored-content validation across dataset, recipe, evidence, model, run, and

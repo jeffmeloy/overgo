@@ -74,14 +74,14 @@ func NewVersion(assets []Asset) (Document, error) {
 
 func NewView(source artifact.ID, selector *artifact.ID, fields []string) (Document, error) {
 	return newDocument(Document{
-		Version: Version, Type: TypeView, Source: cloneID(idPointer(source)),
-		Selector: cloneID(selector), Fields: slices.Clone(fields),
+		Version: Version, Type: TypeView, Source: artifact.IDPointer(source),
+		Selector: artifact.CloneID(selector), Fields: slices.Clone(fields),
 	})
 }
 
 func NewSplit(source artifact.ID, partitions []Partition) (Document, error) {
 	return newDocument(Document{
-		Version: Version, Type: TypeSplit, Source: cloneID(idPointer(source)),
+		Version: Version, Type: TypeSplit, Source: artifact.IDPointer(source),
 		Partitions: slices.Clone(partitions),
 	})
 }
@@ -198,8 +198,8 @@ func canonicalize(document *Document) error {
 	if document == nil || document.Version != Version {
 		return errors.New("dataset: invalid document version")
 	}
-	document.Source = cloneID(document.Source)
-	document.Selector = cloneID(document.Selector)
+	document.Source = artifact.CloneID(document.Source)
+	document.Selector = artifact.CloneID(document.Selector)
 	switch document.Type {
 	case TypeVersion:
 		if document.Source != nil || document.Selector != nil || len(document.Fields)+len(document.Partitions)+len(document.Members) != 0 {
@@ -316,16 +316,6 @@ func sameDocument(left, right Document) bool {
 
 func datasetID(id *artifact.ID) bool {
 	return id != nil && id.Kind() == artifact.KindDataset
-}
-
-func idPointer(id artifact.ID) *artifact.ID { return &id }
-
-func cloneID(id *artifact.ID) *artifact.ID {
-	if id == nil {
-		return nil
-	}
-	copy := *id
-	return &copy
 }
 
 func sameID(left, right *artifact.ID) bool {

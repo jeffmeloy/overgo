@@ -65,7 +65,7 @@ func NewLifecycleEvent(definition Definition, from, to Status, previousEvent, su
 	}
 	event := LifecycleEvent{
 		Version: LifecycleVersion, Recipe: definition.ID, Model: definition.Model, Task: definition.Task,
-		From: from, To: to, PreviousEvent: cloneID(previousEvent), Supersedes: cloneID(supersedes),
+		From: from, To: to, PreviousEvent: artifact.CloneID(previousEvent), Supersedes: artifact.CloneID(supersedes),
 		Evidence: slices.Clone(evidence),
 	}
 	if err := canonicalizeEvent(&event); err != nil {
@@ -196,12 +196,4 @@ func lifecycleContent(event LifecycleEvent) ([]byte, error) {
 		From: event.From, To: event.To, PreviousEvent: event.PreviousEvent,
 		Supersedes: event.Supersedes, Evidence: event.Evidence,
 	})
-}
-
-func cloneID(id *artifact.ID) *artifact.ID {
-	if id == nil {
-		return nil
-	}
-	copy := *id
-	return &copy
 }

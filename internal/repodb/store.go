@@ -562,7 +562,7 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		Contents:  cloneContents(batch.Contents),
 		Manifests: cloneManifests(batch.Manifests),
 		Lineage:   slices.Clone(batch.Lineage),
-		Aliases:   cloneAliases(batch.Aliases),
+		Aliases:   artifact.CloneAliasBindings(batch.Aliases),
 		Locations: slices.Clone(batch.Locations),
 	}
 	for _, content := range result.Contents {
@@ -666,18 +666,6 @@ func cloneContents(contents []artifact.Content) []artifact.Content {
 	result := slices.Clone(contents)
 	for index := range result {
 		result[index] = result[index].Clone()
-	}
-	return result
-}
-
-func cloneAliases(bindings []artifact.AliasBinding) []artifact.AliasBinding {
-	result := slices.Clone(bindings)
-	for index := range result {
-		if result[index].Previous == nil {
-			continue
-		}
-		previous := *result[index].Previous
-		result[index].Previous = &previous
 	}
 	return result
 }

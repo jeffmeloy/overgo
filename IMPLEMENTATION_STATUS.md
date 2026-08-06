@@ -32,6 +32,9 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Artifact ownership helpers now clone optional IDs and compare-and-set alias
+  bindings once. Dataset documents/publication, lifecycle transitions, and
+  RepoDB batch normalization no longer carry parallel pointer-copy routines.
 - RepoDB document families now share one typed artifact contract for kind,
   media type, schema, inline bounds, identity hashing, descriptor construction,
   owned bytes, and stored-content validation. Dataset, recipe, lifecycle,

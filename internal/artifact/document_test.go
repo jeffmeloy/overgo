@@ -48,3 +48,21 @@ func TestDocumentContractRejectsInvalidIdentityAndBounds(t *testing.T) {
 		t.Fatal("invalid kind accepted")
 	}
 }
+
+func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
+	previous, err := IdentifyBytes(KindModel, []byte("previous"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := IdentifyBytes(KindModel, []byte("target"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPrevious := previous
+	source := []AliasBinding{{Name: "model", Target: target, Previous: &previous}}
+	cloned := CloneAliasBindings(source)
+	*source[0].Previous = target
+	if cloned[0].Previous == source[0].Previous || *cloned[0].Previous != wantPrevious {
+		t.Fatal("alias clone retained caller pointer")
+	}
+}

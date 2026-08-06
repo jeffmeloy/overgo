@@ -160,7 +160,7 @@ func transition(
 		}
 		aliases = append(aliases, artifact.AliasBinding{
 			Name: activeAlias(definition.Model, definition.Task), Target: definition.ID,
-			Previous: cloneArtifactID(supersedes),
+			Previous: artifact.CloneID(supersedes),
 		})
 		if active {
 			oldDefinition, loadErr := loadDefinition(ctx, store, activeID)
@@ -292,12 +292,4 @@ func activeAlias(modelID artifact.ID, task recipe.Task) string {
 
 func legacyRecipeProfileAlias(recipeID artifact.ID) string {
 	return "recipe.profile." + recipeID.String()
-}
-
-func cloneArtifactID(id *artifact.ID) *artifact.ID {
-	if id == nil {
-		return nil
-	}
-	copy := *id
-	return &copy
 }

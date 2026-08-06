@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 metadata-field wave replaced eleven repeated map readers with
+  ordered typed field schemas. SSM, RWKV, expert, MLA/indexer, DeepSeek 4,
+  YaRN, xIELU, and WavTokenizer metadata now share deterministic scalar binding;
+  existing model fixtures cover the migrated success and failure contracts.
 - The August 6 metadata-read wave replaced all architecture-name selection in
   model metadata ingestion with resolved profile facts. Existing encoder,
   attention, MLA, recurrent, hybrid, forward, and capability policies cover

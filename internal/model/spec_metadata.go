@@ -135,10 +135,11 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	if err := m.readDraftLayers(spec); err != nil {
 		return specReadState{}, err
 	}
-	if spec.ContextLength, err = required[uint32](values, prefix+"context_length", gguf.ValueTypeUint32); err != nil {
-		return specReadState{}, err
-	}
-	if spec.EmbeddingLength, err = required[uint32](values, prefix+"embedding_length", gguf.ValueTypeUint32); err != nil {
+	if err = readRequiredMetadataFields(
+		values, prefix, gguf.ValueTypeUint32,
+		metadataDestination("context_length", &spec.ContextLength),
+		metadataDestination("embedding_length", &spec.EmbeddingLength),
+	); err != nil {
 		return specReadState{}, err
 	}
 	if err := m.readFamilyShape(spec); err != nil {
@@ -268,10 +269,11 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 		}
 	}
 	if policy.SWAHeadLengths {
-		if spec.KeyLengthSWA, err = required[uint32](values, prefix+"attention.key_length_swa", gguf.ValueTypeUint32); err != nil {
-			return err
-		}
-		if spec.ValueLengthSWA, err = required[uint32](values, prefix+"attention.value_length_swa", gguf.ValueTypeUint32); err != nil {
+		if err = readRequiredMetadataFields(
+			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("attention.key_length_swa", &spec.KeyLengthSWA),
+			metadataDestination("attention.value_length_swa", &spec.ValueLengthSWA),
+		); err != nil {
 			return err
 		}
 	}
@@ -326,12 +328,16 @@ func (m specMetadata) readPosition(spec *Spec) error {
 				if validation.Hybrid == HybridValidationGrok {
 					spec.YaRNBetaFast = 8
 				}
-				for key, destination := range map[string]*float32{
-					"rope.scaling.yarn_ext_factor": &spec.YaRNExtFactor, "rope.scaling.yarn_attn_factor": &spec.YaRNAttentionFactor,
-					"rope.scaling.yarn_beta_fast": &spec.YaRNBetaFast, "rope.scaling.yarn_beta_slow": &spec.YaRNBetaSlow,
+				for _, field := range []metadataField[float32]{
+					metadataDestination("rope.scaling.yarn_ext_factor", &spec.YaRNExtFactor),
+					metadataDestination("rope.scaling.yarn_attn_factor", &spec.YaRNAttentionFactor),
+					metadataDestination("rope.scaling.yarn_beta_fast", &spec.YaRNBetaFast),
+					metadataDestination("rope.scaling.yarn_beta_slow", &spec.YaRNBetaSlow),
 				} {
-					if value, ok := optional[float32](values, prefix+key, gguf.ValueTypeFloat32); ok {
-						*destination = value
+					if value, ok := optional[float32](
+						values, prefix+field.key, gguf.ValueTypeFloat32,
+					); ok {
+						*field.destination = value
 					}
 				}
 			}
@@ -424,13 +430,14 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if spec.EmbeddingLength, err = required[uint32](values, prefix+"features_length", gguf.ValueTypeUint32); err != nil {
 			return err
 		}
-		for key, destination := range map[string]*uint32{
-			"posnet.embedding_length": &spec.PosNetEmbeddingLength, "posnet.block_count": &spec.PosNetBlockCount,
-			"convnext.embedding_length": &spec.ConvNextEmbeddingLength, "convnext.block_count": &spec.ConvNextBlockCount,
-		} {
-			if *destination, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32); err != nil {
-				return err
-			}
+		if err = readRequiredMetadataFields(
+			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("posnet.embedding_length", &spec.PosNetEmbeddingLength),
+			metadataDestination("posnet.block_count", &spec.PosNetBlockCount),
+			metadataDestination("convnext.embedding_length", &spec.ConvNextEmbeddingLength),
+			metadataDestination("convnext.block_count", &spec.ConvNextBlockCount),
+		); err != nil {
+			return err
 		}
 	case validation.Recurrent == RecurrentValidationDFlash:
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {

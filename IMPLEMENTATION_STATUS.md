@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Ordered typed metadata field schemas now replace repeated map-based scalar
+  decoding across SSM, RWKV, expert, MLA/indexer, DeepSeek 4, YaRN, xIELU, and
+  WavTokenizer ingestion. Required fields retain deterministic first-error
+  ordering, and the shared reader reduces production surface and allocations.
 - Model metadata ingestion now consumes typed profile selectors and a bounded
   metadata-read fact set. Architecture-core, expert, position, draft, family,
   and runtime parsing contain no architecture-name dispatch; persisted RoPE,

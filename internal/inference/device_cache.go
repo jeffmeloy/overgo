@@ -737,50 +737,36 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (layerGraphCacheInputs, error) {
 	plan := r.layerPlan(layerIndex, info.Recurrent)
-	result := layerGraphCacheInputs{states: make(model.CacheStates[*tensor.Tensor])}
-	inputDevice := func(name string, value executor.DeviceValue) *tensor.Tensor {
-		input := builder.Input(name, dtype.F32, value.Shape)
+	name := func(suffix string) string {
+		return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
+	}
+	inputDevice := func(suffix string, value executor.DeviceValue) *tensor.Tensor {
+		input := builder.Input(name(suffix), dtype.F32, value.Shape)
 		deviceFeeds[input] = value.Pointer
 		return input
 	}
-	inputZero := func(name string, shape tensor.Shape) *tensor.Tensor {
-		input := builder.Input(name, dtype.F32, shape)
+	inputZero := func(suffix string, shape tensor.Shape) *tensor.Tensor {
+		input := builder.Input(name(suffix), dtype.F32, shape)
 		elements, _ := shape.Elements()
 		hostFeeds[input] = reference.Value{Shape: shape, Data: make([]float32, int(elements))}
 		return input
-	}
-	name := func(suffix string) string {
-		return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
 	}
 	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 0)
 	if err != nil {
 		return layerGraphCacheInputs{}, err
 	}
+	var source *layerCacheSource[executor.DeviceValue]
 	if past != nil {
-		result.key = inputDevice(name(cacheKeyInputName), past.Keys[layerIndex])
-		result.value = inputDevice(name(cacheValueInputName), past.Values[layerIndex])
+		var states deviceLayerStates
 		if layerIndex < len(past.States) {
-			for stateName, state := range past.States[layerIndex] {
-				result.states[stateName] = model.CacheState[*tensor.Tensor]{
-					Mode:  state.Mode,
-					Value: inputDevice(name(string(stateName)), state.Value),
-				}
-			}
+			states = past.States[layerIndex]
 		}
-	} else if schema.Primary.Key.Mode == model.CacheStateFixed {
-		result.key = inputZero(name(cacheKeyInputName), schema.Primary.Key.Value.Shape)
-		result.value = inputZero(name(cacheValueInputName), schema.Primary.Value.Value.Shape)
-	}
-	for stateName, stateSchema := range schema.States {
-		if !stateSchema.Value.ZeroInitial || result.states[stateName].Value != nil {
-			continue
-		}
-		result.states[stateName] = model.CacheState[*tensor.Tensor]{
-			Mode:  stateSchema.Mode,
-			Value: inputZero(name(string(stateName)), stateSchema.Value.Shape),
+		source = &layerCacheSource[executor.DeviceValue]{
+			primary: model.NewCachePair(past.Keys[layerIndex], past.Values[layerIndex]),
+			states:  states,
 		}
 	}
-	return result, nil
+	return bindLayerGraphCacheInputs(schema, source, inputDevice, inputZero), nil
 }
 
 func rebuildDeviceCachePages(

@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 generic-cache-binder wave collapsed the parallel host and CUDA
+  cache-input algorithms behind `layerCacheSource[T]`. Schema application and
+  state construction are shared; host values and device pointers remain thin
+  feed adapters covered by the existing dual-path binding fixture.
 - The August 6 named-state-binding wave replaced specialized indexer,
   convolution, and SSM graph-input fields with `CacheStates[*tensor.Tensor]`.
   Host/device binders share schema-governed zero initialization, and a

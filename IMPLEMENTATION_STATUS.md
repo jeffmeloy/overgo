@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Host and CUDA cache inputs now adapt through one generic
+  `layerCacheSource[T]` binder. Primary values, named-state modes, schema zero
+  initialization, and graph-state construction are implemented once; each
+  execution path supplies only its representation-specific feed callbacks.
 - Host and CUDA graph preparation now bind every named cache input through one
   typed collection. Dedicated indexer/convolution/SSM fields and Falcon-only
   device branches are removed; schema `ZeroInitial` policy initializes only

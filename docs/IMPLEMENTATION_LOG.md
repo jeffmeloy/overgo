@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 cache-mode wave moved serialized fixed/token values and their
+  validity/alignment rules into the model cache schema. Inference aliases the
+  shared ABI type and consumes one extent-to-mode relationship while preserving
+  existing payload values and API names.
 - The August 6 typed-cache-key wave promoted named-state keys to
   `CacheStateName` across graph, host, device, editing, and session paths.
   Serialization converts only at the byte boundary, and a non-canonical valid

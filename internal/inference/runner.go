@@ -85,12 +85,12 @@ type LayerCache struct {
 	Auxiliary *reference.Value
 }
 
-// CacheStateMode: range-edit behavior.
-type CacheStateMode uint32
+// CacheStateMode: serialized range-edit behavior.
+type CacheStateMode = model.CacheStateMode
 
 const (
-	CacheStateFixed CacheStateMode = 1
-	CacheStateToken CacheStateMode = 2
+	CacheStateFixed = model.CacheStateFixed
+	CacheStateToken = model.CacheStateToken
 )
 
 // LayerState: named persistent tensor.

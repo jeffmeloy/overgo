@@ -135,7 +135,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			state, present := layer.States[model.CacheStateIndexerKey]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
-				if !present || state.Mode != CacheStateToken || !state.Value.Shape.Equal(want) {
+				if !present || !state.Mode.TokenAligned() || !state.Value.Shape.Equal(want) {
 					return fmt.Errorf("inference: DSA cache layer %d indexer shape is invalid", index)
 				}
 			} else if present {
@@ -223,10 +223,7 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 		if !present {
 			return fmt.Errorf("required state %q is missing", name)
 		}
-		mode := CacheStateFixed
-		if expected.Extent == model.CacheExtentToken {
-			mode = CacheStateToken
-		}
+		mode := expected.Extent.StateMode()
 		if state.Mode != mode || !cacheShapeMatches(state.Value.Shape, expected) {
 			return fmt.Errorf("state %q shape or extent is invalid", name)
 		}
@@ -787,13 +784,13 @@ func validateLayerState(name model.CacheStateName, state LayerState, tokens uint
 	if !validCacheStateName(string(name)) || name == "key" || name == "value" {
 		return errors.New("invalid name")
 	}
-	if state.Mode != CacheStateFixed && state.Mode != CacheStateToken {
+	if !state.Mode.Valid() {
 		return fmt.Errorf("invalid mode %d", state.Mode)
 	}
 	if err := validateStateValue(state.Value); err != nil {
 		return err
 	}
-	if state.Mode == CacheStateToken &&
+	if state.Mode.TokenAligned() &&
 		(state.Value.Shape.Rank != 3 || state.Value.Shape.Dims[2] != uint64(tokens)) {
 		return fmt.Errorf("token-aligned shape %v does not contain %d tokens", state.Value.Shape.Slice(), tokens)
 	}

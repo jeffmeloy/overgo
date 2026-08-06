@@ -193,7 +193,7 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	if profile.Attention == model.AttentionDSA && profile.Auxiliary != model.AuxiliaryDSATopK {
 		wantTokens := uint64(session.Position - session.MTPStart)
 		if (wantTokens == 0 && hasIndexerState) || (wantTokens > 0 &&
-			(!hasIndexerState || indexerState.Mode != CacheStateToken ||
+			(!hasIndexerState || !indexerState.Mode.TokenAligned() ||
 				indexerState.Value.Shape != tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, wantTokens))) {
 			return errors.New("inference: NextN MTP indexer cache is incompatible")
 		}

@@ -136,7 +136,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 		}
 		if layerIndex < len(cache.States) {
 			for name, state := range cache.States[layerIndex] {
-				if state.Mode != CacheStateToken {
+				if !state.Mode.TokenAligned() {
 					continue
 				}
 				if err := shiftDeviceTokenState(&state.Value, cache.Tokens, discard); err != nil {

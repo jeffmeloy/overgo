@@ -14,6 +14,32 @@ const (
 	CacheExtentToken
 )
 
+// CacheStateMode: serialized range-edit behavior.
+type CacheStateMode uint32
+
+const (
+	CacheStateFixed CacheStateMode = 1
+	CacheStateToken CacheStateMode = 2
+)
+
+func (m CacheStateMode) Valid() bool {
+	return m == CacheStateFixed || m == CacheStateToken
+}
+
+func (m CacheStateMode) TokenAligned() bool {
+	return m == CacheStateToken
+}
+
+func (e CacheExtent) StateMode() CacheStateMode {
+	if e == CacheExtentToken {
+		return CacheStateToken
+	}
+	if e == CacheExtentFixed {
+		return CacheStateFixed
+	}
+	return 0
+}
+
 // CacheStateName: serialized named-state ABI key.
 type CacheStateName string
 

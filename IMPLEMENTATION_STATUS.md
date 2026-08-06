@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- The model cache schema now owns explicit serialized fixed/token mode values,
+  mode validation, token-alignment semantics, and extent conversion. Inference
+  retains source-compatible aliases, eliminating its duplicate enum and inline
+  schema-to-wire branching without changing cache payloads.
 - `CacheStateName` now types named-state keys end to end across model schemas,
   graph results, host caches, CUDA-retained caches, range editing, sessions,
   and serialization. Decoding still accepts validated extension names, while

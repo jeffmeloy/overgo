@@ -59,6 +59,8 @@ Current foundation:
 - Thirty-six hybrid/MoE contracts now cover dense/MoE variants, shared experts,
   routing, scaling, position policy, and hybrid convolution schedules without
   compiled architecture-name selection.
+- Full-indexer scheduling now travels in layer cadence policy. Production
+  `Spec` and shared validators consume resolved policy without name predicates.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

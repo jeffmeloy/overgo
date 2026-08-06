@@ -25,7 +25,7 @@ type UnsupportedArchitectureError struct {
 
 // LayerHasFullIndexer: DSA full-indexer predicate.
 func (s Spec) LayerHasFullIndexer(layer uint32) bool {
-	if s.Architecture == "deepseek32" && layer < s.BlockCount+s.NextNPredictLayers {
+	if s.Profile().Cadence.FullIndexerEveryLayer && layer < s.BlockCount+s.NextNPredictLayers {
 		return true
 	}
 	return s.Profile().Attention == AttentionDSA && layerValue(s.IndexerFullLayers, layer, false)

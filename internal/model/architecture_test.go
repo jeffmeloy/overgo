@@ -202,6 +202,21 @@ func TestHybridValidationUsesBoundProfilePolicy(t *testing.T) {
 	}
 }
 
+func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
+	profile := ArchitectureProfile{
+		Name:    runtimePolicyFixtureArchitecture,
+		Cadence: LayerCadencePolicy{FullIndexerEveryLayer: true},
+	}
+	spec := Spec{CommonSpec: CommonSpec{
+		Architecture: runtimePolicyFixtureArchitecture,
+		BlockCount:   runtimePolicyFixtureBlocks, NextNPredictLayers: runtimePolicyFixtureRank,
+	}}.withProfile(profile)
+	lastLayer := spec.BlockCount + spec.NextNPredictLayers - 1
+	if !spec.LayerHasFullIndexer(lastLayer) || spec.LayerHasFullIndexer(lastLayer+1) {
+		t.Fatal("bound full-indexer cadence is invalid")
+	}
+}
+
 func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
 	for architecture, want := range map[string]bool{
 		"step35": true, "hy_v3": true, "glm4": true,

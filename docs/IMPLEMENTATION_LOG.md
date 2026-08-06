@@ -32,6 +32,8 @@ claims.
 
 ## Validated milestones
 
+- The August 5 validation-sweep wave moved the last production `Spec`
+  architecture predicate—DeepSeek 3.2 full-indexer cadence—into profile data.
 - The August 5 expert-validation wave completed the 36-contract hybrid/MoE
   catalog. The shared validator now contains no architecture-name predicate;
   exact profiles own dense/MoE, routing, scaling, position, and schedule facts.

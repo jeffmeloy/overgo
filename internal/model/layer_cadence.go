@@ -27,9 +27,10 @@ const (
 
 // LayerCadencePolicy: recurrent, expert, and sliding layer schedules.
 type LayerCadencePolicy struct {
-	Recurrent recurrentCadence
-	MoE       moeCadence
-	Sliding   slidingCadence
+	Recurrent             recurrentCadence
+	MoE                   moeCadence
+	Sliding               slidingCadence
+	FullIndexerEveryLayer bool
 }
 
 func (p LayerCadencePolicy) recurrent(spec Spec, block uint32) bool {

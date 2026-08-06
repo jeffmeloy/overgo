@@ -25,13 +25,18 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Generation | Implemented | Cached autoregressive, diffusion, encoder-decoder, embeddings, reranking, and speculative paths |
 | Multimodal | Implemented, constrained | CogVLM, DeepSeek-OCR, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, PaddleOCR-VL, Qwen2-VL, dense/MoE Qwen3-VL, and Gemma 4 image/video; Gemma 4 ordered image/audio history |
 | Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
-| RepoDB | Artifact, policy, dataset, workflow-runtime, and evidence layers implemented | Content-addressed manifests/profile/tensor-inventory/model-definition and dataset version/view/split/mixture documents, data-backed bootstrap profiles, typed lineage/locations/recipe DAG execution, terminal run/evaluation evidence, parity-gated runtime policy injection, atomic hash-chained commits, strict replay, and fail-closed single-writer storage |
+| RepoDB | Artifact, policy, dataset, workflow-runtime, evidence, and persistence layers implemented | Content-addressed manifests/profile/tensor-inventory/model-definition and dataset documents, typed recipe DAG execution and terminal evidence, atomic hash-chained commits, indexed provenance queries, verified immutable snapshot segments, strict replay, and fail-closed single-writer storage |
 | Training | Optimizer core implemented | Validated flat parameter plans, adaptive/Muon CPU updates, explicit schedules, and identity-bound state restore; backward graphs and mutable model master weights remain pending |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
 
 ## Recently completed
 
+- RepoDB persistence now derives per-artifact lineage and location indexes from
+  authoritative facts and can publish immutable versioned snapshot segments.
+  Canonical bounded payloads carry SHA-256 integrity and exact commit-chain
+  anchors; replay still verifies every preceding frame, applies the tail, and
+  safely ignores corrupt or foreign accelerators.
 - RepoDB now executes compiled runtime workflows through registered typed module
   adapters. One protocol-neutral engine validates port contracts, routes DAG
   values, collapses repeated artifact facts, and atomically publishes recipes,

@@ -73,7 +73,17 @@ type replayResult struct {
 	recovered bool
 }
 
-func openRecordLog(root string, readOnly bool, apply func(logRecord) error) (*recordLog, replayResult, error) {
+type replayAnchor struct {
+	sequence uint64
+	head     artifact.CommitID
+}
+
+func openRecordLog(
+	root string,
+	readOnly bool,
+	anchor replayAnchor,
+	apply func(logRecord) error,
+) (*recordLog, replayResult, error) {
 	path := filepath.Join(root, storeFilename)
 	if readOnly {
 		file, err := os.Open(path)
@@ -81,7 +91,7 @@ func openRecordLog(root string, readOnly bool, apply func(logRecord) error) (*re
 			return nil, replayResult{}, fmt.Errorf("repodb: open read-only log: %w", err)
 		}
 		log := &recordLog{file: file, readOnly: true}
-		result, err := log.replay(apply)
+		result, err := log.replay(anchor, apply)
 		if err != nil {
 			_ = file.Close()
 			return nil, replayResult{}, err
@@ -105,7 +115,7 @@ func openRecordLog(root string, readOnly bool, apply func(logRecord) error) (*re
 		_ = log.Close()
 		return nil, replayResult{}, err
 	}
-	result, err := log.replay(apply)
+	result, err := log.replay(anchor, apply)
 	if err != nil {
 		_ = log.Close()
 		return nil, replayResult{}, err
@@ -136,11 +146,7 @@ func (l *recordLog) ensureHeader() error {
 		return nil
 	}
 	header := encodeStoreHeader()
-	written, err := l.file.Write(header)
-	if err != nil || written != len(header) {
-		if err == nil {
-			err = io.ErrShortWrite
-		}
+	if err := writeAll(l.file, header); err != nil {
 		return fmt.Errorf("repodb: write header: %w", err)
 	}
 	if err := l.file.Sync(); err != nil {
@@ -174,7 +180,10 @@ func validateStoreHeader(header []byte) error {
 	return nil
 }
 
-func (l *recordLog) replay(apply func(logRecord) error) (replayResult, error) {
+func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (replayResult, error) {
+	if anchor.sequence == 0 && anchor.head.Valid() || anchor.sequence != 0 && !anchor.head.Valid() {
+		return replayResult{}, ErrSnapshotAnchor
+	}
 	if _, err := l.file.Seek(0, io.SeekStart); err != nil {
 		return replayResult{}, fmt.Errorf("repodb: seek log start: %w", err)
 	}
@@ -223,12 +232,20 @@ func (l *recordLog) replay(apply func(logRecord) error) (replayResult, error) {
 		if record.id != commitIdentity(record.version, record.sequence, record.previous, record.payload) {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d has invalid commit identity", frameStart)
 		}
-		if err := apply(record); err != nil {
-			return replayResult{}, fmt.Errorf("repodb: apply frame at %d: %w", frameStart, err)
+		if record.sequence == anchor.sequence && record.id != anchor.head {
+			return replayResult{}, ErrSnapshotAnchor
+		}
+		if record.sequence > anchor.sequence {
+			if err := apply(record); err != nil {
+				return replayResult{}, fmt.Errorf("repodb: apply frame at %d: %w", frameStart, err)
+			}
 		}
 		result.sequence = record.sequence
 		result.head = record.id
 		result.validEnd += int64(frameHeaderBytes) + int64(payloadSize) + frameChecksumSize
+	}
+	if result.sequence < anchor.sequence {
+		return replayResult{}, ErrSnapshotAnchor
 	}
 	return result, nil
 }
@@ -294,17 +311,27 @@ func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload 
 		return artifact.CommitID{}, errors.New("repodb: batch exceeds payload limit")
 	}
 	id, frame := encodeRecord(sequence, previous, payload)
-	written, err := l.file.Write(frame)
-	if err != nil || written != len(frame) {
-		if err == nil {
-			err = io.ErrShortWrite
-		}
+	if err := writeAll(l.file, frame); err != nil {
 		return id, fmt.Errorf("repodb: append commit: %w", err)
 	}
 	if err := l.file.Sync(); err != nil {
 		return id, fmt.Errorf("repodb: sync commit: %w", err)
 	}
 	return id, nil
+}
+
+func writeAll(writer io.Writer, data []byte) error {
+	for len(data) > 0 {
+		written, err := writer.Write(data)
+		if err != nil {
+			return err
+		}
+		if written == 0 {
+			return io.ErrShortWrite
+		}
+		data = data[written:]
+	}
+	return nil
 }
 
 func (l *recordLog) Close() error {

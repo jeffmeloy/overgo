@@ -17,6 +17,12 @@ Current foundation:
 - Torn-tail recovery without accepting complete corrupt frames.
 - Fail-closed single-writer locking.
 - Concurrent read/query safety and read-only store access.
+- Rebuildable per-artifact lineage and location indexes; query cost follows the
+  matching facts rather than total catalog size.
+- Immutable, versioned snapshot segments with canonical aggregate state,
+  bounded payloads, SHA-256 integrity, atomic publication, and exact
+  commit-chain anchors. Corrupt or foreign accelerators fall back to full log
+  replay.
 - GGUF single/split and Hugging Face Safetensors inventory adapters.
 - Canonical logical tensor inventories with ordered names, shapes, storage, and
   payload sizes, derived from model manifests and independent of paths, shard
@@ -91,6 +97,8 @@ Storage layout:
 <root>/
   repodb.log
   repodb.lock
+  snapshots/
+    <sequence>-<commit>.snapshot
 ```
 
 Bulk tensors, datasets, checkpoints, and generated media remain external.
@@ -112,9 +120,8 @@ validated their formats. Logical names and roles enter manifest identity;
 absolute paths enter only the mutable location set. Copying an unchanged model
 repository therefore preserves its manifest identity.
 
-Planned layers:
-
-1. Immutable segments plus versioned snapshots and rebuildable indexes.
-
-The event log remains authoritative. Snapshots may accelerate replay but must
-carry a verified commit-chain anchor and never discard required provenance.
+The event log remains authoritative. Immutable snapshot segments accelerate
+state reconstruction but never replace, truncate, or weaken commit-chain
+validation. Every frame through the snapshot anchor still receives structural,
+CRC32C, sequence, previous-commit, and commit-identity verification; later
+frames receive full canonical decode and application.

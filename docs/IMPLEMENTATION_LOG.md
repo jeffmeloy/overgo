@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 6 RepoDB persistence wave replaced catalog-wide provenance scans
+  with rebuildable per-artifact indexes and added immutable versioned snapshot
+  segments. Snapshot payloads are canonical, bounded, SHA-256 checked, and
+  atomically published; exact chain-anchor validation, tail replay, corruption
+  fallback, and foreign-snapshot fallback preserve the log as authority.
 - The August 6 RepoDB runtime wave added a protocol-neutral compiled-workflow
   executor with registered module adapters, typed cardinality checks, exact
   dependency delivery, and deterministic artifact-fact consolidation. Atomic

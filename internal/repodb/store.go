@@ -23,6 +23,7 @@ var (
 	ErrAliasConflict    = errors.New("repodb: alias compare-and-set failed")
 	ErrLineageCycle     = errors.New("repodb: lineage cycle")
 	ErrStoreFaulted     = errors.New("repodb: store requires reopen after uncertain append")
+	ErrSnapshotAnchor   = errors.New("repodb: snapshot anchor is absent from commit chain")
 )
 
 type relationKey struct {
@@ -38,8 +39,9 @@ type locationKey struct {
 }
 
 type committedBatch struct {
-	id      artifact.CommitID
-	payload [sha256.Size]byte
+	id       artifact.CommitID
+	payload  [sha256.Size]byte
+	sequence uint64
 }
 
 type catalogState struct {
@@ -259,6 +261,8 @@ type Store struct {
 	readOnly  bool
 	closed    bool
 	fault     error
+	root      string
+	snapshot  replayAnchor
 }
 
 func Open(root string) (*Store, error) {
@@ -273,8 +277,12 @@ func open(root string, readOnly bool) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("repodb: empty root")
 	}
-	store := &Store{state: newCatalogState(), readOnly: readOnly}
-	log, replay, err := openRecordLog(root, readOnly, func(record logRecord) error {
+	state, anchor, loaded := loadLatestSnapshot(root)
+	if !loaded {
+		state = newCatalogState()
+	}
+	store := &Store{state: state, readOnly: readOnly, root: root, snapshot: anchor}
+	apply := func(record logRecord) error {
 		batch, payloadHash, err := decodeBatch(record.payload)
 		if err != nil {
 			return err
@@ -286,9 +294,17 @@ func open(root string, readOnly bool) (*Store, error) {
 			return err
 		}
 		store.state.apply(batch)
-		store.state.commits[batch.Key] = committedBatch{id: record.id, payload: payloadHash}
+		store.state.commits[batch.Key] = committedBatch{
+			id: record.id, payload: payloadHash, sequence: record.sequence,
+		}
 		return nil
-	})
+	}
+	log, replay, err := openRecordLog(root, readOnly, anchor, apply)
+	if errors.Is(err, ErrSnapshotAnchor) && loaded {
+		store.state = newCatalogState()
+		store.snapshot = replayAnchor{}
+		log, replay, err = openRecordLog(root, readOnly, replayAnchor{}, apply)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +347,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 		return id, fmt.Errorf("%w: %v", ErrStoreFaulted, err)
 	}
 	s.state.apply(normalized)
-	s.state.commits[normalized.Key] = committedBatch{id: id, payload: payloadHash}
+	s.state.commits[normalized.Key] = committedBatch{id: id, payload: payloadHash, sequence: sequence}
 	s.sequence = sequence
 	s.head = id
 	return id, nil

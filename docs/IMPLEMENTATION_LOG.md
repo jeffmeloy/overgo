@@ -32,6 +32,12 @@ claims.
 
 ## Validated milestones
 
+- The August 5 tensor-inventory wave added one bounded, content-addressed model
+  tensor schema shared by GGUF and Safetensors ingestion. Logical names,
+  shapes, storage types, and payload sizes are sorted and canonical; physical
+  paths, shard names, and offsets remain representation details. RepoDB lineage
+  binds each inventory to its model manifest and supports exact lookup without
+  reopening model payloads.
 - The August 5 model-definition wave replaced the production architecture
   registry builder and its mutation helpers with a strict embedded data
   catalog. RepoDB profile publication now accepts an externally supplied

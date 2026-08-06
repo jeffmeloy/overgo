@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-const maxContentBytes = 64 << 20
+const MaxContentBytes = 64 << 20
 
 // Content: bounded inline content-addressed document
 type Content struct {
@@ -18,7 +18,7 @@ func (c Content) Validate() error {
 	if err := c.Descriptor.Validate(); err != nil {
 		return err
 	}
-	if len(c.Data) == 0 || len(c.Data) > maxContentBytes || c.Descriptor.Size != uint64(len(c.Data)) {
+	if len(c.Data) == 0 || len(c.Data) > MaxContentBytes || c.Descriptor.Size != uint64(len(c.Data)) {
 		return errors.New("artifact: invalid content size")
 	}
 	want, err := IdentifyBytes(c.Descriptor.ID.Kind(), c.Data)

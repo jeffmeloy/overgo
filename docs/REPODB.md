@@ -18,6 +18,9 @@ Current foundation:
 - Fail-closed single-writer locking.
 - Concurrent read/query safety and read-only store access.
 - GGUF single/split and Hugging Face Safetensors inventory adapters.
+- Canonical logical tensor inventories with ordered names, shapes, storage, and
+  payload sizes, derived from model manifests and independent of paths, shard
+  offsets, and runtime tensor loading.
 - Bounded inline content records for independently owned typed schemas.
 - Canonical typed recipe DAGs persisted as content-addressed documents.
 - Recipe v2 identities include a canonical role/slot dependency set for models,
@@ -49,8 +52,8 @@ Storage layout:
 ```
 
 Bulk tensors, datasets, checkpoints, and generated media remain external.
-RepoDB stores their identities, immutable facts, lineage, aliases, recipes,
-evidence, and promotion decisions.
+RepoDB stores their identities, immutable facts, logical tensor inventories,
+lineage, aliases, recipes, evidence, and promotion decisions.
 
 Dependency direction:
 

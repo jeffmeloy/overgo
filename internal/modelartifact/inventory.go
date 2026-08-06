@@ -22,19 +22,28 @@ const (
 
 // Inventory: logical model plus physical component facts
 type Inventory struct {
-	Manifest   artifact.Manifest
-	Components []artifact.Descriptor
-	Locations  []artifact.Location
+	Manifest        artifact.Manifest
+	TensorInventory TensorInventoryDocument
+	Components      []artifact.Descriptor
+	Locations       []artifact.Location
 }
 
-func (i Inventory) Batch(key string) artifact.Batch {
+func (i Inventory) Batch(key string) (artifact.Batch, error) {
+	tensors, err := i.TensorInventory.Content()
+	if err != nil {
+		return artifact.Batch{}, err
+	}
 	locations := make([]artifact.LocationEvent, len(i.Locations))
 	for index, location := range i.Locations {
 		locations[index] = artifact.LocationEvent{Location: location, Action: artifact.LocationAdd}
 	}
 	return artifact.Batch{
-		Key: key, Artifacts: i.Components, Manifests: []artifact.Manifest{i.Manifest}, Locations: locations,
-	}
+		Key: key, Artifacts: i.Components, Contents: []artifact.Content{tensors},
+		Manifests: []artifact.Manifest{i.Manifest}, Locations: locations,
+		Lineage: []artifact.Lineage{{
+			Child: i.TensorInventory.ID, Parent: i.Manifest.ID, Relation: artifact.RelationDerivedFrom,
+		}},
+	}, nil
 }
 
 // FromGGUF: inventory from an already-validated logical GGUF
@@ -79,7 +88,11 @@ func FromGGUF(file *gguf.File) (Inventory, error) {
 		}
 	}
 	locations = append(locations, artifact.Location{Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: root})
-	return Inventory{Manifest: manifest, Components: descriptors, Locations: locations}, nil
+	tensors, err := tensorInventoryFromGGUF(manifest.ID, file)
+	if err != nil {
+		return Inventory{}, err
+	}
+	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, nil
 }
 
 // FromHFRepository: inventory from an already-validated Safetensors repository
@@ -153,7 +166,11 @@ func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
 	locations = append(locations, artifact.Location{
 		Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: filepath.Clean(repository.Directory),
 	})
-	return Inventory{Manifest: manifest, Components: descriptors, Locations: locations}, nil
+	tensors, err := tensorInventoryFromSafetensors(manifest.ID, repository.Tensors)
+	if err != nil {
+		return Inventory{}, err
+	}
+	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, nil
 }
 
 func identifyFile(path string, kind artifact.Kind, mediaType string) (artifact.Descriptor, string, error) {

@@ -37,25 +37,27 @@ const (
 	KindProfile
 	KindRun
 	KindEvaluation
+	KindTensorInventory
 )
 
 var kindNames = [...]string{
-	KindInvalid:      "invalid",
-	KindModel:        "model",
-	KindTensorSet:    "tensor-set",
-	KindTokenizer:    "tokenizer",
-	KindProjector:    "projector",
-	KindAdapter:      "adapter",
-	KindDataset:      "dataset",
-	KindDatasetShard: "dataset-shard",
-	KindCheckpoint:   "checkpoint",
-	KindRecipe:       "recipe",
-	KindOutput:       "output",
-	KindFile:         "file",
-	KindEvidence:     "evidence",
-	KindProfile:      "profile",
-	KindRun:          "run",
-	KindEvaluation:   "evaluation",
+	KindInvalid:         "invalid",
+	KindModel:           "model",
+	KindTensorSet:       "tensor-set",
+	KindTokenizer:       "tokenizer",
+	KindProjector:       "projector",
+	KindAdapter:         "adapter",
+	KindDataset:         "dataset",
+	KindDatasetShard:    "dataset-shard",
+	KindCheckpoint:      "checkpoint",
+	KindRecipe:          "recipe",
+	KindOutput:          "output",
+	KindFile:            "file",
+	KindEvidence:        "evidence",
+	KindProfile:         "profile",
+	KindRun:             "run",
+	KindEvaluation:      "evaluation",
+	KindTensorInventory: "tensor-inventory",
 }
 
 func (k Kind) String() string {

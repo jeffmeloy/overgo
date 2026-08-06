@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"llamacpp2go/internal/artifact"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/hfrepo"
+	"llamacpp2go/internal/repodb"
 )
 
 const (
@@ -53,6 +55,10 @@ func TestGGUFInventoryUsesPhysicalContent(t *testing.T) {
 	if inventory.Locations[0].Value != path {
 		t.Fatalf("component location = %q, want %q", inventory.Locations[0].Value, path)
 	}
+	tensor, ok := inventory.TensorInventory.Tensor(fixtureTensorName)
+	if !ok || tensor.Storage != "f32" || tensor.Bytes != 4 || !slices.Equal(tensor.Shape, []uint64{1}) {
+		t.Fatalf("tensor fact = (%+v, %v)", tensor, ok)
+	}
 }
 
 func TestHFInventoryIsRelocationStable(t *testing.T) {
@@ -79,12 +85,31 @@ func TestHFInventoryIsRelocationStable(t *testing.T) {
 	if firstInventory.Manifest.ID != secondInventory.Manifest.ID {
 		t.Fatalf("relocated identities differ: %s != %s", firstInventory.Manifest.ID, secondInventory.Manifest.ID)
 	}
+	if firstInventory.TensorInventory.ID != secondInventory.TensorInventory.ID {
+		t.Fatalf("relocated tensor inventories differ: %s != %s", firstInventory.TensorInventory.ID, secondInventory.TensorInventory.ID)
+	}
 	if len(firstInventory.Components) != 3 || len(firstInventory.Locations) != 4 {
 		t.Fatalf("components/locations = %d/%d", len(firstInventory.Components), len(firstInventory.Locations))
 	}
-	batch := firstInventory.Batch("fixture/hf/import")
-	if len(batch.Manifests) != 1 || len(batch.Locations) != len(firstInventory.Locations) {
+	batch, err := firstInventory.Batch("fixture/hf/import")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batch.Manifests) != 1 || len(batch.Contents) != 1 || len(batch.Lineage) != 1 ||
+		len(batch.Locations) != len(firstInventory.Locations) {
 		t.Fatalf("batch = %+v", batch)
+	}
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.Commit(t.Context(), batch); err != nil {
+		t.Fatal(err)
+	}
+	loaded, ok, err := LoadTensorInventory(t.Context(), store, firstInventory.Manifest.ID)
+	if err != nil || !ok || loaded.ID != firstInventory.TensorInventory.ID {
+		t.Fatalf("stored tensor inventory = (%s, %v, %v)", loaded.ID, ok, err)
 	}
 }
 

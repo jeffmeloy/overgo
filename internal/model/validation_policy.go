@@ -94,6 +94,20 @@ const (
 	RecurrentValidationNemotronHMoE
 )
 
+// HybridValidationPolicy: hybrid/draft metadata contract.
+type HybridValidationPolicy uint8
+
+const (
+	HybridValidationNone HybridValidationPolicy = iota
+	HybridValidationQwen3Next
+	HybridValidationQwen35
+	HybridValidationQwen35MoE
+	HybridValidationQwen3MoE
+	HybridValidationGroveMoE
+	HybridValidationMiMo2
+	HybridValidationStep35
+)
+
 // ValidationPolicy: architecture-owned metadata invariants.
 type ValidationPolicy struct {
 	AttentionFree         bool
@@ -109,4 +123,5 @@ type ValidationPolicy struct {
 	Attention             AttentionValidationPolicy
 	MLA                   MLAValidationPolicy
 	Recurrent             RecurrentValidationPolicy
+	Hybrid                HybridValidationPolicy
 }

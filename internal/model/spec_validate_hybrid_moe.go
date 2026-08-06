@@ -7,10 +7,13 @@ import (
 )
 
 func (s Spec) validateHybridMoEFamilies() error {
-	if s.Architecture == "qwen3next" || s.Architecture == "qwen35" || s.Architecture == "qwen35moe" {
+	hybrid := s.Profile().Validation.Hybrid
+	qwenHybrid := hybrid == HybridValidationQwen3Next ||
+		hybrid == HybridValidationQwen35 || hybrid == HybridValidationQwen35MoE
+	if qwenHybrid {
 		switch {
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
-			s.RopeDimensionCount%2 != 0:
+			s.RopeDimensionCount%rotaryPairAlignment != 0:
 			return errors.New("Qwen hybrid rotary dimension count is invalid")
 		case s.SSMConvKernel == 0:
 			return errors.New("Qwen hybrid SSM convolution kernel is zero")
@@ -27,7 +30,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		case s.FullAttentionInterval == 0:
 			return errors.New("Qwen hybrid full-attention interval is zero")
 		}
-		if s.Architecture != "qwen3next" {
+		if hybrid != HybridValidationQwen3Next {
 			var sectionPairs int64
 			for _, section := range s.RopeSections {
 				if section < 0 {
@@ -35,31 +38,32 @@ func (s Spec) validateHybridMoEFamilies() error {
 				}
 				sectionPairs += int64(section)
 			}
-			if sectionPairs == 0 || sectionPairs > int64(s.RopeDimensionCount/2) {
+			if sectionPairs == 0 || sectionPairs > int64(s.RopeDimensionCount/rotaryPairAlignment) {
 				return errors.New("Qwen3.5 RoPE sections exceed rotary pair count")
 			}
 		}
 	}
-	if (s.Architecture == "qwen3next" || s.Architecture == "qwen35moe") &&
+	if (hybrid == HybridValidationQwen3Next || hybrid == HybridValidationQwen35MoE) &&
 		(!validExpertDimensions(s) || s.SharedExpertFF == 0 ||
 			s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen3.5-MoE expert metadata is invalid")
 	}
-	if (s.Architecture == "qwen3moe" || s.Architecture == "qwen3vlmoe" || s.Architecture == "rnd1") &&
+	if hybrid == HybridValidationQwen3MoE &&
 		(!validExpertDimensions(s) || s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
 	}
-	if s.Architecture == "grovemoe" &&
+	if hybrid == HybridValidationGroveMoE &&
 		(!validExpertDimensions(s) || s.ExpertChunkFeedForward == 0 ||
 			s.ExpertsPerGroup == 0 || s.ExpertCount%s.ExpertsPerGroup != 0 ||
 			s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale) || !finite(s.ExpertGroupScale)) {
 		return errors.New("GroveMoE expert metadata is invalid")
 	}
-	if s.Architecture == "mimo2" {
+	if hybrid == HybridValidationMiMo2 {
 		switch {
 		case !validExpertDimensions(s) || s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale):
 			return errors.New("MiMo2 expert metadata is invalid")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%rotaryPairAlignment != 0:
 			return errors.New("MiMo2 rotary dimension count is invalid")
 		case s.SlidingWindow == 0 || (len(s.SlidingLayers) == 0 && s.SlidingPattern == 0) || s.RopeFrequencySWA <= 0:
 			return errors.New("MiMo2 sliding-attention metadata is invalid")
@@ -73,7 +77,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 			}
 		}
 	}
-	if s.Architecture == "step35" {
+	if hybrid == HybridValidationStep35 {
 		layerCount := int(s.BlockCount + s.NextNPredictLayers)
 		switch {
 		case !validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale):
@@ -82,7 +86,8 @@ func (s Spec) validateHybridMoEFamilies() error {
 			return errors.New("Step3.5 expert routing function is unsupported")
 		case len(s.LayerHeadCounts) != layerCount || len(s.LayerKVHeadCounts) != layerCount:
 			return errors.New("Step3.5 layer head metadata is invalid")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%4 != 0:
+		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
+			s.RopeDimensionCount%(rotaryPairAlignment*rotaryPairAlignment) != 0:
 			return errors.New("Step3.5 rotary dimension count is invalid")
 		case s.SlidingWindow == 0 || len(s.SlidingLayers) != layerCount || s.RopeFrequencySWA <= 0:
 			return errors.New("Step3.5 sliding-attention metadata is invalid")

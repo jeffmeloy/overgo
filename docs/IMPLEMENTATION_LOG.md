@@ -32,6 +32,8 @@ claims.
 
 ## Validated milestones
 
+- The August 5 hybrid-validation wave moved Qwen hybrid/MoE, GroveMoE, MiMo2,
+  and Step3.5 scheduling and expert selection into serialized profile policy.
 - The August 5 recurrent-validation wave replaced the architecture switch and
   RWKV/Nemotron name branches with 15 serialized contracts, while naming fixed
   convolution, state-width, target-count, shift, and alignment facts.

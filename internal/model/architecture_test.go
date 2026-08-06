@@ -182,6 +182,26 @@ func TestRecurrentValidationUsesBoundProfilePolicy(t *testing.T) {
 	}
 }
 
+func TestHybridValidationUsesBoundProfilePolicy(t *testing.T) {
+	profile := ArchitectureProfile{
+		Name:       runtimePolicyFixtureArchitecture,
+		Validation: ValidationPolicy{Hybrid: HybridValidationQwen3MoE},
+	}
+	spec := Spec{
+		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
+	}.withProfile(profile)
+	if err := spec.validateHybridMoEFamilies(); err == nil {
+		t.Fatal("bound hybrid policy accepted invalid metadata")
+	}
+	spec.ExpertCount = runtimePolicyFixtureHeads
+	spec.ExpertUsedCount = runtimePolicyFixtureRank
+	spec.ExpertFeedForward = runtimePolicyFixtureHeadWidth
+	spec.ExpertWeightsScale = runtimePolicyFixturePositive
+	if err := spec.validateHybridMoEFamilies(); err != nil {
+		t.Fatalf("bound hybrid policy rejected valid metadata: %v", err)
+	}
+}
+
 func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
 	for architecture, want := range map[string]bool{
 		"step35": true, "hy_v3": true, "glm4": true,

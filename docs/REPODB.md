@@ -54,6 +54,8 @@ Current foundation:
   MiniCPM contracts; shared MLA mechanisms consume only typed profile policy.
 - Recurrent validation selectors now carry WavTokenizer, draft, Mamba, RWKV,
   hybrid SSM, and Nemotron contracts with named dimensional facts.
+- Hybrid validation selectors now carry Qwen, GroveMoE, MiMo2, and Step3.5
+  scheduling, rotary, and expert contracts.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

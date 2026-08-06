@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 6 RepoDB runtime wave added a protocol-neutral compiled-workflow
+  executor with registered module adapters, typed cardinality checks, exact
+  dependency delivery, and deterministic artifact-fact consolidation. Atomic
+  commits retain successful, failed, and cancelled run evidence even after the
+  caller context is cancelled.
 - The August 6 RepoDB dataset wave added canonical version/view/split/mixture
   documents with bounded assets, selectors, projections, partitions, and
   normalized weights. Strict parsing, typed lineage, atomic publication, and

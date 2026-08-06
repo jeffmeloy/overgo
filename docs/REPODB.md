@@ -79,6 +79,11 @@ Current foundation:
   ordered external assets, views bind selectors and field projections, splits
   bind named views, and mixtures normalize integer weights. Storage-neutral
   publication and resolution preserve typed lineage and compare-and-set aliases.
+- Protocol-neutral workflow execution over compiled runtime plans. Registered
+  module adapters receive typed inputs and exact recipe dependencies; one
+  atomic commit publishes recipe facts, materialized inputs and outputs, and a
+  successful, failed, or cancelled run record. Repeated facts collapse by
+  identity and cancellation cannot suppress terminal provenance.
 
 Storage layout:
 
@@ -109,8 +114,7 @@ repository therefore preserves its manifest identity.
 
 Planned layers:
 
-1. Runtime adapters that execute compiled workflow steps and emit run records.
-2. Immutable segments plus versioned snapshots and rebuildable indexes.
+1. Immutable segments plus versioned snapshots and rebuildable indexes.
 
 The event log remains authoritative. Snapshots may accelerate replay but must
 carry a verified commit-chain anchor and never discard required provenance.

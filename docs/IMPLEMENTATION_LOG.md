@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 RepoDB dataset wave added canonical version/view/split/mixture
+  documents with bounded assets, selectors, projections, partitions, and
+  normalized weights. Strict parsing, typed lineage, atomic publication, and
+  alias resolution are covered against the real hash-chained store.
 - The August 6 generic-cache-binder wave collapsed the parallel host and CUDA
   cache-input algorithms behind `layerCacheSource[T]`. Schema application and
   state construction are shared; host values and device pointers remain thin

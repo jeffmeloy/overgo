@@ -75,6 +75,10 @@ Current foundation:
 - Immutable successful/failed/cancelled run records, finite typed evaluation
   metrics, and queryable input/output/dataset provenance. Evaluation identities
   can serve directly as recipe promotion evidence.
+- Canonical dataset version, view, split, and mixture documents. Versions bind
+  ordered external assets, views bind selectors and field projections, splits
+  bind named views, and mixtures normalize integer weights. Storage-neutral
+  publication and resolution preserve typed lineage and compare-and-set aliases.
 
 Storage layout:
 
@@ -105,9 +109,8 @@ repository therefore preserves its manifest identity.
 
 Planned layers:
 
-1. Dataset versions, assets, views, splits, and mixtures.
-2. Runtime adapters that execute compiled workflow steps and emit run records.
-3. Immutable segments plus versioned snapshots and rebuildable indexes.
+1. Runtime adapters that execute compiled workflow steps and emit run records.
+2. Immutable segments plus versioned snapshots and rebuildable indexes.
 
 The event log remains authoritative. Snapshots may accelerate replay but must
 carry a verified commit-chain anchor and never discard required provenance.

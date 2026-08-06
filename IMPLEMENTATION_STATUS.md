@@ -25,13 +25,17 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Generation | Implemented | Cached autoregressive, diffusion, encoder-decoder, embeddings, reranking, and speculative paths |
 | Multimodal | Implemented, constrained | CogVLM, DeepSeek-OCR, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, PaddleOCR-VL, Qwen2-VL, dense/MoE Qwen3-VL, and Gemma 4 image/video; Gemma 4 ordered image/audio history |
 | Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
-| RepoDB | Artifact, policy, workflow, and evidence foundations implemented | Content-addressed manifests/profile/tensor-inventory/model-definition documents, data-backed bootstrap profiles, external profile-catalog publication, typed lineage/locations/recipe DAGs, generation/embedding/rerank/projection/training plans, run/evaluation evidence, parity-gated runtime policy injection, atomic hash-chained commits, strict replay, and fail-closed single-writer storage |
+| RepoDB | Artifact, policy, dataset, workflow, and evidence layers implemented | Content-addressed manifests/profile/tensor-inventory/model-definition and dataset version/view/split/mixture documents, data-backed bootstrap profiles, typed lineage/locations/recipe DAGs, run/evaluation evidence, parity-gated runtime policy injection, atomic hash-chained commits, strict replay, and fail-closed single-writer storage |
 | Training | Optimizer core implemented | Validated flat parameter plans, adaptive/Muon CPU updates, explicit schedules, and identity-bound state restore; backward graphs and mutable model master weights remain pending |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
 
 ## Recently completed
 
+- RepoDB now owns canonical dataset versions, views, splits, and normalized
+  mixtures. Bounded documents bind external assets, selectors, projections,
+  named partitions, and weighted sources through typed lineage; storage-neutral
+  helpers provide atomic publication, strict loading, and alias resolution.
 - Host and CUDA cache inputs now adapt through one generic
   `layerCacheSource[T]` binder. Primary values, named-state modes, schema zero
   initialization, and graph-state construction are implemented once; each

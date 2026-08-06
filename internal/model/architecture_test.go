@@ -12,6 +12,8 @@ const (
 	runtimePolicyFixtureHeadWidth    = uint32(4)
 	runtimePolicyFixtureNarrowWidth  = runtimePolicyFixtureHeadWidth / 2
 	runtimePolicyFixtureTokenTypes   = uint32(1)
+	runtimePolicyFixtureRank         = uint32(1)
+	runtimePolicyFixturePositive     = float32(1)
 )
 
 func TestArchitectureRegistryProfiles(t *testing.T) {
@@ -138,6 +140,26 @@ func TestAttentionValidationUsesBoundProfilePolicy(t *testing.T) {
 	spec.ValueLength = spec.KeyLength
 	if err := spec.validateAttentionFamilies(); err != nil {
 		t.Fatalf("bound attention policy rejected valid metadata: %v", err)
+	}
+}
+
+func TestMLAValidationUsesBoundProfilePolicy(t *testing.T) {
+	profile := ArchitectureProfile{
+		Name:       runtimePolicyFixtureArchitecture,
+		Validation: ValidationPolicy{MLA: MLAValidationMiniCPM3},
+	}
+	spec := Spec{
+		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
+	}.withProfile(profile)
+	if err := spec.validateMLAFamilies(); err == nil {
+		t.Fatal("bound MLA policy accepted invalid metadata")
+	}
+	spec.QLoRARank = runtimePolicyFixtureRank
+	spec.ResidualScale = runtimePolicyFixturePositive
+	spec.OriginalContextLength = runtimePolicyFixtureBlocks
+	spec.RopeAttentionFactor = runtimePolicyFixturePositive
+	if err := spec.validateMLAFamilies(); err != nil {
+		t.Fatalf("bound MLA policy rejected valid metadata: %v", err)
 	}
 }
 

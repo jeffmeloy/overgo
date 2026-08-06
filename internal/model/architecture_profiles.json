@@ -410,7 +410,10 @@
     "Metadata": {
       "MLAHeadLengths": true
     },
-    "Name": "deepseek32"
+    "Name": "deepseek32",
+    "Validation": {
+      "MLA": 1
+    }
   },
   {
     "Block": 11,
@@ -420,6 +423,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "deepseek4",
+    "Validation": {
+      "MLA": 2
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -1226,6 +1232,9 @@
       "PreserveLayerKV": true
     },
     "Name": "kimi-linear",
+    "Validation": {
+      "MLA": 3
+    },
     "RecurrentCache": 7
   },
   {
@@ -1510,7 +1519,10 @@
     "Block": 9,
     "Capabilities": 131584,
     "MLAVariant": 2,
-    "Name": "minicpm3"
+    "Name": "minicpm3",
+    "Validation": {
+      "MLA": 5
+    }
   },
   {
     "Capabilities": 75497476,
@@ -1541,6 +1553,9 @@
       "Catalog": 2
     },
     "Name": "mistral3",
+    "Validation": {
+      "MLA": 4
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 3

@@ -32,6 +32,9 @@ claims.
 
 ## Validated milestones
 
+- The August 5 MLA-validation wave moved DeepSeek 3.2/4, Kimi Linear,
+  Mistral 3, and MiniCPM3 selection into typed profiles and named the remaining
+  fixed family dimensions. The common MLA validator has no name dispatch.
 - The August 5 attention-validation wave replaced all architecture-name
   dispatch in the shared attention validator with 32 typed profile contracts.
   Existing model-specific diagnostics and metadata bounds remain intact.

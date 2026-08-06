@@ -8,13 +8,25 @@ import (
 	"llamacpp2go/internal/tensor"
 )
 
+const (
+	deepSeek4BlockCount        = uint32(43)
+	deepSeek4HyperConnections  = uint32(4)
+	kimiLinearMinimumConvWidth = uint32(2)
+	deepSeek2LiteBlockCountA   = uint32(26)
+	deepSeek2LiteBlockCountB   = uint32(27)
+	deepSeek2LiteBlockCountC   = uint32(48)
+	deepSeek2LiteVocabulary    = uint32(128256)
+)
+
 func (s Spec) validateMLAFamilies() error {
 	profile := s.Profile()
-	if (profile.Attention == AttentionMLA || profile.Attention == AttentionDSA || s.Architecture == "kimi-linear") &&
+	validation := profile.Validation.MLA
+	kimiLinear := validation == MLAValidationKimiLinear
+	if (profile.Attention == AttentionMLA || profile.Attention == AttentionDSA || kimiLinear) &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength ||
-			(!profile.Has(ArchitectureDeepSeek2Layout) && s.Architecture != "kimi-linear" && s.HeadCountKV != s.HeadCount) ||
-			((profile.Has(ArchitectureDeepSeek2Layout) || s.Architecture == "kimi-linear") && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
+			(!profile.Has(ArchitectureDeepSeek2Layout) && !kimiLinear && s.HeadCountKV != s.HeadCount) ||
+			((profile.Has(ArchitectureDeepSeek2Layout) || kimiLinear) && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
 	}
 	if profile.Attention == AttentionDSA {
@@ -27,7 +39,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DSA indexer metadata is invalid")
 		case len(s.IndexerFullLayers) != int(s.BlockCount) || !s.IndexerFullLayers[0]:
 			return errors.New("DSA indexer schedule is invalid")
-		case s.Architecture == "deepseek32" &&
+		case validation == MLAValidationDeepSeek32 &&
 			(s.BlockCount != deepSeek32BlockCount || s.LayerNormEpsilon != deepSeek32LayerNormEpsilon):
 			return errors.New("DeepSeek 3.2 layer metadata is invalid")
 		}
@@ -49,7 +61,7 @@ func (s Spec) validateMLAFamilies() error {
 				return errors.New("DSA shared indexer precedes every full indexer")
 			}
 		}
-		if s.Architecture == "deepseek32" {
+		if validation == MLAValidationDeepSeek32 {
 			for _, full := range s.IndexerFullLayers {
 				if !full {
 					return errors.New("DeepSeek 3.2 requires a full indexer in every layer")
@@ -57,9 +69,9 @@ func (s Spec) validateMLAFamilies() error {
 			}
 		}
 	}
-	if s.Architecture == "deepseek4" {
+	if validation == MLAValidationDeepSeek4 {
 		switch {
-		case s.BlockCount != 43 || s.HeadCountKV != 1 || s.KeyLength != s.ValueLength:
+		case s.BlockCount != deepSeek4BlockCount || s.HeadCountKV != 1 || s.KeyLength != s.ValueLength:
 			return errors.New("DeepSeek 4 layer metadata is invalid")
 		case s.QLoRARank == 0 || s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0:
 			return errors.New("DeepSeek 4 attention dimensions are invalid")
@@ -68,7 +80,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DeepSeek 4 compressed-attention metadata is invalid")
 		case s.AttentionOutputGroups == 0 || s.HeadCount%s.AttentionOutputGroups != 0 || s.AttentionOutputRank == 0:
 			return errors.New("DeepSeek 4 output LoRA metadata is invalid")
-		case s.HyperConnectionCount != 4 || s.HyperSinkhornIters == 0 || s.HyperConnectionEps <= 0 ||
+		case s.HyperConnectionCount != deepSeek4HyperConnections || s.HyperSinkhornIters == 0 || s.HyperConnectionEps <= 0 ||
 			math.IsNaN(float64(s.HyperConnectionEps)) || math.IsInf(float64(s.HyperConnectionEps), 0):
 			return errors.New("DeepSeek 4 hyper-connection metadata is invalid")
 		case s.IndexerHeadCount == 0 || s.IndexerKeyLength < s.RopeDimensionCount || s.IndexerTopK == 0 ||
@@ -100,11 +112,11 @@ func (s Spec) validateMLAFamilies() error {
 			}
 		}
 	}
-	if s.Architecture == "kimi-linear" {
+	if kimiLinear {
 		switch {
 		case len(s.RecurrentLayers) != int(s.BlockCount) || len(s.LayerKVHeadCounts) != int(s.BlockCount):
 			return errors.New("Kimi Linear layer schedule is invalid")
-		case s.SSMConvKernel < 2 || s.KDAHeadDim == 0 || s.SSMInnerSize != s.HeadCount*s.KDAHeadDim:
+		case s.SSMConvKernel < kimiLinearMinimumConvWidth || s.KDAHeadDim == 0 || s.SSMInnerSize != s.HeadCount*s.KDAHeadDim:
 			return errors.New("Kimi Linear KDA metadata is invalid")
 		case s.LeadingDenseBlocks >= s.BlockCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 ||
@@ -125,7 +137,8 @@ func (s Spec) validateMLAFamilies() error {
 		}
 	}
 	if profile.Has(ArchitectureDeepSeek2Layout) {
-		lite := s.BlockCount == 26 || s.BlockCount == 27 || (s.BlockCount == 48 && s.VocabularySize == 128256)
+		lite := s.BlockCount == deepSeek2LiteBlockCountA || s.BlockCount == deepSeek2LiteBlockCountB ||
+			(s.BlockCount == deepSeek2LiteBlockCountC && s.VocabularySize == deepSeek2LiteVocabulary)
 		switch {
 		case s.ExpertCount == 0 && s.LeadingDenseBlocks != s.BlockCount:
 			return errors.New("dense DeepSeek2 requires every block to be dense")
@@ -162,7 +175,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DeepSeek2 attention temperature metadata is invalid")
 		}
 	}
-	if s.Architecture == "mistral3" {
+	if validation == MLAValidationMistral3 {
 		switch {
 		case s.AttentionTempScale != 0 &&
 			(s.AttentionTempScale <= 0 || s.AttentionTempFloor == 0 ||
@@ -181,7 +194,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("Mistral 3 YaRN metadata is invalid")
 		}
 	}
-	if s.Architecture == "minicpm3" &&
+	if validation == MLAValidationMiniCPM3 &&
 		(s.QLoRARank == 0 || s.ResidualScale <= 0 || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.ResidualScale)) ||
 			math.IsInf(float64(s.ResidualScale), 0) || math.IsNaN(float64(s.RopeAttentionFactor)) ||

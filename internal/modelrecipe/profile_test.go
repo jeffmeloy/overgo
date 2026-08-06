@@ -12,7 +12,7 @@ import (
 	"llamacpp2go/internal/repodb"
 )
 
-const profileCatalogSemanticDigest = "fe17a5481f369c931d0d8fbdebe3eaea894359012b6a311670e358cfebfaa31c"
+const profileCatalogSemanticDigest = "81b5e2522e35493b7ffbd07caae638f6f634cace120a42d67aef0136301dca45"
 
 func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 	documents, err := SeedProfileDocuments()

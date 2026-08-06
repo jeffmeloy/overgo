@@ -50,6 +50,8 @@ Current foundation:
 - Thirty-two attention validation contracts now serialize with profiles,
   covering rotary, sliding, per-layer, multimodal, and expert-shape invariants
   without compiled architecture-name selection.
+- MLA/DSA validation selectors now carry DeepSeek, Kimi Linear, Mistral, and
+  MiniCPM contracts; shared MLA mechanisms consume only typed profile policy.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

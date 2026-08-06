@@ -60,6 +60,18 @@ const (
 	AttentionValidationRefact
 )
 
+// MLAValidationPolicy: MLA/DSA family metadata contract.
+type MLAValidationPolicy uint8
+
+const (
+	MLAValidationNone MLAValidationPolicy = iota
+	MLAValidationDeepSeek32
+	MLAValidationDeepSeek4
+	MLAValidationKimiLinear
+	MLAValidationMistral3
+	MLAValidationMiniCPM3
+)
+
 // ValidationPolicy: architecture-owned metadata invariants.
 type ValidationPolicy struct {
 	AttentionFree         bool
@@ -73,4 +85,5 @@ type ValidationPolicy struct {
 	BaseRotary            BaseRotaryValidationPolicy
 	Encoder               EncoderValidationPolicy
 	Attention             AttentionValidationPolicy
+	MLA                   MLAValidationPolicy
 }

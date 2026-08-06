@@ -43,6 +43,10 @@ Current foundation:
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
   planning. Dispatch, catalog loading, and persistent-cache policy preserve the
   exact bound profile; unbound models retain the bootstrap path.
+- Metadata-read facts now travel with the profile. Base, position, draft,
+  architecture-core, expert, family-shape, and runtime ingestion select typed
+  contracts without architecture-name dispatch; unknown bits and invalid
+  multimodal, ALiBi, or DSA combinations fail before activation.
 - Typed runtime profile policies own input/logit scaling, normalization
   placement/bias/fallback, and layer-level RoPE schedules; model methods retain
   only the reusable execution mechanisms.

@@ -93,10 +93,11 @@ func readSpec(file *gguf.File, resolved *ArchitectureProfile) (Spec, error) {
 }
 
 func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec, error) {
-	values, architecture, prefix := m.values, m.architecture, m.prefix
+	values, prefix := m.values, m.prefix
+	validation := m.profile.Validation
 	declaredBlockCount := state.declaredBlockCount
 	var err error
-	if architecture == "refact" {
+	if validation.Attention == AttentionValidationRefact {
 		spec.ExpertCount, _ = optional[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		)
@@ -116,7 +117,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.ExpertWeightsScale = 1
 		}
 	}
-	if architecture == "cohere2moe" {
+	if validation.Attention == AttentionValidationCohere2MoE {
 		if value, ok := optional[float32](values, prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32); ok {
 			spec.RMSNormEpsilon = value
 		} else if value, ok := optional[float32](values, prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32); ok {
@@ -151,13 +152,13 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		prefix+"attn_logit_softcapping",
 		gguf.ValueTypeFloat32,
 	)
-	if architecture == "jais" {
+	if m.profile.readsMetadata(MetadataReadJaisScale) {
 		spec.AttentionScale = 1 / float32(spec.KeyLength)
 	}
 	if value, ok := optional[float32](values, prefix+"attention.scale", gguf.ValueTypeFloat32); ok {
 		spec.AttentionScale = value
 	}
-	if architecture == "grok" {
+	if validation.Hybrid == HybridValidationGrok {
 		spec.AttentionSoftcap = 30
 		if value, ok := optional[float32](values, prefix+"attn_logit_softcapping", gguf.ValueTypeFloat32); ok {
 			spec.AttentionSoftcap = value
@@ -181,13 +182,13 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeDimensionCount = value
 		}
 	}
-	if architecture == "talkie" {
+	if validation.Attention == AttentionValidationTalkie {
 		if spec.LogitScale, err = required[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err
 		}
 		spec.RopeDimensionCount = spec.KeyLength
 	}
-	if architecture == "dflash" {
+	if validation.Recurrent == RecurrentValidationDFlash {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -207,23 +208,23 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if architecture == "eagle3" {
+	if validation.Recurrent == RecurrentValidationEagle3 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
 		}
 	}
-	if architecture == "gemma3n" {
+	if validation.Attention == AttentionValidationGemma3N {
 		spec.RopeDimensionCount = spec.KeyLength
 	}
-	if architecture == "cogvlm" {
+	if validation.Attention == AttentionValidationCogVLM {
 		spec.RopeDimensionCount = spec.KeyLength
 	}
-	if architecture == "minicpm" || architecture == "minicpm3" {
+	if validation.Hybrid == HybridValidationRopeScaling || validation.MLA == MLAValidationMiniCPM3 {
 		spec.EmbeddingScale = 12
 		spec.ResidualScale = float32(1.4 / math.Sqrt(float64(spec.BlockCount)))
 		spec.LogitScale = 256 / float32(spec.EmbeddingLength)
-		if architecture == "minicpm3" {
+		if validation.MLA == MLAValidationMiniCPM3 {
 			spec.OriginalContextLength = spec.ContextLength
 			spec.RopeAttentionFactor = 1
 			if value, ok := optional[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32); ok {
@@ -255,8 +256,10 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.LogitScale = value
 		}
 	}
-	if architecture == "granite" || architecture == "granitemoe" || architecture == "granitehybrid" {
-		if architecture == "granitehybrid" {
+	if validation.hybridOneOf(
+		HybridValidationGranite, HybridValidationGraniteMoE, HybridValidationGraniteHybrid,
+	) {
+		if validation.Hybrid == HybridValidationGraniteHybrid {
 			spec.LogitScale, _ = optional[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32)
 		} else if spec.LogitScale, err = required[float32](
 			values, prefix+"logit_scale", gguf.ValueTypeFloat32,
@@ -303,7 +306,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			ropeEnabled = value
 		}
 		spec.RopeDisabled = !ropeEnabled
-		if architecture == "granite" {
+		if validation.Hybrid == HybridValidationGranite {
 			if expertCount, ok := optional[uint32](
 				values,
 				prefix+"expert_count",
@@ -319,7 +322,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); mappingErr != nil {
 			return Spec{}, mappingErr
 		} else if ok && len(mapping) > 0 {
-			if architecture != "granite" {
+			if validation.Hybrid != HybridValidationGranite {
 				return Spec{}, errors.New("Granite deepstack mapping requires granite architecture")
 			}
 			if len(mapping) != int(spec.BlockCount) {
@@ -343,7 +346,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.DeepstackMapping = slices.Clone(mapping)
 		}
 	}
-	if architecture == "cohere2" || architecture == "cohere2moe" {
+	if validation.attentionOneOf(AttentionValidationCohere2, AttentionValidationCohere2MoE) {
 		if spec.LogitScale, err = required[float32](
 			values,
 			prefix+"logit_scale",
@@ -364,7 +367,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, errors.New("Cohere2 sliding attention pattern has an invalid type")
 		}
 	}
-	if architecture == "stablelm" {
+	if validation.Attention == AttentionValidationStableLM {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values,
 			prefix+"rope.dimension_count",
@@ -373,7 +376,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 	}
-	if architecture == "gptj" || architecture == "phi2" {
+	if m.profile.readsMetadata(MetadataReadGPTJRotary) ||
+		validation.Attention == AttentionValidationPhi2 {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values,
 			prefix+"rope.dimension_count",
@@ -382,7 +386,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 	}
-	if architecture == "phi3" || architecture == "phimoe" {
+	if validation.Attention == AttentionValidationPhi3 {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -400,7 +404,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeAttentionFactor = value
 		}
 	}
-	if architecture == "pangu-embedded" {
+	if validation.Attention == AttentionValidationPanguEmbedded {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -414,7 +418,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeAttentionFactor = value
 		}
 	}
-	if architecture == "modern-bert" {
+	if validation.Attention == AttentionValidationModernBERT {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -446,7 +450,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if architecture == "gemma-embedding" {
+	if validation.Attention == AttentionValidationGemmaEmbedding {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -467,7 +471,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.Dense3FeatureIn, _ = optional[uint32](values, prefix+"dense_3_feat_in", gguf.ValueTypeUint32)
 		spec.Dense3FeatureOut, _ = optional[uint32](values, prefix+"dense_3_feat_out", gguf.ValueTypeUint32)
 	}
-	if architecture == "deci" {
+	if validation.Attention == AttentionValidationDeci {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
@@ -487,7 +491,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeAttentionFactor = value
 		}
 	}
-	if architecture == "apertus" {
+	if validation.Attention == AttentionValidationApertus {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
@@ -518,7 +522,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if architecture == "gptneox" {
+	if validation.Attention == AttentionValidationGPTNeoX {
 		spec.RopeDimensionCount, _ = optional[uint32](
 			values,
 			prefix+"rope.dimension_count",
@@ -532,7 +536,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 	}
-	if architecture == "glm4" || architecture == "glm4moe" {
+	if validation.attentionOneOf(AttentionValidationGLM4, AttentionValidationGLM4MoE) {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
@@ -559,7 +563,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			copy(spec.RopeSections[:], sections)
 		}
 	}
-	if architecture == "mimo2" {
+	if validation.Hybrid == HybridValidationMiMo2 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -622,7 +626,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.AttentionValueScale = value
 		}
 	}
-	if architecture == "step35" {
+	if validation.Hybrid == HybridValidationStep35 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -657,7 +661,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 	}
-	if architecture == "exaone4" {
+	if validation.Attention == AttentionValidationEXAOne4 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
@@ -697,7 +701,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
-	if architecture == "exaone-moe" {
+	if validation.Hybrid == HybridValidationEXAOneMoE {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -728,7 +732,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.SlidingLayers = slices.Clone(layers)
 		}
 	}
-	if architecture == "bailingmoe2" {
+	if validation.Hybrid == HybridValidationBailingMoE2 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -741,24 +745,25 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.BlockCount -= nextN
 		}
 	}
-	if architecture == "falcon" {
+	if validation.Attention == AttentionValidationFalcon {
 		spec.RopeDimensionCount, _ = optional[uint32](
 			values,
 			prefix+"rope.dimension_count",
 			gguf.ValueTypeUint32,
 		)
 	}
-	if architecture == "command-r" {
+	if m.profile.readsMetadata(MetadataReadCommandRLogits) {
 		spec.LogitScale, _ = optional[float32](
 			values,
 			prefix+"logit_scale",
 			gguf.ValueTypeFloat32,
 		)
 	}
-	if architecture == "baichuan" && spec.BlockCount != 32 && spec.BlockCount != 40 {
+	if m.profile.readsMetadata(MetadataReadBaichuanBlocks) &&
+		spec.BlockCount != 32 && spec.BlockCount != 40 {
 		return Spec{}, errors.New("Baichuan block count must select the 32-layer RoPE or 40-layer ALiBi variant")
 	}
-	if architecture == "mistral3" {
+	if validation.MLA == MLAValidationMistral3 {
 		spec.OriginalContextLength = spec.ContextLength
 		if value, ok := optional[uint32](
 			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
@@ -805,7 +810,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if architecture == "qwen" {
+	if validation.Attention == AttentionValidationQwen {
 		if spec.FeedForwardLength == 0 || spec.FeedForwardLength%2 != 0 {
 			return Spec{}, errors.New("Qwen feed-forward length must be positive and even")
 		}
@@ -815,13 +820,13 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeDimensionCount = value
 		}
 	}
-	if architecture == "chatglm" {
+	if validation.Attention == AttentionValidationChatGLM {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
 		}
 	}
-	if architecture == "hunyuan-dense" || architecture == "hunyuan_vl" {
+	if validation.Attention == AttentionValidationHunyuan {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -842,7 +847,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
-	if architecture == "paddleocr" || architecture == "qwen2vl" || architecture == "qwen3vl" || architecture == "qwen3vlmoe" {
+	if m.profile.readsMetadata(MetadataReadVisualSections) {
 		spec.RopeDimensionCount = spec.KeyLength
 		sections, sectionsErr := requiredArray[int32](
 			values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
@@ -858,15 +863,15 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 		copy(spec.RopeSections[:], sections)
 	}
-	if architecture == "qwen3vl" || architecture == "qwen3vlmoe" {
+	if m.profile.readsMetadata(MetadataReadQwen3VLDeepstack) {
 		if value, ok := optional[uint32](values, prefix+"n_deepstack_layers", gguf.ValueTypeUint32); ok {
 			spec.DeepstackLayerCount = value
 		}
 	}
-	if architecture == "smollm3" {
+	if m.profile.readsMetadata(MetadataReadSmolLM3NoRoPE) {
 		spec.NoRopeLayerStep = 4
 	}
-	if architecture == "smallthinker" {
+	if validation.Hybrid == HybridValidationSmallThinker {
 		spec.RopeDimensionCount = spec.KeyLength
 		spec.NoRopeLayerStep = spec.BlockCount
 		if value, ok := optional[uint32](
@@ -888,7 +893,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if architecture == "mellum" {
+	if validation.Hybrid == HybridValidationMellum {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -914,7 +919,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if architecture == "plamo3" {
+	if validation.Attention == AttentionValidationPLaMo3 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
@@ -937,10 +942,10 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if architecture == "afmoe" {
+	if validation.Hybrid == HybridValidationAFMoE {
 		spec.NoRopeLayerStep = 4
 	}
-	if architecture == "olmo" {
+	if m.profile.readsMetadata(MetadataReadOLMoClamp) {
 		if clamp, ok := optional[float32](
 			values,
 			prefix+"attention.clamp_kqv",
@@ -949,7 +954,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.AttentionClamp = clamp
 		}
 	}
-	if architecture == "t5" || architecture == "t5encoder" {
+	if m.profile.Forward == ForwardT5 || m.profile.Forward == ForwardT5Encoder {
 		if spec.RelativeBuckets, err = required[uint32](
 			values,
 			prefix+"attention.relative_buckets_count",
@@ -957,7 +962,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-		if architecture == "t5" {
+		if m.profile.Forward == ForwardT5 {
 			spec.DecoderBlockCount = spec.BlockCount
 			if value, ok := optional[uint32](values, prefix+"decoder_block_count", gguf.ValueTypeUint32); ok {
 				spec.DecoderBlockCount = value
@@ -965,8 +970,10 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.DecoderStartTokenID, _ = optional[uint32](values, prefix+"decoder_start_token_id", gguf.ValueTypeUint32)
 		}
 	}
-	if architecture == "qwen3next" || architecture == "qwen35" || architecture == "qwen35moe" {
-		if architecture == "qwen3next" {
+	if validation.hybridOneOf(
+		HybridValidationQwen3Next, HybridValidationQwen35, HybridValidationQwen35MoE,
+	) {
+		if validation.Hybrid == HybridValidationQwen3Next {
 			spec.RopeDimensionCount = spec.KeyLength
 			if value, ok := optional[uint32](
 				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
@@ -1032,7 +1039,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
 		}
 	}
-	if architecture == "kimi-linear" {
+	if validation.MLA == MLAValidationKimiLinear {
 		if spec.KVLoRARank, err = required[uint32](
 			values, prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1059,7 +1066,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.SSMTimeStepRank = spec.HeadCount
 		spec.SSMGroupCount = spec.HeadCount
 	}
-	if architecture == "rwkv6" || architecture == "rwkv6qwen2" {
+	if validation.recurrentOneOf(RecurrentValidationRWKV6, RecurrentValidationRWKV6Qwen2) {
 		for key, destination := range map[string]*uint32{
 			"wkv.head_size":        &spec.WKVHeadSize,
 			"time_mix_extra_dim":   &spec.TimeMixExtraDim,
@@ -1072,14 +1079,14 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 		spec.RescaleEvery, _ = optional[uint32](values, prefix+"rescale_every_n_layers", gguf.ValueTypeUint32)
 		spec.TokenShiftCount = 1
-		if architecture == "rwkv6" {
+		if validation.Recurrent == RecurrentValidationRWKV6 {
 			spec.TokenShiftCount = 2
 		}
 		if value, ok := optional[uint32](values, prefix+"token_shift_count", gguf.ValueTypeUint32); ok {
 			spec.TokenShiftCount = value
 		}
 	}
-	if architecture == "rwkv7" || architecture == "arwkv7" {
+	if validation.recurrentOneOf(RecurrentValidationRWKV7, RecurrentValidationARWKV7) {
 		for key, destination := range map[string]*uint32{
 			"wkv.head_size":                          &spec.WKVHeadSize,
 			"attention.decay_lora_rank":              &spec.DecayLoRARank,
@@ -1093,14 +1100,19 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 		spec.GateLoRARank, _ = optional[uint32](values, prefix+"attention.gate_lora_rank", gguf.ValueTypeUint32)
 		spec.TokenShiftCount = 1
-		if architecture == "rwkv7" {
+		if validation.Recurrent == RecurrentValidationRWKV7 {
 			spec.TokenShiftCount = 2
 		}
 		if value, ok := optional[uint32](values, prefix+"token_shift_count", gguf.ValueTypeUint32); ok {
 			spec.TokenShiftCount = value
 		}
 	}
-	if architecture == "mamba" || architecture == "mamba2" || architecture == "jamba" || architecture == "granitehybrid" || architecture == "plamo2" || architecture == "nemotron_h" || architecture == "nemotron_h_moe" || architecture == "falcon-h1" {
+	if validation.recurrentOneOf(
+		RecurrentValidationMamba, RecurrentValidationMamba2, RecurrentValidationJamba,
+		RecurrentValidationGraniteHybrid, RecurrentValidationPLaMo2,
+		RecurrentValidationNemotronH, RecurrentValidationNemotronHMoE,
+		RecurrentValidationFalconH1,
+	) {
 		for key, destination := range map[string]*uint32{
 			"ssm.conv_kernel":    &spec.SSMConvKernel,
 			"ssm.inner_size":     &spec.SSMInnerSize,
@@ -1112,23 +1124,23 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 				return Spec{}, err
 			}
 		}
-		if architecture == "mamba" || architecture == "jamba" {
+		if validation.recurrentOneOf(RecurrentValidationMamba, RecurrentValidationJamba) {
 			spec.SSMGroupCount = 1
 			spec.SSMDtBCNorm, _ = optional[bool](values, prefix+"ssm.dt_b_c_rms", gguf.ValueTypeBool)
 		} else if spec.SSMGroupCount, err = required[uint32](values, prefix+"ssm.group_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
 	}
-	if architecture == "falcon-h1" {
+	if validation.Recurrent == RecurrentValidationFalconH1 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
 		}
 	}
-	if architecture == "plamo2" {
+	if validation.Recurrent == RecurrentValidationPLaMo2 {
 		spec.AttentionScale = float32(1 / math.Sqrt(float64(spec.ValueLength)))
 	}
-	if architecture == "granitehybrid" {
+	if validation.Recurrent == RecurrentValidationGraniteHybrid {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		if spec.ExpertCount > 0 {
 			if spec.ExpertUsedCount, err = required[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32); err != nil {
@@ -1140,7 +1152,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		}
 	}
-	if architecture == "nemotron_h_moe" {
+	if validation.Recurrent == RecurrentValidationNemotronHMoE {
 		for key, destination := range map[string]*uint32{
 			"expert_count":                      &spec.ExpertCount,
 			"expert_used_count":                 &spec.ExpertUsedCount,
@@ -1165,10 +1177,11 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 }
 
 func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, error) {
-	values, architecture, prefix, profile := m.values, m.architecture, m.prefix, m.profile
+	values, prefix, profile := m.values, m.prefix, m.profile
+	validation := profile.Validation
 	isLlamaMoE := state.llamaMoE
 	var err error
-	if isLlamaMoE || architecture == "llama4" || architecture == "gpt-oss" || architecture == "arctic" || architecture == "bailingmoe" || architecture == "bailingmoe2" || architecture == "cohere2moe" || architecture == "deepseek" || architecture == "deepseek2-ocr" || architecture == "dbrx" || architecture == "dots1" || architecture == "ernie4_5-moe" || architecture == "glm4moe" || architecture == "granitemoe" || (architecture == "granite" && spec.ExpertCount > 0) || architecture == "grovemoe" || architecture == "grok" || architecture == "hunyuan-moe" || architecture == "hy_v3" || architecture == "jamba" || architecture == "kimi-linear" || architecture == "llada-moe" || architecture == "mellum" || architecture == "mimo2" || architecture == "step35" || architecture == "minimax-m2" || architecture == "nomic-bert-moe" || architecture == "qwen3moe" || architecture == "qwen3vlmoe" || architecture == "qwen3next" || architecture == "qwen35moe" || architecture == "qwen2moe" || architecture == "olmoe" || architecture == "phimoe" || architecture == "exaone-moe" || architecture == "rnd1" || architecture == "afmoe" || architecture == "laguna" || architecture == "lfm2moe" || architecture == "smallthinker" {
+	if isLlamaMoE || validation.requiresExpertMetadata(spec.ExpertCount > 0) {
 		if spec.ExpertCount, err = required[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1188,17 +1201,17 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		); ok {
 			spec.ExpertFeedForward = value
 		}
-		if architecture == "arctic" {
+		if validation.Hybrid == HybridValidationArctic {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
-		if architecture == "nomic-bert-moe" {
+		if validation.Encoder == EncoderValidationNomicBERTMoE {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
-		if architecture == "jamba" {
+		if validation.Recurrent == RecurrentValidationJamba {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 			spec.ExpertWeightsNorm = false
 		}
-		if architecture == "kimi-linear" {
+		if validation.MLA == MLAValidationKimiLinear {
 			if spec.ExpertFeedForward, err = required[uint32](
 				values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 			); err != nil {
@@ -1214,7 +1227,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 			spec.ExpertWeightsNorm = true
 		}
-		if architecture == "llama4" {
+		if validation.Hybrid == HybridValidationLlama4 {
 			if spec.ExpertFeedForward, err = required[uint32](
 				values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 			); err != nil {
@@ -1229,7 +1242,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 		spec.ExpertWeightsScale = 1
-		if architecture == "gpt-oss" {
+		if validation.Hybrid == HybridValidationGPTOSS {
 			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
 			spec.ExpertWeightsNorm = false
 		}
@@ -1238,7 +1251,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		); ok {
 			spec.ExpertWeightsScale = value
 		}
-		if architecture == "qwen3next" || architecture == "qwen35moe" {
+		if validation.hybridOneOf(HybridValidationQwen3Next, HybridValidationQwen35MoE) {
 			spec.SharedExpertFF = spec.FeedForwardLength
 			if value, ok := optional[uint32](
 				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
@@ -1248,7 +1261,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if profile.Has(ArchitectureDeepSeek2Layout) {
-		if architecture == "deepseek32" {
+		if validation.MLA == MLAValidationDeepSeek32 {
 			if spec.ExpertCount, err = required[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
@@ -1269,10 +1282,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		spec.ExpertGatingFunc = expertGatingSoftmax
-		if architecture == "glm-dsa" {
+		if profile.readsMetadata(MetadataReadGLMDSAGating) {
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
-		if architecture == "deepseek32" {
+		if validation.MLA == MLAValidationDeepSeek32 {
 			if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
@@ -1282,11 +1295,11 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 	}
-	if architecture == "mimo2" {
+	if validation.Hybrid == HybridValidationMiMo2 {
 		spec.ExpertGatingFunc = expertGatingSigmoid
 		spec.ExpertWeightsNorm = true
 	}
-	if architecture == "gemma4" {
+	if validation.Attention == AttentionValidationGemma4 {
 		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
 			spec.ExpertCount = count
 			if spec.ExpertUsedCount, err = required[uint32](
@@ -1303,7 +1316,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = true
 		}
 	}
-	if architecture == "step35" {
+	if validation.Hybrid == HybridValidationStep35 {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1325,7 +1338,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
-	if architecture == "glm4moe" {
+	if validation.Attention == AttentionValidationGLM4MoE {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -1342,7 +1355,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = value
 		}
 	}
-	if architecture == "grovemoe" {
+	if validation.Hybrid == HybridValidationGroveMoE {
 		spec.ExpertChunkFeedForward = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"expert_chunk_feed_forward_length", gguf.ValueTypeUint32); ok {
 			spec.ExpertChunkFeedForward = value
@@ -1354,7 +1367,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if architecture == "cohere2moe" {
+	if validation.Attention == AttentionValidationCohere2MoE {
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
 			if nextN != 1 || nextN >= spec.BlockCount {
 				return Spec{}, errors.New("Cohere2-MoE NextN/MTP layer count is invalid")
@@ -1385,7 +1398,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		}
 	}
-	if architecture == "hy_v3" {
+	if validation.Hybrid == HybridValidationHYV3 {
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("HY-V3 NextN/MTP layer count is invalid")
@@ -1409,7 +1422,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.RopeDimensionCount = spec.KeyLength
 	}
-	if architecture == "deepseek2-ocr" {
+	if validation.Hybrid == HybridValidationDeepSeek2OCR {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -1430,10 +1443,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.RopeDimensionCount = spec.KeyLength
 	}
-	if architecture == "neo-bert" {
+	if validation.Encoder == EncoderValidationNeoBERT {
 		spec.RopeDimensionCount = spec.KeyLength
 	}
-	if architecture == "jina-bert-v3" {
+	if validation.Encoder == EncoderValidationJinaV3 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -1449,7 +1462,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		}
 	}
-	if architecture == "nomic-bert" {
+	if validation.Encoder == EncoderValidationNomicBERT {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -1458,7 +1471,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
 		}
 	}
-	if architecture == "nomic-bert-moe" {
+	if validation.Encoder == EncoderValidationNomicBERTMoE {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -1467,7 +1480,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if architecture == "ernie4_5-moe" {
+	if validation.Attention == AttentionValidationErnie45MoE {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1478,13 +1491,13 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		spec.ExpertWeightsNorm = true
 	}
-	if architecture == "mellum" {
+	if validation.Hybrid == HybridValidationMellum {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
 		spec.ExpertWeightsNorm = true
 	}
-	if architecture == "hunyuan-moe" {
+	if validation.Hybrid == HybridValidationHunyuanMoE {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1495,7 +1508,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.ExpertWeightsNorm = true
 		spec.RopeDimensionCount = spec.KeyLength
 	}
-	if architecture == "grok" {
+	if validation.Hybrid == HybridValidationGrok {
 		if _, ok := optional[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); !ok {
@@ -1503,18 +1516,19 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.ExpertWeightsNorm = true
 	}
-	if architecture == "dbrx" {
+	if validation.Hybrid == HybridValidationDBRX {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 	}
-	if architecture == "granitemoe" || (architecture == "granite" && spec.ExpertCount > 0) {
+	if validation.Hybrid == HybridValidationGraniteMoE ||
+		validation.Hybrid == HybridValidationGranite && spec.ExpertCount > 0 {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 		spec.SharedExpertFF, _ = optional[uint32](
 			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
 		)
 	}
-	if architecture == "smallthinker" {
+	if validation.Hybrid == HybridValidationSmallThinker {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 		if spec.ExpertGatingFunc, err = required[uint32](
@@ -1523,7 +1537,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if architecture == "dots1" {
+	if validation.Hybrid == HybridValidationDOTS1 {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1547,7 +1561,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
 		)
 	}
-	if architecture == "minimax-m2" {
+	if validation.Hybrid == HybridValidationMiniMaxM2 {
 		expertWidth, widthErr := required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		)
@@ -1570,7 +1584,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if architecture == "bailingmoe" {
+	if validation.Hybrid == HybridValidationBailingMoE {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1585,7 +1599,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
-	if architecture == "deepseek" {
+	if validation.Hybrid == HybridValidationDeepSeek {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1599,7 +1613,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
-	if architecture == "lfm2moe" {
+	if validation.Hybrid == HybridValidationLFM2MoE {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1612,7 +1626,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
-	if architecture == "bailingmoe2" {
+	if validation.Hybrid == HybridValidationBailingMoE2 {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1636,7 +1650,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 	}
-	if architecture == "qwen2moe" {
+	if validation.Hybrid == HybridValidationQwen2MoE {
 		if spec.ExpertFeedForward == 0 {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
@@ -1646,10 +1660,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SharedExpertFF = value
 		}
 	}
-	if isLlamaMoE || architecture == "olmoe" || architecture == "phimoe" {
+	if isLlamaMoE || validation.hybridOneOf(HybridValidationOLMoE, HybridValidationPhiMoE) {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 	}
-	if architecture == "afmoe" {
+	if validation.Hybrid == HybridValidationAFMoE {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1687,7 +1701,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		}
 	}
-	if architecture == "exaone-moe" {
+	if validation.Hybrid == HybridValidationEXAOneMoE {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1702,7 +1716,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
-	if architecture == "laguna" {
+	if validation.Hybrid == HybridValidationLaguna {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1757,9 +1771,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 }
 
 func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, error) {
-	values, architecture, prefix, profile := m.values, m.architecture, m.prefix, m.profile
+	values, prefix, profile := m.values, m.prefix, m.profile
+	validation := profile.Validation
 	var err error
-	if architecture == "lfm2" || architecture == "lfm2moe" {
+	if validation.hybridOneOf(HybridValidationLFM2, HybridValidationLFM2MoE) {
 		if spec.ShortConvCacheLength, err = required[uint32](
 			values, prefix+"shortconv.l_cache", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1772,7 +1787,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 	}
 	if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
-		if architecture == "minicpm3" {
+		if validation.MLA == MLAValidationMiniCPM3 {
 			if spec.QLoRARank, err = required[uint32](
 				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
 			); err != nil {
@@ -1843,7 +1858,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			}
 		}
 		spec.IndexerFullLayers = make([]bool, spec.BlockCount)
-		if architecture == "deepseek32" || spec.ContextLength < deepSeekDenseIndexerContext {
+		if validation.MLA == MLAValidationDeepSeek32 || spec.ContextLength < deepSeekDenseIndexerContext {
 			for index := range spec.IndexerFullLayers {
 				spec.IndexerFullLayers[index] = true
 			}
@@ -1876,7 +1891,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			}
 		}
 	}
-	if architecture == "deepseek4" {
+	if validation.MLA == MLAValidationDeepSeek4 {
 		if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1941,10 +1956,16 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 		spec.SharedExpertFF = spec.SharedExpertCount * spec.ExpertFeedForward
 	}
-	if architecture == "gemma2" || architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "gemma4-assistant" ||
-		architecture == "olmo2" || architecture == "cohere2" || architecture == "cohere2moe" {
+	if validation.attentionOneOf(
+		AttentionValidationGemma2, AttentionValidationGemma3, AttentionValidationGemma3N,
+		AttentionValidationGemma4, AttentionValidationGemma4Assistant,
+		AttentionValidationOLMo2, AttentionValidationCohere2, AttentionValidationCohere2MoE,
+	) {
 		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if architecture == "gemma3" || architecture == "gemma3n" || architecture == "gemma4" || architecture == "gemma4-assistant" {
+		if validation.attentionOneOf(
+			AttentionValidationGemma3, AttentionValidationGemma3N,
+			AttentionValidationGemma4, AttentionValidationGemma4Assistant,
+		) {
 			spec.RopeFrequencySWA = 10000
 		}
 		if value, ok := optional[float32](
@@ -1954,7 +1975,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		); ok {
 			spec.RopeFrequencySWA = value
 		}
-		if architecture == "gemma2" {
+		if validation.Attention == AttentionValidationGemma2 {
 			spec.SlidingWindow = 4096
 		}
 		if value, ok := optional[uint32](
@@ -1966,16 +1987,18 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 		if spec.SlidingWindow > 0 {
 			spec.SlidingPattern = 4
-			if architecture == "gemma2" {
+			if validation.Attention == AttentionValidationGemma2 {
 				spec.SlidingPattern = 2
 			}
-			if architecture == "gemma3" {
+			if validation.Attention == AttentionValidationGemma3 {
 				spec.SlidingPattern = 6
 			}
-			if architecture == "gemma3n" {
+			if validation.Attention == AttentionValidationGemma3N {
 				spec.SlidingPattern = 5
 			}
-			if architecture == "gemma4" || architecture == "gemma4-assistant" {
+			if validation.attentionOneOf(
+				AttentionValidationGemma4, AttentionValidationGemma4Assistant,
+			) {
 				if spec.SlidingLayers, err = requiredLayerBoolCompatible(
 					values, prefix+"attention.sliding_window_pattern", spec.BlockCount,
 				); err != nil {
@@ -1990,7 +2013,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 				spec.SlidingPattern = value
 			}
 			patternValue := values[prefix+"attention.sliding_window_pattern"]
-			if (architecture == "cohere2" || architecture == "cohere2moe") &&
+			if validation.attentionOneOf(AttentionValidationCohere2, AttentionValidationCohere2MoE) &&
 				patternValue.Type == gguf.ValueTypeArray {
 				if layers, ok, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
 					return Spec{}, layersErr
@@ -2001,12 +2024,12 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 					spec.SlidingLayers = slices.Clone(layers)
 				}
 			}
-			if architecture == "cohere2" && len(spec.SlidingLayers) == 0 {
+			if validation.Attention == AttentionValidationCohere2 && len(spec.SlidingLayers) == 0 {
 				spec.NoRopeLayerStep = spec.SlidingPattern
 			}
 		}
 	}
-	if architecture == "llama4" {
+	if validation.Hybrid == HybridValidationLlama4 {
 		spec.RopeDimensionCount = spec.KeyLength
 		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 			spec.RopeDimensionCount = value
@@ -2030,7 +2053,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.AttentionTempOffset = 1
 		}
 	}
-	if architecture == "gpt-oss" {
+	if validation.Hybrid == HybridValidationGPTOSS {
 		spec.RopeDimensionCount = spec.KeyLength
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -2044,7 +2067,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.RopeFrequencySWA = value
 		}
 	}
-	if architecture == "gemma4" {
+	if validation.Attention == AttentionValidationGemma4 {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -2065,14 +2088,12 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		)
 		spec.AttentionScale = 1
 	}
-	if architecture == "gemma4-assistant" {
+	if validation.Attention == AttentionValidationGemma4Assistant {
 		spec.RopeDimensionCount = spec.KeyLength
 		spec.RopeDimensionSWA = spec.KeyLengthSWA
 		spec.AttentionScale = 1
 	}
-	if spec.RopeScalingType == "longrope" &&
-		(architecture == "llama" || architecture == "llama-embed" ||
-			architecture == "minicpm" || architecture == "mistral3") {
+	if spec.RopeScalingType == "longrope" && profile.Has(ArchitectureLongRoPE) {
 		spec.RopeDimensionCount = spec.KeyLength
 		spec.OriginalContextLength = spec.ContextLength
 		if value, ok := optional[uint32](
@@ -2088,7 +2109,8 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 	}
 	if spec.RopeScalingType == "yarn" &&
-		(architecture == "llama" || architecture == "llama-embed" || architecture == "minicpm") {
+		(validation.Hybrid == HybridValidationLlama ||
+			validation.Hybrid == HybridValidationRopeScaling && validation.MLA == MLAValidationNone) {
 		rawAttentionFactor := float32(1)
 		if value, ok := optional[float32](
 			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
@@ -2107,7 +2129,10 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 		spec.VocabularySize = uint32(tokens.Count())
 	}
-	if architecture == "bert" || architecture == "jina-bert-v2" || architecture == "jina-bert-v3" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" {
+	if validation.encoderOneOf(
+		EncoderValidationBERT, EncoderValidationJinaV2, EncoderValidationJinaV3,
+		EncoderValidationNomicBERT, EncoderValidationNomicBERTMoE,
+	) {
 		if spec.TokenTypeCount, err = required[uint32](values, "tokenizer.ggml.token_type_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}

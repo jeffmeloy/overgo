@@ -92,8 +92,8 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 }
 
 func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
-	values, architecture, prefix := m.values, m.architecture, m.prefix
-	if architecture == "chameleon" {
+	values, prefix := m.values, m.prefix
+	if m.profile.Validation.Attention == AttentionValidationChameleon {
 		spec.QKNormEpsilon = chameleonQKNormEpsilon
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
@@ -123,7 +123,7 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 		}
 	}
 	state := specReadState{}
-	if architecture == "llama" || architecture == "llama-embed" {
+	if m.profile.Validation.Hybrid == HybridValidationLlama {
 		count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		state.llamaMoE = ok && count > 0
 	}
@@ -280,17 +280,12 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 
 func (m specMetadata) readPosition(spec *Spec) error {
 	values, architecture, prefix, profile := m.values, m.architecture, m.prefix, m.profile
-	if architecture == "baichuan" && spec.BlockCount == 40 {
+	validation := profile.Validation
+	if profile.readsMetadata(MetadataReadBaichuanBlocks) && spec.BlockCount == 40 {
 		spec.RopeDisabled, spec.MaxALiBiBias = true, 8
 	}
-	if architecture == "bloom" || architecture == "gpt2" || architecture == "jais" || architecture == "mpt" ||
-		architecture == "refact" || architecture == "starcoder" {
-		spec.RopeDisabled = true
-	} else if !spec.RopeDisabled && profile.Forward != ForwardT5Encoder {
-		optionalBase := architecture == "gptneox" || architecture == "falcon" || architecture == "deepseek2-ocr" ||
-			architecture == "gemma-embedding" || architecture == "jina-bert-v3" || architecture == "modern-bert" ||
-			architecture == "neo-bert" || architecture == "nomic-bert" || architecture == "nomic-bert-moe" ||
-			profile.MLAVariant == mlaVariantMiniCPM3
+	if !spec.RopeDisabled && profile.Forward != ForwardT5Encoder {
+		optionalBase := validation.optionalRopeBase()
 		if optionalBase {
 			spec.RopeFrequencyBase = 10000
 			if value, ok := optional[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); ok {
@@ -306,9 +301,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 			qwenGDNMulti := profile.Attention == AttentionQwenGDN && profile.Has(ArchitectureMultiAxisPositions)
 			longRoPE := profile.Has(ArchitectureLongRoPE) && scalingType == "longrope"
 			yarn := scalingType == "yarn" && (profile.Has(ArchitectureDeepSeek2Layout) ||
-				profile.Block == BlockDeepSeek4 || architecture == "laguna" || architecture == "grok" ||
-				architecture == "mellum" || architecture == "llama" || architecture == "llama-embed" ||
-				architecture == "minicpm" || architecture == "mistral3")
+				profile.Block == BlockDeepSeek4 || validation.supportsYaRN())
 			if qwenGDNMulti || scalingType != "linear" && !longRoPE && !yarn {
 				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)
 			}
@@ -330,7 +323,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 				spec.YaRNAttentionFactor =
 					1 / (1 + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
 				spec.YaRNBetaFast, spec.YaRNBetaSlow = yarnDefaultBetaFast, yarnDefaultBetaSlow
-				if architecture == "grok" {
+				if validation.Hybrid == HybridValidationGrok {
 					spec.YaRNBetaFast = 8
 				}
 				for key, destination := range map[string]*float32{
@@ -344,9 +337,8 @@ func (m specMetadata) readPosition(spec *Spec) error {
 			}
 		}
 	}
-	if architecture == "bloom" || architecture == "jais" || profile.EncoderGraph.Kind == encoderGraphJinaV2 ||
-		architecture == "mpt" || architecture == "refact" {
-		if architecture != "mpt" {
+	if profile.readsMetadata(MetadataReadALiBi) || profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+		if !profile.readsMetadata(MetadataReadZeroALiBiDefault) {
 			spec.MaxALiBiBias = 8
 		}
 		if profile.EncoderGraph.Kind != encoderGraphJinaV2 {
@@ -358,7 +350,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 	if profile.DenseWeights.AllowActivationScale {
 		spec.AttentionClamp, _ = optional[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
 	}
-	if architecture == "dbrx" {
+	if validation.Hybrid == HybridValidationDBRX {
 		value, err := required[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
 		if err != nil {
 			return err
@@ -371,25 +363,27 @@ func (m specMetadata) readPosition(spec *Spec) error {
 func (m specMetadata) readDraftLayers(spec *Spec) error {
 	key := m.prefix + "nextn_predict_layers"
 	nextN, _ := optional[uint32](m.values, key, gguf.ValueTypeUint32)
-	switch m.architecture {
-	case "qwen35", "qwen35moe":
+	validation := m.profile.Validation
+	switch {
+	case validation.hybridOneOf(HybridValidationQwen35, HybridValidationQwen35MoE):
 		if nextN == 0 {
 			return nil
 		}
 		if nextN != 1 || nextN >= spec.BlockCount {
 			return errors.New("Qwen3.5 NextN/MTP layer count is invalid")
 		}
-	case "deepseek32", "glm-dsa":
-		if m.architecture == "deepseek32" {
+	case validation.MLA == MLAValidationDeepSeek32 ||
+		m.profile.readsMetadata(MetadataReadGLMDSAGating):
+		label := "GLM-DSA"
+		if validation.MLA == MLAValidationDeepSeek32 {
 			spec.LayerNormEpsilon = deepSeek32LayerNormEpsilon
+			label = "DeepSeek 3.2"
 		}
 		if nextN == 0 {
 			return nil
 		}
 		if nextN >= spec.BlockCount {
-			return fmt.Errorf("%s NextN/MTP layer count is invalid", map[string]string{
-				"deepseek32": "DeepSeek 3.2", "glm-dsa": "GLM-DSA",
-			}[m.architecture])
+			return fmt.Errorf("%s NextN/MTP layer count is invalid", label)
 		}
 	default:
 		return nil
@@ -400,10 +394,11 @@ func (m specMetadata) readDraftLayers(spec *Spec) error {
 }
 
 func (m specMetadata) readFamilyShape(spec *Spec) error {
-	values, architecture, prefix := m.values, m.architecture, m.prefix
+	values, prefix := m.values, m.prefix
+	validation := m.profile.Validation
 	var err error
-	switch architecture {
-	case "gemma4-assistant":
+	switch {
+	case m.profile.Forward == ForwardGemma4Assistant:
 		if spec.TargetHiddenSize, err = required[uint32](values, prefix+"embedding_length_out", gguf.ValueTypeUint32); err != nil {
 			return err
 		}
@@ -414,7 +409,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if nextN != spec.BlockCount {
 			return errors.New("Gemma 4 assistant NextN layer count must match block count")
 		}
-	case "gemma3n":
+	case validation.Attention == AttentionValidationGemma3N:
 		spec.AltUpCount = 4
 		spec.LaurelRank = 64
 		spec.EmbeddingPerLayer = 256
@@ -424,7 +419,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if spec.BlockCount >= spec.KVFromStart {
 			spec.SharedKVLayers = spec.BlockCount - spec.KVFromStart
 		}
-	case "wavtokenizer-dec":
+	case m.profile.Forward == ForwardWavTokenizer:
 		spec.OutputEmbeddingLength = spec.EmbeddingLength
 		if spec.EmbeddingLength, err = required[uint32](values, prefix+"features_length", gguf.ValueTypeUint32); err != nil {
 			return err
@@ -437,7 +432,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 				return err
 			}
 		}
-	case "dflash":
+	case validation.Recurrent == RecurrentValidationDFlash:
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
 			return err
 		}
@@ -445,7 +440,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if value, ok := optional[uint32](values, prefix+"block_size", gguf.ValueTypeUint32); ok {
 			spec.DFlashBlockSize = value
 		}
-	case "eagle3":
+	case validation.Recurrent == RecurrentValidationEagle3:
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
 			return err
 		}

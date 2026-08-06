@@ -97,6 +97,24 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	if unknown := profile.Experts.SupplementalCatalog &^ allExpertSupplements; unknown != 0 {
 		return fmt.Errorf("architecture profile %q: Experts.SupplementalCatalog has unknown bits %#x", profile.Name, unknown)
 	}
+	if unknown := profile.MetadataRead &^ allMetadataReadPolicies; unknown != 0 {
+		return fmt.Errorf("architecture profile %q: MetadataRead has unknown bits %#x", profile.Name, unknown)
+	}
+	if profile.readsMetadata(MetadataReadVisualSections) &&
+		!profile.Has(ArchitectureMultiAxisPositions) {
+		return fmt.Errorf("architecture profile %q: visual metadata requires multi-axis positions", profile.Name)
+	}
+	if profile.readsMetadata(MetadataReadQwen3VLDeepstack) &&
+		!profile.readsMetadata(MetadataReadVisualSections) {
+		return fmt.Errorf("architecture profile %q: Qwen3-VL deepstack metadata requires visual sections", profile.Name)
+	}
+	if profile.readsMetadata(MetadataReadZeroALiBiDefault) &&
+		!profile.readsMetadata(MetadataReadALiBi) {
+		return fmt.Errorf("architecture profile %q: zero ALiBi default requires ALiBi metadata", profile.Name)
+	}
+	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionDSA {
+		return fmt.Errorf("architecture profile %q: GLM-DSA metadata requires DSA attention", profile.Name)
+	}
 	if profile.AttentionGraph.QwenGDN != qwenGDNNone && profile.Attention != AttentionQwenGDN {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
 	}

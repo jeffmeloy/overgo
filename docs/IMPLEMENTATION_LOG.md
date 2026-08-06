@@ -32,6 +32,12 @@ claims.
 
 ## Validated milestones
 
+- The August 6 metadata-read wave replaced all architecture-name selection in
+  model metadata ingestion with resolved profile facts. Existing encoder,
+  attention, MLA, recurrent, hybrid, forward, and capability policies cover
+  shared schemas; a bounded bitset carries the remaining ALiBi, multimodal,
+  scalar, block-count, and gating facts. Cross-policy validation rejects
+  inconsistent persisted combinations before parsing.
 - The August 5 profile-validation wave added one fail-closed semantic gate for
   every serialized architecture enum and policy bitset. Embedded catalogs,
   RepoDB profile documents, bound metadata, and direct plan compilation reject

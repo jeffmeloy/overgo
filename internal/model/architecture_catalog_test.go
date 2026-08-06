@@ -42,6 +42,12 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 		"expert supplement bits": func(profile *ArchitectureProfile) {
 			profile.Experts.SupplementalCatalog = allExpertSupplements + 1
 		},
+		"metadata read bits": func(profile *ArchitectureProfile) {
+			profile.MetadataRead = allMetadataReadPolicies + 1
+		},
+		"metadata read relationship": func(profile *ArchitectureProfile) {
+			profile.MetadataRead = MetadataReadQwen3VLDeepstack
+		},
 		"Qwen GDN graph": func(profile *ArchitectureProfile) {
 			profile.AttentionGraph.QwenGDN = qwenGDNStandard
 		},

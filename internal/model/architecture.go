@@ -351,6 +351,7 @@ type ArchitectureProfile struct {
 	AttentionGraph  AttentionGraphPolicy
 	Experts         ExpertPolicy
 	Metadata        MetadataShapePolicy
+	MetadataRead    MetadataReadPolicy
 	Validation      ValidationPolicy
 	EncoderGraph    EncoderGraphPolicy
 	MLAVariant      mlaVariantPolicy

@@ -154,3 +154,73 @@ type ValidationPolicy struct {
 	Recurrent             RecurrentValidationPolicy
 	Hybrid                HybridValidationPolicy
 }
+
+func (p ValidationPolicy) attentionOneOf(policies ...AttentionValidationPolicy) bool {
+	return policyOneOf(p.Attention, policies...)
+}
+
+func (p ValidationPolicy) hybridOneOf(policies ...HybridValidationPolicy) bool {
+	return policyOneOf(p.Hybrid, policies...)
+}
+
+func (p ValidationPolicy) recurrentOneOf(policies ...RecurrentValidationPolicy) bool {
+	return policyOneOf(p.Recurrent, policies...)
+}
+
+func (p ValidationPolicy) encoderOneOf(policies ...EncoderValidationPolicy) bool {
+	return policyOneOf(p.Encoder, policies...)
+}
+
+func (p ValidationPolicy) requiresExpertMetadata(graniteExperts bool) bool {
+	if p.Encoder == EncoderValidationNomicBERTMoE ||
+		p.attentionOneOf(
+			AttentionValidationCohere2MoE, AttentionValidationErnie45MoE,
+			AttentionValidationGLM4MoE,
+		) || p.MLA == MLAValidationKimiLinear || p.Recurrent == RecurrentValidationJamba {
+		return true
+	}
+	if p.Hybrid == HybridValidationGranite {
+		return graniteExperts
+	}
+	return p.hybridOneOf(
+		HybridValidationQwen3Next, HybridValidationQwen35MoE,
+		HybridValidationQwen3MoE, HybridValidationGroveMoE,
+		HybridValidationMiMo2, HybridValidationStep35, HybridValidationLLaDAMoE,
+		HybridValidationQwen2MoE, HybridValidationArctic, HybridValidationBailingMoE,
+		HybridValidationDeepSeek, HybridValidationGraniteMoE, HybridValidationDBRX,
+		HybridValidationGrok, HybridValidationMellum, HybridValidationHunyuanMoE,
+		HybridValidationHYV3, HybridValidationDeepSeek2OCR,
+		HybridValidationSmallThinker, HybridValidationDOTS1,
+		HybridValidationMiniMaxM2, HybridValidationBailingMoE2,
+		HybridValidationOLMoE, HybridValidationLlama4, HybridValidationGPTOSS,
+		HybridValidationPhiMoE, HybridValidationLaguna, HybridValidationAFMoE,
+		HybridValidationEXAOneMoE, HybridValidationLFM2MoE,
+	)
+}
+
+func (p ValidationPolicy) optionalRopeBase() bool {
+	return p.attentionOneOf(
+		AttentionValidationGPTNeoX, AttentionValidationFalcon,
+		AttentionValidationGemmaEmbedding, AttentionValidationModernBERT,
+	) || p.Hybrid == HybridValidationDeepSeek2OCR ||
+		p.encoderOneOf(
+			EncoderValidationJinaV3, EncoderValidationNeoBERT,
+			EncoderValidationNomicBERT, EncoderValidationNomicBERTMoE,
+		) || p.MLA == MLAValidationMiniCPM3
+}
+
+func (p ValidationPolicy) supportsYaRN() bool {
+	return p.hybridOneOf(
+		HybridValidationLaguna, HybridValidationGrok, HybridValidationMellum,
+		HybridValidationLlama, HybridValidationRopeScaling,
+	)
+}
+
+func policyOneOf[T comparable](policy T, candidates ...T) bool {
+	for _, candidate := range candidates {
+		if policy == candidate {
+			return true
+		}
+	}
+	return false
+}

@@ -92,6 +92,7 @@
   },
   {
     "Capabilities": 8396800,
+    "MetadataRead": 8,
     "Name": "baichuan",
     "Position": 1,
     "Rotary": {
@@ -181,7 +182,7 @@
     "Name": "bitnet"
   },
   {
-    "Capabilities": 469794816,
+    "Capabilities": 469794818,
     "FeedForward": 1,
     "Metadata": {
       "KVHeads": 5
@@ -189,6 +190,7 @@
     "ModelCatalog": {
       "TokenNorm": 2
     },
+    "MetadataRead": 512,
     "Name": "bloom",
     "Normalization": 1
   },
@@ -311,6 +313,7 @@
     "ModelCatalog": {
       "SkipOutput": true
     },
+    "MetadataRead": 4,
     "Name": "command-r",
     "Normalization": 4,
     "Position": 1,
@@ -835,6 +838,7 @@
     "Metadata": {
       "MLAHeadLengths": true
     },
+    "MetadataRead": 256,
     "Name": "glm-dsa"
   },
   {
@@ -922,7 +926,7 @@
     }
   },
   {
-    "Capabilities": 469794816,
+    "Capabilities": 469794818,
     "FeedForward": 1,
     "Metadata": {
       "KVHeads": 5
@@ -945,6 +949,7 @@
     "ModelCatalog": {
       "RequireOutputBias": true
     },
+    "MetadataRead": 2,
     "Name": "gptj",
     "Normalization": 1,
     "Position": 1,
@@ -1190,13 +1195,14 @@
     }
   },
   {
-    "Capabilities": 478150656,
+    "Capabilities": 478150658,
     "DenseWeights": {
       "BiasCatalog": 3
     },
     "Metadata": {
       "KVHeads": 5
     },
+    "MetadataRead": 513,
     "Name": "jais",
     "Normalization": 1
   },
@@ -1705,7 +1711,7 @@
     "Normalization": 4
   },
   {
-    "Capabilities": 201588736,
+    "Capabilities": 201588738,
     "DenseStages": {
       "QK": {
         "Projection": 3
@@ -1722,6 +1728,7 @@
     "ModelCatalog": {
       "PositionEmbedding": 2
     },
+    "MetadataRead": 1536,
     "Name": "mpt",
     "Normalization": 1,
     "Runtime": {
@@ -1847,6 +1854,7 @@
   },
   {
     "Capabilities": 8192,
+    "MetadataRead": 128,
     "Name": "olmo",
     "Normalization": 2,
     "Position": 1,
@@ -1924,6 +1932,7 @@
   },
   {
     "Capabilities": 71303232,
+    "MetadataRead": 16,
     "Name": "paddleocr",
     "Rotary": {
       "MultiAxis": 1
@@ -2090,6 +2099,7 @@
   },
   {
     "Capabilities": 71303232,
+    "MetadataRead": 16,
     "Name": "qwen2vl",
     "Rotary": {
       "MultiAxis": 1
@@ -2219,6 +2229,7 @@
         "Heads": 1
       }
     },
+    "MetadataRead": 48,
     "Name": "qwen3vl",
     "Rotary": {
       "MultiAxis": 1
@@ -2242,6 +2253,7 @@
     },
     "Family": 1,
     "GraphFamily": 1,
+    "MetadataRead": 48,
     "Name": "qwen3vlmoe",
     "Rotary": {
       "MultiAxis": 1
@@ -2253,7 +2265,7 @@
     }
   },
   {
-    "Capabilities": 67108864,
+    "Capabilities": 67108866,
     "DenseWeights": {
       "AllowUngatedExperts": true
     },
@@ -2261,6 +2273,7 @@
       "Catalog": 2,
       "OptionalGate": true
     },
+    "MetadataRead": 512,
     "Name": "refact",
     "Validation": {
       "Attention": 32
@@ -2361,6 +2374,7 @@
   },
   {
     "Capabilities": 8192,
+    "MetadataRead": 64,
     "Name": "smollm3",
     "Position": 1,
     "Rotary": {
@@ -2386,7 +2400,7 @@
     "Normalization": 1
   },
   {
-    "Capabilities": 469794816,
+    "Capabilities": 469794818,
     "FeedForward": 1,
     "Metadata": {
       "KVHeads": 5

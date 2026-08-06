@@ -47,6 +47,9 @@ Current foundation:
 - Typed validation selectors own base rotary and encoder-family invariants;
   shared validators consume the resolved policy without architecture-name
   dispatch.
+- Thirty-two attention validation contracts now serialize with profiles,
+  covering rotary, sliding, per-layer, multimodal, and expert-shape invariants
+  without compiled architecture-name selection.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

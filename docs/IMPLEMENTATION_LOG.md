@@ -32,6 +32,9 @@ claims.
 
 ## Validated milestones
 
+- The August 5 attention-validation wave replaced all architecture-name
+  dispatch in the shared attention validator with 32 typed profile contracts.
+  Existing model-specific diagnostics and metadata bounds remain intact.
 - The August 5 validation-policy wave moved base rotary and encoder-family
   invariants into serialized profile selectors. Shared BERT-family shape and
   optional-expert validators replaced six architecture-name branches.

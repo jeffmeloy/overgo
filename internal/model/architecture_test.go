@@ -10,6 +10,7 @@ const (
 	runtimePolicyFixtureHeads        = uint32(2)
 	runtimePolicyFixtureKVHeads      = runtimePolicyFixtureHeads - 1
 	runtimePolicyFixtureHeadWidth    = uint32(4)
+	runtimePolicyFixtureNarrowWidth  = runtimePolicyFixtureHeadWidth / 2
 	runtimePolicyFixtureTokenTypes   = uint32(1)
 )
 
@@ -116,6 +117,27 @@ func TestEncoderValidationUsesBoundProfilePolicy(t *testing.T) {
 	spec.HeadCountKV = spec.HeadCount
 	if err := spec.validateEncoderFamilies(); err != nil {
 		t.Fatalf("bound encoder policy rejected valid metadata: %v", err)
+	}
+}
+
+func TestAttentionValidationUsesBoundProfilePolicy(t *testing.T) {
+	profile := ArchitectureProfile{
+		Name:       runtimePolicyFixtureArchitecture,
+		Validation: ValidationPolicy{Attention: AttentionValidationTalkie},
+	}
+	spec := Spec{
+		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
+		AttentionSpec: AttentionSpec{
+			KeyLength: runtimePolicyFixtureHeadWidth, ValueLength: runtimePolicyFixtureNarrowWidth,
+			RopeDimensionCount: runtimePolicyFixtureHeadWidth,
+		},
+	}.withProfile(profile)
+	if err := spec.validateAttentionFamilies(); err == nil {
+		t.Fatal("bound attention policy accepted invalid metadata")
+	}
+	spec.ValueLength = spec.KeyLength
+	if err := spec.validateAttentionFamilies(); err != nil {
+		t.Fatalf("bound attention policy rejected valid metadata: %v", err)
 	}
 }
 

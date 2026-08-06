@@ -21,6 +21,45 @@ const (
 	EncoderValidationNomicBERTMoE
 )
 
+// AttentionValidationPolicy: attention metadata contract.
+type AttentionValidationPolicy uint8
+
+const (
+	AttentionValidationNone AttentionValidationPolicy = iota
+	AttentionValidationChameleon
+	AttentionValidationJais2
+	AttentionValidationOpenELM
+	AttentionValidationPLaMo3
+	AttentionValidationDeci
+	AttentionValidationGemma3
+	AttentionValidationGemma3N
+	AttentionValidationGemma4
+	AttentionValidationGemma4Assistant
+	AttentionValidationGemma2
+	AttentionValidationOLMo2
+	AttentionValidationCohere2
+	AttentionValidationCohere2MoE
+	AttentionValidationErnie45MoE
+	AttentionValidationStableLM
+	AttentionValidationPhi2
+	AttentionValidationPhi3
+	AttentionValidationPanguEmbedded
+	AttentionValidationModernBERT
+	AttentionValidationGemmaEmbedding
+	AttentionValidationTalkie
+	AttentionValidationApertus
+	AttentionValidationGPTNeoX
+	AttentionValidationQwen
+	AttentionValidationChatGLM
+	AttentionValidationCogVLM
+	AttentionValidationHunyuan
+	AttentionValidationGLM4
+	AttentionValidationGLM4MoE
+	AttentionValidationEXAOne4
+	AttentionValidationFalcon
+	AttentionValidationRefact
+)
+
 // ValidationPolicy: architecture-owned metadata invariants.
 type ValidationPolicy struct {
 	AttentionFree         bool
@@ -33,4 +72,5 @@ type ValidationPolicy struct {
 	RopeFrequencyOptional bool
 	BaseRotary            BaseRotaryValidationPolicy
 	Encoder               EncoderValidationPolicy
+	Attention             AttentionValidationPolicy
 }

@@ -32,6 +32,7 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Attention-family invariants now select 32 typed profile contracts covering per-layer head layouts, Gemma/Cohere/Phi encoder variants, rotary dimensions, sliding attention, MRoPE, fused expert metadata, and architecture-specific projection constraints. The shared validator contains no architecture-name dispatch.
 - Base rotary requirements and BERT/JinaBERT/NeoBERT/NomicBERT encoder invariants now dispatch through typed validation profiles rather than architecture names. Shared encoder-shape and optional-expert predicates reduce duplicated validation surface while preserving model-specific errors.
 - Embedding and logit scale direction, normalization placement/bias/fallback, and layer-level RoPE schedules now live in typed runtime profile policies. Runtime methods consume the exact bound policy without architecture-name predicates, and the semantic profile digest pins the migrated RepoDB facts.
 - Canonical model-definition documents now bind a model manifest, exact profile, tensor inventory, architecture, and fully validated runtime `Spec`. GGUF ingestion produces relocation-stable definitions; one atomic batch publishes the physical inventory and all resolved facts, runtime dispatch preserves the bound policy, and recipe v2 compiles without architecture-registry lookup.

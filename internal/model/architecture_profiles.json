@@ -44,7 +44,10 @@
       }
     },
     "FeedForward": 5,
-    "Name": "apertus"
+    "Name": "apertus",
+    "Validation": {
+      "Attention": 22
+    }
   },
   {
     "Capabilities": 532480,
@@ -182,6 +185,9 @@
       }
     },
     "Name": "chameleon",
+    "Validation": {
+      "Attention": 1
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -191,6 +197,9 @@
     "Capabilities": 67182592,
     "FeedForward": 2,
     "Name": "chatglm",
+    "Validation": {
+      "Attention": 25
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -208,6 +217,9 @@
   {
     "Capabilities": 234889280,
     "Name": "cogvlm",
+    "Validation": {
+      "Attention": 26
+    },
     "Overrides": 1,
     "Position": 1,
     "Rotary": {
@@ -223,6 +235,9 @@
       "SkipOutput": true
     },
     "Name": "cohere2",
+    "Validation": {
+      "Attention": 12
+    },
     "Normalization": 4,
     "Position": 1,
     "Residual": 1,
@@ -254,6 +269,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "cohere2moe",
+    "Validation": {
+      "Attention": 13
+    },
     "Normalization": 4,
     "Position": 1,
     "Residual": 1,
@@ -314,6 +332,9 @@
       "KVHeads": 1
     },
     "Name": "deci",
+    "Validation": {
+      "Attention": 5
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -496,6 +517,9 @@
       "SkipAttentionOutputBias": true
     },
     "Name": "ernie4_5-moe",
+    "Validation": {
+      "Attention": 14
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -552,7 +576,10 @@
       }
     },
     "DraftKind": 4,
-    "Name": "exaone4"
+    "Name": "exaone4",
+    "Validation": {
+      "Attention": 30
+    }
   },
   {
     "Capabilities": 201605120,
@@ -567,6 +594,9 @@
       "KVHeads": 6
     },
     "Name": "falcon",
+    "Validation": {
+      "Attention": 31
+    },
     "Normalization": 1,
     "Residual": 1
   },
@@ -616,6 +646,9 @@
       "KVHeads": 6
     },
     "Name": "gemma-embedding",
+    "Validation": {
+      "Attention": 20
+    },
     "Rotary": {
       "Kind": 5
     },
@@ -633,6 +666,9 @@
       "QueryScale": 4
     },
     "Name": "gemma2",
+    "Validation": {
+      "Attention": 10
+    },
     "Rotary": {
       "Kind": 5
     },
@@ -652,6 +688,9 @@
       "QueryScale": 4
     },
     "Name": "gemma3",
+    "Validation": {
+      "Attention": 6
+    },
     "Rotary": {
       "Gemma3": true,
       "Kind": 5
@@ -670,6 +709,9 @@
       "QueryScale": 4
     },
     "Name": "gemma3n",
+    "Validation": {
+      "Attention": 7
+    },
     "Overrides": 2,
     "Rotary": {
       "Kind": 5
@@ -700,6 +742,9 @@
       "SWAHeadLengths": true
     },
     "Name": "gemma4",
+    "Validation": {
+      "Attention": 8
+    },
     "Overrides": 2,
     "Rotary": {
       "Kind": 5
@@ -719,7 +764,10 @@
     "Metadata": {
       "SWAHeadLengths": true
     },
-    "Name": "gemma4-assistant"
+    "Name": "gemma4-assistant",
+    "Validation": {
+      "Attention": 9
+    }
   },
   {
     "Attention": 2,
@@ -746,6 +794,9 @@
     "DraftKind": 4,
     "FeedForward": 2,
     "Name": "glm4",
+    "Validation": {
+      "Attention": 28
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4,
@@ -776,6 +827,9 @@
     "Family": 1,
     "GraphFamily": 1,
     "Name": "glm4moe",
+    "Validation": {
+      "Attention": 29
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4,
@@ -862,6 +916,9 @@
       "KVHeads": 6
     },
     "Name": "gptneox",
+    "Validation": {
+      "Attention": 23
+    },
     "Normalization": 1
   },
   {
@@ -990,6 +1047,9 @@
       }
     },
     "Name": "hunyuan-dense",
+    "Validation": {
+      "Attention": 27
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4,
@@ -1021,6 +1081,9 @@
       }
     },
     "Name": "hunyuan_vl",
+    "Validation": {
+      "Attention": 27
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4,
@@ -1075,6 +1138,9 @@
     },
     "FeedForward": 4,
     "Name": "jais2",
+    "Validation": {
+      "Attention": 2
+    },
     "Normalization": 1
   },
   {
@@ -1518,6 +1584,9 @@
       "TokenNorm": 1
     },
     "Name": "modern-bert",
+    "Validation": {
+      "Attention": 19
+    },
     "Normalization": 4
   },
   {
@@ -1681,6 +1750,9 @@
       "RequirePostNorm": true
     },
     "Name": "olmo2",
+    "Validation": {
+      "Attention": 11
+    },
     "Rotary": {
       "SlidingScaleReset": true
     },
@@ -1716,7 +1788,10 @@
       "Heads": 1,
       "KVHeads": 1
     },
-    "Name": "openelm"
+    "Name": "openelm",
+    "Validation": {
+      "Attention": 3
+    }
   },
   {
     "Capabilities": 8388608,
@@ -1738,7 +1813,10 @@
     "DenseWeights": {
       "RequireAttentionOutputBias": true
     },
-    "Name": "pangu-embedded"
+    "Name": "pangu-embedded",
+    "Validation": {
+      "Attention": 18
+    }
   },
   {
     "Capabilities": 612417536,
@@ -1750,6 +1828,9 @@
       "RequireOutputBias": true
     },
     "Name": "phi2",
+    "Validation": {
+      "Attention": 16
+    },
     "Normalization": 1,
     "Residual": 1
   },
@@ -1759,7 +1840,10 @@
       "QueryScale": 3
     },
     "FeedForward": 2,
-    "Name": "phi3"
+    "Name": "phi3",
+    "Validation": {
+      "Attention": 17
+    }
   },
   {
     "Capabilities": 612499460,
@@ -1780,6 +1864,9 @@
       "RequireOutputBias": true
     },
     "Name": "phimoe",
+    "Validation": {
+      "Attention": 17
+    },
     "Runtime": {
       "NormalizationBias": 2
     }
@@ -1829,6 +1916,9 @@
       "KVHeads": 1
     },
     "Name": "plamo3",
+    "Validation": {
+      "Attention": 4
+    },
     "Rotary": {
       "SlidingFrequency": true
     }
@@ -1846,7 +1936,10 @@
     "Metadata": {
       "KVHeads": 5
     },
-    "Name": "qwen"
+    "Name": "qwen",
+    "Validation": {
+      "Attention": 24
+    }
   },
   {
     "Name": "qwen2"
@@ -2024,7 +2117,10 @@
       "Catalog": 2,
       "OptionalGate": true
     },
-    "Name": "refact"
+    "Name": "refact",
+    "Validation": {
+      "Attention": 32
+    }
   },
   {
     "Capabilities": 33,
@@ -2125,6 +2221,9 @@
       "ValidateOptionalQKNorm": true
     },
     "Name": "stablelm",
+    "Validation": {
+      "Attention": 15
+    },
     "Normalization": 1
   },
   {
@@ -2226,6 +2325,7 @@
       "LogitScale": 1
     },
     "Validation": {
+      "Attention": 21,
       "RequireLogitScale": true
     }
   },

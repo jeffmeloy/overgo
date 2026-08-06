@@ -20,10 +20,11 @@ const (
 )
 
 func (s Spec) validateAttentionFamilies() error {
-	if s.Architecture == "chameleon" && s.QKNormEpsilon <= 0 {
+	validation := s.Profile().Validation
+	attention := validation.Attention
+	if attention == AttentionValidationChameleon && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
 	}
-	validation := s.Profile().Validation
 	if validation.MultiAxisRoPE {
 		var sectionPairs int32
 		for _, section := range s.RopeSections {
@@ -41,10 +42,10 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Qwen3-VL deepstack layer count exceeds block count")
 		}
 	}
-	if s.Architecture == "jais2" && s.HeadCountKV != s.HeadCount {
+	if attention == AttentionValidationJais2 && s.HeadCountKV != s.HeadCount {
 		return errors.New("Jais2 requires matching attention and KV head counts")
 	}
-	if s.Architecture == "openelm" {
+	if attention == AttentionValidationOpenELM {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerFeedForward) != int(s.BlockCount) {
@@ -58,7 +59,7 @@ func (s Spec) validateAttentionFamilies() error {
 			}
 		}
 	}
-	if s.Architecture == "plamo3" {
+	if attention == AttentionValidationPLaMo3 {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerFeedForward) != int(s.BlockCount) {
@@ -77,7 +78,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("PLaMo 3 rotary or sliding-attention metadata is invalid")
 		}
 	}
-	if s.Architecture == "deci" {
+	if attention == AttentionValidationDeci {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerFeedForward) != int(s.BlockCount) {
@@ -105,7 +106,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Deci LongRoPE metadata is invalid")
 		}
 	}
-	if s.Architecture == "gemma3" {
+	if attention == AttentionValidationGemma3 {
 		switch {
 		case s.RopeFrequencySWA <= 0:
 			return errors.New("Gemma 3 sliding RoPE frequency base must be positive")
@@ -115,7 +116,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Gemma 3 sliding attention pattern must be at least 2")
 		}
 	}
-	if s.Architecture == "gemma3n" {
+	if attention == AttentionValidationGemma3N {
 		switch {
 		case s.BlockCount != gemma3nSmallBlockCount && s.BlockCount != gemma3nLargeBlockCount:
 			return errors.New("Gemma 3n block count must be 30 or 35")
@@ -138,7 +139,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Gemma 3n final logit softcap must be positive")
 		}
 	}
-	if s.Architecture == "gemma4" {
+	if attention == AttentionValidationGemma4 {
 		switch {
 		case s.KeyLength == 0 || s.ValueLength == 0 || s.KeyLength != s.ValueLength ||
 			s.KeyLengthSWA == 0 || s.ValueLengthSWA == 0 || s.KeyLengthSWA != s.ValueLengthSWA:
@@ -163,7 +164,7 @@ func (s Spec) validateAttentionFamilies() error {
 			}
 		}
 	}
-	if s.Architecture == "gemma4-assistant" {
+	if attention == AttentionValidationGemma4Assistant {
 		switch {
 		case s.TargetHiddenSize == 0 || s.TargetHiddenSize == s.EmbeddingLength:
 			return errors.New("Gemma 4 assistant target hidden size is invalid")
@@ -179,7 +180,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Gemma 4 assistant sliding-attention metadata is invalid")
 		}
 	}
-	if s.Architecture == "gemma2" {
+	if attention == AttentionValidationGemma2 {
 		switch {
 		case s.RopeFrequencySWA <= 0:
 			return errors.New("Gemma 2 sliding RoPE frequency base must be positive")
@@ -187,7 +188,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Gemma 2 sliding attention pattern must be at least 2")
 		}
 	}
-	if s.Architecture == "olmo2" {
+	if attention == AttentionValidationOLMo2 {
 		switch {
 		case s.SlidingWindow > 0 && s.RopeFrequencySWA <= 0:
 			return errors.New("OLMo2 sliding RoPE frequency base must be positive")
@@ -195,7 +196,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("OLMo2 sliding attention pattern must be at least 2")
 		}
 	}
-	if s.Architecture == "cohere2" || s.Architecture == "cohere2moe" {
+	if attention == AttentionValidationCohere2 || attention == AttentionValidationCohere2MoE {
 		switch {
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0:
@@ -208,42 +209,42 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Cohere2 sliding attention pattern must be at least 2")
 		}
 	}
-	if s.Architecture == "cohere2moe" &&
+	if attention == AttentionValidationCohere2MoE &&
 		(s.LeadingDenseBlocks >= s.BlockCount || s.ExpertCount == 0 || s.ExpertUsedCount == 0 ||
 			s.ExpertUsedCount > s.ExpertCount || s.ExpertFeedForward == 0 ||
 			(s.ExpertGatingFunc != expertGatingSigmoid) || (s.SharedExpertCount > 0 && s.SharedExpertFF == 0)) {
 		return errors.New("Cohere2-MoE expert metadata is invalid")
 	}
-	if s.Architecture == "ernie4_5-moe" &&
+	if attention == AttentionValidationErnie45MoE &&
 		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			s.ExpertFeedForward == 0 || s.MoELayerStep == 0 || s.LeadingDenseBlocks >= s.BlockCount) {
 		return errors.New("ERNIE 4.5 MoE expert metadata is invalid")
 	}
-	if s.Architecture == "stablelm" &&
+	if attention == AttentionValidationStableLM &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("StableLM rotary dimension count is invalid")
 	}
-	if s.Architecture == "phi2" &&
+	if attention == AttentionValidationPhi2 &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("Phi-2 rotary dimension count is invalid")
 	}
-	if (s.Architecture == "phi3" || s.Architecture == "phimoe") &&
+	if attention == AttentionValidationPhi3 &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return errors.New("Phi-3 RoPE metadata is invalid")
 	}
-	if s.Architecture == "pangu-embedded" &&
+	if attention == AttentionValidationPanguEmbedded &&
 		(s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0 ||
 			s.KeyLength != s.ValueLength || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return errors.New("Pangu Embedded RoPE metadata is invalid")
 	}
-	if s.Architecture == "modern-bert" {
+	if attention == AttentionValidationModernBERT {
 		switch {
 		case s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength:
 			return errors.New("ModernBERT requires full-head matching key/value attention")
@@ -253,7 +254,7 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("ModernBERT sliding attention metadata is invalid")
 		}
 	}
-	if s.Architecture == "gemma-embedding" {
+	if attention == AttentionValidationGemmaEmbedding {
 		switch {
 		case s.KeyLength != s.ValueLength:
 			return errors.New("Gemma embedding requires matching key/value head widths")
@@ -267,11 +268,11 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("Gemma embedding dense-3 output width must match embedding length")
 		}
 	}
-	if s.Architecture == "talkie" &&
+	if attention == AttentionValidationTalkie &&
 		(s.KeyLength != s.ValueLength || s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("Talkie attention metadata is invalid")
 	}
-	if s.Architecture == "apertus" {
+	if attention == AttentionValidationApertus {
 		if s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0 ||
 			s.OriginalContextLength == 0 || s.RopeAttentionFactor <= 0 ||
 			math.IsNaN(float64(s.RopeAttentionFactor)) || math.IsInf(float64(s.RopeAttentionFactor), 0) {
@@ -293,52 +294,52 @@ func (s Spec) validateAttentionFamilies() error {
 			}
 		}
 	}
-	if s.Architecture == "gptneox" && s.RopeDimensionCount > 0 &&
+	if attention == AttentionValidationGPTNeoX && s.RopeDimensionCount > 0 &&
 		(s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("GPT-NeoX rotary dimension count is invalid")
 	}
-	if s.Architecture == "qwen" &&
+	if attention == AttentionValidationQwen &&
 		(s.HeadCountKV != s.HeadCount || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0) {
 		return errors.New("Qwen attention metadata is invalid")
 	}
-	if s.Architecture == "chatglm" &&
+	if attention == AttentionValidationChatGLM &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength) {
 		return errors.New("ChatGLM attention metadata is invalid")
 	}
-	if s.Architecture == "cogvlm" &&
+	if attention == AttentionValidationCogVLM &&
 		(s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength ||
 			uint64(s.KeyLength)*uint64(s.HeadCount) != uint64(s.EmbeddingLength) ||
 			s.RopeDimensionCount != s.KeyLength) {
 		return errors.New("CogVLM attention metadata is invalid")
 	}
-	if (s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan_vl") &&
+	if attention == AttentionValidationHunyuan &&
 		(s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			s.RopeDimensionCount%2 != 0 || s.RopeFrequencyBase <= 0 ||
 			math.IsNaN(float64(s.RopeFrequencyBase)) || math.IsInf(float64(s.RopeFrequencyBase), 0)) {
 		return fmt.Errorf("%s attention metadata is invalid", s.Architecture)
 	}
-	if s.Architecture == "hunyuan-dense" || s.Architecture == "hunyuan_vl" {
+	if attention == AttentionValidationHunyuan {
 		for _, section := range s.RopeSections {
 			if section < 0 {
 				return errors.New("Hunyuan MRoPE section count is negative")
 			}
 		}
 	}
-	if (s.Architecture == "glm4" || s.Architecture == "glm4moe") &&
+	if (attention == AttentionValidationGLM4 || attention == AttentionValidationGLM4MoE) &&
 		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
 			s.RopeDimensionCount%2 != 0) {
 		return errors.New("GLM4 rotary dimension count is invalid")
 	}
-	if s.Architecture == "glm4" || s.Architecture == "glm4moe" {
+	if attention == AttentionValidationGLM4 || attention == AttentionValidationGLM4MoE {
 		for _, section := range s.RopeSections {
 			if section < 0 {
 				return errors.New("GLM4 MRoPE section count is negative")
 			}
 		}
 	}
-	if s.Architecture == "glm4moe" &&
+	if attention == AttentionValidationGLM4MoE &&
 		(s.LeadingDenseBlocks >= s.BlockCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 ||
 			s.SharedExpertCount == 0 || s.SharedExpertFF == 0 ||
@@ -347,7 +348,7 @@ func (s Spec) validateAttentionFamilies() error {
 			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
 		return errors.New("GLM4-MoE expert metadata is invalid")
 	}
-	if s.Architecture == "exaone4" {
+	if attention == AttentionValidationEXAOne4 {
 		switch {
 		case s.RopeDimensionCount != s.KeyLength || s.RopeDimensionCount%2 != 0:
 			return errors.New("EXAONE 4 rotary dimension count must equal the key length")
@@ -357,11 +358,11 @@ func (s Spec) validateAttentionFamilies() error {
 			return errors.New("EXAONE 4 sliding RoPE frequency base must be positive")
 		}
 	}
-	if s.Architecture == "falcon" && s.RopeDimensionCount > 0 &&
+	if attention == AttentionValidationFalcon && s.RopeDimensionCount > 0 &&
 		s.RopeDimensionCount != s.KeyLength {
 		return errors.New("Falcon rotary dimension count must equal the key length")
 	}
-	if s.Architecture == "refact" && s.ExpertCount > 0 &&
+	if attention == AttentionValidationRefact && s.ExpertCount > 0 &&
 		(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
 			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 ||
 			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||

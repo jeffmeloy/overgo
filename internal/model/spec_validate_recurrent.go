@@ -5,53 +5,65 @@ import (
 	"fmt"
 )
 
+const (
+	wavTokenizerPosNetBlocks = uint32(6)
+	minimumConvKernelWidth   = uint32(2)
+	stateSpaceWidthFactor    = uint32(2)
+	eagle3BlockCount         = uint32(1)
+	eagle3TargetLayerCount   = 3
+	rwkvStandardTokenShifts  = uint32(2)
+	rwkvQwenTokenShifts      = uint32(1)
+	rotaryPairAlignment      = uint32(2)
+)
+
 func (s Spec) validateRecurrentFamilies() error {
-	switch s.Architecture {
-	case "wavtokenizer-dec":
-		if s.OutputEmbeddingLength == 0 || s.PosNetBlockCount != 6 || s.ConvNextBlockCount == 0 ||
+	validation := s.Profile().Validation.Recurrent
+	switch validation {
+	case RecurrentValidationWavTokenizer:
+		if s.OutputEmbeddingLength == 0 || s.PosNetBlockCount != wavTokenizerPosNetBlocks || s.ConvNextBlockCount == 0 ||
 			s.PosNetEmbeddingLength == 0 || s.PosNetEmbeddingLength != s.ConvNextEmbeddingLength ||
 			s.GroupNormGroups == 0 || s.GroupNormEpsilon <= 0 ||
 			s.PosNetEmbeddingLength%s.GroupNormGroups != 0 {
 			return errors.New("WavTokenizer metadata is invalid")
 		}
-	case "dflash":
-		if len(s.TargetLayers) == 0 || s.DFlashBlockSize < 2 {
+	case RecurrentValidationDFlash:
+		if len(s.TargetLayers) == 0 || s.DFlashBlockSize < minimumConvKernelWidth {
 			return errors.New("DFlash target-layer metadata is invalid")
 		}
 		return validateNonNegativeTargetLayers("DFlash", s.TargetLayers)
-	case "eagle3":
-		if s.BlockCount != 1 || len(s.TargetLayers) != 3 || s.TargetHiddenSize == 0 {
+	case RecurrentValidationEagle3:
+		if s.BlockCount != eagle3BlockCount || len(s.TargetLayers) != eagle3TargetLayerCount || s.TargetHiddenSize == 0 {
 			return errors.New("Eagle3 target-layer metadata is invalid")
 		}
 		return validateNonNegativeTargetLayers("Eagle3", s.TargetLayers)
-	case "mamba":
+	case RecurrentValidationMamba:
 		if !attentionMetadataZero(s) {
 			return errors.New("Mamba attention metadata must be zero")
 		}
-		if s.SSMConvKernel < 2 || s.SSMInnerSize != 2*s.EmbeddingLength ||
+		if s.SSMConvKernel < minimumConvKernelWidth || s.SSMInnerSize != stateSpaceWidthFactor*s.EmbeddingLength ||
 			s.SSMStateSize == 0 || s.SSMTimeStepRank == 0 {
 			return errors.New("Mamba SSM metadata is invalid")
 		}
-	case "mamba2":
+	case RecurrentValidationMamba2:
 		if !attentionMetadataZero(s) {
 			return errors.New("Mamba2 attention metadata must be zero")
 		}
 		if !validGroupedSSM(s) {
 			return errors.New("Mamba2 SSM metadata is invalid")
 		}
-	case "falcon-h1":
+	case RecurrentValidationFalconH1:
 		if !validGroupedSSM(s) {
 			return errors.New("Falcon-H1 SSM metadata is invalid")
 		}
-		if !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, 2) || s.KeyLength != s.ValueLength {
+		if !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.KeyLength != s.ValueLength {
 			return errors.New("Falcon-H1 rotary/head dimensions are invalid")
 		}
-	case "rwkv6", "rwkv6qwen2":
-		return s.validateRWKV6()
-	case "rwkv7", "arwkv7":
-		return s.validateRWKV7()
-	case "jamba":
-		if s.SSMConvKernel < 2 || s.SSMInnerSize != 2*s.EmbeddingLength ||
+	case RecurrentValidationRWKV6, RecurrentValidationRWKV6Qwen2:
+		return s.validateRWKV6(validation)
+	case RecurrentValidationRWKV7, RecurrentValidationARWKV7:
+		return s.validateRWKV7(validation)
+	case RecurrentValidationJamba:
+		if s.SSMConvKernel < minimumConvKernelWidth || s.SSMInnerSize != stateSpaceWidthFactor*s.EmbeddingLength ||
 			s.SSMStateSize == 0 || s.SSMTimeStepRank == 0 {
 			return errors.New("Jamba SSM metadata is invalid")
 		}
@@ -62,10 +74,10 @@ func (s Spec) validateRecurrentFamilies() error {
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 {
 			return errors.New("Jamba expert metadata is invalid")
 		}
-	case "granitehybrid":
+	case RecurrentValidationGraniteHybrid:
 		return s.validateGraniteHybrid()
-	case "plamo2":
-		if s.SSMConvKernel < 2 || s.SSMInnerSize == 0 || s.SSMStateSize == 0 ||
+	case RecurrentValidationPLaMo2:
+		if s.SSMConvKernel < minimumConvKernelWidth || s.SSMInnerSize == 0 || s.SSMStateSize == 0 ||
 			s.SSMTimeStepRank == 0 || s.SSMGroupCount != 0 ||
 			s.SSMInnerSize%s.SSMTimeStepRank != 0 {
 			return errors.New("PLaMo2 SSM metadata is invalid")
@@ -73,8 +85,8 @@ func (s Spec) validateRecurrentFamilies() error {
 		if !validRecurrentLayerSchedule(s) {
 			return errors.New("PLaMo2 layer schedule is invalid")
 		}
-	case "nemotron_h", "nemotron_h_moe":
-		return s.validateNemotronH()
+	case RecurrentValidationNemotronH, RecurrentValidationNemotronHMoE:
+		return s.validateNemotronH(validation == RecurrentValidationNemotronHMoE)
 	}
 	return nil
 }
@@ -85,7 +97,7 @@ func attentionMetadataZero(s Spec) bool {
 }
 
 func validGroupedSSM(s Spec) bool {
-	return s.SSMConvKernel >= 2 && s.SSMInnerSize > 0 && s.SSMStateSize > 0 &&
+	return s.SSMConvKernel >= minimumConvKernelWidth && s.SSMInnerSize > 0 && s.SSMStateSize > 0 &&
 		s.SSMTimeStepRank > 0 && s.SSMGroupCount > 0 &&
 		s.SSMInnerSize%s.SSMTimeStepRank == 0 && s.SSMInnerSize%s.SSMGroupCount == 0 &&
 		s.SSMTimeStepRank%s.SSMGroupCount == 0
@@ -105,23 +117,30 @@ func validateNonNegativeTargetLayers(family string, layers []int32) error {
 	return nil
 }
 
-func (s Spec) validateRWKV6() error {
+func (s Spec) validateRWKV6(validation RecurrentValidationPolicy) error {
+	wantShifts := rwkvStandardTokenShifts
+	if validation == RecurrentValidationRWKV6Qwen2 {
+		wantShifts = rwkvQwenTokenShifts
+	}
 	switch {
 	case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
 		return fmt.Errorf("%s WKV head metadata is invalid", s.Architecture)
 	case s.TimeMixExtraDim == 0 || s.TimeDecayExtraDim == 0 ||
-		(s.Architecture == "rwkv6" && s.TokenShiftCount != 2) ||
-		(s.Architecture == "rwkv6qwen2" && s.TokenShiftCount != 1):
+		s.TokenShiftCount != wantShifts:
 		return fmt.Errorf("%s time-mix metadata is invalid", s.Architecture)
 	case s.KeyLength != s.WKVHeadSize || s.ValueLength != s.WKVHeadSize:
 		return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
-	case s.Architecture == "rwkv6" && s.HeadCountKV != s.HeadCount:
+	case validation == RecurrentValidationRWKV6 && s.HeadCountKV != s.HeadCount:
 		return errors.New("rwkv6 KV head count must equal query head count")
 	}
 	return nil
 }
 
-func (s Spec) validateRWKV7() error {
+func (s Spec) validateRWKV7(validation RecurrentValidationPolicy) error {
+	wantShifts := rwkvStandardTokenShifts
+	if validation == RecurrentValidationARWKV7 {
+		wantShifts = rwkvQwenTokenShifts
+	}
 	switch {
 	case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
 		return fmt.Errorf("%s WKV head metadata is invalid", s.Architecture)
@@ -129,17 +148,16 @@ func (s Spec) validateRWKV7() error {
 		return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
 	case s.DecayLoRARank == 0 || s.ICLRLoRARank == 0 || s.ValueMixLoRARank == 0:
 		return fmt.Errorf("%s time-mix LoRA metadata is invalid", s.Architecture)
-	case s.Architecture == "rwkv7" && s.GateLoRARank == 0:
+	case validation == RecurrentValidationRWKV7 && s.GateLoRARank == 0:
 		return errors.New("rwkv7 gate LoRA metadata is invalid")
-	case (s.Architecture == "rwkv7" && s.TokenShiftCount != 2) ||
-		(s.Architecture == "arwkv7" && s.TokenShiftCount != 1):
+	case s.TokenShiftCount != wantShifts:
 		return fmt.Errorf("%s token-shift metadata is invalid", s.Architecture)
 	}
 	return nil
 }
 
 func (s Spec) validateGraniteHybrid() error {
-	if !validGroupedSSM(s) || s.SSMInnerSize != 2*s.EmbeddingLength {
+	if !validGroupedSSM(s) || s.SSMInnerSize != stateSpaceWidthFactor*s.EmbeddingLength {
 		return errors.New("Granite Hybrid SSM metadata is invalid")
 	}
 	if !validRecurrentLayerSchedule(s) {
@@ -155,7 +173,7 @@ func (s Spec) validateGraniteHybrid() error {
 	return nil
 }
 
-func (s Spec) validateNemotronH() error {
+func (s Spec) validateNemotronH(moe bool) error {
 	if !validGroupedSSM(s) {
 		return errors.New("Nemotron-H SSM metadata is invalid")
 	}
@@ -178,7 +196,7 @@ func (s Spec) validateNemotronH() error {
 			return errors.New("Nemotron-H attention layer schedule is invalid")
 		}
 	}
-	if s.Architecture == "nemotron_h_moe" {
+	if moe {
 		if !validMoESelection(s.ExpertUsedCount, s.ExpertCount) || s.ExpertFeedForward == 0 ||
 			s.SharedExpertFF == 0 || s.ExpertWeightsScale <= 0 {
 			return errors.New("Nemotron-H MoE metadata is invalid")

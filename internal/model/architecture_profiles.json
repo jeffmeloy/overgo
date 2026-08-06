@@ -79,7 +79,10 @@
     "DenseGraph": 9,
     "Family": 2,
     "GraphFamily": 2,
-    "Name": "arwkv7"
+    "Name": "arwkv7",
+    "Validation": {
+      "Recurrent": 10
+    }
   },
   {
     "Capabilities": 8396800,
@@ -445,7 +448,10 @@
     "Family": 7,
     "Forward": 2,
     "GraphFamily": 7,
-    "Name": "dflash"
+    "Name": "dflash",
+    "Validation": {
+      "Recurrent": 2
+    }
   },
   {
     "Capabilities": 75497476,
@@ -483,6 +489,9 @@
     "Forward": 3,
     "GraphFamily": 7,
     "Name": "eagle3",
+    "Validation": {
+      "Recurrent": 3
+    },
     "Position": 1,
     "Rotary": {
       "Kind": 4
@@ -614,7 +623,10 @@
     "FFNNormLayout": 1,
     "Family": 3,
     "GraphFamily": 3,
-    "Name": "falcon-h1"
+    "Name": "falcon-h1",
+    "Validation": {
+      "Recurrent": 6
+    }
   },
   {
     "Capabilities": 1024,
@@ -972,6 +984,9 @@
       "PreserveLayerKV": true
     },
     "Name": "granitehybrid",
+    "Validation": {
+      "Recurrent": 12
+    },
     "Position": 1,
     "RecurrentBlock": 5,
     "RecurrentCache": 3,
@@ -1163,6 +1178,9 @@
       "PreserveLayerKV": true
     },
     "Name": "jamba",
+    "Validation": {
+      "Recurrent": 11
+    },
     "RecurrentBlock": 4,
     "RecurrentCache": 2
   },
@@ -1436,7 +1454,8 @@
     },
     "Name": "mamba",
     "Validation": {
-      "AttentionFree": true
+      "AttentionFree": true,
+      "Recurrent": 4
     }
   },
   {
@@ -1451,7 +1470,8 @@
     },
     "Name": "mamba2",
     "Validation": {
-      "AttentionFree": true
+      "AttentionFree": true,
+      "Recurrent": 5
     }
   },
   {
@@ -1651,6 +1671,9 @@
       "KVHeads": 2
     },
     "Name": "nemotron_h",
+    "Validation": {
+      "Recurrent": 14
+    },
     "RecurrentCache": 3
   },
   {
@@ -1667,6 +1690,9 @@
       "KVHeads": 2
     },
     "Name": "nemotron_h_moe",
+    "Validation": {
+      "Recurrent": 15
+    },
     "RecurrentCache": 3
   },
   {
@@ -1907,6 +1933,9 @@
       "PreserveLayerKV": true
     },
     "Name": "plamo2",
+    "Validation": {
+      "Recurrent": 13
+    },
     "Position": 1,
     "RecurrentBlock": 6,
     "RecurrentCache": 2,
@@ -2164,6 +2193,9 @@
       "TokenNorm": 2
     },
     "Name": "rwkv6",
+    "Validation": {
+      "Recurrent": 7
+    },
     "Normalization": 1
   },
   {
@@ -2179,7 +2211,10 @@
     "ModelCatalog": {
       "OptionalOutputNormBias": true
     },
-    "Name": "rwkv6qwen2"
+    "Name": "rwkv6qwen2",
+    "Validation": {
+      "Recurrent": 8
+    }
   },
   {
     "Auxiliary": 1,
@@ -2193,6 +2228,9 @@
       "TokenNorm": 2
     },
     "Name": "rwkv7",
+    "Validation": {
+      "Recurrent": 9
+    },
     "Normalization": 1
   },
   {
@@ -2356,6 +2394,9 @@
       "KVHeads": 3
     },
     "Name": "wavtokenizer-dec",
+    "Validation": {
+      "Recurrent": 1
+    },
     "Normalization": 1
   },
   {

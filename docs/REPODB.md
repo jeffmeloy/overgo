@@ -52,6 +52,8 @@ Current foundation:
   without compiled architecture-name selection.
 - MLA/DSA validation selectors now carry DeepSeek, Kimi Linear, Mistral, and
   MiniCPM contracts; shared MLA mechanisms consume only typed profile policy.
+- Recurrent validation selectors now carry WavTokenizer, draft, Mamba, RWKV,
+  hybrid SSM, and Nemotron contracts with named dimensional facts.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

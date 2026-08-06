@@ -72,6 +72,28 @@ const (
 	MLAValidationMiniCPM3
 )
 
+// RecurrentValidationPolicy: recurrent-family metadata contract.
+type RecurrentValidationPolicy uint8
+
+const (
+	RecurrentValidationNone RecurrentValidationPolicy = iota
+	RecurrentValidationWavTokenizer
+	RecurrentValidationDFlash
+	RecurrentValidationEagle3
+	RecurrentValidationMamba
+	RecurrentValidationMamba2
+	RecurrentValidationFalconH1
+	RecurrentValidationRWKV6
+	RecurrentValidationRWKV6Qwen2
+	RecurrentValidationRWKV7
+	RecurrentValidationARWKV7
+	RecurrentValidationJamba
+	RecurrentValidationGraniteHybrid
+	RecurrentValidationPLaMo2
+	RecurrentValidationNemotronH
+	RecurrentValidationNemotronHMoE
+)
+
 // ValidationPolicy: architecture-owned metadata invariants.
 type ValidationPolicy struct {
 	AttentionFree         bool
@@ -86,4 +108,5 @@ type ValidationPolicy struct {
 	Encoder               EncoderValidationPolicy
 	Attention             AttentionValidationPolicy
 	MLA                   MLAValidationPolicy
+	Recurrent             RecurrentValidationPolicy
 }

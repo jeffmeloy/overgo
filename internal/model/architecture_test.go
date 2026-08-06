@@ -14,6 +14,7 @@ const (
 	runtimePolicyFixtureTokenTypes   = uint32(1)
 	runtimePolicyFixtureRank         = uint32(1)
 	runtimePolicyFixturePositive     = float32(1)
+	runtimePolicyFixtureTargetLayer  = int32(0)
 )
 
 func TestArchitectureRegistryProfiles(t *testing.T) {
@@ -160,6 +161,24 @@ func TestMLAValidationUsesBoundProfilePolicy(t *testing.T) {
 	spec.RopeAttentionFactor = runtimePolicyFixturePositive
 	if err := spec.validateMLAFamilies(); err != nil {
 		t.Fatalf("bound MLA policy rejected valid metadata: %v", err)
+	}
+}
+
+func TestRecurrentValidationUsesBoundProfilePolicy(t *testing.T) {
+	profile := ArchitectureProfile{
+		Name:       runtimePolicyFixtureArchitecture,
+		Validation: ValidationPolicy{Recurrent: RecurrentValidationDFlash},
+	}
+	spec := Spec{
+		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
+	}.withProfile(profile)
+	if err := spec.validateRecurrentFamilies(); err == nil {
+		t.Fatal("bound recurrent policy accepted invalid metadata")
+	}
+	spec.TargetLayers = []int32{runtimePolicyFixtureTargetLayer}
+	spec.DFlashBlockSize = runtimePolicyFixtureBlocks
+	if err := spec.validateRecurrentFamilies(); err != nil {
+		t.Fatalf("bound recurrent policy rejected valid metadata: %v", err)
 	}
 }
 

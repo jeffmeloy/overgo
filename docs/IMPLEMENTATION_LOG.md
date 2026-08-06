@@ -32,6 +32,9 @@ claims.
 
 ## Validated milestones
 
+- The August 5 recurrent-validation wave replaced the architecture switch and
+  RWKV/Nemotron name branches with 15 serialized contracts, while naming fixed
+  convolution, state-width, target-count, shift, and alignment facts.
 - The August 5 MLA-validation wave moved DeepSeek 3.2/4, Kimi Linear,
   Mistral 3, and MiniCPM3 selection into typed profiles and named the remaining
   fixed family dimensions. The common MLA validator has no name dispatch.

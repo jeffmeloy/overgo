@@ -73,7 +73,7 @@ func (r *Runtime) Register(module recipe.ModuleID, adapter Adapter) error {
 	if r == nil || adapter == nil {
 		return errors.New("workflow runtime: nil runtime or adapter")
 	}
-	if _, ok := workflowrecipe.Catalog().Module(module); !ok {
+	if _, ok := workflowrecipe.Module(module); !ok {
 		return fmt.Errorf("workflow runtime: unknown module %q", module)
 	}
 	r.mu.Lock()
@@ -149,7 +149,6 @@ func (r *Runtime) executePlan(
 	plan workflowrecipe.Plan,
 	external map[recipe.PortName]Value,
 ) (map[recipe.PortName]Value, error) {
-	catalog := workflowrecipe.Catalog()
 	bound := make(map[recipe.Endpoint][]Value)
 	if len(external) != len(plan.Recipe.Inputs) {
 		return nil, errors.New("workflow runtime: external input set differs")
@@ -165,7 +164,7 @@ func (r *Runtime) executePlan(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		module, _ := catalog.Module(step.Module)
+		module, _ := workflowrecipe.Module(step.Module)
 		stepInputs := make(map[recipe.PortName]Value, len(module.Inputs))
 		for _, port := range module.Inputs {
 			value, err := mergeValues(port.Data, bound[recipe.Endpoint{Node: step.ID, Port: port.Name}])

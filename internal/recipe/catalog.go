@@ -59,6 +59,17 @@ func (c *Catalog) Modules() []Module {
 	return result
 }
 
+func (c *Catalog) Clone() *Catalog {
+	if c == nil {
+		return nil
+	}
+	cloned := &Catalog{modules: make(map[ModuleID]Module, len(c.modules))}
+	for id, module := range c.modules {
+		cloned.modules[id] = cloneModule(module)
+	}
+	return cloned
+}
+
 func canonicalModule(module Module) (Module, error) {
 	if !validName(string(module.ID)) || len(module.Tasks) == 0 || len(module.Placements) == 0 {
 		return Module{}, errors.New("recipe: invalid module identity or policy")

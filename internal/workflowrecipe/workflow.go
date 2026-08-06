@@ -64,12 +64,10 @@ const (
 var catalog = mustCatalog()
 
 func Catalog() *recipe.Catalog {
-	copy, err := recipe.NewCatalog(catalog.Modules()...)
-	if err != nil {
-		panic(err)
-	}
-	return copy
+	return catalog.Clone()
 }
+
+func Module(id recipe.ModuleID) (recipe.Module, bool) { return catalog.Module(id) }
 
 func Generation(bindings Bindings, placement recipe.Placement) (recipe.Definition, error) {
 	tokenize := node("tokenize", ModuleTokenize, placement)

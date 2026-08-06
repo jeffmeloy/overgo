@@ -64,6 +64,24 @@ func TestDefinitionCanonicalIdentityAndValidation(t *testing.T) {
 	}
 }
 
+func TestCatalogCloneOwnsModuleMap(t *testing.T) {
+	_, catalog := fixtureRecipe(t)
+	cloned := catalog.Clone()
+	extra := Module{
+		ID: "fixture.extra", Tasks: []Task{TaskInference}, Placements: []Placement{PlacementHost},
+		Outputs: []Port{{Name: "value", Data: DataTensor, Cardinality: CardinalityOne}},
+	}
+	if err := cloned.Register(extra); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := catalog.Module(extra.ID); ok {
+		t.Fatal("catalog clone mutated source")
+	}
+	if _, ok := cloned.Module(extra.ID); !ok {
+		t.Fatal("catalog clone lost registered module")
+	}
+}
+
 func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 	definition, _ := fixtureRecipe(t)
 	profileID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("profile"))

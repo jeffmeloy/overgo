@@ -26,11 +26,13 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Multimodal | Implemented, constrained | CogVLM, DeepSeek-OCR, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, PaddleOCR-VL, Qwen2-VL, dense/MoE Qwen3-VL, and Gemma 4 image/video; Gemma 4 ordered image/audio history |
 | Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
 | RepoDB | Artifact, policy, workflow, and evidence foundations implemented | Content-addressed manifests/profile documents, typed lineage/locations/recipe DAGs, generation/embedding/rerank/projection/training plans, run/evaluation evidence, parity-gated runtime policy injection, atomic hash-chained commits, strict replay, and fail-closed single-writer storage |
+| Training | Optimizer core implemented | Validated flat parameter plans, adaptive/Muon CPU updates, explicit schedules, and identity-bound state restore; backward graphs and mutable model master weights remain pending |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
 
 ## Recently completed
 
+- The compact `adaptive_new` optimizer core now runs independently over flat FP32 weights and gradients: named complete parameter plans derive sign/Muon policy, CPU Newton-Schulz owns one bounded scratch set, learning-rate semantics are typed, and snapshots bind exact plan/config identity. Golden parity covers the source optimizer without retaining its autograd, matrix, telemetry, or CUDA dependencies.
 - Generation, embedding, rerank, image/audio/video projection, and training orchestration now use canonical dependency-bound recipe DAGs, a shared typed module catalog, and deterministic topological plans; immutable run/evaluation records capture queryable provenance and serve as lifecycle promotion evidence.
 - Recipe v2 identities now hash canonical typed role/slot dependencies for models, profiles, tokenizers, projectors, adapters, datasets, and checkpoints; publication records dependency lineage, profile recipes no longer write mutable side aliases, and strict canonical v1 reads preserve existing logs.
 - Architecture profiles now persist as strict content-addressed RepoDB facts; candidate recipes bind an exact profile, registry/profile plan parity produces typed evidence, and only matching evidence unlocks active runtime policy injection through metadata, catalog, and graph planning.

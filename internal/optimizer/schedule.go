@@ -1,0 +1,57 @@
+package optimizer
+
+import (
+	"errors"
+	"math"
+)
+
+// Schedule: learning-rate policy.
+type Schedule uint8
+
+const (
+	ScheduleConstant Schedule = iota
+	ScheduleLinearDecay
+)
+
+// Config: adaptive optimizer policy.
+type Config struct {
+	BaseLearningRate float64
+	Momentum         float64
+	Steps            int
+	Schedule         Schedule
+}
+
+func (c Config) validate() error {
+	if math.IsNaN(c.BaseLearningRate) || math.IsInf(c.BaseLearningRate, 0) || c.BaseLearningRate < 0 {
+		return errors.New("optimizer config: learning rate must be finite and non-negative")
+	}
+	if math.IsNaN(c.Momentum) || math.IsInf(c.Momentum, 0) || c.Momentum < 0 || c.Momentum >= 1 {
+		return errors.New("optimizer config: momentum must be finite and in [0,1)")
+	}
+	if c.Steps < 0 {
+		return errors.New("optimizer config: negative step count")
+	}
+	switch c.Schedule {
+	case ScheduleConstant:
+	case ScheduleLinearDecay:
+		if c.Steps == 0 {
+			return errors.New("optimizer config: linear decay requires a positive step count")
+		}
+	default:
+		return errors.New("optimizer config: unsupported schedule")
+	}
+	return nil
+}
+
+// LearningRate returns the rate for a one-based optimizer step.
+func (c Config) LearningRate(step int) float64 {
+	if c.Schedule == ScheduleConstant {
+		return c.BaseLearningRate
+	}
+	progress := min(float64(max(step, 0))/float64(c.Steps), 1)
+	return c.BaseLearningRate * (1 - progress)
+}
+
+func stepRMS(momentum float64) float64 {
+	return math.Sqrt(1 - momentum*momentum)
+}

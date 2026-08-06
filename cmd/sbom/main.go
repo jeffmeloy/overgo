@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	upstreamCommit = "42fc243060709331ff9b158a9ed2cbe37219ae83"
-	sbomPath       = "SBOM.cdx.json"
+	upstreamCommit          = "42fc243060709331ff9b158a9ed2cbe37219ae83"
+	adaptiveOptimizerCommit = "9d4b38364c2cacba3ee99b998bd84d4645bfbe46"
+	sbomPath                = "SBOM.cdx.json"
 )
 
 var kernelFiles = []string{
@@ -68,12 +69,14 @@ func generate(root string) ([]byte, error) {
 	}
 	components := []map[string]any{
 		component("library", "llama.cpp compatibility baseline", upstreamCommit, "MIT", "pkg:github/ggml-org/llama.cpp@"+upstreamCommit),
+		component("library", "adaptive_new optimizer mathematics", adaptiveOptimizerCommit, "MIT", ""),
 		component("framework", "Go standard library", "1.26", "BSD-3-Clause", "pkg:golang/stdlib@1.26"),
 		component("framework", "NVIDIA CUDA Driver API", "13.2-compatible", "NVIDIA Software License Agreement", ""),
 		component("framework", "NVIDIA CUDA Toolkit", "12.9.86", "NVIDIA Software License Agreement", ""),
 	}
 	dependsOn := []string{
 		"pkg:github/ggml-org/llama.cpp@" + upstreamCommit,
+		"component:adaptive_new-optimizer-mathematics",
 		"pkg:golang/stdlib@1.26",
 		"component:nvidia-cuda-driver-api",
 		"component:nvidia-cuda-toolkit",
@@ -131,6 +134,7 @@ func generate(root string) ([]byte, error) {
 				{"name": "llamacpp2go:cgo", "value": "false"},
 				{"name": "llamacpp2go:cuda-target", "value": "compute_89"},
 				{"name": "llamacpp2go:upstream-commit", "value": upstreamCommit},
+				{"name": "llamacpp2go:adaptive-optimizer-commit", "value": adaptiveOptimizerCommit},
 			},
 			"tools": map[string]any{"components": []map[string]any{
 				component("application", "llamacpp2go sbom generator", "1", "NOASSERTION", ""),

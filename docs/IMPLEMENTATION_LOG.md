@@ -32,6 +32,13 @@ claims.
 
 ## Validated milestones
 
+- The August 5 training-foundation wave adapted the compact `adaptive_new`
+  flat optimizer core behind a dependency-free parameter plan. Named matrix
+  groups derive sign or Muon updates, CPU Newton-Schulz reuses min-side Gram
+  scratch, typed schedules make pre-increment semantics explicit, and
+  plan/config-bound snapshots reject incompatible restores. A source-generated
+  golden fixture pins mathematical parity without importing the original
+  autograd, matrix, diagnostics, or CUDA packages.
 - The August 4 ownership/schema consolidation wave replaced separate raw and
   F32 CUDA weight state machines with one transactional tensor owner while
   preserving their upload strategies and nil-safe public lifecycles. One

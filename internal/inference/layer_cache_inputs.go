@@ -15,7 +15,7 @@ type layerGraphCacheInputs struct {
 	indexerKey *tensor.Tensor
 	convState  *tensor.Tensor
 	ssmState   *tensor.Tensor
-	states     map[string]*tensor.Tensor
+	states     map[model.CacheStateName]*tensor.Tensor
 }
 
 func (r *Runner) hostLayerCacheInputs(
@@ -26,7 +26,7 @@ func (r *Runner) hostLayerCacheInputs(
 	past *LayerCache,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (layerGraphCacheInputs, error) {
-	result := layerGraphCacheInputs{states: make(map[string]*tensor.Tensor)}
+	result := layerGraphCacheInputs{states: make(map[model.CacheStateName]*tensor.Tensor)}
 	name := func(suffix string) string { return fmt.Sprintf("blk.%d.%s", layer, suffix) }
 	input := func(suffix string, value reference.Value) *tensor.Tensor {
 		node := builder.Input(name(suffix), dtype.F32, value.Shape)
@@ -45,7 +45,7 @@ func (r *Runner) hostLayerCacheInputs(
 		result.key = input("cache_key", past.Key)
 		result.value = input("cache_value", past.Value)
 		for stateName, state := range past.States {
-			node := input(stateName, state.Value)
+			node := input(string(stateName), state.Value)
 			switch stateName {
 			case model.CacheStateIndexerKey:
 				result.indexerKey = node
@@ -68,11 +68,11 @@ func (r *Runner) hostLayerCacheInputs(
 		switch stateName {
 		case model.CacheStateConvolution:
 			if result.convState == nil {
-				result.convState = zero(stateName, stateSchema.Shape)
+				result.convState = zero(string(stateName), stateSchema.Shape)
 			}
 		case model.CacheStateSSM:
 			if result.ssmState == nil {
-				result.ssmState = zero(stateName, stateSchema.Shape)
+				result.ssmState = zero(string(stateName), stateSchema.Shape)
 			}
 		}
 	}

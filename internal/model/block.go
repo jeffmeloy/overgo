@@ -233,8 +233,8 @@ type DenseBlockResult struct {
 	Key         *tensor.Tensor
 	Value       *tensor.Tensor
 	Auxiliary   *tensor.Tensor
-	States      map[string]*tensor.Tensor
-	FixedStates map[string]*tensor.Tensor
+	States      map[CacheStateName]*tensor.Tensor
+	FixedStates map[CacheStateName]*tensor.Tensor
 }
 
 type Qwen35BlockResult struct {

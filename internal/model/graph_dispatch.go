@@ -18,7 +18,7 @@ type CachedBlockContext struct {
 	PastIndexerKey   *tensor.Tensor
 	PastConvState    *tensor.Tensor
 	PastSSMState     *tensor.Tensor
-	PastStates       map[string]*tensor.Tensor
+	PastStates       map[CacheStateName]*tensor.Tensor
 	CurrentPositions *tensor.Tensor
 	PerLayerInput    *tensor.Tensor
 	Layer            uint32

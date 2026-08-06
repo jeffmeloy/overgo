@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 typed-cache-key wave promoted named-state keys to
+  `CacheStateName` across graph, host, device, editing, and session paths.
+  Serialization converts only at the byte boundary, and a non-canonical valid
+  fixture proves extension names remain round-trippable.
 - The August 6 cache-ABI wave centralized every serialized named-state fact in
   the model cache schema. Graph output, host/device binding, validation,
   session paths, NextN drafting, and fixtures now consume the same DSA,

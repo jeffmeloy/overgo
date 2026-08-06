@@ -72,7 +72,7 @@ func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
 		Values: []executor.DeviceValue{{
 			Pointer: driver.DevicePtr(2000), Shape: tensor.MustShape(3, 1, 4),
 		}},
-		States: []map[string]deviceLayerState{{
+		States: []map[model.CacheStateName]deviceLayerState{{
 			"fixed": {
 				Mode: CacheStateFixed,
 				Value: executor.DeviceValue{

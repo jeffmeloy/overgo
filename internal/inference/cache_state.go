@@ -73,7 +73,7 @@ func upgradeDeepSeek4CachePositions(cache *KVCache) {
 			continue
 		}
 		if cache.Layers[index].States == nil {
-			cache.Layers[index].States = make(map[string]LayerState)
+			cache.Layers[index].States = make(map[model.CacheStateName]LayerState)
 		}
 		cache.Layers[index].States[model.CacheStatePositions] = LayerState{
 			Mode: CacheStateToken, Value: reference.Value{Shape: shape, Data: slices.Clone(data)},
@@ -485,11 +485,11 @@ func cloneCache(cache *KVCache) *KVCache {
 	return result
 }
 
-func cloneLayerStates(states map[string]LayerState) map[string]LayerState {
+func cloneLayerStates(states map[model.CacheStateName]LayerState) map[model.CacheStateName]LayerState {
 	if states == nil {
 		return nil
 	}
-	result := make(map[string]LayerState, len(states))
+	result := make(map[model.CacheStateName]LayerState, len(states))
 	for name, state := range states {
 		state.Value = state.Value.Clone()
 		result[name] = state
@@ -498,13 +498,13 @@ func cloneLayerStates(states map[string]LayerState) map[string]LayerState {
 }
 
 func editLayerStates(
-	states map[string]LayerState,
+	states map[model.CacheStateName]LayerState,
 	tokens, start, discard uint32,
-) (map[string]LayerState, error) {
+) (map[model.CacheStateName]LayerState, error) {
 	if states == nil {
 		return nil, nil
 	}
-	result := make(map[string]LayerState, len(states))
+	result := make(map[model.CacheStateName]LayerState, len(states))
 	for name, state := range states {
 		switch state.Mode {
 		case CacheStateFixed:
@@ -571,7 +571,7 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 		records := cacheLayerRecords(layer)
 		for _, record := range records {
 			if record.mode != 0 {
-				if err := validateLayerState(record.name, LayerState{
+				if err := validateLayerState(model.CacheStateName(record.name), LayerState{
 					Mode: record.mode, Value: record.value,
 				}, cache.Tokens); err != nil {
 					return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, record.name, err)
@@ -626,11 +626,11 @@ func cacheLayerRecords(layer LayerCache) []cacheLayerRecord {
 	)
 	names := make([]string, 0, len(layer.States))
 	for name := range layer.States {
-		names = append(names, name)
+		names = append(names, string(name))
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		state := layer.States[name]
+		state := layer.States[model.CacheStateName(name)]
 		records = append(records, cacheLayerRecord{name: name, mode: state.Mode, value: state.Value})
 	}
 	return records
@@ -759,13 +759,14 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 				layer.Value = value
 			default:
 				state := LayerState{Mode: mode, Value: value}
-				if err := validateLayerState(name, state, tokens); err != nil {
+				stateName := model.CacheStateName(name)
+				if err := validateLayerState(stateName, state, tokens); err != nil {
 					return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
 				}
 				if layer.States == nil {
-					layer.States = make(map[string]LayerState)
+					layer.States = make(map[model.CacheStateName]LayerState)
 				}
-				layer.States[name] = state
+				layer.States[stateName] = state
 			}
 		}
 		if _, found := seen["key"]; !found {
@@ -782,8 +783,8 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 	return result, nil
 }
 
-func validateLayerState(name string, state LayerState, tokens uint32) error {
-	if !validCacheStateName(name) || name == "key" || name == "value" {
+func validateLayerState(name model.CacheStateName, state LayerState, tokens uint32) error {
+	if !validCacheStateName(string(name)) || name == "key" || name == "value" {
 		return errors.New("invalid name")
 	}
 	if state.Mode != CacheStateFixed && state.Mode != CacheStateToken {

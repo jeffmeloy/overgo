@@ -359,7 +359,7 @@ func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	state := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 4))
+	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
 	result, err := BuildLFM2BlockCached(
 		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 0,
@@ -399,7 +399,7 @@ func TestBuildLFM2CenteredShortConvolutionBlock(t *testing.T) {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	state := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 4))
+	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
 	result, err := BuildLFM2BlockCached(
 		builder, input, spec, weights, []uint32{0, 1, 2}, true, state, reserved, 0,
@@ -443,7 +443,7 @@ func TestBuildLFM2CenteredShortConvolutionSupportsEvenKernel(t *testing.T) {
 	}
 	result, err := BuildLFM2BlockCached(
 		builder, input, spec, weights, []uint32{0, 1}, true,
-		builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(3, 4)),
+		builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(3, 4)),
 		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), 0,
 	)
 	if err != nil {
@@ -487,7 +487,7 @@ func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 4, 4)),
 		FeedForwardExpertBias:  builder.Input("correction", dtype.F32, tensor.MustShape(4)),
 	}
-	state := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 4))
+	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
 	result, err := BuildLFM2BlockCached(
 		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 2,
@@ -593,8 +593,8 @@ func TestBuildMambaBlock(t *testing.T) {
 		SSMD:              builder.Input("d", dtype.F32, tensor.MustShape(8)),
 		SSMOutput:         builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
 	}
-	convState := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 8))
-	ssmState := builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 8))
+	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
+	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	result, err := BuildMambaBlockCached(builder, input, spec, weights, convState, ssmState)
 	if err != nil {
 		t.Fatal(err)
@@ -633,8 +633,8 @@ func TestBuildMamba2Block(t *testing.T) {
 		SSMNorm:       builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
 		SSMOutput:     builder.Input("out", dtype.F32, tensor.MustShape(8, 4)),
 	}
-	convState := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 16))
-	ssmState := builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 8))
+	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	result, err := BuildMamba2BlockCached(builder, input, spec, weights, convState, ssmState)
 	if err != nil {
 		t.Fatal(err)
@@ -683,8 +683,8 @@ func TestBuildFalconH1Block(t *testing.T) {
 		FeedForwardUp:   builder.Input("up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown: builder.Input("down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	convState := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 16))
-	ssmState := builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 8))
+	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	result, err := BuildFalconH1BlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, convState, ssmState)
 	if err != nil {
 		t.Fatal(err)
@@ -736,8 +736,8 @@ func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(4, 5)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 4)),
 	}
-	convState := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 16))
-	ssmState := builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 8))
+	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
+	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	result, err := BuildGraniteHybridRecurrentBlockCached(builder, input, spec, weights, convState, ssmState)
 	if err != nil {
 		t.Fatal(err)
@@ -791,8 +791,8 @@ func TestBuildPLaMo2HybridBlocks(t *testing.T) {
 		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 		FeedForwardPostNorm: builder.Input("ffn_post", dtype.F32, tensor.MustShape(4)),
 	}
-	convState := builder.Input(CacheStateConvolution, dtype.F32, tensor.MustShape(2, 8))
-	ssmState := builder.Input(CacheStateSSM, dtype.F32, tensor.MustShape(2, 8))
+	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
+	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	recurrent, err := BuildPLaMo2RecurrentBlockCached(builder, input, spec, recurrentWeights, convState, ssmState)
 	if err != nil {
 		t.Fatal(err)

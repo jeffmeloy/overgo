@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- `CacheStateName` now types named-state keys end to end across model schemas,
+  graph results, host caches, CUDA-retained caches, range editing, sessions,
+  and serialization. Decoding still accepts validated extension names, while
+  internal APIs can no longer mix arbitrary strings with cache contracts.
 - Cache schemas now own the serialized names for DSA indexer, DeepSeek 4
   compression, recurrent convolution/SSM, position, and T5 cross-attention
   states. Graph builders, host/device cache binding, validation, sessions, and

@@ -111,7 +111,7 @@ func TestCloneDeviceCacheSharesOwnerAndCopiesMetadata(t *testing.T) {
 		owner:  owner,
 		Keys:   []executor.DeviceValue{{Shape: shape}},
 		Values: []executor.DeviceValue{{Shape: shape}},
-		States: []map[string]deviceLayerState{{
+		States: []map[model.CacheStateName]deviceLayerState{{
 			"fixed": {Mode: CacheStateFixed, Value: executor.DeviceValue{Shape: tensor.MustShape(2)}},
 		}},
 		Tokens: 3, Position: 7, Logits: []float32{1, 2},

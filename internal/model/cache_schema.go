@@ -14,17 +14,20 @@ const (
 	CacheExtentToken
 )
 
+// CacheStateName: serialized named-state ABI key.
+type CacheStateName string
+
 const (
-	CacheStateIndexerKey             = "indexer_key"
-	CacheStatePositions              = "positions"
-	CacheStateCompressorKV           = "compressor_kv"
-	CacheStateCompressorScore        = "compressor_score"
-	CacheStateIndexerCompressorKV    = "indexer_compressor_kv"
-	CacheStateIndexerCompressorScore = "indexer_compressor_score"
-	CacheStateConvolution            = "conv_state"
-	CacheStateSSM                    = "ssm_state"
-	CacheStateCrossKey               = "cross_key"
-	CacheStateCrossValue             = "cross_value"
+	CacheStateIndexerKey             CacheStateName = "indexer_key"
+	CacheStatePositions              CacheStateName = "positions"
+	CacheStateCompressorKV           CacheStateName = "compressor_kv"
+	CacheStateCompressorScore        CacheStateName = "compressor_score"
+	CacheStateIndexerCompressorKV    CacheStateName = "indexer_compressor_kv"
+	CacheStateIndexerCompressorScore CacheStateName = "indexer_compressor_score"
+	CacheStateConvolution            CacheStateName = "conv_state"
+	CacheStateSSM                    CacheStateName = "ssm_state"
+	CacheStateCrossKey               CacheStateName = "cross_key"
+	CacheStateCrossValue             CacheStateName = "cross_value"
 )
 
 // CacheValueSchema: named or primary state contract.
@@ -38,7 +41,7 @@ type CacheValueSchema struct {
 type LayerCacheSchema struct {
 	Label        string
 	Primary      [2]CacheValueSchema
-	States       map[string]CacheValueSchema
+	States       map[CacheStateName]CacheValueSchema
 	StrictStates bool
 }
 
@@ -62,7 +65,7 @@ func CacheSchemaForPlan(
 	}
 	schema := LayerCacheSchema{
 		Label:  "KV",
-		States: make(map[string]CacheValueSchema),
+		States: make(map[CacheStateName]CacheValueSchema),
 	}
 	fixed := func(shape tensor.Shape) CacheValueSchema {
 		return CacheValueSchema{Extent: CacheExtentFixed, Shape: shape}

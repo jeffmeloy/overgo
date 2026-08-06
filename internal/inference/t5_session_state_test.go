@@ -19,7 +19,7 @@ func TestT5SessionStateRoundTrip(t *testing.T) {
 	crossKey, _ := reference.NewValue(tensor.MustShape(2, 1, 4), make([]float32, 8))
 	crossValue, _ := reference.NewValue(tensor.MustShape(3, 1, 4), make([]float32, 12))
 	session := &T5Session{Encoder: encoder, Cache: &KVCache{
-		Layers: []LayerCache{{Key: key, Value: value, States: map[string]LayerState{
+		Layers: []LayerCache{{Key: key, Value: value, States: map[model.CacheStateName]LayerState{
 			model.CacheStateCrossKey:   {Mode: CacheStateFixed, Value: crossKey},
 			model.CacheStateCrossValue: {Mode: CacheStateFixed, Value: crossValue},
 		}}}, Tokens: 2, Position: 2,

@@ -80,7 +80,7 @@ type LayerCache struct {
 	Key   reference.Value
 	Value reference.Value
 	// States: persistent architecture-specific tensors.
-	States map[string]LayerState
+	States map[model.CacheStateName]LayerState
 	// Auxiliary: transient forward-pass state.
 	Auxiliary *reference.Value
 }

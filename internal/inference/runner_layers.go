@@ -335,7 +335,7 @@ func (r *Runner) runLayerCached(
 		layerCache.Auxiliary = &auxiliary
 	}
 	if len(result.States)+len(result.FixedStates) > 0 {
-		layerCache.States = make(map[string]LayerState, len(result.States)+len(result.FixedStates))
+		layerCache.States = make(map[model.CacheStateName]LayerState, len(result.States)+len(result.FixedStates))
 		for name, state := range result.States {
 			layerCache.States[name] = LayerState{Mode: CacheStateToken, Value: results[state]}
 		}

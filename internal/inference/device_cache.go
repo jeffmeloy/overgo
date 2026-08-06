@@ -21,7 +21,7 @@ type deviceKVCache struct {
 	owner      *deviceCacheOwner
 	Keys       []executor.DeviceValue
 	Values     []executor.DeviceValue
-	States     []map[string]deviceLayerState
+	States     []map[model.CacheStateName]deviceLayerState
 	Pages      []deviceKVPage
 	PageTokens uint32
 	Tokens     uint32
@@ -211,7 +211,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	copies := make([]executor.DeviceCopy, 0, len(cache.Keys)*2)
 	type stateCopyTarget struct {
 		layer int
-		name  string
+		name  model.CacheStateName
 		mode  CacheStateMode
 	}
 	stateTargets := make([]stateCopyTarget, 0)
@@ -247,11 +247,12 @@ func (r *Runner) compactDeviceCacheForAppend(
 		if layerIndex < len(cache.States) && len(cache.States[layerIndex]) != 0 {
 			names := make([]string, 0, len(cache.States[layerIndex]))
 			for name := range cache.States[layerIndex] {
-				names = append(names, name)
+				names = append(names, string(name))
 			}
 			sort.Strings(names)
 			for _, name := range names {
-				state := cache.States[layerIndex][name]
+				stateName := model.CacheStateName(name)
+				state := cache.States[layerIndex][stateName]
 				copySpec, copyErr := deviceCacheRangeCopy(
 					state.Value, cache.Tokens, keep, discard,
 					state.Mode == CacheStateFixed,
@@ -264,7 +265,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 				}
 				stateCopies = append(stateCopies, copySpec)
 				stateTargets = append(stateTargets, stateCopyTarget{
-					layer: layerIndex, name: name, mode: state.Mode,
+					layer: layerIndex, name: stateName, mode: state.Mode,
 				})
 			}
 		}
@@ -278,7 +279,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 		owner:      newDeviceCacheOwner(outputs, 1),
 		Keys:       make([]executor.DeviceValue, len(cache.Keys)),
 		Values:     make([]executor.DeviceValue, len(cache.Values)),
-		States:     make([]map[string]deviceLayerState, len(cache.States)),
+		States:     make([]map[model.CacheStateName]deviceLayerState, len(cache.States)),
 		Tokens:     cache.Tokens - discard,
 		Position:   cache.Position,
 		PageTokens: cache.PageTokens,
@@ -290,7 +291,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	stateOffset := 2 * len(next.Keys)
 	for index, target := range stateTargets {
 		if next.States[target.layer] == nil {
-			next.States[target.layer] = make(map[string]deviceLayerState)
+			next.States[target.layer] = make(map[model.CacheStateName]deviceLayerState)
 		}
 		next.States[target.layer][target.name] = deviceLayerState{
 			Mode: target.mode, Value: values[stateOffset+index],
@@ -402,7 +403,7 @@ type deviceBatchGraph struct {
 	logits       *tensor.Tensor
 	keys         []*tensor.Tensor
 	values       []*tensor.Tensor
-	states       []map[string]deviceGraphState
+	states       []map[model.CacheStateName]deviceGraphState
 	pastTokens   uint32
 	nextPosition uint32
 	tokenCount   uint32
@@ -440,11 +441,11 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 			if len(graph.states[layer]) != 0 {
 				names := make([]string, 0, len(graph.states[layer]))
 				for name := range graph.states[layer] {
-					names = append(names, name)
+					names = append(names, string(name))
 				}
 				sort.Strings(names)
 				for _, name := range names {
-					outputs = append(outputs, graph.states[layer][name].value)
+					outputs = append(outputs, graph.states[layer][model.CacheStateName(name)].value)
 				}
 			}
 		}
@@ -471,7 +472,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		cache := &deviceKVCache{
 			Keys:       make([]executor.DeviceValue, len(graph.keys)),
 			Values:     make([]executor.DeviceValue, len(graph.values)),
-			States:     make([]map[string]deviceLayerState, len(graph.states)),
+			States:     make([]map[model.CacheStateName]deviceLayerState, len(graph.states)),
 			Tokens:     graph.pastTokens + graph.tokenCount,
 			Position:   graph.nextPosition + graph.tokenCount,
 			PageTokens: r.cachePageTokens,
@@ -488,7 +489,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 				return fail(fmt.Errorf("inference: missing retained value for branch %d layer %d", index, layer))
 			}
 			if len(graph.states[layer]) != 0 {
-				cache.States[layer] = make(map[string]deviceLayerState, len(graph.states[layer]))
+				cache.States[layer] = make(map[model.CacheStateName]deviceLayerState, len(graph.states[layer]))
 				for name, state := range graph.states[layer] {
 					value, present := retained.Value(state.value)
 					if !present {
@@ -615,7 +616,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
-	states := make([]map[string]deviceGraphState, len(r.weights.Layers))
+	states := make([]map[model.CacheStateName]deviceGraphState, len(r.weights.Layers))
 	for layerIndex, info := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, info.Recurrent)
 		graphWeights, layerFeeds, layerErr := r.layerDeviceInputs(builder, info)
@@ -708,7 +709,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		current = result.Output
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		if len(result.States)+len(result.FixedStates) != 0 {
-			states[layerIndex] = make(map[string]deviceGraphState, len(result.States)+len(result.FixedStates))
+			states[layerIndex] = make(map[model.CacheStateName]deviceGraphState, len(result.States)+len(result.FixedStates))
 			for name, value := range result.States {
 				states[layerIndex][name] = deviceGraphState{mode: CacheStateToken, value: value}
 			}
@@ -793,13 +794,13 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 			conv, hasConv := past.States[layerIndex][model.CacheStateConvolution]
 			ssm, hasSSM := past.States[layerIndex][model.CacheStateSSM]
 			if hasConv && hasSSM {
-				convState = inputDevice(name(model.CacheStateConvolution), conv.Value)
-				ssmState = inputDevice(name(model.CacheStateSSM), ssm.Value)
+				convState = inputDevice(name(string(model.CacheStateConvolution)), conv.Value)
+				ssmState = inputDevice(name(string(model.CacheStateSSM)), ssm.Value)
 			}
 		}
 		if convState == nil || ssmState == nil {
-			convState = inputZero(name(model.CacheStateConvolution), convShape)
-			ssmState = inputZero(name(model.CacheStateSSM), ssmShape)
+			convState = inputZero(name(string(model.CacheStateConvolution)), convShape)
+			ssmState = inputZero(name(string(model.CacheStateSSM)), ssmShape)
 		}
 		return pastKey, pastValue, convState, ssmState, nil
 	}

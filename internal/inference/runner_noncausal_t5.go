@@ -451,7 +451,7 @@ func (r *Runner) runT5DecoderLayer(
 	}
 	layerCache := LayerCache{
 		Key: results[result.Key], Value: results[result.Value],
-		States: make(map[string]LayerState, len(result.FixedStates)),
+		States: make(map[model.CacheStateName]LayerState, len(result.FixedStates)),
 	}
 	for name, state := range result.FixedStates {
 		layerCache.States[name] = LayerState{Mode: CacheStateFixed, Value: results[state]}

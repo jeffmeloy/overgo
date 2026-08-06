@@ -13,6 +13,8 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
+const fixtureCacheStateName model.CacheStateName = "fixture_state"
+
 func TestKVCacheStateRoundTrip(t *testing.T) {
 	runner := cacheTestRunner()
 	cache := cacheTestValue(t)
@@ -44,9 +46,10 @@ func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cache.Layers[0].States = map[string]LayerState{
+	cache.Layers[0].States = map[model.CacheStateName]LayerState{
 		model.CacheStateIndexerKey:  {Mode: CacheStateToken, Value: tokenState},
 		model.CacheStateConvolution: {Mode: CacheStateFixed, Value: fixedState},
+		fixtureCacheStateName:       {Mode: CacheStateFixed, Value: fixedState},
 	}
 	payload, err := runner.SaveCache(cache)
 	if err != nil {
@@ -61,9 +64,10 @@ func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 	}
 
 	reordered := cacheTestValue(t)
-	reordered.Layers[0].States = map[string]LayerState{
+	reordered.Layers[0].States = map[model.CacheStateName]LayerState{
 		model.CacheStateConvolution: {Mode: CacheStateFixed, Value: fixedState},
 		model.CacheStateIndexerKey:  {Mode: CacheStateToken, Value: tokenState},
+		fixtureCacheStateName:       {Mode: CacheStateFixed, Value: fixedState},
 	}
 	reorderedPayload, err := runner.SaveCache(reordered)
 	if err != nil {
@@ -100,12 +104,12 @@ func TestKVCacheNamedStateValidation(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		state map[string]LayerState
+		state map[model.CacheStateName]LayerState
 	}{
-		{"reserved name", map[string]LayerState{"key": {Mode: CacheStateFixed, Value: fixed}}},
-		{"invalid name", map[string]LayerState{"Bad Name": {Mode: CacheStateFixed, Value: fixed}}},
-		{"invalid mode", map[string]LayerState{"state": {Mode: 99, Value: fixed}}},
-		{"wrong token extent", map[string]LayerState{"state": {Mode: CacheStateToken, Value: token}}},
+		{"reserved name", map[model.CacheStateName]LayerState{"key": {Mode: CacheStateFixed, Value: fixed}}},
+		{"invalid name", map[model.CacheStateName]LayerState{"Bad Name": {Mode: CacheStateFixed, Value: fixed}}},
+		{"invalid mode", map[model.CacheStateName]LayerState{"state": {Mode: 99, Value: fixed}}},
+		{"wrong token extent", map[model.CacheStateName]LayerState{"state": {Mode: CacheStateToken, Value: token}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -117,9 +121,9 @@ func TestKVCacheNamedStateValidation(t *testing.T) {
 		})
 	}
 	cache := cacheTestValue(t)
-	cache.Layers[0].States = make(map[string]LayerState)
+	cache.Layers[0].States = make(map[model.CacheStateName]LayerState)
 	for index := 0; index < maxLayerCacheStates-1; index++ {
-		cache.Layers[0].States[fmt.Sprintf("state_%d", index)] = LayerState{
+		cache.Layers[0].States[model.CacheStateName(fmt.Sprintf("state_%d", index))] = LayerState{
 			Mode: CacheStateFixed, Value: fixed,
 		}
 	}
@@ -151,7 +155,7 @@ func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
 	cache := &KVCache{
 		Layers: []LayerCache{{
 			Key: key, Value: value,
-			States: map[string]LayerState{
+			States: map[model.CacheStateName]LayerState{
 				model.CacheStateIndexerKey: {Mode: CacheStateToken, Value: indexerKey},
 			},
 		}},
@@ -183,7 +187,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 		value, _ := reference.NewValue(tensor.MustShape(width, 1, 2), make([]float32, int(2*width)))
 		return LayerState{Mode: CacheStateToken, Value: value}
 	}
-	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: key, States: map[string]LayerState{
+	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: key, States: map[model.CacheStateName]LayerState{
 		model.CacheStatePositions:              {Mode: CacheStateToken, Value: reference.Value{Shape: tensor.MustShape(1, 1, 2), Data: []float32{0, 1}}},
 		model.CacheStateCompressorKV:           state(8),
 		model.CacheStateCompressorScore:        state(8),
@@ -269,7 +273,7 @@ func TestFalconH1CacheValidation(t *testing.T) {
 	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
 	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
-	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value, States: map[string]LayerState{
+	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value, States: map[model.CacheStateName]LayerState{
 		model.CacheStateConvolution: {Mode: CacheStateFixed, Value: conv},
 		model.CacheStateSSM:         {Mode: CacheStateFixed, Value: ssm},
 	}}}, Tokens: 2, Position: 2}
@@ -290,7 +294,7 @@ func TestT5CacheValidation(t *testing.T) {
 	crossValue, _ := reference.NewValue(tensor.MustShape(3, 1, 4), make([]float32, 12))
 	cache := &KVCache{Layers: []LayerCache{{
 		Key: key, Value: value,
-		States: map[string]LayerState{
+		States: map[model.CacheStateName]LayerState{
 			model.CacheStateCrossKey:   {Mode: CacheStateFixed, Value: crossKey},
 			model.CacheStateCrossValue: {Mode: CacheStateFixed, Value: crossValue},
 		},

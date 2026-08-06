@@ -8,12 +8,11 @@ import (
 	"llamacpp2go/internal/artifact"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/repodb"
 )
 
 func CompileActive(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Reader,
 	modelID artifact.ID,
 	spec model.Spec,
 	weights model.Weights,
@@ -34,13 +33,13 @@ func CompileActive(
 	return plan, err == nil, err
 }
 
-func PublishCandidate(ctx context.Context, store *repodb.Store, key string, definition recipe.Definition) (artifact.CommitID, recipe.LifecycleEvent, error) {
+func PublishCandidate(ctx context.Context, store artifact.Repository, key string, definition recipe.Definition) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	return publishCandidate(ctx, store, key, definition, nil)
 }
 
 func PublishProfileCandidate(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
 	document ProfileDocument,
@@ -53,7 +52,7 @@ func PublishProfileCandidate(
 
 func publishCandidate(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
 	document *ProfileDocument,
@@ -90,7 +89,7 @@ func publishCandidate(
 
 func Transition(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
 	to recipe.Status,
@@ -102,7 +101,7 @@ func Transition(
 
 func transition(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
 	to recipe.Status,
@@ -186,7 +185,7 @@ func transition(
 	return commit, event, err
 }
 
-func Active(ctx context.Context, store *repodb.Store, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool, error) {
+func Active(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool, error) {
 	id, ok, err := store.ResolveAlias(ctx, activeAlias(modelID, task))
 	if err != nil || !ok {
 		return recipe.Definition{}, ok, err
@@ -198,7 +197,7 @@ func Active(ctx context.Context, store *repodb.Store, modelID artifact.ID, task 
 // ActiveProfile: parity-gated policy for runtime ingestion.
 func ActiveProfile(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Reader,
 	modelID artifact.ID,
 	task recipe.Task,
 ) (ProfileDocument, bool, error) {
@@ -211,7 +210,7 @@ func ActiveProfile(
 
 func activeBoundProfile(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Reader,
 	definition recipe.Definition,
 ) (ProfileDocument, bool, error) {
 	profileID, bound, err := store.ResolveAlias(ctx, recipeProfileAlias(definition.ID))
@@ -234,7 +233,7 @@ func activeBoundProfile(
 	return document, true, nil
 }
 
-func currentEvent(ctx context.Context, store *repodb.Store, recipeID artifact.ID) (recipe.LifecycleEvent, error) {
+func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (recipe.LifecycleEvent, error) {
 	eventID, ok, err := store.ResolveAlias(ctx, statusAlias(recipeID))
 	if err != nil {
 		return recipe.LifecycleEvent{}, err
@@ -252,7 +251,7 @@ func currentEvent(ctx context.Context, store *repodb.Store, recipeID artifact.ID
 	return recipe.ParseLifecycleEvent(content.Data)
 }
 
-func loadDefinition(ctx context.Context, store *repodb.Store, id artifact.ID) (recipe.Definition, error) {
+func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) (recipe.Definition, error) {
 	content, ok, err := store.Content(ctx, id)
 	if err != nil {
 		return recipe.Definition{}, err

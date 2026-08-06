@@ -12,7 +12,6 @@ import (
 	"llamacpp2go/internal/artifact"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/repodb"
 	"llamacpp2go/internal/strictjson"
 )
 
@@ -156,7 +155,7 @@ func ProfileContent(document ProfileDocument) (artifact.Content, error) {
 
 func PublishProfiles(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Repository,
 	key string,
 ) (artifact.CommitID, []ProfileDocument, error) {
 	documents, err := SeedProfileDocuments()
@@ -190,7 +189,7 @@ func PublishProfiles(
 
 func RegisteredProfile(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Reader,
 	architecture string,
 ) (ProfileDocument, bool, error) {
 	id, ok, err := store.ResolveAlias(ctx, registeredProfileAlias(architecture))
@@ -219,7 +218,7 @@ func SeedProfileDocuments() ([]ProfileDocument, error) {
 	return documents, nil
 }
 
-func loadProfile(ctx context.Context, store *repodb.Store, id artifact.ID) (ProfileDocument, error) {
+func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (ProfileDocument, error) {
 	content, ok, err := store.Content(ctx, id)
 	if err != nil {
 		return ProfileDocument{}, err

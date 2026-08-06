@@ -10,7 +10,6 @@ import (
 	"llamacpp2go/internal/artifact"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/repodb"
 	"llamacpp2go/internal/strictjson"
 )
 
@@ -147,7 +146,7 @@ func profileParityContent(e ProfileParityEvidence) ([]byte, error) {
 
 func ValidateProfileCandidate(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
 	spec model.Spec,
@@ -178,7 +177,7 @@ func ValidateProfileCandidate(
 
 func ActivateProfileCandidate(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
 	supersedes *artifact.ID,
@@ -202,7 +201,7 @@ func ActivateProfileCandidate(
 
 func boundProfile(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Reader,
 	recipeID artifact.ID,
 ) (ProfileDocument, error) {
 	id, ok, err := store.ResolveAlias(ctx, recipeProfileAlias(recipeID))
@@ -217,7 +216,7 @@ func boundProfile(
 
 func matchingProfileParity(
 	ctx context.Context,
-	store *repodb.Store,
+	store artifact.Reader,
 	ids []artifact.ID,
 	definition recipe.Definition,
 	document ProfileDocument,

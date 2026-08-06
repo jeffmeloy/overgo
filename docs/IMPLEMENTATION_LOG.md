@@ -32,6 +32,12 @@ claims.
 
 ## Validated milestones
 
+- The August 5 model-definition wave replaced the production architecture
+  registry builder and its mutation helpers with a strict embedded data
+  catalog. RepoDB profile publication now accepts an externally supplied
+  catalog, registered aliases can supersede bootstrap facts without changing
+  process-global fallback state, and activation remains profile-identity and
+  parity gated. An aggregate semantic digest pins every migrated profile.
 - The August 5 training-foundation wave adapted the compact `adaptive_new`
   flat optimizer core behind a dependency-free parameter plan. Named matrix
   groups derive sign or Muon updates, CPU Newton-Schulz reuses min-side Gram

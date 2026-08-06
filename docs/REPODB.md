@@ -27,9 +27,10 @@ Current foundation:
   evidence with compare-and-set status and active-recipe aliases.
 - Model recipe binding that compiles through the existing `ModelPlan` and
   `LayerPlan` authority.
-- Canonical content-addressed architecture profiles seeded from the bootstrap
-  registry, embedded in exact recipe identities, and activated only with typed
-  parity evidence. Mutable profile side aliases are legacy-read-only.
+- Canonical content-addressed architecture profiles seeded from a strict data
+  catalog, embedded in exact recipe identities, and activated only with typed
+  parity evidence. RepoDB may publish replacement catalogs without mutating the
+  bootstrap fallback; mutable profile side aliases are legacy-read-only.
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
   planning; unbound models retain the bootstrap path.
 - Canonical generation, embedding, rerank, image/audio/video projection, and

@@ -1,0 +1,2179 @@
+[
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 2052,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "AttentionFlatGate": true,
+      "AttentionGate": 2,
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DenseWeights": {
+      "RequireAttentionGate": true,
+      "RequireExpertBias": true
+    },
+    "Experts": {
+      "BiasCatalog": 3,
+      "Catalog": 4,
+      "Composition": 1,
+      "Condition": 1,
+      "Normalization": 1,
+      "Routing": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 2
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "afmoe",
+    "Rotary": {
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Capabilities": 612499456,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "FeedForward": 5,
+    "Name": "apertus"
+  },
+  {
+    "Capabilities": 532480,
+    "FeedForward": 4,
+    "Name": "arcee",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 8192,
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 7,
+      "SupplementalCatalog": 48
+    },
+    "Name": "arctic",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Auxiliary": 1,
+    "Cache": 6,
+    "Capabilities": 8388618,
+    "CatalogFamily": 2,
+    "DenseGraph": 9,
+    "Family": 2,
+    "GraphFamily": 2,
+    "Name": "arwkv7"
+  },
+  {
+    "Capabilities": 8396800,
+    "Name": "baichuan",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 8396804,
+    "CatalogFamily": 1,
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 1,
+      "Normalization": 1,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "bailingmoe",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 209715204,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DraftKind": 4,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 4,
+      "Composition": 1,
+      "Condition": 3,
+      "Normalization": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "ModelCatalog": {
+      "DraftLayerOutputNorm": true
+    },
+    "Name": "bailingmoe2"
+  },
+  {
+    "Capabilities": 17247246355,
+    "CatalogFamily": 4,
+    "DenseGraph": 1,
+    "EncoderGraph": {
+      "Kind": 1
+    },
+    "Family": 4,
+    "FeedForward": 3,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "PositionEmbedding": 1
+    },
+    "Name": "bert",
+    "Normalization": 1,
+    "OutputNorm": 1,
+    "PostNormLayout": 1
+  },
+  {
+    "DenseStages": {
+      "AttentionSubNorm": true
+    },
+    "DenseWeights": {
+      "RequireSubNorm": true
+    },
+    "Name": "bitnet"
+  },
+  {
+    "Capabilities": 469794816,
+    "FeedForward": 1,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "TokenNorm": 2
+    },
+    "Name": "bloom",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 68719484992,
+    "DenseStages": {
+      "QK": {
+        "Heads": 5
+      }
+    },
+    "Name": "chameleon",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 67182592,
+    "FeedForward": 2,
+    "Name": "chatglm",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 8421376,
+    "FeedForward": 1,
+    "ModelCatalog": {
+      "TokenEmbeddingFallback": true
+    },
+    "Name": "codeshell",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 234889280,
+    "Name": "cogvlm",
+    "Overrides": 1,
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 24576,
+    "ModelCatalog": {
+      "SkipOutput": true
+    },
+    "Name": "cohere2",
+    "Normalization": 4,
+    "Position": 1,
+    "Residual": 1,
+    "Rotary": {
+      "Kind": 4,
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 67133444,
+    "CatalogFamily": 1,
+    "DraftKind": 5,
+    "Experts": {
+      "Catalog": 4,
+      "Composition": 2,
+      "Condition": 1,
+      "FusedGateUp": true,
+      "Normalization": 1,
+      "Routing": 1,
+      "SharedCatalog": 2
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "cohere2moe",
+    "Normalization": 4,
+    "Position": 1,
+    "Residual": 1,
+    "Rotary": {
+      "Kind": 4,
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Capabilities": 24576,
+    "DenseStages": {
+      "QK": {
+        "Heads": 4
+      },
+      "QKHeadsMinBlocks": 64
+    },
+    "ModelCatalog": {
+      "SkipOutput": true
+    },
+    "Name": "command-r",
+    "Normalization": 4,
+    "Position": 1,
+    "Residual": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 209715204,
+    "CatalogFamily": 1,
+    "Experts": {
+      "Catalog": 1
+    },
+    "FFNNormLayout": 2,
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "dbrx",
+    "Normalization": 1
+  },
+  {
+    "CacheFallback": 2,
+    "Capabilities": 67248128,
+    "DeciSparse": true,
+    "Metadata": {
+      "FeedForward": 1,
+      "Heads": 1,
+      "KVHeads": 1
+    },
+    "Name": "deci",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 8196,
+    "CatalogFamily": 1,
+    "Experts": {
+      "Catalog": 4,
+      "Composition": 1,
+      "Normalization": 2,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "deepseek",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Attention": 1,
+    "Block": 9,
+    "Capabilities": 34359739012,
+    "CatalogFamily": 1,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 4,
+      "FusedGateUp": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Metadata": {
+      "MLAHeadLengths": true
+    },
+    "Name": "deepseek2",
+    "Temperature": 1
+  },
+  {
+    "Capabilities": 68,
+    "CatalogFamily": 1,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 4,
+      "Composition": 1,
+      "FusedGateUp": true,
+      "Normalization": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "deepseek2-ocr"
+  },
+  {
+    "Attention": 2,
+    "Block": 10,
+    "Capabilities": 34359739268,
+    "CatalogFamily": 1,
+    "DraftKind": 4,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 4,
+      "FusedGateUp": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "MLAVariant": 3,
+    "Metadata": {
+      "MLAHeadLengths": true
+    },
+    "Name": "deepseek32"
+  },
+  {
+    "Block": 11,
+    "Cache": 12,
+    "Capabilities": 8196,
+    "CatalogFamily": 1,
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "deepseek4",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 1,
+    "CatalogFamily": 7,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Family": 7,
+    "Forward": 2,
+    "GraphFamily": 7,
+    "Name": "dflash"
+  },
+  {
+    "Capabilities": 75497476,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 4,
+      "Composition": 1,
+      "Condition": 3,
+      "Normalization": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "dots1"
+  },
+  {
+    "Capabilities": 33,
+    "CatalogFamily": 6,
+    "Family": 6,
+    "Forward": 1,
+    "GraphFamily": 6,
+    "Name": "dream"
+  },
+  {
+    "Capabilities": 8192,
+    "CatalogFamily": 7,
+    "Family": 7,
+    "Forward": 3,
+    "GraphFamily": 7,
+    "Name": "eagle3",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 67117056,
+    "ModelCatalog": {
+      "SkipAttentionOutputBias": true
+    },
+    "Name": "ernie4_5",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Cadence": {
+      "MoE": 3
+    },
+    "Capabilities": 67117060,
+    "CatalogFamily": 1,
+    "DenseWeights": {
+      "AllowUngatedExperts": true
+    },
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 5,
+      "Composition": 1,
+      "Condition": 1,
+      "OptionalGate": true,
+      "SelectionBias": true,
+      "SharedCatalog": 2
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "ModelCatalog": {
+      "SkipAttentionOutputBias": true
+    },
+    "Name": "ernie4_5-moe",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 67108881,
+    "CatalogFamily": 4,
+    "Family": 4,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Name": "eurobert"
+  },
+  {
+    "Name": "exaone"
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 4,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DraftKind": 4,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 6,
+      "Composition": 1,
+      "Condition": 3,
+      "Normalization": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "exaone-moe",
+    "Rotary": {
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 603985920,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DraftKind": 4,
+    "Name": "exaone4"
+  },
+  {
+    "Capabilities": 201605120,
+    "DenseStages": {
+      "Residual": 2
+    },
+    "DenseWeights": {
+      "ValidateFalconNorm": true
+    },
+    "FeedForward": 3,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "Name": "falcon",
+    "Normalization": 1,
+    "Residual": 1
+  },
+  {
+    "Block": 3,
+    "Cache": 10,
+    "Capabilities": 8,
+    "CatalogFamily": 3,
+    "FFNNormLayout": 1,
+    "Family": 3,
+    "GraphFamily": 3,
+    "Name": "falcon-h1"
+  },
+  {
+    "Capabilities": 1024,
+    "DenseStages": {
+      "QueryScale": 4
+    },
+    "Name": "gemma",
+    "Rotary": {
+      "Kind": 5
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 67111953,
+    "CatalogFamily": 4,
+    "DenseGraph": 3,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      },
+      "QueryScale": 4
+    },
+    "EncoderGraph": {
+      "Kind": 7
+    },
+    "Family": 4,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "Name": "gemma-embedding",
+    "Rotary": {
+      "Kind": 5
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 3072,
+    "DenseStages": {
+      "GemmaSpecial": true,
+      "QueryScale": 4
+    },
+    "Name": "gemma2",
+    "Rotary": {
+      "Kind": 5
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 3136,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      },
+      "QueryScale": 4
+    },
+    "Name": "gemma3",
+    "Rotary": {
+      "Gemma3": true,
+      "Kind": 5
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 7516195904,
+    "DenseGraph": 6,
+    "DenseStages": {
+      "QueryScale": 4
+    },
+    "Name": "gemma3n",
+    "Overrides": 2,
+    "Rotary": {
+      "Kind": 5
+    }
+  },
+  {
+    "AttentionBlocks": 1,
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 5368712256,
+    "DenseGraph": 5,
+    "DenseStages": {
+      "QueryScale": 4
+    },
+    "Experts": {
+      "Activation": 3,
+      "Catalog": 3,
+      "FusedGateUp": true,
+      "SupplementalCatalog": 33
+    },
+    "Metadata": {
+      "FeedForward": 2,
+      "KVHeads": 2,
+      "SWAHeadLengths": true
+    },
+    "Name": "gemma4",
+    "Overrides": 2,
+    "Rotary": {
+      "Kind": 5
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "CatalogFamily": 7,
+    "Family": 7,
+    "Forward": 4,
+    "GraphFamily": 7,
+    "Metadata": {
+      "SWAHeadLengths": true
+    },
+    "Name": "gemma4-assistant"
+  },
+  {
+    "Attention": 2,
+    "Auxiliary": 2,
+    "Block": 10,
+    "Capabilities": 34359739140,
+    "CatalogFamily": 1,
+    "DraftKind": 4,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 4,
+      "FusedGateUp": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Metadata": {
+      "MLAHeadLengths": true
+    },
+    "Name": "glm-dsa"
+  },
+  {
+    "Capabilities": 608249856,
+    "DraftKind": 4,
+    "FeedForward": 2,
+    "Name": "glm4",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4,
+      "MultiAxis": 2
+    }
+  },
+  {
+    "Capabilities": 71311364,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Heads": 2
+      }
+    },
+    "DenseWeights": {
+      "RequireExpertBias": true
+    },
+    "DraftKind": 4,
+    "Experts": {
+      "BiasCatalog": 4,
+      "Catalog": 4,
+      "Composition": 1,
+      "Normalization": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 1
+    },
+    "FFNNormLayout": 3,
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "glm4moe",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4,
+      "MultiAxis": 2
+    }
+  },
+  {
+    "AttentionGraph": {
+      "UseSinks": true
+    },
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 8396804,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "Residual": 5
+    },
+    "DenseWeights": {
+      "RequireAttentionOutputBias": true,
+      "RequireAttentionSinks": true,
+      "RequireOpenAIBiases": true,
+      "SkipFeedForwardNorm": true
+    },
+    "Experts": {
+      "Activation": 4,
+      "Catalog": 1,
+      "Normalization": 2,
+      "Routing": 2,
+      "SupplementalCatalog": 2
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "gpt-oss",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4,
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Capabilities": 469794816,
+    "FeedForward": 1,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "PositionEmbedding": 1
+    },
+    "Name": "gpt2",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 8675328,
+    "DenseWeights": {
+      "BiasCatalog": 1
+    },
+    "FeedForward": 3,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "RequireOutputBias": true
+    },
+    "Name": "gptj",
+    "Normalization": 1,
+    "Position": 1,
+    "Residual": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 478183424,
+    "DenseStages": {
+      "Residual": 3,
+      "ResidualParallelOnly": true
+    },
+    "FeedForward": 1,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "Name": "gptneox",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 139264,
+    "Deepstack": 1,
+    "DenseWeights": {
+      "AllowUngatedExperts": true
+    },
+    "Experts": {
+      "Catalog": 2,
+      "Composition": 1,
+      "Condition": 2,
+      "OptionalGate": true,
+      "ResidualScale": true,
+      "SharedCatalog": 2
+    },
+    "Name": "granite",
+    "Overrides": 3,
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    },
+    "Validation": {
+      "RequireLogitScale": true
+    }
+  },
+  {
+    "Capabilities": 139272,
+    "CatalogFamily": 3,
+    "DenseWeights": {
+      "AllowUngatedExperts": true
+    },
+    "Experts": {
+      "Catalog": 2,
+      "Composition": 1,
+      "Condition": 1,
+      "OptionalGate": true,
+      "ResidualScale": true,
+      "SharedCatalog": 2
+    },
+    "Family": 3,
+    "GraphFamily": 3,
+    "Metadata": {
+      "KVHeads": 7,
+      "PreserveLayerKV": true
+    },
+    "Name": "granitehybrid",
+    "Position": 1,
+    "RecurrentBlock": 5,
+    "RecurrentCache": 3,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 139268,
+    "CatalogFamily": 1,
+    "DenseWeights": {
+      "AllowUngatedExperts": true
+    },
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 1,
+      "Condition": 1,
+      "OptionalGate": true,
+      "ResidualScale": true,
+      "SharedCatalog": 2
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "granitemoe",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    },
+    "Validation": {
+      "RequireLogitScale": true
+    }
+  },
+  {
+    "Capabilities": 67110916,
+    "CatalogFamily": 1,
+    "DenseWeights": {
+      "AllowUngatedExperts": true
+    },
+    "Experts": {
+      "Activation": 3,
+      "Catalog": 1,
+      "Composition": 6,
+      "OptionalGate": true,
+      "SupplementalCatalog": 8
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "grok",
+    "PostNormLayout": 2,
+    "Rotary": {
+      "Kind": 2
+    }
+  },
+  {
+    "Capabilities": 4,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 5,
+      "SupplementalCatalog": 4
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "grovemoe"
+  },
+  {
+    "Capabilities": 71311360,
+    "DenseStages": {
+      "QK": {
+        "PostRotary": 1
+      }
+    },
+    "Name": "hunyuan-dense",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4,
+      "MultiAxis": 2
+    }
+  },
+  {
+    "Capabilities": 4,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "PostRotary": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 1,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "hunyuan-moe"
+  },
+  {
+    "Capabilities": 71311424,
+    "DenseStages": {
+      "QK": {
+        "PostRotary": 1
+      }
+    },
+    "Name": "hunyuan_vl",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4,
+      "MultiAxis": 2
+    }
+  },
+  {
+    "Capabilities": 67108868,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DraftKind": 3,
+    "Experts": {
+      "BiasCatalog": 2,
+      "Catalog": 3,
+      "Composition": 1,
+      "FusedGateUp": true,
+      "Normalization": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "hy_v3"
+  },
+  {
+    "Capabilities": 8396800,
+    "Name": "internlm2",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 478150656,
+    "DenseWeights": {
+      "BiasCatalog": 3
+    },
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "Name": "jais",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 524288,
+    "DenseWeights": {
+      "BiasCatalog": 2
+    },
+    "FeedForward": 4,
+    "Name": "jais2",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 10,
+    "CatalogFamily": 3,
+    "Experts": {
+      "Catalog": 3,
+      "Normalization": 1
+    },
+    "Family": 3,
+    "GraphFamily": 3,
+    "Metadata": {
+      "KVHeads": 7,
+      "PreserveLayerKV": true
+    },
+    "Name": "jamba",
+    "RecurrentBlock": 4,
+    "RecurrentCache": 2
+  },
+  {
+    "Capabilities": 17246984211,
+    "CatalogFamily": 4,
+    "DenseGraph": 1,
+    "EncoderGraph": {
+      "Kind": 2
+    },
+    "Family": 4,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "ModelCatalog": {
+      "RequireTokenTypes": true
+    },
+    "Name": "jina-bert-v2",
+    "Normalization": 1,
+    "OutputNorm": 1,
+    "PostNormLayout": 1
+  },
+  {
+    "Cadence": {
+      "MoE": 1
+    },
+    "Capabilities": 17247246353,
+    "CatalogFamily": 4,
+    "DenseGraph": 1,
+    "EncoderGraph": {
+      "Kind": 3
+    },
+    "Experts": {
+      "Catalog": 5,
+      "OptionalGate": true
+    },
+    "Family": 4,
+    "FeedForward": 3,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "Name": "jina-bert-v3",
+    "Normalization": 1,
+    "OutputNorm": 1,
+    "PostNormLayout": 1
+  },
+  {
+    "Block": 8,
+    "Capabilities": 8388618,
+    "CatalogFamily": 2,
+    "Family": 2,
+    "GraphFamily": 2,
+    "MLAVariant": 4,
+    "Metadata": {
+      "KVHeads": 7,
+      "MLAHeadLengths": true,
+      "PreserveLayerKV": true
+    },
+    "Name": "kimi-linear",
+    "RecurrentCache": 7
+  },
+  {
+    "Cadence": {
+      "Sliding": 2
+    },
+    "DenseStages": {
+      "AttentionFlatGateElse": true,
+      "AttentionGate": 1,
+      "AttentionHeadGate": true,
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DenseWeights": {
+      "RequireAttentionGate": true,
+      "RequireExpertBias": true
+    },
+    "Experts": {
+      "BiasCatalog": 3,
+      "Catalog": 4,
+      "Composition": 1,
+      "Condition": 1,
+      "Normalization": 1,
+      "Routing": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 2
+    },
+    "Metadata": {
+      "Heads": 1,
+      "KVHeads": 1
+    },
+    "Name": "laguna",
+    "Rotary": {
+      "Kind": 1
+    }
+  },
+  {
+    "Attention": 4,
+    "Cadence": {
+      "Sliding": 1
+    },
+    "Capabilities": 2097160,
+    "CatalogFamily": 3,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Family": 3,
+    "GraphFamily": 3,
+    "Metadata": {
+      "KVHeads": 7
+    },
+    "Name": "lfm2",
+    "OutputNorm": 4,
+    "RecurrentCache": 9
+  },
+  {
+    "Attention": 4,
+    "Cadence": {
+      "Sliding": 1
+    },
+    "Capabilities": 2097164,
+    "CatalogFamily": 3,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DenseWeights": {
+      "RequireExpertBias": true
+    },
+    "Experts": {
+      "BiasCatalog": 4,
+      "Catalog": 4,
+      "Composition": 1,
+      "Condition": 3,
+      "Normalization": 1,
+      "SelectionBias": true
+    },
+    "Family": 3,
+    "GraphFamily": 3,
+    "Metadata": {
+      "KVHeads": 7
+    },
+    "Name": "lfm2moe",
+    "OutputNorm": 4,
+    "RecurrentCache": 9
+  },
+  {
+    "Capabilities": 8225,
+    "CatalogFamily": 6,
+    "Family": 6,
+    "Forward": 1,
+    "GraphFamily": 6,
+    "Name": "llada",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 8388645,
+    "CatalogFamily": 6,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1,
+      "Normalization": 2
+    },
+    "Family": 6,
+    "Forward": 1,
+    "GraphFamily": 6,
+    "Name": "llada-moe"
+  },
+  {
+    "Capabilities": 139264,
+    "Experts": {
+      "Catalog": 2
+    },
+    "Name": "llama",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 3
+    }
+  },
+  {
+    "Capabilities": 139281,
+    "CatalogFamily": 4,
+    "Experts": {
+      "Catalog": 2
+    },
+    "Family": 4,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Name": "llama-embed",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 3
+    }
+  },
+  {
+    "AttentionGraph": {
+      "ChunkedWindow": true
+    },
+    "Cadence": {
+      "MoE": 2,
+      "Sliding": 3
+    },
+    "Capabilities": 8196,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "PostRotaryRMSNon128": true,
+      "QueryScale": 1
+    },
+    "Experts": {
+      "Catalog": 3,
+      "Composition": 1,
+      "Normalization": 2,
+      "Routing": 1,
+      "SharedCatalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "llama4",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4,
+      "SlidingFrequency": true
+    },
+    "Temperature": 2
+  },
+  {
+    "Capabilities": 8192,
+    "DenseStages": {
+      "QK": {
+        "PostRotary": 1
+      }
+    },
+    "Name": "maincoder",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Block": 1,
+    "Cache": 2,
+    "Capabilities": 10,
+    "CatalogFamily": 2,
+    "Family": 2,
+    "GraphFamily": 2,
+    "Metadata": {
+      "KVHeads": 4
+    },
+    "Name": "mamba",
+    "Validation": {
+      "AttentionFree": true
+    }
+  },
+  {
+    "Block": 2,
+    "Cache": 3,
+    "Capabilities": 10,
+    "CatalogFamily": 2,
+    "Family": 2,
+    "GraphFamily": 2,
+    "Metadata": {
+      "KVHeads": 4
+    },
+    "Name": "mamba2",
+    "Validation": {
+      "AttentionFree": true
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 8388608,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1
+    },
+    "Name": "mellum",
+    "Rotary": {
+      "Kind": 2,
+      "SlidingFrequency": true,
+      "SlidingScaleReset": true
+    }
+  },
+  {
+    "AttentionGraph": {
+      "UseSinks": true
+    },
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 75497472,
+    "DenseStages": {
+      "AttentionValueScale": true
+    },
+    "DraftKind": 4,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 3,
+      "Routing": 1,
+      "SelectionBias": true
+    },
+    "Metadata": {
+      "KVHeads": 2
+    },
+    "ModelCatalog": {
+      "DraftLayerOutputNorm": true
+    },
+    "Name": "mimo2",
+    "Rotary": {
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Capabilities": 139264,
+    "Name": "minicpm",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 3
+    },
+    "Validation": {
+      "RequireLogitScale": true
+    }
+  },
+  {
+    "Attention": 1,
+    "Block": 9,
+    "Capabilities": 131584,
+    "MLAVariant": 2,
+    "Name": "minicpm3"
+  },
+  {
+    "Capabilities": 75497476,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Projection": 1
+      }
+    },
+    "DenseWeights": {
+      "RequireExpertBias": true
+    },
+    "Experts": {
+      "BiasCatalog": 4,
+      "Catalog": 1,
+      "SelectionBias": true
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "minimax-m2"
+  },
+  {
+    "Capabilities": 139264,
+    "DenseStages": {
+      "QueryScale": 2
+    },
+    "Experts": {
+      "Catalog": 2
+    },
+    "Name": "mistral3",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 3
+    },
+    "Temperature": 1
+  },
+  {
+    "Attention": 1,
+    "Block": 9,
+    "Capabilities": 34359739008,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 4,
+      "FusedGateUp": true,
+      "SharedCatalog": 1
+    },
+    "Metadata": {
+      "MLAHeadLengths": true
+    },
+    "Name": "mistral4",
+    "Temperature": 1
+  },
+  {
+    "Cadence": {
+      "Sliding": 2
+    },
+    "Capabilities": 201392145,
+    "CatalogFamily": 4,
+    "DenseGraph": 2,
+    "EncoderGraph": {
+      "Kind": 6
+    },
+    "Family": 4,
+    "FeedForward": 2,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "ModelCatalog": {
+      "TokenNorm": 1
+    },
+    "Name": "modern-bert",
+    "Normalization": 4
+  },
+  {
+    "Capabilities": 201588736,
+    "DenseStages": {
+      "QK": {
+        "Projection": 3
+      }
+    },
+    "DenseWeights": {
+      "AllowActivationScale": true,
+      "ValidateOptionalQKNorm": true
+    },
+    "FeedForward": 3,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "ModelCatalog": {
+      "PositionEmbedding": 2
+    },
+    "Name": "mpt",
+    "Normalization": 1,
+    "Validation": {
+      "ClampQKV": true
+    }
+  },
+  {
+    "Capabilities": 8912896,
+    "FeedForward": 4,
+    "Name": "nemotron",
+    "Normalization": 1
+  },
+  {
+    "Block": 7,
+    "CacheFallback": 1,
+    "Capabilities": 10,
+    "CatalogFamily": 3,
+    "Family": 3,
+    "GraphFamily": 3,
+    "Metadata": {
+      "FeedForward": 2,
+      "Heads": 2,
+      "InferRecurrentFromZeroFFN": true,
+      "KVHeads": 2
+    },
+    "Name": "nemotron_h",
+    "RecurrentCache": 3
+  },
+  {
+    "Block": 7,
+    "CacheFallback": 1,
+    "Capabilities": 14,
+    "CatalogFamily": 3,
+    "Family": 3,
+    "GraphFamily": 3,
+    "Metadata": {
+      "FeedForward": 2,
+      "Heads": 2,
+      "InferRecurrentFromZeroFFN": true,
+      "KVHeads": 2
+    },
+    "Name": "nemotron_h_moe",
+    "RecurrentCache": 3
+  },
+  {
+    "Capabilities": 201400337,
+    "CatalogFamily": 4,
+    "Family": 4,
+    "FeedForward": 2,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "Name": "neo-bert",
+    "OutputNorm": 2,
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 17246984209,
+    "CatalogFamily": 4,
+    "DenseGraph": 1,
+    "EncoderGraph": {
+      "Kind": 4
+    },
+    "Family": 4,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "Name": "nomic-bert",
+    "Normalization": 1,
+    "OutputNorm": 1,
+    "PostNormLayout": 1
+  },
+  {
+    "Cadence": {
+      "MoE": 1
+    },
+    "Capabilities": 17247246357,
+    "CatalogFamily": 4,
+    "DenseGraph": 1,
+    "EncoderGraph": {
+      "Kind": 5
+    },
+    "Experts": {
+      "Catalog": 5,
+      "OptionalGate": true
+    },
+    "Family": 4,
+    "FeedForward": 3,
+    "Forward": 1,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 6
+    },
+    "Name": "nomic-bert-moe",
+    "Normalization": 1,
+    "OutputNorm": 1,
+    "PostNormLayout": 1
+  },
+  {
+    "Capabilities": 8192,
+    "Name": "olmo",
+    "Normalization": 2,
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    },
+    "Validation": {
+      "ClampQKV": true
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 8388608,
+    "DenseStages": {
+      "QK": {
+        "Projection": 1
+      }
+    },
+    "DenseWeights": {
+      "RequirePostNorm": true
+    },
+    "Name": "olmo2",
+    "Rotary": {
+      "SlidingScaleReset": true
+    }
+  },
+  {
+    "Capabilities": 4,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Projection": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1,
+      "Normalization": 2
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "olmoe"
+  },
+  {
+    "Capabilities": 67108864,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Metadata": {
+      "FeedForward": 1,
+      "Heads": 1,
+      "KVHeads": 1
+    },
+    "Name": "openelm"
+  },
+  {
+    "Capabilities": 8388608,
+    "Name": "orion",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 71303232,
+    "Name": "paddleocr",
+    "Rotary": {
+      "MultiAxis": 1
+    },
+    "Validation": {
+      "MultiAxisRoPE": true
+    }
+  },
+  {
+    "Capabilities": 67239936,
+    "DenseWeights": {
+      "RequireAttentionOutputBias": true
+    },
+    "Name": "pangu-embedded"
+  },
+  {
+    "Capabilities": 612417536,
+    "DenseStages": {
+      "QueryScale": 3
+    },
+    "FeedForward": 1,
+    "ModelCatalog": {
+      "RequireOutputBias": true
+    },
+    "Name": "phi2",
+    "Normalization": 1,
+    "Residual": 1
+  },
+  {
+    "Capabilities": 604176384,
+    "DenseStages": {
+      "QueryScale": 3
+    },
+    "FeedForward": 2,
+    "Name": "phi3"
+  },
+  {
+    "Capabilities": 612499460,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QueryScale": 3
+    },
+    "DenseWeights": {
+      "RMSNormBias": true,
+      "RequireAttentionOutputBias": true
+    },
+    "Experts": {
+      "Catalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "ModelCatalog": {
+      "RequireOutputBias": true
+    },
+    "Name": "phimoe"
+  },
+  {
+    "Capabilities": 8404992,
+    "Name": "plamo",
+    "Residual": 1
+  },
+  {
+    "Capabilities": 67184648,
+    "CatalogFamily": 3,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Family": 3,
+    "FeedForward": 2,
+    "GraphFamily": 3,
+    "Metadata": {
+      "KVHeads": 7,
+      "PreserveLayerKV": true
+    },
+    "Name": "plamo2",
+    "Position": 1,
+    "RecurrentBlock": 6,
+    "RecurrentCache": 2,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 67176448,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "FeedForward": 2,
+    "Metadata": {
+      "FeedForward": 1,
+      "Heads": 1,
+      "KVHeads": 1
+    },
+    "Name": "plamo3",
+    "Rotary": {
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Attention": 1,
+    "Block": 9,
+    "Capabilities": 524800,
+    "FeedForward": 4,
+    "MLAVariant": 1,
+    "Name": "plm"
+  },
+  {
+    "Capabilities": 478150656,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "Name": "qwen"
+  },
+  {
+    "Name": "qwen2"
+  },
+  {
+    "Capabilities": 4,
+    "CatalogFamily": 1,
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 4,
+      "Normalization": 2,
+      "SharedCatalog": 3
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "qwen2moe"
+  },
+  {
+    "Capabilities": 71303232,
+    "Name": "qwen2vl",
+    "Rotary": {
+      "MultiAxis": 1
+    },
+    "Validation": {
+      "MultiAxisRoPE": true
+    }
+  },
+  {
+    "Capabilities": 16777216,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Name": "qwen3"
+  },
+  {
+    "Attention": 3,
+    "AttentionGraph": {
+      "QwenGDN": 1
+    },
+    "Cadence": {
+      "Recurrent": 1
+    },
+    "Capabilities": 38797320,
+    "CatalogFamily": 3,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DraftKind": 1,
+    "FFNNormLayout": 4,
+    "Family": 3,
+    "GraphFamily": 3,
+    "Name": "qwen35",
+    "RecurrentCache": 8
+  },
+  {
+    "Attention": 3,
+    "AttentionGraph": {
+      "QwenGDN": 1
+    },
+    "Cadence": {
+      "Recurrent": 1
+    },
+    "Capabilities": 38797324,
+    "CatalogFamily": 3,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "DraftKind": 1,
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 4,
+      "FusedGateUp": true,
+      "SharedCatalog": 3
+    },
+    "FFNNormLayout": 4,
+    "Family": 3,
+    "GraphFamily": 3,
+    "Name": "qwen35moe",
+    "RecurrentCache": 8
+  },
+  {
+    "Capabilities": 4,
+    "CatalogFamily": 1,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "qwen3moe"
+  },
+  {
+    "Attention": 3,
+    "AttentionGraph": {
+      "QwenGDN": 2
+    },
+    "Cadence": {
+      "Recurrent": 1
+    },
+    "Capabilities": 34603016,
+    "CatalogFamily": 3,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1,
+      "Composition": 4,
+      "FusedGateUp": true,
+      "SharedCatalog": 3
+    },
+    "FFNNormLayout": 4,
+    "Family": 3,
+    "GraphFamily": 3,
+    "Name": "qwen3next",
+    "RecurrentCache": 8
+  },
+  {
+    "Capabilities": 88080448,
+    "Deepstack": 2,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Name": "qwen3vl",
+    "Rotary": {
+      "MultiAxis": 1
+    },
+    "Validation": {
+      "BoundDeepstack": true,
+      "MultiAxisRoPE": true
+    }
+  },
+  {
+    "Capabilities": 71303236,
+    "CatalogFamily": 1,
+    "Deepstack": 2,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1
+    },
+    "Family": 1,
+    "GraphFamily": 1,
+    "Name": "qwen3vlmoe",
+    "Rotary": {
+      "MultiAxis": 1
+    },
+    "Validation": {
+      "BoundDeepstack": true,
+      "MultiAxisRoPE": true
+    }
+  },
+  {
+    "Capabilities": 67108864,
+    "DenseWeights": {
+      "AllowUngatedExperts": true
+    },
+    "Experts": {
+      "Catalog": 2,
+      "OptionalGate": true
+    },
+    "Name": "refact"
+  },
+  {
+    "Capabilities": 33,
+    "CatalogFamily": 6,
+    "DenseStages": {
+      "QK": {
+        "Heads": 1
+      }
+    },
+    "Experts": {
+      "Catalog": 1
+    },
+    "Family": 6,
+    "Forward": 1,
+    "GraphFamily": 6,
+    "Name": "rnd1"
+  },
+  {
+    "Cache": 4,
+    "Capabilities": 8388618,
+    "CatalogFamily": 2,
+    "DenseGraph": 7,
+    "Family": 2,
+    "GraphFamily": 2,
+    "ModelCatalog": {
+      "TokenNorm": 2
+    },
+    "Name": "rwkv6",
+    "Normalization": 1
+  },
+  {
+    "Cache": 5,
+    "Capabilities": 8388618,
+    "CatalogFamily": 2,
+    "DenseGraph": 8,
+    "DenseWeights": {
+      "RMSNormBias": true
+    },
+    "Family": 2,
+    "GraphFamily": 2,
+    "ModelCatalog": {
+      "OptionalOutputNormBias": true
+    },
+    "Name": "rwkv6qwen2"
+  },
+  {
+    "Auxiliary": 1,
+    "Cache": 6,
+    "Capabilities": 8388618,
+    "CatalogFamily": 2,
+    "DenseGraph": 9,
+    "Family": 2,
+    "GraphFamily": 2,
+    "ModelCatalog": {
+      "TokenNorm": 2
+    },
+    "Name": "rwkv7",
+    "Normalization": 1
+  },
+  {
+    "FFNNormLayout": 4,
+    "Name": "seed_oss"
+  },
+  {
+    "Cadence": {
+      "Sliding": 2
+    },
+    "Capabilities": 603979776,
+    "Experts": {
+      "Activation": 2,
+      "Catalog": 1,
+      "RouterInputOriginal": true
+    },
+    "Name": "smallthinker",
+    "Rotary": {
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Capabilities": 8192,
+    "Name": "smollm3",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  },
+  {
+    "Capabilities": 8388608,
+    "DenseStages": {
+      "QK": {
+        "Heads": 6
+      },
+      "Residual": 4
+    },
+    "DenseWeights": {
+      "SkipFeedForwardNorm": true,
+      "ValidateOptionalQKNorm": true
+    },
+    "Name": "stablelm",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 469794816,
+    "FeedForward": 1,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "PositionEmbedding": 1
+    },
+    "Name": "starcoder",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 32768,
+    "FeedForward": 1,
+    "Name": "starcoder2",
+    "Normalization": 1
+  },
+  {
+    "Cadence": {
+      "Sliding": 3
+    },
+    "Capabilities": 75628544,
+    "DenseStages": {
+      "AttentionGate": 2,
+      "AttentionHeadGate": true,
+      "QK": {
+        "Heads": 2
+      }
+    },
+    "DraftKind": 2,
+    "Experts": {
+      "BiasCatalog": 1,
+      "Catalog": 3,
+      "ClampSwiGLU": true,
+      "Composition": 3,
+      "Condition": 1,
+      "Normalization": 1,
+      "SelectionBias": true,
+      "SharedCatalog": 2
+    },
+    "Metadata": {
+      "Heads": 2,
+      "KVHeads": 2
+    },
+    "Name": "step35",
+    "Rotary": {
+      "FactorPairs": true,
+      "SlidingFrequency": true
+    }
+  },
+  {
+    "Cache": 11,
+    "Capabilities": 2,
+    "CatalogFamily": 5,
+    "EncoderGraph": {
+      "Kind": 8
+    },
+    "Family": 5,
+    "Forward": 7,
+    "GraphFamily": 5,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "Name": "t5",
+    "OutputNorm": 3,
+    "Validation": {
+      "RelativeAttention": true,
+      "RequireDecoder": true
+    }
+  },
+  {
+    "Capabilities": 16,
+    "CatalogFamily": 4,
+    "EncoderGraph": {
+      "Kind": 9
+    },
+    "Family": 4,
+    "Forward": 6,
+    "GraphFamily": 4,
+    "Metadata": {
+      "KVHeads": 5
+    },
+    "Name": "t5encoder",
+    "OutputNorm": 2,
+    "Validation": {
+      "RelativeAttention": true
+    }
+  },
+  {
+    "Capabilities": 8665432064,
+    "DenseGraph": 4,
+    "Name": "talkie",
+    "Normalization": 3,
+    "Validation": {
+      "RequireLogitScale": true
+    }
+  },
+  {
+    "Capabilities": 19,
+    "CatalogFamily": 4,
+    "Family": 4,
+    "Forward": 5,
+    "GraphFamily": 4,
+    "Metadata": {
+      "GroupNorm": true,
+      "Heads": 3,
+      "KVHeads": 3
+    },
+    "Name": "wavtokenizer-dec",
+    "Normalization": 1
+  },
+  {
+    "Capabilities": 8396800,
+    "Name": "xverse",
+    "Position": 1,
+    "Rotary": {
+      "Kind": 4
+    }
+  }
+]

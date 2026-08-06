@@ -2,6 +2,8 @@ package modelrecipe
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"testing"
 
 	"llamacpp2go/internal/artifact"
@@ -9,6 +11,8 @@ import (
 	"llamacpp2go/internal/recipe"
 	"llamacpp2go/internal/repodb"
 )
+
+const profileCatalogSemanticDigest = "185cfaf9ee287f95508b3557f4751770cc3fcfab75b91547474a354a0143136a"
 
 func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 	documents, err := SeedProfileDocuments()
@@ -33,6 +37,20 @@ func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRegisteredProfileSemanticDigest(t *testing.T) {
+	documents, err := SeedProfileDocuments()
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.New()
+	for _, document := range documents {
+		fmt.Fprintln(digest, document.ID)
+	}
+	if got := fmt.Sprintf("%x", digest.Sum(nil)); got != profileCatalogSemanticDigest {
+		t.Fatalf("profile catalog digest = %s", got)
+	}
+}
+
 func TestPublishProfilesSeedsRegisteredAliases(t *testing.T) {
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())
@@ -50,6 +68,59 @@ func TestPublishProfilesSeedsRegisteredAliases(t *testing.T) {
 	}
 	if len(documents) != len(model.SupportedArchitectures()) {
 		t.Fatalf("documents = %d", len(documents))
+	}
+}
+
+func TestPublishProfileCatalogReplacesBootstrapAuthority(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	bootstrap, _ := model.LookupArchitecture("llama")
+	bootstrapDocument, err := NewProfileDocument(bootstrap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishProfileCatalog(ctx, store, "fixture/catalog/bootstrap", []ProfileDocument{bootstrapDocument}); err != nil {
+		t.Fatal(err)
+	}
+	candidate := bootstrap
+	candidate.DeciSparse = true
+	candidateDocument, err := NewProfileDocument(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishProfileCatalog(ctx, store, "fixture/catalog/candidate", []ProfileDocument{candidateDocument}); err != nil {
+		t.Fatal(err)
+	}
+	stored, ok, err := RegisteredProfile(ctx, store, "llama")
+	if err != nil || !ok || stored.ID != candidateDocument.ID || !stored.Policy.DeciSparse {
+		t.Fatalf("stored profile = (%+v, %v, %v)", stored, ok, err)
+	}
+	registered, _ := model.LookupArchitecture("llama")
+	if registered != bootstrap {
+		t.Fatal("RepoDB profile publication mutated bootstrap fallback")
+	}
+}
+
+func TestPublishProfileCatalogRejectsDuplicateArchitecture(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	profile, _ := model.LookupArchitecture("llama")
+	document, err := NewProfileDocument(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishProfileCatalog(
+		ctx, store, "fixture/catalog/duplicate", []ProfileDocument{document, document},
+	); err == nil {
+		t.Fatal("duplicate profile architecture accepted")
 	}
 }
 

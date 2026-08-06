@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 
 	"llamacpp2go/internal/artifact"
 	"llamacpp2go/internal/model"
@@ -118,15 +117,11 @@ func (d ProfileDocument) Descriptor() (artifact.Descriptor, error) {
 }
 
 func (d ProfileDocument) validateShape() error {
-	if d.Version != ProfileVersion || d.Architecture == "" || d.Policy.Name != d.Architecture ||
-		strings.TrimSpace(d.Architecture) != d.Architecture {
+	if d.Version != ProfileVersion || d.Architecture == "" || d.Policy.Name != d.Architecture {
 		return errors.New("model recipe: invalid profile envelope")
 	}
-	for _, character := range d.Architecture {
-		if character != '-' && character != '_' && (character < 'a' || character > 'z') &&
-			(character < '0' || character > '9') {
-			return errors.New("model recipe: invalid profile architecture")
-		}
+	if err := model.ValidateArchitectureName(d.Architecture); err != nil {
+		return fmt.Errorf("model recipe: invalid profile architecture: %w", err)
 	}
 	return nil
 }
@@ -162,17 +157,39 @@ func PublishProfiles(
 	if err != nil {
 		return artifact.CommitID{}, nil, err
 	}
+	commit, err := PublishProfileCatalog(ctx, store, key, documents)
+	return commit, documents, err
+}
+
+// PublishProfileCatalog stores externally supplied profile authority.
+func PublishProfileCatalog(
+	ctx context.Context,
+	store artifact.Repository,
+	key string,
+	documents []ProfileDocument,
+) (artifact.CommitID, error) {
+	if len(documents) == 0 {
+		return artifact.CommitID{}, errors.New("model recipe: profile catalog is empty")
+	}
 	batch := artifact.Batch{Key: key, Contents: make([]artifact.Content, 0, len(documents))}
+	architectures := make(map[string]struct{}, len(documents))
 	for _, document := range documents {
+		if err := document.ValidateIdentity(); err != nil {
+			return artifact.CommitID{}, err
+		}
+		if _, exists := architectures[document.Architecture]; exists {
+			return artifact.CommitID{}, fmt.Errorf("model recipe: duplicate profile architecture %q", document.Architecture)
+		}
+		architectures[document.Architecture] = struct{}{}
 		content, contentErr := ProfileContent(document)
 		if contentErr != nil {
-			return artifact.CommitID{}, nil, contentErr
+			return artifact.CommitID{}, contentErr
 		}
 		batch.Contents = append(batch.Contents, content)
 		alias := registeredProfileAlias(document.Architecture)
 		current, ok, lookupErr := store.ResolveAlias(ctx, alias)
 		if lookupErr != nil {
-			return artifact.CommitID{}, nil, lookupErr
+			return artifact.CommitID{}, lookupErr
 		}
 		if ok && current == document.ID {
 			continue
@@ -183,8 +200,7 @@ func PublishProfiles(
 		}
 		batch.Aliases = append(batch.Aliases, binding)
 	}
-	commit, err := store.Commit(ctx, batch)
-	return commit, documents, err
+	return store.Commit(ctx, batch)
 }
 
 func RegisteredProfile(

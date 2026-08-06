@@ -752,8 +752,8 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	if plan.Cache == model.CacheFalconH1 {
 		var pastKey, pastValue *tensor.Tensor
 		if past != nil {
-			pastKey = inputDevice(name("cache_key"), past.Keys[layerIndex])
-			pastValue = inputDevice(name("cache_value"), past.Values[layerIndex])
+			pastKey = inputDevice(name(cacheKeyInputName), past.Keys[layerIndex])
+			pastValue = inputDevice(name(cacheValueInputName), past.Values[layerIndex])
 		}
 		schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 0)
 		if err != nil {
@@ -780,19 +780,19 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if schema.Primary[0].Mode == model.CacheStateFixed {
+	if schema.Primary.Key.Mode == model.CacheStateFixed {
 		if past != nil {
-			return inputDevice(name("state_0"), past.Keys[layerIndex]),
-				inputDevice(name("state_1"), past.Values[layerIndex]), nil, nil, nil
+			return inputDevice(name(cacheKeyInputName), past.Keys[layerIndex]),
+				inputDevice(name(cacheValueInputName), past.Values[layerIndex]), nil, nil, nil
 		}
-		return inputZero(name("state_0"), schema.Primary[0].Value.Shape),
-			inputZero(name("state_1"), schema.Primary[1].Value.Shape), nil, nil, nil
+		return inputZero(name(cacheKeyInputName), schema.Primary.Key.Value.Shape),
+			inputZero(name(cacheValueInputName), schema.Primary.Value.Value.Shape), nil, nil, nil
 	}
 	if past == nil {
 		return nil, nil, nil, nil, nil
 	}
-	return inputDevice(name("cache_key"), past.Keys[layerIndex]),
-		inputDevice(name("cache_value"), past.Values[layerIndex]), nil, nil, nil
+	return inputDevice(name(cacheKeyInputName), past.Keys[layerIndex]),
+		inputDevice(name(cacheValueInputName), past.Values[layerIndex]), nil, nil, nil
 }
 
 func rebuildDeviceCachePages(

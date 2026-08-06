@@ -233,16 +233,22 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 			}
 		}
 	}
-	for index, value := range []reference.Value{layer.Key, layer.Value} {
-		expected := schema.Primary[index]
-		if !cacheShapeMatches(value.Shape, expected.Value) {
+	for _, item := range []struct {
+		name     string
+		value    reference.Value
+		expected model.CacheValueSchema
+	}{
+		{"key", layer.Key, schema.Primary.Key.Value},
+		{"value", layer.Value, schema.Primary.Value.Value},
+	} {
+		if !cacheShapeMatches(item.value.Shape, item.expected) {
 			return fmt.Errorf(
-				"%s state %d shape %v, need %v",
-				schema.Label, index, value.Shape.Slice(), expected.Value.Shape.Slice(),
+				"%s %s shape %v, need %v",
+				schema.Label, item.name, item.value.Shape.Slice(), item.expected.Shape.Slice(),
 			)
 		}
-		if err := validateStateValue(value); err != nil {
-			return fmt.Errorf("%s state %d: %w", schema.Label, index, err)
+		if err := validateStateValue(item.value); err != nil {
+			return fmt.Errorf("%s %s: %w", schema.Label, item.name, err)
 		}
 	}
 	return nil
@@ -324,13 +330,13 @@ func (r *Runner) RemoveCacheRange(
 			return nil, fmt.Errorf("inference: remove cache layer %d named states: %w", index, err)
 		}
 		key, err := editPrimaryCacheValue(
-			layer.Key, schema.Primary[0].Mode, cache.Tokens, start, discard,
+			layer.Key, schema.Primary.Key.Mode, cache.Tokens, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d key range: %w", index, err)
 		}
 		value, err := editPrimaryCacheValue(
-			layer.Value, schema.Primary[1].Mode, cache.Tokens, start, discard,
+			layer.Value, schema.Primary.Value.Mode, cache.Tokens, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d value range: %w", index, err)

@@ -9,6 +9,11 @@ import (
 	"llamacpp2go/internal/tensor/reference"
 )
 
+const (
+	cacheKeyInputName   = "cache_key"
+	cacheValueInputName = "cache_value"
+)
+
 type layerGraphCacheInputs struct {
 	key        *tensor.Tensor
 	value      *tensor.Tensor
@@ -42,8 +47,8 @@ func (r *Runner) hostLayerCacheInputs(
 		return layerGraphCacheInputs{}, err
 	}
 	if past != nil {
-		result.key = input("cache_key", past.Key)
-		result.value = input("cache_value", past.Value)
+		result.key = input(cacheKeyInputName, past.Key)
+		result.value = input(cacheValueInputName, past.Value)
 		for stateName, state := range past.States {
 			node := input(string(stateName), state.Value)
 			switch stateName {
@@ -57,9 +62,9 @@ func (r *Runner) hostLayerCacheInputs(
 				result.states[stateName] = node
 			}
 		}
-	} else if schema.Primary[0].Mode == model.CacheStateFixed {
-		result.key = zero("state_0", schema.Primary[0].Value.Shape)
-		result.value = zero("state_1", schema.Primary[1].Value.Shape)
+	} else if schema.Primary.Key.Mode == model.CacheStateFixed {
+		result.key = zero(cacheKeyInputName, schema.Primary.Key.Value.Shape)
+		result.value = zero(cacheValueInputName, schema.Primary.Value.Value.Shape)
 	}
 	for stateName, stateSchema := range schema.States {
 		if stateSchema.Mode != model.CacheStateFixed {

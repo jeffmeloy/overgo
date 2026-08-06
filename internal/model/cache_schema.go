@@ -90,10 +90,21 @@ type CacheValueSchema struct {
 	VariableLast bool
 }
 
+// CachePair: primary key/value contract.
+type CachePair[T any] struct {
+	Key   T
+	Value T
+}
+
+// NewCachePair: named pair construction.
+func NewCachePair[T any](key, value T) CachePair[T] {
+	return CachePair[T]{Key: key, Value: value}
+}
+
 // LayerCacheSchema: layer cache contract.
 type LayerCacheSchema struct {
 	Label        string
-	Primary      [2]CacheState[CacheValueSchema]
+	Primary      CachePair[CacheState[CacheValueSchema]]
 	States       CacheStates[CacheValueSchema]
 	StrictStates bool
 }
@@ -177,13 +188,13 @@ func CacheSchemaForPlan(
 	}
 	if recurrent {
 		schema.Label = label
-		schema.Primary = [2]CacheState[CacheValueSchema]{fixed(first), fixed(second)}
+		schema.Primary = NewCachePair(fixed(first), fixed(second))
 		return schema, nil
 	}
 	if plan.Cache == CacheSentinel {
 		shape := tensor.MustShape(1, 1, uint64(shapeTokens))
 		schema.Label = "sentinel"
-		schema.Primary = [2]CacheState[CacheValueSchema]{token(shape), token(shape)}
+		schema.Primary = NewCachePair(token(shape), token(shape))
 		return schema, nil
 	}
 	shapes := spec.TensorShapes(uint32(layerIndex))
@@ -197,9 +208,9 @@ func CacheSchemaForPlan(
 		}
 	}
 	shapes.Key, shapes.Value, shapes.KVHeads = keyWidth, valueWidth, heads
-	schema.Primary = [2]CacheState[CacheValueSchema]{
+	schema.Primary = NewCachePair(
 		token(shapes.KeyCache(shapeTokens)), token(shapes.ValueCache(shapeTokens)),
-	}
+	)
 	return schema, nil
 }
 

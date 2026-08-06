@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 primary-cache-pair wave replaced positional two-element schema
+  arrays with `CachePair`. Host/device preparation and cache editing now select
+  explicit key/value roles, validation reports those roles, and numeric state
+  input labels no longer encode the contract.
 - The August 6 cache-schema-carrier wave represented primary and named shape
   contracts through `CacheState[CacheValueSchema]`. Schema modes now occupy the
   same carrier field as graph, host, and device values, eliminating the final

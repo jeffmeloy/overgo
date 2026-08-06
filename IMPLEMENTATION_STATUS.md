@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Primary cache schemas now use a typed generic key/value pair instead of an
+  anonymous two-element array. Validation, editing, host input preparation,
+  CUDA input preparation, and fixtures use named roles; numeric indexes and
+  recurrent `state_0`/`state_1` labels are removed.
 - Primary and named cache schemas now use the same generic `CacheState` carrier.
   Mode is no longer embedded in a schema-specific value struct; graph values,
   host/device values, and shape contracts all share one mode-bearing form while

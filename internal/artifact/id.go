@@ -35,6 +35,8 @@ const (
 	KindFile
 	KindEvidence
 	KindProfile
+	KindRun
+	KindEvaluation
 )
 
 var kindNames = [...]string{
@@ -52,6 +54,8 @@ var kindNames = [...]string{
 	KindFile:         "file",
 	KindEvidence:     "evidence",
 	KindProfile:      "profile",
+	KindRun:          "run",
+	KindEvaluation:   "evaluation",
 }
 
 func (k Kind) String() string {

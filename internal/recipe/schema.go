@@ -24,6 +24,7 @@ const (
 	TaskGeneration Task = "generation"
 	TaskEmbedding  Task = "embedding"
 	TaskRerank     Task = "rerank"
+	TaskProjection Task = "projection"
 	TaskTraining   Task = "training"
 )
 
@@ -51,14 +52,20 @@ const (
 	DataVideo      DataKind = "video"
 	DataMetrics    DataKind = "metrics"
 	DataCheckpoint DataKind = "checkpoint"
+	DataScores     DataKind = "scores"
+	DataRanking    DataKind = "ranking"
+	DataBatch      DataKind = "batch"
+	DataLoss       DataKind = "loss"
+	DataGradients  DataKind = "gradients"
 )
 
 type Cardinality string
 
 const (
-	CardinalityOne      Cardinality = "one"
-	CardinalityOptional Cardinality = "optional"
-	CardinalityMany     Cardinality = "many"
+	CardinalityOne       Cardinality = "one"
+	CardinalityOptional  Cardinality = "optional"
+	CardinalityMany      Cardinality = "many"
+	CardinalityOneOrMany Cardinality = "one-or-many"
 )
 
 type ModuleID string
@@ -182,7 +189,7 @@ func validName(value string) bool {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskTraining:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)
@@ -201,7 +208,8 @@ func validatePlacement(placement Placement) error {
 func validateDataKind(kind DataKind) error {
 	switch kind {
 	case DataArtifact, DataText, DataTokens, DataEmbeddings, DataTensor, DataModelPlan,
-		DataCache, DataLogits, DataImage, DataAudio, DataVideo, DataMetrics, DataCheckpoint:
+		DataCache, DataLogits, DataImage, DataAudio, DataVideo, DataMetrics, DataCheckpoint,
+		DataScores, DataRanking, DataBatch, DataLoss, DataGradients:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid data kind %q", kind)
@@ -216,7 +224,7 @@ func (p Port) validate() error {
 		return err
 	}
 	switch p.Cardinality {
-	case CardinalityOne, CardinalityOptional, CardinalityMany:
+	case CardinalityOne, CardinalityOptional, CardinalityMany, CardinalityOneOrMany:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid cardinality %q", p.Cardinality)

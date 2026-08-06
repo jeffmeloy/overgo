@@ -32,6 +32,12 @@ Current foundation:
   parity evidence. Mutable profile side aliases are legacy-read-only.
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
   planning; unbound models retain the bootstrap path.
+- Canonical generation, embedding, rerank, image/audio/video projection, and
+  training orchestration DAGs sharing one module catalog and topological plan
+  compiler. Runtime-backed and orchestration-only plans are distinguished.
+- Immutable successful/failed/cancelled run records, finite typed evaluation
+  metrics, and queryable input/output/dataset provenance. Evaluation identities
+  can serve directly as recipe promotion evidence.
 
 Storage layout:
 
@@ -61,10 +67,9 @@ repository therefore preserves its manifest identity.
 
 Planned layers:
 
-1. Generation, embedding, rerank, projector, and training module bindings.
-2. Dataset versions, assets, views, splits, and mixtures.
-3. Run, evaluation, evidence, and promotion records.
-4. Immutable segments plus versioned snapshots and rebuildable indexes.
+1. Dataset versions, assets, views, splits, and mixtures.
+2. Runtime adapters that execute compiled workflow steps and emit run records.
+3. Immutable segments plus versioned snapshots and rebuildable indexes.
 
 The event log remains authoritative. Snapshots may accelerate replay but must
 carry a verified commit-chain anchor and never discard required provenance.

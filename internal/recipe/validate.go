@@ -75,7 +75,8 @@ func (d Definition) Validate(catalog *Catalog) error {
 	for _, contract := range nodes {
 		for _, port := range contract.module.Inputs {
 			endpoint := Endpoint{Node: contract.node.ID, Port: port.Name}
-			if port.Cardinality == CardinalityOne && bound[endpoint] != 1 {
+			if (port.Cardinality == CardinalityOne || port.Cardinality == CardinalityOneOrMany) &&
+				bound[endpoint] == 0 {
 				return fmt.Errorf("recipe: required input %s.%s is unbound", endpoint.Node, endpoint.Port)
 			}
 		}

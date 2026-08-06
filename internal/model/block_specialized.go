@@ -23,7 +23,7 @@ func BuildDeepSeek4BlockCached(
 	weights LayerGraphWeights,
 	positions, tokenRows []uint32,
 	pastKV *tensor.Tensor,
-	pastStates map[CacheStateName]*tensor.Tensor,
+	pastStates CacheStates[*tensor.Tensor],
 	currentPositions *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
@@ -137,7 +137,7 @@ func BuildDeepSeek4BlockCached(
 	}
 	states := make(CacheStates[*tensor.Tensor])
 	cachePositions := currentPositions
-	if previous := pastStates[CacheStatePositions]; previous != nil {
+	if previous := pastStates[CacheStatePositions].Value; previous != nil {
 		cachePositions = builder.Concat(previous, currentPositions, 2)
 	}
 	states[CacheStatePositions] = CacheState[*tensor.Tensor]{Mode: CacheStateToken, Value: cachePositions}
@@ -146,7 +146,7 @@ func BuildDeepSeek4BlockCached(
 			return nil
 		}
 		current = builder.Reshape(current, current.Shape.Dims[0], 1, current.Shape.Dims[1])
-		if previous := pastStates[name]; previous != nil {
+		if previous := pastStates[name].Value; previous != nil {
 			current = builder.Concat(previous, current, 2)
 		}
 		states[name] = CacheState[*tensor.Tensor]{Mode: CacheStateToken, Value: current}

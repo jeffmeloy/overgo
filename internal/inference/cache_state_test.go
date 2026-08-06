@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"llamacpp2go/internal/cuda/driver"
+	"llamacpp2go/internal/cuda/executor"
 	"llamacpp2go/internal/gguf"
 	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/statecodec"
@@ -141,6 +143,70 @@ func TestMistral4AbsorbedCacheValidation(t *testing.T) {
 }
 
 func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
+	runner, cache := deepSeek32CacheFixture()
+	payload, err := runner.SaveCache(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := runner.LoadCache(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(restored, cache) {
+		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
+	}
+	delete(cache.Layers[0].States, model.CacheStateIndexerKey)
+	if err := runner.validateCache(cache); err == nil {
+		t.Fatal("DeepSeek 3.2 cache without indexer state was accepted")
+	}
+}
+
+func TestDeepSeek32NamedStateGraphBinding(t *testing.T) {
+	runner, cache := deepSeek32CacheFixture()
+	info := runner.weights.Layers[0]
+	plan := runner.layerPlan(0, info.Recurrent)
+	builder := tensor.NewBuilder()
+	hostFeeds := make(map[*tensor.Tensor]reference.Value)
+	host, err := runner.hostLayerCacheInputs(builder, 0, info, plan, &cache.Layers[0], hostFeeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostIndexer := host.states[model.CacheStateIndexerKey]
+	if hostIndexer.Mode != model.CacheStateToken ||
+		!reflect.DeepEqual(hostFeeds[hostIndexer.Value], cache.Layers[0].States[model.CacheStateIndexerKey].Value) {
+		t.Fatalf("host indexer binding = %+v", hostIndexer)
+	}
+
+	keyPointer := driver.DevicePtr(101)
+	valuePointer := driver.DevicePtr(202)
+	indexerPointer := driver.DevicePtr(303)
+	deviceCache := &deviceKVCache{
+		Keys:   []executor.DeviceValue{{Pointer: keyPointer, Shape: cache.Layers[0].Key.Shape}},
+		Values: []executor.DeviceValue{{Pointer: valuePointer, Shape: cache.Layers[0].Value.Shape}},
+		States: []deviceLayerStates{{
+			model.CacheStateIndexerKey: {
+				Mode: model.CacheStateToken,
+				Value: executor.DeviceValue{
+					Pointer: indexerPointer,
+					Shape:   cache.Layers[0].States[model.CacheStateIndexerKey].Value.Shape,
+				},
+			},
+		}},
+	}
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	device, err := runner.deviceBatchLayerCacheInputs(
+		builder, "fixture.", 0, info, deviceCache, hostFeeds, deviceFeeds,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deviceIndexer := device.states[model.CacheStateIndexerKey]
+	if deviceIndexer.Mode != model.CacheStateToken || deviceFeeds[deviceIndexer.Value] != indexerPointer {
+		t.Fatalf("device indexer binding = %+v", deviceIndexer)
+	}
+}
+
+func deepSeek32CacheFixture() (*Runner, *KVCache) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek32", BlockCount: 1, ContextLength: 16}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KVLoRARank: 3, RopeDimensionCount: 2,
 		IndexerKeyLength: 4, IndexerFullLayers: []bool{true}},
@@ -161,21 +227,7 @@ func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
 		}},
 		Tokens: 2, Position: 2,
 	}
-	payload, err := runner.SaveCache(cache)
-	if err != nil {
-		t.Fatal(err)
-	}
-	restored, err := runner.LoadCache(payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(restored, cache) {
-		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
-	}
-	delete(cache.Layers[0].States, model.CacheStateIndexerKey)
-	if err := runner.validateCache(cache); err == nil {
-		t.Fatal("DeepSeek 3.2 cache without indexer state was accepted")
-	}
+	return runner, cache
 }
 
 func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {

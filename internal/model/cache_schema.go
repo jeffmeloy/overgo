@@ -88,6 +88,7 @@ const (
 type CacheValueSchema struct {
 	Shape        tensor.Shape
 	VariableLast bool
+	ZeroInitial  bool
 }
 
 // CachePair: primary key/value contract.
@@ -136,6 +137,11 @@ func CacheSchemaForPlan(
 			Mode: CacheStateFixed, Value: CacheValueSchema{Shape: shape},
 		}
 	}
+	fixedZero := func(shape tensor.Shape) CacheState[CacheValueSchema] {
+		state := fixed(shape)
+		state.Value.ZeroInitial = true
+		return state
+	}
 	token := func(shape tensor.Shape) CacheState[CacheValueSchema] {
 		return CacheState[CacheValueSchema]{
 			Mode: CacheStateToken, Value: CacheValueSchema{Shape: shape},
@@ -165,10 +171,10 @@ func CacheSchemaForPlan(
 	if plan.Cache == CacheFalconH1 {
 		channels := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
-		schema.States[CacheStateConvolution] = fixed(tensor.MustShape(
+		schema.States[CacheStateConvolution] = fixedZero(tensor.MustShape(
 			uint64(spec.SSMConvKernel-1), channels,
 		))
-		schema.States[CacheStateSSM] = fixed(tensor.MustShape(
+		schema.States[CacheStateSSM] = fixedZero(tensor.MustShape(
 			uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize),
 		))
 	}

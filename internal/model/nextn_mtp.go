@@ -52,7 +52,10 @@ func BuildNextNMTPBlockCachedWithDSA(
 	return BuildArchitectureBlockCached(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
-			PastKey: pastKey, PastValue: pastValue, PastIndexerKey: pastIndexerKey,
+			PastKey: pastKey, PastValue: pastValue,
+			PastStates: CacheStates[*tensor.Tensor]{
+				CacheStateIndexerKey: {Mode: CacheStateToken, Value: pastIndexerKey},
+			},
 			PerLayerInput: previousTopK, Layer: spec.BlockCount + offset,
 		},
 		Spec: executable, Weights: weights,

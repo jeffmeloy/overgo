@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 named-state-binding wave replaced specialized indexer,
+  convolution, and SSM graph-input fields with `CacheStates[*tensor.Tensor]`.
+  Host/device binders share schema-governed zero initialization, and a
+  DeepSeek 3.2 fixture proves named history binding on both execution paths.
 - The August 6 primary-cache-pair wave replaced positional two-element schema
   arrays with `CachePair`. Host/device preparation and cache editing now select
   explicit key/value roles, validation reports those roles, and numeric state

@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Host and CUDA graph preparation now bind every named cache input through one
+  typed collection. Dedicated indexer/convolution/SSM fields and Falcon-only
+  device branches are removed; schema `ZeroInitial` policy initializes only
+  eligible states, and DSA/DeepSeek 4 device history reaches graph dispatch.
 - Primary cache schemas now use a typed generic key/value pair instead of an
   anonymous two-element array. Validation, editing, host input preparation,
   CUDA input preparation, and fixtures use named roles; numeric indexes and

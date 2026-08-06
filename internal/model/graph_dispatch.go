@@ -15,10 +15,7 @@ type CachedBlockContext struct {
 	TokenRows        []uint32
 	PastKey          *tensor.Tensor
 	PastValue        *tensor.Tensor
-	PastIndexerKey   *tensor.Tensor
-	PastConvState    *tensor.Tensor
-	PastSSMState     *tensor.Tensor
-	PastStates       map[CacheStateName]*tensor.Tensor
+	PastStates       CacheStates[*tensor.Tensor]
 	CurrentPositions *tensor.Tensor
 	PerLayerInput    *tensor.Tensor
 	Layer            uint32
@@ -63,7 +60,8 @@ func BuildArchitectureBlockCached(
 		return BuildFalconH1BlockCached(
 			context.Builder, context.Input, options.Spec, options.Weights,
 			context.Positions, context.PastKey, context.PastValue,
-			context.PastConvState, context.PastSSMState,
+			context.PastStates[CacheStateConvolution].Value,
+			context.PastStates[CacheStateSSM].Value,
 		)
 	case BlockJamba:
 		return BuildJambaRecurrentBlockCached(
@@ -95,7 +93,8 @@ func BuildArchitectureBlockCached(
 		return BuildDSABlockCached(
 			context.Builder, context.Input, options.Spec, options.Weights,
 			context.Positions, context.PastKey, context.PastValue,
-			context.PastIndexerKey, context.PerLayerInput, context.Layer,
+			context.PastStates[CacheStateIndexerKey].Value,
+			context.PerLayerInput, context.Layer,
 		)
 	case BlockDeepSeek4:
 		return BuildDeepSeek4BlockCached(

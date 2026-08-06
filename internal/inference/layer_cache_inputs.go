@@ -15,12 +15,9 @@ const (
 )
 
 type layerGraphCacheInputs struct {
-	key        *tensor.Tensor
-	value      *tensor.Tensor
-	indexerKey *tensor.Tensor
-	convState  *tensor.Tensor
-	ssmState   *tensor.Tensor
-	states     map[model.CacheStateName]*tensor.Tensor
+	key    *tensor.Tensor
+	value  *tensor.Tensor
+	states model.CacheStates[*tensor.Tensor]
 }
 
 func (r *Runner) hostLayerCacheInputs(
@@ -31,7 +28,7 @@ func (r *Runner) hostLayerCacheInputs(
 	past *LayerCache,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (layerGraphCacheInputs, error) {
-	result := layerGraphCacheInputs{states: make(map[model.CacheStateName]*tensor.Tensor)}
+	result := layerGraphCacheInputs{states: make(model.CacheStates[*tensor.Tensor])}
 	name := func(suffix string) string { return fmt.Sprintf("blk.%d.%s", layer, suffix) }
 	input := func(suffix string, value reference.Value) *tensor.Tensor {
 		node := builder.Input(name(suffix), dtype.F32, value.Shape)
@@ -50,16 +47,8 @@ func (r *Runner) hostLayerCacheInputs(
 		result.key = input(cacheKeyInputName, past.Key)
 		result.value = input(cacheValueInputName, past.Value)
 		for stateName, state := range past.States {
-			node := input(string(stateName), state.Value)
-			switch stateName {
-			case model.CacheStateIndexerKey:
-				result.indexerKey = node
-			case model.CacheStateConvolution:
-				result.convState = node
-			case model.CacheStateSSM:
-				result.ssmState = node
-			default:
-				result.states[stateName] = node
+			result.states[stateName] = model.CacheState[*tensor.Tensor]{
+				Mode: state.Mode, Value: input(string(stateName), state.Value),
 			}
 		}
 	} else if schema.Primary.Key.Mode == model.CacheStateFixed {
@@ -67,18 +56,11 @@ func (r *Runner) hostLayerCacheInputs(
 		result.value = zero(cacheValueInputName, schema.Primary.Value.Value.Shape)
 	}
 	for stateName, stateSchema := range schema.States {
-		if stateSchema.Mode != model.CacheStateFixed {
+		if !stateSchema.Value.ZeroInitial || result.states[stateName].Value != nil {
 			continue
 		}
-		switch stateName {
-		case model.CacheStateConvolution:
-			if result.convState == nil {
-				result.convState = zero(string(stateName), stateSchema.Value.Shape)
-			}
-		case model.CacheStateSSM:
-			if result.ssmState == nil {
-				result.ssmState = zero(string(stateName), stateSchema.Value.Shape)
-			}
+		result.states[stateName] = model.CacheState[*tensor.Tensor]{
+			Mode: stateSchema.Mode, Value: zero(string(stateName), stateSchema.Value.Shape),
 		}
 	}
 	return result, nil

@@ -23,7 +23,8 @@ Current foundation:
   offsets, and runtime tensor loading.
 - Canonical model definitions binding an exact model manifest, architecture
   profile, tensor inventory, and validated runtime metadata spec. Recipe v2 can
-  depend on and compile this definition without bootstrap-registry lookup.
+  depend on and compile this definition without bootstrap-registry lookup. One
+  batch atomically publishes the physical model inventory and resolved facts.
 - Bounded inline content records for independently owned typed schemas.
 - Canonical typed recipe DAGs persisted as content-addressed documents.
 - Recipe v2 identities include a canonical role/slot dependency set for models,
@@ -38,7 +39,8 @@ Current foundation:
   parity evidence. RepoDB may publish replacement catalogs without mutating the
   bootstrap fallback; mutable profile side aliases are legacy-read-only.
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
-  planning; unbound models retain the bootstrap path.
+  planning. Dispatch, catalog loading, and persistent-cache policy preserve the
+  exact bound profile; unbound models retain the bootstrap path.
 - Canonical generation, embedding, rerank, image/audio/video projection, and
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.

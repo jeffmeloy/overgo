@@ -442,12 +442,17 @@ func SupportedArchitectures() []string {
 	return names
 }
 
-// Profile: registered profile; zero profile for invalid specs.
-func (s Spec) Profile() ArchitectureProfile {
+// ResolvedProfile: bound policy; bootstrap fallback.
+func (s Spec) ResolvedProfile() (ArchitectureProfile, bool) {
 	if s.profile != nil {
-		return *s.profile
+		return *s.profile, s.profile.Name == s.Architecture
 	}
-	profile, _ := LookupArchitecture(s.Architecture)
+	return LookupArchitecture(s.Architecture)
+}
+
+// Profile: resolved policy; zero profile for invalid specs.
+func (s Spec) Profile() ArchitectureProfile {
+	profile, _ := s.ResolvedProfile()
 	return profile
 }
 

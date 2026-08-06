@@ -32,7 +32,7 @@ type BlockDispatchOptions DenseBlockOptions
 func BuildArchitectureBlockCached(
 	options BlockDispatchOptions,
 ) (DenseBlockResult, error) {
-	_, ok := LookupArchitecture(options.Spec.Architecture)
+	_, ok := options.Spec.ResolvedProfile()
 	if !ok {
 		return DenseBlockResult{}, &UnsupportedArchitectureError{
 			Architecture: options.Spec.Architecture,

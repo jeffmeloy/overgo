@@ -41,6 +41,21 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 	}
 }
 
+func TestResolvedProfilePrefersExactBinding(t *testing.T) {
+	bootstrap, _ := LookupArchitecture("llama")
+	bound := bootstrap
+	bound.DenseGraph = DenseGraphTalkie
+	spec := Spec{CommonSpec: CommonSpec{Architecture: bootstrap.Name}}.withProfile(bound)
+	resolved, ok := spec.ResolvedProfile()
+	if !ok || resolved.DenseGraph != DenseGraphTalkie {
+		t.Fatalf("resolved profile = (%+v, %t)", resolved, ok)
+	}
+	mismatch := spec.withProfile(ArchitectureProfile{Name: "other"})
+	if _, ok := mismatch.ResolvedProfile(); ok {
+		t.Fatal("mismatched bound profile accepted")
+	}
+}
+
 func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
 	for architecture, want := range map[string]bool{
 		"step35": true, "hy_v3": true, "glm4": true,

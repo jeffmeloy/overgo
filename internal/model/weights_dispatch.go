@@ -7,7 +7,7 @@ func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if spec.Architecture == "" {
 		return readWeightCatalog(file, spec)
 	}
-	_, ok := LookupArchitecture(spec.Architecture)
+	_, ok := spec.ResolvedProfile()
 	if !ok {
 		return Weights{}, &UnsupportedArchitectureError{
 			Architecture: spec.Architecture,

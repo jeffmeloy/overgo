@@ -128,21 +128,13 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	if _, err := PublishProfileCatalog(ctx, store, "fixture/definition/profile", []ProfileDocument{profileDocument}); err != nil {
-		t.Fatal(err)
-	}
-	inventoryBatch, err := inventory.Batch("fixture/definition/inventory")
+	resolvedSource, err := document.Resolve(profileDocument, inventory.TensorInventory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, inventoryBatch); err != nil {
-		t.Fatal(err)
-	}
-	definitionBatch, err := document.Batch("fixture/definition/document")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(ctx, definitionBatch); err != nil {
+	if _, err := PublishResolvedModelDefinition(
+		ctx, store, "fixture/definition/bundle", inventory, resolvedSource,
+	); err != nil {
 		t.Fatal(err)
 	}
 	resolved, err := ResolveModelDefinition(ctx, store, document.ID)

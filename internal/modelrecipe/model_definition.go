@@ -49,6 +49,58 @@ type ResolvedModelDefinition struct {
 	Spec     model.Spec
 }
 
+// Batch: atomic model inventory and definition publication.
+func (r ResolvedModelDefinition) Batch(
+	key string,
+	inventory modelartifact.Inventory,
+) (artifact.Batch, error) {
+	checked, err := r.Document.Resolve(r.Profile, r.Tensors)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	if inventory.Manifest.ID != checked.Document.Model ||
+		inventory.TensorInventory.ID != checked.Tensors.ID {
+		return artifact.Batch{}, errors.New("model recipe: publication inventory binding mismatch")
+	}
+	batch, err := inventory.Batch(key)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	profileContent, err := ProfileContent(checked.Profile)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	definitionContent, err := checked.Document.Content()
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	batch.Contents = append(batch.Contents, profileContent, definitionContent)
+	batch.Lineage = append(batch.Lineage,
+		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Document.Model, Relation: artifact.RelationDerivedFrom},
+		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Profile.ID, Relation: artifact.RelationDependsOn},
+		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Tensors.ID, Relation: artifact.RelationDependsOn},
+	)
+	if err := batch.Validate(); err != nil {
+		return artifact.Batch{}, err
+	}
+	return batch, nil
+}
+
+// PublishResolvedModelDefinition: atomic bound-definition commit.
+func PublishResolvedModelDefinition(
+	ctx context.Context,
+	store artifact.Repository,
+	key string,
+	inventory modelartifact.Inventory,
+	resolved ResolvedModelDefinition,
+) (artifact.CommitID, error) {
+	batch, err := resolved.Batch(key, inventory)
+	if err != nil {
+		return artifact.CommitID{}, err
+	}
+	return store.Commit(ctx, batch)
+}
+
 func NewModelDefinitionDocument(
 	profile ProfileDocument,
 	tensors modelartifact.TensorInventoryDocument,

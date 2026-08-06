@@ -20,4 +20,13 @@ func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
 		t.Fatalf("T5 dispatch error = %v", err)
 	}
+	external := ArchitectureProfile{
+		Name: "external-encoder-decoder", GraphFamily: ArchitectureFamilyEncoderDecoder,
+	}
+	_, err = BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: Spec{CommonSpec: CommonSpec{Architecture: external.Name}}.withProfile(external),
+	})
+	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
+		t.Fatalf("bound external dispatch error = %v", err)
+	}
 }

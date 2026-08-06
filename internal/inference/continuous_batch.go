@@ -411,7 +411,7 @@ func sequencePages(tokens, pageTokens uint32) []SequenceCachePage {
 }
 
 func supportsPersistentDeviceCache(spec model.Spec) bool {
-	profile, ok := model.LookupArchitecture(spec.Architecture)
+	profile, ok := spec.ResolvedProfile()
 	if !ok {
 		return false
 	}

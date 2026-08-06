@@ -759,8 +759,8 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		convShape := schema.States[model.CacheStateConvolution].Shape
-		ssmShape := schema.States[model.CacheStateSSM].Shape
+		convShape := schema.States[model.CacheStateConvolution].Value.Shape
+		ssmShape := schema.States[model.CacheStateSSM].Value.Shape
 		var convState, ssmState *tensor.Tensor
 		if past != nil && layerIndex < len(past.States) {
 			conv, hasConv := past.States[layerIndex][model.CacheStateConvolution]
@@ -785,8 +785,8 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 			return inputDevice(name("state_0"), past.Keys[layerIndex]),
 				inputDevice(name("state_1"), past.Values[layerIndex]), nil, nil, nil
 		}
-		return inputZero(name("state_0"), schema.Primary[0].Shape),
-			inputZero(name("state_1"), schema.Primary[1].Shape), nil, nil, nil
+		return inputZero(name("state_0"), schema.Primary[0].Value.Shape),
+			inputZero(name("state_1"), schema.Primary[1].Value.Shape), nil, nil, nil
 	}
 	if past == nil {
 		return nil, nil, nil, nil, nil

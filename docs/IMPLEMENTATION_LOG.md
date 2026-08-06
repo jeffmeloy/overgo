@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 6 cache-schema-carrier wave represented primary and named shape
+  contracts through `CacheState[CacheValueSchema]`. Schema modes now occupy the
+  same carrier field as graph, host, and device values, eliminating the final
+  schema-specific `{mode,value}` representation.
 - The August 6 cache-policy wave removed the parallel cache-extent enum.
   `CachePolicy` now derives the canonical fixed/token mode in `LayerPlan`, and
   schemas, host editing, device compaction, named states, and wire validation

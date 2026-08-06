@@ -86,7 +86,6 @@ const (
 
 // CacheValueSchema: named or primary state contract.
 type CacheValueSchema struct {
-	Mode         CacheStateMode
 	Shape        tensor.Shape
 	VariableLast bool
 }
@@ -94,8 +93,8 @@ type CacheValueSchema struct {
 // LayerCacheSchema: layer cache contract.
 type LayerCacheSchema struct {
 	Label        string
-	Primary      [2]CacheValueSchema
-	States       map[CacheStateName]CacheValueSchema
+	Primary      [2]CacheState[CacheValueSchema]
+	States       CacheStates[CacheValueSchema]
 	StrictStates bool
 }
 
@@ -119,13 +118,17 @@ func CacheSchemaForPlan(
 	}
 	schema := LayerCacheSchema{
 		Label:  "KV",
-		States: make(map[CacheStateName]CacheValueSchema),
+		States: make(CacheStates[CacheValueSchema]),
 	}
-	fixed := func(shape tensor.Shape) CacheValueSchema {
-		return CacheValueSchema{Mode: CacheStateFixed, Shape: shape}
+	fixed := func(shape tensor.Shape) CacheState[CacheValueSchema] {
+		return CacheState[CacheValueSchema]{
+			Mode: CacheStateFixed, Value: CacheValueSchema{Shape: shape},
+		}
 	}
-	token := func(shape tensor.Shape) CacheValueSchema {
-		return CacheValueSchema{Mode: CacheStateToken, Shape: shape}
+	token := func(shape tensor.Shape) CacheState[CacheValueSchema] {
+		return CacheState[CacheValueSchema]{
+			Mode: CacheStateToken, Value: CacheValueSchema{Shape: shape},
+		}
 	}
 	if plan.Attention == AttentionDSA && spec.LayerHasFullIndexer(plan.Layer) {
 		schema.States[CacheStateIndexerKey] = token(tensor.MustShape(
@@ -161,9 +164,9 @@ func CacheSchemaForPlan(
 	if plan.Cache == CacheT5 {
 		shapes := spec.TensorShapes(plan.Layer)
 		key := fixed(shapes.KeyCache(1))
-		key.VariableLast = true
+		key.Value.VariableLast = true
 		value := fixed(shapes.ValueCache(1))
-		value.VariableLast = true
+		value.Value.VariableLast = true
 		schema.States[CacheStateCrossKey] = key
 		schema.States[CacheStateCrossValue] = value
 	}
@@ -174,13 +177,13 @@ func CacheSchemaForPlan(
 	}
 	if recurrent {
 		schema.Label = label
-		schema.Primary = [2]CacheValueSchema{fixed(first), fixed(second)}
+		schema.Primary = [2]CacheState[CacheValueSchema]{fixed(first), fixed(second)}
 		return schema, nil
 	}
 	if plan.Cache == CacheSentinel {
 		shape := tensor.MustShape(1, 1, uint64(shapeTokens))
 		schema.Label = "sentinel"
-		schema.Primary = [2]CacheValueSchema{token(shape), token(shape)}
+		schema.Primary = [2]CacheState[CacheValueSchema]{token(shape), token(shape)}
 		return schema, nil
 	}
 	shapes := spec.TensorShapes(uint32(layerIndex))
@@ -194,7 +197,9 @@ func CacheSchemaForPlan(
 		}
 	}
 	shapes.Key, shapes.Value, shapes.KVHeads = keyWidth, valueWidth, heads
-	schema.Primary = [2]CacheValueSchema{token(shapes.KeyCache(shapeTokens)), token(shapes.ValueCache(shapeTokens))}
+	schema.Primary = [2]CacheState[CacheValueSchema]{
+		token(shapes.KeyCache(shapeTokens)), token(shapes.ValueCache(shapeTokens)),
+	}
 	return schema, nil
 }
 

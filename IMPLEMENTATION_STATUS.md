@@ -32,6 +32,10 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Primary and named cache schemas now use the same generic `CacheState` carrier.
+  Mode is no longer embedded in a schema-specific value struct; graph values,
+  host/device values, and shape contracts all share one mode-bearing form while
+  retaining representation-specific payloads.
 - Cache schemas, layer plans, host states, device states, and serialized states
   now share one fixed/token `CacheStateMode`. `CachePolicy` derives primary
   mode once during layer planning; the duplicate extent enum, conversion, and

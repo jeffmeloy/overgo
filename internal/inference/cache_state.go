@@ -222,7 +222,7 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 		if !present {
 			return fmt.Errorf("required state %q is missing", name)
 		}
-		if state.Mode != expected.Mode || !cacheShapeMatches(state.Value.Shape, expected) {
+		if state.Mode != expected.Mode || !cacheShapeMatches(state.Value.Shape, expected.Value) {
 			return fmt.Errorf("state %q shape or mode is invalid", name)
 		}
 	}
@@ -235,10 +235,10 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 	}
 	for index, value := range []reference.Value{layer.Key, layer.Value} {
 		expected := schema.Primary[index]
-		if !cacheShapeMatches(value.Shape, expected) {
+		if !cacheShapeMatches(value.Shape, expected.Value) {
 			return fmt.Errorf(
 				"%s state %d shape %v, need %v",
-				schema.Label, index, value.Shape.Slice(), expected.Shape.Slice(),
+				schema.Label, index, value.Shape.Slice(), expected.Value.Shape.Slice(),
 			)
 		}
 		if err := validateStateValue(value); err != nil {

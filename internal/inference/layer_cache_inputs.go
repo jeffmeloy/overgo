@@ -58,8 +58,8 @@ func (r *Runner) hostLayerCacheInputs(
 			}
 		}
 	} else if schema.Primary[0].Mode == model.CacheStateFixed {
-		result.key = zero("state_0", schema.Primary[0].Shape)
-		result.value = zero("state_1", schema.Primary[1].Shape)
+		result.key = zero("state_0", schema.Primary[0].Value.Shape)
+		result.value = zero("state_1", schema.Primary[1].Value.Shape)
 	}
 	for stateName, stateSchema := range schema.States {
 		if stateSchema.Mode != model.CacheStateFixed {
@@ -68,11 +68,11 @@ func (r *Runner) hostLayerCacheInputs(
 		switch stateName {
 		case model.CacheStateConvolution:
 			if result.convState == nil {
-				result.convState = zero(string(stateName), stateSchema.Shape)
+				result.convState = zero(string(stateName), stateSchema.Value.Shape)
 			}
 		case model.CacheStateSSM:
 			if result.ssmState == nil {
-				result.ssmState = zero(string(stateName), stateSchema.Shape)
+				result.ssmState = zero(string(stateName), stateSchema.Value.Shape)
 			}
 		}
 	}

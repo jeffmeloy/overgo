@@ -73,23 +73,27 @@ func publishCandidate(
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
-	batch := artifact.Batch{
-		Key: key, Contents: []artifact.Content{definitionContent, eventContent},
-		Aliases: []artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID}},
-	}
+	contents := []artifact.Content{definitionContent, eventContent}
 	if document != nil {
 		profileContent, contentErr := ProfileContent(*document)
 		if contentErr != nil {
 			return artifact.CommitID{}, recipe.LifecycleEvent{}, contentErr
 		}
-		batch.Contents = append(batch.Contents, profileContent)
+		contents = append(contents, profileContent)
 	}
+	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies))
 	for _, dependency := range definition.Dependencies {
-		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+		lineage = append(lineage, artifact.Lineage{
 			Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn,
 		})
 	}
-	commit, err := store.Commit(ctx, batch)
+	batch, err := artifact.NewDocumentBatch(key, contents, lineage, []artifact.AliasBinding{{
+		Name: statusAlias(definition.ID), Target: event.ID,
+	}})
+	if err != nil {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
+	}
+	commit, err := artifact.CommitBatch(ctx, store, batch)
 	return commit, event, err
 }
 
@@ -148,7 +152,7 @@ func transition(
 	contents := append(append([]artifact.Content(nil), pending...), eventContent)
 	aliases := []artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &previous.ID}}
 	if to == recipe.StatusActive {
-		activeID, active, lookupErr := store.ResolveAlias(ctx, activeAlias(definition.Model, definition.Task))
+		activeID, active, lookupErr := artifact.ResolveAlias(ctx, store, activeAlias(definition.Model, definition.Task))
 		if lookupErr != nil {
 			return artifact.CommitID{}, recipe.LifecycleEvent{}, lookupErr
 		}
@@ -191,12 +195,12 @@ func transition(
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
-	commit, err := store.Commit(ctx, batch)
+	commit, err := artifact.CommitBatch(ctx, store, batch)
 	return commit, event, err
 }
 
 func Active(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool, error) {
-	id, ok, err := store.ResolveAlias(ctx, activeAlias(modelID, task))
+	id, ok, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, task))
 	if err != nil || !ok {
 		return recipe.Definition{}, ok, err
 	}
@@ -226,7 +230,7 @@ func activeBoundProfile(
 	profileID, bound := definition.Dependency(recipe.DependencyProfile, 0)
 	if !bound && definition.Version == recipe.LegacyVersion {
 		var err error
-		profileID, bound, err = store.ResolveAlias(ctx, legacyRecipeProfileAlias(definition.ID))
+		profileID, bound, err = artifact.ResolveAlias(ctx, store, legacyRecipeProfileAlias(definition.ID))
 		if err != nil {
 			return ProfileDocument{}, false, err
 		}
@@ -251,7 +255,7 @@ func activeBoundProfile(
 }
 
 func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (recipe.LifecycleEvent, error) {
-	eventID, ok, err := store.ResolveAlias(ctx, statusAlias(recipeID))
+	eventID, ok, err := artifact.ResolveAlias(ctx, store, statusAlias(recipeID))
 	if err != nil {
 		return recipe.LifecycleEvent{}, err
 	}

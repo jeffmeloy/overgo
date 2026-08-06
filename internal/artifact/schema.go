@@ -235,3 +235,26 @@ type Repository interface {
 	Commit(context.Context, Batch) (CommitID, error)
 	Close() error
 }
+
+func CommitBatch(ctx context.Context, repository Repository, batch Batch) (CommitID, error) {
+	if ctx == nil || repository == nil {
+		return CommitID{}, errors.New("artifact: nil commit context or repository")
+	}
+	if err := ctx.Err(); err != nil {
+		return CommitID{}, err
+	}
+	if err := batch.Validate(); err != nil {
+		return CommitID{}, err
+	}
+	return repository.Commit(ctx, batch)
+}
+
+func ResolveAlias(ctx context.Context, reader Reader, name string) (ID, bool, error) {
+	if ctx == nil || reader == nil {
+		return ID{}, false, errors.New("artifact: nil alias context or reader")
+	}
+	if err := ctx.Err(); err != nil {
+		return ID{}, false, err
+	}
+	return reader.ResolveAlias(ctx, name)
+}

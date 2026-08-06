@@ -136,7 +136,7 @@ func (r *Runtime) Execute(
 	if ctx.Err() != nil {
 		commitContext = context.WithoutCancel(ctx)
 	}
-	commit, commitErr := r.store.Commit(commitContext, batch)
+	commit, commitErr := artifact.CommitBatch(commitContext, r.store, batch)
 	result := Result{Outputs: outputs, Run: run, Commit: commit}
 	if commitErr != nil {
 		return result, errors.Join(executeErr, commitErr)

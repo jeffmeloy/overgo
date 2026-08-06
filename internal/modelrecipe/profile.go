@@ -182,7 +182,7 @@ func PublishProfileCatalog(
 		}
 		contents = append(contents, content)
 		alias := registeredProfileAlias(document.Architecture)
-		current, ok, lookupErr := store.ResolveAlias(ctx, alias)
+		current, ok, lookupErr := artifact.ResolveAlias(ctx, store, alias)
 		if lookupErr != nil {
 			return artifact.CommitID{}, lookupErr
 		}
@@ -199,7 +199,7 @@ func PublishProfileCatalog(
 	if err != nil {
 		return artifact.CommitID{}, err
 	}
-	return store.Commit(ctx, batch)
+	return artifact.CommitBatch(ctx, store, batch)
 }
 
 func RegisteredProfile(
@@ -207,7 +207,7 @@ func RegisteredProfile(
 	store artifact.Reader,
 	architecture string,
 ) (ProfileDocument, bool, error) {
-	id, ok, err := store.ResolveAlias(ctx, registeredProfileAlias(architecture))
+	id, ok, err := artifact.ResolveAlias(ctx, store, registeredProfileAlias(architecture))
 	if err != nil || !ok {
 		return ProfileDocument{}, ok, err
 	}

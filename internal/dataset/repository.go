@@ -45,9 +45,6 @@ func Publish(
 	document Document,
 	alias *artifact.AliasBinding,
 ) (artifact.CommitID, error) {
-	if store == nil {
-		return artifact.CommitID{}, errors.New("dataset: nil repository")
-	}
 	var aliases []artifact.AliasBinding
 	if alias != nil {
 		aliases = append(aliases, *alias)
@@ -56,7 +53,7 @@ func Publish(
 	if err != nil {
 		return artifact.CommitID{}, err
 	}
-	return store.Commit(ctx, batch)
+	return artifact.CommitBatch(ctx, store, batch)
 }
 
 // Load: resolves one inline dataset document.
@@ -80,7 +77,7 @@ func Resolve(ctx context.Context, store artifact.Reader, alias string) (Document
 	if store == nil {
 		return Document{}, false, errors.New("dataset: nil repository")
 	}
-	id, ok, err := store.ResolveAlias(ctx, alias)
+	id, ok, err := artifact.ResolveAlias(ctx, store, alias)
 	if err != nil || !ok {
 		return Document{}, ok, err
 	}

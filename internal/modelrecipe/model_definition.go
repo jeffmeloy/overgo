@@ -102,7 +102,7 @@ func PublishResolvedModelDefinition(
 	if err != nil {
 		return artifact.CommitID{}, err
 	}
-	return store.Commit(ctx, batch)
+	return artifact.CommitBatch(ctx, store, batch)
 }
 
 func NewModelDefinitionDocument(

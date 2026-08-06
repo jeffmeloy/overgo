@@ -205,7 +205,7 @@ func boundProfile(
 	id, ok := definition.Dependency(recipe.DependencyProfile, 0)
 	if !ok && definition.Version == recipe.LegacyVersion {
 		var err error
-		id, ok, err = store.ResolveAlias(ctx, legacyRecipeProfileAlias(definition.ID))
+		id, ok, err = artifact.ResolveAlias(ctx, store, legacyRecipeProfileAlias(definition.ID))
 		if err != nil {
 			return ProfileDocument{}, err
 		}

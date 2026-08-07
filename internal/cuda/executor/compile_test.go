@@ -25,6 +25,47 @@ func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
 	}
 }
 
+func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
+	const (
+		fixtureWidth   = 4
+		fixturePointer = graphArenaAlignment
+	)
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(fixtureWidth))
+	first := builder.Scale(input, 2)
+	second := builder.Scale(first, 3)
+	compiled, err := Compile(first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureBytes, err := second.Shape.Bytes(dtype.F32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := compiled.NewRetainedTargets()
+	value := DeviceValue{
+		Pointer:       fixturePointer,
+		Shape:         second.Shape,
+		CapacityBytes: fixtureBytes,
+	}
+	if err := targets.Set(second, value); err != nil {
+		t.Fatal(err)
+	}
+	if targets.values[0].Pointer != 0 || targets.values[1].Pointer != value.Pointer ||
+		!targets.values[1].Shape.Equal(value.Shape) ||
+		targets.values[1].CapacityBytes != value.CapacityBytes {
+		t.Fatalf("indexed targets = %+v", targets.values)
+	}
+	otherBuilder := tensor.NewBuilder()
+	other := otherBuilder.Input("other", dtype.F32, tensor.MustShape(fixtureWidth))
+	if err := targets.Set(other, value); err == nil {
+		t.Fatal("non-output target accepted")
+	}
+	if _, err := Compile(first, first); err == nil {
+		t.Fatal("duplicate output compiled")
+	}
+}
+
 func TestCompileDetectsBLASAndRejectsNilGraph(t *testing.T) {
 	builder := tensor.NewBuilder()
 	left := builder.Input("left", dtype.F32, tensor.MustShape(2, 2))

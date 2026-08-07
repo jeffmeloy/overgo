@@ -1594,6 +1594,10 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	initialTargets := initialGraph.NewRetainedTargets()
+	if err := initialTargets.Set(initialOutput, initialTarget); err != nil {
+		t.Fatal(err)
+	}
 	initial, err := cuda.ExecuteRetainedCompiledWithTargets(
 		context.Background(),
 		initialGraph,
@@ -1601,7 +1605,7 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 			initialInput: {Shape: initialShape, Data: []float32{1, 2, 3}},
 		},
 		nil,
-		map[*tensor.Tensor]DeviceValue{initialOutput: initialTarget},
+		initialTargets,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1623,6 +1627,10 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	appendTargets := appendGraph.NewRetainedTargets()
+	if err := appendTargets.Set(joined, joinedTarget); err != nil {
+		t.Fatal(err)
+	}
 	retained, err := cuda.ExecuteRetainedCompiledWithTargets(
 		context.Background(),
 		appendGraph,
@@ -1630,7 +1638,7 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 			added: {Shape: newShape, Data: []float32{4, 5}},
 		},
 		map[*tensor.Tensor]driver.DevicePtr{past: initialTarget.Pointer},
-		map[*tensor.Tensor]DeviceValue{joined: joinedTarget},
+		appendTargets,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1667,10 +1675,14 @@ func TestExecutorRejectsUndeclaredRetainedTargetAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	targets := compiled.NewRetainedTargets()
+	if err := targets.Set(output, value); err != nil {
+		t.Fatal(err)
+	}
 	_, err = cuda.ExecuteRetainedCompiledWithTargets(
 		context.Background(), compiled, nil,
 		map[*tensor.Tensor]driver.DevicePtr{input: value.Pointer},
-		map[*tensor.Tensor]DeviceValue{output: value},
+		targets,
 	)
 	if err == nil || !strings.Contains(err.Error(), "overlaps input") {
 		t.Fatalf("undeclared target alias error = %v", err)

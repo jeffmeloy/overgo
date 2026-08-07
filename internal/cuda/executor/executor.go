@@ -258,7 +258,8 @@ type DeviceCopy struct {
 type RetainedOutputs struct {
 	mu       sync.Mutex
 	executor *Executor
-	values   map[*tensor.Tensor]DeviceValue
+	compiled *CompiledGraph
+	values   []DeviceValue
 	leases   []deviceBufferLease
 	released bool
 }
@@ -272,8 +273,14 @@ func (r *RetainedOutputs) Value(output *tensor.Tensor) (DeviceValue, bool) {
 	if r.released {
 		return DeviceValue{}, false
 	}
-	value, ok := r.values[output]
-	return value, ok
+	if r.compiled == nil {
+		return DeviceValue{}, false
+	}
+	index, ok := r.compiled.outputIndexes[output]
+	if !ok || index >= len(r.values) || r.values[index].Pointer == 0 {
+		return DeviceValue{}, false
+	}
+	return r.values[index], true
 }
 
 func (r *RetainedOutputs) CopyToHost(
@@ -288,10 +295,14 @@ func (r *RetainedOutputs) CopyToHost(
 	if r.released {
 		return reference.Value{}, errors.New("CUDA retained output is unavailable")
 	}
-	value, ok := r.values[output]
-	if !ok {
+	if r.compiled == nil {
 		return reference.Value{}, errors.New("CUDA retained output is unavailable")
 	}
+	index, ok := r.compiled.outputIndexes[output]
+	if !ok || index >= len(r.values) || r.values[index].Pointer == 0 {
+		return reference.Value{}, errors.New("CUDA retained output is unavailable")
+	}
+	value := r.values[index]
 	elements, err := value.Shape.Elements()
 	if err != nil {
 		return reference.Value{}, err
@@ -445,13 +456,41 @@ func (e *Executor) CopyDeviceValues(
 
 type executionResult struct {
 	host   map[*tensor.Tensor]reference.Value
-	values map[*tensor.Tensor]DeviceValue
+	values []DeviceValue
 	leases []deviceBufferLease
+}
+
+// RetainedTargets: graph-indexed stable output destinations.
+type RetainedTargets struct {
+	compiled *CompiledGraph
+	values   []DeviceValue
+}
+
+// NewRetainedTargets allocates target slots for this compiled graph.
+func (c *CompiledGraph) NewRetainedTargets() *RetainedTargets {
+	if c == nil {
+		return nil
+	}
+	return &RetainedTargets{compiled: c, values: make([]DeviceValue, len(c.outputs))}
+}
+
+// Set assigns one compiled output slot.
+func (t *RetainedTargets) Set(output *tensor.Tensor, value DeviceValue) error {
+	if t == nil || t.compiled == nil {
+		return errors.New("CUDA retained targets are unavailable")
+	}
+	index, ok := t.compiled.outputIndexes[output]
+	if !ok {
+		return errors.New("CUDA retained target is not a compiled output")
+	}
+	t.values[index] = value
+	return nil
 }
 
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
 	outputs         []*tensor.Tensor
+	outputIndexes   map[*tensor.Tensor]int
 	order           []*tensor.Tensor
 	memory          planner.Plan
 	weightedRMS     map[*tensor.Tensor]weightedRMSFusion
@@ -459,7 +498,7 @@ type CompiledGraph struct {
 	weightedRMSGate map[*tensor.Tensor]weightedRMSGateFusion
 	q8Emit          map[*tensor.Tensor]struct{}
 	q8Argmax        map[*tensor.Tensor]*tensor.Tensor
-	targetContracts map[*tensor.Tensor]tensor.OutputTargetContract
+	targetContracts []tensor.OutputTargetContract
 	skipped         map[*tensor.Tensor]struct{}
 	needBlas        bool
 	bf16InputBytes  uint64
@@ -612,21 +651,25 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		return nil, err
 	}
 	compiled := &CompiledGraph{
-		outputs: slices.Clone(outputs), order: order,
+		outputs:         slices.Clone(outputs),
+		outputIndexes:   make(map[*tensor.Tensor]int, len(outputs)),
+		targetContracts: make([]tensor.OutputTargetContract, len(outputs)),
+		order:           order,
 	}
 	uses := make(map[*tensor.Tensor]int, len(order))
 	consumers := make(map[*tensor.Tensor][]*tensor.Tensor, len(order))
 	outputSet := make(map[*tensor.Tensor]struct{}, len(outputs))
-	for _, output := range outputs {
+	for index, output := range outputs {
+		if _, duplicate := compiled.outputIndexes[output]; duplicate {
+			return nil, errors.New("CUDA compiled graph contains a duplicate output")
+		}
+		compiled.outputIndexes[output] = index
 		outputSet[output] = struct{}{}
 		contract, contractErr := tensor.CompileOutputTargetContract(output)
 		if contractErr != nil {
 			return nil, contractErr
 		}
-		if compiled.targetContracts == nil {
-			compiled.targetContracts = make(map[*tensor.Tensor]tensor.OutputTargetContract, len(outputs))
-		}
-		compiled.targetContracts[output] = contract
+		compiled.targetContracts[index] = contract
 	}
 	for _, node := range order {
 		for _, input := range node.Inputs {
@@ -952,14 +995,14 @@ func (e *Executor) ExecuteRetainedCompiledWithTargets(
 	compiled *CompiledGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-	targets map[*tensor.Tensor]DeviceValue,
+	targets *RetainedTargets,
 ) (*RetainedOutputs, error) {
 	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, targets, true)
 	if err != nil {
 		return nil, err
 	}
 	return &RetainedOutputs{
-		executor: e, values: execution.values, leases: execution.leases,
+		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
 	}, nil
 }
 
@@ -968,7 +1011,7 @@ func (e *Executor) runCompiled(
 	compiled *CompiledGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-	targets map[*tensor.Tensor]DeviceValue,
+	targets *RetainedTargets,
 	retain bool,
 ) (*executionResult, error) {
 	if e == nil {
@@ -1019,7 +1062,7 @@ func execute(
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-	retainedTargets map[*tensor.Tensor]DeviceValue,
+	retainedTargets *RetainedTargets,
 	functions functionSet,
 	blas *blasState,
 	q8Input *q8InputState,
@@ -1043,25 +1086,32 @@ func execute(
 	}()
 
 	pointers := make(map[*tensor.Tensor]driver.DevicePtr, len(order))
-	outputSet := make(map[*tensor.Tensor]struct{}, len(outputs))
-	for _, output := range outputs {
-		outputSet[output] = struct{}{}
+	var targetValues []DeviceValue
+	if retainedTargets != nil {
+		if retainedTargets.compiled != compiled || len(retainedTargets.values) != len(outputs) {
+			return nil, errors.New("CUDA retained targets belong to another compiled graph")
+		}
+		targetValues = retainedTargets.values
 	}
-	retainedValues := make(map[*tensor.Tensor]DeviceValue, len(outputs))
+	retainedValues := make([]DeviceValue, len(outputs))
 	retainedLeases := make([]deviceBufferLease, 0, 1)
-	for node, target := range retainedTargets {
-		if _, ok := outputSet[node]; !ok || target.Pointer == 0 || !target.Shape.Equal(node.Shape) {
+	for index, target := range targetValues {
+		if target.Pointer == 0 {
+			continue
+		}
+		node := outputs[index]
+		if !target.Shape.Equal(node.Shape) {
 			return nil, errors.New("CUDA retained output target is invalid")
 		}
-		contract, ok := compiled.targetContracts[node]
-		if !ok || contract.Alignment == 0 || uint64(target.Pointer)%contract.Alignment != 0 ||
+		contract := compiled.targetContracts[index]
+		if contract.Alignment == 0 || uint64(target.Pointer)%contract.Alignment != 0 ||
 			target.CapacityBytes < contract.Bytes {
 			return nil, errors.New("CUDA retained output target capacity is insufficient")
 		}
 	}
-	ownedOutputs := make(map[*tensor.Tensor]struct{}, len(outputSet))
-	for output := range outputSet {
-		if _, targeted := retainedTargets[output]; !targeted {
+	ownedOutputs := make(map[*tensor.Tensor]struct{}, len(outputs))
+	for index, output := range outputs {
+		if len(targetValues) == 0 || targetValues[index].Pointer == 0 {
 			ownedOutputs[output] = struct{}{}
 		}
 	}
@@ -1116,7 +1166,7 @@ func execute(
 			if _, skipped := compiled.skipped[node]; skipped {
 				continue
 			}
-			_, retainedOutput := outputSet[node]
+			outputIndex, retainedOutput := compiled.outputIndexes[node]
 			_, retainStorage := retainedStorage[node]
 			view, aliases, viewErr := tensor.ResolveStorageView(node)
 			if viewErr != nil {
@@ -1140,7 +1190,7 @@ func execute(
 						if sizeErr != nil {
 							return nil, sizeErr
 						}
-						retainedValues[node] = DeviceValue{
+						retainedValues[outputIndex] = DeviceValue{
 							Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
 						}
 					}
@@ -1148,13 +1198,14 @@ func execute(
 				}
 			}
 			if retainOutputs && (retainedOutput || retainStorage) {
-				if target, targeted := retainedTargets[node]; targeted {
+				if retainedOutput && len(targetValues) != 0 && targetValues[outputIndex].Pointer != 0 {
+					target := targetValues[outputIndex]
 					if err := validateRetainedTargetAlias(
-						node, target, compiled.targetContracts[node], pointers,
+						node, target, compiled.targetContracts[outputIndex], pointers,
 					); err != nil {
 						return nil, err
 					}
-					retainedValues[node] = target
+					retainedValues[outputIndex] = target
 					pointers[node] = target.Pointer
 					continue
 				}
@@ -1168,7 +1219,7 @@ func execute(
 					if sizeErr != nil {
 						return nil, sizeErr
 					}
-					retainedValues[node] = DeviceValue{
+					retainedValues[outputIndex] = DeviceValue{
 						Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
 					}
 				}
@@ -1345,7 +1396,7 @@ func execute(
 			return nil, viewErr
 		}
 		if aliases {
-			_, retainedOutput := outputSet[node]
+			_, retainedOutput := compiled.outputIndexes[node]
 			_, retainedAlias := retainedViews[node]
 			if retainedAlias || !(retainOutputs && retainedOutput) {
 				continue

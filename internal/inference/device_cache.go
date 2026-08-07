@@ -666,7 +666,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	targets, storages, err := r.prepareDeviceCacheTargets(ctx, graphs, appends)
+	targets, storages, err := r.prepareDeviceCacheTargets(ctx, compiled, graphs, appends)
 	if err != nil {
 		return nil, err
 	}
@@ -765,13 +765,14 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 
 func (r *Runner) prepareDeviceCacheTargets(
 	ctx context.Context,
+	compiled *executor.CompiledGraph,
 	graphs []deviceBatchGraph,
 	appends []deviceBatchAppend,
-) (map[*tensor.Tensor]executor.DeviceValue, []*deviceCacheStorage, error) {
-	targets := make(map[*tensor.Tensor]executor.DeviceValue)
+) (*executor.RetainedTargets, []*deviceCacheStorage, error) {
+	targets := compiled.NewRetainedTargets()
 	storages := make([]*deviceCacheStorage, len(graphs))
 	used := make(map[*deviceCacheStorage]struct{})
-	fail := func(cause error) (map[*tensor.Tensor]executor.DeviceValue, []*deviceCacheStorage, error) {
+	fail := func(cause error) (*executor.RetainedTargets, []*deviceCacheStorage, error) {
 		var errs []error
 		errs = append(errs, cause)
 		for _, storage := range storages {
@@ -843,8 +844,12 @@ func (r *Runner) prepareDeviceCacheTargets(
 			if valueErr != nil {
 				return fail(fmt.Errorf("inference: allocate value cache layer %d: %w", layer, valueErr))
 			}
-			targets[graph.keys[layer]] = key
-			targets[graph.values[layer]] = value
+			if targetErr := targets.Set(graph.keys[layer], key); targetErr != nil {
+				return fail(targetErr)
+			}
+			if targetErr := targets.Set(graph.values[layer], value); targetErr != nil {
+				return fail(targetErr)
+			}
 		}
 	}
 	return targets, storages, nil

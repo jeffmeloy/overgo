@@ -46,18 +46,18 @@ func groupSlice(
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func flatSlice(
+func materializeStorageView(
 	shape tensor.Shape,
 	input Value,
-	attributes tensor.FlatSliceAttributes,
+	offset uint64,
 ) (Value, error) {
 	elements, err := shape.Elements()
 	if err != nil || elements > uint64(math.MaxInt) ||
-		attributes.Offset > uint64(len(input.Data)) ||
-		elements > uint64(len(input.Data))-attributes.Offset {
-		return Value{}, errors.New("invalid FlatSlice storage range")
+		offset > uint64(len(input.Data)) ||
+		elements > uint64(len(input.Data))-offset {
+		return Value{}, errors.New("invalid storage view range")
 	}
-	start := int(attributes.Offset)
+	start := int(offset)
 	return Value{
 		Shape: shape,
 		Data:  slices.Clone(input.Data[start : start+int(elements)]),

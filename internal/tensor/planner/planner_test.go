@@ -114,7 +114,6 @@ func TestBuildWithRewritesAliasesViewsAndOmitsFusedNodes(t *testing.T) {
 		[]*tensor.Tensor{output},
 		16,
 		map[*tensor.Tensor][]*tensor.Tensor{output: {view}},
-		map[*tensor.Tensor]*tensor.Tensor{view: producer},
 		map[*tensor.Tensor]struct{}{eliminated: {}},
 	)
 	if err != nil {

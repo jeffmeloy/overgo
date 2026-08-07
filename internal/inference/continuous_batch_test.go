@@ -107,6 +107,18 @@ func TestDeviceCacheReleaseCancellationIsAtomic(t *testing.T) {
 	cache.owner = nil
 }
 
+func TestDeviceCacheStorageReleaseCancellationIsAtomic(t *testing.T) {
+	storage := &deviceCacheStorage{refs: 1}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := storage.release(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled release error = %v", err)
+	}
+	if storage.refs != 1 || storage.releasing {
+		t.Fatalf("canceled release mutated storage: refs=%d releasing=%t", storage.refs, storage.releasing)
+	}
+}
+
 func TestContinuousBatchAdmission(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{
 		CommonSpec: model.CommonSpec{

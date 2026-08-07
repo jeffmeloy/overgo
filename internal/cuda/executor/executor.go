@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/bits"
 	"slices"
+	"sort"
 	"sync"
 	"unsafe"
 
@@ -173,31 +174,72 @@ func (b *DeviceBuffer) Value(shape tensor.Shape) (DeviceValue, error) {
 }
 
 func (b *DeviceBuffer) Release(ctx context.Context) error {
-	if b == nil {
-		return nil
+	return ReleaseDeviceBuffers(ctx, b)
+}
+
+// ReleaseDeviceBuffers: returns one ownership group through one worker transaction.
+func ReleaseDeviceBuffers(ctx context.Context, buffers ...*DeviceBuffer) error {
+	active := make([]*DeviceBuffer, 0, len(buffers))
+	seen := make(map[*DeviceBuffer]struct{}, len(buffers))
+	for _, buffer := range buffers {
+		if buffer == nil {
+			continue
+		}
+		if _, duplicate := seen[buffer]; duplicate {
+			return errors.New("CUDA device buffer release contains a duplicate")
+		}
+		seen[buffer] = struct{}{}
+		active = append(active, buffer)
 	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.released {
-		return nil
-	}
-	if b.executor == nil {
-		return errors.New("CUDA executor is closed")
-	}
-	b.executor.mu.RLock()
-	defer b.executor.mu.RUnlock()
-	if b.executor.closed || b.executor.worker == nil {
-		return errors.New("CUDA executor is closed")
-	}
-	err := b.executor.worker.Do(ctx, func(*device.State) error {
-		b.executor.resources.buffers.release(b.lease)
-		return nil
+	sort.Slice(active, func(left, right int) bool {
+		return uintptr(unsafe.Pointer(active[left])) < uintptr(unsafe.Pointer(active[right]))
 	})
-	if err != nil {
+	for _, buffer := range active {
+		buffer.mu.Lock()
+	}
+	defer func() {
+		for index := len(active) - 1; index >= 0; index-- {
+			active[index].mu.Unlock()
+		}
+	}()
+	var executor *Executor
+	leases := make([]deviceBufferLease, 0, len(active))
+	owners := make([]*DeviceBuffer, 0, len(active))
+	for _, buffer := range active {
+		if buffer.released {
+			continue
+		}
+		if buffer.executor == nil {
+			return errors.New("CUDA executor is closed")
+		}
+		if executor == nil {
+			executor = buffer.executor
+		} else if buffer.executor != executor {
+			return errors.New("CUDA device buffer release spans executors")
+		}
+		leases = append(leases, buffer.lease)
+		owners = append(owners, buffer)
+	}
+	if len(leases) == 0 {
+		return nil
+	}
+	executor.mu.RLock()
+	defer executor.mu.RUnlock()
+	if executor.closed || executor.worker == nil {
+		return errors.New("CUDA executor is closed")
+	}
+	if err := executor.worker.Do(ctx, func(*device.State) error {
+		for _, lease := range leases {
+			executor.resources.buffers.release(lease)
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
-	b.released = true
-	b.lease = deviceBufferLease{}
+	for _, buffer := range owners {
+		buffer.released = true
+		buffer.lease = deviceBufferLease{}
+	}
 	return nil
 }
 
@@ -417,6 +459,7 @@ type CompiledGraph struct {
 	weightedRMSGate map[*tensor.Tensor]weightedRMSGateFusion
 	q8Emit          map[*tensor.Tensor]struct{}
 	q8Argmax        map[*tensor.Tensor]*tensor.Tensor
+	targetContracts map[*tensor.Tensor]tensor.OutputTargetContract
 	skipped         map[*tensor.Tensor]struct{}
 	needBlas        bool
 	bf16InputBytes  uint64
@@ -451,6 +494,89 @@ type weightedRMSGateFusion struct {
 }
 
 const graphArenaAlignment = 256
+
+type retainedStorageView struct {
+	source     *tensor.Tensor
+	byteOffset uint64
+}
+
+func resolveRetainedStorageView(output *tensor.Tensor) (retainedStorageView, bool, error) {
+	current := output
+	var byteOffset uint64
+	for {
+		view, aliases, err := tensor.ResolveStorageView(current)
+		if err != nil {
+			return retainedStorageView{}, false, err
+		}
+		if !aliases {
+			break
+		}
+		offset, err := view.ByteOffset(current.Type)
+		if err != nil || byteOffset > math.MaxUint64-offset {
+			return retainedStorageView{}, false, errors.New("CUDA retained view offset overflows")
+		}
+		byteOffset += offset
+		current = current.Inputs[view.Input]
+	}
+	if current == output || current.Op == tensor.OpInput {
+		return retainedStorageView{}, false, nil
+	}
+	return retainedStorageView{source: current, byteOffset: byteOffset}, true, nil
+}
+
+type deviceAddressRange struct {
+	first uint64
+	last  uint64
+}
+
+func newDeviceAddressRange(pointer driver.DevicePtr, bytes uint64) (deviceAddressRange, error) {
+	first := uint64(pointer)
+	if pointer == 0 || bytes == 0 || first > math.MaxUint64-bytes {
+		return deviceAddressRange{}, errors.New("CUDA device range is invalid")
+	}
+	return deviceAddressRange{first: first, last: first + bytes}, nil
+}
+
+func deviceRangesOverlap(left, right deviceAddressRange) bool {
+	return left.first < right.last && right.first < left.last
+}
+
+func validateRetainedTargetAlias(
+	node *tensor.Tensor,
+	target DeviceValue,
+	contract tensor.OutputTargetContract,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	outputRange, err := newDeviceAddressRange(target.Pointer, contract.Bytes)
+	if err != nil {
+		return err
+	}
+	for index, input := range node.Inputs {
+		inputBytes, sizeErr := input.Shape.Bytes(input.Type)
+		if sizeErr != nil {
+			return sizeErr
+		}
+		inputRange, rangeErr := newDeviceAddressRange(pointers[input], inputBytes)
+		if rangeErr != nil {
+			return rangeErr
+		}
+		if !deviceRangesOverlap(outputRange, inputRange) {
+			continue
+		}
+		alias := contract.Alias
+		if alias == nil || alias.Input != index || target.Pointer != pointers[input] ||
+			alias.InitializedBytes != inputBytes ||
+			alias.WriteOffsetBytes != inputBytes ||
+			alias.WriteOffsetBytes > contract.Bytes ||
+			alias.WriteBytes > contract.Bytes-alias.WriteOffsetBytes {
+			return fmt.Errorf(
+				"CUDA retained target for tensor %d overlaps input %d without an exact alias contract",
+				node.ID, index,
+			)
+		}
+	}
+	return nil
+}
 
 func retainedOutputLayout(
 	order []*tensor.Tensor,
@@ -493,6 +619,14 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	outputSet := make(map[*tensor.Tensor]struct{}, len(outputs))
 	for _, output := range outputs {
 		outputSet[output] = struct{}{}
+		contract, contractErr := tensor.CompileOutputTargetContract(output)
+		if contractErr != nil {
+			return nil, contractErr
+		}
+		if compiled.targetContracts == nil {
+			compiled.targetContracts = make(map[*tensor.Tensor]tensor.OutputTargetContract, len(outputs))
+		}
+		compiled.targetContracts[output] = contract
 	}
 	for _, node := range order {
 		for _, input := range node.Inputs {
@@ -655,14 +789,8 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			dependencies[node] = append(dependencies[node], fusion.normalization.Inputs[0])
 		}
 	}
-	aliases := make(map[*tensor.Tensor]*tensor.Tensor)
-	for _, node := range order {
-		if node.Op == tensor.OpFlatSlice && len(node.Inputs) == 1 {
-			aliases[node] = node.Inputs[0]
-		}
-	}
 	memory, err := planner.BuildWithRewrites(
-		outputs, graphArenaAlignment, dependencies, aliases, compiled.skipped,
+		outputs, graphArenaAlignment, dependencies, compiled.skipped,
 	)
 	if err != nil {
 		return nil, err
@@ -925,8 +1053,9 @@ func execute(
 		if _, ok := outputSet[node]; !ok || target.Pointer == 0 || !target.Shape.Equal(node.Shape) {
 			return nil, errors.New("CUDA retained output target is invalid")
 		}
-		bytes, sizeErr := node.Shape.Bytes(node.Type)
-		if sizeErr != nil || target.CapacityBytes < bytes {
+		contract, ok := compiled.targetContracts[node]
+		if !ok || contract.Alignment == 0 || uint64(target.Pointer)%contract.Alignment != 0 ||
+			target.CapacityBytes < contract.Bytes {
 			return nil, errors.New("CUDA retained output target capacity is insufficient")
 		}
 	}
@@ -937,12 +1066,15 @@ func execute(
 		}
 	}
 	retainedStorage := make(map[*tensor.Tensor]struct{}, len(ownedOutputs))
-	retainedSliceSources := make(map[*tensor.Tensor]*tensor.Tensor)
+	retainedViews := make(map[*tensor.Tensor]retainedStorageView)
 	for output := range ownedOutputs {
-		if output.Op == tensor.OpFlatSlice && len(output.Inputs) == 1 &&
-			output.Inputs[0].Op != tensor.OpInput && output.Inputs[0].Op != tensor.OpFlatSlice {
-			retainedSliceSources[output] = output.Inputs[0]
-			retainedStorage[output.Inputs[0]] = struct{}{}
+		view, aliases, viewErr := resolveRetainedStorageView(output)
+		if viewErr != nil {
+			return nil, viewErr
+		}
+		if aliases {
+			retainedViews[output] = view
+			retainedStorage[view.source] = struct{}{}
 			continue
 		}
 		retainedStorage[output] = struct{}{}
@@ -986,21 +1118,24 @@ func execute(
 			}
 			_, retainedOutput := outputSet[node]
 			_, retainStorage := retainedStorage[node]
-			if node.Op == tensor.OpReshape && !(retainOutputs && (retainedOutput || retainStorage)) {
-				pointers[node] = pointers[node.Inputs[0]]
-				continue
+			view, aliases, viewErr := tensor.ResolveStorageView(node)
+			if viewErr != nil {
+				return nil, viewErr
 			}
-			if node.Op == tensor.OpFlatSlice {
-				attributes, ok := node.Attrs.(tensor.FlatSliceAttributes)
-				if !ok || attributes.Offset > math.MaxUint64/4 ||
-					uint64(pointers[node.Inputs[0]]) > math.MaxUint64-attributes.Offset*4 {
-					return nil, errors.New("CUDA flat-slice view offset is invalid")
+			if aliases {
+				offset, offsetErr := view.ByteOffset(node.Type)
+				input := pointers[node.Inputs[view.Input]]
+				if offsetErr != nil || uint64(input) > math.MaxUint64-offset {
+					return nil, errors.New("CUDA storage view offset is invalid")
 				}
-				if _, retainedView := retainedSliceSources[node]; retainedView ||
+				if retainedView, retainedAlias := retainedViews[node]; retainedAlias ||
 					!(retainOutputs && retainedOutput) {
-					pointer := pointers[node.Inputs[0]] + driver.DevicePtr(attributes.Offset*4)
+					pointer := input + driver.DevicePtr(offset)
 					pointers[node] = pointer
-					if retainedView {
+					if retainedAlias {
+						if retainedView.source == nil {
+							return nil, errors.New("CUDA retained storage view is invalid")
+						}
 						bytes, sizeErr := node.Shape.Bytes(node.Type)
 						if sizeErr != nil {
 							return nil, sizeErr
@@ -1014,6 +1149,11 @@ func execute(
 			}
 			if retainOutputs && (retainedOutput || retainStorage) {
 				if target, targeted := retainedTargets[node]; targeted {
+					if err := validateRetainedTargetAlias(
+						node, target, compiled.targetContracts[node], pointers,
+					); err != nil {
+						return nil, err
+					}
 					retainedValues[node] = target
 					pointers[node] = target.Pointer
 					continue
@@ -1199,11 +1339,15 @@ func execute(
 		if _, skipped := compiled.skipped[node]; skipped {
 			continue
 		}
-		if node.Op == tensor.OpReshape || node.Op == tensor.OpFlatSlice {
-			if _, retainedView := retainedSliceSources[node]; retainedView {
-				continue
-			}
-			if _, retainedOutput := outputSet[node]; !(retainOutputs && retainedOutput) {
+		_, aliases, viewErr := tensor.ResolveStorageView(node)
+		if viewErr != nil {
+			abortCapture()
+			return nil, viewErr
+		}
+		if aliases {
+			_, retainedOutput := outputSet[node]
+			_, retainedAlias := retainedViews[node]
+			if retainedAlias || !(retainOutputs && retainedOutput) {
 				continue
 			}
 		}

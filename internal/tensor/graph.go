@@ -38,6 +38,9 @@ func Topological(outputs ...*Tensor) ([]*Tensor, error) {
 				return err
 			}
 		}
+		if _, _, err := ResolveStorageView(node); err != nil {
+			return fmt.Errorf("tensor %d storage contract: %w", node.ID, err)
+		}
 		state[node] = visited
 		nodes = append(nodes, node)
 		return nil

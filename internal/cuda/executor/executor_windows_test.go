@@ -21,6 +21,7 @@ import (
 	"overgo/internal/tensor/reference"
 
 	"math"
+	"strings"
 
 	"testing"
 
@@ -1640,6 +1641,78 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	compare(t, got.Data, []float32{1, 2, 3, 4, 5}, 0)
+}
+
+func TestExecutorRejectsUndeclaredRetainedTargetAlias(t *testing.T) {
+	cudatest.Require(t)
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	shape := tensor.MustShape(4)
+	buffer, err := cuda.AllocateDeviceBuffer(context.Background(), 4*4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer buffer.Release(context.Background())
+	value, err := buffer.Value(shape)
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, shape)
+	output := builder.Scale(input, 2)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = cuda.ExecuteRetainedCompiledWithTargets(
+		context.Background(), compiled, nil,
+		map[*tensor.Tensor]driver.DevicePtr{input: value.Pointer},
+		map[*tensor.Tensor]DeviceValue{output: value},
+	)
+	if err == nil || !strings.Contains(err.Error(), "overlaps input") {
+		t.Fatalf("undeclared target alias error = %v", err)
+	}
+}
+
+func TestReleaseDeviceBuffersIsAtomicAndRetryable(t *testing.T) {
+	cudatest.Require(t)
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	first, err := cuda.AllocateDeviceBuffer(context.Background(), 4*4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := cuda.AllocateDeviceBuffer(context.Background(), 4*4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shape := tensor.MustShape(4)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := ReleaseDeviceBuffers(ctx, first, second); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled release error = %v", err)
+	}
+	if _, err := first.Value(shape); err != nil {
+		t.Fatalf("first buffer mutated by canceled release: %v", err)
+	}
+	if _, err := second.Value(shape); err != nil {
+		t.Fatalf("second buffer mutated by canceled release: %v", err)
+	}
+	if err := ReleaseDeviceBuffers(context.Background(), first, second); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Value(shape); err == nil {
+		t.Fatal("released first buffer remains accessible")
+	}
+	if _, err := second.Value(shape); err == nil {
+		t.Fatal("released second buffer remains accessible")
+	}
 }
 
 func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {

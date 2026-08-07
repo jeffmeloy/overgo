@@ -258,9 +258,9 @@ only when all callers migrate and the superseded authority is deleted.
 
 | Item | Current evidence | Completion boundary |
 | --- | --- | --- |
-| Authoritative view semantics | `FlatSlice` liveness and retained producer views are fixed through explicit planner rewrites; `Reshape` remains planner-native while CUDA compilation supplies other aliases | One typed operation-storage contract defines alias root, byte offset, extent, and lifetime; planner, validator, reference executor, and CUDA executor consume it; an adversarial allocation-reuse test covers every view operator |
-| Retained-target alias validation | Stable targets validate output membership, shape, pointer, and capacity; append concat intentionally aliases its left cache input | Compiled operator contracts declare permitted input aliases, write extent, alignment, and initialization requirements; runtime performs overflow-safe range-overlap checks and rejects undeclared exact or partial aliases before capture |
-| Cache-release lock scope | Cleanup is cancellation-atomic and retryable, but final `deviceCacheStorage` release holds its ownership mutex across worker submissions | Final ownership transitions to an explicit releasing state under lock; buffers detach atomically and release through one worker transaction outside the ownership lock; cancellation, worker failure, fork, remove, and close interleavings have hermetic tests |
+| Authoritative view semantics | Complete: typed storage contracts define roots and element offsets; validation, planning, reference execution, and CUDA retention consume them | Keep all new view operators in the single contract table and allocation-reuse fixtures |
+| Retained-target alias validation | Complete: compiled output contracts define permitted alias input, initialized prefix, write extent, and alignment; overflow-safe range checks reject undeclared exact and partial overlap | Extend contracts and adversarial overlap fixtures with each new in-place operator |
+| Cache-release lock scope | Complete: final release enters explicit detached state, batches one worker transaction outside the ownership lock, and restores the full ownership set after failure | Preserve cancellation-atomic retry semantics in fork, remove, and close fixtures |
 
 ### P1: stable runtime compilation
 

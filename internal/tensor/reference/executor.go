@@ -135,6 +135,16 @@ func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 	if !ok || descriptor.Backends&tensor.BackendReference == 0 {
 		return Value{}, fmt.Errorf("unsupported reference operation %s", node.Op)
 	}
+	view, aliases, err := tensor.ResolveStorageView(node)
+	if err != nil {
+		return Value{}, err
+	}
+	if aliases {
+		if view.Input < 0 || view.Input >= len(inputs) {
+			return Value{}, errors.New("reference storage view input is unavailable")
+		}
+		return materializeStorageView(node.Shape, inputs[view.Input], view.ElementOffset)
+	}
 	return executeNode(node, inputs)
 }
 
@@ -371,12 +381,6 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid GroupSlice attributes")
 		}
 		return groupSlice(node.Shape, inputs[0], attributes)
-	case tensor.OpFlatSlice:
-		attributes, ok := node.Attrs.(tensor.FlatSliceAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid FlatSlice attributes")
-		}
-		return flatSlice(node.Shape, inputs[0], attributes)
 	case tensor.OpMulMat:
 		return mulMat(node.Shape, inputs[0], inputs[1])
 	case tensor.OpGroupedMulMat:
@@ -405,8 +409,6 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid rope_multi attributes")
 		}
 		return ropeMulti(node.Shape, inputs[0], attributes)
-	case tensor.OpReshape:
-		return Value{Shape: node.Shape, Data: slices.Clone(inputs[0].Data)}, nil
 	case tensor.OpAttention:
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 		if !ok {

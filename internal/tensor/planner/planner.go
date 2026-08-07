@@ -42,7 +42,7 @@ func BuildWithDependencies(
 	alignment uint64,
 	dependencies map[*tensor.Tensor][]*tensor.Tensor,
 ) (Plan, error) {
-	return BuildWithRewrites(outputs, alignment, dependencies, nil, nil)
+	return BuildWithRewrites(outputs, alignment, dependencies, nil)
 }
 
 // BuildWithRewrites extends liveness for fused dependencies, aliases, and eliminated nodes.
@@ -50,7 +50,6 @@ func BuildWithRewrites(
 	outputs []*tensor.Tensor,
 	alignment uint64,
 	dependencies map[*tensor.Tensor][]*tensor.Tensor,
-	aliases map[*tensor.Tensor]*tensor.Tensor,
 	excluded map[*tensor.Tensor]struct{},
 ) (Plan, error) {
 	if alignment == 0 || alignment&(alignment-1) != 0 {
@@ -66,12 +65,13 @@ func BuildWithRewrites(
 	for index, node := range nodes {
 		indexes[node] = index
 		root := node
-		alias := aliases[node]
-		if node.Op == tensor.OpReshape || alias != nil {
-			if alias == nil && len(node.Inputs) == 1 {
-				alias = node.Inputs[0]
-			}
-			if alias == nil || roots[alias] == nil {
+		view, aliases, viewErr := tensor.ResolveStorageView(node)
+		if viewErr != nil {
+			return Plan{}, fmt.Errorf("tensor %d storage view: %w", node.ID, viewErr)
+		}
+		if aliases {
+			alias := node.Inputs[view.Input]
+			if roots[alias] == nil {
 				return Plan{}, fmt.Errorf("alias tensor %d has invalid storage root", node.ID)
 			}
 			root = roots[alias]
@@ -124,7 +124,11 @@ func BuildWithRewrites(
 		active = kept
 		free = coalesce(free)
 
-		if node.Op == tensor.OpInput || node.Op == tensor.OpReshape || aliases[node] != nil {
+		_, aliases, viewErr := tensor.ResolveStorageView(node)
+		if viewErr != nil {
+			return Plan{}, fmt.Errorf("tensor %d storage view: %w", node.ID, viewErr)
+		}
+		if node.Op == tensor.OpInput || aliases {
 			continue
 		}
 		if _, skip := excluded[node]; skip {
@@ -159,7 +163,11 @@ func BuildWithRewrites(
 		active = append(active, allocation)
 	}
 	for _, node := range nodes {
-		if node.Op != tensor.OpReshape && aliases[node] == nil {
+		_, aliases, viewErr := tensor.ResolveStorageView(node)
+		if viewErr != nil {
+			return Plan{}, fmt.Errorf("tensor %d storage view: %w", node.ID, viewErr)
+		}
+		if !aliases {
 			continue
 		}
 		if allocation, ok := plan.Allocations[roots[node]]; ok {

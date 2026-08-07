@@ -33,10 +33,11 @@ type deviceKVCache struct {
 }
 
 type deviceCacheStorage struct {
-	mu     sync.Mutex
-	refs   int
-	keys   []*executor.DeviceBuffer
-	values []*executor.DeviceBuffer
+	mu        sync.Mutex
+	refs      int
+	releasing bool
+	keys      []*executor.DeviceBuffer
+	values    []*executor.DeviceBuffer
 }
 
 func (s *deviceCacheStorage) retain() bool {
@@ -45,7 +46,7 @@ func (s *deviceCacheStorage) retain() bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.refs <= 0 {
+	if s.refs <= 0 || s.releasing {
 		return false
 	}
 	s.refs++
@@ -58,7 +59,7 @@ func (s *deviceCacheStorage) exclusive() bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.refs == 1
+	return s.refs == 1 && !s.releasing
 }
 
 func (s *deviceCacheStorage) release(ctx context.Context) error {
@@ -66,38 +67,41 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		return nil
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.refs <= 0 {
+	if s.refs <= 0 || s.releasing {
+		s.mu.Unlock()
 		return nil
 	}
 	if s.refs > 1 {
 		s.refs--
+		s.mu.Unlock()
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
 		return err
 	}
-	var errs []error
-	for index, buffer := range s.keys {
-		if err := buffer.Release(context.Background()); err != nil {
-			errs = append(errs, err)
-		} else {
-			s.keys[index] = nil
-		}
-	}
-	for index, buffer := range s.values {
-		if err := buffer.Release(context.Background()); err != nil {
-			errs = append(errs, err)
-		} else {
-			s.values[index] = nil
-		}
-	}
-	if err := errors.Join(errs...); err != nil {
+	keys, values := s.keys, s.values
+	s.refs = 0
+	s.releasing = true
+	s.keys = nil
+	s.values = nil
+	s.mu.Unlock()
+
+	buffers := make([]*executor.DeviceBuffer, 0, len(keys)+len(values))
+	buffers = append(buffers, keys...)
+	buffers = append(buffers, values...)
+	err := executor.ReleaseDeviceBuffers(context.Background(), buffers...)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.releasing = false
+	if err != nil {
+		s.refs = 1
+		s.keys = keys
+		s.values = values
 		return err
 	}
 	s.refs = 0
-	s.keys = nil
-	s.values = nil
 	return nil
 }
 

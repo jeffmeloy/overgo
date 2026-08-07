@@ -366,7 +366,7 @@ func q8InputMulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
 
 func launchQ8InputQuantization(
 	state *device.State,
-	function driver.Function,
+	function boundKernel,
 	input, output driver.DevicePtr,
 	blocks uint32,
 ) error {
@@ -631,7 +631,7 @@ func quantMulMatLaunchCount(storage dtype.Type, leftRows, rightRows uint32) (uin
 
 func launchNormalizationABI(
 	state *device.State,
-	function driver.Function,
+	function boundKernel,
 	rows uint32,
 	arguments ...any,
 ) error {

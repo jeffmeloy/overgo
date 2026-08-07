@@ -21,6 +21,17 @@ func TestGeneratedBindingsMatchManifest(t *testing.T) {
 	if string(got) != string(want) {
 		t.Fatal("CUDA kernel bindings are stale; run go generate ./internal/cuda/executor")
 	}
+	kernelWant, err := generateKernelManifest(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kernelGot, err := os.ReadFile("../../internal/cuda/kernel/manifest_generated.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(kernelGot) != string(kernelWant) {
+		t.Fatal("CUDA kernel manifest constants are stale; run go generate ./internal/cuda/executor")
+	}
 }
 
 func TestKernelIdentifierPreservesABIWords(t *testing.T) {

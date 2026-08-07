@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"strings"
 	"testing"
 
 	"overgo/internal/tensor"
@@ -63,6 +64,20 @@ func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
 	}
 	if _, err := Compile(first, first); err == nil {
 		t.Fatal("duplicate output compiled")
+	}
+}
+
+func TestGeneratedKernelArgumentCountValidation(t *testing.T) {
+	kernel := boundKernel{
+		id:            kernelAddF32,
+		argumentCount: kernelFunctionArgumentCounts[kernelAddF32],
+	}
+	if err := validateKernelArgumentCount(kernel, int(kernel.argumentCount)); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateKernelArgumentCount(kernel, int(kernel.argumentCount)-1); err == nil ||
+		!strings.Contains(err.Error(), kernelFunctionNames[kernelAddF32]) {
+		t.Fatalf("argument mismatch error = %v", err)
 	}
 }
 

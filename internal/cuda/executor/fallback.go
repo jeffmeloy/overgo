@@ -58,31 +58,10 @@ func kernelBool(value bool) uint32 {
 	return 0
 }
 
-func launch1D(
-	state *device.State,
-	function driver.Function,
-	count uint32,
-	arguments []unsafe.Pointer,
-) error {
-	if count == 0 {
-		return nil
-	}
-	const threads = uint32(256)
-	blocks := (count + threads - 1) / threads
-	return state.Driver.LaunchKernel(
-		function,
-		driver.Dim3{X: blocks, Y: 1, Z: 1},
-		driver.Dim3{X: threads, Y: 1, Z: 1},
-		0,
-		state.Stream,
-		arguments,
-	)
-}
-
 // launch1DABI: marshal typed scalar addresses; retain through launch.
 func launch1DABI(
 	state *device.State,
-	function driver.Function,
+	function boundKernel,
 	count uint32,
 	arguments ...any,
 ) error {
@@ -101,7 +80,7 @@ func launch1DABI(
 
 func launchGridABI(
 	state *device.State,
-	function driver.Function,
+	function boundKernel,
 	grid, block driver.Dim3,
 	arguments ...any,
 ) error {
@@ -110,11 +89,14 @@ func launchGridABI(
 
 func launchGridSharedABI(
 	state *device.State,
-	function driver.Function,
+	function boundKernel,
 	grid, block driver.Dim3,
 	sharedBytes uint32,
 	arguments ...any,
 ) error {
+	if err := validateKernelArgumentCount(function, len(arguments)); err != nil {
+		return err
+	}
 	pointers := make([]unsafe.Pointer, len(arguments))
 	for index, argument := range arguments {
 		value := reflect.ValueOf(argument)
@@ -123,9 +105,19 @@ func launchGridSharedABI(
 		}
 		pointers[index] = value.UnsafePointer()
 	}
-	err := state.Driver.LaunchKernel(function, grid, block, sharedBytes, state.Stream, pointers)
+	err := state.Driver.LaunchKernel(function.function, grid, block, sharedBytes, state.Stream, pointers)
 	runtime.KeepAlive(arguments)
 	return err
+}
+
+func validateKernelArgumentCount(function boundKernel, count int) error {
+	if count == int(function.argumentCount) {
+		return nil
+	}
+	return fmt.Errorf(
+		"CUDA kernel %q received %d ABI arguments; want %d",
+		kernelFunctionNames[function.id], count, function.argumentCount,
+	)
 }
 
 func elementCount32(shape tensor.Shape) (uint32, error) {

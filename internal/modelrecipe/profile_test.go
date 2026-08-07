@@ -1,10 +1,13 @@
 package modelrecipe
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -13,7 +16,9 @@ import (
 	"overgo/internal/repodb"
 )
 
-const profileCatalogSemanticDigest = "711d84023214af0db882be811b71eecdc7c80a3823a84022c7b00081c50dac08"
+const profileCatalogSemanticDigest = "4ca5d17e4464a68b86b917b51e7de4675e16d41a307e0d0508d79b7f059af79a"
+const architectureProfileFactCount = 129
+const architectureProfileFactDigest = "1c7ac19c3f85665bebeec3297385a4db87ae2addd851661884e5621fb8f88013"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 
@@ -34,9 +39,72 @@ func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", document.Architecture, err)
 		}
-		if parsed.ID != document.ID || parsed.Policy != document.Policy {
+		if parsed.ID != document.ID || parsed.Policy != document.Policy ||
+			!reflect.DeepEqual(parsed.Provenance, document.Provenance) {
 			t.Fatalf("%s: profile round trip drifted", document.Architecture)
 		}
+	}
+}
+
+func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
+	profile, _ := model.LookupArchitecture("llama")
+	base := CatalogProfileProvenance(profile)
+	facts := ArchitectureProfileFacts()
+	if len(base) != len(facts) || len(base) != architectureProfileFactCount {
+		t.Fatalf("profile facts = %d", len(base))
+	}
+	digest := sha256.New()
+	for _, fact := range facts {
+		fmt.Fprintln(digest, fact)
+	}
+	if got := fmt.Sprintf("%x", digest.Sum(nil)); got != architectureProfileFactDigest {
+		t.Fatalf("profile fact digest = %s", got)
+	}
+	first, err := NewProfileDocumentWithProvenance(profile, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := slices.Clone(base)
+	changed[0].Origin = ProfileFactExternal
+	changed[0].SourceField = "parity.fixture"
+	second, err := NewProfileDocumentWithProvenance(profile, changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID == second.ID {
+		t.Fatal("provenance-only change did not affect profile identity")
+	}
+	if _, err := NewProfileDocumentWithProvenance(profile, base[:len(base)-1]); err == nil {
+		t.Fatal("incomplete profile provenance accepted")
+	}
+	invalid := slices.Clone(base)
+	invalid[0].SourceField = ""
+	if _, err := NewProfileDocumentWithProvenance(profile, invalid); err == nil {
+		t.Fatal("profile provenance without source accepted")
+	}
+}
+
+func TestLegacyProfileDocumentRemainsReadable(t *testing.T) {
+	profile, _ := model.LookupArchitecture("llama")
+	content, err := json.Marshal(profileBody{
+		Version: LegacyProfileVersion, Architecture: profile.Name, Policy: profile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := ParseProfileDocument(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Version != LegacyProfileVersion || len(document.Provenance) != 0 {
+		t.Fatalf("legacy profile = %+v", document)
+	}
+	encoded, err := document.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(encoded, content) {
+		t.Fatal("legacy profile encoding changed")
 	}
 }
 

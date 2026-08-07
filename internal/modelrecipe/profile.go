@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
@@ -15,19 +16,26 @@ import (
 )
 
 const (
-	ProfileVersion   uint16 = 1
-	ProfileMediaType        = "application/vnd.overgo.model-profile+json"
-	ProfileSchema           = "overgo/model-profile/v1"
+	LegacyProfileVersion uint16 = 1
+	ProfileVersion       uint16 = 2
+	ProfileMediaType            = "application/vnd.overgo.model-profile+json"
+	LegacyProfileSchema         = "overgo/model-profile/v1"
+	ProfileSchema               = "overgo/model-profile/v2"
 )
 
 var profileContract = artifact.DocumentContract{
 	Kind: artifact.KindProfile, MediaType: ProfileMediaType, Schema: ProfileSchema,
 }
 
+var legacyProfileContract = artifact.DocumentContract{
+	Kind: artifact.KindProfile, MediaType: ProfileMediaType, Schema: LegacyProfileSchema,
+}
+
 type profileBody struct {
 	Version      uint16                    `json:"version"`
 	Architecture string                    `json:"architecture"`
 	Policy       model.ArchitectureProfile `json:"policy"`
+	Provenance   []ProfileFactProvenance   `json:"provenance,omitempty"`
 }
 
 // ProfileDocument: immutable architecture policy.
@@ -36,11 +44,20 @@ type ProfileDocument struct {
 	Version      uint16
 	Architecture string
 	Policy       model.ArchitectureProfile
+	Provenance   []ProfileFactProvenance
 }
 
 func NewProfileDocument(profile model.ArchitectureProfile) (ProfileDocument, error) {
+	return NewProfileDocumentWithProvenance(profile, CatalogProfileProvenance(profile))
+}
+
+func NewProfileDocumentWithProvenance(
+	profile model.ArchitectureProfile,
+	provenance []ProfileFactProvenance,
+) (ProfileDocument, error) {
 	document := ProfileDocument{
 		Version: ProfileVersion, Architecture: profile.Name, Policy: profile,
+		Provenance: slices.Clone(provenance),
 	}
 	if err := document.validateShape(); err != nil {
 		return ProfileDocument{}, err
@@ -49,7 +66,7 @@ func NewProfileDocument(profile model.ArchitectureProfile) (ProfileDocument, err
 	if err != nil {
 		return ProfileDocument{}, err
 	}
-	id, err := profileContract.Identify(content)
+	id, err := profileContractForVersion(document.Version).Identify(content)
 	if err != nil {
 		return ProfileDocument{}, err
 	}
@@ -62,10 +79,18 @@ func ParseProfileDocument(content []byte) (ProfileDocument, error) {
 	if err := strictjson.DecodeBytes(content, &body); err != nil {
 		return ProfileDocument{}, fmt.Errorf("model recipe: decode profile: %w", err)
 	}
-	if body.Version != ProfileVersion {
-		return ProfileDocument{}, errors.New("model recipe: unsupported profile version")
+	document := ProfileDocument{
+		Version: body.Version, Architecture: body.Architecture, Policy: body.Policy,
+		Provenance: slices.Clone(body.Provenance),
 	}
-	document, err := NewProfileDocument(body.Policy)
+	if err := document.validateShape(); err != nil {
+		return ProfileDocument{}, err
+	}
+	canonicalContent, err := profileDocumentContent(document)
+	if err != nil {
+		return ProfileDocument{}, err
+	}
+	document.ID, err = profileContractForVersion(document.Version).Identify(canonicalContent)
 	if err != nil {
 		return ProfileDocument{}, err
 	}
@@ -93,7 +118,7 @@ func (d ProfileDocument) ValidateIdentity() error {
 	if err != nil {
 		return err
 	}
-	if err := profileContract.ValidateIdentity(d.ID, content); err != nil {
+	if err := profileContractForVersion(d.Version).ValidateIdentity(d.ID, content); err != nil {
 		return errors.New("model recipe: profile identity mismatch")
 	}
 	return nil
@@ -111,12 +136,26 @@ func (d ProfileDocument) Descriptor() (artifact.Descriptor, error) {
 	if err != nil {
 		return artifact.Descriptor{}, err
 	}
-	return profileContract.Descriptor(d.ID, uint64(len(content)))
+	return profileContractForVersion(d.Version).Descriptor(d.ID, uint64(len(content)))
 }
 
 func (d ProfileDocument) validateShape() error {
-	if d.Version != ProfileVersion || d.Architecture == "" || d.Policy.Name != d.Architecture {
+	if d.Version != LegacyProfileVersion && d.Version != ProfileVersion ||
+		d.Architecture == "" || d.Policy.Name != d.Architecture {
 		return errors.New("model recipe: invalid profile envelope")
+	}
+	if d.Version == LegacyProfileVersion {
+		if len(d.Provenance) != 0 {
+			return errors.New("model recipe: legacy profile carries provenance")
+		}
+	} else {
+		provenance := slices.Clone(d.Provenance)
+		if err := canonicalizeProfileProvenance(&provenance); err != nil || !slices.Equal(provenance, d.Provenance) {
+			if err != nil {
+				return err
+			}
+			return errors.New("model recipe: profile provenance is not canonical")
+		}
 	}
 	if err := model.ValidateArchitectureProfile(d.Policy); err != nil {
 		return fmt.Errorf("model recipe: invalid profile policy: %w", err)
@@ -127,6 +166,7 @@ func (d ProfileDocument) validateShape() error {
 func profileDocumentContent(d ProfileDocument) ([]byte, error) {
 	content, err := json.Marshal(profileBody{
 		Version: d.Version, Architecture: d.Architecture, Policy: d.Policy,
+		Provenance: slices.Clone(d.Provenance),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("model recipe: encode profile: %w", err)
@@ -139,7 +179,7 @@ func ProfileContent(document ProfileDocument) (artifact.Content, error) {
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	return profileContract.Content(document.ID, content)
+	return profileContractForVersion(document.Version).Content(document.ID, content)
 }
 
 func PublishProfiles(
@@ -234,11 +274,12 @@ func SeedProfileDocuments() ([]ProfileDocument, error) {
 }
 
 func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (ProfileDocument, error) {
-	content, ok, err := artifact.ReadDocument(ctx, store, id, profileContract)
+	content, ok, err := store.Content(ctx, id)
 	if err != nil {
 		return ProfileDocument{}, err
 	}
-	if !ok {
+	if !ok || content.Descriptor.MediaType != ProfileMediaType ||
+		content.Descriptor.Schema != ProfileSchema && content.Descriptor.Schema != LegacyProfileSchema {
 		return ProfileDocument{}, errors.New("model recipe: profile content is absent or incompatible")
 	}
 	document, err := ParseProfileDocument(content.Data)
@@ -249,6 +290,13 @@ func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Pr
 		return ProfileDocument{}, errors.New("model recipe: profile content identity differs")
 	}
 	return document, nil
+}
+
+func profileContractForVersion(version uint16) artifact.DocumentContract {
+	if version == LegacyProfileVersion {
+		return legacyProfileContract
+	}
+	return profileContract
 }
 
 func registeredProfileAlias(architecture string) string {

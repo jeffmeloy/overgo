@@ -84,18 +84,30 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer loaded.Close()
-	identity := loaded.Program.Identity
+	identity, ok := loaded.Identity()
+	if !ok {
+		t.Fatal("resolved program identity is unavailable")
+	}
 	if identity.Model != inventory.Manifest.ID || identity.Profile != resolved.Profile.ID ||
 		identity.Definition != resolved.Document.ID || identity.Recipe != definition.ID ||
 		identity.RecipeVersion != definition.Version || identity.Placement != recipe.PlacementHybrid ||
 		identity.Runtime != RuntimeInference {
 		t.Fatalf("program identity = %+v", identity)
 	}
-	if err := loaded.Validate(); err != nil {
+	mutated := identity
+	mutated.Profile = artifact.ID{}
+	identity, ok = loaded.Identity()
+	if !ok || identity.Profile != resolved.Profile.ID {
+		t.Fatal("returned identity mutated sealed program")
+	}
+	consumed, err := loaded.Consume()
+	if err != nil {
 		t.Fatal(err)
 	}
-	loaded.Program.Identity.Profile = artifact.ID{}
-	assertProgramError(t, loaded.Validate(), "identity")
+	defer consumed.Close()
+	if _, err := loaded.Consume(); err == nil {
+		t.Fatal("loaded program consumed twice")
+	}
 }
 
 func openProgramStore(t *testing.T) *repodb.Store {

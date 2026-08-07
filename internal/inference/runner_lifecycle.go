@@ -20,9 +20,6 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	if loaded == nil {
 		return nil, errors.New("inference: resolved model program is nil")
 	}
-	if err := loaded.Validate(); err != nil {
-		return nil, fmt.Errorf("inference: validate model program: %w", err)
-	}
 	if options.PreloadDeviceWeights && options.PreloadQuantizedWeights {
 		return nil, errors.New("inference: F32 and native-quantized preload modes are mutually exclusive")
 	}
@@ -35,17 +32,19 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	if options.PromptCacheEntries < 0 {
 		return nil, errors.New("inference: prompt cache entry count is negative")
 	}
+	consumed, err := loaded.Consume()
+	if err != nil {
+		return nil, fmt.Errorf("inference: consume model program: %w", err)
+	}
 	promptCacheCapacity := options.PromptCacheEntries
 	if promptCacheCapacity == 0 {
 		promptCacheCapacity = 1
 	}
 	cachePageTokens := resolveCachePageTokens(options.CachePageTokens)
-	file := loaded.File
-	path, spec, weights, program := loaded.Path, loaded.Spec, loaded.Weights, loaded.Program
+	file := consumed.File()
+	path, spec, weights, program := consumed.Path(), consumed.Spec(), consumed.Weights(), consumed.Plan()
 	fail := func(openErr error) (*Runner, error) {
-		_ = file.Close()
-		loaded.File = nil
-		return nil, openErr
+		return nil, errors.Join(openErr, consumed.Close())
 	}
 	cacheSchemas, err := model.CompileCacheSchemas(spec, program.Model, weights.Layers)
 	if err != nil {
@@ -201,9 +200,10 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 			return fail(err)
 		}
 	}
-	loaded.File = nil
+	evidenceTier := consumed.EvidenceTier()
+	consumed.Disown()
 	return &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, program: program, evidenceTier: loaded.EvidenceTier, cacheSchemas: cacheSchemas,
+		file: file, path: path, spec: spec, program: program, evidenceTier: evidenceTier, cacheSchemas: cacheSchemas,
 		weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,

@@ -29,12 +29,19 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Program.Identity.Recipe != definition.ID || loaded.Spec.Architecture != "qwen35" {
+	identity, identityOK := loaded.Identity()
+	architecture, architectureOK := loaded.Architecture()
+	if !identityOK || !architectureOK || identity.Recipe != definition.ID || architecture != "qwen35" {
 		_ = loaded.Close()
-		t.Fatalf("resolved Qwen3.5 program = %+v", loaded.Program.Identity)
+		t.Fatalf("resolved Qwen3.5 program = %+v", identity)
 	}
 	dense, recurrent := false, false
-	for _, layer := range loaded.Program.Model.Layers {
+	plan, ok := loaded.ModelPlan()
+	if !ok {
+		_ = loaded.Close()
+		t.Fatal("resolved Qwen3.5 model plan is unavailable")
+	}
+	for _, layer := range plan.Layers {
 		dense = dense || !layer.Recurrent
 		recurrent = recurrent || layer.Recurrent
 	}

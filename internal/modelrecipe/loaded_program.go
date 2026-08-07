@@ -3,7 +3,6 @@ package modelrecipe
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"overgo/internal/artifact"
@@ -13,17 +12,24 @@ import (
 	"overgo/internal/recipe"
 )
 
-// LoadedProgram: verified GGUF plus authoritative recipe program.
+// LoadedProgram: sealed verified GGUF ownership.
 type LoadedProgram struct {
+	state *loadedProgramState
+}
+
+type loadedProgramState struct {
 	File         *gguf.File
 	Path         string
 	Spec         model.Spec
 	Weights      model.Weights
 	Inventory    modelartifact.Inventory
-	Profile      ProfileDocument
-	Definition   ModelDefinitionDocument
 	EvidenceTier recipe.EvidenceTier
 	Program      Plan
+}
+
+// ConsumedProgram: one-shot serving ownership.
+type ConsumedProgram struct {
+	state *loadedProgramState
 }
 
 // ResolveActiveGGUF: verifies and compiles the active recipe before execution.
@@ -39,7 +45,7 @@ func ResolveActiveGGUF(
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, loaded.Close())
 	}
-	activation, active, err := ActiveRecord(ctx, store, loaded.Inventory.Manifest.ID, recipe.TaskInference)
+	activation, active, err := ActiveRecord(ctx, store, loaded.state.Inventory.Manifest.ID, recipe.TaskInference)
 	if err != nil {
 		return fail(err)
 	}
@@ -47,7 +53,7 @@ func ResolveActiveGGUF(
 		return fail(errors.New("model recipe: active inference recipe is absent"))
 	}
 	definition := activation.Definition
-	loaded.EvidenceTier = activation.Tier
+	loaded.state.EvidenceTier = activation.Tier
 	definitionID, ok := definition.Dependency(recipe.DependencyDefinition, 0)
 	if !ok {
 		return fail(errors.New("model recipe: active recipe has no model definition"))
@@ -56,8 +62,8 @@ func ResolveActiveGGUF(
 	if err != nil {
 		return fail(err)
 	}
-	if resolved.Document.Model != loaded.Inventory.Manifest.ID ||
-		resolved.Tensors.ID != loaded.Inventory.TensorInventory.ID {
+	if resolved.Document.Model != loaded.state.Inventory.Manifest.ID ||
+		resolved.Tensors.ID != loaded.state.Inventory.TensorInventory.ID {
 		return fail(errors.New("model recipe: loaded GGUF differs from active model definition"))
 	}
 	if err := loaded.bindResolved(definition, resolved); err != nil {
@@ -75,21 +81,21 @@ func LoadFixtureGGUF(path string, placement recipe.Placement) (LoadedProgram, er
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, loaded.Close())
 	}
-	loaded.EvidenceTier = recipe.EvidenceExperimental
-	profile, err := NewProfileDocument(loaded.Spec.Profile())
+	loaded.state.EvidenceTier = recipe.EvidenceExperimental
+	profile, err := NewProfileDocument(loaded.state.Spec.Profile())
 	if err != nil {
 		return fail(err)
 	}
-	document, err := NewModelDefinitionDocument(profile, loaded.Inventory.TensorInventory, loaded.Spec)
+	document, err := NewModelDefinitionDocument(profile, loaded.state.Inventory.TensorInventory, loaded.state.Spec)
 	if err != nil {
 		return fail(err)
 	}
-	resolved, err := document.Resolve(profile, loaded.Inventory.TensorInventory)
+	resolved, err := document.Resolve(profile, loaded.state.Inventory.TensorInventory)
 	if err != nil {
 		return fail(err)
 	}
 	definition, err := InferenceWithModelDefinition(
-		loaded.Inventory.Manifest.ID, profile.ID, document.ID, placement,
+		loaded.state.Inventory.Manifest.ID, profile.ID, document.ID, placement,
 	)
 	if err != nil {
 		return fail(err)
@@ -105,15 +111,15 @@ func loadGGUFFacts(path string) (LoadedProgram, error) {
 	if err != nil {
 		return LoadedProgram{}, err
 	}
-	loaded := LoadedProgram{File: file, Path: path}
+	loaded := LoadedProgram{state: &loadedProgramState{File: file, Path: path}}
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, file.Close())
 	}
-	loaded.Inventory, err = modelartifact.FromGGUF(file)
+	loaded.state.Inventory, err = modelartifact.FromGGUF(file)
 	if err != nil {
 		return fail(err)
 	}
-	loaded.Spec, err = model.ReadSpec(file)
+	loaded.state.Spec, err = model.ReadSpec(file)
 	if err != nil {
 		return fail(err)
 	}
@@ -124,10 +130,10 @@ func (l *LoadedProgram) bindResolved(
 	definition recipe.Definition,
 	resolved ResolvedModelDefinition,
 ) error {
-	if l == nil || l.File == nil {
+	if l == nil || l.state == nil || l.state.File == nil {
 		return errors.New("model recipe: loaded GGUF is unavailable")
 	}
-	observed, err := model.ReadSpecWithProfile(l.File, resolved.Profile.Policy)
+	observed, err := model.ReadSpecWithProfile(l.state.File, resolved.Profile.Policy)
 	if err != nil {
 		return err
 	}
@@ -137,7 +143,7 @@ func (l *LoadedProgram) bindResolved(
 	if err := validateProgramIdentity(definition, programIdentity(definition)); err != nil {
 		return err
 	}
-	weights, err := model.ReadWeights(l.File, observed)
+	weights, err := model.ReadWeights(l.state.File, observed)
 	if err != nil {
 		return err
 	}
@@ -148,67 +154,80 @@ func (l *LoadedProgram) bindResolved(
 	if err := program.ValidateServing(); err != nil {
 		return err
 	}
-	l.Spec, l.Weights = observed, weights
-	l.Profile, l.Definition, l.Program = resolved.Profile, resolved.Document, program
-	return l.Validate()
+	if observed.Architecture != program.Model.Profile.Name {
+		return errors.New("model recipe: loaded program architecture differs")
+	}
+	l.state.Spec, l.state.Weights, l.state.Program = observed, weights, program
+	l.state.Inventory = modelartifact.Inventory{}
+	return nil
 }
 
-// Validate: loaded artifacts match compiled identity.
-func (l LoadedProgram) Validate() error {
-	if l.File == nil || l.Path == "" {
-		return errors.New("model recipe: loaded program source is unavailable")
+// Identity: immutable compiled serving identity.
+func (l LoadedProgram) Identity() (ProgramIdentity, bool) {
+	if l.state == nil {
+		return ProgramIdentity{}, false
 	}
-	if !l.EvidenceTier.Valid() {
-		return errors.New("model recipe: loaded program evidence tier is invalid")
+	return l.state.Program.Identity, true
+}
+
+// Architecture: verified model architecture.
+func (l LoadedProgram) Architecture() (string, bool) {
+	if l.state == nil {
+		return "", false
 	}
-	if err := l.Program.ValidateServing(); err != nil {
-		return err
+	return l.state.Spec.Architecture, true
+}
+
+// ModelPlan: immutable compiled topology copy.
+func (l LoadedProgram) ModelPlan() (model.ModelPlan, bool) {
+	if l.state == nil {
+		return model.ModelPlan{}, false
 	}
-	identity := l.Program.Identity
-	profileID, profileOK := l.Program.Recipe.Dependency(recipe.DependencyProfile, 0)
-	definitionID, definitionOK := l.Program.Recipe.Dependency(recipe.DependencyDefinition, 0)
-	if identity.Model != l.Inventory.Manifest.ID || !profileOK || !definitionOK ||
-		identity.Profile != profileID || identity.Definition != definitionID ||
-		l.Profile.ID != profileID || l.Definition.ID != definitionID {
-		return errors.New("model recipe: loaded program identity mismatch")
+	plan := l.state.Program.Model
+	plan.Layers = append([]model.LayerPlan(nil), plan.Layers...)
+	return plan, true
+}
+
+// Consume: transfers resolved serving ownership exactly once.
+func (l *LoadedProgram) Consume() (*ConsumedProgram, error) {
+	if l == nil || l.state == nil || l.state.File == nil {
+		return nil, errors.New("model recipe: loaded program is unavailable or consumed")
 	}
-	resolved, err := l.Definition.Resolve(l.Profile, l.Inventory.TensorInventory)
-	if err != nil {
-		return err
+	state := l.state
+	l.state = nil
+	return &ConsumedProgram{state: state}, nil
+}
+
+func (p *ConsumedProgram) File() *gguf.File                  { return p.state.File }
+func (p *ConsumedProgram) Path() string                      { return p.state.Path }
+func (p *ConsumedProgram) Spec() model.Spec                  { return p.state.Spec }
+func (p *ConsumedProgram) Weights() model.Weights            { return p.state.Weights }
+func (p *ConsumedProgram) Plan() Plan                        { return p.state.Program }
+func (p *ConsumedProgram) EvidenceTier() recipe.EvidenceTier { return p.state.EvidenceTier }
+
+// Disown: transfers file lifetime to the serving runtime.
+func (p *ConsumedProgram) Disown() {
+	if p != nil {
+		p.state = nil
 	}
-	observedSpec, err := model.ReadSpecWithProfile(l.File, l.Profile.Policy)
-	if err != nil {
-		return err
+}
+
+// Close: releases consumed ownership before runtime transfer.
+func (p *ConsumedProgram) Close() error {
+	if p == nil || p.state == nil || p.state.File == nil {
+		return nil
 	}
-	if !reflect.DeepEqual(observedSpec, resolved.Spec) || !reflect.DeepEqual(observedSpec, l.Spec) {
-		return errors.New("model recipe: loaded specification changed after resolution")
-	}
-	observedWeights, err := model.ReadWeights(l.File, observedSpec)
-	if err != nil {
-		return err
-	}
-	if !reflect.DeepEqual(observedWeights, l.Weights) {
-		return errors.New("model recipe: loaded weight catalog changed after resolution")
-	}
-	expected, err := model.CompileModelPlanWithProfile(observedSpec, observedWeights, l.Profile.Policy)
-	if err != nil {
-		return err
-	}
-	if !reflect.DeepEqual(expected, l.Program.Model) {
-		return errors.New("model recipe: compiled model program differs from resolved facts")
-	}
-	if l.Spec.Architecture != l.Program.Model.Profile.Name {
-		return fmt.Errorf("model recipe: loaded program shape differs for %q", l.Spec.Architecture)
-	}
-	return nil
+	err := p.state.File.Close()
+	p.state = nil
+	return err
 }
 
 // Close: releases untransferred GGUF ownership.
 func (l *LoadedProgram) Close() error {
-	if l == nil || l.File == nil {
+	if l == nil || l.state == nil || l.state.File == nil {
 		return nil
 	}
-	err := l.File.Close()
-	l.File = nil
+	err := l.state.File.Close()
+	l.state = nil
 	return err
 }

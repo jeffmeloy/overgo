@@ -84,6 +84,11 @@ const (
 	PhaseHostToDevice    Phase = "host_to_device"
 	PhaseDeviceToHost    Phase = "device_to_host"
 	PhasePostprocess     Phase = "postprocess"
+	PhaseValidate        Phase = "validate"
+	PhaseBuild           Phase = "build"
+	PhaseTest            Phase = "test"
+	PhaseVet             Phase = "vet"
+	PhasePackage         Phase = "package"
 )
 
 type PhaseMetric struct {
@@ -419,6 +424,8 @@ func validPhase(phase Phase) bool {
 	case PhaseLoad, PhasePromptRender, PhaseTokenize, PhaseMediaDecode, PhaseVision,
 		PhasePrefill, PhaseDecode, PhaseSample, PhaseForwardBackward, PhaseOptimizer,
 		PhaseRefresh, PhaseHostToDevice, PhaseDeviceToHost, PhasePostprocess:
+		return true
+	case PhaseValidate, PhaseBuild, PhaseTest, PhaseVet, PhasePackage:
 		return true
 	default:
 		return false

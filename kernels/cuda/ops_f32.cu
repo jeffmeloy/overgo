@@ -47,6 +47,37 @@ __device__ __forceinline__ int load_i32_unaligned(const unsigned char * source) 
     return (int) __funnelshift_r(aligned[0], aligned[1], shift);
 }
 
+__device__ __forceinline__ void store_q8_input_warp(
+        unsigned char * output,
+        unsigned int block,
+        float value,
+        unsigned int lane) {
+    float maximum = fabsf(value);
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        maximum = fmaxf(maximum, __shfl_down_sync(0xffffffff, maximum, offset));
+    }
+    maximum = __shfl_sync(0xffffffff, maximum, 0);
+    const float scale = maximum / 127.0f;
+    unsigned char * destination = output + block * Q8_INPUT_BLOCK_BYTES;
+    if (lane == 0) {
+        *reinterpret_cast<float *>(destination) = scale;
+    }
+    const int quantized = maximum == 0.0f
+        ? 0
+        : max(-127, min(127, __float2int_rn(value / scale)));
+    *(reinterpret_cast<signed char *>(destination + sizeof(float)) + lane) =
+        (signed char) quantized;
+}
+
+__device__ __forceinline__ float activated_gate_value(
+        float gate,
+        unsigned int activation) {
+    if (activation == 1) {
+        return gate / (1.0f + expf(-gate));
+    }
+    return 1.0f / (1.0f + expf(-gate));
+}
+
 __device__ float block_sum_f32(float value, float * partial) {
     const unsigned int lane = threadIdx.x;
     partial[lane] = value;
@@ -96,21 +127,7 @@ extern "C" __global__ void quantize_q8_0_input_f32(
         return;
     }
     const float value = input[block * Q8_0_BLOCK_WIDTH + lane];
-    float maximum = fabsf(value);
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        maximum = fmaxf(maximum, __shfl_down_sync(0xffffffff, maximum, offset));
-    }
-    maximum = __shfl_sync(0xffffffff, maximum, 0);
-    const float scale = maximum / 127.0f;
-    unsigned char * destination = output + block * Q8_INPUT_BLOCK_BYTES;
-    if (lane == 0) {
-        *reinterpret_cast<float *>(destination) = scale;
-    }
-    const int quantized = maximum == 0.0f
-        ? 0
-        : max(-127, min(127, __float2int_rn(value / scale)));
-    *(reinterpret_cast<signed char *>(destination + sizeof(float)) + lane) =
-        (signed char) quantized;
+    store_q8_input_warp(output, block, value, lane);
 }
 
 extern "C" __global__ void add_f32(
@@ -305,6 +322,36 @@ extern "C" __global__ void silu_f32(
         const float value = input[index];
         output[index] = value / (1.0f + expf(-value));
     }
+}
+
+extern "C" __global__ void activated_gate_f32(
+        const float * gate,
+        const float * up,
+        float * output,
+        unsigned int activation,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = activated_gate_value(gate[index], activation) * up[index];
+    }
+}
+
+extern "C" __global__ void activated_gate_q8_0_f32(
+        const float * gate,
+        const float * up,
+        float * output,
+        unsigned char * quantized,
+        unsigned int activation,
+        unsigned int count) {
+    const unsigned int block = blockIdx.x;
+    const unsigned int lane = threadIdx.x;
+    const unsigned int index = block * Q8_0_BLOCK_WIDTH + lane;
+    if (index >= count || lane >= Q8_0_BLOCK_WIDTH) {
+        return;
+    }
+    const float value = activated_gate_value(gate[index], activation) * up[index];
+    output[index] = value;
+    store_q8_input_warp(quantized, block, value, lane);
 }
 
 extern "C" __global__ void gelu_f32(
@@ -1483,6 +1530,40 @@ extern "C" __global__ void weighted_rms_norm_f32(
     }
 }
 
+extern "C" __global__ void weighted_rms_norm_q8_0_f32(
+        const float * input,
+        const float * weight,
+        float * output,
+        unsigned char * quantized,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    float sum_squares = 0.0f;
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        const float value = input[offset + column];
+        sum_squares += value * value;
+    }
+    __shared__ float partial[256];
+    sum_squares = block_sum_f32(sum_squares, partial);
+    const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
+    const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        const float value = input[offset + column] * inverse * weight[column];
+        output[offset + column] = value;
+        store_q8_input_warp(
+            quantized,
+            row * blocks_per_row + column / Q8_0_BLOCK_WIDTH,
+            value,
+            lane);
+    }
+}
+
 extern "C" __global__ void layer_norm_f32(
         const float * input,
         float * output,
@@ -2326,30 +2407,19 @@ extern "C" __global__ void mul_mat_q8_0_f32(
     }
 }
 
-extern "C" __global__ void mul_mat_q8_0_input_f32(
+__device__ __forceinline__ float q8_0_input_dot_row(
         const unsigned char * left,
         const unsigned char * right,
-        float * output,
         unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
-    const unsigned int left_row = warp_index % left_rows;
-    const unsigned int right_row = warp_index / left_rows;
-    if (right_row >= right_rows) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+        unsigned int left_row,
+        unsigned int lane) {
     const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
     const unsigned char * weight_row =
         left + (size_t) left_row * blocks_per_row * Q8_0_BLOCK_BYTES;
-    const unsigned char * input_row =
-        right + (size_t) right_row * blocks_per_row * Q8_INPUT_BLOCK_BYTES;
     float sum = 0.0f;
     for (unsigned int block = lane; block < blocks_per_row; block += CUDA_WARP_WIDTH) {
         const unsigned char * weight_block = weight_row + block * Q8_0_BLOCK_BYTES;
-        const unsigned char * input_block = input_row + block * Q8_INPUT_BLOCK_BYTES;
+        const unsigned char * input_block = right + block * Q8_INPUT_BLOCK_BYTES;
         const int * input_quants = reinterpret_cast<const int *>(
             input_block + sizeof(float));
         int dot = 0;
@@ -2367,8 +2437,115 @@ extern "C" __global__ void mul_mat_q8_0_input_f32(
     for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
         sum += __shfl_down_sync(0xffffffff, sum, offset);
     }
+    return sum;
+}
+
+extern "C" __global__ void mul_mat_q8_0_input_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    if (right_row >= right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned char * input_row =
+        right + (size_t) right_row * (inner / Q8_0_BLOCK_WIDTH) * Q8_INPUT_BLOCK_BYTES;
+    const float sum = q8_0_input_dot_row(left, input_row, inner, left_row, lane);
     if (lane == 0) {
         output[right_row * left_rows + left_row] = sum;
+    }
+}
+
+extern "C" __global__ void mul_mat_q8_0_input_argmax_partials_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        float * partials,
+        unsigned int inner,
+        unsigned int left_rows) {
+    constexpr unsigned int warps_per_block = 8;
+    constexpr unsigned int partial_values = 2;
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.x * warps_per_block + warp;
+    const bool valid = row < left_rows;
+    const float sum = valid ? q8_0_input_dot_row(left, right, inner, row, lane) : 0.0f;
+    __shared__ float values[warps_per_block];
+    __shared__ unsigned int indices[warps_per_block];
+    __shared__ unsigned int invalids[warps_per_block];
+    if (lane == 0) {
+        values[warp] = sum;
+        indices[warp] = valid ? row : 0xffffffffU;
+        invalids[warp] = valid && isnan(sum);
+    }
+    __syncthreads();
+    if (threadIdx.x != 0) {
+        return;
+    }
+    unsigned int best = 0xffffffffU;
+    float best_value = 0.0f;
+    unsigned int invalid = 0;
+    for (unsigned int item = 0; item < warps_per_block; ++item) {
+        invalid |= invalids[item];
+        const unsigned int index = indices[item];
+        if (index != 0xffffffffU &&
+            (best == 0xffffffffU || top_k_before(values[item], index, best_value, best))) {
+            best = index;
+            best_value = values[item];
+        }
+    }
+    partials[blockIdx.x * partial_values] = best_value;
+    partials[blockIdx.x * partial_values + 1] = invalid ? -1.0f : (float) best;
+}
+
+extern "C" __global__ void argmax_q8_0_input_partials_f32(
+        const float * partials,
+        float * output,
+        unsigned int count) {
+    constexpr unsigned int partial_values = 2;
+    const unsigned int lane = threadIdx.x;
+    float best_value = 0.0f;
+    unsigned int best = 0xffffffffU;
+    unsigned int invalid = 0;
+    for (unsigned int item = lane; item < count; item += blockDim.x) {
+        const float value = partials[item * partial_values];
+        const float raw_index = partials[item * partial_values + 1];
+        invalid |= raw_index < 0.0f;
+        const unsigned int index = (unsigned int) raw_index;
+        if (raw_index >= 0.0f &&
+            (best == 0xffffffffU || top_k_before(value, index, best_value, best))) {
+            best = index;
+            best_value = value;
+        }
+    }
+    __shared__ float values[256];
+    __shared__ unsigned int indices[256];
+    __shared__ unsigned int invalids[256];
+    values[lane] = best_value;
+    indices[lane] = best;
+    invalids[lane] = invalid;
+    __syncthreads();
+    for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (lane < stride) {
+            invalids[lane] |= invalids[lane + stride];
+            const unsigned int right_index = indices[lane + stride];
+            if (right_index != 0xffffffffU &&
+                (indices[lane] == 0xffffffffU || top_k_before(
+                    values[lane + stride], right_index, values[lane], indices[lane]))) {
+                values[lane] = values[lane + stride];
+                indices[lane] = right_index;
+            }
+        }
+        __syncthreads();
+    }
+    if (lane == 0) {
+        output[0] = invalids[0] ? -1.0f : (float) indices[0];
     }
 }
 

@@ -1530,7 +1530,7 @@ func TestExecutorMulMatMatchesReference(t *testing.T) {
 
 func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
 	cudatest.Require(t)
-	leftShape := tensor.MustShape(64, 5)
+	leftShape := tensor.MustShape(64, 19)
 	rightShape := tensor.MustShape(64, 1)
 	leftValue := patternedValue(leftShape, 11, 0.03, -0.1)
 	rightValue := patternedValue(rightShape, 7, 0.05, 0.02)
@@ -1584,6 +1584,74 @@ func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	compare(t, got[output].Data, want[referenceOutput].Data, 1e-2)
+	referenceSelection := referenceBuilder.TopK(referenceOutput, 1)
+	wantSelection, err := reference.Execute(
+		[]*tensor.Tensor{referenceSelection},
+		map[*tensor.Tensor]reference.Value{
+			referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection := builder.TopK(output, 1)
+	gotSelection, err := cuda.ExecuteWithDeviceFeeds(
+		context.Background(), []*tensor.Tensor{selection},
+		map[*tensor.Tensor]reference.Value{right: rightValue},
+		map[*tensor.Tensor]driver.DevicePtr{left: pointer},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, gotSelection[selection].Data, wantSelection[referenceSelection].Data, 0)
+}
+
+func TestExecutorActivatedGatesMatchReference(t *testing.T) {
+	cudatest.Require(t)
+	for _, build := range []struct {
+		name string
+		fn   func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor) *tensor.Tensor
+	}{
+		{"silu", func(builder *tensor.Builder, gate, up *tensor.Tensor) *tensor.Tensor {
+			return builder.SwiGLU(gate, up)
+		}},
+		{"sigmoid", func(builder *tensor.Builder, gate, up *tensor.Tensor) *tensor.Tensor {
+			return builder.Multiply(builder.Sigmoid(gate), up)
+		}},
+	} {
+		t.Run(build.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			gate := builder.Input("gate", dtype.F32, tensor.MustShape(8, 2))
+			up := builder.Input("up", dtype.F32, gate.Shape)
+			activated := build.fn(builder, gate, up)
+			projection := builder.Input("projection", dtype.F32, tensor.MustShape(8, 7))
+			output := builder.MulMat(projection, activated)
+			feeds := map[*tensor.Tensor]reference.Value{
+				gate: patternedValue(gate.Shape, 7, 0.05, -0.1),
+				up:   patternedValue(up.Shape, 11, 0.03, 0.02),
+				projection: patternedValue(
+					projection.Shape, 13, 0.02, -0.03,
+				),
+			}
+			outputs := []*tensor.Tensor{activated, output}
+			want, err := reference.Execute(outputs, feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cuda, err := New(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cuda.Close()
+			got, err := cuda.Execute(context.Background(), outputs, feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range outputs {
+				compare(t, got[item].Data, want[item].Data, 1e-5)
+			}
+		})
+	}
 }
 
 func TestExecutorSSMConvMatchesReference(t *testing.T) {

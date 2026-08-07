@@ -326,6 +326,9 @@ type CompiledGraph struct {
 	order          []*tensor.Tensor
 	memory         planner.Plan
 	weightedRMS    map[*tensor.Tensor]weightedRMSFusion
+	activatedGate  map[*tensor.Tensor]activatedGateFusion
+	q8Emit         map[*tensor.Tensor]struct{}
+	q8Argmax       map[*tensor.Tensor]*tensor.Tensor
 	skipped        map[*tensor.Tensor]struct{}
 	needBlas       bool
 	bf16InputBytes uint64
@@ -335,6 +338,20 @@ type CompiledGraph struct {
 type weightedRMSFusion struct {
 	normalization *tensor.Tensor
 	weight        *tensor.Tensor
+}
+
+type activatedGateKind uint32
+
+const (
+	activatedGateSiLU activatedGateKind = iota + 1
+	activatedGateSigmoid
+)
+
+type activatedGateFusion struct {
+	gate       *tensor.Tensor
+	up         *tensor.Tensor
+	activation *tensor.Tensor
+	kind       activatedGateKind
 }
 
 const graphArenaAlignment = 256
@@ -372,14 +389,11 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	if err != nil {
 		return nil, err
 	}
-	memory, err := planner.Build(outputs, graphArenaAlignment)
-	if err != nil {
-		return nil, err
-	}
 	compiled := &CompiledGraph{
-		outputs: slices.Clone(outputs), order: order, memory: memory,
+		outputs: slices.Clone(outputs), order: order,
 	}
 	uses := make(map[*tensor.Tensor]int, len(order))
+	consumers := make(map[*tensor.Tensor][]*tensor.Tensor, len(order))
 	outputSet := make(map[*tensor.Tensor]struct{}, len(outputs))
 	for _, output := range outputs {
 		outputSet[output] = struct{}{}
@@ -387,6 +401,7 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	for _, node := range order {
 		for _, input := range node.Inputs {
 			uses[input]++
+			consumers[input] = append(consumers[input], node)
 		}
 	}
 	for _, node := range order {
@@ -433,7 +448,100 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		compiled.weightedRMS[node] = weightedRMSFusion{normalization: normalization, weight: weight}
 		compiled.skipped[normalization] = struct{}{}
 	}
+	for _, node := range order {
+		if node.Op != tensor.OpMultiply || len(node.Inputs) != 2 {
+			continue
+		}
+		activation, up := node.Inputs[0], node.Inputs[1]
+		kind, ok := activatedGateKindFor(activation)
+		if !ok {
+			activation, up = up, activation
+			kind, ok = activatedGateKindFor(activation)
+		}
+		if !ok || uses[activation] != 1 ||
+			!activation.Shape.Equal(up.Shape) || !node.Shape.Equal(up.Shape) {
+			continue
+		}
+		if _, retained := outputSet[activation]; retained {
+			continue
+		}
+		if compiled.activatedGate == nil {
+			compiled.activatedGate = make(map[*tensor.Tensor]activatedGateFusion)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.activatedGate[node] = activatedGateFusion{
+			gate: activation.Inputs[0], up: up, activation: activation, kind: kind,
+		}
+		compiled.skipped[activation] = struct{}{}
+	}
+	for _, node := range order {
+		if node.Op != tensor.OpMulMat || node.Inputs[0].Type != dtype.Q8_0 ||
+			node.Inputs[1].Shape.Rank != 2 || node.Inputs[1].Shape.Dims[1] != 1 {
+			continue
+		}
+		producer := node.Inputs[1]
+		if _, weighted := compiled.weightedRMS[producer]; !weighted {
+			if _, activated := compiled.activatedGate[producer]; !activated {
+				continue
+			}
+		}
+		if compiled.q8Emit == nil {
+			compiled.q8Emit = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.q8Emit[producer] = struct{}{}
+	}
+	for _, projection := range order {
+		if projection.Op != tensor.OpMulMat || projection.Inputs[0].Type != dtype.Q8_0 ||
+			projection.Inputs[1].Shape.Rank != 2 || projection.Inputs[1].Shape.Dims[1] != 1 ||
+			uses[projection] != 1 {
+			continue
+		}
+		if _, retained := outputSet[projection]; retained {
+			continue
+		}
+		selection := consumers[projection][0]
+		attributes, ok := selection.Attrs.(tensor.TopKAttributes)
+		rows := projection.Shape.Dims[0]
+		partials, partialsOK := q8ArgmaxPartialCount(rows)
+		if selection.Op != tensor.OpTopK || !ok || attributes.K != 1 || rows < 2 ||
+			!partialsOK || q8ArgmaxPartialValues*uint64(partials) > rows {
+			continue
+		}
+		if compiled.q8Argmax == nil {
+			compiled.q8Argmax = make(map[*tensor.Tensor]*tensor.Tensor)
+		}
+		compiled.q8Argmax[projection] = selection
+		compiled.q8Argmax[selection] = projection
+	}
+	dependencies := make(map[*tensor.Tensor][]*tensor.Tensor)
+	for node, fusion := range compiled.weightedRMS {
+		dependencies[node] = append(dependencies[node], fusion.normalization.Inputs[0])
+	}
+	for node, fusion := range compiled.activatedGate {
+		dependencies[node] = append(dependencies[node], fusion.gate)
+	}
+	memory, err := planner.BuildWithDependencies(outputs, graphArenaAlignment, dependencies)
+	if err != nil {
+		return nil, err
+	}
+	compiled.memory = memory
 	return compiled, nil
+}
+
+func activatedGateKindFor(node *tensor.Tensor) (activatedGateKind, bool) {
+	if node == nil || len(node.Inputs) != 1 {
+		return 0, false
+	}
+	switch node.Op {
+	case tensor.OpSiLU:
+		return activatedGateSiLU, true
+	case tensor.OpSigmoid:
+		return activatedGateSigmoid, true
+	default:
+		return 0, false
+	}
 }
 
 func rmsWeightCompatible(normalization, weight *tensor.Tensor) bool {
@@ -875,9 +983,41 @@ func execute(
 			}
 		}
 		if fusion, ok := compiled.weightedRMS[node]; ok {
-			if err := launchWeightedRMSNorm(state, functions, node, fusion, pointers); err != nil {
+			_, emitQ8 := compiled.q8Emit[node]
+			if err := launchWeightedRMSNorm(
+				state, functions, q8Input, node, fusion, emitQ8, pointers,
+			); err != nil {
 				abortCapture()
 				return nil, fmt.Errorf("launch tensor %d (weighted_rms_norm): %w", node.ID, err)
+			}
+			submitted = true
+			continue
+		}
+		if fusion, ok := compiled.activatedGate[node]; ok {
+			_, emitQ8 := compiled.q8Emit[node]
+			if err := launchActivatedGate(
+				state, functions, q8Input, node, fusion, emitQ8, pointers,
+			); err != nil {
+				abortCapture()
+				return nil, fmt.Errorf("launch tensor %d (activated_gate): %w", node.ID, err)
+			}
+			submitted = true
+			continue
+		}
+		if paired, ok := compiled.q8Argmax[node]; ok {
+			var launchErr error
+			if node.Op == tensor.OpMulMat {
+				launchErr = launchQ8ArgmaxPartials(
+					state, functions, q8Input, node, pointers,
+				)
+			} else {
+				launchErr = launchQ8ArgmaxReduction(
+					state, functions, paired, node, pointers,
+				)
+			}
+			if launchErr != nil {
+				abortCapture()
+				return nil, fmt.Errorf("launch tensor %d (q8_argmax): %w", node.ID, launchErr)
 			}
 			submitted = true
 			continue
@@ -994,6 +1134,9 @@ type functionSet struct {
 	flatSlice           driver.Function
 	rmsNorm             driver.Function
 	weightedRMSNorm     driver.Function
+	weightedRMSNormQ8   driver.Function
+	activatedGate       driver.Function
+	activatedGateQ8     driver.Function
 	layerNorm           driver.Function
 	softmax             driver.Function
 	mulMat              driver.Function
@@ -1007,6 +1150,8 @@ type functionSet struct {
 	getRowsQ8           driver.Function
 	mulMatQ8            driver.Function
 	mulMatQ8Input       driver.Function
+	mulMatQ8Argmax      driver.Function
+	q8ArgmaxReduction   driver.Function
 	getRowsQ81          driver.Function
 	mulMatQ81           driver.Function
 	getRowsQ8K          driver.Function
@@ -1308,6 +1453,9 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"flat_slice_f32", &result.flatSlice},
 		{"rms_norm_f32", &result.rmsNorm},
 		{"weighted_rms_norm_f32", &result.weightedRMSNorm},
+		{"weighted_rms_norm_q8_0_f32", &result.weightedRMSNormQ8},
+		{"activated_gate_f32", &result.activatedGate},
+		{"activated_gate_q8_0_f32", &result.activatedGateQ8},
 		{"layer_norm_f32", &result.layerNorm},
 		{"softmax_f32", &result.softmax},
 		{"mul_mat_f32", &result.mulMat},
@@ -1321,6 +1469,8 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"get_rows_q8_0_f32", &result.getRowsQ8},
 		{"mul_mat_q8_0_f32", &result.mulMatQ8},
 		{"mul_mat_q8_0_input_f32", &result.mulMatQ8Input},
+		{"mul_mat_q8_0_input_argmax_partials_f32", &result.mulMatQ8Argmax},
+		{"argmax_q8_0_input_partials_f32", &result.q8ArgmaxReduction},
 		{"get_rows_q8_1_f32", &result.getRowsQ81},
 		{"mul_mat_q8_1_f32", &result.mulMatQ81},
 		{"get_rows_q8_K_f32", &result.getRowsQ8K},

@@ -382,8 +382,10 @@ func launchQ8InputQuantization(
 func launchWeightedRMSNorm(
 	state *device.State,
 	functions functionSet,
+	q8Input *q8InputState,
 	output *tensor.Tensor,
 	fusion weightedRMSFusion,
+	emitQ8 bool,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
 	attributes, ok := fusion.normalization.Attrs.(tensor.RMSNormAttributes)
@@ -398,9 +400,139 @@ func launchWeightedRMSNorm(
 	weight := pointers[fusion.weight]
 	result := pointers[output]
 	epsilon := attributes.Epsilon
+	if emitQ8 {
+		if q8Input == nil || q8Input.staging == 0 {
+			return errors.New("weighted RMS Q8 workspace is unavailable")
+		}
+		if err := launchNormalizationABI(
+			state, functions.weightedRMSNormQ8, rows,
+			&input, &weight, &result, &q8Input.staging, &width, &rows, &epsilon,
+		); err != nil {
+			return err
+		}
+		q8Input.stagedNode = output
+		return nil
+	}
 	return launchNormalizationABI(
 		state, functions.weightedRMSNorm, rows,
 		&input, &weight, &result, &width, &rows, &epsilon,
+	)
+}
+
+func launchActivatedGate(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	output *tensor.Tensor,
+	fusion activatedGateFusion,
+	emitQ8 bool,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	gate, up, result := pointers[fusion.gate], pointers[fusion.up], pointers[output]
+	kind := uint32(fusion.kind)
+	if !emitQ8 {
+		return launch1DABI(
+			state, functions.activatedGate, count,
+			&gate, &up, &result, &kind, &count,
+		)
+	}
+	if q8Input == nil || q8Input.staging == 0 || uint64(count)%q8InputBlockWidth != 0 {
+		return errors.New("activated-gate Q8 workspace is unavailable")
+	}
+	blocks := count / uint32(q8InputBlockWidth)
+	const threads = uint32(q8InputBlockWidth)
+	if err := launchGridABI(
+		state, functions.activatedGateQ8,
+		driver.Dim3{X: blocks, Y: 1, Z: 1},
+		driver.Dim3{X: threads, Y: 1, Z: 1},
+		&gate, &up, &result, &q8Input.staging, &kind, &count,
+	); err != nil {
+		return err
+	}
+	q8Input.stagedNode = output
+	return nil
+}
+
+const (
+	q8ArgmaxWarpsPerBlock = uint64(8)
+	q8ArgmaxPartialValues = uint64(2)
+)
+
+func q8ArgmaxPartialCount(rows uint64) (uint32, bool) {
+	count := (rows + q8ArgmaxWarpsPerBlock - 1) / q8ArgmaxWarpsPerBlock
+	return uint32(count), count <= math.MaxUint32
+}
+
+func launchQ8ArgmaxPartials(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	projection *tensor.Tensor,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	leftNode, rightNode := projection.Inputs[0], projection.Inputs[1]
+	inner, err := uint32Checked(leftNode.Shape.Dims[0], "Q8 argmax inner dimension")
+	if err != nil {
+		return err
+	}
+	rows, err := uint32Checked(leftNode.Shape.Dims[1], "Q8 argmax row count")
+	if err != nil {
+		return err
+	}
+	if q8Input == nil || q8Input.staging == 0 {
+		return errors.New("Q8 argmax input workspace is unavailable")
+	}
+	right := pointers[rightNode]
+	if q8Input.stagedNode != rightNode {
+		blocks := uint64(inner) / q8InputBlockWidth
+		if blocks > math.MaxUint32 {
+			return errors.New("Q8 argmax input block count exceeds uint32")
+		}
+		if err := launchQ8InputQuantization(
+			state, functions.quantizeQ8Input, right, q8Input.staging, uint32(blocks),
+		); err != nil {
+			return err
+		}
+		q8Input.stagedNode = rightNode
+	}
+	left, partials := pointers[leftNode], pointers[projection]
+	partialCount, ok := q8ArgmaxPartialCount(uint64(rows))
+	if !ok {
+		return errors.New("Q8 argmax partial count exceeds uint32")
+	}
+	const threads = uint32(q8ArgmaxWarpsPerBlock * q8InputBlockWidth)
+	return launchGridABI(
+		state, functions.mulMatQ8Argmax,
+		driver.Dim3{X: partialCount, Y: 1, Z: 1},
+		driver.Dim3{X: threads, Y: 1, Z: 1},
+		&left, &q8Input.staging, &partials, &inner, &rows,
+	)
+}
+
+func launchQ8ArgmaxReduction(
+	state *device.State,
+	functions functionSet,
+	projection, selection *tensor.Tensor,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	rows, err := uint32Checked(projection.Shape.Dims[0], "Q8 argmax row count")
+	if err != nil {
+		return err
+	}
+	partialCount, ok := q8ArgmaxPartialCount(uint64(rows))
+	if !ok {
+		return errors.New("Q8 argmax partial count exceeds uint32")
+	}
+	partials, output := pointers[projection], pointers[selection]
+	return launchGridABI(
+		state, functions.q8ArgmaxReduction,
+		driver.Dim3{X: 1, Y: 1, Z: 1},
+		driver.Dim3{X: 256, Y: 1, Z: 1},
+		&partials, &output, &partialCount,
 	)
 }
 

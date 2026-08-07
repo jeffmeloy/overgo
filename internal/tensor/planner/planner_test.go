@@ -75,3 +75,29 @@ func TestBuildAliasesReshapeStorageAndLifetime(t *testing.T) {
 		t.Fatalf("reshape root expired before consumer: %+v", plan.Allocations[computed])
 	}
 }
+
+func TestBuildWithDependenciesExtendsProducerLifetime(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(4)
+	input := builder.Input("input", dtype.F32, shape)
+	producer := builder.Scale(input, 2)
+	intermediate := builder.SiLU(producer)
+	overwriteCandidate := builder.Scale(input, 3)
+	consumer := builder.Multiply(intermediate, overwriteCandidate)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := BuildWithDependencies(
+		[]*tensor.Tensor{consumer}, 16,
+		map[*tensor.Tensor][]*tensor.Tensor{consumer: {producer}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Allocations[producer].Last < plan.Allocations[consumer].First {
+		t.Fatalf("producer expired before rewritten consumer: %+v", plan.Allocations[producer])
+	}
+	if plan.Allocations[producer].Offset == plan.Allocations[overwriteCandidate].Offset {
+		t.Fatal("extended producer shares storage with an intervening tensor")
+	}
+}

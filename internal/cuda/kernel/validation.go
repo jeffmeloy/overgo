@@ -13,7 +13,7 @@ const (
 	BundleTarget = "compute_89"
 
 	VectorAddSHA256 = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	OpsF32SHA256    = "aa5175d9e7d40eb9e5e56c34c511cc1f13fb31b963a571921babf97de08d13b1"
+	OpsF32SHA256    = "7b31650774751e303af1079bb7216967d5b9c38a7e57657247bc251472ba9bda"
 )
 
 // ValidateAssets: reject PTX outside pinned host ABI.

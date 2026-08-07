@@ -31,8 +31,17 @@ type freeBlock struct {
 	size   uint64
 }
 
-// Build assigns storage to non-input graph nodes using last-use liveness
+// Build assigns storage to non-input graph nodes using graph liveness.
 func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
+	return BuildWithDependencies(outputs, alignment, nil)
+}
+
+// BuildWithDependencies extends graph liveness for rewritten consumers.
+func BuildWithDependencies(
+	outputs []*tensor.Tensor,
+	alignment uint64,
+	dependencies map[*tensor.Tensor][]*tensor.Tensor,
+) (Plan, error) {
 	if alignment == 0 || alignment&(alignment-1) != 0 {
 		return Plan{}, fmt.Errorf("planner alignment %d is not a power of two", alignment)
 	}
@@ -58,6 +67,21 @@ func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
 	for index, node := range nodes {
 		for _, input := range node.Inputs {
 			root := roots[input]
+			if index > lastUse[root] {
+				lastUse[root] = index
+			}
+		}
+	}
+	for consumer, inputs := range dependencies {
+		index, ok := indexes[consumer]
+		if !ok {
+			return Plan{}, fmt.Errorf("dependency consumer tensor %d is outside graph", consumer.ID)
+		}
+		for _, input := range inputs {
+			root, ok := roots[input]
+			if !ok {
+				return Plan{}, fmt.Errorf("dependency input tensor %d is outside graph", input.ID)
+			}
 			if index > lastUse[root] {
 				lastUse[root] = index
 			}

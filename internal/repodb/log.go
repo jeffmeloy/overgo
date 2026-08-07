@@ -62,8 +62,14 @@ type logRecord struct {
 
 type recordLog struct {
 	file     *os.File
+	writer   durableWriter
 	lock     *fileLock
 	readOnly bool
+}
+
+type durableWriter interface {
+	io.Writer
+	Sync() error
 }
 
 type replayResult struct {
@@ -316,10 +322,14 @@ func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload 
 		return artifact.CommitID{}, errors.New("repodb: batch exceeds payload limit")
 	}
 	id, frame := encodeRecord(sequence, previous, payload)
-	if err := writeAll(l.file, frame); err != nil {
+	writer := l.writer
+	if writer == nil {
+		writer = l.file
+	}
+	if err := writeAll(writer, frame); err != nil {
 		return id, fmt.Errorf("repodb: append commit: %w", err)
 	}
-	if err := l.file.Sync(); err != nil {
+	if err := writer.Sync(); err != nil {
 		return id, fmt.Errorf("repodb: sync commit: %w", err)
 	}
 	return id, nil

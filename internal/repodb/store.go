@@ -339,7 +339,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	id, err := s.log.append(sequence, s.head, payload)
 	if err != nil {
 		s.fault = err
-		return id, fmt.Errorf("%w: %v", ErrStoreFaulted, err)
+		return id, fmt.Errorf("%w: %w", ErrStoreFaulted, err)
 	}
 	s.state.apply(normalized)
 	s.state.commits[normalized.Key] = committedBatch{id: id, payload: payloadHash, sequence: sequence}
@@ -491,7 +491,7 @@ func (s *Store) ready(write bool) error {
 		return ErrClosed
 	}
 	if s.fault != nil {
-		return fmt.Errorf("%w: %v", ErrStoreFaulted, s.fault)
+		return fmt.Errorf("%w: %w", ErrStoreFaulted, s.fault)
 	}
 	if write && s.readOnly {
 		return ErrReadOnly

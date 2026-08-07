@@ -28,6 +28,14 @@ var documentContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: MediaType, Schema: Schema,
 }
 
+var documentCodec = artifact.DocumentCodec[Document]{
+	Name: "closure ledger", Contract: documentContract,
+	Decode: func(data []byte, value *Document) error { return strictjson.DecodeBytes(data, value) },
+	Encode: documentContent, Canonicalize: canonicalize, Clone: cloneDocument,
+	Identity:    func(value Document) artifact.ID { return value.ID },
+	SetIdentity: func(value *Document, id artifact.ID) { value.ID = id },
+}
+
 type Tier string
 
 const (
@@ -75,78 +83,23 @@ func New(
 		OwnerSurfaces: slices.Clone(ownerSurfaces), ClosurePath: closurePath,
 		RerankTrigger: rerankTrigger, Fixture: fixture,
 	}
-	if err := canonicalize(&document); err != nil {
-		return Document{}, err
-	}
-	content, err := documentContent(document)
-	if err != nil {
-		return Document{}, err
-	}
-	document.ID, err = documentContract.Identify(content)
-	return document, err
+	return documentCodec.New(document)
 }
 
 func Parse(content []byte) (Document, error) {
-	var body Document
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return Document{}, fmt.Errorf("closure ledger: decode document: %w", err)
-	}
-	document, err := New(
-		body.Name, body.Value, body.Tier, body.Status, body.OwnerSurfaces,
-		body.ClosurePath, body.RerankTrigger, body.Fixture,
-	)
-	if err != nil {
-		return Document{}, err
-	}
-	canonical, err := document.ContentBytes()
-	if err != nil {
-		return Document{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Document{}, errors.New("closure ledger: non-canonical document")
-	}
-	return document, nil
+	return documentCodec.Parse(content)
 }
 
 func (d Document) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindEvidence {
-		return errors.New("closure ledger: invalid identity")
-	}
-	canonical := cloneDocument(d)
-	canonical.ID = artifact.ID{}
-	if err := canonicalize(&canonical); err != nil {
-		return err
-	}
-	canonical.ID = d.ID
-	if !sameDocument(d, canonical) {
-		return errors.New("closure ledger: document is not canonical")
-	}
-	canonical.ID = artifact.ID{}
-	content, err := documentContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := documentContract.ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("closure ledger: identity mismatch")
-	}
-	return nil
+	return documentCodec.ValidateIdentity(d)
 }
 
 func (d Document) ContentBytes() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	d.ID = artifact.ID{}
-	return documentContent(d)
+	return documentCodec.ContentBytes(d)
 }
 
 func (d Document) Content() (artifact.Content, error) {
-	id := d.ID
-	content, err := d.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return documentContract.Content(id, content)
+	return documentCodec.Content(d)
 }
 
 func (d Document) Lineage() []artifact.Lineage {
@@ -277,12 +230,4 @@ func cloneDocument(document Document) Document {
 	document.Value = slices.Clone(document.Value)
 	document.OwnerSurfaces = slices.Clone(document.OwnerSurfaces)
 	return document
-}
-
-func sameDocument(left, right Document) bool {
-	return left.Version == right.Version && left.Name == right.Name && bytes.Equal(left.Value, right.Value) &&
-		left.Tier == right.Tier && left.Status == right.Status &&
-		slices.Equal(left.OwnerSurfaces, right.OwnerSurfaces) &&
-		left.ClosurePath == right.ClosurePath && left.RerankTrigger == right.RerankTrigger &&
-		left.Fixture == right.Fixture
 }

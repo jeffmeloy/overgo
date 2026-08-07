@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +21,15 @@ var environmentContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: EnvironmentMediaType, Schema: EnvironmentSchema,
 }
 
+var environmentCodec = artifact.DocumentCodec[Environment]{
+	Name: "run record environment", Contract: environmentContract,
+	Decode:       func(data []byte, value *Environment) error { return strictjson.DecodeBytes(data, value) },
+	Encode:       environmentContent,
+	Canonicalize: canonicalizeEnvironment,
+	Identity:     func(value Environment) artifact.ID { return value.ID },
+	SetIdentity:  func(value *Environment, id artifact.ID) { value.ID = id },
+}
+
 // Environment: immutable execution platform identity.
 type Environment struct {
 	Version uint16      `json:"version"`
@@ -40,77 +48,23 @@ func NewEnvironment(host, osName, arch, device, backend, driver, runtime string)
 		Version: EnvironmentVersion, Host: host, OS: osName, Arch: arch,
 		Device: device, Backend: backend, Driver: driver, Runtime: runtime,
 	}
-	if err := canonicalizeEnvironment(&environment); err != nil {
-		return Environment{}, err
-	}
-	content, err := environmentContent(environment)
-	if err != nil {
-		return Environment{}, err
-	}
-	environment.ID, err = environmentContract.Identify(content)
-	return environment, err
+	return environmentCodec.New(environment)
 }
 
 func ParseEnvironment(content []byte) (Environment, error) {
-	var body Environment
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return Environment{}, fmt.Errorf("run record: decode environment: %w", err)
-	}
-	environment, err := NewEnvironment(
-		body.Host, body.OS, body.Arch, body.Device, body.Backend, body.Driver, body.Runtime,
-	)
-	if err != nil {
-		return Environment{}, err
-	}
-	canonical, err := environment.ContentBytes()
-	if err != nil {
-		return Environment{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Environment{}, errors.New("run record: non-canonical environment content")
-	}
-	return environment, nil
+	return environmentCodec.Parse(content)
 }
 
 func (e Environment) ValidateIdentity() error {
-	if e.ID.Kind() != artifact.KindEvidence {
-		return errors.New("run record: invalid environment identity")
-	}
-	canonical := e
-	canonical.ID = artifact.ID{}
-	if err := canonicalizeEnvironment(&canonical); err != nil {
-		return err
-	}
-	canonical.ID = e.ID
-	if e != canonical {
-		return errors.New("run record: environment is not canonical")
-	}
-	canonical.ID = artifact.ID{}
-	content, err := environmentContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := environmentContract.ValidateIdentity(e.ID, content); err != nil {
-		return errors.New("run record: environment identity mismatch")
-	}
-	return nil
+	return environmentCodec.ValidateIdentity(e)
 }
 
 func (e Environment) ContentBytes() ([]byte, error) {
-	if err := e.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	e.ID = artifact.ID{}
-	return environmentContent(e)
+	return environmentCodec.ContentBytes(e)
 }
 
 func (e Environment) Content() (artifact.Content, error) {
-	id := e.ID
-	content, err := e.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return environmentContract.Content(id, content)
+	return environmentCodec.Content(e)
 }
 
 func (e Environment) Batch(key string) (artifact.Batch, error) {

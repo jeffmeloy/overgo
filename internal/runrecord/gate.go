@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +20,18 @@ const (
 
 var gateContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: GateMediaType, Schema: GateSchema,
+}
+
+var gateCodec = artifact.DocumentCodec[GateResult]{
+	Name: "run record gate result", Contract: gateContract,
+	Decode: func(data []byte, value *GateResult) error { return strictjson.DecodeBytes(data, value) },
+	Encode: gateContent, Canonicalize: canonicalizeGateResult,
+	Clone: func(value GateResult) GateResult {
+		value.Steps = slices.Clone(value.Steps)
+		return value
+	},
+	Identity:    func(value GateResult) artifact.ID { return value.ID },
+	SetIdentity: func(value *GateResult, id artifact.ID) { value.ID = id },
 }
 
 type StepOutcome string
@@ -68,14 +79,7 @@ func NewGateRecord(
 		Version: GateVersion, Recipe: recipeID, Environment: environment,
 		CodeCommit: codeCommit, Outcome: outcome, Failure: failure, Steps: slices.Clone(steps),
 	}
-	if err := canonicalizeGateResult(&result); err != nil {
-		return GateRecord{}, err
-	}
-	content, err := gateContent(result)
-	if err != nil {
-		return GateRecord{}, err
-	}
-	result.ID, err = gateContract.Identify(content)
+	result, err := gateCodec.New(result)
 	if err != nil {
 		return GateRecord{}, err
 	}
@@ -94,67 +98,19 @@ func NewGateRecord(
 }
 
 func ParseGateResult(content []byte) (GateResult, error) {
-	var result GateResult
-	if err := strictjson.DecodeBytes(content, &result); err != nil {
-		return GateResult{}, fmt.Errorf("run record: decode gate result: %w", err)
-	}
-	result.ID = artifact.ID{}
-	if err := canonicalizeGateResult(&result); err != nil {
-		return GateResult{}, err
-	}
-	canonical, err := gateContent(result)
-	if err != nil {
-		return GateResult{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return GateResult{}, errors.New("run record: non-canonical gate result")
-	}
-	result.ID, err = gateContract.Identify(canonical)
-	return result, err
+	return gateCodec.Parse(content)
 }
 
 func (g GateResult) ValidateIdentity() error {
-	if g.ID.Kind() != artifact.KindEvidence {
-		return errors.New("run record: invalid gate result identity")
-	}
-	canonical := g
-	canonical.ID = artifact.ID{}
-	canonical.Steps = slices.Clone(g.Steps)
-	if err := canonicalizeGateResult(&canonical); err != nil {
-		return err
-	}
-	canonical.ID = g.ID
-	if g.Version != canonical.Version || g.Recipe != canonical.Recipe ||
-		g.Environment != canonical.Environment || g.CodeCommit != canonical.CodeCommit ||
-		g.Outcome != canonical.Outcome || g.Failure != canonical.Failure || !slices.Equal(g.Steps, canonical.Steps) {
-		return errors.New("run record: gate result is not canonical")
-	}
-	canonical.ID = artifact.ID{}
-	content, err := gateContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := gateContract.ValidateIdentity(g.ID, content); err != nil {
-		return errors.New("run record: gate result identity mismatch")
-	}
-	return nil
+	return gateCodec.ValidateIdentity(g)
 }
 
 func (g GateResult) ContentBytes() ([]byte, error) {
-	if err := g.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	g.ID = artifact.ID{}
-	return gateContent(g)
+	return gateCodec.ContentBytes(g)
 }
 
 func (g GateResult) Content() (artifact.Content, error) {
-	id := g.ID
-	content, err := g.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return gateContract.Content(id, content)
+	return gateCodec.Content(g)
 }
 
 func (g GateResult) Lineage() []artifact.Lineage {

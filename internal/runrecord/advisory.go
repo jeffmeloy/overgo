@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +24,14 @@ const (
 
 var advisoryContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: AdvisoryMediaType, Schema: AdvisorySchema,
+}
+
+var advisoryCodec = artifact.DocumentCodec[Advisory]{
+	Name: "run record advisory", Contract: advisoryContract,
+	Decode: func(data []byte, value *Advisory) error { return strictjson.DecodeBytes(data, value) },
+	Encode: advisoryContent, Canonicalize: canonicalizeAdvisory, Clone: cloneAdvisory,
+	Identity:    func(value Advisory) artifact.ID { return value.ID },
+	SetIdentity: func(value *Advisory, id artifact.ID) { value.ID = id },
 }
 
 type Observation struct {
@@ -125,35 +132,12 @@ func DetectRegression(
 		advisory.SourceRuns[index] = observation.Run.ID
 		advisory.SourceEvaluations[index] = observation.Evaluation.ID
 	}
-	if err := canonicalizeAdvisory(&advisory); err != nil {
-		return Advisory{}, false, err
-	}
-	content, err := advisoryContent(advisory)
-	if err != nil {
-		return Advisory{}, false, err
-	}
-	advisory.ID, err = advisoryContract.Identify(content)
+	advisory, err := advisoryCodec.New(advisory)
 	return advisory, err == nil, err
 }
 
 func ParseAdvisory(content []byte) (Advisory, error) {
-	var advisory Advisory
-	if err := strictjson.DecodeBytes(content, &advisory); err != nil {
-		return Advisory{}, fmt.Errorf("run record: decode advisory: %w", err)
-	}
-	advisory.ID = artifact.ID{}
-	if err := canonicalizeAdvisory(&advisory); err != nil {
-		return Advisory{}, err
-	}
-	canonical, err := advisoryContent(advisory)
-	if err != nil {
-		return Advisory{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Advisory{}, errors.New("run record: non-canonical advisory")
-	}
-	advisory.ID, err = advisoryContract.Identify(canonical)
-	return advisory, err
+	return advisoryCodec.Parse(content)
 }
 
 func (a Advisory) Surprise() float64 {
@@ -167,44 +151,15 @@ func (a Advisory) Surprise() float64 {
 }
 
 func (a Advisory) ValidateIdentity() error {
-	if a.ID.Kind() != artifact.KindEvidence {
-		return errors.New("run record: invalid advisory identity")
-	}
-	canonical := cloneAdvisory(a)
-	canonical.ID = artifact.ID{}
-	if err := canonicalizeAdvisory(&canonical); err != nil {
-		return err
-	}
-	canonical.ID = a.ID
-	if !sameAdvisory(a, canonical) {
-		return errors.New("run record: advisory is not canonical")
-	}
-	canonical.ID = artifact.ID{}
-	content, err := advisoryContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := advisoryContract.ValidateIdentity(a.ID, content); err != nil {
-		return errors.New("run record: advisory identity mismatch")
-	}
-	return nil
+	return advisoryCodec.ValidateIdentity(a)
 }
 
 func (a Advisory) ContentBytes() ([]byte, error) {
-	if err := a.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	a.ID = artifact.ID{}
-	return advisoryContent(a)
+	return advisoryCodec.ContentBytes(a)
 }
 
 func (a Advisory) Content() (artifact.Content, error) {
-	id := a.ID
-	content, err := a.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return advisoryContract.Content(id, content)
+	return advisoryCodec.Content(a)
 }
 
 func (a Advisory) Lineage() []artifact.Lineage {
@@ -373,12 +328,4 @@ func cloneAdvisory(advisory Advisory) Advisory {
 	advisory.SourceEvaluations = slices.Clone(advisory.SourceEvaluations)
 	advisory.PhaseDeltas = slices.Clone(advisory.PhaseDeltas)
 	return advisory
-}
-
-func sameAdvisory(left, right Advisory) bool {
-	leftID, rightID := left.ID, right.ID
-	left.ID, right.ID = artifact.ID{}, artifact.ID{}
-	leftContent, leftErr := advisoryContent(left)
-	rightContent, rightErr := advisoryContent(right)
-	return leftID == rightID && leftErr == nil && rightErr == nil && bytes.Equal(leftContent, rightContent)
 }

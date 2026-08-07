@@ -1,7 +1,6 @@
 package dataset
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +23,14 @@ const (
 
 var documentContract = artifact.DocumentContract{
 	Kind: artifact.KindDataset, MediaType: MediaType, Schema: Schema,
+}
+
+var documentCodec = artifact.DocumentCodec[Document]{
+	Name: "dataset", Contract: documentContract,
+	Decode: func(data []byte, value *Document) error { return strictjson.DecodeBytes(data, value) },
+	Encode: documentContent, Canonicalize: canonicalize, Clone: cloneDocument,
+	Identity:    func(value Document) artifact.ID { return value.ID },
+	SetIdentity: func(value *Document, id artifact.ID) { value.ID = id },
 }
 
 // Type: canonical dataset document form.
@@ -91,67 +98,19 @@ func NewMixture(members []Member) (Document, error) {
 }
 
 func Parse(content []byte) (Document, error) {
-	var document Document
-	if err := strictjson.DecodeBytes(content, &document); err != nil {
-		return Document{}, fmt.Errorf("dataset: decode document: %w", err)
-	}
-	parsed, err := newDocument(document)
-	if err != nil {
-		return Document{}, err
-	}
-	canonical, err := parsed.ContentBytes()
-	if err != nil {
-		return Document{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Document{}, errors.New("dataset: non-canonical document")
-	}
-	return parsed, nil
+	return documentCodec.Parse(content)
 }
 
 func (d Document) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindDataset {
-		return errors.New("dataset: invalid document identity")
-	}
-	canonical := d
-	canonical.ID = artifact.ID{}
-	if err := canonicalize(&canonical); err != nil {
-		return err
-	}
-	canonical.ID = d.ID
-	if !sameDocument(d, canonical) {
-		return errors.New("dataset: document is not canonical")
-	}
-	canonical.ID = artifact.ID{}
-	content, err := json.Marshal(canonical)
-	if err != nil {
-		return fmt.Errorf("dataset: encode document: %w", err)
-	}
-	if err := documentContract.ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("dataset: document identity mismatch")
-	}
-	return nil
+	return documentCodec.ValidateIdentity(d)
 }
 
 func (d Document) ContentBytes() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	canonical := d
-	canonical.ID = artifact.ID{}
-	content, err := json.Marshal(canonical)
-	if err != nil {
-		return nil, fmt.Errorf("dataset: encode document: %w", err)
-	}
-	return content, nil
+	return documentCodec.ContentBytes(d)
 }
 
 func (d Document) Content() (artifact.Content, error) {
-	content, err := d.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return documentContract.Content(d.ID, content)
+	return documentCodec.Content(d)
 }
 
 func (d Document) Lineage() []artifact.Lineage {
@@ -178,20 +137,7 @@ func (d Document) Lineage() []artifact.Lineage {
 }
 
 func newDocument(document Document) (Document, error) {
-	document.ID = artifact.ID{}
-	if err := canonicalize(&document); err != nil {
-		return Document{}, err
-	}
-	content, err := json.Marshal(document)
-	if err != nil {
-		return Document{}, fmt.Errorf("dataset: encode document: %w", err)
-	}
-	id, err := documentContract.Identify(content)
-	if err != nil {
-		return Document{}, err
-	}
-	document.ID = id
-	return document, nil
+	return documentCodec.New(document)
 }
 
 func canonicalize(document *Document) error {
@@ -307,19 +253,27 @@ func canonicalizeMembers(members *[]Member) error {
 	return nil
 }
 
-func sameDocument(left, right Document) bool {
-	return left.Version == right.Version && left.Type == right.Type && left.ID == right.ID &&
-		sameID(left.Source, right.Source) && sameID(left.Selector, right.Selector) &&
-		slices.Equal(left.Assets, right.Assets) && slices.Equal(left.Fields, right.Fields) &&
-		slices.Equal(left.Partitions, right.Partitions) && slices.Equal(left.Members, right.Members)
-}
-
 func datasetID(id *artifact.ID) bool {
 	return id != nil && id.Kind() == artifact.KindDataset
 }
 
-func sameID(left, right *artifact.ID) bool {
-	return left == nil && right == nil || left != nil && right != nil && *left == *right
+func documentContent(document Document) ([]byte, error) {
+	document.ID = artifact.ID{}
+	content, err := json.Marshal(document)
+	if err != nil {
+		return nil, fmt.Errorf("dataset: encode document: %w", err)
+	}
+	return content, nil
+}
+
+func cloneDocument(document Document) Document {
+	document.Assets = slices.Clone(document.Assets)
+	document.Source = artifact.CloneID(document.Source)
+	document.Selector = artifact.CloneID(document.Selector)
+	document.Fields = slices.Clone(document.Fields)
+	document.Partitions = slices.Clone(document.Partitions)
+	document.Members = slices.Clone(document.Members)
+	return document
 }
 
 func validName(value string) bool {

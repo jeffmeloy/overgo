@@ -56,6 +56,33 @@ func TestOperationStorageContracts(t *testing.T) {
 	}
 }
 
+func TestOperationAttributesRejectMismatches(t *testing.T) {
+	const (
+		fixtureWidth    = 4
+		fixtureTensorID = 1
+		fixtureEpsilon  = 1e-5
+	)
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(fixtureWidth))
+	if output := builder.unary(OpScale, input, RMSNormAttributes{Epsilon: fixtureEpsilon}); output != nil {
+		t.Fatal("mismatched builder attributes produced a tensor")
+	}
+	if builder.Err() == nil {
+		t.Fatal("mismatched builder attributes were not reported")
+	}
+	malformed := &Tensor{
+		ID:     fixtureTensorID,
+		Type:   dtype.F32,
+		Shape:  MustShape(fixtureWidth),
+		Op:     OpScale,
+		Inputs: []*Tensor{input},
+		Attrs:  RMSNormAttributes{Epsilon: fixtureEpsilon},
+	}
+	if _, err := Topological(malformed); err == nil {
+		t.Fatal("mismatched graph attributes passed validation")
+	}
+}
+
 func TestOutputTargetAliasContract(t *testing.T) {
 	builder := NewBuilder()
 	left := builder.Input("left", dtype.F32, MustShape(3))

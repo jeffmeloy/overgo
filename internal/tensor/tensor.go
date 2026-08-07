@@ -317,7 +317,7 @@ type Tensor struct {
 	Stride [MaxDimensions]uint64
 	Op     Op
 	Inputs []*Tensor
-	Attrs  any
+	Attrs  Attributes
 }
 
 // EmbeddedInputAttributes: immutable graph-owned F32 feed.
@@ -495,7 +495,7 @@ func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 	return b.add("", left.Type, shape, OpConcat, []*Tensor{left, right}, ConcatAttributes{Axis: axis})
 }
 
-func (b *Builder) unary(op Op, input *Tensor, attrs any) *Tensor {
+func (b *Builder) unary(op Op, input *Tensor, attrs Attributes) *Tensor {
 	if b.err != nil {
 		return nil
 	}
@@ -558,8 +558,12 @@ func (b *Builder) add(
 	shape Shape,
 	op Op,
 	inputs []*Tensor,
-	attrs any,
+	attrs Attributes,
 ) *Tensor {
+	if err := validateOperationAttributes(op, attrs); err != nil {
+		b.setError(err)
+		return nil
+	}
 	stride, err := contiguousStride(dataType, shape)
 	if err != nil {
 		b.setError(err)

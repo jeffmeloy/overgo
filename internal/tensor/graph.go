@@ -38,6 +38,9 @@ func Topological(outputs ...*Tensor) ([]*Tensor, error) {
 				return err
 			}
 		}
+		if err := validateOperationAttributes(node.Op, node.Attrs); err != nil {
+			return fmt.Errorf("tensor %d: %w", node.ID, err)
+		}
 		if _, _, err := ResolveStorageView(node); err != nil {
 			return fmt.Errorf("tensor %d storage contract: %w", node.ID, err)
 		}

@@ -154,6 +154,7 @@ type preparedModel struct {
 	worker              *device.Worker
 	deviceWeights       *model.DeviceF32Weights
 	rawWeights          *model.DeviceWeights
+	decodeWeights       *model.DeviceBF16Weights
 	hostWeights         *model.HostTensorStore
 	outputBias          []float32
 	promptCacheCapacity int
@@ -188,9 +189,10 @@ type cachedPrompt struct {
 }
 
 type OpenOptions struct {
-	DeviceOrdinal           int
-	PreloadDeviceWeights    bool
-	PreloadQuantizedWeights bool
+	DeviceOrdinal            int
+	PreloadDeviceWeights     bool
+	PreloadQuantizedWeights  bool
+	PreloadBF16DecodeWeights bool
 	// CacheHostWeights retains lazily dequantized F32 host tensors.
 	// False preserves bounded layer-at-a-time loading.
 	CacheHostWeights bool

@@ -46,3 +46,24 @@ func (l *Library) SGEMM(
 ) error {
 	return errors.New("cuBLAS loading is currently supported only on Windows")
 }
+
+func (l *Library) GEMMEx(
+	handle Handle,
+	operationA, operationB Operation,
+	m, n, k int32,
+	alpha float32,
+	a driver.DevicePtr,
+	typeA DataType,
+	leadingA int32,
+	b driver.DevicePtr,
+	typeB DataType,
+	leadingB int32,
+	beta float32,
+	c driver.DevicePtr,
+	typeC DataType,
+	leadingC int32,
+	compute ComputeType,
+	algorithm GemmAlgorithm,
+) error {
+	return errors.New("cuBLAS loading is currently supported only on Windows")
+}

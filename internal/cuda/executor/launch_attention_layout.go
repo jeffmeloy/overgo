@@ -3,6 +3,7 @@ package executor
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -97,6 +98,28 @@ func launchAttentionLayout(
 		} else if attributes.ChunkedWindow {
 			const chunkedWindowABI = 2
 			symmetricWindow = chunkedWindowABI
+		}
+		const (
+			attentionDecodeThreads       = uint32(256)
+			attentionDecodeSharedLimit   = uint64(48 * 1024)
+			attentionDecodePartialFloats = uint64(attentionDecodeThreads)
+			f32Bytes                     = uint64(4)
+		)
+		sharedBytes := (uint64(keyValueTokens) + attentionDecodePartialFloats) * f32Bytes
+		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
+			relativeBias == 0 && sinks == 0 && blockIDs == 0 && softcap == 0 &&
+			maxALiBiBias == 0 && window == 0 && sharedBytes <= attentionDecodeSharedLimit {
+			blocks := uint64(queryHeads) * uint64(sequences)
+			if blocks > math.MaxUint32 {
+				return errors.New("decode attention launch size exceeds uint32")
+			}
+			return launchGridSharedABI(
+				state, functions.attentionDecode,
+				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
+				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
+				&query, &key, &value, &output, &keyWidth, &valueWidth,
+				&queryHeads, &keyValueHeads, &keyValueTokens, &sequences, &scale,
+			)
 		}
 		return launch1DABI(
 			state, functions.attention, count,

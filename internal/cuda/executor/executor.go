@@ -38,6 +38,7 @@ type executorResources struct {
 	arena     driver.DevicePtr
 	arenaSize uint64
 	buffers   deviceBufferPool
+	graphExec driver.GraphExec
 }
 
 const minimumDeviceBufferBytes uint64 = 256
@@ -320,12 +321,13 @@ type executionResult struct {
 
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
-	outputs     []*tensor.Tensor
-	order       []*tensor.Tensor
-	memory      planner.Plan
-	weightedRMS map[*tensor.Tensor]weightedRMSFusion
-	skipped     map[*tensor.Tensor]struct{}
-	needBlas    bool
+	outputs        []*tensor.Tensor
+	order          []*tensor.Tensor
+	memory         planner.Plan
+	weightedRMS    map[*tensor.Tensor]weightedRMSFusion
+	skipped        map[*tensor.Tensor]struct{}
+	needBlas       bool
+	bf16InputBytes uint64
 }
 
 type weightedRMSFusion struct {
@@ -387,8 +389,15 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	}
 	for _, node := range order {
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
-			node.Inputs[0].Type == dtype.F32 {
+			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {
 			compiled.needBlas = true
+		}
+		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.BF16 {
+			elements, elementErr := node.Inputs[1].Shape.Elements()
+			if elementErr != nil || elements > math.MaxUint64/2 {
+				return nil, errors.New("BF16 mul_mat input size overflows")
+			}
+			compiled.bf16InputBytes = max(compiled.bf16InputBytes, elements*2)
 		}
 		if node.Op != tensor.OpMultiply || len(node.Inputs) != 2 {
 			continue
@@ -572,7 +581,7 @@ func (e *Executor) runCompiled(
 	}
 	var result *executionResult
 	err := e.worker.Do(ctx, func(state *device.State) error {
-		resources, resourceErr := e.ensureResources(state, compiled.needBlas)
+		resources, resourceErr := e.ensureResources(state, compiled.needBlas, compiled.bf16InputBytes)
 		if resourceErr != nil {
 			return resourceErr
 		}
@@ -590,6 +599,7 @@ func (e *Executor) runCompiled(
 			resources.blas,
 			arena,
 			&resources.buffers,
+			&resources.graphExec,
 			retain,
 		)
 		return executeErr
@@ -606,6 +616,7 @@ func execute(
 	blas *blasState,
 	arena driver.DevicePtr,
 	buffers *deviceBufferPool,
+	graphExec *driver.GraphExec,
 	retainOutputs bool,
 ) (result *executionResult, err error) {
 	outputs := compiled.outputs
@@ -687,7 +698,7 @@ func execute(
 			continue
 		}
 		if pointer, ok := deviceFeeds[node]; ok {
-			if node.Type != dtype.F32 && !nativeQuantizedType(node.Type) {
+			if node.Type != dtype.F32 && node.Type != dtype.BF16 && !nativeQuantizedType(node.Type) {
 				return nil, fmt.Errorf("CUDA device feed %q has unsupported type %s", node.Name, node.Type)
 			}
 			if pointer == 0 {
@@ -813,6 +824,23 @@ func execute(
 		}
 	}
 
+	capturing := retainOutputs && graphExec != nil
+	if blas != nil {
+		blas.stagedNode = nil
+	}
+	if capturing {
+		if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
+			return nil, captureErr
+		}
+	}
+	abortCapture := func() {
+		if !capturing {
+			return
+		}
+		graph, _ := state.Driver.StreamEndCapture(state.Stream)
+		_ = state.Driver.GraphDestroy(graph)
+		capturing = false
+	}
 	for _, node := range order {
 		if node.Op == tensor.OpInput {
 			continue
@@ -827,15 +855,41 @@ func execute(
 		}
 		if fusion, ok := compiled.weightedRMS[node]; ok {
 			if err := launchWeightedRMSNorm(state, functions, node, fusion, pointers); err != nil {
+				abortCapture()
 				return nil, fmt.Errorf("launch tensor %d (weighted_rms_norm): %w", node.ID, err)
 			}
 			submitted = true
 			continue
 		}
 		if err := launchNode(state, functions, blas, node, pointers, attributePointers); err != nil {
+			abortCapture()
 			return nil, fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 		}
 		submitted = true
+	}
+	if capturing {
+		graph, captureErr := state.Driver.StreamEndCapture(state.Stream)
+		capturing = false
+		if captureErr != nil {
+			return nil, captureErr
+		}
+		defer state.Driver.GraphDestroy(graph)
+		if *graphExec != 0 {
+			updated, updateErr := state.Driver.GraphExecUpdate(*graphExec, graph)
+			if updateErr != nil || !updated {
+				_ = state.Driver.GraphExecDestroy(*graphExec)
+				*graphExec = 0
+			}
+		}
+		if *graphExec == 0 {
+			*graphExec, err = state.Driver.GraphInstantiate(graph)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if err := state.Driver.GraphLaunch(*graphExec, state.Stream); err != nil {
+			return nil, err
+		}
 	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 		return nil, err
@@ -877,6 +931,7 @@ type functionSet struct {
 	scale               driver.Function
 	clamp               driver.Function
 	bf16Round           driver.Function
+	f32ToBF16           driver.Function
 	copy                driver.Function
 	silu                driver.Function
 	gelu                driver.Function
@@ -925,6 +980,7 @@ type functionSet struct {
 	ropeNormal          driver.Function
 	ropeMulti           driver.Function
 	attention           driver.Function
+	attentionDecode     driver.Function
 	concat              driver.Function
 	getRowsQ8           driver.Function
 	mulMatQ8            driver.Function
@@ -1019,13 +1075,17 @@ var quantKernels = map[dtype.Type]quantKernelDescriptor{
 }
 
 type blasState struct {
-	library *cublas.Library
-	handle  cublas.Handle
+	library      *cublas.Library
+	handle       cublas.Handle
+	staging      driver.DevicePtr
+	stagingBytes uint64
+	stagedNode   *tensor.Tensor
 }
 
 func (e *Executor) ensureResources(
 	state *device.State,
 	needBlas bool,
+	bf16InputBytes uint64,
 ) (*executorResources, error) {
 	if e.resources.module == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
@@ -1059,6 +1119,20 @@ func (e *Executor) ensureResources(
 			return nil, err
 		}
 		e.resources.blas = &blasState{library: library, handle: handle}
+	}
+	if bf16InputBytes > 0 && e.resources.blas != nil && e.resources.blas.stagingBytes < bf16InputBytes {
+		staging, err := state.Driver.MemAlloc(bf16InputBytes)
+		if err != nil {
+			return nil, err
+		}
+		if e.resources.blas.staging != 0 {
+			if err := state.Driver.MemFree(e.resources.blas.staging); err != nil {
+				_ = state.Driver.MemFree(staging)
+				return nil, err
+			}
+		}
+		e.resources.blas.staging = staging
+		e.resources.blas.stagingBytes = bf16InputBytes
 	}
 	return &e.resources, nil
 }
@@ -1096,7 +1170,16 @@ func (e *Executor) closeResources(state *device.State) error {
 		e.resources.arena = 0
 		e.resources.arenaSize = 0
 	}
+	if e.resources.graphExec != 0 {
+		errs = append(errs, state.Driver.GraphExecDestroy(e.resources.graphExec))
+		e.resources.graphExec = 0
+	}
 	if e.resources.blas != nil {
+		if e.resources.blas.staging != 0 {
+			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))
+			e.resources.blas.staging = 0
+			e.resources.blas.stagingBytes = 0
+		}
 		if err := e.resources.blas.library.Destroy(e.resources.blas.handle); err != nil {
 			errs = append(errs, err)
 		}
@@ -1130,6 +1213,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"scale_f32", &result.scale},
 		{"clamp_f32", &result.clamp},
 		{"bf16_round_f32", &result.bf16Round},
+		{"f32_to_bf16", &result.f32ToBF16},
 		{"copy_f32", &result.copy},
 		{"silu_f32", &result.silu},
 		{"gelu_f32", &result.gelu},
@@ -1178,6 +1262,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"rope_normal_f32", &result.ropeNormal},
 		{"rope_multi_f32", &result.ropeMulti},
 		{"attention_f32", &result.attention},
+		{"attention_decode_f32", &result.attentionDecode},
 		{"concat_f32", &result.concat},
 		{"get_rows_q8_0_f32", &result.getRowsQ8},
 		{"mul_mat_q8_0_f32", &result.mulMatQ8},

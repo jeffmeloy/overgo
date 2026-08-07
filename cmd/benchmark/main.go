@@ -40,6 +40,7 @@ type options struct {
 	Warmup         int
 	Preload        bool
 	NativeQuant    bool
+	BF16Decode     bool
 	HostCache      bool
 	CachePrompt    bool
 	BatchSequences int
@@ -69,6 +70,9 @@ type runMetrics struct {
 	DeviceToDeviceBytes      uint64  `json:"device_to_device_bytes"`
 	DeviceMemsets            uint64  `json:"device_memsets"`
 	DeviceMemsetBytes        uint64  `json:"device_memset_bytes"`
+	GraphInstantiations      uint64  `json:"graph_instantiations"`
+	GraphUpdates             uint64  `json:"graph_updates"`
+	GraphLaunches            uint64  `json:"graph_launches"`
 	KernelLaunchesPerToken   float64 `json:"custom_kernel_launches_per_output_token"`
 	SynchronizationsPerToken float64 `json:"stream_synchronizations_per_output_token"`
 }
@@ -119,6 +123,7 @@ func parseOptions(args []string) (options, error) {
 	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
 	flags.BoolVar(&result.ContextShift, "context-shift", false, "enable rolling context shift")
+	flags.BoolVar(&result.BF16Decode, "decode-bf16", false, "retain BF16 Qwen decode projections alongside native-quantized prefill weights")
 	flags.BoolVar(&result.CachePrompt, "cache-prompt", false, "reuse retained prompt state between runs")
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
 	if err := flags.Parse(args); err != nil {
@@ -147,6 +152,9 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.Preload && result.NativeQuant {
 		return options{}, errors.New("benchmark: -preload and -native-quant are mutually exclusive")
+	}
+	if result.BF16Decode && !result.NativeQuant {
+		return options{}, errors.New("benchmark: -decode-bf16 requires -native-quant")
 	}
 	if result.HostCache && (result.Preload || result.NativeQuant) {
 		return options{}, errors.New("benchmark: -host-cache and device preload are mutually exclusive")
@@ -184,6 +192,7 @@ func run(args []string) error {
 		options.Device, options.Preload, options.NativeQuant, options.LoRA, 1,
 	)
 	openOptions.CacheHostWeights = options.HostCache
+	openOptions.PreloadBF16DecodeWeights = options.BF16Decode
 	runner, err := inference.OpenWithOptions(options.Model, openOptions)
 	if err != nil {
 		return err
@@ -266,6 +275,9 @@ func run(args []string) error {
 			DeviceToDeviceBytes:    execution.DeviceToDeviceBytes,
 			DeviceMemsets:          execution.DeviceMemsets,
 			DeviceMemsetBytes:      execution.DeviceMemsetBytes,
+			GraphInstantiations:    execution.GraphInstantiations,
+			GraphUpdates:           execution.GraphUpdates,
+			GraphLaunches:          execution.GraphLaunches,
 		}
 		uncachedPromptTokens := promptEvaluation.Tokens - promptEvaluation.Cached
 		if uncachedPromptTokens > 0 && promptEvaluation.Duration > 0 {
@@ -341,6 +353,9 @@ func subtractExecutionStats(after, before driver.ExecutionStats) driver.Executio
 		DeviceToDeviceBytes:     after.DeviceToDeviceBytes - before.DeviceToDeviceBytes,
 		DeviceMemsets:           after.DeviceMemsets - before.DeviceMemsets,
 		DeviceMemsetBytes:       after.DeviceMemsetBytes - before.DeviceMemsetBytes,
+		GraphInstantiations:     after.GraphInstantiations - before.GraphInstantiations,
+		GraphUpdates:            after.GraphUpdates - before.GraphUpdates,
+		GraphLaunches:           after.GraphLaunches - before.GraphLaunches,
 	}
 }
 
@@ -427,6 +442,8 @@ func executeContinuousBatch(
 		DeviceToHostCopies: execution.DeviceToHostCopies, DeviceToHostBytes: execution.DeviceToHostBytes,
 		DeviceToDeviceCopies: execution.DeviceToDeviceCopies, DeviceToDeviceBytes: execution.DeviceToDeviceBytes,
 		DeviceMemsets: execution.DeviceMemsets, DeviceMemsetBytes: execution.DeviceMemsetBytes,
+		GraphInstantiations: execution.GraphInstantiations,
+		GraphUpdates:        execution.GraphUpdates, GraphLaunches: execution.GraphLaunches,
 	}
 	if ttft > 0 {
 		metrics.PromptTokensPerSecond = float64(promptTokens) / ttft.Seconds()

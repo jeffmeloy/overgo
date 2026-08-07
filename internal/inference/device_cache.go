@@ -510,9 +510,11 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
-	retained, err := r.cuda.ExecuteRetainedWithDeviceFeeds(
-		ctx, outputs, hostFeeds, deviceFeeds,
-	)
+	compiled, err := executor.Compile(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	retained, err := r.cuda.ExecuteRetainedCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds)
 	if err != nil {
 		return nil, err
 	}
@@ -706,9 +708,17 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	states := make([]deviceGraphStates, len(r.weights.Layers))
+	decodeCatalog := greedy && tokensPerSequence == 1 && r.decodeWeights != nil
 	for layerIndex, info := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, info.Recurrent)
-		graphWeights, layerFeeds, layerErr := r.layerDeviceInputs(builder, info)
+		var graphWeights model.LayerGraphWeights
+		var layerFeeds map[*tensor.Tensor]driver.DevicePtr
+		var layerErr error
+		if decodeCatalog {
+			graphWeights, layerFeeds, layerErr = r.layerDecodeDeviceInputs(builder, info)
+		} else {
+			graphWeights, layerFeeds, layerErr = r.layerDeviceInputs(builder, info)
+		}
 		if layerErr != nil {
 			return fail(layerErr)
 		}
@@ -815,7 +825,13 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(err)
 	}
 	outputInfo := r.outputTensor()
-	outputTable, outputPointer, err := r.deviceInput(builder, outputInfo)
+	var outputTable *tensor.Tensor
+	var outputPointer driver.DevicePtr
+	if decodeCatalog {
+		outputTable, outputPointer, err = r.decodeDeviceInput(builder, outputInfo)
+	} else {
+		outputTable, outputPointer, err = r.deviceInput(builder, outputInfo)
+	}
 	if err != nil {
 		return fail(err)
 	}

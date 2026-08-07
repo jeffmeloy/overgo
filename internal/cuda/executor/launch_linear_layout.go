@@ -121,11 +121,7 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		launchCount, err := normalizationLaunchCount(rows)
-		if err != nil {
-			return err
-		}
-		return launch1DABI(state, functions.rmsNorm, launchCount, &input, &output, &width, &rows, &epsilon)
+		return launchNormalizationABI(state, functions.rmsNorm, rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
 		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
 		if !ok {
@@ -137,11 +133,7 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		launchCount, err := normalizationLaunchCount(rows)
-		if err != nil {
-			return err
-		}
-		return launch1DABI(state, functions.layerNorm, launchCount, &input, &output, &width, &rows, &epsilon)
+		return launchNormalizationABI(state, functions.layerNorm, rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpSoftmax:
 		width, rows, err := rowDimensions32(node.Shape)
 		if err != nil {
@@ -166,6 +158,29 @@ func launchLinearLayout(
 		}
 		left := pointers[leftNode]
 		right := pointers[rightNode]
+		if leftNode.Type == dtype.BF16 {
+			if blas == nil || blas.staging == 0 {
+				return errors.New("cuBLAS BF16 workspace is unavailable")
+			}
+			elements := uint64(inner) * uint64(rightRows)
+			if elements > math.MaxUint32 || elements*2 > blas.stagingBytes {
+				return errors.New("BF16 mul_mat input exceeds workspace")
+			}
+			if blas.stagedNode != rightNode {
+				count := uint32(elements)
+				if err := launch1DABI(state, functions.f32ToBF16, count, &right, &blas.staging, &count); err != nil {
+					return err
+				}
+				blas.stagedNode = rightNode
+			}
+			return blas.library.GEMMEx(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(leftRows), int32(rightRows), int32(inner), 1,
+				left, cublas.DataBF16, int32(inner),
+				blas.staging, cublas.DataBF16, int32(inner), 0,
+				output, cublas.DataF32, int32(leftRows), cublas.ComputeF32, cublas.GemmDefault,
+			)
+		}
 		if nativeQuantizedType(leftNode.Type) {
 			if rightNode.Type != dtype.F32 {
 				return fmt.Errorf("%s mul_mat right input has type %s", leftNode.Type, rightNode.Type)
@@ -326,16 +341,12 @@ func launchWeightedRMSNorm(
 	if err != nil {
 		return err
 	}
-	launchCount, err := normalizationLaunchCount(rows)
-	if err != nil {
-		return err
-	}
 	input := pointers[fusion.normalization.Inputs[0]]
 	weight := pointers[fusion.weight]
 	result := pointers[output]
 	epsilon := attributes.Epsilon
-	return launch1DABI(
-		state, functions.weightedRMSNorm, launchCount,
+	return launchNormalizationABI(
+		state, functions.weightedRMSNorm, rows,
 		&input, &weight, &result, &width, &rows, &epsilon,
 	)
 }
@@ -363,10 +374,20 @@ func quantMulMatLaunchCount(storage dtype.Type, leftRows, rightRows uint32) (uin
 	return launches, nil
 }
 
-func normalizationLaunchCount(rows uint32) (uint32, error) {
-	const normalizationThreadsPerRow = uint32(32)
-	if rows > math.MaxUint32/normalizationThreadsPerRow {
-		return 0, errors.New("normalization launch size exceeds uint32")
+func launchNormalizationABI(
+	state *device.State,
+	function driver.Function,
+	rows uint32,
+	arguments ...any,
+) error {
+	if rows == 0 {
+		return nil
 	}
-	return rows * normalizationThreadsPerRow, nil
+	const threads = uint32(256)
+	return launchGridABI(
+		state, function,
+		driver.Dim3{X: rows, Y: 1, Z: 1},
+		driver.Dim3{X: threads, Y: 1, Z: 1},
+		arguments...,
+	)
 }

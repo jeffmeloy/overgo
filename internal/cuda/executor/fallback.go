@@ -105,6 +105,16 @@ func launchGridABI(
 	grid, block driver.Dim3,
 	arguments ...any,
 ) error {
+	return launchGridSharedABI(state, function, grid, block, 0, arguments...)
+}
+
+func launchGridSharedABI(
+	state *device.State,
+	function driver.Function,
+	grid, block driver.Dim3,
+	sharedBytes uint32,
+	arguments ...any,
+) error {
 	pointers := make([]unsafe.Pointer, len(arguments))
 	for index, argument := range arguments {
 		value := reflect.ValueOf(argument)
@@ -113,7 +123,7 @@ func launchGridABI(
 		}
 		pointers[index] = value.UnsafePointer()
 	}
-	err := state.Driver.LaunchKernel(function, grid, block, 0, state.Stream, pointers)
+	err := state.Driver.LaunchKernel(function, grid, block, sharedBytes, state.Stream, pointers)
 	runtime.KeepAlive(arguments)
 	return err
 }

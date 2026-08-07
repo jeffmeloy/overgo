@@ -38,6 +38,45 @@ constexpr unsigned int Q8_0_BLOCK_BYTES = 34;
 constexpr unsigned int Q8_0_SCALE_BYTES = 2;
 constexpr unsigned int Q8_0_VECTORS_PER_WARP = 4;
 
+__device__ float block_sum_f32(float value, float * partial) {
+    const unsigned int lane = threadIdx.x;
+    partial[lane] = value;
+    __syncthreads();
+    for (unsigned int stride = blockDim.x / 2; stride > 0; stride /= 2) {
+        if (lane < stride) {
+            partial[lane] += partial[lane + stride];
+        }
+        __syncthreads();
+    }
+    return partial[0];
+}
+
+__device__ float block_max_f32(float value, float * partial) {
+    const unsigned int lane = threadIdx.x;
+    partial[lane] = value;
+    __syncthreads();
+    for (unsigned int stride = blockDim.x / 2; stride > 0; stride /= 2) {
+        if (lane < stride) {
+            partial[lane] = fmaxf(partial[lane], partial[lane + stride]);
+        }
+        __syncthreads();
+    }
+    return partial[0];
+}
+
+extern "C" __global__ void f32_to_bf16(
+        const float * input,
+        unsigned short * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    unsigned int bits = __float_as_uint(input[index]);
+    bits += 0x7fffU + ((bits >> 16) & 1U);
+    output[index] = (unsigned short) (bits >> 16);
+}
+
 extern "C" __global__ void add_f32(
         const float * input_a,
         const float * input_b,
@@ -638,18 +677,20 @@ extern "C" __global__ void l2_norm_f32(
         unsigned int width,
         unsigned int rows,
         float epsilon) {
-    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int row = blockIdx.x;
     if (row >= rows) {
         return;
     }
     const unsigned int offset = row * width;
     float sum_squares = 0.0f;
-    for (unsigned int column = 0; column < width; ++column) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         const float value = input[offset + column];
         sum_squares += value * value;
     }
+    __shared__ float partial[256];
+    sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = 1.0f / fmaxf(sqrtf(sum_squares), epsilon);
-    for (unsigned int column = 0; column < width; ++column) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = input[offset + column] * inverse;
     }
 }
@@ -1363,24 +1404,20 @@ extern "C" __global__ void rms_norm_f32(
         unsigned int width,
         unsigned int rows,
         float epsilon) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int row = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.x;
     if (row >= rows) {
         return;
     }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int offset = row * width;
     float sum_squares = 0.0f;
-    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         const float value = input[offset + column];
         sum_squares += value * value;
     }
-    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
-        sum_squares += __shfl_down_sync(0xffffffff, sum_squares, delta);
-    }
-    sum_squares = __shfl_sync(0xffffffff, sum_squares, 0);
+    __shared__ float partial[256];
+    sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
-    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = input[offset + column] * inverse;
     }
 }
@@ -1392,24 +1429,20 @@ extern "C" __global__ void weighted_rms_norm_f32(
         unsigned int width,
         unsigned int rows,
         float epsilon) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int row = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.x;
     if (row >= rows) {
         return;
     }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int offset = row * width;
     float sum_squares = 0.0f;
-    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         const float value = input[offset + column];
         sum_squares += value * value;
     }
-    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
-        sum_squares += __shfl_down_sync(0xffffffff, sum_squares, delta);
-    }
-    sum_squares = __shfl_sync(0xffffffff, sum_squares, 0);
+    __shared__ float partial[256];
+    sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
-    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = input[offset + column] * inverse * weight[column];
     }
 }
@@ -1420,33 +1453,26 @@ extern "C" __global__ void layer_norm_f32(
         unsigned int width,
         unsigned int rows,
         float epsilon) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int row = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.x;
     if (row >= rows) {
         return;
     }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int offset = row * width;
     float sum = 0.0f;
-    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         sum += input[offset + column];
     }
-    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
-        sum += __shfl_down_sync(0xffffffff, sum, delta);
-    }
-    sum = __shfl_sync(0xffffffff, sum, 0);
+    __shared__ float partial[256];
+    sum = block_sum_f32(sum, partial);
     const float mean = sum / (float) width;
     float sum_squares = 0.0f;
-    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         const float centered = input[offset + column] - mean;
         sum_squares += centered * centered;
     }
-    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
-        sum_squares += __shfl_down_sync(0xffffffff, sum_squares, delta);
-    }
-    sum_squares = __shfl_sync(0xffffffff, sum_squares, 0);
+    sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
-    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = (input[offset + column] - mean) * inverse;
     }
 }
@@ -2107,6 +2133,62 @@ extern "C" __global__ void attention_f32(
         weighted += probability * value[value_offset + value_channel];
     }
     output[index] = weighted / sum;
+}
+
+extern "C" __global__ void attention_decode_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        float * output,
+        unsigned int key_width,
+        unsigned int value_width,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int key_value_tokens,
+        unsigned int sequences,
+        float scale) {
+    const unsigned int row = blockIdx.x;
+    const unsigned int query_head = row % query_heads;
+    const unsigned int sequence = row / query_heads;
+    if (sequence >= sequences) {
+        return;
+    }
+    const unsigned int group_size = query_heads / key_value_heads;
+    const unsigned int key_value_head = query_head / group_size;
+    const unsigned int query_offset =
+        (sequence * query_heads + query_head) * key_width;
+    extern __shared__ float shared[];
+    float * scores = shared;
+    float * partial = shared + key_value_tokens;
+    float local_maximum = -3.402823466e+38F;
+    for (unsigned int token = threadIdx.x; token < key_value_tokens; token += blockDim.x) {
+        const unsigned int key_offset =
+            ((sequence * key_value_tokens + token) * key_value_heads + key_value_head) * key_width;
+        float dot = 0.0f;
+        for (unsigned int channel = 0; channel < key_width; ++channel) {
+            dot += query[query_offset + channel] * key[key_offset + channel];
+        }
+        const float score = dot * scale;
+        scores[token] = score;
+        local_maximum = fmaxf(local_maximum, score);
+    }
+    const float maximum = block_max_f32(local_maximum, partial);
+    float local_sum = 0.0f;
+    for (unsigned int token = threadIdx.x; token < key_value_tokens; token += blockDim.x) {
+        const float probability = expf(scores[token] - maximum);
+        scores[token] = probability;
+        local_sum += probability;
+    }
+    const float sum = block_sum_f32(local_sum, partial);
+    for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+        float weighted = 0.0f;
+        for (unsigned int token = 0; token < key_value_tokens; ++token) {
+            const unsigned int value_offset =
+                ((sequence * key_value_tokens + token) * key_value_heads + key_value_head) * value_width;
+            weighted += scores[token] * value[value_offset + channel];
+        }
+        output[(sequence * query_heads + query_head) * value_width + channel] = weighted / sum;
+    }
 }
 
 extern "C" __global__ void concat_f32(

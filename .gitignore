@@ -7,3 +7,4 @@
 *.test
 coverage.out
 local-models.yaml
+/.profile_tmp/

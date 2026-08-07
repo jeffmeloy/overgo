@@ -21,6 +21,7 @@ type Library struct {
 	destroy   *syscall.Proc
 	setStream *syscall.Proc
 	sgemm     *syscall.Proc
+	gemmEx    *syscall.Proc
 }
 
 func Open() (*Library, error) {
@@ -48,6 +49,7 @@ func Open() (*Library, error) {
 		{"cublasDestroy_v2", &lib.destroy},
 		{"cublasSetStream_v2", &lib.setStream},
 		{"cublasSgemm_v2", &lib.sgemm},
+		{"cublasGemmEx", &lib.gemmEx},
 	}
 	for _, item := range required {
 		proc, err := dll.FindProc(item.name)
@@ -58,6 +60,41 @@ func Open() (*Library, error) {
 		*item.dst = proc
 	}
 	return lib, nil
+}
+
+// GEMMEx: column-major mixed-storage GEMM.
+func (l *Library) GEMMEx(
+	handle Handle,
+	operationA, operationB Operation,
+	m, n, k int32,
+	alpha float32,
+	a driver.DevicePtr,
+	typeA DataType,
+	leadingA int32,
+	b driver.DevicePtr,
+	typeB DataType,
+	leadingB int32,
+	beta float32,
+	c driver.DevicePtr,
+	typeC DataType,
+	leadingC int32,
+	compute ComputeType,
+	algorithm GemmAlgorithm,
+) error {
+	if m <= 0 || n <= 0 || k <= 0 {
+		return errors.New("cublasGemmEx: matrix dimensions must be positive")
+	}
+	status, _, _ := l.gemmEx.Call(
+		uintptr(handle), uintptr(operationA), uintptr(operationB),
+		uintptr(m), uintptr(n), uintptr(k), uintptr(unsafe.Pointer(&alpha)),
+		uintptr(a), uintptr(typeA), uintptr(leadingA),
+		uintptr(b), uintptr(typeB), uintptr(leadingB),
+		uintptr(unsafe.Pointer(&beta)), uintptr(c), uintptr(typeC), uintptr(leadingC),
+		uintptr(compute), uintptr(algorithm),
+	)
+	runtime.KeepAlive(alpha)
+	runtime.KeepAlive(beta)
+	return result("cublasGemmEx", status)
 }
 
 func (l *Library) Close() error {

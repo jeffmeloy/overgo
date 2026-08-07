@@ -82,6 +82,18 @@ func (l *Library) ExecutionStats() ExecutionStats {
 	return ExecutionStats{}
 }
 
+func (l *Library) StreamBeginCapture(Stream) error        { return errors.New("CUDA unsupported") }
+func (l *Library) StreamEndCapture(Stream) (Graph, error) { return 0, errors.New("CUDA unsupported") }
+func (l *Library) GraphInstantiate(Graph) (GraphExec, error) {
+	return 0, errors.New("CUDA unsupported")
+}
+func (l *Library) GraphExecUpdate(GraphExec, Graph) (bool, error) {
+	return false, errors.New("CUDA unsupported")
+}
+func (l *Library) GraphLaunch(GraphExec, Stream) error { return errors.New("CUDA unsupported") }
+func (l *Library) GraphDestroy(Graph) error            { return nil }
+func (l *Library) GraphExecDestroy(GraphExec) error    { return nil }
+
 func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }

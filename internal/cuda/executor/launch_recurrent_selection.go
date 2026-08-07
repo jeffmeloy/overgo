@@ -120,7 +120,7 @@ func launchRecurrentSelection(
 			return errors.New("GatedDeltaNet launch count exceeds uint32")
 		}
 		count := heads * sequences
-		const gatedDeltaNetThreads = uint32(256)
+		const gatedDeltaNetThreads = uint32(1024)
 		repeatInterleave := kernelBool(attributes.RepeatInterleave)
 		query := pointers[node.Inputs[0]]
 		key := pointers[node.Inputs[1]]

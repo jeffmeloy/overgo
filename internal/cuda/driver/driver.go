@@ -23,6 +23,9 @@ type Module uintptr
 // Function: CUDA kernel function handle
 type Function uintptr
 
+type Graph uintptr
+type GraphExec uintptr
+
 // Dim3: CUDA grid or block dimension
 type Dim3 struct {
 	X uint32
@@ -63,6 +66,9 @@ type ExecutionStats struct {
 	DeviceToDeviceBytes     uint64 `json:"deviceToDeviceBytes"`
 	DeviceMemsets           uint64 `json:"deviceMemsets"`
 	DeviceMemsetBytes       uint64 `json:"deviceMemsetBytes"`
+	GraphInstantiations     uint64 `json:"graphInstantiations"`
+	GraphUpdates            uint64 `json:"graphUpdates"`
+	GraphLaunches           uint64 `json:"graphLaunches"`
 }
 
 // Version: CUDA's integer driver/toolkit version representation

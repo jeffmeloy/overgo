@@ -23,6 +23,9 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	if options.PreloadDeviceWeights && options.PreloadQuantizedWeights {
 		return nil, errors.New("inference: F32 and native-quantized preload modes are mutually exclusive")
 	}
+	if options.PreloadBF16DecodeWeights && !options.PreloadQuantizedWeights {
+		return nil, errors.New("inference: BF16 decode catalog requires native-quantized preload")
+	}
 	if options.CacheHostWeights && (options.PreloadDeviceWeights || options.PreloadQuantizedWeights) {
 		return nil, errors.New("inference: host and device weight retention are mutually exclusive")
 	}
@@ -92,6 +95,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	var worker *device.Worker
 	var deviceWeights *model.DeviceF32Weights
 	var rawWeights *model.DeviceWeights
+	var decodeWeights *model.DeviceBF16Weights
 	var hostWeights *model.HostTensorStore
 	if options.CacheHostWeights {
 		hostWeights = model.NewHostTensorStore()
@@ -173,6 +177,27 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 				_ = worker.Close()
 				return fail(err)
 			}
+			if options.PreloadBF16DecodeWeights {
+				decodeTensors := make([]gguf.TensorInfo, 0, len(quantized))
+				for _, info := range quantized {
+					_, adapted := adaptedTensors[info.Name]
+					if !adapted && info.Type == dtype.Q8_0 && info.Dimensions >= 2 {
+						decodeTensors = append(decodeTensors, info)
+					}
+				}
+				decodeWeights, err = model.NewDeviceBF16Weights(worker)
+				if err == nil {
+					err = decodeWeights.Load(context.Background(), file, decodeTensors)
+				}
+				if err != nil {
+					_ = decodeWeights.Close()
+					_ = rawWeights.Close()
+					_ = deviceWeights.Close()
+					_ = cuda.Close()
+					_ = worker.Close()
+					return fail(err)
+				}
+			}
 		}
 		if err = deviceWeights.Load(context.Background(), file, f32Tensors); err != nil {
 			_ = rawWeights.Close()
@@ -189,7 +214,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	}
 	return &Runner{preparedModel: preparedModel{
 		file: file, path: path, spec: spec, plan: plan, weights: weights, vocab: vocab,
-		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights,
+		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,
 		outputBias:          outputBias,
 		promptCacheCapacity: promptCacheCapacity, cachePageTokens: cachePageTokens,
@@ -235,6 +260,9 @@ func (m *preparedModel) close() error {
 	}
 	if m.deviceWeights != nil {
 		errs = append(errs, m.deviceWeights.Close())
+	}
+	if m.decodeWeights != nil {
+		errs = append(errs, m.decodeWeights.Close())
 	}
 	if m.cuda != nil {
 		errs = append(errs, m.cuda.Close())

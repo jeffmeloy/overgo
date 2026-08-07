@@ -40,6 +40,9 @@ type Library struct {
 	deviceToDeviceBytes     atomic.Uint64
 	deviceMemsets           atomic.Uint64
 	deviceMemsetBytes       atomic.Uint64
+	graphInstantiations     atomic.Uint64
+	graphUpdates            atomic.Uint64
+	graphLaunches           atomic.Uint64
 
 	cuInit               *syscall.Proc
 	cuDriverGetVersion   *syscall.Proc
@@ -67,6 +70,13 @@ type Library struct {
 	cuModuleUnload       *syscall.Proc
 	cuModuleGetFunction  *syscall.Proc
 	cuLaunchKernel       *syscall.Proc
+	cuStreamBeginCapture *syscall.Proc
+	cuStreamEndCapture   *syscall.Proc
+	cuGraphInstantiate   *syscall.Proc
+	cuGraphExecUpdate    *syscall.Proc
+	cuGraphLaunch        *syscall.Proc
+	cuGraphDestroy       *syscall.Proc
+	cuGraphExecDestroy   *syscall.Proc
 }
 
 // Open: loads nvcuda.dll and resolves required entry points
@@ -107,6 +117,13 @@ func Open() (*Library, error) {
 		{"cuModuleUnload", &lib.cuModuleUnload},
 		{"cuModuleGetFunction", &lib.cuModuleGetFunction},
 		{"cuLaunchKernel", &lib.cuLaunchKernel},
+		{"cuStreamBeginCapture", &lib.cuStreamBeginCapture},
+		{"cuStreamEndCapture", &lib.cuStreamEndCapture},
+		{"cuGraphInstantiateWithFlags", &lib.cuGraphInstantiate},
+		{"cuGraphExecUpdate_v2", &lib.cuGraphExecUpdate},
+		{"cuGraphLaunch", &lib.cuGraphLaunch},
+		{"cuGraphDestroy", &lib.cuGraphDestroy},
+		{"cuGraphExecDestroy", &lib.cuGraphExecDestroy},
 	}
 
 	for _, item := range required {
@@ -119,6 +136,65 @@ func Open() (*Library, error) {
 	}
 
 	return lib, nil
+}
+
+func (l *Library) StreamBeginCapture(stream Stream) error {
+	result, _, _ := l.cuStreamBeginCapture.Call(uintptr(stream), 0)
+	return l.result("cuStreamBeginCapture", result)
+}
+
+func (l *Library) StreamEndCapture(stream Stream) (Graph, error) {
+	var graph Graph
+	result, _, _ := l.cuStreamEndCapture.Call(uintptr(stream), uintptr(unsafe.Pointer(&graph)))
+	return graph, l.result("cuStreamEndCapture", result)
+}
+
+func (l *Library) GraphInstantiate(graph Graph) (GraphExec, error) {
+	var execution GraphExec
+	result, _, _ := l.cuGraphInstantiate.Call(uintptr(unsafe.Pointer(&execution)), uintptr(graph), 0)
+	err := l.result("cuGraphInstantiateWithFlags", result)
+	if err == nil {
+		l.graphInstantiations.Add(1)
+	}
+	return execution, err
+}
+
+func (l *Library) GraphExecUpdate(execution GraphExec, graph Graph) (bool, error) {
+	var errorNode uintptr
+	var updateResult int32
+	result, _, _ := l.cuGraphExecUpdate.Call(
+		uintptr(execution), uintptr(graph), uintptr(unsafe.Pointer(&errorNode)), uintptr(unsafe.Pointer(&updateResult)),
+	)
+	err := l.result("cuGraphExecUpdate_v2", result)
+	if err == nil && updateResult == 0 {
+		l.graphUpdates.Add(1)
+	}
+	return updateResult == 0, err
+}
+
+func (l *Library) GraphLaunch(execution GraphExec, stream Stream) error {
+	result, _, _ := l.cuGraphLaunch.Call(uintptr(execution), uintptr(stream))
+	err := l.result("cuGraphLaunch", result)
+	if err == nil {
+		l.graphLaunches.Add(1)
+	}
+	return err
+}
+
+func (l *Library) GraphDestroy(graph Graph) error {
+	if graph == 0 {
+		return nil
+	}
+	result, _, _ := l.cuGraphDestroy.Call(uintptr(graph))
+	return l.result("cuGraphDestroy", result)
+}
+
+func (l *Library) GraphExecDestroy(execution GraphExec) error {
+	if execution == 0 {
+		return nil
+	}
+	result, _, _ := l.cuGraphExecDestroy.Call(uintptr(execution))
+	return l.result("cuGraphExecDestroy", result)
 }
 
 // Close releases process handle for nvcuda.dll
@@ -359,6 +435,9 @@ func (l *Library) ExecutionStats() ExecutionStats {
 		DeviceToDeviceBytes:     l.deviceToDeviceBytes.Load(),
 		DeviceMemsets:           l.deviceMemsets.Load(),
 		DeviceMemsetBytes:       l.deviceMemsetBytes.Load(),
+		GraphInstantiations:     l.graphInstantiations.Load(),
+		GraphUpdates:            l.graphUpdates.Load(),
+		GraphLaunches:           l.graphLaunches.Load(),
 	}
 }
 

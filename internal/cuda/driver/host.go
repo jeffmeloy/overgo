@@ -3,7 +3,7 @@ package driver
 import "unsafe"
 
 type hostScalar interface {
-	~float32 | ~uint32
+	~float32 | ~uint16 | ~uint32
 }
 
 // Bytes: zero-copy host scalar view.

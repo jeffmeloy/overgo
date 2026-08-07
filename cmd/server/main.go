@@ -61,6 +61,7 @@ func run() error {
 	maxEmbeddingInputs := flag.Int(
 		"max-embedding-inputs", llamaserver.DefaultMaxEmbeddingInputs, "maximum strings accepted by one embedding request",
 	)
+	decodeBF16 := flag.Bool("decode-bf16", false, "retain BF16 Qwen decode projections alongside native-quantized prefill weights")
 	requestTimeout := flag.Duration(
 		"request-timeout",
 		0,
@@ -97,6 +98,7 @@ func run() error {
 		loraScale = 0
 	}
 	openOptions := modelFlags.OpenOptions(loraScale)
+	openOptions.PreloadBF16DecodeWeights = *decodeBF16
 	openOptions.PromptCacheEntries = *promptCacheEntries
 	runner, err := inference.OpenWithOptions(flag.Arg(0), openOptions)
 	if err != nil {

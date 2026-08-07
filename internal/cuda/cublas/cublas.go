@@ -6,9 +6,19 @@ type Handle uintptr
 
 type Operation int32
 
+type DataType int32
+
+type ComputeType int32
+
+type GemmAlgorithm int32
+
 const (
-	OperationNone      Operation = 0
-	OperationTranspose Operation = 1
+	OperationNone      Operation     = 0
+	OperationTranspose Operation     = 1
+	DataF32            DataType      = 0
+	DataBF16           DataType      = 14
+	ComputeF32         ComputeType   = 68
+	GemmDefault        GemmAlgorithm = -1
 )
 
 // StatusError: reports cuBLAS API failure

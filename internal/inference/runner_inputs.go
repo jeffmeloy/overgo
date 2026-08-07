@@ -32,6 +32,18 @@ func (r *Runner) deviceInput(
 	return nil, 0, fmt.Errorf("inference: device tensor %q is not preloaded", info.Name)
 }
 
+func (r *Runner) decodeDeviceInput(
+	builder *tensor.Builder,
+	info gguf.TensorInfo,
+) (*tensor.Tensor, driver.DevicePtr, error) {
+	if r.decodeWeights != nil {
+		if _, ok := r.decodeWeights.Lookup(info.Name); ok {
+			return r.decodeWeights.Input(builder, info.Name)
+		}
+	}
+	return r.deviceInput(builder, info)
+}
+
 func (r *Runner) wavTokenizerGraphInputs(
 	ctx context.Context,
 	builder *tensor.Builder,
@@ -175,4 +187,11 @@ func (r *Runner) layerDeviceInputs(
 		return model.LayerGraphWeights{}, nil, errors.New("inference: device weights are unavailable")
 	}
 	return model.BindDeviceLayerGraphInputs(builder, info, r.deviceInput)
+}
+
+func (r *Runner) layerDecodeDeviceInputs(
+	builder *tensor.Builder,
+	info model.LayerWeights,
+) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
+	return model.BindDeviceLayerGraphInputs(builder, info, r.decodeDeviceInput)
 }

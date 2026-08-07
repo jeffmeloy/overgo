@@ -298,7 +298,7 @@ func launchMathVision(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		return launch1DABI(state, functions.l2Norm, rows, &input, &output, &width, &rows, &epsilon)
+		return launchNormalizationABI(state, functions.l2Norm, rows, &input, &output, &width, &rows, &epsilon)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

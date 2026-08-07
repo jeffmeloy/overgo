@@ -82,7 +82,7 @@ func (b *Builder) mulMat(left, right *Tensor) *Tensor {
 		return nil
 	}
 	outputType := left.Type
-	if nativeQuantizedType(left.Type) && right.Type == dtype.F32 {
+	if (nativeQuantizedType(left.Type) || left.Type == dtype.BF16) && right.Type == dtype.F32 {
 		outputType = dtype.F32
 	} else if left.Type != right.Type {
 		b.setError(fmt.Errorf("mul_mat types are unsupported: %s and %s", left.Type, right.Type))

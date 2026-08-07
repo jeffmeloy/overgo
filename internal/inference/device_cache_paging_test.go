@@ -7,7 +7,67 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
+
+func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
+	const (
+		fixturePastTokens = uint32(2)
+		fixtureNewTokens  = uint32(1)
+		fixturePageTokens = uint32(4)
+		fixtureContext    = uint32(16)
+		fixtureKeyWidth   = uint32(2)
+		fixtureValueWidth = uint32(3)
+		fixtureHeads      = uint32(1)
+	)
+	runner := &Runner{preparedModel: preparedModel{
+		spec: model.Spec{
+			CommonSpec: model.CommonSpec{BlockCount: 1, ContextLength: fixtureContext},
+			AttentionSpec: model.AttentionSpec{
+				KeyLength: fixtureKeyWidth, ValueLength: fixtureValueWidth,
+				HeadCountKV: fixtureHeads,
+			},
+		},
+		weights: model.Weights{Layers: []model.LayerWeights{{}}},
+	}}
+	builder := tensor.NewBuilder()
+	keyPast := builder.Input("key_past", dtype.F32, tensor.MustShape(
+		uint64(fixtureKeyWidth), uint64(fixtureHeads), uint64(fixturePastTokens),
+	))
+	keyNew := builder.Input("key_new", dtype.F32, tensor.MustShape(
+		uint64(fixtureKeyWidth), uint64(fixtureHeads), uint64(fixtureNewTokens),
+	))
+	valuePast := builder.Input("value_past", dtype.F32, tensor.MustShape(
+		uint64(fixtureValueWidth), uint64(fixtureHeads), uint64(fixturePastTokens),
+	))
+	valueNew := builder.Input("value_new", dtype.F32, tensor.MustShape(
+		uint64(fixtureValueWidth), uint64(fixtureHeads), uint64(fixtureNewTokens),
+	))
+	const tokenAxis = uint32(2)
+	key := builder.Concat(keyPast, keyNew, tokenAxis)
+	value := builder.Concat(valuePast, valueNew, tokenAxis)
+	compiled, err := executor.Compile(key, value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plans, err := runner.compileDeviceCacheTargetPlans(
+		compiled,
+		[]deviceBatchGraph{{
+			keys: []*tensor.Tensor{key}, values: []*tensor.Tensor{value},
+			pastTokens: fixturePastTokens, tokenCount: fixtureNewTokens,
+		}},
+		[]deviceBatchAppend{{PageTokens: fixturePageTokens}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := plans[0].layers[0]
+	if !got.enabled || got.keySlot == got.valueSlot ||
+		got.keyCapacity.Dims[tokenAxis] != uint64(fixturePageTokens) ||
+		got.valueCapacity.Dims[tokenAxis] != uint64(fixturePageTokens) {
+		t.Fatalf("cache target plan = %+v", got)
+	}
+}
 
 func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
 	cache := &deviceKVCache{

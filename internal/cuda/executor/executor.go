@@ -466,6 +466,18 @@ type RetainedTargets struct {
 	values   []DeviceValue
 }
 
+// OutputSlot: compiled output ordinal.
+type OutputSlot uint32
+
+// OutputSlot resolves one graph output to its stable ordinal.
+func (c *CompiledGraph) OutputSlot(output *tensor.Tensor) (OutputSlot, bool) {
+	if c == nil {
+		return 0, false
+	}
+	index, ok := c.outputIndexes[output]
+	return OutputSlot(index), ok
+}
+
 // NewRetainedTargets allocates target slots for this compiled graph.
 func (c *CompiledGraph) NewRetainedTargets() *RetainedTargets {
 	if c == nil {
@@ -483,7 +495,15 @@ func (t *RetainedTargets) Set(output *tensor.Tensor, value DeviceValue) error {
 	if !ok {
 		return errors.New("CUDA retained target is not a compiled output")
 	}
-	t.values[index] = value
+	return t.SetSlot(OutputSlot(index), value)
+}
+
+// SetSlot assigns one precompiled output slot.
+func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
+	if t == nil || t.compiled == nil || uint64(slot) >= uint64(len(t.values)) {
+		return errors.New("CUDA retained target slot is invalid")
+	}
+	t.values[slot] = value
 	return nil
 }
 

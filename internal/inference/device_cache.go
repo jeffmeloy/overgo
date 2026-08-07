@@ -508,6 +508,20 @@ type deviceBatchGraph struct {
 	sequences    uint32
 }
 
+type deviceCacheTargetLayer struct {
+	keySlot       executor.OutputSlot
+	valueSlot     executor.OutputSlot
+	keyShape      tensor.Shape
+	valueShape    tensor.Shape
+	keyCapacity   tensor.Shape
+	valueCapacity tensor.Shape
+	enabled       bool
+}
+
+type deviceCacheTargetPlan struct {
+	layers []deviceCacheTargetLayer
+}
+
 type deviceGraphState = model.CacheState[*tensor.Tensor]
 type deviceGraphStates = model.CacheStates[*tensor.Tensor]
 
@@ -666,7 +680,11 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	targets, storages, err := r.prepareDeviceCacheTargets(ctx, compiled, graphs, appends)
+	targetPlans, err := r.compileDeviceCacheTargetPlans(compiled, graphs, appends)
+	if err != nil {
+		return nil, err
+	}
+	targets, storages, err := r.prepareDeviceCacheTargets(ctx, compiled, graphs, appends, targetPlans)
 	if err != nil {
 		return nil, err
 	}
@@ -763,11 +781,59 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	return next, nil
 }
 
+func (r *Runner) compileDeviceCacheTargetPlans(
+	compiled *executor.CompiledGraph,
+	graphs []deviceBatchGraph,
+	appends []deviceBatchAppend,
+) ([]deviceCacheTargetPlan, error) {
+	if compiled == nil || len(graphs) != len(appends) {
+		return nil, errors.New("inference: device cache target graph set is invalid")
+	}
+	plans := make([]deviceCacheTargetPlan, len(graphs))
+	for branch, graph := range graphs {
+		plan := deviceCacheTargetPlan{layers: make([]deviceCacheTargetLayer, len(graph.keys))}
+		capacity := uint64(cachePageCapacity(
+			graph.pastTokens+graph.tokenCount,
+			appends[branch].PageTokens,
+			r.spec.ContextLength,
+		))
+		for layer := range graph.keys {
+			_, schema, err := r.cacheSchema(layer, graph.pastTokens+graph.tokenCount)
+			if err != nil {
+				return nil, err
+			}
+			key, value := graph.keys[layer], graph.values[layer]
+			if !schema.Primary.Key.Mode.TokenAligned() ||
+				!schema.Primary.Value.Mode.TokenAligned() ||
+				key.Shape.Rank != 3 || value.Shape.Rank != 3 {
+				continue
+			}
+			keySlot, keyOK := compiled.OutputSlot(key)
+			valueSlot, valueOK := compiled.OutputSlot(value)
+			if !keyOK || !valueOK {
+				return nil, fmt.Errorf("inference: cache layer %d is not a compiled output", layer)
+			}
+			layerPlan := deviceCacheTargetLayer{
+				keySlot: keySlot, valueSlot: valueSlot,
+				keyShape: key.Shape, valueShape: value.Shape,
+				keyCapacity: key.Shape, valueCapacity: value.Shape,
+				enabled: true,
+			}
+			layerPlan.keyCapacity.Dims[layerPlan.keyCapacity.Rank-1] = capacity
+			layerPlan.valueCapacity.Dims[layerPlan.valueCapacity.Rank-1] = capacity
+			plan.layers[layer] = layerPlan
+		}
+		plans[branch] = plan
+	}
+	return plans, nil
+}
+
 func (r *Runner) prepareDeviceCacheTargets(
 	ctx context.Context,
 	compiled *executor.CompiledGraph,
 	graphs []deviceBatchGraph,
 	appends []deviceBatchAppend,
+	plans []deviceCacheTargetPlan,
 ) (*executor.RetainedTargets, []*deviceCacheStorage, error) {
 	targets := compiled.NewRetainedTargets()
 	storages := make([]*deviceCacheStorage, len(graphs))
@@ -781,6 +847,9 @@ func (r *Runner) prepareDeviceCacheTargets(
 		return nil, nil, errors.Join(errs...)
 	}
 	for branch, graph := range graphs {
+		if branch >= len(plans) || len(plans[branch].layers) != len(graph.keys) {
+			return fail(errors.New("inference: device cache target plan is invalid"))
+		}
 		past := appends[branch].Past
 		var storage *deviceCacheStorage
 		if past != nil && past.storage != nil && past.storage.exclusive() &&
@@ -799,25 +868,16 @@ func (r *Runner) prepareDeviceCacheTargets(
 		}
 		storages[branch] = storage
 		for layer := range graph.keys {
-			_, schema, schemaErr := r.cacheSchema(layer, graph.pastTokens+graph.tokenCount)
-			if schemaErr != nil {
-				return fail(schemaErr)
-			}
-			if !schema.Primary.Key.Mode.TokenAligned() || !schema.Primary.Value.Mode.TokenAligned() ||
-				graph.keys[layer].Shape.Rank != 3 || graph.values[layer].Shape.Rank != 3 {
+			layerPlan := plans[branch].layers[layer]
+			if !layerPlan.enabled {
 				continue
 			}
 			allocate := func(
 				buffers []*executor.DeviceBuffer,
-				node *tensor.Tensor,
+				shape tensor.Shape,
+				capacityShape tensor.Shape,
 			) (executor.DeviceValue, error) {
 				buffer := buffers[layer]
-				capacityShape := node.Shape
-				capacityShape.Dims[2] = uint64(cachePageCapacity(
-					graph.pastTokens+graph.tokenCount,
-					appends[branch].PageTokens,
-					r.spec.ContextLength,
-				))
 				capacityBytes, sizeErr := capacityShape.Bytes(dtype.F32)
 				if sizeErr != nil {
 					return executor.DeviceValue{}, sizeErr
@@ -829,20 +889,20 @@ func (r *Runner) prepareDeviceCacheTargets(
 					}
 					buffers[layer] = buffer
 				}
-				return buffer.Value(node.Shape)
+				return buffer.Value(shape)
 			}
-			key, keyErr := allocate(storage.keys, graph.keys[layer])
+			key, keyErr := allocate(storage.keys, layerPlan.keyShape, layerPlan.keyCapacity)
 			if keyErr != nil {
 				return fail(fmt.Errorf("inference: allocate key cache layer %d: %w", layer, keyErr))
 			}
-			value, valueErr := allocate(storage.values, graph.values[layer])
+			value, valueErr := allocate(storage.values, layerPlan.valueShape, layerPlan.valueCapacity)
 			if valueErr != nil {
 				return fail(fmt.Errorf("inference: allocate value cache layer %d: %w", layer, valueErr))
 			}
-			if targetErr := targets.Set(graph.keys[layer], key); targetErr != nil {
+			if targetErr := targets.SetSlot(layerPlan.keySlot, key); targetErr != nil {
 				return fail(targetErr)
 			}
-			if targetErr := targets.Set(graph.values[layer], value); targetErr != nil {
+			if targetErr := targets.SetSlot(layerPlan.valueSlot, value); targetErr != nil {
 				return fail(targetErr)
 			}
 		}

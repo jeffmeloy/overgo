@@ -1340,9 +1340,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 				return fail(inputErr)
 			}
 			cacheBindings[layerIndex] = cacheInputs
-			result, buildErr := model.BuildLFM2BlockCached(
-				builder, current, r.spec, graphWeights, positions, plan.Recurrent,
-				cacheInputs.key, cacheInputs.value, uint32(layerIndex),
+			result, buildErr := model.BuildLFM2BlockCachedWithPlan(
+				builder, current, r.spec, graphWeights, positions,
+				cacheInputs.key, cacheInputs.value, plan,
 			)
 			if buildErr != nil {
 				return fail(buildErr)

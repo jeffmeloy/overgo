@@ -37,10 +37,13 @@ func BuildArchitectureBlockCached(
 			Architecture: options.Spec.Architecture,
 		}
 	}
+	if options.Plan == nil {
+		return DenseBlockResult{}, errors.New("compiled layer plan is required")
+	}
 	context := options.Context
-	plan := options.Spec.PlanLayer(context.Layer, context.Recurrent)
-	if options.Plan != nil {
-		plan = *options.Plan
+	plan := *options.Plan
+	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
+		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
 	}
 	if plan.GraphFamily == ArchitectureFamilyEncoderDecoder {
 		return DenseBlockResult{}, errors.New(

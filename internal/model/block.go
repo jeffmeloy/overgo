@@ -312,12 +312,13 @@ func BuildDenseBlockCached(
 	pastKey *tensor.Tensor,
 	pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
+	plan := spec.PlanLayer(0, false)
 	return BuildDenseBlockWithOptions(DenseBlockOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue,
 		},
-		Spec: spec, Weights: weights,
+		Spec: spec, Weights: weights, Plan: &plan,
 	})
 }
 
@@ -331,12 +332,13 @@ func BuildDenseBlockCachedForLayer(
 	pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
+	plan := spec.PlanLayer(layerIndex, false)
 	return BuildDenseBlockWithOptions(DenseBlockOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layerIndex,
 		},
-		Spec: spec, Weights: weights,
+		Spec: spec, Weights: weights, Plan: &plan,
 	})
 }
 
@@ -351,12 +353,13 @@ func BuildDenseBlockCachedForLayerWithMultiPositions(
 	pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
+	plan := spec.PlanLayer(layerIndex, false)
 	return BuildDenseBlockWithOptions(DenseBlockOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &multiPositions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layerIndex,
 		},
-		Spec: spec, Weights: weights,
+		Spec: spec, Weights: weights, Plan: &plan,
 	})
 }
 
@@ -380,10 +383,13 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
+	if options.Plan == nil {
+		return DenseBlockResult{}, errors.New("compiled dense layer plan is required")
+	}
 	profile := spec.Profile()
-	layerPlan := spec.PlanLayer(layerIndex, false)
-	if options.Plan != nil {
-		layerPlan = *options.Plan
+	layerPlan := *options.Plan
+	if layerPlan.Layer != layerIndex {
+		return DenseBlockResult{}, errors.New("compiled dense layer plan index differs")
 	}
 	normPlan := layerPlan.Normalization
 	switch layerPlan.DenseGraph {
@@ -396,7 +402,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 	case DenseGraphTalkie:
 		return buildTalkieBlock(builder, input, spec, weights, positions, pastKey, pastValue)
 	case DenseGraphGemma4:
-		return buildGemma4BlockCached(builder, input, spec, weights, positions, pastKey, pastValue, layerIndex)
+		return buildGemma4BlockCached(builder, input, spec, weights, positions, pastKey, pastValue, layerPlan)
 	case DenseGraphGemma3n:
 		return DenseBlockResult{}, errors.New("Gemma 3n block requires AltUp execution")
 	case DenseGraphRWKV6Qwen2:
@@ -681,9 +687,9 @@ func buildGemma4BlockCached(
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
-	layerIndex uint32,
+	layerPlan LayerPlan,
 ) (DenseBlockResult, error) {
-	layerPlan := spec.PlanLayer(layerIndex, false)
+	layerIndex := layerPlan.Layer
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Gemma 4 block input shape is invalid")

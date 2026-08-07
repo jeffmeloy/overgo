@@ -49,6 +49,7 @@ func BuildNextNMTPBlockCachedWithDSA(
 	}
 	executable := spec
 	executable.BlockCount += spec.NextNPredictLayers
+	plan := executable.PlanLayer(spec.BlockCount+offset, false)
 	return BuildArchitectureBlockCached(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
@@ -57,8 +58,9 @@ func BuildNextNMTPBlockCachedWithDSA(
 				CacheStateIndexerKey: {Mode: CacheStateToken, Value: pastIndexerKey},
 			},
 			PerLayerInput: previousTopK, Layer: spec.BlockCount + offset,
+			Recurrent: plan.Recurrent,
 		},
-		Spec: executable, Weights: weights,
+		Spec: executable, Weights: weights, Plan: &plan,
 	})
 }
 

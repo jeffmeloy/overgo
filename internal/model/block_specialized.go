@@ -815,13 +815,33 @@ func BuildLFM2BlockCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (LFM2BlockResult, error) {
+	plan := spec.PlanLayer(layerIndex, recurrent)
+	return BuildLFM2BlockCachedWithPlan(
+		builder, input, spec, weights, positions, pastKey, pastValue, plan,
+	)
+}
+
+// BuildLFM2BlockCachedWithPlan: compiled attention/convolution layer.
+func BuildLFM2BlockCachedWithPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	plan LayerPlan,
+) (LFM2BlockResult, error) {
 	if spec.Profile().Attention != AttentionLFM2 {
 		return LFM2BlockResult{}, errors.New("LFM2 block requires lfm2 or lfm2moe architecture")
 	}
-	if !recurrent {
-		result, err := BuildDenseBlockCachedForLayer(
-			builder, input, spec, weights, positions, pastKey, pastValue, layerIndex,
-		)
+	if !plan.Recurrent {
+		result, err := BuildDenseBlockWithOptions(DenseBlockOptions{
+			Context: CachedBlockContext{
+				Builder: builder, Input: input, Positions: positions,
+				PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+			},
+			Spec: spec, Weights: weights, Plan: &plan,
+		})
 		return LFM2BlockResult{
 			Output: result.Output, Key: result.Key, Value: result.Value,
 		}, err
@@ -892,10 +912,10 @@ func BuildLFM2BlockCached(
 	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	var feedForward *tensor.Tensor
 	if usesExperts {
-		plan := spec.moeGraphPlan(0)
-		plan.NormalizeTopKProb = true
-		plan.SelectionBias = true
-		feedForward = plan.BuildLayer(builder, normalized, nil, weights)
+		experts := plan.Experts
+		experts.NormalizeTopKProb = true
+		experts.SelectionBias = true
+		feedForward = experts.BuildLayer(builder, normalized, nil, weights)
 	} else {
 		gate := builder.MulMat(weights.FeedForwardGate, normalized)
 		up := builder.MulMat(weights.FeedForwardUp, normalized)

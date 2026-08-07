@@ -96,18 +96,10 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			hostFeeds[pastKey] = past.Key
 			hostFeeds[pastValue] = past.Value
 		}
-		var result model.DenseBlockResult
-		if multiPositions != nil {
-			result, err = model.BuildDenseBlockCachedForLayerWithMultiPositions(
-				builder, current, r.spec, graphWeights, [4][]uint32(*multiPositions),
-				pastKey, pastValue, uint32(layerIndex),
-			)
-		} else {
-			result, err = model.BuildDenseBlockCachedForLayer(
-				builder, current, r.spec, graphWeights, positions,
-				pastKey, pastValue, uint32(layerIndex),
-			)
-		}
+		result, err := buildDenseBlockFromPlan(
+			builder, current, r.spec, graphWeights, positions, multiPositions,
+			pastKey, pastValue, plan,
+		)
 		if err != nil {
 			return reference.Value{}, nil, err
 		}
@@ -178,15 +170,8 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		); err != nil {
 			return reference.Value{}, err
 		}
-		result, err := model.BuildDenseBlockCachedForLayer(
-			builder,
-			current,
-			r.spec,
-			graphWeights,
-			positions,
-			nil,
-			nil,
-			uint32(layerIndex),
+		result, err := buildDenseBlockFromPlan(
+			builder, current, r.spec, graphWeights, positions, nil, nil, nil, plan,
 		)
 		if err != nil {
 			return reference.Value{}, err
@@ -220,17 +205,6 @@ func (r *Runner) runLayerCached(
 	attentionBlockIDs []float32,
 ) (reference.Value, LayerCache, error) {
 	plan := r.layerPlan(layerIndex)
-	if plan.Attention == model.AttentionQwenGDN {
-		return r.runQwen35LayerCached(
-			ctx,
-			activation,
-			info,
-			layerIndex,
-			positions,
-			past,
-			multiPositions,
-		)
-	}
 	if plan.Attention == model.AttentionLFM2 {
 		return r.runLFM2LayerCached(ctx, activation, info, layerIndex, positions, past)
 	}
@@ -372,9 +346,9 @@ func (r *Runner) runLFM2LayerCached(
 		pastValue = builder.Input(fmt.Sprintf("blk.%d.cache_value", layerIndex), dtype.F32, past.Value.Shape)
 		hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
 	}
-	result, err := model.BuildLFM2BlockCached(
-		builder, input, r.spec, graphWeights, positions, info.Recurrent, pastKey, pastValue,
-		uint32(layerIndex),
+	result, err := model.BuildLFM2BlockCachedWithPlan(
+		builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
+		r.layerPlan(layerIndex),
 	)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
@@ -429,9 +403,9 @@ func (r *Runner) runLFM2LayerNonCausal(
 	}
 	spec := r.spec
 	spec.NonCausalAttention = true
-	result, err := model.BuildLFM2BlockCached(
-		builder, input, spec, graphWeights, positions, info.Recurrent, state, reserved,
-		uint32(layerIndex),
+	result, err := model.BuildLFM2BlockCachedWithPlan(
+		builder, input, spec, graphWeights, positions, state, reserved,
+		r.layerPlan(layerIndex),
 	)
 	if err != nil {
 		return reference.Value{}, err
@@ -464,15 +438,8 @@ func (r *Runner) runDenseLayerNoCache(
 	); err != nil {
 		return reference.Value{}, err
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
-		builder,
-		input,
-		r.spec,
-		graphWeights,
-		positions,
-		nil,
-		nil,
-		uint32(layerIndex),
+	result, err := buildDenseBlockFromPlan(
+		builder, input, r.spec, graphWeights, positions, nil, nil, nil, plan,
 	)
 	if err != nil {
 		return reference.Value{}, err
@@ -484,114 +451,28 @@ func (r *Runner) runDenseLayerNoCache(
 	return results[result.Output], nil
 }
 
-func (r *Runner) runQwen35LayerCached(
-	ctx context.Context,
-	activation reference.Value,
-	info model.LayerWeights,
-	layerIndex int,
+func buildDenseBlockFromPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec model.Spec,
+	weights model.LayerGraphWeights,
 	positions []uint32,
-	past *LayerCache,
 	multiPositions *MultiAxisPositions,
-) (reference.Value, LayerCache, error) {
-	runtime := r.newInferenceGraphRuntime(ctx)
-	builder := runtime.builder
-	input := runtime.input("input", activation)
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
-	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
-	if err != nil {
-		return reference.Value{}, LayerCache{}, err
-	}
-
-	var pastKey, pastValue, convState, ssmState *tensor.Tensor
-	if info.Recurrent {
-		var convValue, ssmValue reference.Value
-		if past == nil {
-			convChannels := uint64(r.spec.SSMInnerSize) +
-				2*uint64(r.spec.SSMStateSize)*uint64(r.spec.SSMGroupCount)
-			convShape := tensor.MustShape(uint64(r.spec.SSMConvKernel-1), convChannels)
-			ssmShape := tensor.MustShape(
-				uint64(r.spec.SSMStateSize),
-				uint64(r.spec.SSMStateSize),
-				uint64(r.spec.SSMTimeStepRank),
-				1,
-			)
-			convElements, _ := convShape.Elements()
-			ssmElements, _ := ssmShape.Elements()
-			convValue = reference.Value{Shape: convShape, Data: make([]float32, int(convElements))}
-			ssmValue = reference.Value{Shape: ssmShape, Data: make([]float32, int(ssmElements))}
-		} else {
-			convValue = past.Key
-			ssmValue = past.Value
-		}
-		convState = builder.Input(
-			fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateConvolution),
-			dtype.F32,
-			convValue.Shape,
-		)
-		ssmState = builder.Input(
-			fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateSSM),
-			dtype.F32,
-			ssmValue.Shape,
-		)
-		hostFeeds[convState] = convValue
-		hostFeeds[ssmState] = ssmValue
-	} else if past != nil {
-		pastKey = builder.Input(
-			fmt.Sprintf("blk.%d.cache_key", layerIndex),
-			dtype.F32,
-			past.Key.Shape,
-		)
-		pastValue = builder.Input(
-			fmt.Sprintf("blk.%d.cache_value", layerIndex),
-			dtype.F32,
-			past.Value.Shape,
-		)
-		hostFeeds[pastKey] = past.Key
-		hostFeeds[pastValue] = past.Value
-	}
-	var result model.Qwen35BlockResult
+	pastKey, pastValue *tensor.Tensor,
+	plan model.LayerPlan,
+) (model.DenseBlockResult, error) {
+	var axes *[4][]uint32
 	if multiPositions != nil {
-		result, err = model.BuildQwen35BlockCachedWithMultiPositions(
-			builder, input, r.spec, graphWeights, [4][]uint32(*multiPositions),
-			info.Recurrent,
-			pastKey, pastValue, convState, ssmState,
-		)
-	} else {
-		result, err = model.BuildQwen35BlockCached(
-			builder, input, r.spec, graphWeights, positions, info.Recurrent,
-			pastKey, pastValue, convState, ssmState,
-		)
+		converted := [4][]uint32(*multiPositions)
+		axes = &converted
 	}
-	if err != nil {
-		return reference.Value{}, LayerCache{}, err
-	}
-	outputTensor := result.Output
-	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
-		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, deviceFeeds)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-	}
-	outputs := []*tensor.Tensor{outputTensor}
-	if info.Recurrent {
-		outputs = append(outputs, result.ConvState, result.SSMState)
-	} else {
-		outputs = append(outputs, result.Key, result.Value)
-	}
-	results, err := runtime.execute(outputs...)
-	if err != nil {
-		return reference.Value{}, LayerCache{}, err
-	}
-	if info.Recurrent {
-		return results[outputTensor], LayerCache{
-			Key:   results[result.ConvState],
-			Value: results[result.SSMState],
-		}, nil
-	}
-	return results[outputTensor], LayerCache{
-		Key:   results[result.Key],
-		Value: results[result.Value],
-	}, nil
+	return model.BuildDenseBlockWithOptions(model.DenseBlockOptions{
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: positions, MultiPositions: axes,
+			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+		},
+		Spec: spec, Weights: weights, Plan: &plan,
+	})
 }
 
 func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) (reference.Value, error) {

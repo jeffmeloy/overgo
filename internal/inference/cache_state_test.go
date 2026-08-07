@@ -206,11 +206,10 @@ func TestDeepSeek32NamedStateGraphBinding(t *testing.T) {
 
 func deepSeek32CacheFixture() (*Runner, *KVCache) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek32", BlockCount: 1, ContextLength: 16}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KVLoRARank: 3, RopeDimensionCount: 2,
-		IndexerKeyLength: 4, IndexerFullLayers: []bool{true}},
-	},
-		weights: model.Weights{Layers: []model.LayerWeights{{AttentionKB: &attentionKB}}}},
-	}
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek32", BlockCount: 1, ContextLength: 16}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KVLoRARank: 3, RopeDimensionCount: 2,
+		IndexerKeyLength: 4, IndexerFullLayers: []bool{true}}}
+	weights := model.Weights{Layers: []model.LayerWeights{{AttentionKB: &attentionKB}}}
+	runner := fixtureRunner(spec, weights)
 	key, _ := reference.NewValue(tensor.MustShape(5, 1, 2), make([]float32, 10))
 	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
 	indexerKey, _ := reference.NewValue(tensor.MustShape(4, 1, 2), []float32{
@@ -232,6 +231,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek4", BlockCount: 1, ContextLength: 16}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
 		IndexerKeyLength: 8, CompressRatios: []uint32{4}},
 	}}}
+	runner = attachFixtureProgram(runner)
 	key, _ := reference.NewValue(tensor.MustShape(4, 1, 2), make([]float32, 8))
 	state := func(width uint64) LayerState {
 		value, _ := reference.NewValue(tensor.MustShape(width, 1, 2), make([]float32, int(2*width)))
@@ -287,6 +287,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 
 func TestMambaCacheValidation(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "mamba", BlockCount: 1}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2}}}}
+	runner = attachFixtureProgram(runner)
 	conv, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}}, Tokens: 2, Position: 2}
@@ -309,6 +310,7 @@ func TestMambaCacheValidation(t *testing.T) {
 
 func TestMamba2CacheValidation(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "mamba2", BlockCount: 1}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: 2}}}}
+	runner = attachFixtureProgram(runner)
 	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}}, Tokens: 2, Position: 2}
@@ -319,6 +321,7 @@ func TestMamba2CacheValidation(t *testing.T) {
 
 func TestFalconH1CacheValidation(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "falcon-h1", BlockCount: 1}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 2, HeadCountKV: 1}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: 2}}}}
+	runner = attachFixtureProgram(runner)
 	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
 	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
 	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
@@ -338,6 +341,7 @@ func TestFalconH1CacheValidation(t *testing.T) {
 
 func TestT5CacheValidation(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "t5", ContextLength: 16}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 3, HeadCountKV: 1}, EncoderSpec: model.EncoderSpec{DecoderBlockCount: 1}}}}
+	runner = attachFixtureProgram(runner)
 	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
 	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
 	crossKey, _ := reference.NewValue(tensor.MustShape(2, 1, 4), make([]float32, 8))
@@ -383,6 +387,7 @@ func TestJambaHybridCacheValidation(t *testing.T) {
 		RecurrentLayers: []bool{true, false}}},
 		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	conv, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
@@ -400,6 +405,7 @@ func TestGraniteHybridCacheValidation(t *testing.T) {
 		RecurrentLayers: []bool{true, false}}},
 		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
@@ -417,6 +423,7 @@ func TestPLaMo2HybridCacheValidation(t *testing.T) {
 		RecurrentLayers: []bool{true, false}}},
 		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	conv, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
@@ -435,6 +442,7 @@ func TestNemotronHThreeWayCacheValidation(t *testing.T) {
 		RecurrentLayers: []bool{false, true, false}}},
 		weights: model.Weights{Layers: []model.LayerWeights{{}, {Recurrent: true}, {}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
 	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
 	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
@@ -456,6 +464,7 @@ func TestKimiLinearHybridCacheValidation(t *testing.T) {
 	},
 		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {AttentionKB: &attentionKB}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	conv, _ := reference.NewValue(tensor.MustShape(2, 12), make([]float32, 24))
 	state, _ := reference.NewValue(tensor.MustShape(2, 2, 2, 1), make([]float32, 8))
 	key, _ := reference.NewValue(tensor.MustShape(5, 1, 2), make([]float32, 10))
@@ -468,6 +477,7 @@ func TestKimiLinearHybridCacheValidation(t *testing.T) {
 
 func TestRWKV6Qwen2CacheValidation(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "rwkv6qwen2", BlockCount: 1, EmbeddingLength: 8}, AttentionSpec: model.AttentionSpec{HeadCount: 2}, RecurrentSpec: model.RecurrentSpec{WKVHeadSize: 4}}}}
+	runner = attachFixtureProgram(runner)
 	shift, _ := reference.NewValue(tensor.MustShape(8), make([]float32, 8))
 	state, _ := reference.NewValue(tensor.MustShape(4, 4, 2, 1), make([]float32, 32))
 	cache := &KVCache{Layers: []LayerCache{{Key: shift, Value: state}}, Tokens: 2, Position: 2}
@@ -478,6 +488,7 @@ func TestRWKV6Qwen2CacheValidation(t *testing.T) {
 
 func TestRWKV6CacheValidation(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "rwkv6", BlockCount: 1, EmbeddingLength: 8}, AttentionSpec: model.AttentionSpec{HeadCount: 2}, RecurrentSpec: model.RecurrentSpec{WKVHeadSize: 4}}}}
+	runner = attachFixtureProgram(runner)
 	shift, _ := reference.NewValue(tensor.MustShape(8, 2), make([]float32, 16))
 	state, _ := reference.NewValue(tensor.MustShape(4, 4, 2, 1), make([]float32, 32))
 	cache := &KVCache{Layers: []LayerCache{{Key: shift, Value: state}}, Tokens: 2, Position: 2}
@@ -493,6 +504,7 @@ func TestRWKV7CacheValidation(t *testing.T) {
 	}{{"rwkv7", 2}, {"arwkv7", 1}} {
 		t.Run(test.architecture, func(t *testing.T) {
 			runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture, BlockCount: 1, EmbeddingLength: 8}, AttentionSpec: model.AttentionSpec{HeadCount: 2}, RecurrentSpec: model.RecurrentSpec{WKVHeadSize: 4, TokenShiftCount: test.shiftCount}}}}
+			runner = attachFixtureProgram(runner)
 			shift, _ := reference.NewValue(tensor.MustShape(8, uint64(test.shiftCount)), make([]float32, 8*test.shiftCount))
 			state, _ := reference.NewValue(tensor.MustShape(4, 4, 2, 1), make([]float32, 32))
 			auxiliary, _ := reference.NewValue(tensor.MustShape(8, 2), make([]float32, 16))
@@ -517,10 +529,10 @@ func TestRWKV7CacheValidation(t *testing.T) {
 
 func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture string) {
 	attentionKB := gguf.TensorInfo{Name: "blk.0.attn_k_b.weight"}
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture, BlockCount: 1}, AttentionSpec: model.AttentionSpec{KeyLength: 6, ValueLength: 4,
-		HeadCount: 2, HeadCountKV: 2, KVLoRARank: 3, RopeDimensionCount: 2}},
-		weights: model.Weights{Layers: []model.LayerWeights{{AttentionKB: &attentionKB}}}},
-	}
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture, BlockCount: 1}, AttentionSpec: model.AttentionSpec{KeyLength: 6, ValueLength: 4,
+		HeadCount: 2, HeadCountKV: 2, KVLoRARank: 3, RopeDimensionCount: 2}}
+	weights := model.Weights{Layers: []model.LayerWeights{{AttentionKB: &attentionKB}}}
+	runner := fixtureRunner(spec, weights)
 	key, _ := reference.NewValue(tensor.MustShape(5, 1, 2), make([]float32, 10))
 	value, _ := reference.NewValue(tensor.MustShape(3, 1, 2), make([]float32, 6))
 	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value}}, Tokens: 2, Position: 2}
@@ -531,10 +543,10 @@ func testDeepSeek2FamilyAbsorbedCacheValidation(t *testing.T, architecture strin
 
 func TestDeepSeek2LegacyCacheValidation(t *testing.T) {
 	attentionKVB := gguf.TensorInfo{Name: "blk.0.attn_kv_b.weight"}
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek2", BlockCount: 1}, AttentionSpec: model.AttentionSpec{KeyLength: 6, ValueLength: 4,
-		HeadCount: 2, HeadCountKV: 1, KVLoRARank: 3, RopeDimensionCount: 2}},
-		weights: model.Weights{Layers: []model.LayerWeights{{AttentionKVB: &attentionKVB}}}},
-	}
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek2", BlockCount: 1}, AttentionSpec: model.AttentionSpec{KeyLength: 6, ValueLength: 4,
+		HeadCount: 2, HeadCountKV: 1, KVLoRARank: 3, RopeDimensionCount: 2}}
+	weights := model.Weights{Layers: []model.LayerWeights{{AttentionKVB: &attentionKVB}}}
+	runner := fixtureRunner(spec, weights)
 	key, _ := reference.NewValue(tensor.MustShape(6, 2, 2), make([]float32, 24))
 	value, _ := reference.NewValue(tensor.MustShape(4, 2, 2), make([]float32, 16))
 	cache := &KVCache{Layers: []LayerCache{{Key: key, Value: value}}, Tokens: 2, Position: 2}
@@ -548,6 +560,7 @@ func TestDeciSentinelCacheValidationAndRangeRemoval(t *testing.T) {
 		HeadCount: 2, HeadCountKV: 1, LayerHeadCounts: []uint32{2},
 		LayerKVHeadCounts: []uint32{0}},
 	}}}
+	runner = attachFixtureProgram(runner)
 	sentinel, err := reference.NewValue(
 		tensor.MustShape(1, 1, 3), []float32{1, 2, 3},
 	)
@@ -884,6 +897,9 @@ func hybridCacheTestRunner() *Runner {
 		SSMGroupCount:   1},
 	}
 	return &Runner{preparedModel: preparedModel{spec: spec,
+		program: fixtureProgram(spec, model.Weights{Layers: []model.LayerWeights{
+			{Recurrent: true}, {Recurrent: false},
+		}}),
 		weights: model.Weights{Layers: []model.LayerWeights{
 			{Recurrent: true},
 			{Recurrent: false},
@@ -932,10 +948,12 @@ func hybridCacheTestValue(t *testing.T) *KVCache {
 }
 
 func cacheTestRunner() *Runner {
-	return &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{BlockCount: 1}, AttentionSpec: model.AttentionSpec{KeyLength: 2,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}, AttentionSpec: model.AttentionSpec{KeyLength: 2,
 		ValueLength: 3,
 		HeadCountKV: 1},
-	}}}
+	}
+	weights := model.Weights{Layers: []model.LayerWeights{{}}}
+	return &Runner{preparedModel: preparedModel{spec: spec, weights: weights, program: fixtureProgram(spec, weights)}}
 }
 
 func cacheTestValue(t testing.TB) *KVCache {

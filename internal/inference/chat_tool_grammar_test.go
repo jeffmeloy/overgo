@@ -132,7 +132,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 			if path == "" {
 				t.Skip(fixture.env + " is not set")
 			}
-			runner, err := Open(path, 0)
+			runner, err := openFixtureRunner(path, 0)
 			if err != nil {
 				t.Fatal(err)
 			}

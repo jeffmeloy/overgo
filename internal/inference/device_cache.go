@@ -235,9 +235,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
 	for layerIndex := range cache.Keys {
-		recurrent := r.layerPlan(
-			layerIndex, r.weights.Layers[layerIndex].Recurrent,
-		).CacheMode == model.CacheStateFixed
+		recurrent := r.layerPlan(layerIndex).CacheMode == model.CacheStateFixed
 		if recurrent {
 			// Recurrent primary state: position-independent.
 		} else {
@@ -334,9 +332,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	stateTargets := make([]stateCopyTarget, 0)
 	stateCopies := make([]executor.DeviceCopy, 0)
 	for layerIndex := range cache.Keys {
-		recurrent := r.layerPlan(
-			layerIndex, r.weights.Layers[layerIndex].Recurrent,
-		).CacheMode == model.CacheStateFixed
+		recurrent := r.layerPlan(layerIndex).CacheMode == model.CacheStateFixed
 		for _, item := range []struct {
 			label string
 			value executor.DeviceValue
@@ -1311,7 +1307,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	decodeCatalog := plan.mode == deviceOutputGreedy && tokensPerSequence == 1 && r.decodeWeights != nil
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex, info.Recurrent)
+		plan := r.layerPlan(layerIndex)
 		var graphWeights model.LayerGraphWeights
 		var layerFeeds map[*tensor.Tensor]driver.DevicePtr
 		var layerErr error

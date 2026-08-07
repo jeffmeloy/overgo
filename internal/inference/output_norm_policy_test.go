@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -13,8 +14,8 @@ func TestBuildOutputNormUsesCompiledPolicy(t *testing.T) {
 	t.Run("absent", func(t *testing.T) {
 		profile, _ := model.LookupArchitecture("bert")
 		runner := &Runner{preparedModel: preparedModel{
-			spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "bert"}},
-			plan: model.ModelPlan{Profile: profile},
+			spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: "bert"}},
+			program: modelrecipe.Plan{Model: model.ModelPlan{Profile: profile}},
 		}}
 		builder := tensor.NewBuilder()
 		input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
@@ -36,7 +37,7 @@ func TestBuildOutputNormUsesCompiledPolicy(t *testing.T) {
 			spec: model.Spec{CommonSpec: model.CommonSpec{
 				Architecture: "llama", EmbeddingLength: 2, RMSNormEpsilon: 1e-5,
 			}},
-			plan:    model.ModelPlan{Profile: profile},
+			program: modelrecipe.Plan{Model: model.ModelPlan{Profile: profile}},
 			weights: model.Weights{OutputNorm: gguf.TensorInfo{Name: "output_norm.weight"}},
 		}}
 		builder := tensor.NewBuilder()

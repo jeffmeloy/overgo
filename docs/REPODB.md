@@ -55,7 +55,8 @@ Current foundation:
   document, metadata-binding, and graph-compilation boundaries.
 - Runtime profile injection across metadata parsing, weight catalogs, and graph
   planning. Dispatch, catalog loading, and persistent-cache policy preserve the
-  exact bound profile; unbound models retain the bootstrap path.
+  exact bound profile; production opening rejects unbound models. Bootstrap
+  lookup remains explicit catalog-construction and test-fixture machinery.
 - Metadata-read facts now travel with the profile. Base, position, draft,
   architecture-core, expert, family-shape, and runtime ingestion select typed
   contracts without architecture-name dispatch; unknown bits and invalid

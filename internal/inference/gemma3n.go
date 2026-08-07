@@ -42,7 +42,7 @@ func (r *Runner) forwardGemma3nCachedLocked(
 		Position: nextPosition + uint32(len(positions)),
 	}
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex, info.Recurrent)
+		plan := r.layerPlan(layerIndex)
 		hostLayer, loadErr := r.hostLayer(ctx, fmt.Sprintf("blk.%d.", layerIndex), info)
 		if loadErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, loadErr)

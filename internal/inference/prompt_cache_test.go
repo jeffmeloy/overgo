@@ -222,9 +222,10 @@ func TestTrimDeviceCacheSuffix(t *testing.T) {
 }
 
 func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 2}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1, ContextLength: 2}},
 		weights: model.Weights{Layers: make([]model.LayerWeights, 1)}},
 	}
+	runner = attachFixtureProgram(runner)
 	shape := tensor.MustShape(2, 3, 2)
 	cache := &deviceKVCache{
 		Keys: []executor.DeviceValue{{
@@ -252,11 +253,12 @@ func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
 }
 
 func TestShiftDeviceCachePreservesRecurrentState(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", ContextLength: 2}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", BlockCount: 1, ContextLength: 2}},
 		weights: model.Weights{Layers: []model.LayerWeights{{
 			Recurrent: true,
 		}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	stateShape := tensor.MustShape(4, 4)
 	cache := &deviceKVCache{
 		Keys:     []executor.DeviceValue{{Pointer: 1000, Shape: stateShape}},

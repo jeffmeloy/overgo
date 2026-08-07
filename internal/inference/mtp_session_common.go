@@ -229,7 +229,7 @@ func (r *Runner) validateSingleHeadMTPTarget(
 	label string,
 ) error {
 	if !mtpOnly || target == nil || targetMTPOnly ||
-		r.spec.Profile() != target.spec.Profile() ||
+		r.profile() != target.profile() ||
 		r.spec.EmbeddingLength != target.spec.EmbeddingLength ||
 		r.spec.VocabularySize != target.spec.VocabularySize ||
 		r.spec.HeadCount != target.spec.HeadCount || r.spec.HeadCountKV != target.spec.HeadCountKV ||

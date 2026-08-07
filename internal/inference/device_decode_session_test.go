@@ -19,12 +19,11 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	)
 	runner := &Runner{preparedModel: preparedModel{
 		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: contextTokens}},
-		plan: model.ModelPlan{Profile: model.ArchitectureProfile{
+		program: modelrecipe.Plan{Model: model.ModelPlan{Profile: model.ArchitectureProfile{
 			Name: "fixture", Attention: model.AttentionQwenGDN,
 		}, Layers: []model.LayerPlan{{
 			CacheMode: model.CacheStateToken, CacheWrite: model.CacheWriteConcatOrAppend,
-		}}},
-		program: modelrecipe.Plan{Decode: modelrecipe.DecodePlan{
+		}}}, Decode: modelrecipe.DecodePlan{
 			Session: modelrecipe.DecodeSessionCapacity,
 		}},
 	}}

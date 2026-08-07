@@ -16,11 +16,13 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func Open(path string, deviceOrdinal int) (*Runner, error) {
-	return OpenWithOptions(path, OpenOptions{DeviceOrdinal: deviceOrdinal})
-}
-
-func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
+func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*Runner, error) {
+	if loaded == nil {
+		return nil, errors.New("inference: resolved model program is nil")
+	}
+	if err := loaded.Validate(); err != nil {
+		return nil, fmt.Errorf("inference: validate model program: %w", err)
+	}
 	if options.PreloadDeviceWeights && options.PreloadQuantizedWeights {
 		return nil, errors.New("inference: F32 and native-quantized preload modes are mutually exclusive")
 	}
@@ -38,33 +40,14 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		promptCacheCapacity = 1
 	}
 	cachePageTokens := resolveCachePageTokens(options.CachePageTokens)
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
+	file := loaded.File
+	path, spec, weights, program := loaded.Path, loaded.Spec, loaded.Weights, loaded.Program
 	fail := func(openErr error) (*Runner, error) {
 		_ = file.Close()
+		loaded.File = nil
 		return nil, openErr
 	}
-	var spec model.Spec
-	if options.Profile == nil {
-		spec, err = model.ReadSpec(file)
-	} else {
-		spec, err = model.ReadSpecWithProfile(file, *options.Profile)
-	}
-	if err != nil {
-		return fail(err)
-	}
-	weights, err := model.ReadWeights(file, spec)
-	if err != nil {
-		return fail(err)
-	}
-	program, err := modelrecipe.CompileRuntime(spec, weights)
-	if err != nil {
-		return fail(err)
-	}
-	plan := program.Model
-	cacheSchemas, err := model.CompileCacheSchemas(spec, plan, weights.Layers)
+	cacheSchemas, err := model.CompileCacheSchemas(spec, program.Model, weights.Layers)
 	if err != nil {
 		return fail(err)
 	}
@@ -218,8 +201,9 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 			return fail(err)
 		}
 	}
+	loaded.File = nil
 	return &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, program: program, plan: plan, cacheSchemas: cacheSchemas,
+		file: file, path: path, spec: spec, program: program, cacheSchemas: cacheSchemas,
 		weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,

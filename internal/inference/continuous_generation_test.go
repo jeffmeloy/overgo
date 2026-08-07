@@ -77,10 +77,10 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	}
 	batch := &fakeContinuousBatch{}
 	ctx, cancel := context.WithCancel(context.Background())
+	runner := fixtureRunner(model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35"}}, model.Weights{})
+	runner.vocab = vocab
 	generator := &ContinuousGenerator{
-		runner: &Runner{preparedModel: preparedModel{
-			spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35"}}, vocab: vocab,
-		}}, batch: batch,
+		runner: runner, batch: batch,
 		options: ContinuousGeneratorOptions{MaxSequences: 2},
 		ctx:     ctx, cancel: cancel,
 		submit: make(chan continuousGenerateRequest, 2), done: make(chan struct{}),
@@ -187,8 +187,10 @@ func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 	}
 	batch := &fakeContinuousBatch{started: make(chan struct{}), proceed: make(chan struct{})}
 	ctx, stop := context.WithCancel(context.Background())
+	runner := fixtureRunner(model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35"}}, model.Weights{})
+	runner.vocab = vocab
 	generator := &ContinuousGenerator{
-		runner: &Runner{preparedModel: preparedModel{vocab: vocab}}, batch: batch,
+		runner: runner, batch: batch,
 		options: ContinuousGeneratorOptions{MaxSequences: 2},
 		ctx:     ctx, cancel: stop,
 		submit: make(chan continuousGenerateRequest, 2), done: make(chan struct{}),

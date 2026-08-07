@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/inference"
 )
 
 type report struct {
@@ -34,7 +33,7 @@ func run() error {
 	if *query == "" || *document == "" {
 		return errors.New("-query and -document are required")
 	}
-	runner, err := inference.OpenWithOptions(*modelPath, modelFlags.OpenOptions(1))
+	runner, err := modelFlags.OpenRunner(context.Background(), *modelPath, 1)
 	if err != nil {
 		return err
 	}

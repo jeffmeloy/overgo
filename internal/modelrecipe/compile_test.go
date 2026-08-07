@@ -32,7 +32,12 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 }
 
 func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
-	program, err := CompileRuntime(model.Spec{CommonSpec: model.CommonSpec{
+	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("capacity-model"))
+	definition, err := Inference(modelID, recipe.PlacementHybrid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := Compile(definition, model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "llama", BlockCount: 1,
 	}}, model.Weights{Layers: []model.LayerWeights{{}}})
 	if err != nil {
@@ -40,6 +45,37 @@ func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	}
 	if program.Decode.Session != DecodeSessionCapacity || len(program.Nodes) != 3 {
 		t.Fatalf("runtime program = %+v", program)
+	}
+}
+
+func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
+	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("qwen35-model"))
+	profileID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("qwen35-profile"))
+	definitionID, _ := artifact.IdentifyBytes(artifact.KindModelDefinition, []byte("qwen35-definition"))
+	definition, err := InferenceWithModelDefinition(
+		modelID, profileID, definitionID, recipe.PlacementHybrid,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := model.Spec{
+		CommonSpec:    model.CommonSpec{Architecture: "qwen35", BlockCount: 2},
+		AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4},
+		RecurrentSpec: model.RecurrentSpec{
+			SSMConvKernel: 3, SSMInnerSize: 4, SSMStateSize: 2,
+			SSMTimeStepRank: 2, SSMGroupCount: 1, FullAttentionInterval: 2,
+		},
+	}
+	program, err := Compile(definition, spec, model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := program.ValidateServing(); err != nil {
+		t.Fatal(err)
+	}
+	if !program.Model.Layers[0].Recurrent || program.Model.Layers[1].Recurrent ||
+		program.Decode.Session != DecodeSessionCapacity {
+		t.Fatalf("Qwen3.5 program = %+v", program)
 	}
 }
 

@@ -231,7 +231,11 @@ func (p ModelPlan) SupportsCapacityCache() bool {
 
 // SupportsMultiAxisPositions: model-level MRoPE contract.
 func (s Spec) SupportsMultiAxisPositions() bool {
-	profile := s.Profile()
+	return s.SupportsMultiAxisPositionsWithProfile(s.Profile())
+}
+
+// SupportsMultiAxisPositionsWithProfile: bound-profile MRoPE contract.
+func (s Spec) SupportsMultiAxisPositionsWithProfile(profile ArchitectureProfile) bool {
 	if !profile.Has(ArchitectureMultiAxisPositions) {
 		return false
 	}

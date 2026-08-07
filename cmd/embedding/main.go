@@ -39,7 +39,7 @@ func run() error {
 	if *modelPath == "" {
 		return errors.New("-model is required")
 	}
-	runner, err := inference.OpenWithOptions(*modelPath, modelFlags.OpenOptions(1))
+	runner, err := modelFlags.OpenRunner(context.Background(), *modelPath, 1)
 	if err != nil {
 		return err
 	}

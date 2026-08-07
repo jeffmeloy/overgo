@@ -41,7 +41,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	captured := make(map[int32]*tensor.Tensor)
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex, info.Recurrent)
+		plan := r.layerPlan(layerIndex)
 		if stream := deepstackInputForLayer(plan.DeepstackBefore, deepstackBase, deepstackInputs); stream != nil {
 			deepstack := builder.Input(
 				fmt.Sprintf("blk.%d.deepstack_input", layerIndex), dtype.F32, stream.Shape,
@@ -168,7 +168,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	current := input
 	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex, info.Recurrent)
+		plan := r.layerPlan(layerIndex)
 		graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 		if err != nil {
 			return reference.Value{}, err
@@ -219,7 +219,7 @@ func (r *Runner) runLayerCached(
 	visualMode bool,
 	attentionBlockIDs []float32,
 ) (reference.Value, LayerCache, error) {
-	plan := r.layerPlan(layerIndex, info.Recurrent)
+	plan := r.layerPlan(layerIndex)
 	if plan.Attention == model.AttentionQwenGDN {
 		return r.runQwen35LayerCached(
 			ctx,
@@ -450,7 +450,7 @@ func (r *Runner) runDenseLayerNoCache(
 	layerIndex int,
 	positions []uint32,
 ) (reference.Value, error) {
-	plan := r.layerPlan(layerIndex, info.Recurrent)
+	plan := r.layerPlan(layerIndex)
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)

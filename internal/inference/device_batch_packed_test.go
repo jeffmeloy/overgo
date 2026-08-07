@@ -13,8 +13,9 @@ import (
 
 func TestDecodeCandidatePairsSplitsPackedRows(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{
-		CommonSpec: model.CommonSpec{VocabularySize: 5},
+		CommonSpec: model.CommonSpec{Architecture: "llama", VocabularySize: 5},
 	}}}
+	runner = attachFixtureProgram(runner)
 	sets, err := runner.decodeCandidatePairs(
 		[]float32{3, 2.5, 1, 1.5, 4, 3.5, 0, 0.5}, 2, 2,
 	)

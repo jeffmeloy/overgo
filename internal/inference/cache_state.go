@@ -175,32 +175,14 @@ func (r *Runner) validateCache(cache *KVCache) error {
 }
 
 func (r *Runner) cacheLayerCount() int {
-	if r.plan.CacheLayers != 0 {
-		return int(r.plan.CacheLayers)
+	if r.program.Model.CacheLayers != 0 {
+		return int(r.program.Model.CacheLayers)
 	}
-	if r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
-		return int(r.spec.DecoderBlockCount)
-	}
-	if r.spec.BlockCount != 0 {
-		return int(r.spec.BlockCount)
-	}
-	return len(r.weights.Layers)
+	panic("inference: compiled cache layer count is unavailable")
 }
 
 func (r *Runner) hasCachePolicy(policy model.CachePolicy) bool {
-	if len(r.plan.Layers) != 0 {
-		return r.plan.HasCache(policy)
-	}
-	for layer := range r.cacheLayerCount() {
-		info := model.LayerWeights{}
-		if layer < len(r.weights.Layers) {
-			info = r.weights.Layers[layer]
-		}
-		if r.layerPlan(layer, info.Recurrent).Cache == policy {
-			return true
-		}
-	}
-	return false
+	return r.program.Model.HasCache(policy)
 }
 
 func (r *Runner) cacheSchema(
@@ -211,7 +193,7 @@ func (r *Runner) cacheSchema(
 	if layer < len(r.weights.Layers) {
 		info = r.weights.Layers[layer]
 	}
-	plan := r.layerPlan(layer, info.Recurrent)
+	plan := r.layerPlan(layer)
 	if layer >= 0 && layer < len(r.cacheSchemas) {
 		return plan, r.cacheSchemas[layer].WithTokenCount(tokens), nil
 	}

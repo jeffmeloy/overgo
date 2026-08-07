@@ -12,10 +12,20 @@ import (
 
 	"overgo/internal/inference"
 	"overgo/internal/media"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
+
+func openFixtureRunner(path string, options inference.OpenOptions) (*inference.Runner, error) {
+	loaded, err := modelrecipe.LoadFixtureGGUF(path, recipe.PlacementHybrid)
+	if err != nil {
+		return nil, err
+	}
+	return inference.OpenWithProgram(&loaded, options)
+}
 
 func TestQwen35VideoEndToEndOracle(t *testing.T) {
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
@@ -36,7 +46,7 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 	if err := json.Unmarshal(data, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithOptions(modelPath, inference.OpenOptions{PreloadDeviceWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadDeviceWeights: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +117,7 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 	if err := json.Unmarshal(data, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithOptions(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +194,7 @@ func TestGemma4AudioEndToEndOracle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithOptions(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
 	if err != nil {
 		t.Fatal(err)
 	}

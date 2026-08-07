@@ -124,6 +124,7 @@ func TestGenerateRestoresPerRequestLoRA(t *testing.T) {
 		vocab: &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "x", Type: tokenizer.TokenNormal}}}},
 		runnerState: runnerState{loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{Path: "adapter.gguf"}, scale: 1}}},
 	}
+	runner = attachFixtureProgram(runner)
 	_, _, err := runner.Generate(context.Background(), "", GenerateOptions{
 		MaxNewTokens:   0,
 		PromptTokenIDs: []tokenizer.TokenID{0},

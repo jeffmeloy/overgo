@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 )
 
 func TestForwardUsesCompiledPolicy(t *testing.T) {
@@ -24,8 +25,8 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 				t.Fatal("architecture is not registered")
 			}
 			runner := &Runner{preparedModel: preparedModel{
-				spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture}},
-				plan: model.ModelPlan{Profile: profile},
+				spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture}},
+				program: modelrecipe.Plan{Model: model.ModelPlan{Profile: profile}},
 			}}
 			_, err := runner.Forward(context.Background(), nil)
 			if err == nil || !strings.Contains(err.Error(), test.message) {

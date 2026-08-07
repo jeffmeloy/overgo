@@ -208,6 +208,7 @@ func TestApplyEmbeddingOverridesRejectsInvalidInput(t *testing.T) {
 func TestMultimodalInputAdmission(t *testing.T) {
 	for _, architecture := range []string{"qwen3vl", "glm4", "hunyuan-dense"} {
 		supported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{2, 2, 0, 0}}}}}
+		supported = attachFixtureProgram(supported)
 		_, _, err := supported.ForwardCachedWithMultimodalInputs(
 			context.Background(), nil, nil, MultiAxisPositions{}, nil,
 		)
@@ -217,6 +218,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 	}
 
 	unsupported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}}
+	unsupported = attachFixtureProgram(unsupported)
 	_, _, err := unsupported.ForwardCachedWithMultimodalInputs(
 		context.Background(), nil, nil, MultiAxisPositions{}, nil,
 	)
@@ -227,6 +229,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 
 func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3vl", ContextLength: 4}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{1, 1, 0, 0}}}}}
+	runner = attachFixtureProgram(runner)
 	positions := MultiAxisPositions{{0}, {0}, nil, {0}}
 	_, _, err := runner.ForwardCachedWithMultimodalInputs(
 		context.Background(), []tokenizer.TokenID{0}, nil, positions, nil,
@@ -240,6 +243,7 @@ func TestProjectedInputDeepstackAdmission(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "granite", EmbeddingLength: 2}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 1,
 		DeepstackMapping: []int32{0, 1}},
 	}}}
+	runner = attachFixtureProgram(runner)
 	_, _, err := runner.ForwardCachedWithProjectedInputs(
 		context.Background(), nil, nil,
 		ProjectedInputs{DeepstackEmbeddings: []reference.Value{{}}},
@@ -252,7 +256,7 @@ func TestProjectedInputDeepstackAdmission(t *testing.T) {
 func TestProjectedAttentionBlockIDs(t *testing.T) {
 	blocks := []AttentionBlock{{Start: 1, End: 3}, {Start: 4, End: 5}}
 	ids, err := projectedAttentionBlockIDs(
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4"}}, 6, false, blocks,
+		model.AttentionBlocksUncached, 6, false, blocks,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -262,17 +266,17 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 		t.Fatalf("attention block IDs = %v, want %v", ids, want)
 	}
 	if _, err = projectedAttentionBlockIDs(
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, 6, false, blocks,
+		model.AttentionBlocksNone, 6, false, blocks,
 	); err == nil || !strings.Contains(err.Error(), "does not support") {
 		t.Fatalf("unsupported block error = %v", err)
 	}
 	if _, err = projectedAttentionBlockIDs(
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4"}}, 6, true, blocks,
+		model.AttentionBlocksUncached, 6, true, blocks,
 	); err == nil || !strings.Contains(err.Error(), "uncached") {
 		t.Fatalf("cached block error = %v", err)
 	}
 	if _, err = projectedAttentionBlockIDs(
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4"}}, 6, false,
+		model.AttentionBlocksUncached, 6, false,
 		[]AttentionBlock{{Start: 1, End: 4}, {Start: 3, End: 5}},
 	); err == nil || !strings.Contains(err.Error(), "overlaps") {
 		t.Fatalf("overlap error = %v", err)
@@ -283,6 +287,7 @@ func TestCompileProjectedRequestPlan(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{
 		CommonSpec: model.CommonSpec{Architecture: "gemma4", ContextLength: 2, EmbeddingLength: 4},
 	}}}
+	runner = attachFixtureProgram(runner)
 	plan, err := runner.compileProjectedRequestPlan(2, false, ProjectedInputs{
 		BidirectionalAttentionBlocks: []AttentionBlock{{Start: 0, End: 2}},
 	})

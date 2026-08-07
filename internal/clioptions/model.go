@@ -1,12 +1,16 @@
 package clioptions
 
 import (
+	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"slices"
 	"strings"
 
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/repodb"
 )
 
 // ModelFlags: common model-loading flags.
@@ -16,6 +20,7 @@ type ModelFlags struct {
 	NativeQ8      *bool
 	NativeQuant   *bool
 	HostCache     *bool
+	Repository    *string
 	loraPaths     stringList
 }
 
@@ -57,6 +62,7 @@ func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 func AddModelFlagsWithConfig(flags *flag.FlagSet, loraHelp string, config ModelFlagConfig) *ModelFlags {
 	result := &ModelFlags{}
 	result.DeviceOrdinal = flags.Int("device", 0, "CUDA device ordinal")
+	result.Repository = flags.String("repo", "", "required RepoDB containing the active model recipe")
 	if config.PreloadName != "" {
 		result.Preload = flags.Bool(config.PreloadName, config.PreloadDefault, "dequantize all model weights once into CUDA memory")
 	}
@@ -75,6 +81,40 @@ func AddModelFlagsWithConfig(flags *flag.FlagSet, loraHelp string, config ModelF
 	}
 	flags.Var(&result.loraPaths, "lora", loraHelp)
 	return result
+}
+
+// OpenRunner: resolves the active identity-bound recipe before inference.
+func (flags *ModelFlags) OpenRunner(
+	ctx context.Context,
+	path string,
+	loraScale float32,
+) (*inference.Runner, error) {
+	if flags == nil || flags.Repository == nil || strings.TrimSpace(*flags.Repository) == "" {
+		return nil, errors.New("model recipe repository is required")
+	}
+	return OpenRunner(ctx, *flags.Repository, path, flags.OpenOptions(loraScale))
+}
+
+// OpenRunner: storage-bound assembly; inference receives only a compiled program.
+func OpenRunner(
+	ctx context.Context,
+	repository, path string,
+	options inference.OpenOptions,
+) (*inference.Runner, error) {
+	if strings.TrimSpace(repository) == "" {
+		return nil, errors.New("model recipe repository is required")
+	}
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return nil, fmt.Errorf("open model recipe repository: %w", err)
+	}
+	loaded, resolveErr := modelrecipe.ResolveActiveGGUF(ctx, store, path)
+	closeErr := store.Close()
+	if resolveErr != nil || closeErr != nil {
+		_ = loaded.Close()
+		return nil, errors.Join(resolveErr, closeErr)
+	}
+	return inference.OpenWithProgram(&loaded, options)
 }
 
 // OpenOptions: inference model-loading options.

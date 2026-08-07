@@ -43,6 +43,7 @@ func TestValidateGLM4NextNAvailability(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "glm4", NextNPredictLayers: 1}},
 		weights: model.Weights{NextNMTP: []model.Step35MTPWeights{{}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	if err := runner.validateNextNMTP(); err != nil {
 		t.Fatal(err)
 	}

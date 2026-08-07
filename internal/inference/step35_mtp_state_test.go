@@ -44,6 +44,7 @@ func TestHYV3MTPSessionStateRoundTrip(t *testing.T) {
 	runner.spec.Architecture = "hy_v3"
 	runner.weights.HYV3MTP = runner.weights.Step35MTP
 	runner.weights.Step35MTP = nil
+	runner = attachFixtureProgram(runner)
 	session := step35MTPStateFixture(t, runner, true)
 	data, err := runner.SaveHYV3MTPSession(session)
 	if err != nil {
@@ -99,12 +100,10 @@ func step35MTPStateRunner() *Runner {
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
 		SlidingWindow: 16, SlidingLayers: []bool{false, true, false}},
 	}
-	return &Runner{preparedModel: preparedModel{spec: spec,
-		weights: model.Weights{
-			Layers:    make([]model.LayerWeights, 1),
-			Step35MTP: make([]model.Step35MTPWeights, 2),
-		}},
-	}
+	return fixtureRunner(spec, model.Weights{
+		Layers:    make([]model.LayerWeights, 1),
+		Step35MTP: make([]model.Step35MTPWeights, 2),
+	})
 }
 
 func step35MTPStateFixture(t *testing.T, runner *Runner, active bool) *Step35MTPSession {

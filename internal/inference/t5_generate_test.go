@@ -15,11 +15,13 @@ func TestGenerateT5Admission(t *testing.T) {
 	}
 	vocab := &tokenizer.Vocab{}
 	wrong := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, vocab: vocab}}
+	wrong = attachFixtureProgram(wrong)
 	if _, _, _, err := wrong.GenerateT5(context.Background(), "", GenerateOptions{}); err == nil ||
 		!strings.Contains(err.Error(), "requires T5 architecture") {
 		t.Fatalf("architecture error = %v", err)
 	}
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "t5"}}, vocab: vocab}}
+	runner = attachFixtureProgram(runner)
 	if _, _, _, err := runner.GenerateT5(context.Background(), "", GenerateOptions{MaxNewTokens: -1}); err == nil {
 		t.Fatal("negative token limit was accepted")
 	}

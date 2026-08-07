@@ -22,7 +22,7 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 	)
 	runner := &Runner{preparedModel: preparedModel{
 		spec: model.Spec{
-			CommonSpec: model.CommonSpec{BlockCount: 1, ContextLength: fixtureContext},
+			CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1, ContextLength: fixtureContext},
 			AttentionSpec: model.AttentionSpec{
 				KeyLength: fixtureKeyWidth, ValueLength: fixtureValueWidth,
 				HeadCountKV: fixtureHeads,
@@ -30,6 +30,7 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 		},
 		weights: model.Weights{Layers: []model.LayerWeights{{}}},
 	}}
+	runner = attachFixtureProgram(runner)
 	builder := tensor.NewBuilder()
 	keyPast := builder.Input("key_past", dtype.F32, tensor.MustShape(
 		uint64(fixtureKeyWidth), uint64(fixtureHeads), uint64(fixturePastTokens),
@@ -178,10 +179,11 @@ func BenchmarkRebuildDeviceCachePages(b *testing.B) {
 
 func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{
-		Architecture: "falcon-h1", ContextLength: 4,
+		Architecture: "falcon-h1", BlockCount: 1, ContextLength: 4,
 	}},
 		weights: model.Weights{Layers: []model.LayerWeights{{}}}},
 	}
+	runner = attachFixtureProgram(runner)
 	cache := &deviceKVCache{
 		Keys: []executor.DeviceValue{{
 			Pointer: driver.DevicePtr(1000), Shape: tensor.MustShape(2, 1, 4),

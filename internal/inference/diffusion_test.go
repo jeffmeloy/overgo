@@ -273,18 +273,21 @@ func TestGenerateDiffusionRejectsInvalidRunnerBoundaries(t *testing.T) {
 	causal := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 2}},
 		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1}},
 	}
+	causal = attachFixtureProgram(causal)
 	if _, _, err := causal.GenerateDiffusion(context.Background(), "", options); err == nil {
 		t.Fatal("causal runner accepted")
 	}
 	noMask := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 2}},
 		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: tokenizer.NullToken}},
 	}
+	noMask = attachFixtureProgram(noMask)
 	if _, _, err := noMask.GenerateDiffusion(context.Background(), "", options); err == nil {
 		t.Fatal("missing mask accepted")
 	}
 	tooLong := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 1}},
 		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1}},
 	}
+	tooLong = attachFixtureProgram(tooLong)
 	if _, _, err := tooLong.GenerateDiffusion(context.Background(), "", options); err == nil {
 		t.Fatal("over-context diffusion accepted")
 	}

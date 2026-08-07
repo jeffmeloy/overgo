@@ -3,6 +3,7 @@ package modelrecipe
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
@@ -18,10 +19,27 @@ const (
 var catalog = mustCatalog()
 
 type Plan struct {
-	Recipe recipe.Definition
-	Model  model.ModelPlan
-	Decode DecodePlan
-	Nodes  []recipe.Node
+	Identity ProgramIdentity
+	Recipe   recipe.Definition
+	Model    model.ModelPlan
+	Decode   DecodePlan
+	Nodes    []recipe.Node
+}
+
+// Runtime: compiled execution surface.
+type Runtime string
+
+const RuntimeInference Runtime = "inference"
+
+// ProgramIdentity: exact serving bindings.
+type ProgramIdentity struct {
+	Model         artifact.ID
+	Profile       artifact.ID
+	Definition    artifact.ID
+	Recipe        artifact.ID
+	RecipeVersion uint16
+	Placement     recipe.Placement
+	Runtime       Runtime
 }
 
 // DecodeSessionPolicy: compiled decode-graph lifetime.
@@ -110,16 +128,6 @@ func Compile(definition recipe.Definition, spec model.Spec, weights model.Weight
 	})
 }
 
-// CompileRuntime: canonical in-process inference program.
-func CompileRuntime(spec model.Spec, weights model.Weights) (Plan, error) {
-	modelPlan, err := model.CompileModelPlan(spec, weights)
-	if err != nil {
-		return Plan{}, err
-	}
-	nodes := runtimeNodes(recipe.PlacementHybrid)
-	return compilePlan(recipe.Definition{}, nodes, modelPlan), nil
-}
-
 func compileDefinition(
 	definition recipe.Definition,
 	compileModel func() (model.ModelPlan, error),
@@ -152,17 +160,60 @@ func compilePlan(definition recipe.Definition, nodes []recipe.Node, modelPlan mo
 		session = DecodeSessionCapacity
 	}
 	return Plan{
-		Recipe: definition, Model: modelPlan, Decode: DecodePlan{Session: session},
+		Identity: programIdentity(definition), Recipe: definition,
+		Model: modelPlan, Decode: DecodePlan{Session: session},
 		Nodes: append([]recipe.Node(nil), nodes...),
 	}
 }
 
-func runtimeNodes(placement recipe.Placement) []recipe.Node {
-	return []recipe.Node{
-		{ID: "compile", Module: ModuleCompileModelPlan, Placement: placement},
-		{ID: "decode", Module: ModuleCompileDecodePlan, Placement: placement},
-		{ID: "forward", Module: ModuleForwardTokens, Placement: placement},
+func programIdentity(definition recipe.Definition) ProgramIdentity {
+	identity := ProgramIdentity{
+		Model: definition.Model, Recipe: definition.ID, RecipeVersion: definition.Version,
+		Runtime: RuntimeInference,
 	}
+	identity.Profile, _ = definition.Dependency(recipe.DependencyProfile, 0)
+	identity.Definition, _ = definition.Dependency(recipe.DependencyDefinition, 0)
+	for _, node := range definition.Nodes {
+		if node.Module == ModuleForwardTokens {
+			identity.Placement = node.Placement
+			break
+		}
+	}
+	return identity
+}
+
+func validateProgramIdentity(definition recipe.Definition, identity ProgramIdentity) error {
+	if err := definition.Validate(catalog); err != nil {
+		return err
+	}
+	want := programIdentity(definition)
+	if identity != want || identity.Model.Kind() != artifact.KindModel ||
+		identity.Profile.Kind() != artifact.KindProfile ||
+		identity.Definition.Kind() != artifact.KindModelDefinition ||
+		identity.Recipe.Kind() != artifact.KindRecipe ||
+		identity.Runtime != RuntimeInference || identity.Placement == "" {
+		return errors.New("model recipe: serving program identity is incomplete")
+	}
+	for _, node := range definition.Nodes {
+		if node.Placement != identity.Placement {
+			return errors.New("model recipe: serving program has mixed placement")
+		}
+	}
+	return nil
+}
+
+// ValidateServing: complete identity-bound inference program.
+func (p Plan) ValidateServing() error {
+	if err := validateProgramIdentity(p.Recipe, p.Identity); err != nil {
+		return err
+	}
+	if p.Model.Profile.Name == "" || len(p.Model.Layers) == 0 {
+		return errors.New("model recipe: serving model program is incomplete")
+	}
+	if !slices.Equal(p.Nodes, p.Recipe.Nodes) {
+		return errors.New("model recipe: serving node program differs")
+	}
+	return nil
 }
 
 func Content(definition recipe.Definition) (artifact.Content, error) {

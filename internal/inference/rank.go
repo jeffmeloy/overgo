@@ -146,10 +146,10 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if len(input) == 0 {
 		return RankResult{}, errors.New("inference: rank token list is empty")
 	}
-	if inputs.MultiAxisPositions != nil && !r.spec.SupportsMultiAxisPositions() {
+	if inputs.MultiAxisPositions != nil && !r.spec.SupportsMultiAxisPositionsWithProfile(r.profile()) {
 		return RankResult{}, errors.New("inference: model does not support multi-axis positions")
 	}
-	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec) {
+	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec, r.profile()) {
 		return RankResult{}, errors.New("inference: model does not support deepstack embeddings")
 	}
 	hidden, _, err := r.forwardCachedProjectedChunkLocked(ctx, slices.Clone(input), nil, inputs)

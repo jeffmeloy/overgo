@@ -16,6 +16,7 @@ import (
 
 type cliConfig struct {
 	model       string
+	repository  string
 	prompt      string
 	device      int
 	preload     bool
@@ -34,9 +35,10 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	runner, err := inference.OpenWithOptions(config.model, clioptions.BuildOpenOptions(
-		config.device, config.preload, config.nativeQuant, config.lora, 1,
-	))
+	runner, err := clioptions.OpenRunner(
+		context.Background(), config.repository, config.model,
+		clioptions.BuildOpenOptions(config.device, config.preload, config.nativeQuant, config.lora, 1),
+	)
 	if err != nil {
 		return err
 	}
@@ -124,7 +126,8 @@ func parseCLI(arguments []string) (cliConfig, error) {
 		schedule = inference.DiffusionBlock
 	}
 	return cliConfig{
-		model: flags.Arg(0), prompt: flags.Arg(1), device: *modelFlags.DeviceOrdinal,
+		model: flags.Arg(0), repository: *modelFlags.Repository,
+		prompt: flags.Arg(1), device: *modelFlags.DeviceOrdinal,
 		preload: preload, nativeQuant: nativeQuant, lora: modelFlags.LoRAPaths(), visual: *visual,
 		diffusion: inference.DiffusionOptions{
 			MaxLength: *length, Steps: *steps,

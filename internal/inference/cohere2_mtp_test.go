@@ -46,12 +46,10 @@ func TestCohere2MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
 	}
 	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "b"}}}
-	draft := &Runner{preparedModel: preparedModel{path: "draft", spec: spec, vocab: vocab,
-		weights: model.Weights{Cohere2MTP: &model.Cohere2MTPWeights{MTPOnly: true}}},
-	}
-	target := &Runner{preparedModel: preparedModel{path: "target", spec: spec, vocab: vocab,
-		weights: model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)}},
-	}
+	draft := fixtureRunner(spec, model.Weights{Cohere2MTP: &model.Cohere2MTPWeights{MTPOnly: true}})
+	draft.path, draft.vocab = "draft", vocab
+	target := fixtureRunner(spec, model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)})
+	target.path, target.vocab = "target", vocab
 	if err := draft.validateCohere2MTPTarget(target); err != nil {
 		t.Fatal(err)
 	}

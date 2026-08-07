@@ -300,7 +300,7 @@ func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
-	runner, err := Open(path, 0)
+	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
-	runner, err := Open(path, 0)
+	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_GEMMA3_MODEL is not set")
 	}
-	runner, err := Open(path, 0)
+	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,7 +457,7 @@ func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
-	runner, err := Open(path, 0)
+	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -482,7 +482,7 @@ func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
-	runner, err := Open(path, 0)
+	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -582,7 +582,7 @@ func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_BONSAI_MODEL is not set")
 	}
-	runner, err := Open(path, 0)
+	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -607,7 +607,7 @@ func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_BONSAI_MODEL is not set")
 	}
-	runner, err := Open(path, 0)
+	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

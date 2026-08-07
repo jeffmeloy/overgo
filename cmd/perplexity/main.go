@@ -40,7 +40,7 @@ func run() error {
 		}
 		text = flag.Arg(1)
 	}
-	runner, err := inference.OpenWithOptions(flag.Arg(0), modelFlags.OpenOptions(1))
+	runner, err := modelFlags.OpenRunner(context.Background(), flag.Arg(0), 1)
 	if err != nil {
 		return err
 	}

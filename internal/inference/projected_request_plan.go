@@ -29,7 +29,7 @@ func (r *Runner) compileProjectedRequestPlan(
 	}
 	profile := r.profile()
 	if inputs.MultiAxisPositions != nil {
-		if !r.spec.SupportsMultiAxisPositions() {
+		if !r.spec.SupportsMultiAxisPositionsWithProfile(profile) {
 			return projectedRequestPlan{}, errors.New("inference: model does not support multi-axis positions")
 		}
 		for axis := range inputs.MultiAxisPositions {
@@ -41,11 +41,11 @@ func (r *Runner) compileProjectedRequestPlan(
 			}
 		}
 	}
-	if err := validateDeepstackInputs(r.spec, tokens, inputs.DeepstackEmbeddings); err != nil {
+	if err := validateDeepstackInputs(r.spec, profile, tokens, inputs.DeepstackEmbeddings); err != nil {
 		return projectedRequestPlan{}, err
 	}
 	attentionBlockIDs, err := projectedAttentionBlockIDs(
-		r.spec, tokens, hasCache, inputs.BidirectionalAttentionBlocks,
+		profile.AttentionBlocks, tokens, hasCache, inputs.BidirectionalAttentionBlocks,
 	)
 	if err != nil {
 		return projectedRequestPlan{}, err

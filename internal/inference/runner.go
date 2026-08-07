@@ -151,7 +151,6 @@ type preparedModel struct {
 	path                string
 	spec                model.Spec
 	program             modelrecipe.Plan
-	plan                model.ModelPlan
 	cacheSchemas        []model.LayerCacheSchema
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
@@ -201,8 +200,6 @@ type OpenOptions struct {
 	// CacheHostWeights retains lazily dequantized F32 host tensors.
 	// False preserves bounded layer-at-a-time loading.
 	CacheHostWeights bool
-	// Profile: prevalidated architecture policy; nil selects bootstrap registry.
-	Profile *model.ArchitectureProfile
 	// PromptCacheEntries: bounds independently reusable prompt states
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
@@ -218,29 +215,25 @@ func (r *Runner) Spec() model.Spec {
 	return r.spec
 }
 
-func (r *Runner) layerPlan(layer int, recurrent bool) model.LayerPlan {
-	if r != nil && layer >= 0 && layer < len(r.plan.Layers) {
-		return r.plan.Layers[layer]
+func (r *Runner) layerPlan(layer int) model.LayerPlan {
+	if r == nil || layer < 0 || layer >= len(r.program.Model.Layers) {
+		panic("inference: compiled layer plan is unavailable")
 	}
-	return r.spec.PlanLayer(uint32(layer), recurrent)
+	return r.program.Model.Layers[layer]
 }
 
 func (r *Runner) profile() model.ArchitectureProfile {
-	if r != nil && r.plan.Profile.Name != "" {
-		return r.plan.Profile
+	if r == nil || r.program.Model.Profile.Name == "" {
+		panic("inference: compiled profile is unavailable")
 	}
-	return r.spec.Profile()
+	return r.program.Model.Profile
 }
 
 func (r *Runner) forwardPolicy() model.ForwardPolicy {
-	if r != nil && r.plan.Profile.Name != "" {
-		return r.plan.Profile.Forward
+	if r == nil || r.program.Model.Profile.Name == "" {
+		panic("inference: compiled forward policy is unavailable")
 	}
-	profile := r.spec.Profile()
-	if profile.Forward == model.ForwardCached && r.spec.NonCausalAttention {
-		return model.ForwardNonCausal
-	}
-	return profile.Forward
+	return r.program.Model.Profile.Forward
 }
 
 func (r *Runner) Vocab() *tokenizer.Vocab {
@@ -380,7 +373,7 @@ func (r *Runner) ForwardCachedWithMultimodalInputs(
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
 	}
-	if !r.spec.SupportsMultiAxisPositions() {
+	if !r.spec.SupportsMultiAxisPositionsWithProfile(r.profile()) {
 		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
 	}
 	return r.forwardCachedProjectedChunkLocked(
@@ -617,7 +610,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: cachePosition,
 	}
-	if r.hasPreloadedWeights() && r.plan.CachedGraph == model.CachedGraphDense {
+	if r.hasPreloadedWeights() && r.program.Model.CachedGraph == model.CachedGraphDense {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
 			deepstackBase, deepstackInputs, attentionBlockIDs,
@@ -626,7 +619,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	}
 	auxiliaryValues := make(map[model.AuxiliaryFlow]*reference.Value)
 	for layerIndex, layerInfo := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex, layerInfo.Recurrent)
+		plan := r.layerPlan(layerIndex)
 		if stream := deepstackInputForLayer(plan.DeepstackBefore, deepstackBase, deepstackInputs); stream != nil {
 			activation, err = addDeepstackEmbedding(activation, *stream)
 			if err != nil {

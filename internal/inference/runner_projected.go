@@ -206,15 +206,20 @@ func selectCogVLMVisualGraphWeights(
 	return nil
 }
 
-func supportsDeepstackInputs(spec model.Spec) bool {
-	return spec.DeepstackLayerCount > 0 && spec.Profile().Deepstack != model.DeepstackNone
+func supportsDeepstackInputs(spec model.Spec, profile model.ArchitectureProfile) bool {
+	return spec.DeepstackLayerCount > 0 && profile.Deepstack != model.DeepstackNone
 }
 
-func validateDeepstackInputs(spec model.Spec, tokens int, inputs []reference.Value) error {
+func validateDeepstackInputs(
+	spec model.Spec,
+	profile model.ArchitectureProfile,
+	tokens int,
+	inputs []reference.Value,
+) error {
 	if len(inputs) == 0 {
 		return nil
 	}
-	if !supportsDeepstackInputs(spec) {
+	if !supportsDeepstackInputs(spec, profile) {
 		return errors.New("inference: model does not support deepstack embeddings")
 	}
 	if len(inputs) != int(spec.DeepstackLayerCount) {
@@ -238,7 +243,7 @@ func validateDeepstackInputs(spec model.Spec, tokens int, inputs []reference.Val
 }
 
 func projectedAttentionBlockIDs(
-	spec model.Spec,
+	policy model.AttentionBlockPolicy,
 	tokens int,
 	hasCache bool,
 	blocks []AttentionBlock,
@@ -246,7 +251,7 @@ func projectedAttentionBlockIDs(
 	if len(blocks) == 0 {
 		return nil, nil
 	}
-	if spec.Profile().AttentionBlocks != model.AttentionBlocksUncached {
+	if policy != model.AttentionBlocksUncached {
 		return nil, errors.New("inference: model does not support bidirectional attention blocks")
 	}
 	if hasCache {

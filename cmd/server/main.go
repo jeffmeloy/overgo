@@ -100,7 +100,9 @@ func run() error {
 	openOptions := modelFlags.OpenOptions(loraScale)
 	openOptions.PreloadBF16DecodeWeights = *decodeBF16
 	openOptions.PromptCacheEntries = *promptCacheEntries
-	runner, err := inference.OpenWithOptions(flag.Arg(0), openOptions)
+	runner, err := clioptions.OpenRunner(
+		context.Background(), *modelFlags.Repository, flag.Arg(0), openOptions,
+	)
 	if err != nil {
 		return err
 	}

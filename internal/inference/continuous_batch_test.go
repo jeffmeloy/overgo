@@ -126,6 +126,7 @@ func TestContinuousBatchAdmission(t *testing.T) {
 		},
 	}},
 	}
+	runner = attachFixtureProgram(runner)
 	batch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 2,
 		PageTokens:   4,

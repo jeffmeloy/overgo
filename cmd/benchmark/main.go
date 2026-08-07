@@ -33,6 +33,7 @@ const (
 
 type options struct {
 	Model          string
+	Repository     string
 	Prompt         string
 	Device         int
 	Tokens         int
@@ -139,6 +140,7 @@ func parseOptions(args []string) (options, error) {
 		return options{}, err
 	}
 	result.Device = *modelFlags.DeviceOrdinal
+	result.Repository = *modelFlags.Repository
 	result.Preload = modelFlags.Preload != nil && *modelFlags.Preload
 	result.NativeQuant = modelFlags.NativeQuant != nil && *modelFlags.NativeQuant
 	result.HostCache = modelFlags.HostCache != nil && *modelFlags.HostCache
@@ -208,7 +210,9 @@ func run(args []string) error {
 	)
 	openOptions.CacheHostWeights = options.HostCache
 	openOptions.PreloadBF16DecodeWeights = options.BF16Decode
-	runner, err := inference.OpenWithOptions(options.Model, openOptions)
+	runner, err := clioptions.OpenRunner(
+		context.Background(), options.Repository, options.Model, openOptions,
+	)
 	if err != nil {
 		return err
 	}

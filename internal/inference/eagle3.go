@@ -198,7 +198,7 @@ func (r *Runner) stepEagle3(
 		output, err = runtime.weight(outputInfo)
 	} else {
 		var value reference.Value
-		value, err = model.LoadHostTensor(ctx, target.file, outputInfo)
+		value, err = target.hostTensor(ctx, outputInfo)
 		if err == nil {
 			output = runtime.input(outputInfo.Name+".shared", value)
 		}
@@ -227,7 +227,7 @@ func (r *Runner) stepEagle3(
 }
 
 func (r *Runner) remapEagle3Logits(ctx context.Context, logits reference.Value) (reference.Value, error) {
-	mapping, err := model.LoadHostTensor(ctx, r.file, *r.weights.DraftToTarget)
+	mapping, err := r.hostTensor(ctx, *r.weights.DraftToTarget)
 	if err != nil {
 		return reference.Value{}, err
 	}

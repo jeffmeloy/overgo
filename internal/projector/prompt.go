@@ -29,6 +29,14 @@ type ImageTokenizer interface {
 	TokenizeText(string, bool, bool) ([]tokenizer.TokenID, error)
 }
 
+type promptRunTokenizer interface {
+	TokenizeTextRuns(string, string, []int, bool) ([]tokenizer.TokenID, []int, error)
+}
+
+type promptMarkerTokenizer interface {
+	TokenizeTextMarkers(string, string, []int, bool) ([]tokenizer.TokenID, []int, error)
+}
+
 type Qwen3VLTokenizer = ImageTokenizer
 
 type MultimodalPrompt struct {
@@ -194,6 +202,13 @@ func tokenizePromptRuns(
 	placeholderLabel string,
 	runsLabel string,
 ) ([]tokenizer.TokenID, []int, error) {
+	if optimized, ok := tokenizer.(promptRunTokenizer); ok {
+		ids, starts, err := optimized.TokenizeTextRuns(prompt, placeholder, counts, history)
+		if err != nil {
+			return nil, nil, fmt.Errorf("projector: tokenize %s: %w", promptLabel, err)
+		}
+		return ids, starts, nil
+	}
 	ids, err := tokenizer.TokenizeText(prompt, history, true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("projector: tokenize %s: %w", promptLabel, err)
@@ -213,7 +228,11 @@ func tokenizePromptRuns(
 }
 
 func embeddingTokenIndices(starts, counts []int, offset int) []uint32 {
-	var indices []uint32
+	total := 0
+	for _, count := range counts {
+		total += count
+	}
+	indices := make([]uint32, 0, total)
 	for index, start := range starts {
 		indices = append(indices, sequentialTokenIndices(start+offset, counts[index])...)
 	}

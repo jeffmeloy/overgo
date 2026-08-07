@@ -158,41 +158,13 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	if value, ok := optional[float32](values, prefix+"attention.scale", gguf.ValueTypeFloat32); ok {
 		spec.AttentionScale = value
 	}
-	if validation.Hybrid == HybridValidationGrok {
-		spec.AttentionSoftcap = 30
-		if value, ok := optional[float32](values, prefix+"attn_logit_softcapping", gguf.ValueTypeFloat32); ok {
-			spec.AttentionSoftcap = value
-		}
-		spec.AttentionScale = 0.08838834764831845
-		if value, ok := optional[float32](values, prefix+"attention.output_scale", gguf.ValueTypeFloat32); ok {
-			spec.AttentionScale = value
-		}
-		spec.EmbeddingScale = 78.38367176906169
-		if value, ok := optional[float32](values, prefix+"embedding_scale", gguf.ValueTypeFloat32); ok {
-			spec.EmbeddingScale = value
-		}
-		spec.LogitScale = 0.5773502691896257
-		if value, ok := optional[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32); ok {
-			spec.LogitScale = value
-		}
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		); ok {
-			spec.RopeDimensionCount = value
-		}
-	}
+	m.profile.MetadataDefaults.read(values, prefix, &spec)
 	if validation.Attention == AttentionValidationTalkie {
 		if spec.LogitScale, err = required[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err
 		}
-		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if validation.Recurrent == RecurrentValidationDFlash {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
 		if window, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok && window > 0 {
 			spec.SlidingWindow = window
 			spec.RopeFrequencySWA = spec.RopeFrequencyBase
@@ -207,18 +179,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 				spec.SlidingLayers = slices.Clone(layers)
 			}
 		}
-	}
-	if validation.Recurrent == RecurrentValidationEagle3 {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
-	}
-	if validation.Attention == AttentionValidationGemma3N {
-		spec.RopeDimensionCount = spec.KeyLength
-	}
-	if validation.Attention == AttentionValidationCogVLM {
-		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if validation.Hybrid == HybridValidationRopeScaling || validation.MLA == MLAValidationMiniCPM3 {
 		spec.EmbeddingScale = 12
@@ -276,13 +236,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			prefix+"residual_scale",
 			gguf.ValueTypeFloat32,
 		)
-		spec.RopeDimensionCount = spec.KeyLength
-		spec.RopeDimensionCount, _ = optional[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		)
-		if spec.RopeDimensionCount == 0 {
-			spec.RopeDimensionCount = spec.KeyLength
-		}
 		spec.OriginalContextLength = spec.ContextLength
 		spec.OriginalContextLength, _ = optional[uint32](
 			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
@@ -397,44 +350,29 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.RopeAttentionFactor = 1
-		if value, ok := optional[float32](
-			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
-		); ok {
-			spec.RopeAttentionFactor = value
-		}
+		spec.RopeAttentionFactor = optionalOr(
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1),
+		)
 	}
 	if validation.Attention == AttentionValidationPanguEmbedded {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
-		spec.OriginalContextLength = spec.ContextLength
-		if value, ok := optional[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32); ok {
-			spec.OriginalContextLength = value
-		}
-		spec.RopeAttentionFactor = 1
-		if value, ok := optional[float32](values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32); ok {
-			spec.RopeAttentionFactor = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
+		spec.OriginalContextLength = optionalOr(
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
+		)
+		spec.RopeAttentionFactor = optionalOr(
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1),
+		)
 	}
 	if validation.Attention == AttentionValidationModernBERT {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
-		spec.RopeFrequencySWA = 10000
-		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
-			spec.RopeFrequencySWA = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
+		spec.RopeFrequencySWA = optionalOr(values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, float32(10000))
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
 		if spec.SlidingWindow > 0 {
-			spec.SlidingPattern = 3
-			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
-				spec.SlidingPattern = value
-			}
+			spec.SlidingPattern = optionalOr(
+				values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(3),
+			)
 		}
 		spec.HiddenActivation = "geglu"
 		if value, ok := optional[string](values, prefix+"hidden_activation", gguf.ValueTypeString); ok {
@@ -451,65 +389,36 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.Attention == AttentionValidationGemmaEmbedding {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
-		spec.RopeFrequencySWA = 10000
-		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
-			spec.RopeFrequencySWA = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
+		spec.RopeFrequencySWA = optionalOr(values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, float32(10000))
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.SlidingPattern = 6
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
-			spec.SlidingPattern = value
-		}
+		spec.SlidingPattern = optionalOr(
+			values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(6),
+		)
 		spec.Dense2FeatureIn, _ = optional[uint32](values, prefix+"dense_2_feat_in", gguf.ValueTypeUint32)
 		spec.Dense2FeatureOut, _ = optional[uint32](values, prefix+"dense_2_feat_out", gguf.ValueTypeUint32)
 		spec.Dense3FeatureIn, _ = optional[uint32](values, prefix+"dense_3_feat_in", gguf.ValueTypeUint32)
 		spec.Dense3FeatureOut, _ = optional[uint32](values, prefix+"dense_3_feat_out", gguf.ValueTypeUint32)
 	}
 	if validation.Attention == AttentionValidationDeci {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		); ok {
-			spec.RopeDimensionCount = value
-		}
-		spec.OriginalContextLength = spec.ContextLength
-		if value, ok := optional[uint32](
-			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
-		); ok {
-			spec.OriginalContextLength = value
-		}
-		spec.RopeAttentionFactor = 1
-		if value, ok := optional[float32](
-			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
-		); ok {
-			spec.RopeAttentionFactor = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
+		spec.OriginalContextLength = optionalOr(
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
+		)
+		spec.RopeAttentionFactor = optionalOr(
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1),
+		)
 	}
 	if validation.Attention == AttentionValidationApertus {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		); ok {
-			spec.RopeDimensionCount = value
-		}
-		spec.OriginalContextLength = spec.ContextLength
-		if value, ok := optional[uint32](
-			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
-		); ok {
-			spec.OriginalContextLength = value
-		}
-		spec.RopeAttentionFactor = 1
-		if value, ok := optional[float32](
-			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
-		); ok {
-			spec.RopeAttentionFactor = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
+		spec.OriginalContextLength = optionalOr(
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
+		)
+		spec.RopeAttentionFactor = optionalOr(
+			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1),
+		)
 		for _, field := range []metadataField[[]float32]{
 			metadataDestination("xielu.alpha_n", &spec.XIELUAlphaN),
 			metadataDestination("xielu.alpha_p", &spec.XIELUAlphaP),
@@ -539,12 +448,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.attentionOneOf(AttentionValidationGLM4, AttentionValidationGLM4MoE) {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if nextN, ok := optional[uint32](
 			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
 		); ok && nextN > 0 {
@@ -566,10 +470,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.Hybrid == HybridValidationMiMo2 {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("MiMo2 NextN/MTP layer count is invalid")
@@ -581,10 +482,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
-			spec.RopeFrequencySWA = value
-		}
+		spec.RopeFrequencySWA = optionalOr(
+			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
+		)
 		patternKey := prefix + "attention.sliding_window_pattern"
 		if pattern, ok := optional[uint32](values, patternKey, gguf.ValueTypeUint32); ok {
 			spec.SlidingPattern = pattern
@@ -629,10 +529,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.Hybrid == HybridValidationStep35 {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("Step3.5 NextN/MTP layer count is invalid")
@@ -643,10 +540,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
-			spec.RopeFrequencySWA = value
-		}
+		spec.RopeFrequencySWA = optionalOr(
+			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
+		)
 		if spec.SlidingLayers, err = requiredLayerBoolCompatible(
 			values, prefix+"attention.sliding_window_pattern", declaredBlockCount,
 		); err != nil {
@@ -664,12 +560,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.Attention == AttentionValidationEXAOne4 {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if nextN, ok := optional[uint32](
 			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
 		); ok && nextN > 0 {
@@ -679,12 +570,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
-		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if value, ok := optional[float32](
-			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32,
-		); ok {
-			spec.RopeFrequencySWA = value
-		}
+		spec.RopeFrequencySWA = optionalOr(
+			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
+		)
 		if spec.BlockCount == 64 {
 			spec.SlidingWindow = 4096
 		}
@@ -694,20 +582,14 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.SlidingWindow = value
 		}
 		if spec.SlidingWindow > 0 {
-			spec.SlidingPattern = 4
-			if value, ok := optional[uint32](
-				values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32,
-			); ok {
-				spec.SlidingPattern = value
-			}
+			spec.SlidingPattern = optionalOr(
+				values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(4),
+			)
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
 	if validation.Hybrid == HybridValidationEXAOneMoE {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("EXAONE-MoE NextN/MTP layer count is invalid")
@@ -715,10 +597,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.NextNPredictLayers = nextN
 			spec.BlockCount -= nextN
 		}
-		spec.RopeFrequencySWA = spec.RopeFrequencyBase
-		if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
-			spec.RopeFrequencySWA = value
-		}
+		spec.RopeFrequencySWA = optionalOr(
+			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
+		)
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -735,10 +616,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.Hybrid == HybridValidationBailingMoE2 {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
 			if nextN >= spec.BlockCount {
 				return Spec{}, errors.New("BailingMoE2 NextN/MTP layer count is invalid")
@@ -896,10 +774,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.Hybrid == HybridValidationMellum {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
@@ -915,10 +790,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 				}
 				spec.SlidingLayers = slices.Clone(layers)
 			}
-			spec.RopeFrequencySWA = spec.RopeFrequencyBase
-			if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
-				spec.RopeFrequencySWA = value
-			}
+			spec.RopeFrequencySWA = optionalOr(
+				values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
+			)
 		}
 	}
 	if validation.Attention == AttentionValidationPLaMo3 {
@@ -938,10 +812,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 				}
 				spec.SlidingLayers = slices.Clone(layers)
 			}
-			spec.RopeFrequencySWA = spec.RopeFrequencyBase
-			if value, ok := optional[float32](values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32); ok {
-				spec.RopeFrequencySWA = value
-			}
+			spec.RopeFrequencySWA = optionalOr(
+				values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
+			)
 		}
 	}
 	if validation.Hybrid == HybridValidationAFMoE {
@@ -965,10 +838,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 		if m.profile.Forward == ForwardT5 {
-			spec.DecoderBlockCount = spec.BlockCount
-			if value, ok := optional[uint32](values, prefix+"decoder_block_count", gguf.ValueTypeUint32); ok {
-				spec.DecoderBlockCount = value
-			}
+			spec.DecoderBlockCount = optionalOr(
+				values, prefix+"decoder_block_count", gguf.ValueTypeUint32, spec.BlockCount,
+			)
 			spec.DecoderStartTokenID, _ = optional[uint32](values, prefix+"decoder_start_token_id", gguf.ValueTypeUint32)
 		}
 	}
@@ -976,12 +848,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		HybridValidationQwen3Next, HybridValidationQwen35, HybridValidationQwen35MoE,
 	) {
 		if validation.Hybrid == HybridValidationQwen3Next {
-			spec.RopeDimensionCount = spec.KeyLength
-			if value, ok := optional[uint32](
-				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-			); ok {
-				spec.RopeDimensionCount = value
-			}
+			spec.RopeDimensionCount = optionalOr(
+				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength,
+			)
 		} else {
 			if spec.RopeDimensionCount, err = required[uint32](
 				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
@@ -1012,14 +881,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.FullAttentionInterval = 4
-		if interval, ok := optional[uint32](
-			values,
-			prefix+"full_attention_interval",
-			gguf.ValueTypeUint32,
-		); ok {
-			spec.FullAttentionInterval = interval
-		}
+		spec.FullAttentionInterval = optionalOr(
+			values, prefix+"full_attention_interval", gguf.ValueTypeUint32, uint32(4),
+		)
 		if recurrent, ok, recurrentErr := optionalArray[bool](
 			values,
 			prefix+"attention.recurrent_layers",
@@ -1184,12 +1048,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertUsedCount == 0 {
 			return Spec{}, errors.New("expert used count is zero")
 		}
-		spec.ExpertFeedForward = spec.FeedForwardLength / spec.ExpertUsedCount
-		if value, ok := optional[uint32](
+		spec.ExpertFeedForward = optionalOr(
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
-		); ok {
-			spec.ExpertFeedForward = value
-		}
+			spec.FeedForwardLength/spec.ExpertUsedCount,
+		)
 		if validation.Hybrid == HybridValidationArctic {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
@@ -1227,23 +1089,17 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SharedExpertFF = spec.ExpertFeedForward
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
-		spec.ExpertWeightsScale = 1
+		spec.ExpertWeightsScale = optionalOr(
+			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1),
+		)
 		if validation.Hybrid == HybridValidationGPTOSS {
 			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
 			spec.ExpertWeightsNorm = false
 		}
-		if value, ok := optional[float32](
-			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
-		); ok {
-			spec.ExpertWeightsScale = value
-		}
 		if validation.hybridOneOf(HybridValidationQwen3Next, HybridValidationQwen35MoE) {
-			spec.SharedExpertFF = spec.FeedForwardLength
-			if value, ok := optional[uint32](
-				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
-			); ok {
-				spec.SharedExpertFF = value
-			}
+			spec.SharedExpertFF = optionalOr(
+				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.FeedForwardLength,
+			)
 		}
 	}
 	if profile.Has(ArchitectureDeepSeek2Layout) {
@@ -1262,10 +1118,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 				return Spec{}, err
 			}
 		}
-		spec.ExpertWeightsScale = 1
-		if value, ok := optional[float32](values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32); ok {
-			spec.ExpertWeightsScale = value
-		}
+		spec.ExpertWeightsScale = optionalOr(
+			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1),
+		)
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		spec.ExpertGatingFunc = expertGatingSoftmax
 		if profile.readsMetadata(MetadataReadGLMDSAGating) {
@@ -1311,10 +1166,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.LeadingDenseBlocks, _ = optional[uint32](
 			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
 		)
-		spec.MoELayerStep = 1
-		if value, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok {
-			spec.MoELayerStep = value
-		}
+		spec.MoELayerStep = optionalOr(
+			values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32, uint32(1),
+		)
 		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
 			spec.ExpertGatingFunc = value
@@ -1339,10 +1193,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Hybrid == HybridValidationGroveMoE {
-		spec.ExpertChunkFeedForward = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"expert_chunk_feed_forward_length", gguf.ValueTypeUint32); ok {
-			spec.ExpertChunkFeedForward = value
-		}
+		spec.ExpertChunkFeedForward = optionalOr(
+			values, prefix+"expert_chunk_feed_forward_length", gguf.ValueTypeUint32, spec.KeyLength,
+		)
 		if spec.ExpertGroupScale, err = required[float32](values, prefix+"expert_group_scale", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err
 		}
@@ -1375,10 +1228,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SharedExpertCount = value
 		}
 		if spec.SharedExpertCount > 0 {
-			spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
-			if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
-				spec.SharedExpertFF = value
-			}
+			spec.SharedExpertFF = optionalOr(
+				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
+				spec.ExpertFeedForward*spec.SharedExpertCount,
+			)
 		}
 	}
 	if validation.Hybrid == HybridValidationHYV3 {
@@ -1392,10 +1245,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.SharedExpertFF = spec.ExpertFeedForward
-		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
-			spec.SharedExpertFF = value
-		}
+		spec.SharedExpertFF = optionalOr(
+			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.ExpertFeedForward,
+		)
 		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
 			spec.ExpertGatingFunc = value
@@ -1430,35 +1282,25 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.RopeDimensionCount = spec.KeyLength
 	}
 	if validation.Encoder == EncoderValidationJinaV3 {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		spec.ExpertUsedCount, _ = optional[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32)
 		spec.MoELayerStep, _ = optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32)
 		if spec.ExpertCount > 0 {
 			spec.ExpertFeedForward = spec.FeedForwardLength
-			spec.ExpertWeightsScale = 1
-			if value, ok := optional[float32](values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32); ok {
-				spec.ExpertWeightsScale = value
-			}
+			spec.ExpertWeightsScale = optionalOr(
+				values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1),
+			)
 		}
 	}
 	if validation.Encoder == EncoderValidationNomicBERT {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > 0 {
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
 		}
 	}
 	if validation.Encoder == EncoderValidationNomicBERTMoE {
-		spec.RopeDimensionCount = spec.KeyLength
-		if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
-			spec.RopeDimensionCount = value
-		}
+		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
 		if spec.MoELayerStep, err = required[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1484,10 +1326,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.SharedExpertFF = spec.FeedForwardLength
-		if value, ok := optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32); ok {
-			spec.SharedExpertFF = value
-		}
+		spec.SharedExpertFF = optionalOr(
+			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.FeedForwardLength,
+		)
 		spec.ExpertWeightsNorm = true
 		spec.RopeDimensionCount = spec.KeyLength
 	}

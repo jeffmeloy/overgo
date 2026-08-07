@@ -58,9 +58,8 @@ func BuildGemma4AssistantBlock(
 		}
 	}
 	tokens := input.Shape.Dims[1]
-	keyLength := uint64(spec.LayerKeyLength(layerIndex))
-	valueLength := uint64(spec.LayerValueLength(layerIndex))
-	kvHeads := uint64(spec.HeadCountKV)
+	shapes := spec.TensorShapes(layerIndex)
+	keyLength, valueLength, kvHeads := shapes.Key, shapes.Value, shapes.KVHeads
 	if sharedKey.Shape.Rank != 3 || sharedValue.Shape.Rank != 3 ||
 		sharedKey.Shape.Dims[0] != keyLength || sharedValue.Shape.Dims[0] != valueLength ||
 		sharedKey.Shape.Dims[1] != kvHeads || sharedValue.Shape.Dims[1] != kvHeads ||
@@ -68,7 +67,7 @@ func BuildGemma4AssistantBlock(
 		sharedKey.Shape.Dims[2] != uint64(positions[0]) {
 		return nil, errors.New("Gemma 4 assistant shared cache shape is incompatible")
 	}
-	headCount := uint64(spec.HeadCount)
+	headCount := shapes.QueryHeads
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	query := builder.Reshape(builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens)
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
@@ -78,7 +77,7 @@ func BuildGemma4AssistantBlock(
 	attention := plan.AttentionGraph.Build(
 		builder, query, sharedKey, sharedValue, nil, nil, 1, queryStart,
 	)
-	attention = builder.Reshape(attention, headCount*valueLength, tokens)
+	attention = builder.Reshape(attention, shapes.AttentionOutputWidth(), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
 	residual := builder.Add(input, attention)

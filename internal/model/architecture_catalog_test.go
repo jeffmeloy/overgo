@@ -45,6 +45,12 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 		"metadata read bits": func(profile *ArchitectureProfile) {
 			profile.MetadataRead = allMetadataReadPolicies + 1
 		},
+		"metadata default relationship": func(profile *ArchitectureProfile) {
+			profile.MetadataDefaults.RopeDimension = RopeDimensionDefaultPolicy(unsupportedPolicyValue)
+		},
+		"metadata default scalar": func(profile *ArchitectureProfile) {
+			profile.MetadataDefaults.AttentionSoftcap = -1
+		},
 		"metadata read relationship": func(profile *ArchitectureProfile) {
 			profile.MetadataRead = MetadataReadQwen3VLDeepstack
 		},

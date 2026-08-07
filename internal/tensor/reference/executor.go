@@ -12,8 +12,22 @@ import (
 
 // Value: contiguous F32 reference tensor
 type Value struct {
-	Shape tensor.Shape
-	Data  []float32
+	Shape   tensor.Shape
+	Data    []float32
+	Storage ValueStorage
+}
+
+// ValueStorage: feed backing policy.
+type ValueStorage uint8
+
+const (
+	ValueMaterialized ValueStorage = iota
+	ValueImplicitZero
+)
+
+// ZeroValue: shape-only zero feed.
+func ZeroValue(shape tensor.Shape) Value {
+	return Value{Shape: shape, Storage: ValueImplicitZero}
 }
 
 func NewValue(shape tensor.Shape, data []float32) (Value, error) {
@@ -26,6 +40,37 @@ func NewValue(shape tensor.Shape, data []float32) (Value, error) {
 	}
 	copied := slices.Clone(data)
 	return Value{Shape: shape, Data: copied}, nil
+}
+
+func (v Value) validate() (uint64, error) {
+	elements, err := v.Shape.Elements()
+	if err != nil {
+		return 0, err
+	}
+	switch v.Storage {
+	case ValueMaterialized:
+		if elements != uint64(len(v.Data)) {
+			return 0, fmt.Errorf("reference data has %d elements, need %d", len(v.Data), elements)
+		}
+	case ValueImplicitZero:
+		if len(v.Data) != 0 {
+			return 0, errors.New("reference implicit-zero value has materialized data")
+		}
+	default:
+		return 0, errors.New("reference value storage is invalid")
+	}
+	return elements, nil
+}
+
+func (v Value) materialized() (Value, error) {
+	elements, err := v.validate()
+	if err != nil || v.Storage == ValueMaterialized {
+		return v, err
+	}
+	if elements > uint64(math.MaxInt) {
+		return Value{}, errors.New("reference zero value exceeds addressable memory")
+	}
+	return Value{Shape: v.Shape, Data: make([]float32, int(elements))}, nil
 }
 
 // Execute: evaluates outputs using feeds for input nodes
@@ -52,6 +97,10 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 			}
 			if !value.Shape.Equal(node.Shape) {
 				return nil, fmt.Errorf("feed shape for %q does not match graph", node.Name)
+			}
+			value, err = value.materialized()
+			if err != nil {
+				return nil, fmt.Errorf("feed storage for %q: %w", node.Name, err)
 			}
 			values[node] = value
 			continue

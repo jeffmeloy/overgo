@@ -15,6 +15,7 @@ type ModelFlags struct {
 	Preload       *bool
 	NativeQ8      *bool
 	NativeQuant   *bool
+	HostCache     *bool
 	loraPaths     stringList
 }
 
@@ -26,6 +27,8 @@ type ModelFlagConfig struct {
 	NativeQuantDefault bool
 	NativeQ8Name       string
 	NativeQ8Default    bool
+	HostCacheName      string
+	HostCacheDefault   bool
 }
 
 type stringList []string
@@ -46,6 +49,7 @@ func (values *stringList) Set(value string) error {
 func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 	return AddModelFlagsWithConfig(flags, loraHelp, ModelFlagConfig{
 		PreloadName: "preload", NativeQuantName: "native-quant", NativeQ8Name: "native-q8",
+		HostCacheName: "host-cache",
 	})
 }
 
@@ -62,6 +66,13 @@ func AddModelFlagsWithConfig(flags *flag.FlagSet, loraHelp string, config ModelF
 	if config.NativeQuantName != "" {
 		result.NativeQuant = flags.Bool(config.NativeQuantName, config.NativeQuantDefault, "preload supported quantized weights without dequantizing them")
 	}
+	if config.HostCacheName != "" {
+		result.HostCache = flags.Bool(
+			config.HostCacheName,
+			config.HostCacheDefault,
+			"retain lazily dequantized F32 weights in host memory",
+		)
+	}
 	flags.Var(&result.loraPaths, "lora", loraHelp)
 	return result
 }
@@ -70,7 +81,9 @@ func AddModelFlagsWithConfig(flags *flag.FlagSet, loraHelp string, config ModelF
 func (flags *ModelFlags) OpenOptions(loraScale float32) inference.OpenOptions {
 	preload := flags.Preload != nil && *flags.Preload
 	native := flags.NativeQ8 != nil && *flags.NativeQ8 || flags.NativeQuant != nil && *flags.NativeQuant
-	return BuildOpenOptions(*flags.DeviceOrdinal, preload, native, flags.loraPaths, loraScale)
+	result := BuildOpenOptions(*flags.DeviceOrdinal, preload, native, flags.loraPaths, loraScale)
+	result.CacheHostWeights = flags.HostCache != nil && *flags.HostCache
+	return result
 }
 
 // LoRAPaths: copied adapter paths

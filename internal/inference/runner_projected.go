@@ -168,7 +168,7 @@ func (r *Runner) applyCogVLMVisualWeights(
 			deviceFeeds[node] = pointer
 			continue
 		}
-		value, err := model.LoadHostTensor(ctx, r.file, *tensorInfo)
+		value, err := r.hostTensor(ctx, *tensorInfo)
 		if err != nil {
 			return err
 		}

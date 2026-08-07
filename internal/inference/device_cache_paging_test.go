@@ -59,6 +59,42 @@ func TestRebuildDeviceCachePagesPreservesFixedState(t *testing.T) {
 	}
 }
 
+func BenchmarkRebuildDeviceCachePages(b *testing.B) {
+	const (
+		layers      = 64
+		cacheTokens = 8192
+		keyWidth    = 128
+		keyHeads    = 8
+		keyBase     = 1000
+		valueBase   = 2000
+		layerStride = 8192
+	)
+	cache := &deviceKVCache{
+		Keys: make([]executor.DeviceValue, layers), Values: make([]executor.DeviceValue, layers),
+		Tokens: cacheTokens,
+	}
+	for layer := range layers {
+		cache.Keys[layer] = executor.DeviceValue{
+			Pointer: driver.DevicePtr(keyBase + layer*layerStride),
+			Shape:   tensor.MustShape(keyWidth, keyHeads, uint64(cache.Tokens)),
+		}
+		cache.Values[layer] = executor.DeviceValue{
+			Pointer: driver.DevicePtr(valueBase + layer*layerStride),
+			Shape:   tensor.MustShape(keyWidth, keyHeads, uint64(cache.Tokens)),
+		}
+	}
+	if err := rebuildDeviceCachePages(cache, DefaultCachePageTokens); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if err := rebuildDeviceCachePages(cache, DefaultCachePageTokens); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "falcon-h1", ContextLength: 4,

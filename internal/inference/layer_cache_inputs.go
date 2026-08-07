@@ -70,8 +70,7 @@ func (r *Runner) hostLayerCacheInputs(
 		return node
 	}
 	zero := func(suffix string, shape tensor.Shape) *tensor.Tensor {
-		elements, _ := shape.Elements()
-		return input(suffix, reference.Value{Shape: shape, Data: make([]float32, int(elements))})
+		return input(suffix, reference.ZeroValue(shape))
 	}
 	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 1)
 	if err != nil {

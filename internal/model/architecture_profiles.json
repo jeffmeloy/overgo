@@ -233,6 +233,9 @@
   },
   {
     "Capabilities": 234889280,
+    "MetadataDefaults": {
+      "RopeDimension": 1
+    },
     "Name": "cogvlm",
     "Validation": {
       "Attention": 26
@@ -475,6 +478,9 @@
     "Family": 7,
     "Forward": 2,
     "GraphFamily": 7,
+    "MetadataDefaults": {
+      "RopeDimension": 2
+    },
     "Name": "dflash",
     "Validation": {
       "Recurrent": 2
@@ -518,6 +524,9 @@
     "Family": 7,
     "Forward": 3,
     "GraphFamily": 7,
+    "MetadataDefaults": {
+      "RopeDimension": 2
+    },
     "Name": "eagle3",
     "Validation": {
       "Recurrent": 3
@@ -759,6 +768,9 @@
     "DenseStages": {
       "QueryScale": 4
     },
+    "MetadataDefaults": {
+      "RopeDimension": 1
+    },
     "Name": "gemma3n",
     "Validation": {
       "Attention": 7
@@ -991,6 +1003,9 @@
       "ResidualScale": true,
       "SharedCatalog": 2
     },
+    "MetadataDefaults": {
+      "RopeDimension": 2
+    },
     "Name": "granite",
     "Overrides": 3,
     "Position": 1,
@@ -1022,6 +1037,9 @@
       "KVHeads": 7,
       "PreserveLayerKV": true
     },
+    "MetadataDefaults": {
+      "RopeDimension": 2
+    },
     "Name": "granitehybrid",
     "Validation": {
       "Hybrid": 15,
@@ -1050,6 +1068,9 @@
     },
     "Family": 1,
     "GraphFamily": 1,
+    "MetadataDefaults": {
+      "RopeDimension": 2
+    },
     "Name": "granitemoe",
     "Position": 1,
     "Rotary": {
@@ -1075,6 +1096,13 @@
     },
     "Family": 1,
     "GraphFamily": 1,
+    "MetadataDefaults": {
+      "AttentionOutputScale": 0.08838834764831845,
+      "AttentionSoftcap": 30,
+      "EmbeddingScale": 78.38367176906169,
+      "LogitScale": 0.5773502691896257,
+      "RopeDimension": 2
+    },
     "Name": "grok",
     "Validation": {
       "Hybrid": 17
@@ -2495,6 +2523,9 @@
   {
     "Capabilities": 8665432064,
     "DenseGraph": 4,
+    "MetadataDefaults": {
+      "RopeDimension": 1
+    },
     "Name": "talkie",
     "Normalization": 3,
     "Runtime": {

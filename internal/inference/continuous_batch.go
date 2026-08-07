@@ -61,6 +61,7 @@ type SequenceBatchState struct {
 type ContinuousBatch struct {
 	runner    *Runner
 	options   ContinuousBatchOptions
+	operation sync.Mutex
 	mu        sync.Mutex
 	sequences map[SequenceID]*continuousSequence
 	closed    bool
@@ -116,18 +117,22 @@ func (b *ContinuousBatch) Step(
 	if len(inputs) == 0 {
 		return nil, errors.New("inference: continuous batch step is empty")
 	}
+	b.operation.Lock()
+	defer b.operation.Unlock()
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if b.closed {
+		b.mu.Unlock()
 		return nil, errors.New("inference: continuous batch is closed")
 	}
 	seen := make(map[SequenceID]struct{}, len(inputs))
 	newCount := len(b.sequences)
 	for index, input := range inputs {
 		if len(input.Tokens) == 0 {
+			b.mu.Unlock()
 			return nil, fmt.Errorf("inference: sequence %d token append is empty", index)
 		}
 		if _, duplicate := seen[input.ID]; duplicate {
+			b.mu.Unlock()
 			return nil, fmt.Errorf("inference: sequence ID %d is duplicated", input.ID)
 		}
 		seen[input.ID] = struct{}{}
@@ -136,12 +141,14 @@ func (b *ContinuousBatch) Step(
 		}
 	}
 	if newCount > b.options.MaxSequences {
+		b.mu.Unlock()
 		return nil, fmt.Errorf(
 			"inference: continuous batch would contain %d sequences, maximum %d",
 			newCount,
 			b.options.MaxSequences,
 		)
 	}
+	b.mu.Unlock()
 	r := b.runner
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -153,13 +160,6 @@ func (b *ContinuousBatch) Step(
 	}
 	candidates := make(map[SequenceID]*continuousSequence, len(inputs))
 	outputs := make([]SequenceBatchOutput, len(inputs))
-	releaseCandidates := func() {
-		for _, candidate := range candidates {
-			if candidate.device != nil {
-				_ = candidate.device.Release(context.Background())
-			}
-		}
-	}
 	for index, input := range inputs {
 		current := b.sequences[input.ID]
 		if current == nil {
@@ -175,23 +175,19 @@ func (b *ContinuousBatch) Step(
 			b.options.DiscardTokens,
 		)
 		if err != nil {
-			releaseCandidates()
 			return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, err)
 		}
 		hidden, next, err := r.forwardCachedLocked(ctx, input.Tokens, cache)
 		if err != nil {
-			releaseCandidates()
 			return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, err)
 		}
 		width := int(r.spec.EmbeddingLength)
 		if hidden.Shape.Rank != 2 || width <= 0 || len(hidden.Data) < width {
-			releaseCandidates()
 			return nil, fmt.Errorf("inference: sequence %d hidden state is incompatible", input.ID)
 		}
 		outputInfo := r.outputTensor()
 		logits, err := r.logits(ctx, outputInfo, hidden.Data[len(hidden.Data)-width:])
 		if err != nil {
-			releaseCandidates()
 			return nil, fmt.Errorf("inference: sequence %d logits: %w", input.ID, err)
 		}
 		candidates[input.ID] = &continuousSequence{host: next}
@@ -201,12 +197,14 @@ func (b *ContinuousBatch) Step(
 			Pages:    sequencePages(next.Tokens, b.options.PageTokens),
 		}
 	}
+	b.mu.Lock()
 	for id, candidate := range candidates {
 		if current := b.sequences[id]; current != nil && current.device != nil {
 			_ = current.device.Release(context.Background())
 		}
 		b.sequences[id] = candidate
 	}
+	b.mu.Unlock()
 	return outputs, nil
 }
 
@@ -241,25 +239,17 @@ func (b *ContinuousBatch) stepDeviceLocked(
 			}
 			working[index] = shifted
 		}
-		appends[index] = deviceBatchAppend{Tokens: input.Tokens, Past: working[index]}
+		appends[index] = deviceBatchAppend{
+			Tokens: input.Tokens, Past: working[index], PageTokens: b.options.PageTokens,
+		}
 	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, appends)
 	cleanupWorking()
 	if err != nil {
 		return nil, err
 	}
-	releaseNext := func() {
-		for _, cache := range next {
-			_ = cache.Release(context.Background())
-		}
-	}
 	outputs := make([]SequenceBatchOutput, len(inputs))
 	for index, cache := range next {
-		cache.PageTokens = b.options.PageTokens
-		if err := rebuildDeviceCachePages(cache, b.options.PageTokens); err != nil {
-			releaseNext()
-			return nil, err
-		}
 		input := inputs[index]
 		outputs[index] = SequenceBatchOutput{
 			ID: input.ID, Logits: slices.Clone(cache.Logits),
@@ -267,12 +257,14 @@ func (b *ContinuousBatch) stepDeviceLocked(
 			Pages: sequencePages(cache.Tokens, b.options.PageTokens),
 		}
 	}
+	b.mu.Lock()
 	for index, input := range inputs {
 		if current := b.sequences[input.ID]; current != nil && current.device != nil {
 			_ = current.device.Release(context.Background())
 		}
 		b.sequences[input.ID] = &continuousSequence{device: next[index]}
 	}
+	b.mu.Unlock()
 	return outputs, nil
 }
 
@@ -281,6 +273,8 @@ func (b *ContinuousBatch) Remove(ctx context.Context, id SequenceID) error {
 	if b == nil {
 		return errors.New("inference: continuous batch is nil")
 	}
+	b.operation.Lock()
+	defer b.operation.Unlock()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	sequence, ok := b.sequences[id]
@@ -299,6 +293,8 @@ func (b *ContinuousBatch) Fork(source, destination SequenceID) error {
 	if b == nil {
 		return errors.New("inference: continuous batch is nil")
 	}
+	b.operation.Lock()
+	defer b.operation.Unlock()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -355,6 +351,8 @@ func (b *ContinuousBatch) Snapshot() []SequenceBatchState {
 	if b == nil {
 		return nil
 	}
+	b.operation.Lock()
+	defer b.operation.Unlock()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	states := make([]SequenceBatchState, 0, len(b.sequences))

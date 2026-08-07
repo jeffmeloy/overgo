@@ -13,7 +13,7 @@ import (
 	"llamacpp2go/internal/repodb"
 )
 
-const profileCatalogSemanticDigest = "9fde6cc27e374f7d907a0f790b06308b0ecb8655a0b25bd16bf90d6e59b49ac5"
+const profileCatalogSemanticDigest = "711d84023214af0db882be811b71eecdc7c80a3823a84022c7b00081c50dac08"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 

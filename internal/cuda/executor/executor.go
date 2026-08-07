@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/bits"
 	"slices"
 	"sync"
 	"unsafe"
@@ -33,6 +34,73 @@ type executorResources struct {
 	module    driver.Module
 	functions functionSet
 	blas      *blasState
+	arena     driver.DevicePtr
+	arenaSize uint64
+	buffers   deviceBufferPool
+}
+
+const minimumDeviceBufferBytes uint64 = 256
+
+type deviceBufferLease struct {
+	pointer driver.DevicePtr
+	size    uint64
+}
+
+type deviceBufferPool struct {
+	free        map[uint64][]driver.DevicePtr
+	allocations []driver.DevicePtr
+}
+
+func (p *deviceBufferPool) acquire(state *device.State, size uint64) (deviceBufferLease, error) {
+	bucket, err := deviceBufferBucket(size)
+	if err != nil {
+		return deviceBufferLease{}, err
+	}
+	if available := p.free[bucket]; len(available) > 0 {
+		pointer := available[len(available)-1]
+		p.free[bucket] = available[:len(available)-1]
+		return deviceBufferLease{pointer: pointer, size: bucket}, nil
+	}
+	pointer, err := state.Driver.MemAlloc(bucket)
+	if err != nil {
+		return deviceBufferLease{}, err
+	}
+	if p.free == nil {
+		p.free = make(map[uint64][]driver.DevicePtr)
+	}
+	p.allocations = append(p.allocations, pointer)
+	return deviceBufferLease{pointer: pointer, size: bucket}, nil
+}
+
+func (p *deviceBufferPool) release(lease deviceBufferLease) {
+	if lease.pointer != 0 {
+		p.free[lease.size] = append(p.free[lease.size], lease.pointer)
+	}
+}
+
+func (p *deviceBufferPool) close(state *device.State) error {
+	var errs []error
+	for _, pointer := range p.allocations {
+		if err := state.Driver.MemFree(pointer); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	p.free = nil
+	p.allocations = nil
+	return errors.Join(errs...)
+}
+
+func deviceBufferBucket(size uint64) (uint64, error) {
+	if size == 0 {
+		return 0, errors.New("CUDA buffer size is zero")
+	}
+	if size <= minimumDeviceBufferBytes {
+		return minimumDeviceBufferBytes, nil
+	}
+	if size > uint64(1)<<63 {
+		return size, nil
+	}
+	return uint64(1) << bits.Len64(size-1), nil
 }
 
 type DeviceValue struct {
@@ -436,6 +504,10 @@ func (e *Executor) runCompiled(
 		if resourceErr != nil {
 			return resourceErr
 		}
+		arena, arenaErr := resources.ensureArena(state, compiled.memory.ArenaSize)
+		if arenaErr != nil {
+			return arenaErr
+		}
 		var executeErr error
 		result, executeErr = execute(
 			state,
@@ -444,6 +516,8 @@ func (e *Executor) runCompiled(
 			deviceFeeds,
 			resources.functions,
 			resources.blas,
+			arena,
+			&resources.buffers,
 			retain,
 		)
 		return executeErr
@@ -458,21 +532,23 @@ func execute(
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	functions functionSet,
 	blas *blasState,
+	arena driver.DevicePtr,
+	buffers *deviceBufferPool,
 	retainOutputs bool,
-) (*executionResult, error) {
+) (result *executionResult, err error) {
 	outputs := compiled.outputs
 	order := compiled.order
 	plan := compiled.memory
 
-	var arena driver.DevicePtr
-	if plan.ArenaSize > 0 {
-		var err error
-		arena, err = state.Driver.MemAlloc(plan.ArenaSize)
-		if err != nil {
-			return nil, err
-		}
-		defer state.Driver.MemFree(arena)
+	if plan.ArenaSize > 0 && arena == 0 {
+		return nil, errors.New("CUDA executor arena is unavailable")
 	}
+	submitted := false
+	defer func() {
+		if submitted {
+			err = errors.Join(err, state.Driver.StreamSynchronize(state.Stream))
+		}
+	}()
 
 	pointers := make(map[*tensor.Tensor]driver.DevicePtr, len(order))
 	outputSet := make(map[*tensor.Tensor]struct{}, len(outputs))
@@ -490,10 +566,10 @@ func execute(
 			_ = state.Driver.MemFree(pointer)
 		}
 	}()
-	inputPointers := make([]driver.DevicePtr, 0)
+	inputLeases := make([]deviceBufferLease, 0)
 	defer func() {
-		for _, pointer := range inputPointers {
-			_ = state.Driver.MemFree(pointer)
+		for _, lease := range inputLeases {
+			buffers.release(lease)
 		}
 	}()
 	for _, node := range order {
@@ -554,38 +630,51 @@ func execute(
 		if !value.Shape.Equal(node.Shape) {
 			return nil, fmt.Errorf("feed shape for %q does not match graph", node.Name)
 		}
+		elements, storageErr := value.Shape.Elements()
+		if storageErr != nil {
+			return nil, storageErr
+		}
+		if value.Storage == reference.ValueMaterialized && elements != uint64(len(value.Data)) {
+			return nil, fmt.Errorf("feed storage for %q has %d elements, need %d", node.Name, len(value.Data), elements)
+		}
+		if value.Storage == reference.ValueImplicitZero && len(value.Data) != 0 {
+			return nil, fmt.Errorf("implicit-zero feed %q has materialized data", node.Name)
+		}
 		bytes, err := node.Shape.Bytes(node.Type)
 		if err != nil {
 			return nil, err
 		}
-		pointer, err := state.Driver.MemAlloc(bytes)
+		lease, err := buffers.acquire(state, bytes)
 		if err != nil {
 			return nil, err
 		}
-		inputPointers = append(inputPointers, pointer)
-		pointers[node] = pointer
-		if allZeroFloat32(value.Data) {
+		inputLeases = append(inputLeases, lease)
+		pointers[node] = lease.pointer
+		if value.Storage == reference.ValueImplicitZero {
 			if err := state.Driver.MemsetD32Async(
-				pointer,
+				lease.pointer,
 				0,
-				uint64(len(value.Data)),
+				elements,
 				state.Stream,
 			); err != nil {
 				return nil, err
 			}
-		} else {
-			if err := state.Driver.MemcpyHtoD(pointer, driver.Bytes(value.Data)); err != nil {
+			submitted = true
+		} else if value.Storage == reference.ValueMaterialized {
+			if err := state.Driver.MemcpyHtoD(lease.pointer, driver.Bytes(value.Data)); err != nil {
 				return nil, err
 			}
+		} else {
+			return nil, fmt.Errorf("feed storage for %q is invalid", node.Name)
 		}
 	}
 
 	attributePointers := make(map[*tensor.Tensor]driver.DevicePtr)
-	auxiliaryPointers := make([]driver.DevicePtr, 0)
+	auxiliaryLeases := make([]deviceBufferLease, 0)
 	sharedAttributes := make(map[string]driver.DevicePtr)
 	defer func() {
-		for _, pointer := range auxiliaryPointers {
-			_ = state.Driver.MemFree(pointer)
+		for _, lease := range auxiliaryLeases {
+			buffers.release(lease)
 		}
 	}()
 	for _, node := range order {
@@ -627,14 +716,14 @@ func execute(
 			continue
 		}
 		bytes := uint64(len(values)) * uint64(unsafe.Sizeof(uint32(0)))
-		pointer, allocateErr := state.Driver.MemAlloc(bytes)
+		lease, allocateErr := buffers.acquire(state, bytes)
 		if allocateErr != nil {
 			return nil, allocateErr
 		}
-		auxiliaryPointers = append(auxiliaryPointers, pointer)
-		sharedAttributes[key] = pointer
-		attributePointers[node] = pointer
-		if copyErr := state.Driver.MemcpyHtoD(pointer, encoded); copyErr != nil {
+		auxiliaryLeases = append(auxiliaryLeases, lease)
+		sharedAttributes[key] = lease.pointer
+		attributePointers[node] = lease.pointer
+		if copyErr := state.Driver.MemcpyHtoD(lease.pointer, encoded); copyErr != nil {
 			return nil, copyErr
 		}
 	}
@@ -646,10 +735,12 @@ func execute(
 		if err := launchNode(state, functions, blas, node, pointers, attributePointers); err != nil {
 			return nil, fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 		}
+		submitted = true
 	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 		return nil, err
 	}
+	submitted = false
 	if retainOutputs {
 		retained = true
 		return &executionResult{
@@ -674,18 +765,6 @@ func execute(
 		results[output] = reference.Value{Shape: output.Shape, Data: data}
 	}
 	return &executionResult{host: results}, nil
-}
-
-func allZeroFloat32(values []float32) bool {
-	if len(values) == 0 {
-		return false
-	}
-	for _, value := range values {
-		if value != 0 {
-			return false
-		}
-	}
-	return true
 }
 
 type functionSet struct {
@@ -844,19 +923,19 @@ type blasState struct {
 func (e *Executor) ensureResources(
 	state *device.State,
 	needBlas bool,
-) (executorResources, error) {
+) (*executorResources, error) {
 	if e.resources.module == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
-			return executorResources{}, err
+			return nil, err
 		}
 		module, err := state.Driver.ModuleLoadData(kernel.OpsF32PTX)
 		if err != nil {
-			return executorResources{}, err
+			return nil, err
 		}
 		functions, err := loadFunctions(state.Driver, module)
 		if err != nil {
 			_ = state.Driver.ModuleUnload(module)
-			return executorResources{}, err
+			return nil, err
 		}
 		e.resources.module = module
 		e.resources.functions = functions
@@ -864,25 +943,56 @@ func (e *Executor) ensureResources(
 	if needBlas && e.resources.blas == nil {
 		library, err := cublas.Open()
 		if err != nil {
-			return executorResources{}, err
+			return nil, err
 		}
 		handle, err := library.Create()
 		if err != nil {
 			_ = library.Close()
-			return executorResources{}, err
+			return nil, err
 		}
 		if err := library.SetStream(handle, state.Stream); err != nil {
 			_ = library.Destroy(handle)
 			_ = library.Close()
-			return executorResources{}, err
+			return nil, err
 		}
 		e.resources.blas = &blasState{library: library, handle: handle}
 	}
-	return e.resources, nil
+	return &e.resources, nil
+}
+
+func (r *executorResources) ensureArena(state *device.State, size uint64) (driver.DevicePtr, error) {
+	if size == 0 {
+		return 0, nil
+	}
+	if r.arena != 0 && r.arenaSize >= size {
+		return r.arena, nil
+	}
+	next, err := state.Driver.MemAlloc(size)
+	if err != nil {
+		return 0, err
+	}
+	if r.arena != 0 {
+		if err := state.Driver.MemFree(r.arena); err != nil {
+			_ = state.Driver.MemFree(next)
+			return 0, err
+		}
+	}
+	r.arena, r.arenaSize = next, size
+	return r.arena, nil
 }
 
 func (e *Executor) closeResources(state *device.State) error {
 	var errs []error
+	if err := e.resources.buffers.close(state); err != nil {
+		errs = append(errs, err)
+	}
+	if e.resources.arena != 0 {
+		if err := state.Driver.MemFree(e.resources.arena); err != nil {
+			errs = append(errs, err)
+		}
+		e.resources.arena = 0
+		e.resources.arenaSize = 0
+	}
 	if e.resources.blas != nil {
 		if err := e.resources.blas.library.Destroy(e.resources.blas.handle); err != nil {
 			errs = append(errs, err)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"slices"
 	"strings"
 
 	"llamacpp2go/internal/tokenizer"
@@ -77,6 +78,7 @@ type mediaPromptRunPlan struct {
 type mediaPromptRuns struct {
 	TokenIDs []tokenizer.TokenID
 	Starts   []int
+	Counts   []int
 	Indices  []uint32
 }
 
@@ -120,7 +122,8 @@ func compileMediaPromptRuns(tokenizer ImageTokenizer, plan mediaPromptRunPlan) (
 		return mediaPromptRuns{}, err
 	}
 	return mediaPromptRuns{
-		TokenIDs: ids, Starts: starts, Indices: embeddingTokenIndices(starts, counts, 0),
+		TokenIDs: ids, Starts: starts, Counts: counts,
+		Indices: embeddingTokenIndices(starts, counts, 0),
 	}, nil
 }
 
@@ -140,13 +143,9 @@ func executeProjectedPromptPlan(tokenizer ImageTokenizer, plan projectedPromptPl
 	if plan.AttentionBlocks != nil {
 		blocks = plan.AttentionBlocks(runs.Starts, plan.TokensPerRun)
 	}
-	counts := make([]int, plan.Runs)
-	for index := range counts {
-		counts[index] = plan.TokensPerRun
-	}
 	return assembleProjectedPrompt(projectedPromptOutput{
 		TokenIDs: runs.TokenIDs, Embeddings: plan.Embeddings, Deepstack: plan.Deepstack,
-		EmbeddingWidth: plan.EmbeddingWidth, Starts: runs.Starts, Counts: counts,
+		EmbeddingWidth: plan.EmbeddingWidth, Starts: runs.Starts, Counts: runs.Counts,
 		Positions: positions, AttentionBlocks: blocks,
 	})
 }
@@ -194,13 +193,13 @@ func mediaPromptAttentionBlocks(starts []int, tokensPerRun int) []AttentionBlock
 
 func executeImagePromptPlan(
 	ctx context.Context,
-	tokenizer ImageTokenizer,
+	tokenizerAPI ImageTokenizer,
 	sources []image.Image,
 	text []string,
 	plan imagePromptPlan,
 	encode imagePromptEncoder,
 ) (MultimodalPrompt, error) {
-	if err := validateImagePromptInputs(tokenizer, sources, text, plan.Family); err != nil {
+	if err := validateImagePromptInputs(tokenizerAPI, sources, text, plan.Family); err != nil {
 		return MultimodalPrompt{}, err
 	}
 	if encode == nil || plan.Render == nil {
@@ -208,8 +207,6 @@ func executeImagePromptPlan(
 	}
 	items := make([]imagePromptItem, len(sources))
 	counts := make([]int, len(sources))
-	var embeddings []float32
-	var deepstack [][]float32
 	for index, source := range sources {
 		item, err := encode(ctx, source)
 		if err != nil {
@@ -226,15 +223,57 @@ func executeImagePromptPlan(
 		}
 		items[index] = item
 		counts[index] = item.RunCount
-		embeddings = append(embeddings, item.Embeddings...)
-		if err := appendPromptDeepstack(&deepstack, item.Deepstack); err != nil {
-			return MultimodalPrompt{}, fmt.Errorf("projector: collect %s image %d deepstack: %w", plan.Family, index, err)
+	}
+	embeddingElements := 0
+	deepstackStreams := len(items[0].Deepstack)
+	for index, item := range items {
+		embeddingElements += len(item.Embeddings)
+		if len(item.Deepstack) != deepstackStreams {
+			return MultimodalPrompt{}, fmt.Errorf(
+				"projector: collect %s image %d deepstack: stream count changed", plan.Family, index,
+			)
 		}
 	}
-	ids, starts, err := tokenizeImagePromptRuns(
-		tokenizer, plan.Render(text, items), plan.History, plan.Placeholder, counts,
-		plan.Family, plan.PlaceholderLabel,
-	)
+	embeddings := make([]float32, 0, embeddingElements)
+	deepstack := make([][]float32, deepstackStreams)
+	for stream := range deepstack {
+		capacity := 0
+		for _, item := range items {
+			capacity += len(item.Deepstack[stream])
+		}
+		deepstack[stream] = make([]float32, 0, capacity)
+	}
+	for _, item := range items {
+		embeddings = append(embeddings, item.Embeddings...)
+		for stream := range deepstack {
+			deepstack[stream] = append(deepstack[stream], item.Deepstack[stream]...)
+		}
+	}
+	promptItems := items
+	markerTokenizer, compact := tokenizerAPI.(promptMarkerTokenizer)
+	if compact {
+		promptItems = slices.Clone(items)
+		for index := range promptItems {
+			promptItems[index].RunCount = 1
+		}
+	}
+	prompt := plan.Render(text, promptItems)
+	var ids []tokenizer.TokenID
+	var starts []int
+	var err error
+	if compact {
+		ids, starts, err = markerTokenizer.TokenizeTextMarkers(
+			prompt, plan.Placeholder, counts, plan.History,
+		)
+		if err != nil {
+			err = fmt.Errorf("projector: tokenize %s image prompt: %w", plan.Family, err)
+		}
+	} else {
+		ids, starts, err = tokenizeImagePromptRuns(
+			tokenizerAPI, prompt, plan.History, plan.Placeholder, counts,
+			plan.Family, plan.PlaceholderLabel,
+		)
+	}
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
@@ -279,7 +318,6 @@ func executeMixedMediaPromptPlan(
 		return MultimodalPrompt{}, errors.New("projector: mixed-media prompt plan is incomplete")
 	}
 	items := make([]mixedMediaPromptItem, len(media))
-	var embeddings []float32
 	embeddingWidth := 0
 	for index, input := range media {
 		kind, ok := plan.Kinds[input.Kind]
@@ -309,7 +347,14 @@ func executeMixedMediaPromptPlan(
 			Embeddings: encoded.Embeddings, Token: placeholderIDs[0], Count: encoded.Count,
 			Width: encoded.Width, Attention: kind.Attention,
 		}
-		embeddings = append(embeddings, encoded.Embeddings...)
+	}
+	embeddingElements := 0
+	for _, item := range items {
+		embeddingElements += len(item.Embeddings)
+	}
+	embeddings := make([]float32, 0, embeddingElements)
+	for _, item := range items {
+		embeddings = append(embeddings, item.Embeddings...)
 	}
 	ids, err := tokenizerAPI.TokenizeText(plan.Render(text, items), plan.History, true)
 	if err != nil {
@@ -353,25 +398,6 @@ func imagePromptAttentionBlocks(plan imagePromptPlan, starts []int, items []imag
 		return nil
 	}
 	return plan.AttentionBlocks(starts, items)
-}
-
-func appendPromptDeepstack(target *[][]float32, streams [][]float32) error {
-	if len(streams) == 0 {
-		if len(*target) != 0 {
-			return errors.New("deepstack stream count changed")
-		}
-		return nil
-	}
-	if len(*target) == 0 {
-		*target = make([][]float32, len(streams))
-	}
-	if len(*target) != len(streams) {
-		return fmt.Errorf("deepstack streams = %d, want %d", len(streams), len(*target))
-	}
-	for index := range streams {
-		(*target)[index] = append((*target)[index], streams[index]...)
-	}
-	return nil
 }
 
 func qwenImagePromptPositions(tokenCount int, starts []int, items []imagePromptItem) ([4][]uint32, error) {

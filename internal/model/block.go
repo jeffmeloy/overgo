@@ -443,7 +443,7 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 			)
 		}
 	}
-	query, key, value := runtime.projectAttention(normalized, headCount, kvHeadCount)
+	query, key, value := runtime.projectAttention(normalized)
 	query, key, err := layerPlan.QKPreprocess.Apply(builder, query, key, spec, weights, qkProjection)
 	if err != nil {
 		return DenseBlockResult{}, err
@@ -546,14 +546,12 @@ type denseBlockRuntime struct {
 	tokens  uint64
 }
 
-func (r denseBlockRuntime) projectAttention(
-	normalized *tensor.Tensor,
-	headCount, kvHeadCount uint32,
-) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor) {
+func (r denseBlockRuntime) projectAttention(normalized *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor) {
 	if r.weights.AttentionQKV != nil {
-		queryLength := uint64(headCount) * uint64(r.spec.KeyLength)
-		keyLength := uint64(kvHeadCount) * uint64(r.spec.KeyLength)
-		valueLength := uint64(kvHeadCount) * uint64(r.spec.ValueLength)
+		shapes := r.spec.TensorShapes(r.layer)
+		queryLength := shapes.QueryProjectionWidth()
+		keyLength := shapes.KeyProjectionWidth()
+		valueLength := shapes.ValueProjectionWidth()
 		mixed := r.builder.MulMat(r.weights.AttentionQKV, normalized)
 		if r.weights.AttentionQKVBias != nil {
 			mixed = r.builder.Add(mixed, r.weights.AttentionQKVBias)
@@ -717,10 +715,9 @@ func buildGemma4BlockCached(
 		return DenseBlockResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
-	headCount := uint64(spec.LayerHeadCount(layerIndex))
-	kvHeadCount := uint64(spec.LayerKVHeadCount(layerIndex))
-	keyLength := uint64(spec.LayerKeyLength(layerIndex))
-	valueLength := uint64(spec.LayerValueLength(layerIndex))
+	shapes := spec.TensorShapes(layerIndex)
+	headCount, kvHeadCount := shapes.QueryHeads, shapes.KVHeads
+	keyLength, valueLength := shapes.Key, shapes.Value
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	query := builder.Reshape(
 		builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens,
@@ -853,10 +850,9 @@ func BuildGemma3nAttentionStage(
 		return Gemma3nAttentionResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
-	headCount := uint64(spec.LayerHeadCount(layerIndex))
-	kvHeadCount := uint64(spec.LayerKVHeadCount(layerIndex))
-	keyLength := uint64(spec.LayerKeyLength(layerIndex))
-	valueLength := uint64(spec.LayerValueLength(layerIndex))
+	shapes := spec.TensorShapes(layerIndex)
+	headCount, kvHeadCount := shapes.QueryHeads, shapes.KVHeads
+	keyLength, valueLength := shapes.Key, shapes.Value
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	laurel := builder.MulMat(weights.LaurelLeft, normalized)
 	laurel = builder.MulMat(weights.LaurelRight, laurel)

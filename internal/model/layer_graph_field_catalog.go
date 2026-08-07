@@ -31,6 +31,18 @@ func loadHostLayerGraphFields(
 	info *LayerWeights,
 	result *HostLayer,
 ) error {
+	return loadHostLayerGraphFieldsWith(ctx, file, info, result, LoadHostTensor)
+}
+
+type hostTensorLoader func(context.Context, *gguf.File, gguf.TensorInfo) (reference.Value, error)
+
+func loadHostLayerGraphFieldsWith(
+	ctx context.Context,
+	file *gguf.File,
+	info *LayerWeights,
+	result *HostLayer,
+	load hostTensorLoader,
+) error {
 	infoValue := reflect.ValueOf(info).Elem()
 	hostValue := reflect.ValueOf(result).Elem()
 	for _, field := range layerGraphFields {
@@ -48,7 +60,7 @@ func loadHostLayerGraphFields(
 			}
 			tensorInfo = &value
 		}
-		value, err := LoadHostTensor(ctx, file, *tensorInfo)
+		value, err := load(ctx, file, *tensorInfo)
 		if err != nil {
 			return err
 		}

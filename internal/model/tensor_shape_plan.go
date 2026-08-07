@@ -32,6 +32,22 @@ func (p TensorShapePlan) EmbeddingVector() []uint64 {
 	return []uint64{p.Embedding}
 }
 
+func (p TensorShapePlan) QueryProjectionWidth() uint64 {
+	return p.QueryHeads * p.Key
+}
+
+func (p TensorShapePlan) KeyProjectionWidth() uint64 {
+	return p.KVHeads * p.Key
+}
+
+func (p TensorShapePlan) ValueProjectionWidth() uint64 {
+	return p.KVHeads * p.Value
+}
+
+func (p TensorShapePlan) AttentionOutputWidth() uint64 {
+	return p.QueryHeads * p.Value
+}
+
 func (p TensorShapePlan) FeedForwardUp(multiplier uint64) []uint64 {
 	return []uint64{p.Embedding, multiplier * p.FeedForward}
 }

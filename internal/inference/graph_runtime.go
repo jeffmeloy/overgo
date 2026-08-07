@@ -60,7 +60,7 @@ func (r *Runner) deviceOrHostTensor(
 	if r.hasPreloadedWeights() {
 		return r.deviceInput(builder, info)
 	}
-	value, err := model.LoadHostTensor(ctx, r.file, info)
+	value, err := r.hostTensor(ctx, info)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -113,7 +113,7 @@ func (r *Runner) layerGraphInputs(
 	if r.hasPreloadedWeights() {
 		return r.layerDeviceInputs(builder, layer)
 	}
-	hostLayer, err := model.LoadHostLayer(ctx, r.file, layer)
+	hostLayer, err := r.hostLayer(ctx, prefix, layer)
 	if err != nil {
 		return model.LayerGraphWeights{}, nil, err
 	}
@@ -125,6 +125,20 @@ func (r *Runner) layerGraphInputs(
 		hostFeeds[node] = value
 	}
 	return graph, map[*tensor.Tensor]driver.DevicePtr{}, nil
+}
+
+func (r *Runner) hostTensor(ctx context.Context, info gguf.TensorInfo) (reference.Value, error) {
+	if r.hostWeights != nil {
+		return r.hostWeights.Load(ctx, r.file, info)
+	}
+	return model.LoadHostTensor(ctx, r.file, info)
+}
+
+func (r *Runner) hostLayer(ctx context.Context, key string, info model.LayerWeights) (model.HostLayer, error) {
+	if r.hostWeights != nil {
+		return r.hostWeights.LoadLayer(ctx, r.file, key, info)
+	}
+	return model.LoadHostLayer(ctx, r.file, info)
 }
 
 func (runtime *inferenceGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {

@@ -195,9 +195,10 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 		return replayResult{}, err
 	}
 	result := replayResult{validEnd: storeHeaderBytes}
+	frameHeader := make([]byte, frameHeaderBytes)
+	var body []byte
 	for {
 		frameStart := result.validEnd
-		frameHeader := make([]byte, frameHeaderBytes)
 		count, err := io.ReadFull(l.file, frameHeader)
 		if errors.Is(err, io.EOF) && count == 0 {
 			break
@@ -213,17 +214,21 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 		if payloadSize > maxFramePayload {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d exceeds payload limit", frameStart)
 		}
-		body := make([]byte, int(payloadSize)+frameChecksumSize)
+		bodyBytes := int(payloadSize) + frameChecksumSize
+		if cap(body) < bodyBytes {
+			body = make([]byte, bodyBytes)
+		} else {
+			body = body[:bodyBytes]
+		}
 		if _, err := io.ReadFull(l.file, body); err != nil {
 			result.recovered = true
 			break
 		}
 		record.payload = body[:payloadSize]
 		checksum := binary.LittleEndian.Uint32(body[payloadSize:])
-		actual := crc32.New(crcTable)
-		_, _ = actual.Write(frameHeader)
-		_, _ = actual.Write(record.payload)
-		if checksum != actual.Sum32() {
+		actual := crc32.Update(0, crcTable, frameHeader)
+		actual = crc32.Update(actual, crcTable, record.payload)
+		if checksum != actual {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d has invalid checksum", frameStart)
 		}
 		if record.sequence != result.sequence+1 || record.previous != result.head {

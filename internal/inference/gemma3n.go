@@ -24,11 +24,11 @@ func (r *Runner) forwardGemma3nCachedLocked(
 		len(perLayerInputs) != len(r.weights.Layers) {
 		return reference.Value{}, nil, errors.New("inference: Gemma 3n top-level weights are incomplete")
 	}
-	projection, err := model.LoadHostTensor(ctx, r.file, *r.weights.AltUpProjection)
+	projection, err := r.hostTensor(ctx, *r.weights.AltUpProjection)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	unembedding, err := model.LoadHostTensor(ctx, r.file, *r.weights.AltUpUnembedding)
+	unembedding, err := r.hostTensor(ctx, *r.weights.AltUpUnembedding)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -43,7 +43,7 @@ func (r *Runner) forwardGemma3nCachedLocked(
 	}
 	for layerIndex, info := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, info.Recurrent)
-		hostLayer, loadErr := model.LoadHostLayer(ctx, r.file, info)
+		hostLayer, loadErr := r.hostLayer(ctx, fmt.Sprintf("blk.%d.", layerIndex), info)
 		if loadErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, loadErr)
 		}

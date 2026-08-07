@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 
 	"llamacpp2go/internal/tensor"
 )
@@ -85,6 +86,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Runtime.NormalizationPlacement", profile.Runtime.NormalizationPlacement, NormalizationPlacementPostOnly),
 		validateProfileOrdinal("Runtime.NormalizationBias", profile.Runtime.NormalizationBias, NormalizationBiasAlways),
 		validateProfileOrdinal("Runtime.NormalizationFallback", profile.Runtime.NormalizationFallback, NormalizationFallbackRMSWithoutLayerEpsilon),
+		validateProfileOrdinal("MetadataDefaults.RopeDimension", profile.MetadataDefaults.RopeDimension, RopeDimensionDefaultKeyLengthOverride),
 	}
 	for _, err := range checks {
 		if err != nil {
@@ -99,6 +101,19 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	if unknown := profile.MetadataRead &^ allMetadataReadPolicies; unknown != 0 {
 		return fmt.Errorf("architecture profile %q: MetadataRead has unknown bits %#x", profile.Name, unknown)
+	}
+	for _, scalar := range []struct {
+		name  string
+		value float32
+	}{
+		{"MetadataDefaults.AttentionSoftcap", profile.MetadataDefaults.AttentionSoftcap},
+		{"MetadataDefaults.AttentionOutputScale", profile.MetadataDefaults.AttentionOutputScale},
+		{"MetadataDefaults.EmbeddingScale", profile.MetadataDefaults.EmbeddingScale},
+		{"MetadataDefaults.LogitScale", profile.MetadataDefaults.LogitScale},
+	} {
+		if scalar.value < 0 || math.IsNaN(float64(scalar.value)) || math.IsInf(float64(scalar.value), 0) {
+			return fmt.Errorf("architecture profile %q: %s must be finite and nonnegative", profile.Name, scalar.name)
+		}
 	}
 	if profile.readsMetadata(MetadataReadVisualSections) &&
 		!profile.Has(ArchitectureMultiAxisPositions) {

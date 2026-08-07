@@ -26,13 +26,25 @@ import (
 	cudatest "llamacpp2go/internal/cuda/testutil"
 )
 
-func TestAllZeroFloat32(t *testing.T) {
-	if !allZeroFloat32([]float32{0, 0, 0}) {
-		t.Fatal("zero values were not recognized")
+func TestExecutorImplicitZeroFeed(t *testing.T) {
+	cudatest.Require(t)
+	builder := tensor.NewBuilder()
+	input := builder.Input("zero", dtype.F32, tensor.MustShape(4))
+	output := builder.Scale(input, 3)
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, values := range [][]float32{nil, {}, {0, 1}, {0, -1}} {
-		if allZeroFloat32(values) {
-			t.Fatalf("nonzero/empty values were recognized: %v", values)
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+		input: reference.ZeroValue(input.Shape),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, value := range got[output].Data {
+		if value != 0 {
+			t.Fatalf("implicit zero[%d] = %v", index, value)
 		}
 	}
 }
@@ -1381,6 +1393,10 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cuda.Close()
+	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
+	if _, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds); err != nil {
+		t.Fatal(err)
+	}
 	before, err := cuda.worker.MemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -1388,7 +1404,7 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	retained, err := cuda.ExecuteRetainedWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue},
+		feeds,
 		nil,
 	)
 	if err != nil {

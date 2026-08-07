@@ -801,10 +801,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		prefix := fmt.Sprintf("blk.%d.", block)
 		isNextNBlock := block >= spec.BlockCount
 		layerPlan := spec.PlanLayer(block, false)
-		queryLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerKeyLength(block))
-		keyLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerKeyLength(block))
-		valueLength := uint64(spec.LayerKVHeadCount(block)) * uint64(spec.LayerValueLength(block))
-		attentionOutputLength := uint64(spec.LayerHeadCount(block)) * uint64(spec.LayerValueLength(block))
+		shapes := spec.TensorShapes(block)
+		queryLength := shapes.QueryProjectionWidth()
+		keyLength := shapes.KeyProjectionWidth()
+		valueLength := shapes.ValueProjectionWidth()
+		attentionOutputLength := shapes.AttentionOutputWidth()
 		biasNames := []string{
 			"attn_q.bias",
 			"attn_k.bias",
@@ -1609,9 +1610,10 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		mtp := &Qwen35MTPWeights{}
 		mtp.MTPOnly = mtpOnly
 		mtp.Layer.Recurrent = false
-		queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-		keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-		valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
+		shapes := spec.TensorShapes(0)
+		queryLength := shapes.QueryProjectionWidth()
+		keyLength := shapes.KeyProjectionWidth()
+		valueLength := shapes.ValueProjectionWidth()
 		if loadErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensor("attn_norm.weight", &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
 			requiredTensor("post_attention_norm.weight", &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),

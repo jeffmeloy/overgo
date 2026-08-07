@@ -6,7 +6,6 @@ import (
 	"math"
 	"math/rand"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -90,6 +89,9 @@ type Sampler struct {
 	adaptiveWeight   float64
 	probabilityLimit int
 	lastProbability  SampleProbabilityResult
+	adjustedScratch  []float32
+	logitScratch     []float32
+	candidateScratch []candidate
 }
 
 type candidate struct {
@@ -341,7 +343,7 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	if len(logits) == 0 {
 		return 0, errors.New("sampling logits are empty")
 	}
-	adjusted := slices.Clone(logits)
+	adjusted := s.copyLogits(logits)
 	for index, value := range adjusted {
 		if math.IsNaN(float64(value)) {
 			return 0, fmt.Errorf("sampling logit %d is NaN", index)
@@ -390,7 +392,7 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 		return s.acceptGrammar(selected)
 	}
 
-	candidates := make([]candidate, len(adjusted))
+	candidates := s.candidates(len(adjusted))
 	for index, value := range adjusted {
 		candidates[index] = candidate{id: index, scaledLogit: float64(value)}
 	}
@@ -497,14 +499,7 @@ func (s *Sampler) recordCandidateProbabilities(
 	if s.probabilityLimit <= 0 {
 		return
 	}
-	sort.SliceStable(candidates, func(left, right int) bool {
-		leftProbability := candidates[left].probability
-		rightProbability := candidates[right].probability
-		if leftProbability == rightProbability {
-			return candidates[left].id < candidates[right].id
-		}
-		return leftProbability > rightProbability
-	})
+	slices.SortStableFunc(candidates, compareCandidateProbability)
 	result := SampleProbabilityResult{Token: selected}
 	for _, item := range candidates {
 		probability := item.probability / total
@@ -580,14 +575,13 @@ func (s *Sampler) applySamplerStage(
 ) ([]candidate, error) {
 	switch stage {
 	case SamplerPenalties:
-		values := expandCandidateLogits(candidates, vocabularySize)
-		adjusted, err := s.applyPenalties(values, history)
-		if err != nil {
+		values := s.expandCandidateLogits(candidates, vocabularySize)
+		if err := s.applyPenalties(values, history); err != nil {
 			return nil, err
 		}
-		updateCandidateLogits(candidates, adjusted)
+		updateCandidateLogits(candidates, values)
 	case SamplerDry:
-		values := expandCandidateLogits(candidates, vocabularySize)
+		values := s.expandCandidateLogits(candidates, vocabularySize)
 		s.applyDry(values, history)
 		updateCandidateLogits(candidates, values)
 	case SamplerTopNSigma:
@@ -642,13 +636,16 @@ func (s *Sampler) applySamplerStage(
 					entropy -= probability * math.Log(probability)
 				}
 			}
-			sort.SliceStable(candidates, func(i, j int) bool {
-				left := math.Abs(-math.Log(candidates[i].probability/total) - entropy)
-				right := math.Abs(-math.Log(candidates[j].probability/total) - entropy)
+			slices.SortStableFunc(candidates, func(leftCandidate, rightCandidate candidate) int {
+				left := math.Abs(-math.Log(leftCandidate.probability/total) - entropy)
+				right := math.Abs(-math.Log(rightCandidate.probability/total) - entropy)
 				if left == right {
-					return candidates[i].id < candidates[j].id
+					return leftCandidate.id - rightCandidate.id
 				}
-				return left < right
+				if left < right {
+					return -1
+				}
+				return 1
 			})
 			var cumulative float64
 			keep := 0
@@ -938,8 +935,13 @@ func cloneInfillVocabulary(
 	}
 }
 
-func expandCandidateLogits(candidates []candidate, vocabularySize int) []float32 {
-	result := make([]float32, vocabularySize)
+func (s *Sampler) expandCandidateLogits(candidates []candidate, vocabularySize int) []float32 {
+	if cap(s.logitScratch) < vocabularySize {
+		s.logitScratch = make([]float32, vocabularySize)
+	} else {
+		s.logitScratch = s.logitScratch[:vocabularySize]
+	}
+	result := s.logitScratch
 	for index := range result {
 		result[index] = float32(math.Inf(-1))
 	}
@@ -949,6 +951,21 @@ func expandCandidateLogits(candidates []candidate, vocabularySize int) []float32
 	return result
 }
 
+func (s *Sampler) copyLogits(logits []float32) []float32 {
+	s.adjustedScratch = append(s.adjustedScratch[:0], logits...)
+	return s.adjustedScratch
+}
+
+func (s *Sampler) candidates(count int) []candidate {
+	if cap(s.candidateScratch) < count {
+		s.candidateScratch = make([]candidate, count)
+	} else {
+		s.candidateScratch = s.candidateScratch[:count]
+		clear(s.candidateScratch)
+	}
+	return s.candidateScratch
+}
+
 func updateCandidateLogits(candidates []candidate, logits []float32) {
 	for index := range candidates {
 		candidates[index].scaledLogit = float64(logits[candidates[index].id])
@@ -956,12 +973,27 @@ func updateCandidateLogits(candidates []candidate, logits []float32) {
 }
 
 func sortCandidates(candidates []candidate) {
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].scaledLogit == candidates[j].scaledLogit {
-			return candidates[i].id < candidates[j].id
-		}
-		return candidates[i].scaledLogit > candidates[j].scaledLogit
-	})
+	slices.SortFunc(candidates, compareCandidateLogit)
+}
+
+func compareCandidateLogit(left, right candidate) int {
+	if left.scaledLogit == right.scaledLogit {
+		return left.id - right.id
+	}
+	if left.scaledLogit > right.scaledLogit {
+		return -1
+	}
+	return 1
+}
+
+func compareCandidateProbability(left, right candidate) int {
+	if left.probability == right.probability {
+		return left.id - right.id
+	}
+	if left.probability > right.probability {
+		return -1
+	}
+	return 1
 }
 
 func candidateProbabilities(candidates []candidate) (float64, error) {
@@ -1056,15 +1088,10 @@ func (s *Sampler) applyGrammar(logits []float32) error {
 	if len(transitions) == 0 {
 		return errors.New("sampling grammar has no valid next token")
 	}
-	allowed := make(map[int]float32, len(transitions))
-	for token := range transitions {
-		allowed[token] = logits[token]
-	}
 	for token := range logits {
-		logits[token] = float32(math.Inf(-1))
-	}
-	for token, value := range allowed {
-		logits[token] = value
+		if _, ok := transitions[token]; !ok {
+			logits[token] = float32(math.Inf(-1))
+		}
 	}
 	return nil
 }
@@ -1092,7 +1119,7 @@ func (s *Sampler) acceptGrammar(token int) (int, error) {
 }
 
 func (s *Sampler) sampleMirostatV2(logits []float32) (int, error) {
-	candidates := make([]candidate, len(logits))
+	candidates := s.candidates(len(logits))
 	inverseTemperature := 1 / float64(s.config.Temperature)
 	for index, value := range logits {
 		candidates[index] = candidate{
@@ -1100,12 +1127,7 @@ func (s *Sampler) sampleMirostatV2(logits []float32) (int, error) {
 			scaledLogit: float64(value) * inverseTemperature,
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].scaledLogit == candidates[j].scaledLogit {
-			return candidates[i].id < candidates[j].id
-		}
-		return candidates[i].scaledLogit > candidates[j].scaledLogit
-	})
+	slices.SortFunc(candidates, compareCandidateLogit)
 	maximum := candidates[0].scaledLogit
 	var total float64
 	for index := range candidates {
@@ -1152,7 +1174,9 @@ func (s *Sampler) sampleMirostatV2(logits []float32) (int, error) {
 }
 
 func (s *Sampler) sampleMirostatV1(logits []float32) (int, error) {
-	candidates, total, err := normalizedCandidates(logits, s.config.Temperature)
+	candidates, total, err := normalizedCandidatesInto(
+		s.candidates(len(logits)), logits, s.config.Temperature,
+	)
 	if err != nil {
 		return 0, fmt.Errorf("Mirostat v1: %w", err)
 	}
@@ -1203,6 +1227,13 @@ func (s *Sampler) sampleMirostatV1(logits []float32) (int, error) {
 
 func normalizedCandidates(logits []float32, temperature float32) ([]candidate, float64, error) {
 	candidates := make([]candidate, len(logits))
+	return normalizedCandidatesInto(candidates, logits, temperature)
+}
+
+func normalizedCandidatesInto(candidates []candidate, logits []float32, temperature float32) ([]candidate, float64, error) {
+	if len(candidates) != len(logits) {
+		return nil, 0, errors.New("candidate scratch size differs from logits")
+	}
 	inverseTemperature := 1 / float64(temperature)
 	for index, value := range logits {
 		candidates[index] = candidate{
@@ -1210,12 +1241,7 @@ func normalizedCandidates(logits []float32, temperature float32) ([]candidate, f
 			scaledLogit: float64(value) * inverseTemperature,
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].scaledLogit == candidates[j].scaledLogit {
-			return candidates[i].id < candidates[j].id
-		}
-		return candidates[i].scaledLogit > candidates[j].scaledLogit
-	})
+	slices.SortFunc(candidates, compareCandidateLogit)
 	maximum := candidates[0].scaledLogit
 	var total float64
 	for index := range candidates {
@@ -1240,18 +1266,12 @@ func sampleCandidateIndex(random float64, candidates []candidate, total float64)
 	return len(candidates) - 1
 }
 
-func (s *Sampler) applyPenalties(logits []float32, history []int) ([]float32, error) {
-	adjusted := slices.Clone(logits)
-	for index, value := range adjusted {
-		if math.IsNaN(float64(value)) {
-			return nil, fmt.Errorf("sampling logit %d is NaN", index)
-		}
-	}
+func (s *Sampler) applyPenalties(logits []float32, history []int) error {
 	if len(history) == 0 || s.config.RepeatLastN == 0 ||
 		(s.config.RepeatPenalty == 1 &&
 			s.config.PresencePenalty == 0 &&
 			s.config.FrequencyPenalty == 0) {
-		return adjusted, nil
+		return nil
 	}
 	first := 0
 	if s.config.RepeatLastN >= 0 && len(history) > s.config.RepeatLastN {
@@ -1259,12 +1279,12 @@ func (s *Sampler) applyPenalties(logits []float32, history []int) ([]float32, er
 	}
 	counts := make(map[int]int, len(history)-first)
 	for _, id := range history[first:] {
-		if id >= 0 && id < len(adjusted) {
+		if id >= 0 && id < len(logits) {
 			counts[id]++
 		}
 	}
 	for id, count := range counts {
-		value := adjusted[id]
+		value := logits[id]
 		if value <= 0 {
 			value *= s.config.RepeatPenalty
 		} else {
@@ -1272,9 +1292,9 @@ func (s *Sampler) applyPenalties(logits []float32, history []int) ([]float32, er
 		}
 		value -= s.config.PresencePenalty
 		value -= float32(count) * s.config.FrequencyPenalty
-		adjusted[id] = value
+		logits[id] = value
 	}
-	return adjusted, nil
+	return nil
 }
 
 // applyDry ports llama.cpp's reverse Z-algorithm for finding suffixes that

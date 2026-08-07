@@ -23,6 +23,9 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	if options.PreloadDeviceWeights && options.PreloadQuantizedWeights {
 		return nil, errors.New("inference: F32 and native-quantized preload modes are mutually exclusive")
 	}
+	if options.CacheHostWeights && (options.PreloadDeviceWeights || options.PreloadQuantizedWeights) {
+		return nil, errors.New("inference: host and device weight retention are mutually exclusive")
+	}
 	if options.PromptCacheEntries < 0 {
 		return nil, errors.New("inference: prompt cache entry count is negative")
 	}
@@ -89,6 +92,10 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	var worker *device.Worker
 	var deviceWeights *model.DeviceF32Weights
 	var rawWeights *model.DeviceWeights
+	var hostWeights *model.HostTensorStore
+	if options.CacheHostWeights {
+		hostWeights = model.NewHostTensorStore()
+	}
 	if options.PreloadDeviceWeights || options.PreloadQuantizedWeights {
 		worker, err = device.New(options.DeviceOrdinal)
 		if err != nil {
@@ -183,6 +190,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	return &Runner{preparedModel: preparedModel{
 		file: file, path: path, spec: spec, plan: plan, weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights,
+		hostWeights:         hostWeights,
 		outputBias:          outputBias,
 		promptCacheCapacity: promptCacheCapacity, cachePageTokens: cachePageTokens,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
@@ -218,6 +226,10 @@ func (s *runnerState) release(ctx context.Context) error {
 
 func (m *preparedModel) close() error {
 	var errs []error
+	if m.hostWeights != nil {
+		m.hostWeights.Release()
+		m.hostWeights = nil
+	}
 	if m.rawWeights != nil {
 		errs = append(errs, m.rawWeights.Close())
 	}

@@ -94,6 +94,43 @@ func (r *Runner) TokenizeText(
 	})
 }
 
+// TokenizeTextRuns inserts verified media-token runs without re-encoding
+// repeated placeholder spellings.
+func (r *Runner) TokenizeTextRuns(
+	text, placeholder string,
+	counts []int,
+	addSpecial bool,
+) ([]tokenizer.TokenID, []int, error) {
+	if r == nil || r.vocab == nil {
+		return nil, nil, errors.New("inference: runner is nil")
+	}
+	return tokenizer.EncodeRuns(
+		r.vocab.Encode,
+		text,
+		placeholder,
+		counts,
+		tokenizer.EncodeOptions{AddSpecial: addSpecial, ParseSpecial: true},
+	)
+}
+
+// TokenizeTextMarkers expands compact media-token run markers.
+func (r *Runner) TokenizeTextMarkers(
+	text, placeholder string,
+	counts []int,
+	addSpecial bool,
+) ([]tokenizer.TokenID, []int, error) {
+	if r == nil || r.vocab == nil {
+		return nil, nil, errors.New("inference: runner is nil")
+	}
+	return tokenizer.EncodeMarkers(
+		r.vocab.Encode,
+		text,
+		placeholder,
+		counts,
+		tokenizer.EncodeOptions{AddSpecial: addSpecial, ParseSpecial: true},
+	)
+}
+
 func (r *Runner) DetokenizeTokens(tokens []tokenizer.TokenID) (string, error) {
 	if r == nil || r.vocab == nil {
 		return "", errors.New("inference: runner is nil")

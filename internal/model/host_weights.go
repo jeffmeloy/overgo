@@ -391,17 +391,27 @@ func LoadHostLayer(
 	file *gguf.File,
 	info LayerWeights,
 ) (HostLayer, error) {
+	if err := validateHostLayerCatalog(info); err != nil {
+		return HostLayer{}, err
+	}
 	var result HostLayer
+	if err := loadHostLayerGraphFields(ctx, file, &info, &result); err != nil {
+		return HostLayer{}, err
+	}
+	return result, nil
+}
+
+func validateHostLayerCatalog(info LayerWeights) error {
 	if !info.Recurrent && info.SSMInput != nil &&
 		(info.SSMConv1D == nil || info.SSMTimeStep == nil || info.SSMA == nil ||
 			info.SSMD == nil || info.SSMOutput == nil) {
-		return HostLayer{}, errors.New("host hybrid SSM catalog is incomplete")
+		return errors.New("host hybrid SSM catalog is incomplete")
 	}
 	if info.Recurrent {
 		kimi := info.SSMQueryConv != nil
 		rwkv := info.TimeMixW1 != nil
 		if info.ShortConvKernel != nil && (info.ShortConvInput == nil || info.ShortConvOutput == nil) {
-			return HostLayer{}, errors.New("host recurrent convolution catalog is incomplete")
+			return errors.New("host recurrent convolution catalog is incomplete")
 		}
 		if info.SSMInput != nil &&
 			(info.SSMConv1D == nil || info.SSMTimeStep == nil ||
@@ -409,19 +419,16 @@ func LoadHostLayer(
 				(info.SSMX != nil && info.SSMTimeStepWeight == nil) ||
 				(info.SSMTimeStepNorm != nil && (info.SSMBNorm == nil || info.SSMCNorm == nil)) ||
 				(info.SSMX == nil && info.SSMNorm == nil)) {
-			return HostLayer{}, errors.New("host Mamba SSM catalog is incomplete")
+			return errors.New("host Mamba SSM catalog is incomplete")
 		}
 		if !kimi && !rwkv && info.ShortConvKernel == nil && info.SSMInput == nil &&
 			(info.AttentionQKV == nil || info.SSMConv1D == nil || info.SSMTimeStep == nil ||
 				info.SSMA == nil || info.SSMNorm == nil || info.SSMOutput == nil ||
 				(info.SSMBetaAlpha == nil && (info.SSMBeta == nil || info.SSMAlpha == nil))) {
-			return HostLayer{}, errors.New("host recurrent layer catalog is incomplete")
+			return errors.New("host recurrent layer catalog is incomplete")
 		}
 	}
-	if err := loadHostLayerGraphFields(ctx, file, &info, &result); err != nil {
-		return HostLayer{}, err
-	}
-	return result, nil
+	return nil
 }
 
 // GraphInputs builds zero-copy graph feeds.

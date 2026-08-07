@@ -40,3 +40,23 @@ func TestCompileDetectsBLASAndRejectsNilGraph(t *testing.T) {
 		t.Fatal("nil graph compiled")
 	}
 }
+
+func TestDeviceBufferBucket(t *testing.T) {
+	for _, fixture := range []struct {
+		size uint64
+		want uint64
+	}{
+		{1, minimumDeviceBufferBytes},
+		{minimumDeviceBufferBytes, minimumDeviceBufferBytes},
+		{minimumDeviceBufferBytes + 1, minimumDeviceBufferBytes * 2},
+		{minimumDeviceBufferBytes * 4, minimumDeviceBufferBytes * 4},
+	} {
+		got, err := deviceBufferBucket(fixture.size)
+		if err != nil || got != fixture.want {
+			t.Fatalf("bucket(%d) = (%d, %v), want (%d, nil)", fixture.size, got, err, fixture.want)
+		}
+	}
+	if _, err := deviceBufferBucket(0); err == nil {
+		t.Fatal("expected zero-size buffer rejection")
+	}
+}

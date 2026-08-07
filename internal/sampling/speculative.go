@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sort"
 )
 
 // SpeculativeSampleResult: committed token and verification probabilities.
@@ -84,7 +83,7 @@ func (s *Sampler) speculativeCandidates(
 	logits []float32,
 	history []int,
 ) ([]candidate, float64, map[int]float64, bool, error) {
-	adjusted := slices.Clone(logits)
+	adjusted := s.copyLogits(logits)
 	for index, value := range adjusted {
 		if math.IsNaN(float64(value)) {
 			return nil, 0, nil, false, fmt.Errorf("sampling logit %d is NaN", index)
@@ -110,7 +109,7 @@ func (s *Sampler) speculativeCandidates(
 		candidates, total, err := s.speculativeMirostatCandidates(adjusted)
 		return candidates, total, nil, s.config.Temperature != 0, err
 	}
-	candidates := make([]candidate, len(adjusted))
+	candidates := s.candidates(len(adjusted))
 	for index, value := range adjusted {
 		candidates[index] = candidate{id: index, scaledLogit: float64(value)}
 	}
@@ -152,7 +151,9 @@ func (s *Sampler) speculativeMirostatCandidates(logits []float32) ([]candidate, 
 		}
 		return []candidate{{id: best, probability: 1}}, 1, nil
 	}
-	candidates, total, err := normalizedCandidates(logits, s.config.Temperature)
+	candidates, total, err := normalizedCandidatesInto(
+		s.candidates(len(logits)), logits, s.config.Temperature,
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -263,11 +264,14 @@ func sortedTokenProbabilities(candidates []candidate, total float64) []TokenProb
 			result = append(result, TokenProbability{ID: item.id, Probability: probability})
 		}
 	}
-	sort.SliceStable(result, func(left, right int) bool {
-		if result[left].Probability == result[right].Probability {
-			return result[left].ID < result[right].ID
+	slices.SortStableFunc(result, func(left, right TokenProbability) int {
+		if left.Probability == right.Probability {
+			return left.ID - right.ID
 		}
-		return result[left].Probability > result[right].Probability
+		if left.Probability > right.Probability {
+			return -1
+		}
+		return 1
 	})
 	return result
 }

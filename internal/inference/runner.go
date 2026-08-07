@@ -152,6 +152,7 @@ type preparedModel struct {
 	worker              *device.Worker
 	deviceWeights       *model.DeviceF32Weights
 	rawWeights          *model.DeviceWeights
+	hostWeights         *model.HostTensorStore
 	outputBias          []float32
 	promptCacheCapacity int
 	cachePageTokens     uint32
@@ -188,6 +189,9 @@ type OpenOptions struct {
 	DeviceOrdinal           int
 	PreloadDeviceWeights    bool
 	PreloadQuantizedWeights bool
+	// CacheHostWeights retains lazily dequantized F32 host tensors.
+	// False preserves bounded layer-at-a-time loading.
+	CacheHostWeights bool
 	// Profile: prevalidated architecture policy; nil selects bootstrap registry.
 	Profile *model.ArchitectureProfile
 	// PromptCacheEntries: bounds independently reusable prompt states

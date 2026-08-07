@@ -9,6 +9,9 @@ import (
 )
 
 func (v Value) Clone() Value {
+	if v.Storage == ValueImplicitZero {
+		return ZeroValue(v.Shape)
+	}
 	return Value{Shape: v.Shape, Data: slices.Clone(v.Data)}
 }
 
@@ -17,6 +20,9 @@ func (v Value) Rows(start, count uint64) (Value, error) {
 		return Value{}, errors.New("reference row range is invalid")
 	}
 	width := v.Shape.Dims[0]
+	if v.Storage == ValueImplicitZero {
+		return ZeroValue(tensor.MustShape(width, count)), nil
+	}
 	expected, ok := checked.Mul64(width, v.Shape.Dims[1])
 	if !ok || expected != uint64(len(v.Data)) {
 		return Value{}, errors.New("reference storage is invalid")

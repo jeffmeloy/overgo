@@ -51,7 +51,7 @@ func (r *Runner) wavTokenizerGraphInputs(
 			deviceFeeds[node] = pointer
 			return node, nil
 		}
-		value, err := model.LoadHostTensor(ctx, r.file, info)
+		value, err := r.hostTensor(ctx, info)
 		if err != nil {
 			return nil, err
 		}

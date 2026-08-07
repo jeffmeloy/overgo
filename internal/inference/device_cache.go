@@ -376,8 +376,9 @@ func (r *Runner) forwardDeviceCachedLocked(
 	past *deviceKVCache,
 ) (reference.Value, *deviceKVCache, error) {
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens: tokenIDs,
-		Past:   past,
+		Tokens:     tokenIDs,
+		Past:       past,
+		PageTokens: r.cachePageTokens,
 	}})
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -386,8 +387,9 @@ func (r *Runner) forwardDeviceCachedLocked(
 }
 
 type deviceBatchAppend struct {
-	Tokens []tokenizer.TokenID
-	Past   *deviceKVCache
+	Tokens     []tokenizer.TokenID
+	Past       *deviceKVCache
+	PageTokens uint32
 }
 
 type deviceBatchGraph struct {
@@ -455,7 +457,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 			States:     make([]deviceLayerStates, len(graph.states)),
 			Tokens:     graph.pastTokens + graph.tokenCount,
 			Position:   graph.nextPosition + graph.tokenCount,
-			PageTokens: r.cachePageTokens,
+			PageTokens: resolveCachePageTokens(appends[index].PageTokens),
 			Logits:     r.finalizeLogits(logits.Data),
 		}
 		var ok bool
@@ -747,8 +749,7 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	}
 	inputZero := func(suffix string, shape tensor.Shape) *tensor.Tensor {
 		input := builder.Input(name(suffix), dtype.F32, shape)
-		elements, _ := shape.Elements()
-		hostFeeds[input] = reference.Value{Shape: shape, Data: make([]float32, int(elements))}
+		hostFeeds[input] = reference.ZeroValue(shape)
 		return input
 	}
 	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 0)
@@ -778,40 +779,74 @@ func rebuildDeviceCachePages(
 	}
 	pageTokens = resolveCachePageTokens(pageTokens)
 	cache.PageTokens = pageTokens
-	cache.Pages = cache.Pages[:0]
+	pageCount := int(cache.Tokens / pageTokens)
+	if cache.Tokens%pageTokens != 0 {
+		pageCount++
+	}
+	if cap(cache.Pages) < pageCount {
+		cache.Pages = make([]deviceKVPage, pageCount)
+	} else {
+		cache.Pages = cache.Pages[:pageCount]
+	}
+	pageIndex := 0
 	for start := uint32(0); start < cache.Tokens; start += pageTokens {
 		count := pageTokens
 		if remaining := cache.Tokens - start; remaining < count {
 			count = remaining
 		}
-		page := deviceKVPage{
-			Start: start, Tokens: count,
-			Keys:   make([]executor.DeviceValue, len(cache.Keys)),
-			Values: make([]executor.DeviceValue, len(cache.Values)),
-		}
+		page := &cache.Pages[pageIndex]
+		page.Start, page.Tokens = start, count
+		page.Keys = resizeDeviceValues(page.Keys, len(cache.Keys))
+		page.Values = resizeDeviceValues(page.Values, len(cache.Values))
 		for layer := range cache.Keys {
-			for source, destination := range map[*executor.DeviceValue]*executor.DeviceValue{
-				&cache.Keys[layer]:   &page.Keys[layer],
-				&cache.Values[layer]: &page.Values[layer],
-			} {
-				*destination = *source
-				if source.Shape.Rank != 3 || source.Shape.Dims[2] != uint64(cache.Tokens) {
-					continue
-				}
-				stride := source.Shape.Dims[0] * source.Shape.Dims[1]
-				if stride == 0 || stride > math.MaxUint64/4 ||
-					uint64(start) > math.MaxUint64/(stride*4) {
-					return fmt.Errorf("inference: device cache layer %d page offset overflows", layer)
-				}
-				offset := uint64(start) * stride * 4
-				if uint64(source.Pointer) > math.MaxUint64-offset {
-					return fmt.Errorf("inference: device cache layer %d page pointer overflows", layer)
-				}
-				destination.Pointer += driver.DevicePtr(offset)
-				destination.Shape.Dims[2] = uint64(count)
+			var err error
+			page.Keys[layer], err = deviceCachePageValue(
+				cache.Keys[layer], start, count, cache.Tokens, layer,
+			)
+			if err != nil {
+				return err
+			}
+			page.Values[layer], err = deviceCachePageValue(
+				cache.Values[layer], start, count, cache.Tokens, layer,
+			)
+			if err != nil {
+				return err
 			}
 		}
-		cache.Pages = append(cache.Pages, page)
+		pageIndex++
 	}
 	return nil
+}
+
+func resizeDeviceValues(values []executor.DeviceValue, count int) []executor.DeviceValue {
+	if cap(values) < count {
+		return make([]executor.DeviceValue, count)
+	}
+	return values[:count]
+}
+
+func deviceCachePageValue(
+	source executor.DeviceValue,
+	start, count, tokens uint32,
+	layer int,
+) (executor.DeviceValue, error) {
+	if source.Shape.Rank != 3 || source.Shape.Dims[2] != uint64(tokens) {
+		return source, nil
+	}
+	stride := source.Shape.Dims[0] * source.Shape.Dims[1]
+	if stride == 0 || stride > math.MaxUint64/4 ||
+		uint64(start) > math.MaxUint64/(stride*4) {
+		return executor.DeviceValue{}, fmt.Errorf(
+			"inference: device cache layer %d page offset overflows", layer,
+		)
+	}
+	offset := uint64(start) * stride * 4
+	if uint64(source.Pointer) > math.MaxUint64-offset {
+		return executor.DeviceValue{}, fmt.Errorf(
+			"inference: device cache layer %d page pointer overflows", layer,
+		)
+	}
+	source.Pointer += driver.DevicePtr(offset)
+	source.Shape.Dims[2] = uint64(count)
+	return source, nil
 }

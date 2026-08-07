@@ -87,12 +87,28 @@ Current foundation:
   training orchestration DAGs sharing one module catalog and topological plan
   compiler. Runtime-backed and orchestration-only plans are distinguished.
 - Immutable successful/failed/cancelled run records, finite typed evaluation
-  metrics, and queryable input/output/dataset provenance. Evaluation identities
-  can serve directly as recipe promotion evidence.
+  metrics, and queryable input/output/dataset provenance. Run v2 binds exact
+  code and immutable execution environments, preserves controlled phase timing,
+  and derives visible unattributed duration. Terminal gate results retain named
+  step truth. Evaluation identities can serve directly as promotion evidence.
+- Rolling-median/raw-MAD regression advisories keyed by exact recipe, metric,
+  and environment, with source-run/evaluation lineage and common-phase deltas.
+- Typed closure obligations with canonical values, compatible tier/status,
+  artifact-owned surfaces, closure/rerank conditions, and mandatory fixtures.
 - Canonical dataset version, view, split, and mixture documents. Versions bind
   ordered external assets, views bind selectors and field projections, splits
   bind named views, and mixtures normalize integer weights. Storage-neutral
   publication and resolution preserve typed lineage and compare-and-set aliases.
+  Deterministic seeded membership selectors keep groups within one partition;
+  duplicate documents use explicit same-kind lineage.
+- Opt-in bounded GGUF/Safetensors measurements that sample storage blocks or
+  scalar ranges without full materialization and persist quantiles, median, raw
+  MAD, finite/non-finite counts, sample fraction, and exact read budgets as
+  tensor-inventory evidence.
+- Canonical neutral JSONL import with exact per-kind counts, safe rooted file
+  hashing, symbolic reference and manifest resolution, domain-schema parsing,
+  cycle refusal, atomic commit, and source commit/export digest evidence. See
+  [`REPODB_IMPORT.md`](REPODB_IMPORT.md).
 - Protocol-neutral workflow execution over compiled runtime plans. Registered
   module adapters receive typed inputs and exact recipe dependencies; one
   atomic commit publishes recipe facts, materialized inputs and outputs, and a

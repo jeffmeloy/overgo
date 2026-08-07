@@ -25,13 +25,38 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 | Generation | Implemented | Cached autoregressive, diffusion, encoder-decoder, embeddings, reranking, and speculative paths |
 | Multimodal | Implemented, constrained | CogVLM, DeepSeek-OCR, Gemma 3n, Granite 4 Vision, Hunyuan-VL, Llama 4, MiMo-VL, PaddleOCR-VL, Qwen2-VL, dense/MoE Qwen3-VL, and Gemma 4 image/video; Gemma 4 ordered image/audio history |
 | Server | Implemented, expanding | Native, OpenAI Chat/Responses, Anthropic text/tools, streaming, fused batching, slots, metrics, LoRA |
-| RepoDB | Artifact, policy, dataset, workflow-runtime, evidence, and persistence layers implemented | Content-addressed manifests/profile/tensor-inventory/model-definition and dataset documents, typed recipe DAG execution and terminal evidence, atomic hash-chained commits, indexed provenance queries, verified immutable snapshot segments, strict replay, and fail-closed single-writer storage |
+| RepoDB | Artifact, policy, dataset, workflow-runtime, analytics, import, evidence, and persistence layers implemented | Typed profile provenance and lifecycle decisions, environment-bound phased runs, closure obligations, deterministic group-safe splits, robust MAD advisories, bounded tensor measurements, canonical JSONL import, atomic hash-chained commits, indexed queries, verified snapshots, strict replay, and fail-closed storage |
 | Training | Optimizer core implemented | Validated flat parameter plans, adaptive/Muon CPU updates, explicit schedules, and identity-bound state restore; backward graphs and mutable model master weights remain pending |
 | CUDA | Implemented on Windows | Dynamic Driver API, cuBLAS, embedded PTX, persistent/native-quantized paths |
 | Release | Implemented | Reproducible Windows-amd64 archive, SBOM, kernel ABI manifest |
 
 ## Recently completed
 
+- RepoDB now exposes bounded read-only artifact/alias/commit/lineage queries and
+  a canonical JSONL importer. Imports resolve safe local files, symbolic JSON
+  references, manifests, lineage, and aliases; validate known domain schemas;
+  verify exact per-kind counts; and atomically bind every imported fact to the
+  producer commit plus the complete export digest.
+- Profile v2 identities now include exact provenance for all 129 typed policy
+  facts. The fact-name digest forces a schema/version decision when the profile
+  structure changes; legacy v1 profiles remain readable. Recipe activation,
+  refusal, and restoration carry typed outcome, evidence tier, reason, deciding
+  code commit, and derivation identity.
+- Run v2 binds exact code, immutable host/device/driver/runtime environment,
+  measured wall time, and controlled phase durations. Unattributed time is
+  derived rather than serialized. Gate results preserve ordered named steps and
+  atomically publish successful, failed, or cancelled terminal truth.
+- RepoDB analytics use rolling median and raw MAD without Gaussian rescaling.
+  Regression advisories bind exact recipe/environment/metric series, retain
+  stated windows and every source run/evaluation, and attribute deltas to phases
+  measured by every baseline run.
+- Closure obligations now persist as typed evidence with canonical values,
+  compatible tier/status policy, artifact-owned surfaces, closure and rerank
+  conditions, and mandatory fixture lineage. Dataset splits persist deterministic
+  group-safe memberships and selectors; deduplication uses explicit same-kind
+  lineage. Opt-in GGUF/Safetensors measurement samples bounded storage ranges
+  and records quantiles, median, MAD, non-finite counts, sample fraction, and
+  exact bytes read without full-tensor materialization.
 - Capacity-cache decoders now retain neutral compiled CUDA sessions across
   logits, greedy, and top-K decode. Exact compatible cohorts share one
   multi-branch graph; compiled dynamic slots update token rows, positions,

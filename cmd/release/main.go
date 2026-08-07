@@ -45,6 +45,7 @@ var releaseDocuments = []string{
 	"IMPLEMENTATION_STATUS.md",
 	"docs/COMPATIBILITY.md",
 	"docs/IMPLEMENTATION_LOG.md",
+	"docs/REPODB_IMPORT.md",
 	"PORT_PLAN.md",
 	"compatibility.yaml",
 	"media_policy.yaml",

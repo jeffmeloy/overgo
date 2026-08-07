@@ -32,6 +32,12 @@ claims.
 
 ## Validated milestones
 
+- The August 7 RepoDB evidence wave added bounded query tooling, injected
+  durable-write recovery fixtures, typed lifecycle decisions, profile v2
+  per-fact provenance, environment-bound phased runs, terminal gate records,
+  closure obligations, deterministic group-safe dataset memberships, raw-MAD
+  regression advisories, bounded tensor measurements, and canonical JSONL
+  import with source-commit/export-digest lineage.
 - The August 6 RepoDB follow-through moved manifests onto shared document and
   clone contracts; centralized safe reads, alias resolution, document batches,
   and commit gates; and replaced whole recipe-catalog reconstruction with owned

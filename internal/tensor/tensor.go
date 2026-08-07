@@ -10,6 +10,9 @@ import (
 
 const maxExactFloat32Integer = 1 << 24
 
+// MaxTopKPairs: bounded device candidate width.
+const MaxTopKPairs = uint32(64)
+
 // Op: identifies typed graph operation
 type Op uint16
 
@@ -73,6 +76,8 @@ const (
 	OpWindowPartition2D
 	OpWindowUnpartition2D
 	OpSAMAttention
+	OpTopKPairs
+	OpTopKPartials
 )
 
 type ScaleAttributes struct {
@@ -288,7 +293,8 @@ type FlatSliceAttributes struct {
 }
 
 type TopKAttributes struct {
-	K uint32
+	K     uint32
+	Chunk uint32
 }
 
 type SparseAttentionAttributes struct {

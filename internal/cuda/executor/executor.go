@@ -1121,6 +1121,8 @@ type functionSet struct {
 	fwht                driver.Function
 	argmax              driver.Function
 	topK                driver.Function
+	topKPairs           driver.Function
+	topKPartials        driver.Function
 	gatherLast          driver.Function
 	gatherLastQ8        driver.Function
 	sparseAttention     driver.Function
@@ -1440,6 +1442,8 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"fwht_f32", &result.fwht},
 		{"argmax_f32", &result.argmax},
 		{"top_k_f32", &result.topK},
+		{"top_k_pairs_f32", &result.topKPairs},
+		{"top_k_partials_f32", &result.topKPartials},
 		{"gather_last_f32", &result.gatherLast},
 		{"gather_last_q8_0_f32", &result.gatherLastQ8},
 		{"sparse_attention_f32", &result.sparseAttention},

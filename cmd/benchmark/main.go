@@ -45,6 +45,9 @@ type options struct {
 	CachePrompt    bool
 	BatchSequences int
 	ContextShift   bool
+	Temperature    float64
+	TopK           int
+	DeviceTopK     bool
 	LoRA           []string
 }
 
@@ -97,6 +100,9 @@ type benchmarkResult struct {
 	HostCache              bool              `json:"host_cache"`
 	CachePrompt            bool              `json:"cache_prompt"`
 	BatchSequences         int               `json:"batch_sequences"`
+	Temperature            float64           `json:"temperature"`
+	TopK                   int               `json:"top_k"`
+	DeviceTopK             bool              `json:"device_top_k"`
 	Device                 driver.DeviceInfo `json:"device"`
 	LoadMilliseconds       float64           `json:"load_ms"`
 	HostHeapBeforeBytes    uint64            `json:"host_heap_before_bytes"`
@@ -123,6 +129,9 @@ func parseOptions(args []string) (options, error) {
 	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
 	flags.BoolVar(&result.ContextShift, "context-shift", false, "enable rolling context shift")
+	flags.Float64Var(&result.Temperature, "temperature", 0, "sampling temperature")
+	flags.IntVar(&result.TopK, "top-k", 40, "sampling top-K limit")
+	flags.BoolVar(&result.DeviceTopK, "device-top-k", false, "transfer bounded top-K candidates")
 	flags.BoolVar(&result.BF16Decode, "decode-bf16", false, "retain BF16 Qwen decode projections alongside native-quantized prefill weights")
 	flags.BoolVar(&result.CachePrompt, "cache-prompt", false, "reuse retained prompt state between runs")
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
@@ -164,6 +173,12 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.BatchSequences > 0 && result.CachePrompt {
 		return options{}, errors.New("benchmark: -cache-prompt is unavailable in continuous-batch mode")
+	}
+	if result.Temperature < 0 || result.TopK < 0 {
+		return options{}, errors.New("benchmark: temperature and top-K must be non-negative")
+	}
+	if result.DeviceTopK && (result.BatchSequences == 0 || result.Temperature == 0 || result.TopK == 0) {
+		return options{}, errors.New("benchmark: -device-top-k requires continuous sampling with positive temperature and top-K")
 	}
 	return result, nil
 }
@@ -213,7 +228,7 @@ func run(args []string) error {
 		if options.BatchSequences > 0 {
 			return executeContinuousBatch(context.Background(), runner, options, promptIDs, index)
 		}
-		sampler, samplerErr := sampling.New(sampling.Config{Temperature: 0})
+		sampler, samplerErr := sampling.New(sampling.Config{Temperature: float32(options.Temperature), TopK: options.TopK})
 		if samplerErr != nil {
 			return runMetrics{}, samplerErr
 		}
@@ -326,6 +341,9 @@ func run(args []string) error {
 		HostCache:              options.HostCache,
 		CachePrompt:            options.CachePrompt,
 		BatchSequences:         options.BatchSequences,
+		Temperature:            options.Temperature,
+		TopK:                   options.TopK,
+		DeviceTopK:             options.DeviceTopK,
 		Device:                 device,
 		LoadMilliseconds:       float64(loadDuration) / float64(time.Millisecond),
 		HostHeapBeforeBytes:    before.HeapAlloc,
@@ -385,22 +403,35 @@ func executeContinuousBatch(
 		return runMetrics{}, err
 	}
 	started := time.Now()
-	deviceGreedy := device && runner.Spec().Profile().Attention == model.AttentionQwenGDN
+	deviceGreedy := device && options.Temperature == 0 && runner.Spec().Profile().Attention == model.AttentionQwenGDN
 	step := batch.Step
 	if deviceGreedy {
 		step = batch.StepGreedy
+	} else if options.DeviceTopK {
+		step = func(ctx context.Context, inputs []inference.SequenceBatchInput) ([]inference.SequenceBatchOutput, error) {
+			return batch.StepTopK(ctx, inputs, uint32(options.TopK))
+		}
 	}
 	outputs, err := step(ctx, inputs)
 	if err != nil {
 		return runMetrics{}, err
 	}
-	sampler, err := sampling.New(sampling.Config{Temperature: 0})
+	sampler, err := sampling.New(sampling.Config{Temperature: float32(options.Temperature), TopK: options.TopK})
 	if err != nil {
 		return runMetrics{}, err
 	}
 	selected := func(output inference.SequenceBatchOutput) (tokenizer.TokenID, error) {
 		if deviceGreedy {
 			return output.Token, nil
+		}
+		if options.DeviceTopK {
+			ids := make([]int, len(output.Candidates))
+			logits := make([]float32, len(output.Candidates))
+			for index, candidate := range output.Candidates {
+				ids[index], logits[index] = int(candidate.ID), candidate.Logit
+			}
+			id, sampleErr := sampler.SampleTopK(ids, logits, runner.SamplingVocabularySize())
+			return tokenizer.TokenID(id), sampleErr
 		}
 		id, sampleErr := sampler.Sample(output.Logits)
 		return tokenizer.TokenID(id), sampleErr

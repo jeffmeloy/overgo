@@ -344,6 +344,59 @@ func (s *Sampler) IsRawGreedy() bool {
 		!slices.Contains(config.Samplers, SamplerInfill)
 }
 
+// BoundedTopK: exact prefix-filter candidate limit.
+func (s *Sampler) BoundedTopK() (int, bool) {
+	if s == nil {
+		return 0, false
+	}
+	config := s.config
+	if config.TopK <= 0 || config.Mirostat != 0 || config.Grammar != nil ||
+		config.GBNF != nil || config.Infill != nil || len(config.LogitBiases) != 0 {
+		return 0, false
+	}
+	for _, stage := range config.Samplers {
+		switch stage {
+		case SamplerPenalties:
+			if config.RepeatPenalty != 1 || config.PresencePenalty != 0 || config.FrequencyPenalty != 0 {
+				return 0, false
+			}
+		case SamplerDry:
+			if config.DryMultiplier != 0 {
+				return 0, false
+			}
+		case SamplerTopNSigma:
+			if config.TopNSigma != 0 {
+				return 0, false
+			}
+		case SamplerTypicalP:
+			if config.TypicalP != 1 {
+				return 0, false
+			}
+		case SamplerTopP:
+			if config.TopP != 1 {
+				return 0, false
+			}
+		case SamplerMinP:
+			if config.MinP != 0 {
+				return 0, false
+			}
+		case SamplerXTC:
+			if config.XTCProbability != 0 {
+				return 0, false
+			}
+		case SamplerTemperature:
+			if config.Temperature != 1 || config.DynatempRange != 0 {
+				return 0, false
+			}
+		case SamplerAdaptiveP, SamplerInfill:
+			return 0, false
+		case SamplerTopK:
+			return config.TopK, true
+		}
+	}
+	return 0, false
+}
+
 // Sample chooses one token; Temperature zero is exact greedy argmax with
 // lowest token ID winning ties
 func (s *Sampler) Sample(logits []float32) (int, error) {
@@ -412,14 +465,60 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	for index, value := range adjusted {
 		candidates[index] = candidate{id: index, scaledLogit: float64(value)}
 	}
+	return s.sampleCandidatePipeline(candidates, len(logits), history, s.config.Samplers)
+}
+
+// SampleTopK: complete descending top-K prefix.
+func (s *Sampler) SampleTopK(ids []int, logits []float32, vocabularySize int) (int, error) {
+	if s == nil {
+		return 0, errors.New("sampler is nil")
+	}
+	limit, ok := s.BoundedTopK()
+	if !ok {
+		return 0, errors.New("sampling configuration has no bounded top-K prefix")
+	}
+	expected := min(limit, vocabularySize)
+	if vocabularySize <= 0 || len(ids) != expected || len(logits) != expected {
+		return 0, errors.New("sampling top-K candidates are incomplete")
+	}
+	seen := make(map[int]struct{}, len(ids))
+	candidates := s.candidates(len(ids))
+	for index, id := range ids {
+		if id < 0 || id >= vocabularySize {
+			return 0, fmt.Errorf("sampling top-K token %d exceeds vocabulary", id)
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return 0, fmt.Errorf("sampling top-K token %d is duplicated", id)
+		}
+		seen[id] = struct{}{}
+		if math.IsNaN(float64(logits[index])) {
+			return 0, fmt.Errorf("sampling top-K logit %d is NaN", index)
+		}
+		candidates[index] = candidate{id: id, scaledLogit: float64(logits[index])}
+	}
+	stages := s.config.Samplers
+	for index, stage := range stages {
+		if stage == SamplerTopK {
+			return s.sampleCandidatePipeline(candidates, vocabularySize, nil, stages[index+1:])
+		}
+	}
+	return 0, errors.New("sampling top-K stage is missing")
+}
+
+func (s *Sampler) sampleCandidatePipeline(
+	candidates []candidate,
+	vocabularySize int,
+	history []int,
+	stages []SamplerStage,
+) (int, error) {
 	var err error
 	useAdaptive := false
-	for _, stage := range s.config.Samplers {
+	for _, stage := range stages {
 		if stage == SamplerAdaptiveP {
 			useAdaptive = true
 			continue
 		}
-		candidates, err = s.applySamplerStage(candidates, len(logits), history, stage)
+		candidates, err = s.applySamplerStage(candidates, vocabularySize, history, stage)
 		if err != nil {
 			return 0, err
 		}

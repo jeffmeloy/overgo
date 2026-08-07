@@ -4,7 +4,7 @@ import "testing"
 
 func TestOperationCatalogIsDenseAndUnique(t *testing.T) {
 	descriptors := Operations()
-	if len(descriptors) != int(OpSAMAttention)+1 {
+	if len(descriptors) != int(OpTopKPartials)+1 {
 		t.Fatalf("descriptor count = %d", len(descriptors))
 	}
 	names := make(map[string]struct{}, len(descriptors))

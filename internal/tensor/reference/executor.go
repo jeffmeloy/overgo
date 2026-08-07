@@ -335,6 +335,10 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return fwht(node.Shape, inputs[0])
 	case tensor.OpTopK:
 		return topK(node.Shape, inputs[0], node.Attrs.(tensor.TopKAttributes))
+	case tensor.OpTopKPairs:
+		return topKPairs(node.Shape, inputs[0], node.Attrs.(tensor.TopKAttributes))
+	case tensor.OpTopKPartials:
+		return topKPartials(node.Shape, inputs[0], node.Attrs.(tensor.TopKAttributes))
 	case tensor.OpGatherLast:
 		return gatherLast(node.Shape, inputs[0], inputs[1])
 	case tensor.OpSparseAttention:

@@ -25,7 +25,7 @@ const f32DeviceStorageBytes = uint64(4)
 func (r *Runner) forwardPackedQwen35CohortsLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
-	greedy bool,
+	plan deviceOutputPlan,
 ) ([]*deviceKVCache, bool, error) {
 	if len(appends) < 2 || r.profile().Attention != model.AttentionQwenGDN {
 		return nil, false, nil
@@ -51,9 +51,9 @@ func (r *Runner) forwardPackedQwen35CohortsLocked(
 		var caches []*deviceKVCache
 		var err error
 		if packed {
-			caches, err = r.forwardPackedQwen35DeviceBatchLocked(ctx, items, greedy)
+			caches, err = r.forwardPackedQwen35DeviceBatchLocked(ctx, items, plan)
 		} else {
-			caches, err = r.forwardDeviceCachedBranchedBatchLocked(ctx, items, greedy)
+			caches, err = r.forwardDeviceCachedBranchedBatchLocked(ctx, items, plan)
 		}
 		if err != nil {
 			return err
@@ -122,7 +122,7 @@ func planQwen35DeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 func (r *Runner) forwardPackedQwen35DeviceBatchLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
-	greedy bool,
+	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
 	packedPast, packedOwner, err := r.packDeviceBatchCaches(ctx, appends)
 	if err != nil {
@@ -139,14 +139,17 @@ func (r *Runner) forwardPackedQwen35DeviceBatchLocked(
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	graph, err := r.buildDeviceCachedBatchBranch(
-		builder, 0, tokens, packedPast, uint64(len(appends)), greedy, hostFeeds, deviceFeeds,
+		builder, 0, tokens, packedPast, uint64(len(appends)), plan, hostFeeds, deviceFeeds,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inference: packed device batch: %w", err)
 	}
 	firstOutput := graph.logits
-	if greedy {
+	switch plan.mode {
+	case deviceOutputGreedy:
 		firstOutput = graph.selection
+	case deviceOutputTopK:
+		firstOutput = graph.candidates
 	}
 	outputs := []*tensor.Tensor{firstOutput}
 	for layer := range graph.keys {
@@ -166,16 +169,27 @@ func (r *Runner) forwardPackedQwen35DeviceBatchLocked(
 	}
 	vocabulary := int(r.spec.VocabularySize)
 	var logits reference.Value
+	var candidateSets [][]LogitCandidate
 	var selected []tokenizer.TokenID
 	var deviceSelection executor.DeviceValue
-	if greedy {
+	switch plan.mode {
+	case deviceOutputGreedy:
 		selected, deviceSelection, err = retainedDeviceGreedySelections(
 			ctx, retained, graph.selection, len(appends), vocabulary,
 		)
 		if err != nil {
 			return fail(err)
 		}
-	} else {
+	case deviceOutputTopK:
+		pairs, copyErr := retained.CopyToHost(ctx, graph.candidates)
+		if copyErr != nil {
+			return fail(copyErr)
+		}
+		candidateSets, err = r.decodeCandidatePairs(pairs.Data, len(appends), plan.topK)
+		if err != nil {
+			return fail(err)
+		}
+	default:
 		logits, err = retained.CopyToHost(ctx, graph.logits)
 		if err != nil {
 			return fail(err)
@@ -216,13 +230,16 @@ func (r *Runner) forwardPackedQwen35DeviceBatchLocked(
 			Tokens: graph.pastTokens + graph.tokenCount, Position: graph.nextPosition + graph.tokenCount,
 			PageTokens: resolveCachePageTokens(item.PageTokens),
 		}
-		if greedy {
+		switch plan.mode {
+		case deviceOutputGreedy:
 			cache.Selection = executor.DeviceValue{
 				Pointer: deviceSelection.Pointer + driver.DevicePtr(uint64(sequence)*f32DeviceStorageBytes),
 				Shape:   tensor.MustShape(1),
 			}
 			cache.Selected = selected[sequence]
-		} else {
+		case deviceOutputTopK:
+			cache.Candidates = candidateSets[sequence]
+		default:
 			cache.Logits = slices.Clone(logits.Data[sequence*vocabulary : (sequence+1)*vocabulary])
 			cache.Logits = r.finalizeLogits(cache.Logits)
 		}

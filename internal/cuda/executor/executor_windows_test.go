@@ -58,7 +58,7 @@ func TestExecutorBF16RoundMatchesReference(t *testing.T) {
 		1, 1.00390625, 1.01171875, -1.01171875, float32(math.Inf(1)), float32(math.NaN()),
 	}}
 	feeds := map[*tensor.Tensor]reference.Value{input: value}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	want, err := reference.Execute([]*tensor.Tensor{output.Inputs[0], output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,6 +136,7 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	transformed := builder.FWHT(input)
 	argmax := builder.TopK(transformed, 1)
 	indices := builder.TopK(transformed, 2)
+	pairs := builder.TopKPairs(transformed, 2)
 	table := builder.Input("table", dtype.F32, tensor.MustShape(2, 4))
 	gathered := builder.GatherLast(table, indices)
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))
@@ -160,8 +161,24 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 		indexerKey:     {Shape: indexerKey.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
 		indexerWeights: {Shape: indexerWeights.Shape, Data: []float32{2, 1, 1, 3}},
 	}
-	outputs := []*tensor.Tensor{transformed, argmax, indices, gathered, attention, causalAttention, indexerScores}
+	outputs := []*tensor.Tensor{transformed, argmax, indices, pairs, gathered, attention, causalAttention, indexerScores}
 	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 1e-5)...)
+}
+
+func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
+	cudatest.Require(t)
+	const (
+		fixtureWidth = 4099
+		fixtureRows  = 2
+		fixtureTopK  = 40
+	)
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(fixtureWidth, fixtureRows))
+	output := builder.TopKPairs(input, fixtureTopK)
+	feeds := map[*tensor.Tensor]reference.Value{
+		input: patternedValue(input.Shape, 17, 0.013, -0.2),
+	}
+	checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{output}, 0)...)
 }
 
 func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {

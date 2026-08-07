@@ -244,6 +244,49 @@ func launchRecurrentSelection(
 			)
 		}
 		return launch1DABI(state, functions.topK, rows, &input, &output, &width, &k, &rows)
+	case tensor.OpTopKPairs:
+		attributes, ok := node.Attrs.(tensor.TopKAttributes)
+		if !ok || attributes.K == 0 {
+			return errors.New("invalid TopKPairs attributes")
+		}
+		chunks, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "TopKPairs chunk count")
+		if err != nil {
+			return err
+		}
+		outputElements, err := node.Shape.Elements()
+		if err != nil || outputElements%(uint64(attributes.K)*2) != 0 {
+			return errors.New("TopKPairs output dimensions are invalid")
+		}
+		rows := uint32(outputElements / (uint64(attributes.K) * 2))
+		input := pointers[node.Inputs[0]]
+		k := attributes.K
+		candidates := k * chunks
+		return launchGridABI(
+			state, functions.topKPairs,
+			driver.Dim3{X: rows, Y: 1, Z: 1}, driver.Dim3{X: 256, Y: 1, Z: 1},
+			&input, &output, &candidates, &k, &rows,
+		)
+	case tensor.OpTopKPartials:
+		attributes, ok := node.Attrs.(tensor.TopKAttributes)
+		if !ok || attributes.K == 0 || attributes.Chunk == 0 {
+			return errors.New("invalid TopKPartials attributes")
+		}
+		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
+		if err != nil {
+			return err
+		}
+		chunks, err := uint32Checked(node.Shape.Dims[2], "TopKPartials chunk count")
+		if err != nil || uint64(chunks)*uint64(rows) > uint64(^uint32(0)) {
+			return errors.New("TopKPartials launch count exceeds uint32")
+		}
+		input := pointers[node.Inputs[0]]
+		k, chunk := attributes.K, attributes.Chunk
+		return launchGridABI(
+			state, functions.topKPartials,
+			driver.Dim3{X: chunks * rows, Y: 1, Z: 1},
+			driver.Dim3{X: 32, Y: 1, Z: 1},
+			&input, &output, &width, &k, &chunk, &chunks, &rows,
+		)
 	case tensor.OpGatherLast:
 		inputNode, indicesNode := node.Inputs[0], node.Inputs[1]
 		inputRows, err := uint32Checked(

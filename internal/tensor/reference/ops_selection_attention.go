@@ -74,6 +74,78 @@ func topK(
 	return Value{Shape: shape, Data: output}, nil
 }
 
+func topKPairs(
+	shape tensor.Shape,
+	partials Value,
+	attributes tensor.TopKAttributes,
+) (Value, error) {
+	k := int(attributes.K)
+	chunks := int(partials.Shape.Dims[2])
+	if k <= 0 || chunks <= 0 || len(partials.Data)%(k*chunks*2) != 0 {
+		return Value{}, errors.New("invalid TopKPairs dimensions")
+	}
+	rows := len(partials.Data) / (k * chunks * 2)
+	output := make([]float32, rows*k*2)
+	for row := range rows {
+		selectTopKPairs(
+			partials.Data[row*k*chunks*2:(row+1)*k*chunks*2],
+			output[row*k*2:(row+1)*k*2], k,
+		)
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func topKPartials(
+	shape tensor.Shape,
+	input Value,
+	attributes tensor.TopKAttributes,
+) (Value, error) {
+	width, k, chunk := int(input.Shape.Dims[0]), int(attributes.K), int(attributes.Chunk)
+	chunks := int(shape.Dims[2])
+	if width <= 0 || k <= 0 || chunk <= 0 || len(input.Data)%width != 0 {
+		return Value{}, errors.New("invalid TopKPartials dimensions")
+	}
+	rows := len(input.Data) / width
+	output := make([]float32, rows*chunks*k*2)
+	for row := range rows {
+		for part := range chunks {
+			start := part * chunk
+			end := min(start+chunk, width)
+			pairs := make([]float32, 0, (end-start)*2)
+			for id := start; id < end; id++ {
+				pairs = append(pairs, float32(id), input.Data[row*width+id])
+			}
+			selectTopKPairs(pairs, output[(row*chunks+part)*k*2:(row*chunks+part+1)*k*2], k)
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func selectTopKPairs(candidates, output []float32, k int) {
+	for slot := range k {
+		output[slot*2] = -1
+	}
+	for position := 0; position < len(candidates); position += 2 {
+		id, value := int(candidates[position]), candidates[position+1]
+		if id < 0 {
+			continue
+		}
+		insert := k
+		for slot := range k {
+			selected := int(output[slot*2])
+			if selected < 0 || topKBefore(value, id, output[slot*2+1], selected) {
+				insert = slot
+				break
+			}
+		}
+		if insert == k {
+			continue
+		}
+		copy(output[(insert+1)*2:], output[insert*2:(k-1)*2])
+		output[insert*2], output[insert*2+1] = float32(id), value
+	}
+}
+
 func topKBefore(left float32, leftIndex int, right float32, rightIndex int) bool {
 	leftNaN, rightNaN := math.IsNaN(float64(left)), math.IsNaN(float64(right))
 	if leftNaN != rightNaN {

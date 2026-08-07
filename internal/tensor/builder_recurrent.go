@@ -286,6 +286,46 @@ func (b *Builder) TopK(input *Tensor, k uint32) *Tensor {
 	return b.add("", dtype.F32, shape, OpTopK, []*Tensor{input}, TopKAttributes{K: k})
 }
 
+// TopKPairs: interleaved descending token/logit pairs.
+func (b *Builder) TopKPairs(input *Tensor, k uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Rank == 0 {
+		b.setError(errors.New("TopKPairs requires non-empty F32 input"))
+		return nil
+	}
+	if k == 0 || k > MaxTopKPairs || uint64(k) > input.Shape.Dims[0] {
+		b.setError(errors.New("TopKPairs count exceeds dimension zero"))
+		return nil
+	}
+	if input.Shape.Dims[0] > maxExactFloat32Integer {
+		b.setError(errors.New("TopKPairs dimension zero exceeds exact F32 index range"))
+		return nil
+	}
+	const chunk = uint32(1024)
+	chunks := (input.Shape.Dims[0] + uint64(chunk) - 1) / uint64(chunk)
+	partialDimensions := make([]uint64, 0, int(input.Shape.Rank)+2)
+	partialDimensions = append(partialDimensions, 2, uint64(k), chunks)
+	partialDimensions = append(partialDimensions, input.Shape.Slice()[1:]...)
+	partialShape, err := NewShape(partialDimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	attributes := TopKAttributes{K: k, Chunk: chunk}
+	partials := b.add("", dtype.F32, partialShape, OpTopKPartials, []*Tensor{input}, attributes)
+	dimensions := make([]uint64, 0, int(input.Shape.Rank)+1)
+	dimensions = append(dimensions, 2, uint64(k))
+	dimensions = append(dimensions, input.Shape.Slice()[1:]...)
+	shape, err := NewShape(dimensions...)
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", dtype.F32, shape, OpTopKPairs, []*Tensor{partials}, attributes)
+}
+
 // GatherLast: dynamic gather from final dimension; exact F32 indices.
 func (b *Builder) GatherLast(input, indices *Tensor) *Tensor {
 	if b.err != nil {

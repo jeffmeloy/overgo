@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "9c6dcdf8bbadc8d472523bb563cdb3a64e86199d426163eba1efc20617e8065f",
+      "sourceSha256": "515d069247d4d6434f428ca8d4015c8c9a2b04a0b27c311a0b41d5182fd46f24",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "7b31650774751e303af1079bb7216967d5b9c38a7e57657247bc251472ba9bda",
+      "assetSha256": "8eb263b0347a874c5794d1d31cd0a516104c21788e688caa445f43937d33f580",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -88,6 +88,8 @@
         "argmax_f32",
         "argmax_q8_0_input_partials_f32",
         "top_k_f32",
+        "top_k_pairs_f32",
+        "top_k_partials_f32",
         "gather_last_f32",
         "gather_last_q8_0_f32",
         "sparse_attention_f32",
@@ -322,7 +324,8 @@
           ],
           "functions": [
             "window_partition_2d_f32",
-            "window_unpartition_2d_f32"
+            "window_unpartition_2d_f32",
+            "top_k_partials_f32"
           ]
         },
         {
@@ -427,7 +430,8 @@
           ],
           "functions": [
             "transpose_2d_f32",
-            "top_k_f32"
+            "top_k_f32",
+            "top_k_pairs_f32"
           ]
         },
         {

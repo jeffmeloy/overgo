@@ -34,13 +34,20 @@ type SequenceBatchInput struct {
 
 // SequenceBatchOutput: one committed append result.
 type SequenceBatchOutput struct {
-	ID       SequenceID
-	Hidden   reference.Value
-	Logits   []float32
-	Token    tokenizer.TokenID
-	Tokens   uint32
-	Position uint32
-	Pages    []SequenceCachePage
+	ID         SequenceID
+	Hidden     reference.Value
+	Logits     []float32
+	Candidates []LogitCandidate
+	Token      tokenizer.TokenID
+	Tokens     uint32
+	Position   uint32
+	Pages      []SequenceCachePage
+}
+
+// LogitCandidate: bounded device sampling pair.
+type LogitCandidate struct {
+	ID    tokenizer.TokenID
+	Logit float32
 }
 
 // SequenceCachePage: logical half-open cache page.
@@ -112,7 +119,7 @@ func (b *ContinuousBatch) Step(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
-	return b.step(ctx, inputs, false)
+	return b.step(ctx, inputs, deviceOutputPlan{})
 }
 
 // StepGreedy: Qwen device argmax with retained token feedback.
@@ -120,13 +127,22 @@ func (b *ContinuousBatch) StepGreedy(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
-	return b.step(ctx, inputs, true)
+	return b.step(ctx, inputs, deviceOutputPlan{mode: deviceOutputGreedy})
+}
+
+// StepTopK: bounded device candidate transfer.
+func (b *ContinuousBatch) StepTopK(
+	ctx context.Context,
+	inputs []SequenceBatchInput,
+	topK uint32,
+) ([]SequenceBatchOutput, error) {
+	return b.step(ctx, inputs, deviceOutputPlan{mode: deviceOutputTopK, topK: topK})
 }
 
 func (b *ContinuousBatch) step(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
-	greedy bool,
+	plan deviceOutputPlan,
 ) ([]SequenceBatchOutput, error) {
 	if b == nil || b.runner == nil {
 		return nil, errors.New("inference: continuous batch is nil")
@@ -173,10 +189,10 @@ func (b *ContinuousBatch) step(
 		return nil, errors.New("inference: runner is closed")
 	}
 	if b.options.Device {
-		return b.stepDeviceLocked(ctx, inputs, greedy)
+		return b.stepDeviceLocked(ctx, inputs, plan)
 	}
-	if greedy {
-		return nil, errors.New("inference: greedy device feedback requires a device batch")
+	if plan.mode != deviceOutputLogits {
+		return nil, errors.New("inference: reduced device output requires a device batch")
 	}
 	candidates := make(map[SequenceID]*continuousSequence, len(inputs))
 	outputs := make([]SequenceBatchOutput, len(inputs))
@@ -231,7 +247,7 @@ func (b *ContinuousBatch) step(
 func (b *ContinuousBatch) stepDeviceLocked(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
-	greedy bool,
+	plan deviceOutputPlan,
 ) ([]SequenceBatchOutput, error) {
 	r := b.runner
 	appends := make([]deviceBatchAppend, len(inputs))
@@ -266,9 +282,12 @@ func (b *ContinuousBatch) stepDeviceLocked(
 	}
 	var next []*deviceKVCache
 	var err error
-	if greedy {
+	switch plan.mode {
+	case deviceOutputGreedy:
 		next, err = r.forwardDeviceCachedGreedyBatchLocked(ctx, appends)
-	} else {
+	case deviceOutputTopK:
+		next, err = r.forwardDeviceCachedTopKBatchLocked(ctx, appends, plan.topK)
+	default:
 		next, err = r.forwardDeviceCachedBatchLocked(ctx, appends)
 	}
 	cleanupWorking()
@@ -279,7 +298,7 @@ func (b *ContinuousBatch) stepDeviceLocked(
 	for index, cache := range next {
 		input := inputs[index]
 		outputs[index] = SequenceBatchOutput{
-			ID: input.ID, Logits: slices.Clone(cache.Logits), Token: cache.Selected,
+			ID: input.ID, Logits: slices.Clone(cache.Logits), Candidates: slices.Clone(cache.Candidates), Token: cache.Selected,
 			Tokens: cache.Tokens, Position: cache.Position,
 			Pages: sequencePages(cache.Tokens, b.options.PageTokens),
 		}
@@ -357,6 +376,7 @@ func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
 	result.Keys = slices.Clone(source.Keys)
 	result.Values = slices.Clone(source.Values)
 	result.Logits = slices.Clone(source.Logits)
+	result.Candidates = slices.Clone(source.Candidates)
 	result.Pages = make([]deviceKVPage, len(source.Pages))
 	for index, page := range source.Pages {
 		result.Pages[index] = page

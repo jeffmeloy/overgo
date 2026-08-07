@@ -40,7 +40,9 @@ type GenerateOptions struct {
 	Sampler      *sampling.Sampler
 	// DeviceGreedy: raw Qwen argmax; TokenEvent.Logits omitted.
 	DeviceGreedy bool
-	OnToken      func(TokenEvent) error
+	// DeviceTopK: exact bounded sampling; TokenEvent.Logits omitted.
+	DeviceTopK bool
+	OnToken    func(TokenEvent) error
 	// ShouldStop: evaluated after OnToken and after sampled piece has
 	// been appended to generated text; Returning true ends generation
 	// successfully while retaining that token

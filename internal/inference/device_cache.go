@@ -26,8 +26,22 @@ type deviceKVCache struct {
 	Tokens     uint32
 	Position   uint32
 	Logits     []float32
+	Candidates []LogitCandidate
 	Selection  executor.DeviceValue
 	Selected   tokenizer.TokenID
+}
+
+type deviceOutputMode uint8
+
+const (
+	deviceOutputLogits deviceOutputMode = iota
+	deviceOutputGreedy
+	deviceOutputTopK
+)
+
+type deviceOutputPlan struct {
+	mode deviceOutputMode
+	topK uint32
 }
 
 type deviceLayerState = model.CacheState[executor.DeviceValue]
@@ -397,6 +411,7 @@ type deviceBatchAppend struct {
 type deviceBatchGraph struct {
 	logits       *tensor.Tensor
 	selection    *tensor.Tensor
+	candidates   *tensor.Tensor
 	keys         []*tensor.Tensor
 	values       []*tensor.Tensor
 	states       []deviceGraphStates
@@ -447,12 +462,46 @@ func retainedDeviceGreedySelections(
 	}, nil
 }
 
+func (r *Runner) decodeCandidatePairs(
+	data []float32,
+	sequences int,
+	topK uint32,
+) ([][]LogitCandidate, error) {
+	const pairValues = 2
+	count := int(topK)
+	if sequences <= 0 || count <= 0 || len(data) != sequences*count*pairValues {
+		return nil, errors.New("inference: device top-K pair shape is invalid")
+	}
+	vocabulary := int(r.spec.VocabularySize)
+	result := make([][]LogitCandidate, sequences)
+	for sequence := range sequences {
+		items := make([]LogitCandidate, count)
+		logits := make([]float32, count)
+		base := sequence * count * pairValues
+		for index := range count {
+			raw := data[base+index*pairValues]
+			id := int(raw)
+			if raw != float32(id) || id < 0 || id >= vocabulary {
+				return nil, fmt.Errorf("inference: device top-K token %d is invalid: %g", index, raw)
+			}
+			items[index].ID = tokenizer.TokenID(id)
+			logits[index] = data[base+index*pairValues+1]
+		}
+		logits = r.finalizeLogits(logits)
+		for index := range items {
+			items[index].Logit = logits[index]
+		}
+		result[sequence] = items
+	}
+	return result, nil
+}
+
 // forwardDeviceCachedBatchLocked: one graph, variable independent branches.
 func (r *Runner) forwardDeviceCachedBatchLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
 ) ([]*deviceKVCache, error) {
-	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, false)
+	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, deviceOutputPlan{})
 }
 
 func (r *Runner) forwardDeviceCachedGreedyBatchLocked(
@@ -462,27 +511,40 @@ func (r *Runner) forwardDeviceCachedGreedyBatchLocked(
 	if r.profile().Attention != model.AttentionQwenGDN {
 		return nil, errors.New("inference: device greedy feedback requires Qwen GDN")
 	}
-	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, true)
+	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, deviceOutputPlan{mode: deviceOutputGreedy})
+}
+
+func (r *Runner) forwardDeviceCachedTopKBatchLocked(
+	ctx context.Context,
+	appends []deviceBatchAppend,
+	topK uint32,
+) ([]*deviceKVCache, error) {
+	if topK == 0 || topK > r.spec.VocabularySize {
+		return nil, errors.New("inference: device top-K count is invalid")
+	}
+	return r.forwardDeviceCachedBatchModeLocked(
+		ctx, appends, deviceOutputPlan{mode: deviceOutputTopK, topK: topK},
+	)
 }
 
 func (r *Runner) forwardDeviceCachedBatchModeLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
-	greedy bool,
+	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
 	}
-	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends, greedy); handled {
+	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends, plan); handled {
 		return next, err
 	}
-	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends, greedy)
+	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends, plan)
 }
 
 func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
-	greedy bool,
+	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
 	builder := r.newGraphBuilder()
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
@@ -491,15 +553,18 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
-			builder, index, appendInput.Tokens, appendInput.Past, 1, greedy, hostFeeds, deviceFeeds,
+			builder, index, appendInput.Tokens, appendInput.Past, 1, plan, hostFeeds, deviceFeeds,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
 		}
 		graphs[index] = graph
-		if greedy {
+		switch plan.mode {
+		case deviceOutputGreedy:
 			outputs = append(outputs, graph.selection)
-		} else {
+		case deviceOutputTopK:
+			outputs = append(outputs, graph.candidates)
+		default:
 			outputs = append(outputs, graph.logits)
 		}
 		for layer := range graph.keys {
@@ -532,7 +597,8 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			Position:   graph.nextPosition + graph.tokenCount,
 			PageTokens: resolveCachePageTokens(appends[index].PageTokens),
 		}
-		if greedy {
+		switch plan.mode {
+		case deviceOutputGreedy:
 			selected, device, selectionErr := retainedDeviceGreedySelections(
 				ctx, retained, graph.selection, 1, int(r.spec.VocabularySize),
 			)
@@ -540,7 +606,17 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 				return fail(selectionErr)
 			}
 			cache.Selection, cache.Selected = device, selected[0]
-		} else {
+		case deviceOutputTopK:
+			value, copyErr := retained.CopyToHost(ctx, graph.candidates)
+			if copyErr != nil {
+				return fail(copyErr)
+			}
+			items, candidateErr := r.decodeCandidatePairs(value.Data, 1, plan.topK)
+			if candidateErr != nil {
+				return fail(candidateErr)
+			}
+			cache.Candidates = items[0]
+		default:
 			logits, copyErr := retained.CopyToHost(ctx, graph.logits)
 			if copyErr != nil {
 				return fail(copyErr)
@@ -589,7 +665,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 	sequences uint64,
-	greedy bool,
+	plan deviceOutputPlan,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (deviceBatchGraph, error) {
@@ -633,7 +709,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	current := builder.GetRows(embeddingTable, rows)
 	deviceFeeds[embeddingTable] = embeddingPointer
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
-	if greedy && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
+	if plan.mode == deviceOutputGreedy && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
 		selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
 		deviceFeeds[selection] = past.Selection.Pointer
 		current = builder.GatherLast(embeddingTable, selection)
@@ -708,7 +784,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	states := make([]deviceGraphStates, len(r.weights.Layers))
-	decodeCatalog := greedy && tokensPerSequence == 1 && r.decodeWeights != nil
+	decodeCatalog := plan.mode == deviceOutputGreedy && tokensPerSequence == 1 && r.decodeWeights != nil
 	for layerIndex, info := range r.weights.Layers {
 		plan := r.layerPlan(layerIndex, info.Recurrent)
 		var graphWeights model.LayerGraphWeights
@@ -859,12 +935,15 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
 		logits = builder.Scale(logits, scale)
 	}
-	var selection *tensor.Tensor
-	if greedy {
+	var selection, candidates *tensor.Tensor
+	switch plan.mode {
+	case deviceOutputGreedy:
 		selection = builder.TopK(logits, 1)
+	case deviceOutputTopK:
+		candidates = builder.TopKPairs(logits, plan.topK)
 	}
 	return deviceBatchGraph{
-		logits: logits, selection: selection, keys: keys, values: values, states: states,
+		logits: logits, selection: selection, candidates: candidates, keys: keys, values: values, states: states,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
 	}, nil

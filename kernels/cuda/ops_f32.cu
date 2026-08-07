@@ -1244,6 +1244,124 @@ extern "C" __global__ void top_k_f32(
 	}
 }
 
+extern "C" __global__ void top_k_pairs_f32(
+		const float * partials,
+		float * output,
+		unsigned int candidates,
+		unsigned int k,
+		unsigned int rows) {
+	constexpr unsigned int max_k = 64;
+	constexpr unsigned int pair_values = 2;
+	const unsigned int row = blockIdx.x;
+	const unsigned int lane = threadIdx.x;
+	if (row >= rows || k > max_k) {
+		return;
+	}
+	const size_t input_base = (size_t) row * candidates * pair_values;
+	const size_t output_base = (size_t) row * k * pair_values;
+	unsigned int selected[max_k];
+	__shared__ float values[256];
+	__shared__ unsigned int indices[256];
+	for (unsigned int slot = 0; slot < k; ++slot) {
+		float best_value = 0.0f;
+		unsigned int best = 0xffffffffU;
+		for (unsigned int candidate = lane; candidate < candidates; candidate += blockDim.x) {
+			const size_t pair = input_base + candidate * pair_values;
+			const float raw = partials[pair];
+			if (raw < 0.0f) {
+				continue;
+			}
+			const unsigned int id = (unsigned int) raw;
+			bool used = false;
+			for (unsigned int previous = 0; previous < slot; ++previous) {
+				used |= selected[previous] == id;
+			}
+			const float value = partials[pair + 1];
+			if (!used && (best == 0xffffffffU || top_k_before(value, id, best_value, best))) {
+				best = id;
+				best_value = value;
+			}
+		}
+		values[lane] = best_value;
+		indices[lane] = best;
+		__syncthreads();
+		for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+			if (lane < stride) {
+				const unsigned int right = indices[lane + stride];
+				if (right != 0xffffffffU &&
+					(indices[lane] == 0xffffffffU || top_k_before(
+						values[lane + stride], right, values[lane], indices[lane]))) {
+					values[lane] = values[lane + stride];
+					indices[lane] = right;
+				}
+			}
+			__syncthreads();
+		}
+		selected[slot] = indices[0];
+		if (lane == 0) {
+			output[output_base + slot * pair_values] = (float) indices[0];
+			output[output_base + slot * pair_values + 1] = values[0];
+		}
+		__syncthreads();
+	}
+}
+
+extern "C" __global__ void top_k_partials_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int k,
+		unsigned int chunk,
+		unsigned int chunks,
+		unsigned int rows) {
+	constexpr unsigned int max_k = 64;
+	constexpr unsigned int pair_values = 2;
+	const unsigned int index = blockIdx.x;
+	const unsigned int lane = threadIdx.x;
+	if (index >= chunks * rows || k > max_k) {
+		return;
+	}
+	const unsigned int row = index / chunks;
+	const unsigned int part = index % chunks;
+	const unsigned int first = part * chunk;
+	const unsigned int last = min(first + chunk, width);
+	const size_t input_base = (size_t) row * width;
+	const size_t output_base = (size_t) index * k * pair_values;
+	unsigned int selected[max_k];
+	for (unsigned int slot = 0; slot < k; ++slot) {
+		float best_value = 0.0f;
+		unsigned int best = 0xffffffffU;
+		for (unsigned int candidate = first + lane; candidate < last; candidate += CUDA_WARP_WIDTH) {
+			bool used = false;
+			for (unsigned int previous = 0; previous < slot; ++previous) {
+				used |= selected[previous] == candidate;
+			}
+			const float value = input[input_base + candidate];
+			if (!used && (best == 0xffffffffU || top_k_before(value, candidate, best_value, best))) {
+				best = candidate;
+				best_value = value;
+			}
+		}
+		for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset >>= 1) {
+			const float right_value = __shfl_down_sync(0xffffffff, best_value, offset);
+			const unsigned int right = __shfl_down_sync(0xffffffff, best, offset);
+			if (right != 0xffffffffU &&
+				(best == 0xffffffffU || top_k_before(right_value, right, best_value, best))) {
+				best = right;
+				best_value = right_value;
+			}
+		}
+		best = __shfl_sync(0xffffffff, best, 0);
+		best_value = __shfl_sync(0xffffffff, best_value, 0);
+		selected[slot] = best;
+		if (lane == 0) {
+			output[output_base + slot * pair_values] =
+				best == 0xffffffffU ? -1.0f : (float) best;
+			output[output_base + slot * pair_values + 1] = best_value;
+		}
+	}
+}
+
 extern "C" __global__ void gather_last_f32(
 		const float * input,
 		const float * indices,

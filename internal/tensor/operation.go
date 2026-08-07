@@ -96,6 +96,8 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpWindowPartition2D, "window_partition_2d", OperationLayout, allExecutionBackends},
 	{OpWindowUnpartition2D, "window_unpartition_2d", OperationLayout, allExecutionBackends},
 	{OpSAMAttention, "sam_attention", OperationAttention, allExecutionBackends},
+	{OpTopKPairs, "top_k_pairs", OperationLinear, allExecutionBackends},
+	{OpTopKPartials, "top_k_partials", OperationLinear, allExecutionBackends},
 }
 
 // DescribeOperation: typed operation lookup.

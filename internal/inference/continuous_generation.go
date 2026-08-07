@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"llamacpp2go/internal/model"
+	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -42,6 +43,10 @@ type continuousBatchAPI interface {
 
 type continuousGreedyBatchAPI interface {
 	StepGreedy(context.Context, []SequenceBatchInput) ([]SequenceBatchOutput, error)
+}
+
+type continuousTopKBatchAPI interface {
+	StepTopK(context.Context, []SequenceBatchInput, uint32) ([]SequenceBatchOutput, error)
 }
 
 type continuousGenerateRequest struct {
@@ -219,10 +224,19 @@ func (g *ContinuousGenerator) run() {
 		greedyBatch, greedy := g.batch.(continuousGreedyBatchAPI)
 		greedy = greedy && g.runner.profile().Attention == model.AttentionQwenGDN &&
 			continuousStatesUseDeviceGreedy(stepping)
+		topKBatch, bounded := g.batch.(continuousTopKBatchAPI)
+		topK := 0
+		if !greedy && bounded && !g.runner.profile().Has(model.ArchitectureDiscreteImageTokens) {
+			topK, bounded = continuousStatesUseDeviceTopK(stepping, int(g.runner.spec.VocabularySize))
+		} else if !greedy {
+			bounded = false
+		}
 		var outputs []SequenceBatchOutput
 		var err error
 		if greedy {
 			outputs, err = greedyBatch.StepGreedy(g.ctx, inputs)
+		} else if bounded {
+			outputs, err = topKBatch.StepTopK(g.ctx, inputs, uint32(topK))
 		} else {
 			outputs, err = g.batch.Step(g.ctx, inputs)
 		}
@@ -244,6 +258,8 @@ func (g *ContinuousGenerator) run() {
 			var complete bool
 			if greedy {
 				result, complete = g.acceptSelected(state, output.Token)
+			} else if bounded {
+				result, complete = g.sampleTopK(state, output.Candidates)
 			} else {
 				result, complete = g.sample(state, output.Logits)
 			}
@@ -269,6 +285,27 @@ func continuousStatesUseDeviceGreedy(states []*continuousGenerateState) bool {
 		}
 	}
 	return true
+}
+
+func continuousStatesUseDeviceTopK(
+	states []*continuousGenerateState,
+	vocabulary int,
+) (int, bool) {
+	limit := 0
+	for _, state := range states {
+		options := state.request.options
+		if !options.DeviceTopK || options.PostSamplingProbabilities != 0 || options.Sampler == nil {
+			return 0, false
+		}
+		candidateLimit, ok := options.Sampler.BoundedTopK()
+		if !ok || candidateLimit <= 0 || candidateLimit > vocabulary ||
+			candidateLimit > int(tensor.MaxTopKPairs) ||
+			(limit != 0 && candidateLimit != limit) {
+			return 0, false
+		}
+		limit = candidateLimit
+	}
+	return limit, limit > 0
 }
 
 func (g *ContinuousGenerator) admit(
@@ -305,14 +342,40 @@ func (g *ContinuousGenerator) sample(
 	state *continuousGenerateState,
 	logits []float32,
 ) (continuousGenerateResult, bool) {
-	if err := state.request.ctx.Err(); err != nil {
-		return continuousGenerateResult{err: err}, true
-	}
 	options := state.request.options
 	event, err := sampleGenerationToken(logits, state.ids, options)
 	if err != nil {
 		return continuousGenerateResult{err: err}, true
 	}
+	return g.acceptSampleEvent(state, event)
+}
+
+func (g *ContinuousGenerator) sampleTopK(
+	state *continuousGenerateState,
+	candidates []LogitCandidate,
+) (continuousGenerateResult, bool) {
+	ids := make([]int, len(candidates))
+	logits := make([]float32, len(candidates))
+	for index, candidate := range candidates {
+		ids[index], logits[index] = int(candidate.ID), candidate.Logit
+	}
+	next, err := state.request.options.Sampler.SampleTopK(
+		ids, logits, int(g.runner.spec.VocabularySize),
+	)
+	if err != nil {
+		return continuousGenerateResult{err: err}, true
+	}
+	return g.acceptSampleEvent(state, TokenEvent{ID: tokenizer.TokenID(next)})
+}
+
+func (g *ContinuousGenerator) acceptSampleEvent(
+	state *continuousGenerateState,
+	event TokenEvent,
+) (continuousGenerateResult, bool) {
+	if err := state.request.ctx.Err(); err != nil {
+		return continuousGenerateResult{err: err}, true
+	}
+	options := state.request.options
 	event.Index = state.index
 	state.ids = append(state.ids, event.ID)
 	stop, deliverErr := g.runner.deliverGenerationToken(&event, options, &state.generated)

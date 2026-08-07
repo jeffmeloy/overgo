@@ -6,9 +6,29 @@ import (
 
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/cuda/executor"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tensor"
 	"llamacpp2go/internal/tokenizer"
 )
+
+func TestDecodeCandidatePairsSplitsPackedRows(t *testing.T) {
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{
+		CommonSpec: model.CommonSpec{VocabularySize: 5},
+	}}}
+	sets, err := runner.decodeCandidatePairs(
+		[]float32{3, 2.5, 1, 1.5, 4, 3.5, 0, 0.5}, 2, 2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]LogitCandidate{
+		{{ID: 3, Logit: 2.5}, {ID: 1, Logit: 1.5}},
+		{{ID: 4, Logit: 3.5}, {ID: 0, Logit: 0.5}},
+	}
+	if !reflect.DeepEqual(sets, want) {
+		t.Fatalf("candidate sets = %v, want %v", sets, want)
+	}
+}
 
 func TestPlanQwen35DeviceCohorts(t *testing.T) {
 	const (

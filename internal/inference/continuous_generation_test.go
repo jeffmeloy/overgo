@@ -149,6 +149,33 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	}
 }
 
+func TestContinuousStatesUseDeviceTopKRequiresUniformSafePrefix(t *testing.T) {
+	makeState := func(config sampling.Config) *continuousGenerateState {
+		sampler, err := sampling.New(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &continuousGenerateState{request: continuousGenerateRequest{options: GenerateOptions{
+			Sampler: sampler, DeviceTopK: true,
+		}}}
+	}
+	states := []*continuousGenerateState{
+		makeState(sampling.Config{Temperature: 0.8, TopK: 3}),
+		makeState(sampling.Config{Temperature: 0.7, TopK: 3}),
+	}
+	if limit, ok := continuousStatesUseDeviceTopK(states, 5); !ok || limit != 3 {
+		t.Fatalf("device top-K = %d, %v", limit, ok)
+	}
+	states[1] = makeState(sampling.Config{Temperature: 0.8, TopK: 2})
+	if _, ok := continuousStatesUseDeviceTopK(states, 5); ok {
+		t.Fatal("mixed top-K limits were accepted")
+	}
+	states[1] = makeState(sampling.Config{Temperature: 0.8, TopK: 3, RepeatPenalty: 1.1})
+	if _, ok := continuousStatesUseDeviceTopK(states, 5); ok {
+		t.Fatal("penalized sampler was accepted")
+	}
+}
+
 func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 	vocab := &tokenizer.Vocab{
 		Tokens: []tokenizer.Token{

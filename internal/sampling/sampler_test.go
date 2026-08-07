@@ -63,6 +63,64 @@ func TestTopKOneIsGreedy(t *testing.T) {
 	}
 }
 
+func TestBoundedTopKMatchesFullPipeline(t *testing.T) {
+	config := Config{
+		Temperature: 0.8, TopK: 3, TopP: 0.9, MinP: 0.05, Seed: 42,
+	}
+	full, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bounded, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limit, ok := bounded.BoundedTopK(); !ok || limit != config.TopK {
+		t.Fatalf("bounded top-K = %d, %v", limit, ok)
+	}
+	logits := []float32{0.2, 1.4, -0.1, 2.1, 0.7}
+	ids := []int{3, 1, 4}
+	values := []float32{logits[3], logits[1], logits[4]}
+	for index := range 50 {
+		want, sampleErr := full.Sample(logits)
+		if sampleErr != nil {
+			t.Fatal(sampleErr)
+		}
+		got, sampleErr := bounded.SampleTopK(ids, values, len(logits))
+		if sampleErr != nil {
+			t.Fatal(sampleErr)
+		}
+		if got != want {
+			t.Fatalf("sample %d = %d, want %d", index, got, want)
+		}
+	}
+}
+
+func TestBoundedTopKRejectsPrefixTransforms(t *testing.T) {
+	for name, config := range map[string]Config{
+		"penalty": {Temperature: 0.8, TopK: 3, RepeatPenalty: 1.1},
+		"bias": {
+			Temperature: 0.8, TopK: 3,
+			LogitBiases: []LogitBias{{Token: 4, Bias: 1}},
+		},
+		"sigma": {Temperature: 0.8, TopK: 3, TopNSigma: 1},
+		"ordered filter": {
+			Temperature: 0.8, TopK: 3, TopP: 0.9,
+			Samplers: []SamplerStage{SamplerTopP, SamplerTopK, SamplerTemperature},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sampler, err := New(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if limit, ok := sampler.BoundedTopK(); ok || limit != 0 {
+				t.Fatalf("unsafe bounded top-K = %d, %v", limit, ok)
+			}
+		})
+	}
+}
+
 func TestSamplingIsSeedDeterministic(t *testing.T) {
 	first, _ := New(Config{Temperature: 0.8, TopK: 3, TopP: 0.9, Seed: 42})
 	second, _ := New(Config{Temperature: 0.8, TopK: 3, TopP: 0.9, Seed: 42})

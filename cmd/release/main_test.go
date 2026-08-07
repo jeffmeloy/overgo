@@ -8,7 +8,7 @@ import (
 )
 
 func TestReleaseCommandsIncludeDiffusion(t *testing.T) {
-	if len(releaseCommands) != 17 || !slices.Contains(releaseCommands, "diffusion") {
+	if len(releaseCommands) != 18 || !slices.Contains(releaseCommands, "repodb-query") {
 		t.Fatalf("release commands = %v", releaseCommands)
 	}
 }

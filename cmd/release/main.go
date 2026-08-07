@@ -34,6 +34,7 @@ var releaseCommands = []string{
 	"json-schema-grammar",
 	"model-info",
 	"perplexity",
+	"repodb-query",
 	"server",
 	"tokenize",
 }

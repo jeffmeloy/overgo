@@ -12,15 +12,15 @@ import (
 
 	"overgo/internal/inference"
 	"overgo/internal/media"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/servingtest"
 	"overgo/internal/tokenizer"
 )
 
 func openFixtureRunner(path string, options inference.OpenOptions) (*inference.Runner, error) {
-	loaded, err := modelrecipe.LoadFixtureGGUF(path, recipe.PlacementHybrid)
+	loaded, err := servingtest.ResolveActiveGGUF(path, recipe.PlacementHybrid)
 	if err != nil {
 		return nil, err
 	}

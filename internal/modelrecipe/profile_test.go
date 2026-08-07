@@ -312,7 +312,7 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := InferenceWithProfile(modelID, document.ID, recipe.PlacementHost)
+	definition, err := inferenceWithProfileFixture(modelID, document.ID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	plan, ok, err := CompileActive(ctx, store, modelID, spec, model.Weights{})
+	plan, ok, err := compileActiveFixture(ctx, store, modelID, spec, model.Weights{})
 	if err != nil || !ok || plan.Model.Profile != profile {
 		t.Fatalf("active profile plan = (%+v, %v, %v)", plan.Model, ok, err)
 	}
@@ -367,7 +367,7 @@ func TestProfileCandidateRejectsParityDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := InferenceWithProfile(modelID, document.ID, recipe.PlacementHost)
+	definition, err := inferenceWithProfileFixture(modelID, document.ID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +398,7 @@ func TestCompileWithProfileMatchesRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := InferenceWithProfile(modelID, document.ID, recipe.PlacementHost)
+	definition, err := inferenceWithProfileFixture(modelID, document.ID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}

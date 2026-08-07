@@ -72,40 +72,6 @@ func ResolveActiveGGUF(
 	return loaded, nil
 }
 
-// LoadFixtureGGUF: identity-complete program without lifecycle activation.
-func LoadFixtureGGUF(path string, placement recipe.Placement) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(path)
-	if err != nil {
-		return LoadedProgram{}, err
-	}
-	fail := func(cause error) (LoadedProgram, error) {
-		return LoadedProgram{}, errors.Join(cause, loaded.Close())
-	}
-	loaded.state.EvidenceTier = recipe.EvidenceExperimental
-	profile, err := NewProfileDocument(loaded.state.Spec.Profile())
-	if err != nil {
-		return fail(err)
-	}
-	document, err := NewModelDefinitionDocument(profile, loaded.state.Inventory.TensorInventory, loaded.state.Spec)
-	if err != nil {
-		return fail(err)
-	}
-	resolved, err := document.Resolve(profile, loaded.state.Inventory.TensorInventory)
-	if err != nil {
-		return fail(err)
-	}
-	definition, err := InferenceWithModelDefinition(
-		loaded.state.Inventory.Manifest.ID, profile.ID, document.ID, placement,
-	)
-	if err != nil {
-		return fail(err)
-	}
-	if err := loaded.bindResolved(definition, resolved); err != nil {
-		return fail(err)
-	}
-	return loaded, nil
-}
-
 func loadGGUFFacts(path string) (LoadedProgram, error) {
 	file, err := gguf.Open(path)
 	if err != nil {

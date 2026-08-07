@@ -42,7 +42,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		store := openProgramStore(t)
 		defer store.Close()
 		inventory, _ := publishProgramFacts(t, store, path)
-		definition, err := Inference(inventory.Manifest.ID, recipe.PlacementHybrid)
+		definition, err := inferenceFixture(inventory.Manifest.ID, recipe.PlacementHybrid)
 		if err != nil {
 			t.Fatal(err)
 		}

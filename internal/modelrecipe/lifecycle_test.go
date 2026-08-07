@@ -31,7 +31,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	first, err := Inference(modelID, recipe.PlacementHost)
+	first, err := inferenceFixture(modelID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 		t.Fatalf("first active = (%s, %v, %v)", active.ID, ok, err)
 	}
 
-	second, err := Inference(modelID, recipe.PlacementDevice)
+	second, err := inferenceFixture(modelID, recipe.PlacementDevice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	if err != nil || oldStatus.To != recipe.StatusSuperseded {
 		t.Fatalf("old status = (%+v, %v)", oldStatus, err)
 	}
-	compiled, ok, err := CompileActive(
+	compiled, ok, err := compileActiveFixture(
 		ctx, store, modelID,
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{},
 	)
@@ -100,7 +100,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	active, err := Inference(modelID, recipe.PlacementHost)
+	active, err := inferenceFixture(modelID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		t.Fatalf("active record = (%+v, %v, %v)", record, ok, err)
 	}
 
-	refused, err := Inference(modelID, recipe.PlacementDevice)
+	refused, err := inferenceFixture(modelID, recipe.PlacementDevice)
 	if err != nil {
 		t.Fatal(err)
 	}

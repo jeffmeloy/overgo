@@ -7,32 +7,8 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
-	"overgo/internal/model"
 	"overgo/internal/recipe"
 )
-
-func CompileActive(
-	ctx context.Context,
-	store artifact.Reader,
-	modelID artifact.ID,
-	spec model.Spec,
-	weights model.Weights,
-) (Plan, bool, error) {
-	definition, ok, err := Active(ctx, store, modelID, recipe.TaskInference)
-	if err != nil || !ok {
-		return Plan{}, ok, err
-	}
-	document, bound, err := activeBoundProfile(ctx, store, definition)
-	if err != nil {
-		return Plan{}, false, err
-	}
-	if bound {
-		plan, compileErr := CompileWithProfile(definition, document, spec, weights)
-		return plan, compileErr == nil, compileErr
-	}
-	plan, err := Compile(definition, spec, weights)
-	return plan, err == nil, err
-}
 
 func PublishCandidate(ctx context.Context, store artifact.Repository, key string, definition recipe.Definition) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	return publishCandidate(ctx, store, key, definition, nil)

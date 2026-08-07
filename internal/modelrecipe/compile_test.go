@@ -12,7 +12,7 @@ import (
 
 func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
-	definition, err := Inference(modelID, recipe.PlacementHost)
+	definition, err := inferenceFixture(modelID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 
 func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("capacity-model"))
-	definition, err := Inference(modelID, recipe.PlacementHybrid)
+	definition, err := inferenceFixture(modelID, recipe.PlacementHybrid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("persisted-model"))
-	definition, err := Inference(modelID, recipe.PlacementDevice)
+	definition, err := inferenceFixture(modelID, recipe.PlacementDevice)
 	if err != nil {
 		t.Fatal(err)
 	}

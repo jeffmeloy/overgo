@@ -4,6 +4,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/servingtest"
 )
 
 func fixtureProgram(spec model.Spec, weights model.Weights) modelrecipe.Plan {
@@ -30,7 +31,7 @@ func openFixtureRunner(path string, deviceOrdinal int) (*Runner, error) {
 }
 
 func openFixtureRunnerWithOptions(path string, options OpenOptions) (*Runner, error) {
-	loaded, err := modelrecipe.LoadFixtureGGUF(path, recipe.PlacementHybrid)
+	loaded, err := servingtest.ResolveActiveGGUF(path, recipe.PlacementHybrid)
 	if err != nil {
 		return nil, err
 	}

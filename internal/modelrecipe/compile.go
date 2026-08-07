@@ -59,23 +59,6 @@ func Catalog() *recipe.Catalog {
 	return catalog.Clone()
 }
 
-func Inference(modelID artifact.ID, placement recipe.Placement) (recipe.Definition, error) {
-	return inference(
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, placement,
-	)
-}
-
-func InferenceWithProfile(
-	modelID artifact.ID,
-	profileID artifact.ID,
-	placement recipe.Placement,
-) (recipe.Definition, error) {
-	return inference([]recipe.Dependency{
-		{Role: recipe.DependencyModel, Artifact: modelID},
-		{Role: recipe.DependencyProfile, Artifact: profileID},
-	}, placement)
-}
-
 func InferenceWithModelDefinition(
 	modelID artifact.ID,
 	profileID artifact.ID,

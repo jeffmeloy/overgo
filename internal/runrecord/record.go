@@ -317,6 +317,7 @@ func (e Evaluation) ValidateIdentity() error {
 		return errors.New("run record: invalid evaluation identity")
 	}
 	canonical := e
+	canonical.Metrics = slices.Clone(e.Metrics)
 	if err := canonicalizeEvaluation(&canonical); err != nil {
 		return err
 	}

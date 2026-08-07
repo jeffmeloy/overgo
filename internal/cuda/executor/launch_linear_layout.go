@@ -44,7 +44,7 @@ func launchLinearLayout(
 		input := pointers[node.Inputs[0]]
 		heads := attributes.Heads
 		return launch1DABI(
-			state, functions.repeatHeads, count,
+			state, functions[kernelRepeatHeadsF32], count,
 			&input, &output, &width, &heads, &tokens, &count,
 		)
 	case tensor.OpTranspose2D:
@@ -61,7 +61,7 @@ func launchLinearLayout(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		return launch1DABI(state, functions.transpose2D, count, &input, &output, &width, &rows, &count)
+		return launch1DABI(state, functions[kernelTranspose2dF32], count, &input, &output, &width, &rows, &count)
 	case tensor.OpGroupSlice:
 		attributes, ok := node.Attrs.(tensor.GroupSliceAttributes)
 		if !ok {
@@ -93,7 +93,7 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		return launch1DABI(
-			state, functions.groupSlice, count,
+			state, functions[kernelGroupSliceF32], count,
 			&input, &output, &inputWidth, &offset, &width, &groups, &stride, &count,
 		)
 	case tensor.OpFlatSlice:
@@ -110,7 +110,7 @@ func launchLinearLayout(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		return launch1DABI(state, functions.flatSlice, count, &input, &output, &offset, &count)
+		return launch1DABI(state, functions[kernelFlatSliceF32], count, &input, &output, &offset, &count)
 	case tensor.OpRMSNorm:
 		attributes, ok := node.Attrs.(tensor.RMSNormAttributes)
 		if !ok {
@@ -122,7 +122,7 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		return launchNormalizationABI(state, functions.rmsNorm, rows, &input, &output, &width, &rows, &epsilon)
+		return launchNormalizationABI(state, functions[kernelRmsNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
 		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
 		if !ok {
@@ -134,14 +134,14 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		return launchNormalizationABI(state, functions.layerNorm, rows, &input, &output, &width, &rows, &epsilon)
+		return launchNormalizationABI(state, functions[kernelLayerNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpSoftmax:
 		width, rows, err := rowDimensions32(node.Shape)
 		if err != nil {
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		return launch1DABI(state, functions.softmax, rows, &input, &output, &width, &rows)
+		return launch1DABI(state, functions[kernelSoftmaxF32], rows, &input, &output, &width, &rows)
 	case tensor.OpMulMat:
 		leftNode := node.Inputs[0]
 		rightNode := node.Inputs[1]
@@ -169,7 +169,7 @@ func launchLinearLayout(
 			}
 			if blas.stagedNode != rightNode {
 				count := uint32(elements)
-				if err := launch1DABI(state, functions.f32ToBF16, count, &right, &blas.staging, &count); err != nil {
+				if err := launch1DABI(state, functions[kernelF32ToBf16], count, &right, &blas.staging, &count); err != nil {
 					return err
 				}
 				blas.stagedNode = rightNode
@@ -193,7 +193,7 @@ func launchLinearLayout(
 			if uint64(leftRows)*uint64(rightRows) > math.MaxUint32 {
 				return fmt.Errorf("%s mul_mat output element count exceeds uint32", leftNode.Type)
 			}
-			function := quantKernels[leftNode.Type].mulMat(functions)
+			function := functions[quantKernels[leftNode.Type].mulMat]
 			quantizedRight := right
 			if leftNode.Type == dtype.Q8_0 && rightRows == 1 {
 				if q8Input == nil || q8Input.staging == 0 {
@@ -206,13 +206,13 @@ func launchLinearLayout(
 					}
 					blockCount := uint32(blocks)
 					if err := launchQ8InputQuantization(
-						state, functions.quantizeQ8Input, right, q8Input.staging, blockCount,
+						state, functions[kernelQuantizeQ80InputF32], right, q8Input.staging, blockCount,
 					); err != nil {
 						return err
 					}
 					q8Input.stagedNode = rightNode
 				}
-				function = functions.mulMatQ8Input
+				function = functions[kernelMulMatQ80InputF32]
 				quantizedRight = q8Input.staging
 			}
 			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
@@ -302,7 +302,7 @@ func launchLinearLayout(
 				if !nativeQuantizedType(leftNode.Type) || rightNode.Type != dtype.F32 {
 					return fmt.Errorf("%s grouped_mul_mat inputs are unsupported", leftNode.Type)
 				}
-				function := quantKernels[leftNode.Type].mulMat(functions)
+				function := functions[quantKernels[leftNode.Type].mulMat]
 				rightRows := uint32(1)
 				launchCount, launchErr := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
 				if launchErr != nil {
@@ -341,13 +341,13 @@ func launchLinearLayout(
 		if len(attributes.Rows) == 0 {
 			return errors.New("get_rows row list is empty")
 		}
-		function := functions.getRows
+		function := functions[kernelGetRowsF32]
 		if descriptor, ok := quantKernels[node.Inputs[0].Type]; ok {
 			traits, _ := node.Inputs[0].Type.Traits()
 			if uint64(width)%traits.BlockSize != 0 {
 				return fmt.Errorf("%s get_rows width is not block aligned", descriptor.label)
 			}
-			function = descriptor.getRows(functions)
+			function = functions[descriptor.getRows]
 		}
 		return launch1DABI(state, function, count, &table, &rows, &output, &width, &count)
 	default:
@@ -407,7 +407,7 @@ func launchWeightedRMSNorm(
 				return errors.New("weighted RMS add Q8 workspace is unavailable")
 			}
 			if err := launchNormalizationABI(
-				state, functions.weightedRMSNormAddQ8, rows,
+				state, functions[kernelWeightedRmsNormAddQ80F32], rows,
 				&left, &right, &weight, &result, &q8Input.staging, &width, &rows, &epsilon,
 			); err != nil {
 				return err
@@ -416,7 +416,7 @@ func launchWeightedRMSNorm(
 			return nil
 		}
 		return launchNormalizationABI(
-			state, functions.weightedRMSNormAdd, rows,
+			state, functions[kernelWeightedRmsNormAddF32], rows,
 			&left, &right, &weight, &result, &width, &rows, &epsilon,
 		)
 	}
@@ -425,7 +425,7 @@ func launchWeightedRMSNorm(
 			return errors.New("weighted RMS Q8 workspace is unavailable")
 		}
 		if err := launchNormalizationABI(
-			state, functions.weightedRMSNormQ8, rows,
+			state, functions[kernelWeightedRmsNormQ80F32], rows,
 			&input, &weight, &result, &q8Input.staging, &width, &rows, &epsilon,
 		); err != nil {
 			return err
@@ -434,7 +434,7 @@ func launchWeightedRMSNorm(
 		return nil
 	}
 	return launchNormalizationABI(
-		state, functions.weightedRMSNorm, rows,
+		state, functions[kernelWeightedRmsNormF32], rows,
 		&input, &weight, &result, &width, &rows, &epsilon,
 	)
 }
@@ -456,7 +456,7 @@ func launchActivatedGate(
 	kind := uint32(fusion.kind)
 	if !emitQ8 {
 		return launch1DABI(
-			state, functions.activatedGate, count,
+			state, functions[kernelActivatedGateF32], count,
 			&gate, &up, &result, &kind, &count,
 		)
 	}
@@ -466,7 +466,7 @@ func launchActivatedGate(
 	blocks := count / uint32(q8InputBlockWidth)
 	const threads = uint32(q8InputBlockWidth)
 	if err := launchGridABI(
-		state, functions.activatedGateQ8,
+		state, functions[kernelActivatedGateQ80F32],
 		driver.Dim3{X: blocks, Y: 1, Z: 1},
 		driver.Dim3{X: threads, Y: 1, Z: 1},
 		&gate, &up, &result, &q8Input.staging, &kind, &count,
@@ -508,7 +508,7 @@ func launchWeightedRMSGate(
 	epsilon := attributes.Epsilon
 	if !emitQ8 {
 		return launchNormalizationABI(
-			state, functions.weightedRMSGate, rows,
+			state, functions[kernelWeightedRmsGateF32], rows,
 			&left, &right, &gate, &weight, &result,
 			&kind, &useAdd, &width, &rows, &epsilon,
 		)
@@ -517,7 +517,7 @@ func launchWeightedRMSGate(
 		return errors.New("weighted RMS gate Q8 workspace is unavailable")
 	}
 	if err := launchNormalizationABI(
-		state, functions.weightedRMSGateQ8, rows,
+		state, functions[kernelWeightedRmsGateQ80F32], rows,
 		&left, &right, &gate, &weight, &result, &q8Input.staging,
 		&kind, &useAdd, &width, &rows, &epsilon,
 	); err != nil {
@@ -563,7 +563,7 @@ func launchQ8ArgmaxPartials(
 			return errors.New("Q8 argmax input block count exceeds uint32")
 		}
 		if err := launchQ8InputQuantization(
-			state, functions.quantizeQ8Input, right, q8Input.staging, uint32(blocks),
+			state, functions[kernelQuantizeQ80InputF32], right, q8Input.staging, uint32(blocks),
 		); err != nil {
 			return err
 		}
@@ -576,7 +576,7 @@ func launchQ8ArgmaxPartials(
 	}
 	const threads = uint32(q8ArgmaxWarpsPerBlock * q8InputBlockWidth)
 	return launchGridABI(
-		state, functions.mulMatQ8Argmax,
+		state, functions[kernelMulMatQ80InputArgmaxPartialsF32],
 		driver.Dim3{X: partialCount, Y: 1, Z: 1},
 		driver.Dim3{X: threads, Y: 1, Z: 1},
 		&left, &q8Input.staging, &partials, &inner, &rows,
@@ -599,7 +599,7 @@ func launchQ8ArgmaxReduction(
 	}
 	partials, output := pointers[projection], pointers[selection]
 	return launchGridABI(
-		state, functions.q8ArgmaxReduction,
+		state, functions[kernelArgmaxQ80InputPartialsF32],
 		driver.Dim3{X: 1, Y: 1, Z: 1},
 		driver.Dim3{X: 256, Y: 1, Z: 1},
 		&partials, &output, &partialCount,

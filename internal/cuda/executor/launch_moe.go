@@ -154,7 +154,7 @@ func launchMoE(
 		}
 		sharedBytes := uint32(sharedEntries * groupedMoESharedEntryBytes)
 		return launchGridSharedABI(
-			state, functions.moeGrouped,
+			state, functions[kernelMoeGroupedF32],
 			driver.Dim3{X: tokens, Y: 1, Z: 1},
 			driver.Dim3{X: groupedMoEThreads, Y: 1, Z: 1}, sharedBytes,
 			&input, &routerInput, &router, &gate, &up, &down, &selectionBias, &expertScale,

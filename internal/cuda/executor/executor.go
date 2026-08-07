@@ -1334,172 +1334,40 @@ func execute(
 	return &executionResult{host: results}, nil
 }
 
-type functionSet struct {
-	add                  driver.Function
-	multiply             driver.Function
-	divide               driver.Function
-	broadcastAdd         driver.Function
-	broadcastMultiply    driver.Function
-	broadcastDivide      driver.Function
-	scale                driver.Function
-	clamp                driver.Function
-	bf16Round            driver.Function
-	f32ToBF16            driver.Function
-	quantizeQ8Input      driver.Function
-	copy                 driver.Function
-	silu                 driver.Function
-	gelu                 driver.Function
-	geluErf              driver.Function
-	xielu                driver.Function
-	reluSquared          driver.Function
-	relu                 driver.Function
-	conv1DSame           driver.Function
-	conv2D               driver.Function
-	windowPartition2D    driver.Function
-	windowUnpartition2D  driver.Function
-	samAttention         driver.Function
-	groupNorm            driver.Function
-	sigmoid              driver.Function
-	softplus             driver.Function
-	tanh                 driver.Function
-	exp                  driver.Function
-	l2Norm               driver.Function
-	ssmConv              driver.Function
-	ssmScan              driver.Function
-	gatedDeltaNet        driver.Function
-	gatedLinearAttn      driver.Function
-	rwkv6                driver.Function
-	sumRows              driver.Function
-	fwht                 driver.Function
-	argmax               driver.Function
-	topK                 driver.Function
-	topKPairs            driver.Function
-	topKPartials         driver.Function
-	gatherLast           driver.Function
-	gatherLastQ8         driver.Function
-	sparseAttention      driver.Function
-	indexerScore         driver.Function
-	rwkv7                driver.Function
-	moe                  driver.Function
-	moeGrouped           driver.Function
-	loraMerge            driver.Function
-	repeatHeads          driver.Function
-	transpose2D          driver.Function
-	groupSlice           driver.Function
-	flatSlice            driver.Function
-	rmsNorm              driver.Function
-	weightedRMSNorm      driver.Function
-	weightedRMSNormQ8    driver.Function
-	weightedRMSNormAdd   driver.Function
-	weightedRMSNormAddQ8 driver.Function
-	activatedGate        driver.Function
-	activatedGateQ8      driver.Function
-	weightedRMSGate      driver.Function
-	weightedRMSGateQ8    driver.Function
-	layerNorm            driver.Function
-	softmax              driver.Function
-	mulMat               driver.Function
-	getRows              driver.Function
-	ropeNeoX             driver.Function
-	ropeNormal           driver.Function
-	ropeMulti            driver.Function
-	attention            driver.Function
-	attentionDecode      driver.Function
-	attentionOnline      driver.Function
-	concat               driver.Function
-	getRowsQ8            driver.Function
-	mulMatQ8             driver.Function
-	mulMatQ8Input        driver.Function
-	mulMatQ8Argmax       driver.Function
-	q8ArgmaxReduction    driver.Function
-	getRowsQ81           driver.Function
-	mulMatQ81            driver.Function
-	getRowsQ8K           driver.Function
-	mulMatQ8K            driver.Function
-	getRowsQ40           driver.Function
-	mulMatQ40            driver.Function
-	getRowsQ41           driver.Function
-	mulMatQ41            driver.Function
-	getRowsQ50           driver.Function
-	mulMatQ50            driver.Function
-	getRowsQ51           driver.Function
-	mulMatQ51            driver.Function
-	getRowsQ10           driver.Function
-	mulMatQ10            driver.Function
-	getRowsQ20           driver.Function
-	mulMatQ20            driver.Function
-	getRowsTQ20          driver.Function
-	mulMatTQ20           driver.Function
-	getRowsTQ10          driver.Function
-	mulMatTQ10           driver.Function
-	getRowsQ2K           driver.Function
-	mulMatQ2K            driver.Function
-	getRowsQ3K           driver.Function
-	mulMatQ3K            driver.Function
-	getRowsQ4K           driver.Function
-	mulMatQ4K            driver.Function
-	getRowsQ5K           driver.Function
-	mulMatQ5K            driver.Function
-	getRowsIQ4XS         driver.Function
-	mulMatIQ4XS          driver.Function
-	getRowsIQ4NL         driver.Function
-	mulMatIQ4NL          driver.Function
-	getRowsIQ2XXS        driver.Function
-	mulMatIQ2XXS         driver.Function
-	getRowsIQ2XS         driver.Function
-	mulMatIQ2XS          driver.Function
-	getRowsIQ2S          driver.Function
-	mulMatIQ2S           driver.Function
-	getRowsIQ3XXS        driver.Function
-	mulMatIQ3XXS         driver.Function
-	getRowsIQ3S          driver.Function
-	mulMatIQ3S           driver.Function
-	getRowsIQ1S          driver.Function
-	mulMatIQ1S           driver.Function
-	getRowsIQ1M          driver.Function
-	mulMatIQ1M           driver.Function
-	getRowsMXFP4         driver.Function
-	mulMatMXFP4          driver.Function
-	getRowsNVFP4         driver.Function
-	mulMatNVFP4          driver.Function
-	getRowsQ6K           driver.Function
-	mulMatQ6K            driver.Function
-}
-
 type quantKernelDescriptor struct {
 	label   string
-	getRows func(functionSet) driver.Function
-	mulMat  func(functionSet) driver.Function
+	getRows kernelFunctionID
+	mulMat  kernelFunctionID
 }
 
 var quantKernels = map[dtype.Type]quantKernelDescriptor{
-	dtype.Q8_0:   {"Q8_0", func(f functionSet) driver.Function { return f.getRowsQ8 }, func(f functionSet) driver.Function { return f.mulMatQ8 }},
-	dtype.Q8_1:   {"Q8_1", func(f functionSet) driver.Function { return f.getRowsQ81 }, func(f functionSet) driver.Function { return f.mulMatQ81 }},
-	dtype.Q8K:    {"Q8_K", func(f functionSet) driver.Function { return f.getRowsQ8K }, func(f functionSet) driver.Function { return f.mulMatQ8K }},
-	dtype.Q4_0:   {"Q4_0", func(f functionSet) driver.Function { return f.getRowsQ40 }, func(f functionSet) driver.Function { return f.mulMatQ40 }},
-	dtype.Q4_1:   {"Q4_1", func(f functionSet) driver.Function { return f.getRowsQ41 }, func(f functionSet) driver.Function { return f.mulMatQ41 }},
-	dtype.Q5_0:   {"Q5_0", func(f functionSet) driver.Function { return f.getRowsQ50 }, func(f functionSet) driver.Function { return f.mulMatQ50 }},
-	dtype.Q5_1:   {"Q5_1", func(f functionSet) driver.Function { return f.getRowsQ51 }, func(f functionSet) driver.Function { return f.mulMatQ51 }},
-	dtype.Q1_0:   {"Q1_0", func(f functionSet) driver.Function { return f.getRowsQ10 }, func(f functionSet) driver.Function { return f.mulMatQ10 }},
-	dtype.Q2_0:   {"Q2_0", func(f functionSet) driver.Function { return f.getRowsQ20 }, func(f functionSet) driver.Function { return f.mulMatQ20 }},
-	dtype.TQ2_0:  {"TQ2_0", func(f functionSet) driver.Function { return f.getRowsTQ20 }, func(f functionSet) driver.Function { return f.mulMatTQ20 }},
-	dtype.TQ1_0:  {"TQ1_0", func(f functionSet) driver.Function { return f.getRowsTQ10 }, func(f functionSet) driver.Function { return f.mulMatTQ10 }},
-	dtype.Q2K:    {"Q2_K", func(f functionSet) driver.Function { return f.getRowsQ2K }, func(f functionSet) driver.Function { return f.mulMatQ2K }},
-	dtype.Q3K:    {"Q3_K", func(f functionSet) driver.Function { return f.getRowsQ3K }, func(f functionSet) driver.Function { return f.mulMatQ3K }},
-	dtype.Q4K:    {"Q4_K", func(f functionSet) driver.Function { return f.getRowsQ4K }, func(f functionSet) driver.Function { return f.mulMatQ4K }},
-	dtype.Q5K:    {"Q5_K", func(f functionSet) driver.Function { return f.getRowsQ5K }, func(f functionSet) driver.Function { return f.mulMatQ5K }},
-	dtype.IQ4XS:  {"IQ4_XS", func(f functionSet) driver.Function { return f.getRowsIQ4XS }, func(f functionSet) driver.Function { return f.mulMatIQ4XS }},
-	dtype.IQ4NL:  {"IQ4_NL", func(f functionSet) driver.Function { return f.getRowsIQ4NL }, func(f functionSet) driver.Function { return f.mulMatIQ4NL }},
-	dtype.IQ2XXS: {"IQ2_XXS", func(f functionSet) driver.Function { return f.getRowsIQ2XXS }, func(f functionSet) driver.Function { return f.mulMatIQ2XXS }},
-	dtype.IQ2XS:  {"IQ2_XS", func(f functionSet) driver.Function { return f.getRowsIQ2XS }, func(f functionSet) driver.Function { return f.mulMatIQ2XS }},
-	dtype.IQ2S:   {"IQ2_S", func(f functionSet) driver.Function { return f.getRowsIQ2S }, func(f functionSet) driver.Function { return f.mulMatIQ2S }},
-	dtype.IQ3XXS: {"IQ3_XXS", func(f functionSet) driver.Function { return f.getRowsIQ3XXS }, func(f functionSet) driver.Function { return f.mulMatIQ3XXS }},
-	dtype.IQ3S:   {"IQ3_S", func(f functionSet) driver.Function { return f.getRowsIQ3S }, func(f functionSet) driver.Function { return f.mulMatIQ3S }},
-	dtype.IQ1S:   {"IQ1_S", func(f functionSet) driver.Function { return f.getRowsIQ1S }, func(f functionSet) driver.Function { return f.mulMatIQ1S }},
-	dtype.IQ1M:   {"IQ1_M", func(f functionSet) driver.Function { return f.getRowsIQ1M }, func(f functionSet) driver.Function { return f.mulMatIQ1M }},
-	dtype.MXFP4:  {"MXFP4", func(f functionSet) driver.Function { return f.getRowsMXFP4 }, func(f functionSet) driver.Function { return f.mulMatMXFP4 }},
-	dtype.NVFP4:  {"NVFP4", func(f functionSet) driver.Function { return f.getRowsNVFP4 }, func(f functionSet) driver.Function { return f.mulMatNVFP4 }},
-	dtype.Q6K:    {"Q6_K", func(f functionSet) driver.Function { return f.getRowsQ6K }, func(f functionSet) driver.Function { return f.mulMatQ6K }},
+	dtype.Q8_0:   {"Q8_0", kernelGetRowsQ80F32, kernelMulMatQ80F32},
+	dtype.Q8_1:   {"Q8_1", kernelGetRowsQ81F32, kernelMulMatQ81F32},
+	dtype.Q8K:    {"Q8_K", kernelGetRowsQ8KF32, kernelMulMatQ8KF32},
+	dtype.Q4_0:   {"Q4_0", kernelGetRowsQ40F32, kernelMulMatQ40F32},
+	dtype.Q4_1:   {"Q4_1", kernelGetRowsQ41F32, kernelMulMatQ41F32},
+	dtype.Q5_0:   {"Q5_0", kernelGetRowsQ50F32, kernelMulMatQ50F32},
+	dtype.Q5_1:   {"Q5_1", kernelGetRowsQ51F32, kernelMulMatQ51F32},
+	dtype.Q1_0:   {"Q1_0", kernelGetRowsQ10F32, kernelMulMatQ10F32},
+	dtype.Q2_0:   {"Q2_0", kernelGetRowsQ20F32, kernelMulMatQ20F32},
+	dtype.TQ2_0:  {"TQ2_0", kernelGetRowsTq20F32, kernelMulMatTq20F32},
+	dtype.TQ1_0:  {"TQ1_0", kernelGetRowsTq10F32, kernelMulMatTq10F32},
+	dtype.Q2K:    {"Q2_K", kernelGetRowsQ2KF32, kernelMulMatQ2KF32},
+	dtype.Q3K:    {"Q3_K", kernelGetRowsQ3KF32, kernelMulMatQ3KF32},
+	dtype.Q4K:    {"Q4_K", kernelGetRowsQ4KF32, kernelMulMatQ4KF32},
+	dtype.Q5K:    {"Q5_K", kernelGetRowsQ5KF32, kernelMulMatQ5KF32},
+	dtype.IQ4XS:  {"IQ4_XS", kernelGetRowsIq4XsF32, kernelMulMatIq4XsF32},
+	dtype.IQ4NL:  {"IQ4_NL", kernelGetRowsIq4NlF32, kernelMulMatIq4NlF32},
+	dtype.IQ2XXS: {"IQ2_XXS", kernelGetRowsIq2XxsF32, kernelMulMatIq2XxsF32},
+	dtype.IQ2XS:  {"IQ2_XS", kernelGetRowsIq2XsF32, kernelMulMatIq2XsF32},
+	dtype.IQ2S:   {"IQ2_S", kernelGetRowsIq2SF32, kernelMulMatIq2SF32},
+	dtype.IQ3XXS: {"IQ3_XXS", kernelGetRowsIq3XxsF32, kernelMulMatIq3XxsF32},
+	dtype.IQ3S:   {"IQ3_S", kernelGetRowsIq3SF32, kernelMulMatIq3SF32},
+	dtype.IQ1S:   {"IQ1_S", kernelGetRowsIq1SF32, kernelMulMatIq1SF32},
+	dtype.IQ1M:   {"IQ1_M", kernelGetRowsIq1MF32, kernelMulMatIq1MF32},
+	dtype.MXFP4:  {"MXFP4", kernelGetRowsMxfp4F32, kernelMulMatMxfp4F32},
+	dtype.NVFP4:  {"NVFP4", kernelGetRowsNvfp4F32, kernelMulMatNvfp4F32},
+	dtype.Q6K:    {"Q6_K", kernelGetRowsQ6KF32, kernelMulMatQ6KF32},
 }
 
 type blasState struct {
@@ -1654,150 +1522,4 @@ func (e *Executor) closeResources(state *device.State) error {
 		e.resources.functions = functionSet{}
 	}
 	return errors.Join(errs...)
-}
-
-func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, error) {
-	var result functionSet
-	items := []struct {
-		name string
-		dst  *driver.Function
-	}{
-		{"add_f32", &result.add},
-		{"multiply_f32", &result.multiply},
-		{"divide_f32", &result.divide},
-		{"broadcast_add_f32", &result.broadcastAdd},
-		{"broadcast_multiply_f32", &result.broadcastMultiply},
-		{"broadcast_divide_f32", &result.broadcastDivide},
-		{"scale_f32", &result.scale},
-		{"clamp_f32", &result.clamp},
-		{"bf16_round_f32", &result.bf16Round},
-		{"f32_to_bf16", &result.f32ToBF16},
-		{"quantize_q8_0_input_f32", &result.quantizeQ8Input},
-		{"copy_f32", &result.copy},
-		{"silu_f32", &result.silu},
-		{"gelu_f32", &result.gelu},
-		{"gelu_erf_f32", &result.geluErf},
-		{"xielu_f32", &result.xielu},
-		{"relu_squared_f32", &result.reluSquared},
-		{"relu_f32", &result.relu},
-		{"conv_1d_same_f32", &result.conv1DSame},
-		{"conv_2d_f32", &result.conv2D},
-		{"window_partition_2d_f32", &result.windowPartition2D},
-		{"window_unpartition_2d_f32", &result.windowUnpartition2D},
-		{"sam_attention_f32", &result.samAttention},
-		{"group_norm_f32", &result.groupNorm},
-		{"sigmoid_f32", &result.sigmoid},
-		{"softplus_f32", &result.softplus},
-		{"tanh_f32", &result.tanh},
-		{"exp_f32", &result.exp},
-		{"l2_norm_f32", &result.l2Norm},
-		{"ssm_conv_f32", &result.ssmConv},
-		{"ssm_scan_f32", &result.ssmScan},
-		{"gated_delta_net_f32", &result.gatedDeltaNet},
-		{"gated_linear_attention_f32", &result.gatedLinearAttn},
-		{"rwkv6_f32", &result.rwkv6},
-		{"sum_rows_f32", &result.sumRows},
-		{"fwht_f32", &result.fwht},
-		{"argmax_f32", &result.argmax},
-		{"top_k_f32", &result.topK},
-		{"top_k_pairs_f32", &result.topKPairs},
-		{"top_k_partials_f32", &result.topKPartials},
-		{"gather_last_f32", &result.gatherLast},
-		{"gather_last_q8_0_f32", &result.gatherLastQ8},
-		{"sparse_attention_f32", &result.sparseAttention},
-		{"indexer_score_f32", &result.indexerScore},
-		{"rwkv7_f32", &result.rwkv7},
-		{"moe_f32", &result.moe},
-		{"moe_grouped_f32", &result.moeGrouped},
-		{"lora_merge_f32", &result.loraMerge},
-		{"repeat_heads_f32", &result.repeatHeads},
-		{"transpose_2d_f32", &result.transpose2D},
-		{"group_slice_f32", &result.groupSlice},
-		{"flat_slice_f32", &result.flatSlice},
-		{"rms_norm_f32", &result.rmsNorm},
-		{"weighted_rms_norm_f32", &result.weightedRMSNorm},
-		{"weighted_rms_norm_q8_0_f32", &result.weightedRMSNormQ8},
-		{"weighted_rms_norm_add_f32", &result.weightedRMSNormAdd},
-		{"weighted_rms_norm_add_q8_0_f32", &result.weightedRMSNormAddQ8},
-		{"activated_gate_f32", &result.activatedGate},
-		{"activated_gate_q8_0_f32", &result.activatedGateQ8},
-		{"weighted_rms_gate_f32", &result.weightedRMSGate},
-		{"weighted_rms_gate_q8_0_f32", &result.weightedRMSGateQ8},
-		{"layer_norm_f32", &result.layerNorm},
-		{"softmax_f32", &result.softmax},
-		{"mul_mat_f32", &result.mulMat},
-		{"get_rows_f32", &result.getRows},
-		{"rope_neox_f32", &result.ropeNeoX},
-		{"rope_normal_f32", &result.ropeNormal},
-		{"rope_multi_f32", &result.ropeMulti},
-		{"attention_f32", &result.attention},
-		{"attention_decode_f32", &result.attentionDecode},
-		{"attention_online_f32", &result.attentionOnline},
-		{"concat_f32", &result.concat},
-		{"get_rows_q8_0_f32", &result.getRowsQ8},
-		{"mul_mat_q8_0_f32", &result.mulMatQ8},
-		{"mul_mat_q8_0_input_f32", &result.mulMatQ8Input},
-		{"mul_mat_q8_0_input_argmax_partials_f32", &result.mulMatQ8Argmax},
-		{"argmax_q8_0_input_partials_f32", &result.q8ArgmaxReduction},
-		{"get_rows_q8_1_f32", &result.getRowsQ81},
-		{"mul_mat_q8_1_f32", &result.mulMatQ81},
-		{"get_rows_q8_K_f32", &result.getRowsQ8K},
-		{"mul_mat_q8_K_f32", &result.mulMatQ8K},
-		{"get_rows_q4_0_f32", &result.getRowsQ40},
-		{"mul_mat_q4_0_f32", &result.mulMatQ40},
-		{"get_rows_q4_1_f32", &result.getRowsQ41},
-		{"mul_mat_q4_1_f32", &result.mulMatQ41},
-		{"get_rows_q5_0_f32", &result.getRowsQ50},
-		{"mul_mat_q5_0_f32", &result.mulMatQ50},
-		{"get_rows_q5_1_f32", &result.getRowsQ51},
-		{"mul_mat_q5_1_f32", &result.mulMatQ51},
-		{"get_rows_q1_0_f32", &result.getRowsQ10},
-		{"mul_mat_q1_0_f32", &result.mulMatQ10},
-		{"get_rows_q2_0_f32", &result.getRowsQ20},
-		{"mul_mat_q2_0_f32", &result.mulMatQ20},
-		{"get_rows_tq2_0_f32", &result.getRowsTQ20},
-		{"mul_mat_tq2_0_f32", &result.mulMatTQ20},
-		{"get_rows_tq1_0_f32", &result.getRowsTQ10},
-		{"mul_mat_tq1_0_f32", &result.mulMatTQ10},
-		{"get_rows_q2_K_f32", &result.getRowsQ2K},
-		{"mul_mat_q2_K_f32", &result.mulMatQ2K},
-		{"get_rows_q3_K_f32", &result.getRowsQ3K},
-		{"mul_mat_q3_K_f32", &result.mulMatQ3K},
-		{"get_rows_q4_K_f32", &result.getRowsQ4K},
-		{"mul_mat_q4_K_f32", &result.mulMatQ4K},
-		{"get_rows_q5_K_f32", &result.getRowsQ5K},
-		{"mul_mat_q5_K_f32", &result.mulMatQ5K},
-		{"get_rows_iq4_xs_f32", &result.getRowsIQ4XS},
-		{"mul_mat_iq4_xs_f32", &result.mulMatIQ4XS},
-		{"get_rows_iq4_nl_f32", &result.getRowsIQ4NL},
-		{"mul_mat_iq4_nl_f32", &result.mulMatIQ4NL},
-		{"get_rows_iq2_xxs_f32", &result.getRowsIQ2XXS},
-		{"mul_mat_iq2_xxs_f32", &result.mulMatIQ2XXS},
-		{"get_rows_iq2_xs_f32", &result.getRowsIQ2XS},
-		{"mul_mat_iq2_xs_f32", &result.mulMatIQ2XS},
-		{"get_rows_iq2_s_f32", &result.getRowsIQ2S},
-		{"mul_mat_iq2_s_f32", &result.mulMatIQ2S},
-		{"get_rows_iq3_xxs_f32", &result.getRowsIQ3XXS},
-		{"mul_mat_iq3_xxs_f32", &result.mulMatIQ3XXS},
-		{"get_rows_iq3_s_f32", &result.getRowsIQ3S},
-		{"mul_mat_iq3_s_f32", &result.mulMatIQ3S},
-		{"get_rows_iq1_s_f32", &result.getRowsIQ1S},
-		{"mul_mat_iq1_s_f32", &result.mulMatIQ1S},
-		{"get_rows_iq1_m_f32", &result.getRowsIQ1M},
-		{"mul_mat_iq1_m_f32", &result.mulMatIQ1M},
-		{"get_rows_mxfp4_f32", &result.getRowsMXFP4},
-		{"mul_mat_mxfp4_f32", &result.mulMatMXFP4},
-		{"get_rows_nvfp4_f32", &result.getRowsNVFP4},
-		{"mul_mat_nvfp4_f32", &result.mulMatNVFP4},
-		{"get_rows_q6_K_f32", &result.getRowsQ6K},
-		{"mul_mat_q6_K_f32", &result.mulMatQ6K},
-	}
-	for _, item := range items {
-		function, err := lib.ModuleFunction(module, item.name)
-		if err != nil {
-			return functionSet{}, err
-		}
-		*item.dst = function
-	}
-	return result, nil
 }

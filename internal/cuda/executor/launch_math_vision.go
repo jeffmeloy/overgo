@@ -50,7 +50,7 @@ func launchMathVision(
 		base, a, b := pointers[node.Inputs[0]], pointers[node.Inputs[1]], pointers[node.Inputs[2]]
 		scale := attributes.Scale
 		return launch1DABI(
-			state, functions.loraMerge, count,
+			state, functions[kernelLoraMergeF32], count,
 			&base, &a, &b, &output, &inner, &rows, &rank, &groups, &scale, &count,
 		)
 	case tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide:
@@ -61,11 +61,11 @@ func launchMathVision(
 		left := pointers[node.Inputs[0]]
 		right := pointers[node.Inputs[1]]
 		if node.Inputs[0].Shape.Equal(node.Shape) && node.Inputs[1].Shape.Equal(node.Shape) {
-			function := functions.add
+			function := functions[kernelAddF32]
 			if node.Op == tensor.OpMultiply {
-				function = functions.multiply
+				function = functions[kernelMultiplyF32]
 			} else if node.Op == tensor.OpDivide {
-				function = functions.divide
+				function = functions[kernelDivideF32]
 			}
 			return launch1DABI(state, function, count, &left, &right, &output, &count)
 		}
@@ -81,11 +81,11 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		function := functions.broadcastAdd
+		function := functions[kernelBroadcastAddF32]
 		if node.Op == tensor.OpMultiply {
-			function = functions.broadcastMultiply
+			function = functions[kernelBroadcastMultiplyF32]
 		} else if node.Op == tensor.OpDivide {
-			function = functions.broadcastDivide
+			function = functions[kernelBroadcastDivideF32]
 		}
 		return launch1DABI(
 			state, function, count, &left, &right, &output, &count,
@@ -104,7 +104,7 @@ func launchMathVision(
 		}
 		input := pointers[node.Inputs[0]]
 		scale := attributes.Value
-		return launch1DABI(state, functions.scale, count, &input, &output, &scale, &count)
+		return launch1DABI(state, functions[kernelScaleF32], count, &input, &output, &scale, &count)
 	case tensor.OpClamp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
@@ -117,7 +117,7 @@ func launchMathVision(
 		input := pointers[node.Inputs[0]]
 		minimum, maximum := attributes.Minimum, attributes.Maximum
 		return launch1DABI(
-			state, functions.clamp, count, &input, &output, &minimum, &maximum, &count,
+			state, functions[kernelClampF32], count, &input, &output, &minimum, &maximum, &count,
 		)
 	case tensor.OpBF16Round:
 		count, err := elementCount32(node.Shape)
@@ -125,30 +125,30 @@ func launchMathVision(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		return launch1DABI(state, functions.bf16Round, count, &input, &output, &count)
+		return launch1DABI(state, functions[kernelBf16RoundF32], count, &input, &output, &count)
 	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		function := functions.silu
+		function := functions[kernelSiluF32]
 		if node.Op == tensor.OpGELU {
-			function = functions.gelu
+			function = functions[kernelGeluF32]
 		} else if node.Op == tensor.OpGELUErf {
-			function = functions.geluErf
+			function = functions[kernelGeluErfF32]
 		} else if node.Op == tensor.OpReLU {
-			function = functions.relu
+			function = functions[kernelReluF32]
 		} else if node.Op == tensor.OpReLUSquared {
-			function = functions.reluSquared
+			function = functions[kernelReluSquaredF32]
 		} else if node.Op == tensor.OpSigmoid {
-			function = functions.sigmoid
+			function = functions[kernelSigmoidF32]
 		} else if node.Op == tensor.OpSoftplus {
-			function = functions.softplus
+			function = functions[kernelSoftplusF32]
 		} else if node.Op == tensor.OpTanh {
-			function = functions.tanh
+			function = functions[kernelTanhF32]
 		} else if node.Op == tensor.OpExp {
-			function = functions.exp
+			function = functions[kernelExpF32]
 		}
 		return launch1DABI(state, function, count, &input, &output, &count)
 	case tensor.OpXIELU:
@@ -166,7 +166,7 @@ func launchMathVision(
 		beta := attributes.Beta
 		epsilon := attributes.Epsilon
 		return launch1DABI(
-			state, functions.xielu, count,
+			state, functions[kernelXieluF32], count,
 			&input, &output, &alphaN, &alphaP, &beta, &epsilon, &count,
 		)
 	case tensor.OpConv1DSame:
@@ -185,7 +185,7 @@ func launchMathVision(
 		channelsOut := uint32(node.Shape.Dims[0])
 		depthwise := kernelBool(attributes.Depthwise)
 		return launch1DABI(
-			state, functions.conv1DSame, count,
+			state, functions[kernelConv1dSameF32], count,
 			&input, &weight, &bias, &output, &channelsIn, &tokens, &kernelWidth,
 			&channelsOut, &depthwise, &count,
 		)
@@ -218,7 +218,7 @@ func launchMathVision(
 			hasBias = 1
 		}
 		return launch1DABI(
-			state, functions.conv2D, count,
+			state, functions[kernelConv2dF32], count,
 			&input, &weight, &bias, &output, &channelsIn, &inputW, &inputH,
 			&kernelW, &kernelH, &weightChannels, &channelsOut, &outputW, &outputH,
 			&strideX, &strideY, &padLeft, &padTop, &depthwise, &hasBias, &count,
@@ -235,9 +235,9 @@ func launchMathVision(
 		input := pointers[node.Inputs[0]]
 		channels := uint32(node.Shape.Dims[0])
 		width, height, window := attributes.Width, attributes.Height, attributes.Window
-		function := functions.windowPartition2D
+		function := functions[kernelWindowPartition2dF32]
 		if node.Op == tensor.OpWindowUnpartition2D {
-			function = functions.windowUnpartition2D
+			function = functions[kernelWindowUnpartition2dF32]
 		}
 		return launch1DABI(
 			state, function, count, &input, &output, &channels, &width, &height, &window, &count,
@@ -264,7 +264,7 @@ func launchMathVision(
 		relativeHLength := uint32(node.Inputs[4].Shape.Dims[1])
 		scale, relativeScale := attributes.Scale, attributes.RelativeScale
 		return launch1DABI(
-			state, functions.samAttention, count,
+			state, functions[kernelSamAttentionF32], count,
 			&query, &key, &value, &relativeW, &relativeH, &output,
 			&keyWidth, &valueWidth, &queryHeads, &keyHeads, &tokens, &batches,
 			&spatialSize, &relativeWLength, &relativeHLength, &scale, &relativeScale, &count,
@@ -284,7 +284,7 @@ func launchMathVision(
 		groups := attributes.Groups
 		epsilon := attributes.Epsilon
 		return launch1DABI(
-			state, functions.groupNorm, count,
+			state, functions[kernelGroupNormF32], count,
 			&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,
 		)
 	case tensor.OpL2Norm:
@@ -298,7 +298,7 @@ func launchMathVision(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		return launchNormalizationABI(state, functions.l2Norm, rows, &input, &output, &width, &rows, &epsilon)
+		return launchNormalizationABI(state, functions[kernelL2NormF32], rows, &input, &output, &width, &rows, &epsilon)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

@@ -27,7 +27,7 @@ func launchAttentionLayout(
 			return err
 		}
 		input := pointers[node.Inputs[0]]
-		return launch1DABI(state, functions.copy, count, &input, &output, &count)
+		return launch1DABI(state, functions[kernelCopyF32], count, &input, &output, &count)
 	case tensor.OpAttention:
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 		if !ok {
@@ -115,7 +115,7 @@ func launchAttentionLayout(
 				return errors.New("decode attention launch size exceeds uint32")
 			}
 			return launchGridSharedABI(
-				state, functions.attentionDecode,
+				state, functions[kernelAttentionDecodeF32],
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
@@ -129,7 +129,7 @@ func launchAttentionLayout(
 				return errors.New("online attention launch size exceeds uint32")
 			}
 			return launchGridABI(
-				state, functions.attentionOnline,
+				state, functions[kernelAttentionOnlineF32],
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionOnlineThreads, Y: 1, Z: 1},
 				&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
@@ -139,7 +139,7 @@ func launchAttentionLayout(
 			)
 		}
 		return launch1DABI(
-			state, functions.attention, count,
+			state, functions[kernelAttentionF32], count,
 			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
 			&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
 			&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
@@ -167,7 +167,7 @@ func launchAttentionLayout(
 			}
 			destination := output + driver.DevicePtr(leftBytes)
 			return launch1DABI(
-				state, functions.copy, rightCount,
+				state, functions[kernelCopyF32], rightCount,
 				&right, &destination, &rightCount,
 			)
 		}
@@ -189,7 +189,7 @@ func launchAttentionLayout(
 		}
 		axis := attributes.Axis
 		return launch1DABI(
-			state, functions.concat, count,
+			state, functions[kernelConcatF32], count,
 			&left, &right, &output, &innerSize, &leftAxis, &rightAxis, &axis, &count,
 		)
 	default:

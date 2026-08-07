@@ -57,9 +57,9 @@ func launchRoPE(
 		attentionFactor := attributes.AttentionFactor
 		betaFast := attributes.BetaFast
 		betaSlow := attributes.BetaSlow
-		function := functions.ropeNeoX
+		function := functions[kernelRopeNeoxF32]
 		if node.Op == tensor.OpRoPENormal {
-			function = functions.ropeNormal
+			function = functions[kernelRopeNormalF32]
 		}
 		return launch1DABI(
 			state, function, count,
@@ -104,7 +104,7 @@ func launchRoPE(
 			sections[index] = uint32(section)
 		}
 		return launch1DABI(
-			state, functions.ropeMulti, count,
+			state, functions[kernelRopeMultiF32], count,
 			&input, &positions, &output, &width, &heads, &tokens, &rotary,
 			&frequencyBase, &frequencyScale,
 			&sections[0], &sections[1], &sections[2], &sections[3], &count,

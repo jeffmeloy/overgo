@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 7 execution-authority follow-up made resolved programs one-shot,
+  removed serving admission bypasses, required compiled layer plans, deleted
+  the family-owned host Qwen graph path, compiled terminal normalization/output
+  selection, and consolidated five canonical document lifecycles behind a
+  typed artifact codec with net code deletion.
 - The August 7 RepoDB adversarial follow-up hardened import identity and symlink
   containment, validated dataset split topology, removed overflow from bounded
   tensor sample indexing, and made typed profile provenance resolve through

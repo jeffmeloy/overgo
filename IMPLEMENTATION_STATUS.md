@@ -32,6 +32,20 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Resolved GGUF programs are sealed and validated once, then consumed exactly
+  once by inference; runner startup no longer rereads the bound specification,
+  weight catalog, or model plan. Test-only compile/profile/model fallbacks were
+  removed from production APIs, and serving fixtures now pass through a real
+  temporary RepoDB candidate/validation/activation lifecycle.
+- Serving graph construction now requires the compiled per-layer program.
+  Dense/recurrent Qwen host execution uses the neutral dispatcher and common
+  cache schema instead of its family-owned runner, removing 79 net lines.
+  Compiled terminal instructions now own final-normalization and output-head
+  selection across ordinary decode and Eagle3 coordination.
+- A generic typed artifact codec now owns canonical construction, parsing,
+  identity validation, content encoding, and caller isolation. Dataset,
+  closure-ledger, environment, gate-result, and regression-advisory documents
+  use it, deleting 62 net lines including the codec's adversarial fixture.
 - The RepoDB adversarial follow-up closed four boundary weaknesses: importer
   identity now binds the full export digest and resolves symlinks before root
   containment; dataset split plans validate their complete source/view/

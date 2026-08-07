@@ -3,11 +3,14 @@ package runrecord
 import (
 	"context"
 	"math"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
 )
+
+const fixtureCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestRunAndEvaluationRoundTrip(t *testing.T) {
 	recipeID := fixtureID(t, artifact.KindRecipe, "recipe")
@@ -106,6 +109,131 @@ func TestRunAndEvaluationRejectInvalidFacts(t *testing.T) {
 		Name: "quality", Value: math.NaN(), Direction: DirectionMaximize,
 	}}); err == nil {
 		t.Fatal("non-finite metric accepted")
+	}
+}
+
+func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
+	environment, err := NewEnvironment(
+		"fixture-host", "windows", "amd64", "RTX 4090", "cuda", "591.44", "go1.25",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := environment.ContentBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsedEnvironment, err := ParseEnvironment(content)
+	if err != nil || parsedEnvironment != environment {
+		t.Fatalf("environment round trip = (%+v, %v)", parsedEnvironment, err)
+	}
+	recipeID := fixtureID(t, artifact.KindRecipe, "bound-recipe")
+	outputID := fixtureID(t, artifact.KindOutput, "bound-output")
+	run, err := NewBoundRun(
+		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "",
+		fixtureCodeCommit, environment.ID, 100, []PhaseMetric{
+			{Phase: PhaseDecode, DurationNS: 55},
+			{Phase: PhasePrefill, DurationNS: 35},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.UnattributedNS() != 10 || !slices.Equal(run.Phases, []PhaseMetric{
+		{Phase: PhaseDecode, DurationNS: 55},
+		{Phase: PhasePrefill, DurationNS: 35},
+	}) {
+		t.Fatalf("bound timing = (%d, %+v)", run.UnattributedNS(), run.Phases)
+	}
+	content, err = run.ContentBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsedRun, err := ParseRun(content)
+	if err != nil || parsedRun.ID != run.ID || parsedRun.UnattributedNS() != 10 {
+		t.Fatalf("bound run round trip = (%+v, %v)", parsedRun, err)
+	}
+	if len(run.Lineage()) != 3 {
+		t.Fatalf("bound run lineage = %+v", run.Lineage())
+	}
+}
+
+func TestBoundRunRejectsUncontrolledTimingFacts(t *testing.T) {
+	recipeID := fixtureID(t, artifact.KindRecipe, "bound-recipe")
+	outputID := fixtureID(t, artifact.KindOutput, "bound-output")
+	environmentID := fixtureID(t, artifact.KindEvidence, "environment")
+	newRun := func(commit string, phases []PhaseMetric) error {
+		_, err := NewBoundRun(
+			recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", commit,
+			environmentID, 10, phases,
+		)
+		return err
+	}
+	if err := newRun("working-tree", []PhaseMetric{{Phase: PhaseDecode, DurationNS: 1}}); err == nil {
+		t.Fatal("non-commit run accepted")
+	}
+	if err := newRun(fixtureCodeCommit, []PhaseMetric{{Phase: "other", DurationNS: 1}}); err == nil {
+		t.Fatal("unknown phase accepted")
+	}
+	if err := newRun(fixtureCodeCommit, []PhaseMetric{
+		{Phase: PhaseDecode, DurationNS: 1}, {Phase: PhaseDecode, DurationNS: 2},
+	}); err == nil {
+		t.Fatal("duplicate phase accepted")
+	}
+	run, err := NewBoundRun(
+		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", fixtureCodeCommit,
+		environmentID, 10, []PhaseMetric{{Phase: PhaseDecode, DurationNS: 12}},
+	)
+	if err != nil || run.UnattributedNS() != -2 {
+		t.Fatalf("over-attributed timing = (%d, %v)", run.UnattributedNS(), err)
+	}
+}
+
+func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	environment, err := NewEnvironment(
+		"fixture-host", "linux", "amd64", "A100", "cuda", "580.65", "go1.25",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipeID := fixtureID(t, artifact.KindRecipe, "bound-recipe")
+	outputID := fixtureID(t, artifact.KindOutput, "bound-output")
+	environmentContent, err := environment.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "fixture/bound-facts",
+		Artifacts: []artifact.Descriptor{
+			{ID: recipeID}, {ID: outputID}, environmentContent.Descriptor,
+		},
+		Contents: []artifact.Content{environmentContent},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := NewBoundRun(
+		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", fixtureCodeCommit,
+		environment.ID, 100, []PhaseMetric{{Phase: PhaseDecode, DurationNS: 90}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := run.Batch("fixture/bound-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	parents, err := store.Parents(ctx, run.ID)
+	if err != nil || len(parents) != 2 {
+		t.Fatalf("bound run parents = (%+v, %v)", parents, err)
 	}
 }
 

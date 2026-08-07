@@ -77,6 +77,38 @@ func TestImportRejectsCountDriftPathEscapeAndReferenceCycle(t *testing.T) {
 	}
 }
 
+func TestImportRequiresRootAndUsesFullDigestIdentity(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "value.bin"), []byte("value"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	input := importStream(t, []wireRecord{{
+		Type: "artifact", Name: "value", Kind: "file", Path: "value.bin",
+	}}, nil)
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := Import(context.Background(), store, "", bytes.NewReader(input)); err == nil {
+		t.Fatal("empty artifact root accepted")
+	}
+	result, err := Import(context.Background(), store, root, bytes.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, err := store.Query(context.Background(), repodb.Query{
+		MaxResults: 10, FromSequence: 1, ToSequence: 1,
+	})
+	if err != nil || len(query.Commits) != 1 {
+		t.Fatalf("import commit query = (%+v, %v)", query.Commits, err)
+	}
+	wantKey := "import/" + importFixtureCommit + "/" + exportDigest(input)
+	if query.Commits[0].Key != wantKey || query.Commits[0].ID != result.Commit {
+		t.Fatalf("import key = %q, want %q", query.Commits[0].Key, wantKey)
+	}
+}
+
 func importStream(t *testing.T, records []wireRecord, counts map[string]uint64) []byte {
 	t.Helper()
 	if counts == nil {

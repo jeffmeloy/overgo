@@ -95,9 +95,16 @@ func Import(
 	if ctx == nil || repository == nil || input == nil {
 		return Result{}, errors.New("repodb import: nil input")
 	}
+	if strings.TrimSpace(root) == "" {
+		return Result{}, errors.New("repodb import: artifact root is empty")
+	}
 	absoluteRoot, err := filepath.Abs(root)
 	if err != nil {
 		return Result{}, err
+	}
+	absoluteRoot, err = filepath.EvalSymlinks(absoluteRoot)
+	if err != nil {
+		return Result{}, fmt.Errorf("repodb import: resolve artifact root: %w", err)
 	}
 	raw, err := io.ReadAll(io.LimitReader(input, maxImportBytes+1))
 	if err != nil {
@@ -132,7 +139,8 @@ func Import(
 	if !equalCounts(header.Counts, actualCounts) {
 		return Result{}, errors.New("repodb import: manifest counts differ")
 	}
-	batch := artifact.Batch{Key: "import/" + header.SourceCommit + "/" + exportDigest(raw)[:16]}
+	digest := exportDigest(raw)
+	batch := artifact.Batch{Key: "import/" + header.SourceCommit + "/" + digest}
 	names := make(map[string]artifact.ID)
 	pending := make([]pendingNode, 0)
 	for _, record := range records {
@@ -241,7 +249,7 @@ func Import(
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{Commit: commit, Source: sourceID, Names: names}, nil
+	return Result{Commit: commit, Source: sourceID, Names: cloneNames(names)}, nil
 }
 
 func canonicalLines(raw []byte) ([][]byte, error) {
@@ -469,6 +477,10 @@ func importFile(root string, kind artifact.Kind, relative string) (
 	if err != nil {
 		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, err
 	}
+	resolved, err = filepath.EvalSymlinks(resolved)
+	if err != nil {
+		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, err
+	}
 	rel, err := filepath.Rel(root, resolved)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, errors.New("repodb import: file path escapes root")
@@ -551,4 +563,12 @@ func recordCountKey(record wireRecord) string {
 	default:
 		return record.Type
 	}
+}
+
+func cloneNames(names map[string]artifact.ID) map[string]artifact.ID {
+	cloned := make(map[string]artifact.ID, len(names))
+	for name, id := range names {
+		cloned[name] = id
+	}
+	return cloned
 }

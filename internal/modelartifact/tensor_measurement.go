@@ -1,7 +1,6 @@
 package modelartifact
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +26,20 @@ const (
 
 var tensorMeasurementContract = artifact.DocumentContract{
 	Kind: artifact.KindTensorInventory, MediaType: TensorMeasurementMediaType, Schema: TensorMeasurementSchema,
+}
+
+var tensorMeasurementCodec = artifact.DocumentCodec[TensorMeasurementDocument]{
+	Name: "model artifact tensor measurement", Contract: tensorMeasurementContract,
+	Decode: func(data []byte, value *TensorMeasurementDocument) error {
+		return strictjson.DecodeBytes(data, value)
+	},
+	Encode: tensorMeasurementContent, Canonicalize: canonicalizeTensorMeasurements,
+	Clone: func(value TensorMeasurementDocument) TensorMeasurementDocument {
+		value.Measurements = slices.Clone(value.Measurements)
+		return value
+	},
+	Identity:    func(value TensorMeasurementDocument) artifact.ID { return value.ID },
+	SetIdentity: func(value *TensorMeasurementDocument, id artifact.ID) { value.ID = id },
 }
 
 type MeasurementPolicy struct {
@@ -80,77 +93,23 @@ func NewTensorMeasurementDocument(
 		Version: TensorMeasurementVersion, Inventory: inventory, Policy: policy,
 		ReadBytes: readBytes, Measurements: slices.Clone(measurements),
 	}
-	if err := canonicalizeTensorMeasurements(&document); err != nil {
-		return TensorMeasurementDocument{}, err
-	}
-	content, err := tensorMeasurementContent(document)
-	if err != nil {
-		return TensorMeasurementDocument{}, err
-	}
-	document.ID, err = tensorMeasurementContract.Identify(content)
-	return document, err
+	return tensorMeasurementCodec.New(document)
 }
 
 func ParseTensorMeasurementDocument(content []byte) (TensorMeasurementDocument, error) {
-	var body TensorMeasurementDocument
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return TensorMeasurementDocument{}, fmt.Errorf("model artifact: decode tensor measurement: %w", err)
-	}
-	document, err := NewTensorMeasurementDocument(body.Inventory, body.Policy, body.ReadBytes, body.Measurements)
-	if err != nil {
-		return TensorMeasurementDocument{}, err
-	}
-	canonical, err := document.ContentBytes()
-	if err != nil {
-		return TensorMeasurementDocument{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return TensorMeasurementDocument{}, errors.New("model artifact: non-canonical tensor measurement")
-	}
-	return document, nil
+	return tensorMeasurementCodec.Parse(content)
 }
 
 func (d TensorMeasurementDocument) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindTensorInventory {
-		return errors.New("model artifact: invalid tensor measurement identity")
-	}
-	canonical := d
-	canonical.ID = artifact.ID{}
-	canonical.Measurements = slices.Clone(d.Measurements)
-	if err := canonicalizeTensorMeasurements(&canonical); err != nil {
-		return err
-	}
-	canonical.ID = d.ID
-	if d.Version != canonical.Version || d.Inventory != canonical.Inventory || d.Policy != canonical.Policy ||
-		d.ReadBytes != canonical.ReadBytes || !slices.Equal(d.Measurements, canonical.Measurements) {
-		return errors.New("model artifact: tensor measurement is not canonical")
-	}
-	canonical.ID = artifact.ID{}
-	content, err := tensorMeasurementContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := tensorMeasurementContract.ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("model artifact: tensor measurement identity mismatch")
-	}
-	return nil
+	return tensorMeasurementCodec.ValidateIdentity(d)
 }
 
 func (d TensorMeasurementDocument) ContentBytes() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	d.ID = artifact.ID{}
-	return tensorMeasurementContent(d)
+	return tensorMeasurementCodec.ContentBytes(d)
 }
 
 func (d TensorMeasurementDocument) Content() (artifact.Content, error) {
-	id := d.ID
-	content, err := d.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return tensorMeasurementContract.Content(id, content)
+	return tensorMeasurementCodec.Content(d)
 }
 
 func (d TensorMeasurementDocument) Lineage() artifact.Lineage {

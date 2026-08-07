@@ -37,6 +37,28 @@ var (
 	}
 )
 
+var evaluationCodec = artifact.DocumentCodec[Evaluation]{
+	Name: "run record evaluation", Contract: evaluationContract,
+	Decode: func(data []byte, value *Evaluation) error {
+		var body evaluationBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = Evaluation{
+			Version: body.Version, Recipe: body.Recipe, Run: body.Run,
+			Dataset: body.Dataset, Metrics: body.Metrics,
+		}
+		return nil
+	},
+	Encode: evaluationContent, Canonicalize: canonicalizeEvaluation,
+	Clone: func(value Evaluation) Evaluation {
+		value.Metrics = slices.Clone(value.Metrics)
+		return value
+	},
+	Identity:    func(value Evaluation) artifact.ID { return value.ID },
+	SetIdentity: func(value *Evaluation, id artifact.ID) { value.ID = id },
+}
+
 type Outcome string
 
 const (
@@ -287,71 +309,23 @@ func NewEvaluation(
 		Version: Version, Recipe: recipeID, Run: runID, Dataset: datasetID,
 		Metrics: slices.Clone(metrics),
 	}
-	if err := canonicalizeEvaluation(&evaluation); err != nil {
-		return Evaluation{}, err
-	}
-	content, err := evaluationContent(evaluation)
-	if err != nil {
-		return Evaluation{}, err
-	}
-	evaluation.ID, err = evaluationContract.Identify(content)
-	return evaluation, err
+	return evaluationCodec.New(evaluation)
 }
 
 func ParseEvaluation(content []byte) (Evaluation, error) {
-	var body evaluationBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return Evaluation{}, fmt.Errorf("run record: decode evaluation: %w", err)
-	}
-	evaluation, err := NewEvaluation(body.Recipe, body.Run, body.Dataset, body.Metrics)
-	if err != nil {
-		return Evaluation{}, err
-	}
-	canonical, err := evaluation.ContentBytes()
-	if err != nil {
-		return Evaluation{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Evaluation{}, errors.New("run record: non-canonical evaluation content")
-	}
-	return evaluation, nil
+	return evaluationCodec.Parse(content)
 }
 
 func (e Evaluation) ValidateIdentity() error {
-	if e.ID.Kind() != artifact.KindEvaluation {
-		return errors.New("run record: invalid evaluation identity")
-	}
-	canonical := e
-	canonical.Metrics = slices.Clone(e.Metrics)
-	if err := canonicalizeEvaluation(&canonical); err != nil {
-		return err
-	}
-	if !sameEvaluation(e, canonical) {
-		return errors.New("run record: evaluation is not canonical")
-	}
-	content, err := evaluationContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := evaluationContract.ValidateIdentity(e.ID, content); err != nil {
-		return errors.New("run record: evaluation identity mismatch")
-	}
-	return nil
+	return evaluationCodec.ValidateIdentity(e)
 }
 
 func (e Evaluation) ContentBytes() ([]byte, error) {
-	if err := e.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	return evaluationContent(e)
+	return evaluationCodec.ContentBytes(e)
 }
 
 func (e Evaluation) Content() (artifact.Content, error) {
-	content, err := e.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return evaluationContract.Content(e.ID, content)
+	return evaluationCodec.Content(e)
 }
 
 func (e Evaluation) Lineage() []artifact.Lineage {
@@ -555,9 +529,4 @@ func runContractForVersion(version uint16) artifact.DocumentContract {
 		return legacyRunContract
 	}
 	return runContract
-}
-
-func sameEvaluation(left, right Evaluation) bool {
-	return left.Version == right.Version && left.Recipe == right.Recipe &&
-		left.Run == right.Run && left.Dataset == right.Dataset && slices.Equal(left.Metrics, right.Metrics)
 }

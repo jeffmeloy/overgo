@@ -1,7 +1,6 @@
 package dataset
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -22,6 +21,18 @@ const (
 
 var membershipContract = artifact.DocumentContract{
 	Kind: artifact.KindDatasetShard, MediaType: MembershipMediaType, Schema: MembershipSchema,
+}
+
+var membershipCodec = artifact.DocumentCodec[Membership]{
+	Name: "dataset membership", Contract: membershipContract,
+	Decode: func(data []byte, value *Membership) error { return strictjson.DecodeBytes(data, value) },
+	Encode: membershipContent, Canonicalize: canonicalizeMembership,
+	Clone: func(value Membership) Membership {
+		value.Records = slices.Clone(value.Records)
+		return value
+	},
+	Identity:    func(value Membership) artifact.ID { return value.ID },
+	SetIdentity: func(value *Membership, id artifact.ID) { value.ID = id },
 }
 
 type Record struct {
@@ -101,65 +112,19 @@ func BuildGroupSplit(
 }
 
 func ParseMembership(content []byte) (Membership, error) {
-	var body Membership
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return Membership{}, fmt.Errorf("dataset: decode membership: %w", err)
-	}
-	membership, err := newMembership(body.Source, body.Seed, body.Partition, body.Records)
-	if err != nil {
-		return Membership{}, err
-	}
-	canonical, err := membership.ContentBytes()
-	if err != nil {
-		return Membership{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Membership{}, errors.New("dataset: non-canonical membership")
-	}
-	return membership, nil
+	return membershipCodec.Parse(content)
 }
 
 func (m Membership) ValidateIdentity() error {
-	if m.ID.Kind() != artifact.KindDatasetShard {
-		return errors.New("dataset: invalid membership identity")
-	}
-	canonical := m
-	canonical.ID = artifact.ID{}
-	canonical.Records = slices.Clone(m.Records)
-	if err := canonicalizeMembership(&canonical); err != nil {
-		return err
-	}
-	canonical.ID = m.ID
-	if m.Version != canonical.Version || m.Source != canonical.Source || m.Seed != canonical.Seed ||
-		m.Partition != canonical.Partition || !slices.Equal(m.Records, canonical.Records) {
-		return errors.New("dataset: membership is not canonical")
-	}
-	canonical.ID = artifact.ID{}
-	content, err := membershipContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := membershipContract.ValidateIdentity(m.ID, content); err != nil {
-		return errors.New("dataset: membership identity mismatch")
-	}
-	return nil
+	return membershipCodec.ValidateIdentity(m)
 }
 
 func (m Membership) ContentBytes() ([]byte, error) {
-	if err := m.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	m.ID = artifact.ID{}
-	return membershipContent(m)
+	return membershipCodec.ContentBytes(m)
 }
 
 func (m Membership) Content() (artifact.Content, error) {
-	id := m.ID
-	content, err := m.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return membershipContract.Content(id, content)
+	return membershipCodec.Content(m)
 }
 
 func (m Membership) Lineage() artifact.Lineage {
@@ -261,15 +226,7 @@ func newMembership(source artifact.ID, seed uint64, partition string, records []
 		Version: MembershipVersion, Source: source, Seed: seed,
 		Partition: partition, Records: slices.Clone(records),
 	}
-	if err := canonicalizeMembership(&membership); err != nil {
-		return Membership{}, err
-	}
-	content, err := membershipContent(membership)
-	if err != nil {
-		return Membership{}, err
-	}
-	membership.ID, err = membershipContract.Identify(content)
-	return membership, err
+	return membershipCodec.New(membership)
 }
 
 func canonicalizeMembership(membership *Membership) error {

@@ -1,7 +1,6 @@
 package modelartifact
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,6 +27,30 @@ const (
 
 var tensorInventoryContract = artifact.DocumentContract{
 	Kind: artifact.KindTensorInventory, MediaType: TensorInventoryMediaType, Schema: TensorInventorySchema,
+}
+
+var tensorInventoryCodec = artifact.DocumentCodec[TensorInventoryDocument]{
+	Name: "model artifact tensor inventory", Contract: tensorInventoryContract,
+	Decode: func(data []byte, value *TensorInventoryDocument) error {
+		var body tensorInventoryBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = TensorInventoryDocument{
+			Version: body.Version, Model: body.Model, Format: body.Format, Tensors: body.Tensors,
+		}
+		return nil
+	},
+	Encode: tensorInventoryContent,
+	Canonicalize: func(value *TensorInventoryDocument) error {
+		return value.validateShape()
+	},
+	Clone: func(value TensorInventoryDocument) TensorInventoryDocument {
+		value.Tensors = cloneTensorFacts(value.Tensors)
+		return value
+	},
+	Identity:    func(value TensorInventoryDocument) artifact.ID { return value.ID },
+	SetIdentity: func(value *TensorInventoryDocument, id artifact.ID) { value.ID = id },
 }
 
 func TensorInventoryDocumentContract() artifact.DocumentContract { return tensorInventoryContract }
@@ -75,72 +98,23 @@ func NewTensorInventoryDocument(
 		Format:  format,
 		Tensors: cloneTensorFacts(tensors),
 	}
-	if err := document.validateShape(); err != nil {
-		return TensorInventoryDocument{}, err
-	}
-	content, err := tensorInventoryContent(document)
-	if err != nil {
-		return TensorInventoryDocument{}, err
-	}
-	if len(content) > artifact.MaxContentBytes {
-		return TensorInventoryDocument{}, errors.New("model artifact: tensor inventory exceeds inline content limit")
-	}
-	document.ID, err = tensorInventoryContract.Identify(content)
-	return document, err
+	return tensorInventoryCodec.New(document)
 }
 
 func ParseTensorInventoryDocument(content []byte) (TensorInventoryDocument, error) {
-	var body tensorInventoryBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return TensorInventoryDocument{}, fmt.Errorf("model artifact: decode tensor inventory: %w", err)
-	}
-	document, err := NewTensorInventoryDocument(body.Model, body.Format, body.Tensors)
-	if err != nil {
-		return TensorInventoryDocument{}, err
-	}
-	if body.Version != TensorInventoryVersion {
-		return TensorInventoryDocument{}, errors.New("model artifact: unsupported tensor inventory version")
-	}
-	canonical, err := document.ContentBytes()
-	if err != nil {
-		return TensorInventoryDocument{}, err
-	}
-	if !bytes.Equal(content, canonical) {
-		return TensorInventoryDocument{}, errors.New("model artifact: non-canonical tensor inventory")
-	}
-	return document, nil
+	return tensorInventoryCodec.Parse(content)
 }
 
 func (d TensorInventoryDocument) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindTensorInventory {
-		return errors.New("model artifact: invalid tensor inventory identity")
-	}
-	if err := d.validateShape(); err != nil {
-		return err
-	}
-	content, err := tensorInventoryContent(d)
-	if err != nil {
-		return err
-	}
-	if err := tensorInventoryContract.ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("model artifact: tensor inventory identity mismatch")
-	}
-	return nil
+	return tensorInventoryCodec.ValidateIdentity(d)
 }
 
 func (d TensorInventoryDocument) ContentBytes() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	return tensorInventoryContent(d)
+	return tensorInventoryCodec.ContentBytes(d)
 }
 
 func (d TensorInventoryDocument) Content() (artifact.Content, error) {
-	content, err := d.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return tensorInventoryContract.Content(d.ID, content)
+	return tensorInventoryCodec.Content(d)
 }
 
 func (d TensorInventoryDocument) Tensor(name string) (TensorFact, bool) {

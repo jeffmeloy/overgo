@@ -17,6 +17,7 @@ func launchLinearLayout(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
+	q8Input *q8InputState,
 	node *tensor.Tensor,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
@@ -193,12 +194,40 @@ func launchLinearLayout(
 				return fmt.Errorf("%s mul_mat output element count exceeds uint32", leftNode.Type)
 			}
 			function := quantKernels[leftNode.Type].mulMat(functions)
+			quantizedRight := right
+			if leftNode.Type == dtype.Q8_0 && rightRows == 1 {
+				if q8Input == nil || q8Input.staging == 0 {
+					return errors.New("Q8_0 mul_mat input workspace is unavailable")
+				}
+				if q8Input.stagedNode != rightNode {
+					blocks := uint64(inner) * uint64(rightRows) / q8InputBlockWidth
+					if blocks > math.MaxUint32 {
+						return errors.New("Q8_0 mul_mat input block count exceeds uint32")
+					}
+					blockCount := uint32(blocks)
+					if err := launchQ8InputQuantization(
+						state, functions.quantizeQ8Input, right, q8Input.staging, blockCount,
+					); err != nil {
+						return err
+					}
+					q8Input.stagedNode = rightNode
+				}
+				function = functions.mulMatQ8Input
+				quantizedRight = q8Input.staging
+			}
 			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
 			if err != nil {
 				return err
 			}
+			if leftNode.Type == dtype.Q8_0 && rightRows == 1 {
+				launchCount, err = q8InputMulMatLaunchCount(leftRows, rightRows)
+				if err != nil {
+					return err
+				}
+			}
 			return launch1DABI(
-				state, function, launchCount, &left, &right, &output, &inner, &leftRows, &rightRows,
+				state, function, launchCount,
+				&left, &quantizedRight, &output, &inner, &leftRows, &rightRows,
 			)
 		}
 		if blas == nil {
@@ -324,6 +353,30 @@ func launchLinearLayout(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+func q8InputMulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
+	const warpThreads = uint64(q8InputBlockWidth)
+	warps := uint64(leftRows) * uint64(rightRows)
+	if warps > math.MaxUint32/warpThreads {
+		return 0, errors.New("Q8_0 input mul_mat launch size exceeds uint32")
+	}
+	return uint32(warps * warpThreads), nil
+}
+
+func launchQ8InputQuantization(
+	state *device.State,
+	function driver.Function,
+	input, output driver.DevicePtr,
+	blocks uint32,
+) error {
+	const threads = uint32(q8InputBlockWidth)
+	return launchGridABI(
+		state, function,
+		driver.Dim3{X: blocks, Y: 1, Z: 1},
+		driver.Dim3{X: threads, Y: 1, Z: 1},
+		&input, &output, &blocks,
+	)
 }
 
 func launchWeightedRMSNorm(

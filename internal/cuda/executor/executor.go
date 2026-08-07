@@ -35,6 +35,7 @@ type executorResources struct {
 	module    driver.Module
 	functions functionSet
 	blas      *blasState
+	q8Input   q8InputState
 	arena     driver.DevicePtr
 	arenaSize uint64
 	buffers   deviceBufferPool
@@ -328,6 +329,7 @@ type CompiledGraph struct {
 	skipped        map[*tensor.Tensor]struct{}
 	needBlas       bool
 	bf16InputBytes uint64
+	q8InputBytes   uint64
 }
 
 type weightedRMSFusion struct {
@@ -398,6 +400,18 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 				return nil, errors.New("BF16 mul_mat input size overflows")
 			}
 			compiled.bf16InputBytes = max(compiled.bf16InputBytes, elements*2)
+		}
+		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.Q8_0 &&
+			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] == 1 {
+			elements, elementErr := node.Inputs[1].Shape.Elements()
+			if elementErr != nil || elements%q8InputBlockWidth != 0 ||
+				elements/q8InputBlockWidth > math.MaxUint64/q8InputBlockBytes {
+				return nil, errors.New("Q8_0 mul_mat input storage overflows")
+			}
+			compiled.q8InputBytes = max(
+				compiled.q8InputBytes,
+				elements/q8InputBlockWidth*q8InputBlockBytes,
+			)
 		}
 		if node.Op != tensor.OpMultiply || len(node.Inputs) != 2 {
 			continue
@@ -581,7 +595,9 @@ func (e *Executor) runCompiled(
 	}
 	var result *executionResult
 	err := e.worker.Do(ctx, func(state *device.State) error {
-		resources, resourceErr := e.ensureResources(state, compiled.needBlas, compiled.bf16InputBytes)
+		resources, resourceErr := e.ensureResources(
+			state, compiled.needBlas, compiled.bf16InputBytes, compiled.q8InputBytes,
+		)
 		if resourceErr != nil {
 			return resourceErr
 		}
@@ -597,6 +613,7 @@ func (e *Executor) runCompiled(
 			deviceFeeds,
 			resources.functions,
 			resources.blas,
+			&resources.q8Input,
 			arena,
 			&resources.buffers,
 			&resources.graphExec,
@@ -614,6 +631,7 @@ func execute(
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	functions functionSet,
 	blas *blasState,
+	q8Input *q8InputState,
 	arena driver.DevicePtr,
 	buffers *deviceBufferPool,
 	graphExec *driver.GraphExec,
@@ -828,6 +846,9 @@ func execute(
 	if blas != nil {
 		blas.stagedNode = nil
 	}
+	if q8Input != nil {
+		q8Input.stagedNode = nil
+	}
 	if capturing {
 		if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
 			return nil, captureErr
@@ -861,7 +882,7 @@ func execute(
 			submitted = true
 			continue
 		}
-		if err := launchNode(state, functions, blas, node, pointers, attributePointers); err != nil {
+		if err := launchNode(state, functions, blas, q8Input, node, pointers, attributePointers); err != nil {
 			abortCapture()
 			return nil, fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 		}
@@ -932,6 +953,7 @@ type functionSet struct {
 	clamp               driver.Function
 	bf16Round           driver.Function
 	f32ToBF16           driver.Function
+	quantizeQ8Input     driver.Function
 	copy                driver.Function
 	silu                driver.Function
 	gelu                driver.Function
@@ -984,6 +1006,7 @@ type functionSet struct {
 	concat              driver.Function
 	getRowsQ8           driver.Function
 	mulMatQ8            driver.Function
+	mulMatQ8Input       driver.Function
 	getRowsQ81          driver.Function
 	mulMatQ81           driver.Function
 	getRowsQ8K          driver.Function
@@ -1082,10 +1105,22 @@ type blasState struct {
 	stagedNode   *tensor.Tensor
 }
 
+const (
+	q8InputBlockWidth = uint64(32)
+	q8InputBlockBytes = uint64(36)
+)
+
+type q8InputState struct {
+	staging      driver.DevicePtr
+	stagingBytes uint64
+	stagedNode   *tensor.Tensor
+}
+
 func (e *Executor) ensureResources(
 	state *device.State,
 	needBlas bool,
 	bf16InputBytes uint64,
+	q8InputBytes uint64,
 ) (*executorResources, error) {
 	if e.resources.module == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
@@ -1133,6 +1168,20 @@ func (e *Executor) ensureResources(
 		}
 		e.resources.blas.staging = staging
 		e.resources.blas.stagingBytes = bf16InputBytes
+	}
+	if q8InputBytes > e.resources.q8Input.stagingBytes {
+		staging, err := state.Driver.MemAlloc(q8InputBytes)
+		if err != nil {
+			return nil, err
+		}
+		if e.resources.q8Input.staging != 0 {
+			if err := state.Driver.MemFree(e.resources.q8Input.staging); err != nil {
+				_ = state.Driver.MemFree(staging)
+				return nil, err
+			}
+		}
+		e.resources.q8Input.staging = staging
+		e.resources.q8Input.stagingBytes = q8InputBytes
 	}
 	return &e.resources, nil
 }
@@ -1188,6 +1237,10 @@ func (e *Executor) closeResources(state *device.State) error {
 		}
 		e.resources.blas = nil
 	}
+	if e.resources.q8Input.staging != 0 {
+		errs = append(errs, state.Driver.MemFree(e.resources.q8Input.staging))
+		e.resources.q8Input = q8InputState{}
+	}
 	if e.resources.module != 0 {
 		if err := state.Driver.ModuleUnload(e.resources.module); err != nil {
 			errs = append(errs, err)
@@ -1214,6 +1267,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"clamp_f32", &result.clamp},
 		{"bf16_round_f32", &result.bf16Round},
 		{"f32_to_bf16", &result.f32ToBF16},
+		{"quantize_q8_0_input_f32", &result.quantizeQ8Input},
 		{"copy_f32", &result.copy},
 		{"silu_f32", &result.silu},
 		{"gelu_f32", &result.gelu},
@@ -1266,6 +1320,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"concat_f32", &result.concat},
 		{"get_rows_q8_0_f32", &result.getRowsQ8},
 		{"mul_mat_q8_0_f32", &result.mulMatQ8},
+		{"mul_mat_q8_0_input_f32", &result.mulMatQ8Input},
 		{"get_rows_q8_1_f32", &result.getRowsQ81},
 		{"mul_mat_q8_1_f32", &result.mulMatQ81},
 		{"get_rows_q8_K_f32", &result.getRowsQ8K},

@@ -12,6 +12,7 @@ func launchNode(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
+	q8Input *q8InputState,
 	node *tensor.Tensor,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
@@ -41,7 +42,7 @@ func launchNode(
 	case tensor.OpRepeatHeads, tensor.OpTranspose2D, tensor.OpGroupSlice, tensor.OpFlatSlice,
 		tensor.OpRMSNorm, tensor.OpLayerNorm, tensor.OpSoftmax, tensor.OpMulMat,
 		tensor.OpGroupedMulMat, tensor.OpGetRows:
-		return launchLinearLayout(state, functions, blas, node, pointers, attributePointers)
+		return launchLinearLayout(state, functions, blas, q8Input, node, pointers, attributePointers)
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal, tensor.OpRoPEMulti:
 		return launchRoPE(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpReshape, tensor.OpAttention, tensor.OpConcat:

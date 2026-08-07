@@ -1528,6 +1528,64 @@ func TestExecutorMulMatMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 1e-5)
 }
 
+func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
+	cudatest.Require(t)
+	leftShape := tensor.MustShape(64, 5)
+	rightShape := tensor.MustShape(64, 1)
+	leftValue := patternedValue(leftShape, 11, 0.03, -0.1)
+	rightValue := patternedValue(rightShape, 7, 0.05, 0.02)
+	storage, err := quant.Quantize(dtype.Q8_0, leftValue.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dequantized, err := quant.Dequantize(dtype.Q8_0, storage, uint64(len(leftValue.Data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	referenceBuilder := tensor.NewBuilder()
+	referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
+	referenceRight := referenceBuilder.Input("right", dtype.F32, rightShape)
+	referenceOutput := referenceBuilder.MulMat(referenceLeft, referenceRight)
+	want, err := reference.Execute([]*tensor.Tensor{referenceOutput}, map[*tensor.Tensor]reference.Value{
+		referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := tensor.NewBuilder()
+	left := builder.Input("left", dtype.Q8_0, leftShape)
+	right := builder.Input("right", dtype.F32, rightShape)
+	output := builder.MulMat(left, right)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	var pointer driver.DevicePtr
+	if err = worker.Do(context.Background(), func(state *device.State) error {
+		var allocateErr error
+		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
+		if allocateErr != nil {
+			return allocateErr
+		}
+		return state.Driver.MemcpyHtoD(pointer, storage)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Do(context.Background(), func(state *device.State) error { return state.Driver.MemFree(pointer) })
+	cuda, err := NewWithWorker(worker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
+		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[referenceOutput].Data, 1e-2)
+}
+
 func TestExecutorSSMConvMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()

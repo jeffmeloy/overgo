@@ -36,12 +36,12 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 		t.Fatalf("resolved Qwen3.5 program = %+v", identity)
 	}
 	dense, recurrent := false, false
-	plan, ok := loaded.ModelPlan()
+	layers, ok := loaded.LayerPlans()
 	if !ok {
 		_ = loaded.Close()
 		t.Fatal("resolved Qwen3.5 model plan is unavailable")
 	}
-	for _, layer := range plan.Layers {
+	for _, layer := range layers {
 		dense = dense || !layer.Recurrent
 		recurrent = recurrent || layer.Recurrent
 	}

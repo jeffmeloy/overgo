@@ -144,14 +144,12 @@ func (l LoadedProgram) Architecture() (string, bool) {
 	return l.state.Spec.Architecture, true
 }
 
-// ModelPlan: immutable compiled topology copy.
-func (l LoadedProgram) ModelPlan() (model.ModelPlan, bool) {
+// LayerPlans: immutable compiled layer-program copy.
+func (l LoadedProgram) LayerPlans() ([]model.LayerPlan, bool) {
 	if l.state == nil {
-		return model.ModelPlan{}, false
+		return nil, false
 	}
-	plan := l.state.Program.Model
-	plan.Layers = append([]model.LayerPlan(nil), plan.Layers...)
-	return plan, true
+	return append([]model.LayerPlan(nil), l.state.Program.Model.Layers...), true
 }
 
 // Consume: transfers resolved serving ownership exactly once.

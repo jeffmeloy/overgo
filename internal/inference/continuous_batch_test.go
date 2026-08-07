@@ -85,6 +85,11 @@ func TestContinuousBatchAdmission(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "preloaded") {
 		t.Fatalf("device admission error = %v", err)
 	}
+	if _, err := batch.StepGreedy(context.Background(), []SequenceBatchInput{{
+		ID: 2, Tokens: []tokenizer.TokenID{1},
+	}}); err == nil || !strings.Contains(err.Error(), "device batch") {
+		t.Fatalf("host greedy feedback error = %v", err)
+	}
 }
 
 func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {

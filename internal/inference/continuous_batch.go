@@ -37,6 +37,7 @@ type SequenceBatchOutput struct {
 	ID       SequenceID
 	Hidden   reference.Value
 	Logits   []float32
+	Token    tokenizer.TokenID
 	Tokens   uint32
 	Position uint32
 	Pages    []SequenceCachePage
@@ -111,6 +112,22 @@ func (b *ContinuousBatch) Step(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
+	return b.step(ctx, inputs, false)
+}
+
+// StepGreedy: Qwen device argmax with retained token feedback.
+func (b *ContinuousBatch) StepGreedy(
+	ctx context.Context,
+	inputs []SequenceBatchInput,
+) ([]SequenceBatchOutput, error) {
+	return b.step(ctx, inputs, true)
+}
+
+func (b *ContinuousBatch) step(
+	ctx context.Context,
+	inputs []SequenceBatchInput,
+	greedy bool,
+) ([]SequenceBatchOutput, error) {
 	if b == nil || b.runner == nil {
 		return nil, errors.New("inference: continuous batch is nil")
 	}
@@ -156,7 +173,10 @@ func (b *ContinuousBatch) Step(
 		return nil, errors.New("inference: runner is closed")
 	}
 	if b.options.Device {
-		return b.stepDeviceLocked(ctx, inputs)
+		return b.stepDeviceLocked(ctx, inputs, greedy)
+	}
+	if greedy {
+		return nil, errors.New("inference: greedy device feedback requires a device batch")
 	}
 	candidates := make(map[SequenceID]*continuousSequence, len(inputs))
 	outputs := make([]SequenceBatchOutput, len(inputs))
@@ -211,6 +231,7 @@ func (b *ContinuousBatch) Step(
 func (b *ContinuousBatch) stepDeviceLocked(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
+	greedy bool,
 ) ([]SequenceBatchOutput, error) {
 	r := b.runner
 	appends := make([]deviceBatchAppend, len(inputs))
@@ -243,7 +264,13 @@ func (b *ContinuousBatch) stepDeviceLocked(
 			Tokens: input.Tokens, Past: working[index], PageTokens: b.options.PageTokens,
 		}
 	}
-	next, err := r.forwardDeviceCachedBatchLocked(ctx, appends)
+	var next []*deviceKVCache
+	var err error
+	if greedy {
+		next, err = r.forwardDeviceCachedGreedyBatchLocked(ctx, appends)
+	} else {
+		next, err = r.forwardDeviceCachedBatchLocked(ctx, appends)
+	}
 	cleanupWorking()
 	if err != nil {
 		return nil, err
@@ -252,7 +279,7 @@ func (b *ContinuousBatch) stepDeviceLocked(
 	for index, cache := range next {
 		input := inputs[index]
 		outputs[index] = SequenceBatchOutput{
-			ID: input.ID, Logits: slices.Clone(cache.Logits),
+			ID: input.ID, Logits: slices.Clone(cache.Logits), Token: cache.Selected,
 			Tokens: cache.Tokens, Position: cache.Position,
 			Pages: sequencePages(cache.Tokens, b.options.PageTokens),
 		}

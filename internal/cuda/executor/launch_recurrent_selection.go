@@ -7,6 +7,7 @@ import (
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/tensor"
+	"llamacpp2go/internal/tensor/dtype"
 )
 
 func launchRecurrentSelection(
@@ -234,6 +235,14 @@ func launchRecurrentSelection(
 		}
 		input := pointers[node.Inputs[0]]
 		k := attributes.K
+		if k == 1 {
+			return launchGridABI(
+				state, functions.argmax,
+				driver.Dim3{X: rows, Y: 1, Z: 1},
+				driver.Dim3{X: 256, Y: 1, Z: 1},
+				&input, &output, &width, &rows,
+			)
+		}
 		return launch1DABI(state, functions.topK, rows, &input, &output, &width, &k, &rows)
 	case tensor.OpGatherLast:
 		inputNode, indicesNode := node.Inputs[0], node.Inputs[1]
@@ -264,8 +273,16 @@ func launchRecurrentSelection(
 			return err
 		}
 		input, indices := pointers[inputNode], pointers[indicesNode]
+		function := functions.gatherLast
+		if inputNode.Type == dtype.Q8_0 {
+			traits, _ := inputNode.Type.Traits()
+			if uint64(inner)%traits.BlockSize != 0 {
+				return errors.New("Q8_0 GatherLast inner size is not block aligned")
+			}
+			function = functions.gatherLastQ8
+		}
 		return launch1DABI(
-			state, functions.gatherLast, count,
+			state, function, count,
 			&input, &indices, &output, &inner, &indexCount, &inputRows, &count,
 		)
 	case tensor.OpSparseAttention:

@@ -328,6 +328,22 @@ func (s *Sampler) Config() Config {
 	return result
 }
 
+// IsRawGreedy: exact device-argmax compatibility.
+func (s *Sampler) IsRawGreedy() bool {
+	if s == nil {
+		return false
+	}
+	config := s.config
+	return config.Temperature == 0 && config.DynatempRange == 0 && config.Mirostat == 0 &&
+		config.RepeatPenalty == 1 && config.PresencePenalty == 0 &&
+		config.FrequencyPenalty == 0 && config.DryMultiplier == 0 &&
+		config.XTCProbability == 0 && config.Grammar == nil && config.GBNF == nil &&
+		len(config.LogitBiases) == 0 && config.Infill == nil &&
+		slices.Contains(config.Samplers, SamplerTemperature) &&
+		!slices.Contains(config.Samplers, SamplerAdaptiveP) &&
+		!slices.Contains(config.Samplers, SamplerInfill)
+}
+
 // Sample chooses one token; Temperature zero is exact greedy argmax with
 // lowest token ID winning ties
 func (s *Sampler) Sample(logits []float32) (int, error) {

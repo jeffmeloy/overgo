@@ -134,6 +134,7 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
 	transformed := builder.FWHT(input)
+	argmax := builder.TopK(transformed, 1)
 	indices := builder.TopK(transformed, 2)
 	table := builder.Input("table", dtype.F32, tensor.MustShape(2, 4))
 	gathered := builder.GatherLast(table, indices)
@@ -159,7 +160,7 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 		indexerKey:     {Shape: indexerKey.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
 		indexerWeights: {Shape: indexerWeights.Shape, Data: []float32{2, 1, 1, 3}},
 	}
-	outputs := []*tensor.Tensor{transformed, indices, gathered, attention, causalAttention, indexerScores}
+	outputs := []*tensor.Tensor{transformed, argmax, indices, gathered, attention, causalAttention, indexerScores}
 	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 1e-5)...)
 }
 

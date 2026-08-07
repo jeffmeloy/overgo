@@ -19,6 +19,34 @@ func TestGreedyAndTieBreak(t *testing.T) {
 	}
 }
 
+func TestIsRawGreedyRejectsLogitTransforms(t *testing.T) {
+	greedy, err := New(Config{Temperature: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !greedy.IsRawGreedy() {
+		t.Fatal("plain greedy sampler was not recognized")
+	}
+	for name, config := range map[string]Config{
+		"temperature":         {Temperature: 0.5},
+		"dynamic temperature": {Temperature: 0, DynatempRange: 0.5},
+		"no greedy stage":     {Temperature: 0, Samplers: []SamplerStage{SamplerTopK}},
+		"penalty":             {Temperature: 0, RepeatLastN: -1, RepeatPenalty: 1.1},
+		"bias":                {Temperature: 0, LogitBiases: []LogitBias{{Token: 1, Bias: 1}}},
+		"xtc":                 {Temperature: 0, XTCProbability: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sampler, newErr := New(config)
+			if newErr != nil {
+				t.Fatal(newErr)
+			}
+			if sampler.IsRawGreedy() {
+				t.Fatal("transforming sampler was recognized as raw greedy")
+			}
+		})
+	}
+}
+
 func TestTopKOneIsGreedy(t *testing.T) {
 	sampler, err := New(Config{Temperature: 1, TopK: 1, TopP: 1, Seed: 7})
 	if err != nil {

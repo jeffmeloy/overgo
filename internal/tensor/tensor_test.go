@@ -182,6 +182,19 @@ func TestBuilderSparsePrimitives(t *testing.T) {
 	}
 }
 
+func TestBuilderGatherLastSupportsQ8EmbeddingFeedback(t *testing.T) {
+	builder := NewBuilder()
+	table := builder.Input("table", dtype.Q8_0, MustShape(32, 4))
+	indices := builder.Input("indices", dtype.F32, MustShape(2))
+	output := builder.GatherLast(table, indices)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Type != dtype.F32 || !output.Shape.Equal(MustShape(32, 2)) {
+		t.Fatalf("dynamic Q8 rows = %s %v", output.Type, output.Shape.Slice())
+	}
+}
+
 func TestBuilderXIELU(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 3))

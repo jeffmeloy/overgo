@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/tokenizer"
 )
 
@@ -37,6 +38,10 @@ type continuousBatchAPI interface {
 	Step(context.Context, []SequenceBatchInput) ([]SequenceBatchOutput, error)
 	Remove(context.Context, SequenceID) error
 	Close(context.Context) error
+}
+
+type continuousGreedyBatchAPI interface {
+	StepGreedy(context.Context, []SequenceBatchInput) ([]SequenceBatchOutput, error)
 }
 
 type continuousGenerateRequest struct {
@@ -211,7 +216,16 @@ func (g *ContinuousGenerator) run() {
 		if len(inputs) == 0 {
 			continue
 		}
-		outputs, err := g.batch.Step(g.ctx, inputs)
+		greedyBatch, greedy := g.batch.(continuousGreedyBatchAPI)
+		greedy = greedy && g.runner.profile().Attention == model.AttentionQwenGDN &&
+			continuousStatesUseDeviceGreedy(stepping)
+		var outputs []SequenceBatchOutput
+		var err error
+		if greedy {
+			outputs, err = greedyBatch.StepGreedy(g.ctx, inputs)
+		} else {
+			outputs, err = g.batch.Step(g.ctx, inputs)
+		}
 		if err != nil {
 			g.failStates(active, stepping, err)
 			continue
@@ -226,7 +240,13 @@ func (g *ContinuousGenerator) run() {
 					})
 				}
 			}
-			result, complete := g.sample(state, output.Logits)
+			var result continuousGenerateResult
+			var complete bool
+			if greedy {
+				result, complete = g.acceptSelected(state, output.Token)
+			} else {
+				result, complete = g.sample(state, output.Logits)
+			}
 			if !complete {
 				continue
 			}
@@ -235,6 +255,20 @@ func (g *ContinuousGenerator) run() {
 			g.respond(state, result)
 		}
 	}
+}
+
+func continuousStatesUseDeviceGreedy(states []*continuousGenerateState) bool {
+	if len(states) == 0 {
+		return false
+	}
+	for _, state := range states {
+		options := state.request.options
+		if !options.DeviceGreedy || options.PostSamplingProbabilities != 0 ||
+			options.Sampler == nil || !options.Sampler.IsRawGreedy() {
+			return false
+		}
+	}
+	return true
 }
 
 func (g *ContinuousGenerator) admit(
@@ -288,6 +322,28 @@ func (g *ContinuousGenerator) sample(
 	state.index++
 	complete := state.index >= options.MaxNewTokens || stop
 	if !complete {
+		return continuousGenerateResult{}, false
+	}
+	text, decodeErr := g.runner.vocab.Decode(state.ids, false)
+	return continuousGenerateResult{ids: slices.Clone(state.ids), text: text, err: decodeErr}, true
+}
+
+func (g *ContinuousGenerator) acceptSelected(
+	state *continuousGenerateState,
+	token tokenizer.TokenID,
+) (continuousGenerateResult, bool) {
+	if err := state.request.ctx.Err(); err != nil {
+		return continuousGenerateResult{err: err}, true
+	}
+	options := state.request.options
+	event := TokenEvent{ID: token, Index: state.index}
+	state.ids = append(state.ids, token)
+	stop, err := g.runner.deliverGenerationToken(&event, options, &state.generated)
+	if err != nil {
+		return continuousGenerateResult{err: err}, true
+	}
+	state.index++
+	if state.index < options.MaxNewTokens && !stop {
 		return continuousGenerateResult{}, false
 	}
 	text, decodeErr := g.runner.vocab.Decode(state.ids, false)

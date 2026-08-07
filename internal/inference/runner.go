@@ -38,6 +38,8 @@ type PromptEvaluation struct {
 type GenerateOptions struct {
 	MaxNewTokens int
 	Sampler      *sampling.Sampler
+	// DeviceGreedy: raw Qwen argmax; TokenEvent.Logits omitted.
+	DeviceGreedy bool
 	OnToken      func(TokenEvent) error
 	// ShouldStop: evaluated after OnToken and after sampled piece has
 	// been appended to generated text; Returning true ends generation

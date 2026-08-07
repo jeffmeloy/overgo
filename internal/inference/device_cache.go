@@ -26,6 +26,8 @@ type deviceKVCache struct {
 	Tokens     uint32
 	Position   uint32
 	Logits     []float32
+	Selection  executor.DeviceValue
+	Selected   tokenizer.TokenID
 }
 
 type deviceLayerState = model.CacheState[executor.DeviceValue]
@@ -394,6 +396,7 @@ type deviceBatchAppend struct {
 
 type deviceBatchGraph struct {
 	logits       *tensor.Tensor
+	selection    *tensor.Tensor
 	keys         []*tensor.Tensor
 	values       []*tensor.Tensor
 	states       []deviceGraphStates
@@ -406,23 +409,80 @@ type deviceBatchGraph struct {
 type deviceGraphState = model.CacheState[*tensor.Tensor]
 type deviceGraphStates = model.CacheStates[*tensor.Tensor]
 
+func retainedDeviceGreedySelections(
+	ctx context.Context,
+	retained *executor.RetainedOutputs,
+	node *tensor.Tensor,
+	count, vocabulary int,
+) ([]tokenizer.TokenID, executor.DeviceValue, error) {
+	if retained == nil || node == nil || count <= 0 || vocabulary <= 0 {
+		return nil, executor.DeviceValue{}, errors.New("inference: device greedy selection is invalid")
+	}
+	device, ok := retained.Value(node)
+	if !ok || device.Pointer == 0 {
+		return nil, executor.DeviceValue{}, errors.New("inference: retained device greedy selection is missing")
+	}
+	host, err := retained.CopyToHost(ctx, node)
+	if err != nil {
+		return nil, executor.DeviceValue{}, err
+	}
+	if len(host.Data) != count {
+		return nil, executor.DeviceValue{}, fmt.Errorf(
+			"inference: device greedy selection count %d differs from %d", len(host.Data), count,
+		)
+	}
+	tokens := make([]tokenizer.TokenID, count)
+	for index, raw := range host.Data {
+		token := int(raw)
+		if raw != float32(token) || token < 0 || token >= vocabulary {
+			return nil, executor.DeviceValue{}, fmt.Errorf(
+				"inference: device greedy selection %d is invalid: %g", index, raw,
+			)
+		}
+		tokens[index] = tokenizer.TokenID(token)
+	}
+	return tokens, executor.DeviceValue{
+		Pointer: device.Pointer,
+		Shape:   tensor.MustShape(uint64(count)),
+	}, nil
+}
+
 // forwardDeviceCachedBatchLocked: one graph, variable independent branches.
 func (r *Runner) forwardDeviceCachedBatchLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
 ) ([]*deviceKVCache, error) {
+	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, false)
+}
+
+func (r *Runner) forwardDeviceCachedGreedyBatchLocked(
+	ctx context.Context,
+	appends []deviceBatchAppend,
+) ([]*deviceKVCache, error) {
+	if r.profile().Attention != model.AttentionQwenGDN {
+		return nil, errors.New("inference: device greedy feedback requires Qwen GDN")
+	}
+	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, true)
+}
+
+func (r *Runner) forwardDeviceCachedBatchModeLocked(
+	ctx context.Context,
+	appends []deviceBatchAppend,
+	greedy bool,
+) ([]*deviceKVCache, error) {
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
 	}
-	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends); handled {
+	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends, greedy); handled {
 		return next, err
 	}
-	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends)
+	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends, greedy)
 }
 
 func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
+	greedy bool,
 ) ([]*deviceKVCache, error) {
 	builder := r.newGraphBuilder()
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
@@ -431,13 +491,17 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
-			builder, index, appendInput.Tokens, appendInput.Past, 1, hostFeeds, deviceFeeds,
+			builder, index, appendInput.Tokens, appendInput.Past, 1, greedy, hostFeeds, deviceFeeds,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
 		}
 		graphs[index] = graph
-		outputs = append(outputs, graph.logits)
+		if greedy {
+			outputs = append(outputs, graph.selection)
+		} else {
+			outputs = append(outputs, graph.logits)
+		}
 		for layer := range graph.keys {
 			outputs = append(outputs, graph.keys[layer], graph.values[layer])
 			outputs = graph.states[layer].AppendValues(outputs)
@@ -458,10 +522,6 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	}
 	next := make([]*deviceKVCache, len(graphs))
 	for index, graph := range graphs {
-		logits, copyErr := retained.CopyToHost(ctx, graph.logits)
-		if copyErr != nil {
-			return fail(copyErr)
-		}
 		cache := &deviceKVCache{
 			Keys:       make([]executor.DeviceValue, len(graph.keys)),
 			Values:     make([]executor.DeviceValue, len(graph.values)),
@@ -469,7 +529,21 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			Tokens:     graph.pastTokens + graph.tokenCount,
 			Position:   graph.nextPosition + graph.tokenCount,
 			PageTokens: resolveCachePageTokens(appends[index].PageTokens),
-			Logits:     r.finalizeLogits(logits.Data),
+		}
+		if greedy {
+			selected, device, selectionErr := retainedDeviceGreedySelections(
+				ctx, retained, graph.selection, 1, int(r.spec.VocabularySize),
+			)
+			if selectionErr != nil {
+				return fail(selectionErr)
+			}
+			cache.Selection, cache.Selected = device, selected[0]
+		} else {
+			logits, copyErr := retained.CopyToHost(ctx, graph.logits)
+			if copyErr != nil {
+				return fail(copyErr)
+			}
+			cache.Logits = r.finalizeLogits(logits.Data)
 		}
 		var ok bool
 		for layer := range graph.keys {
@@ -513,6 +587,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 	sequences uint64,
+	greedy bool,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (deviceBatchGraph, error) {
@@ -555,6 +630,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	current := builder.GetRows(embeddingTable, rows)
 	deviceFeeds[embeddingTable] = embeddingPointer
+	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
+	if greedy && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
+		selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
+		deviceFeeds[selection] = past.Selection.Pointer
+		current = builder.GatherLast(embeddingTable, selection)
+	}
 	if r.weights.PositionEmbedding != nil {
 		repeatedPositions := make([]uint32, 0, len(positions)*int(sequences))
 		for range sequences {
@@ -762,8 +843,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
 		logits = builder.Scale(logits, scale)
 	}
+	var selection *tensor.Tensor
+	if greedy {
+		selection = builder.TopK(logits, 1)
+	}
 	return deviceBatchGraph{
-		logits: logits, keys: keys, values: values, states: states,
+		logits: logits, selection: selection, keys: keys, values: values, states: states,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
 	}, nil

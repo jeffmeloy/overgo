@@ -466,6 +466,8 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 	builder := tensor.NewBuilder()
 	weights := builder.Input("weights", dtype.Q8_0, tensor.MustShape(q8FixtureBlockSize, 2))
 	rows := builder.GetRows(weights, []uint32{1})
+	indices := builder.Input("indices", dtype.F32, tensor.MustShape(1))
+	dynamicRows := builder.GatherLast(weights, indices)
 	input := builder.Input("input", dtype.F32, tensor.MustShape(q8FixtureBlockSize, inputRows))
 	product := builder.MulMat(weights, input)
 	if err := builder.Err(); err != nil {
@@ -480,8 +482,11 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 	inputValue, _ := reference.NewValue(input.Shape, inputData)
 	results, err := cuda.ExecuteWithDeviceFeeds(
 		context.Background(),
-		[]*tensor.Tensor{rows, product},
-		map[*tensor.Tensor]reference.Value{input: inputValue},
+		[]*tensor.Tensor{rows, dynamicRows, product},
+		map[*tensor.Tensor]reference.Value{
+			input:   inputValue,
+			indices: {Shape: indices.Shape, Data: []float32{1}},
+		},
 		map[*tensor.Tensor]driver.DevicePtr{weights: pointer},
 	)
 	if err != nil {
@@ -493,6 +498,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 		1, 1, 1, 1, 1, 1, 1, 1,
 		1, 1, 1, 1, 1, 1, 1, 1,
 	}, 0)
+	compare(t, results[dynamicRows].Data, results[rows].Data, 0)
 	compare(t, results[product].Data, []float32{
 		-8, 32,
 		-16, 64,

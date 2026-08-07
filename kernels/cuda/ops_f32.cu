@@ -1036,6 +1036,53 @@ __device__ bool top_k_before(
 	return left > right;
 }
 
+extern "C" __global__ void argmax_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int rows) {
+	const unsigned int row = blockIdx.x;
+	const unsigned int lane = threadIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	const size_t base = (size_t) row * width;
+	unsigned int best_index = 0xffffffffU;
+	float best_value = 0.0f;
+	unsigned int invalid = 0;
+	for (unsigned int candidate = lane; candidate < width; candidate += blockDim.x) {
+		const float value = input[base + candidate];
+		invalid |= isnan(value);
+		if (best_index == 0xffffffffU || top_k_before(value, candidate, best_value, best_index)) {
+			best_index = candidate;
+			best_value = value;
+		}
+	}
+	__shared__ float values[256];
+	__shared__ unsigned int indices[256];
+	__shared__ unsigned int invalids[256];
+	values[lane] = best_value;
+	indices[lane] = best_index;
+	invalids[lane] = invalid;
+	__syncthreads();
+	for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+		if (lane < stride) {
+			invalids[lane] |= invalids[lane + stride];
+			const unsigned int right_index = indices[lane + stride];
+			if (right_index != 0xffffffffU &&
+				(indices[lane] == 0xffffffffU || top_k_before(
+					values[lane + stride], right_index, values[lane], indices[lane]))) {
+				values[lane] = values[lane + stride];
+				indices[lane] = right_index;
+			}
+		}
+		__syncthreads();
+	}
+	if (lane == 0) {
+		output[row] = invalids[0] ? -1.0f : (float) indices[0];
+	}
+}
+
 extern "C" __global__ void top_k_f32(
 		const float * input,
 		float * output,
@@ -1101,6 +1148,42 @@ extern "C" __global__ void gather_last_f32(
 		return;
 	}
 	output[index] = input[(size_t) row * inner + inner_index];
+}
+
+extern "C" __global__ void gather_last_q8_0_f32(
+		const unsigned char * input,
+		const float * indices,
+		float * output,
+		unsigned int inner,
+		unsigned int index_count,
+		unsigned int input_rows,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int column = index % inner;
+	const unsigned int index_position = index / inner;
+	if (index_position >= index_count) {
+		return;
+	}
+	const float raw = indices[index_position];
+	if (!isfinite(raw) || raw < 0.0f || raw >= (float) input_rows) {
+		output[index] = 0.0f;
+		return;
+	}
+	const unsigned int row = (unsigned int) raw;
+	if (raw != (float) row) {
+		output[index] = 0.0f;
+		return;
+	}
+	const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
+	const unsigned int block_index = row * blocks_per_row + column / Q8_0_BLOCK_WIDTH;
+	const unsigned char * block = input + block_index * Q8_0_BLOCK_BYTES;
+	const float scale = __half2float(*reinterpret_cast<const __half *>(block));
+	const signed char quantized = *(reinterpret_cast<const signed char *>(
+		block + Q8_0_SCALE_BYTES) + column % Q8_0_BLOCK_WIDTH);
+	output[index] = scale * (float) quantized;
 }
 
 extern "C" __global__ void sparse_attention_f32(

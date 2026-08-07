@@ -771,6 +771,29 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if int(alternate) >= len(outputs[0].Logits) {
 		alternate = next - 1
 	}
+	greedyBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
+		MaxSequences: 2, Device: true, PageTokens: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer greedyBatch.Close(context.Background())
+	selected, err := greedyBatch.StepGreedy(context.Background(), []SequenceBatchInput{
+		{ID: 30, Tokens: ids}, {ID: 40, Tokens: ids},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected) != 2 || selected[0].Token != next || selected[1].Token != next {
+		t.Fatalf("device selections = %+v, want token %d", selected, next)
+	}
+	selected, err = greedyBatch.StepGreedy(context.Background(), []SequenceBatchInput{
+		{ID: 30, Tokens: []tokenizer.TokenID{selected[0].Token}},
+		{ID: 40, Tokens: []tokenizer.TokenID{selected[1].Token}},
+	})
+	if err != nil || len(selected) != 2 || selected[0].Token != selected[1].Token {
+		t.Fatalf("device feedback selections = %+v, error %v", selected, err)
+	}
 	outputs, err = batch.Step(context.Background(), []SequenceBatchInput{
 		{ID: 10, Tokens: []tokenizer.TokenID{next}},
 		{ID: 20, Tokens: []tokenizer.TokenID{alternate}},

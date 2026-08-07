@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"testing"
 
 	"llamacpp2go/internal/cuda/driver"
@@ -28,25 +27,6 @@ func TestParseOptionsBounds(t *testing.T) {
 	} {
 		if _, err := parseOptions(args); err == nil {
 			t.Fatalf("arguments %v were accepted", args)
-		}
-	}
-}
-
-func TestGreedyToken(t *testing.T) {
-	const wantToken = 1
-	token, err := greedyToken([]float32{-2, 3, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if token != wantToken {
-		t.Fatalf("token = %d, want %d", token, wantToken)
-	}
-	for name, logits := range map[string][]float32{
-		"empty": nil,
-		"NaN":   {0, float32(math.NaN())},
-	} {
-		if _, err := greedyToken(logits); err == nil {
-			t.Errorf("%s logits were accepted", name)
 		}
 	}
 }

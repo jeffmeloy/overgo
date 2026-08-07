@@ -89,6 +89,7 @@ func (h *Handler) runNativeCompletion(
 		inference.GenerateOptions{
 			MaxNewTokens:    maxTokens,
 			Sampler:         sampler,
+			DeviceGreedy:    body.NProbs == 0,
 			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
 			KeepTokens:      body.NKeep,

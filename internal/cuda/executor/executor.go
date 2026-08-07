@@ -902,8 +902,10 @@ type functionSet struct {
 	rwkv6               driver.Function
 	sumRows             driver.Function
 	fwht                driver.Function
+	argmax              driver.Function
 	topK                driver.Function
 	gatherLast          driver.Function
+	gatherLastQ8        driver.Function
 	sparseAttention     driver.Function
 	indexerScore        driver.Function
 	rwkv7               driver.Function
@@ -1153,8 +1155,10 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"rwkv6_f32", &result.rwkv6},
 		{"sum_rows_f32", &result.sumRows},
 		{"fwht_f32", &result.fwht},
+		{"argmax_f32", &result.argmax},
 		{"top_k_f32", &result.topK},
 		{"gather_last_f32", &result.gatherLast},
+		{"gather_last_q8_0_f32", &result.gatherLastQ8},
 		{"sparse_attention_f32", &result.sparseAttention},
 		{"indexer_score_f32", &result.indexerScore},
 		{"rwkv7_f32", &result.rwkv7},

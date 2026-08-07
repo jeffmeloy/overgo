@@ -291,9 +291,10 @@ func (b *Builder) GatherLast(input, indices *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
 	}
-	if input == nil || indices == nil || input.Type != dtype.F32 || indices.Type != dtype.F32 ||
+	if input == nil || indices == nil ||
+		(input.Type != dtype.F32 && input.Type != dtype.Q8_0) || indices.Type != dtype.F32 ||
 		input.Shape.Rank == 0 || indices.Shape.Rank == 0 {
-		b.setError(errors.New("GatherLast requires non-empty F32 inputs"))
+		b.setError(errors.New("GatherLast requires F32 indices and F32/Q8_0 input"))
 		return nil
 	}
 	if int(input.Shape.Rank)-1+int(indices.Shape.Rank) > MaxDimensions {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"runtime"
 	"sort"
@@ -14,6 +13,7 @@ import (
 	"llamacpp2go/internal/clioptions"
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/inference"
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -370,21 +370,37 @@ func executeContinuousBatch(
 		return runMetrics{}, err
 	}
 	started := time.Now()
-	outputs, err := batch.Step(ctx, inputs)
+	deviceGreedy := device && runner.Spec().Profile().Attention == model.AttentionQwenGDN
+	step := batch.Step
+	if deviceGreedy {
+		step = batch.StepGreedy
+	}
+	outputs, err := step(ctx, inputs)
 	if err != nil {
 		return runMetrics{}, err
+	}
+	sampler, err := sampling.New(sampling.Config{Temperature: 0})
+	if err != nil {
+		return runMetrics{}, err
+	}
+	selected := func(output inference.SequenceBatchOutput) (tokenizer.TokenID, error) {
+		if deviceGreedy {
+			return output.Token, nil
+		}
+		id, sampleErr := sampler.Sample(output.Logits)
+		return tokenizer.TokenID(id), sampleErr
 	}
 	firstToken := time.Now()
 	outputTokens := len(outputs)
 	for generated := 1; generated < options.Tokens; generated++ {
 		for sequence, output := range outputs {
-			token, tokenErr := greedyToken(output.Logits)
-			if tokenErr != nil {
-				return runMetrics{}, tokenErr
+			token, selectErr := selected(output)
+			if selectErr != nil {
+				return runMetrics{}, selectErr
 			}
 			inputs[sequence].Tokens = []tokenizer.TokenID{token}
 		}
-		outputs, err = batch.Step(ctx, inputs)
+		outputs, err = step(ctx, inputs)
 		if err != nil {
 			return runMetrics{}, err
 		}
@@ -425,22 +441,6 @@ func executeContinuousBatch(
 		metrics.DecodeTokensPerSecond = float64(decodeTokens) / decode.Seconds()
 	}
 	return metrics, nil
-}
-
-func greedyToken(logits []float32) (tokenizer.TokenID, error) {
-	if len(logits) == 0 {
-		return 0, errors.New("benchmark: continuous batch produced no logits")
-	}
-	best, maximum := 0, float32(math.Inf(-1))
-	for token, value := range logits {
-		if math.IsNaN(float64(value)) {
-			return 0, errors.New("benchmark: continuous batch produced NaN logits")
-		}
-		if value > maximum {
-			best, maximum = token, value
-		}
-	}
-	return tokenizer.TokenID(best), nil
 }
 
 func summarizeRuns(runs []runMetrics) summaryMetrics {

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"llamacpp2go/internal/model"
 	"llamacpp2go/internal/sampling"
 	"llamacpp2go/internal/tokenizer"
 )
@@ -15,6 +16,7 @@ import (
 type fakeContinuousBatch struct {
 	mu        sync.Mutex
 	stepSizes []int
+	greedy    int
 	removed   []SequenceID
 	stepOnce  sync.Once
 	started   chan struct{}
@@ -25,8 +27,22 @@ func (f *fakeContinuousBatch) Step(
 	_ context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
+	return f.step(inputs, false), nil
+}
+
+func (f *fakeContinuousBatch) StepGreedy(
+	_ context.Context,
+	inputs []SequenceBatchInput,
+) ([]SequenceBatchOutput, error) {
+	return f.step(inputs, true), nil
+}
+
+func (f *fakeContinuousBatch) step(inputs []SequenceBatchInput, greedy bool) []SequenceBatchOutput {
 	f.mu.Lock()
 	f.stepSizes = append(f.stepSizes, len(inputs))
+	if greedy {
+		f.greedy++
+	}
 	f.mu.Unlock()
 	if f.started != nil {
 		f.stepOnce.Do(func() {
@@ -36,9 +52,9 @@ func (f *fakeContinuousBatch) Step(
 	}
 	outputs := make([]SequenceBatchOutput, len(inputs))
 	for index, input := range inputs {
-		outputs[index] = SequenceBatchOutput{ID: input.ID, Logits: []float32{0, 4, 1}}
+		outputs[index] = SequenceBatchOutput{ID: input.ID, Logits: []float32{0, 4, 1}, Token: 1}
 	}
-	return outputs, nil
+	return outputs
 }
 
 func (f *fakeContinuousBatch) Remove(_ context.Context, id SequenceID) error {
@@ -62,7 +78,9 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	batch := &fakeContinuousBatch{}
 	ctx, cancel := context.WithCancel(context.Background())
 	generator := &ContinuousGenerator{
-		runner: &Runner{preparedModel: preparedModel{vocab: vocab}}, batch: batch,
+		runner: &Runner{preparedModel: preparedModel{
+			spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35"}}, vocab: vocab,
+		}}, batch: batch,
 		options: ContinuousGeneratorOptions{MaxSequences: 2},
 		ctx:     ctx, cancel: cancel,
 		submit: make(chan continuousGenerateRequest, 2), done: make(chan struct{}),
@@ -81,7 +99,7 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 				return
 			}
 			options := GenerateOptions{
-				MaxNewTokens: count, Sampler: sampler,
+				MaxNewTokens: count, Sampler: sampler, DeviceGreedy: true,
 				PromptTokenIDs: []tokenizer.TokenID{2},
 			}
 			if count == 1 {
@@ -115,12 +133,16 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	batch.mu.Lock()
 	stepSizes := append([]int(nil), batch.stepSizes...)
 	removed := append([]SequenceID(nil), batch.removed...)
+	greedy := batch.greedy
 	batch.mu.Unlock()
 	if !slices.Equal(stepSizes, []int{2, 1}) {
 		t.Fatalf("step sizes = %v", stepSizes)
 	}
 	if len(removed) != 2 {
 		t.Fatalf("removed = %v", removed)
+	}
+	if greedy != 2 {
+		t.Fatalf("device-greedy steps = %d, want 2", greedy)
 	}
 	if err := generator.Close(context.Background()); err != nil {
 		t.Fatal(err)

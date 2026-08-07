@@ -799,12 +799,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 		}
 		storages[branch] = storage
 		for layer := range graph.keys {
-			schema, schemaErr := model.CacheSchema(
-				r.spec,
-				layer,
-				r.weights.Layers[layer],
-				graph.pastTokens+graph.tokenCount,
-			)
+			_, schema, schemaErr := r.cacheSchema(layer, graph.pastTokens+graph.tokenCount)
 			if schemaErr != nil {
 				return fail(schemaErr)
 			}
@@ -1028,7 +1023,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		}
 		if plan.Attention == model.AttentionQwenGDN {
 			cacheInputs, inputErr := r.deviceBatchLayerCacheInputs(
-				builder, prefix, layerIndex, info, past, hostFeeds, deviceFeeds,
+				builder, prefix, layerIndex, past, hostFeeds, deviceFeeds,
 			)
 			if inputErr != nil {
 				return fail(inputErr)
@@ -1066,7 +1061,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		}
 		if plan.Attention == model.AttentionLFM2 {
 			cacheInputs, inputErr := r.deviceBatchLayerCacheInputs(
-				builder, prefix, layerIndex, info, past, hostFeeds, deviceFeeds,
+				builder, prefix, layerIndex, past, hostFeeds, deviceFeeds,
 			)
 			if inputErr != nil {
 				return fail(inputErr)
@@ -1087,7 +1082,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			cacheInputs.key, cacheInputs.value = keys[plan.KVSource], values[plan.KVSource]
 		} else {
 			cacheInputs, layerErr = r.deviceBatchLayerCacheInputs(
-				builder, prefix, layerIndex, info, past, hostFeeds, deviceFeeds,
+				builder, prefix, layerIndex, past, hostFeeds, deviceFeeds,
 			)
 			if layerErr != nil {
 				return fail(layerErr)
@@ -1168,12 +1163,10 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	builder *tensor.Builder,
 	prefix string,
 	layerIndex int,
-	info model.LayerWeights,
 	past *deviceKVCache,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (layerGraphCacheInputs, error) {
-	plan := r.layerPlan(layerIndex, info.Recurrent)
 	name := func(suffix string) string {
 		return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
 	}
@@ -1187,7 +1180,7 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		hostFeeds[input] = reference.ZeroValue(shape)
 		return input
 	}
-	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 0)
+	_, schema, err := r.cacheSchema(layerIndex, 0)
 	if err != nil {
 		return layerGraphCacheInputs{}, err
 	}

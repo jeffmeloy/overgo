@@ -110,6 +110,50 @@ type LayerCacheSchema struct {
 	StrictStates bool
 }
 
+// CompileCacheSchemas: immutable per-layer cache catalog.
+func CompileCacheSchemas(
+	spec Spec,
+	plan ModelPlan,
+	layers []LayerWeights,
+) ([]LayerCacheSchema, error) {
+	if len(plan.Layers) != len(layers) {
+		return nil, fmt.Errorf(
+			"cache schema layer count %d differs from plan count %d",
+			len(layers), len(plan.Layers),
+		)
+	}
+	result := make([]LayerCacheSchema, len(layers))
+	for index, layer := range layers {
+		schema, err := CacheSchemaForPlan(spec, plan.Layers[index], layer, 1)
+		if err != nil {
+			return nil, fmt.Errorf("cache schema layer %d: %w", index, err)
+		}
+		result[index] = schema
+	}
+	return result, nil
+}
+
+// WithTokenCount materializes token-aligned dimensions from a compiled schema.
+func (s LayerCacheSchema) WithTokenCount(tokens uint32) LayerCacheSchema {
+	shapeTokens := tokens
+	if shapeTokens == 0 {
+		shapeTokens = 1
+	}
+	materialize := func(state CacheState[CacheValueSchema]) CacheState[CacheValueSchema] {
+		if state.Mode.TokenAligned() && state.Value.Shape.Rank != 0 {
+			state.Value.Shape.Dims[state.Value.Shape.Rank-1] = uint64(shapeTokens)
+		}
+		return state
+	}
+	s.Primary.Key = materialize(s.Primary.Key)
+	s.Primary.Value = materialize(s.Primary.Value)
+	s.States = s.States.Clone()
+	for name, state := range s.States {
+		s.States[name] = materialize(state)
+	}
+	return s
+}
+
 // CacheSchema: derives layer cache shapes and range behavior.
 func CacheSchema(spec Spec, layerIndex int, info LayerWeights, tokens uint32) (LayerCacheSchema, error) {
 	plan := spec.PlanLayer(uint32(layerIndex), info.Recurrent)

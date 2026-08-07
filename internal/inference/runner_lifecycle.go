@@ -62,6 +62,10 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	if err != nil {
 		return fail(err)
 	}
+	cacheSchemas, err := model.CompileCacheSchemas(spec, plan, weights.Layers)
+	if err != nil {
+		return fail(err)
+	}
 	vocab, err := tokenizer.Load(file)
 	if err != nil {
 		return fail(err)
@@ -213,7 +217,8 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		}
 	}
 	return &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, plan: plan, weights: weights, vocab: vocab,
+		file: file, path: path, spec: spec, plan: plan, cacheSchemas: cacheSchemas,
+		weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,
 		outputBias:          outputBias,

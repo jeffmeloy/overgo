@@ -272,7 +272,7 @@ func (r *Runner) runLayerCached(
 	if sideErr != nil {
 		return reference.Value{}, LayerCache{}, sideErr
 	}
-	cacheInputs, cacheErr := r.hostLayerCacheInputs(builder, layerIndex, info, plan, past, hostFeeds)
+	cacheInputs, cacheErr := r.hostLayerCacheInputs(builder, layerIndex, past, hostFeeds)
 	if cacheErr != nil {
 		return reference.Value{}, LayerCache{}, cacheErr
 	}

@@ -163,11 +163,9 @@ func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
 
 func TestDeepSeek32NamedStateGraphBinding(t *testing.T) {
 	runner, cache := deepSeek32CacheFixture()
-	info := runner.weights.Layers[0]
-	plan := runner.layerPlan(0, info.Recurrent)
 	builder := tensor.NewBuilder()
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
-	host, err := runner.hostLayerCacheInputs(builder, 0, info, plan, &cache.Layers[0], hostFeeds)
+	host, err := runner.hostLayerCacheInputs(builder, 0, &cache.Layers[0], hostFeeds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +193,7 @@ func TestDeepSeek32NamedStateGraphBinding(t *testing.T) {
 	}
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	device, err := runner.deviceBatchLayerCacheInputs(
-		builder, "fixture.", 0, info, deviceCache, hostFeeds, deviceFeeds,
+		builder, "fixture.", 0, deviceCache, hostFeeds, deviceFeeds,
 	)
 	if err != nil {
 		t.Fatal(err)

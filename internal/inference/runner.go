@@ -150,6 +150,7 @@ type preparedModel struct {
 	path                string
 	spec                model.Spec
 	plan                model.ModelPlan
+	cacheSchemas        []model.LayerCacheSchema
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
 	cuda                *executor.Executor

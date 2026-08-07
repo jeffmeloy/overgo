@@ -58,8 +58,6 @@ func bindLayerGraphCacheInputs[T any](
 func (r *Runner) hostLayerCacheInputs(
 	builder *tensor.Builder,
 	layer int,
-	info model.LayerWeights,
-	plan model.LayerPlan,
 	past *LayerCache,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (layerGraphCacheInputs, error) {
@@ -72,7 +70,7 @@ func (r *Runner) hostLayerCacheInputs(
 	zero := func(suffix string, shape tensor.Shape) *tensor.Tensor {
 		return input(suffix, reference.ZeroValue(shape))
 	}
-	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, 1)
+	_, schema, err := r.cacheSchema(layer, 1)
 	if err != nil {
 		return layerGraphCacheInputs{}, err
 	}

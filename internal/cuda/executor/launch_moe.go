@@ -57,10 +57,6 @@ func launchMoE(
 			attributes.SwiGLUClamp > 0 && (attributes.Activation != tensor.MoEActivationSiLU || !attributes.Gated) {
 			return errors.New("invalid MoE attributes")
 		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
 		hidden, err := uint32Checked(node.Shape.Dims[0], "MoE hidden width")
 		if err != nil {
 			return err
@@ -147,13 +143,25 @@ func launchMoE(
 		swigluClamp := attributes.SwiGLUClamp
 		gated := kernelBool(attributes.Gated)
 		fusedGateUp := kernelBool(attributes.FusedGateUp)
-		return launch1DABI(
-			state, functions.moe, count,
+		const (
+			groupedMoEThreads          = uint32(256)
+			groupedMoESharedScalars    = uint64(1)
+			groupedMoESharedEntryBytes = uint64(4)
+		)
+		sharedEntries := uint64(topK)*2 + uint64(groupedMoEThreads) + groupedMoESharedScalars
+		if sharedEntries > math.MaxUint32/groupedMoESharedEntryBytes {
+			return errors.New("grouped MoE shared-memory size exceeds uint32")
+		}
+		sharedBytes := uint32(sharedEntries * groupedMoESharedEntryBytes)
+		return launchGridSharedABI(
+			state, functions.moeGrouped,
+			driver.Dim3{X: tokens, Y: 1, Z: 1},
+			driver.Dim3{X: groupedMoEThreads, Y: 1, Z: 1}, sharedBytes,
 			&input, &routerInput, &router, &gate, &up, &down, &selectionBias, &expertScale,
 			&routerBias, &gateBias, &upBias, &downBias, &selectedExperts, &output,
 			&hidden, &routerHidden, &tokens, &experts, &topK, &intermediate, &normalize,
 			&routing, &scale, &expertStorage, &gated, &fusedGateUp, &activation,
-			&expertIndexDivisor, &swigluClamp, &count,
+			&expertIndexDivisor, &swigluClamp,
 		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)

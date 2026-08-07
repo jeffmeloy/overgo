@@ -30,6 +30,11 @@ func (r *Runner) forwardPackedQwen35CohortsLocked(
 	if len(appends) < 2 || r.profile().Attention != model.AttentionQwenGDN {
 		return nil, false, nil
 	}
+	for _, item := range appends {
+		if item.Past != nil && item.Past.storage != nil {
+			return nil, false, nil
+		}
+	}
 	packed, fallback := planQwen35DeviceCohorts(appends)
 	if len(packed) == 0 {
 		return nil, false, nil

@@ -2,6 +2,7 @@ package inference
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -54,6 +55,56 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 	if len(batch.Snapshot()) != 0 {
 		t.Fatal("close retained sequences")
 	}
+}
+
+func TestContinuousBatchCloseReportsDeferredCleanup(t *testing.T) {
+	want := errors.New("deferred device cleanup")
+	batch := &ContinuousBatch{
+		sequences:  make(map[SequenceID]*continuousSequence),
+		cleanupErr: want,
+	}
+	if err := batch.Close(context.Background()); !errors.Is(err, want) {
+		t.Fatalf("close cleanup error = %v, want %v", err, want)
+	}
+	if err := batch.Close(context.Background()); err != nil {
+		t.Fatalf("repeated close error = %v", err)
+	}
+}
+
+func TestContinuousBatchCloseRetriesDeferredDeviceCleanup(t *testing.T) {
+	cache := &deviceKVCache{owner: newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)}
+	firstErr := cache.Release(context.Background())
+	if firstErr == nil {
+		t.Fatal("invalid retained owner cleanup succeeded")
+	}
+	batch := &ContinuousBatch{
+		sequences:  make(map[SequenceID]*continuousSequence),
+		deferred:   []*deviceKVCache{cache},
+		cleanupErr: firstErr,
+	}
+	if err := batch.Close(context.Background()); err == nil {
+		t.Fatal("deferred cleanup failure was not reported")
+	}
+	if len(batch.deferred) != 0 || cache.owner != nil {
+		t.Fatalf("deferred cleanup was not retried: %d pending", len(batch.deferred))
+	}
+	if err := batch.Close(context.Background()); err != nil {
+		t.Fatalf("repeated close error = %v", err)
+	}
+}
+
+func TestDeviceCacheReleaseCancellationIsAtomic(t *testing.T) {
+	owner := newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)
+	cache := &deviceKVCache{owner: owner}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := cache.Release(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled release error = %v", err)
+	}
+	if cache.owner != owner || owner.refs != 1 {
+		t.Fatalf("canceled release mutated ownership: cache=%+v refs=%d", cache.owner, owner.refs)
+	}
+	cache.owner = nil
 }
 
 func TestContinuousBatchAdmission(t *testing.T) {

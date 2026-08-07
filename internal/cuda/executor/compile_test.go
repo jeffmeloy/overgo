@@ -104,3 +104,56 @@ func TestCompileFusesSingleUseWeightedRMSNorm(t *testing.T) {
 		t.Fatal("fused RMSNorm launch was not skipped")
 	}
 }
+
+func TestCompileFusesResidualAddIntoWeightedRMSNorm(t *testing.T) {
+	const fixtureWidth = 8
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(fixtureWidth, 2)
+	left := builder.Input("left", dtype.F32, shape)
+	right := builder.Input("right", dtype.F32, shape)
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(fixtureWidth))
+	residual := builder.Add(left, right)
+	normalized := builder.RMSNorm(residual, 1e-5)
+	output := builder.Multiply(normalized, weight)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fusion, ok := compiled.weightedRMS[output]
+	if !ok || fusion.addLeft != left || fusion.addRight != right {
+		t.Fatalf("weighted residual RMSNorm fusion = %+v, available %t", fusion, ok)
+	}
+	if _, skipped := compiled.skipped[residual]; !skipped {
+		t.Fatal("fused residual launch was not skipped")
+	}
+}
+
+func TestCompileFusesWeightedRMSNormAndActivatedGate(t *testing.T) {
+	const fixtureWidth = 8
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(fixtureWidth, 2)
+	input := builder.Input("input", dtype.F32, shape)
+	gate := builder.Input("gate", dtype.F32, shape)
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(fixtureWidth))
+	normalized := builder.RMSNorm(input, 1e-5)
+	weighted := builder.Multiply(normalized, weight)
+	activation := builder.SiLU(gate)
+	output := builder.Multiply(weighted, activation)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fusion, ok := compiled.weightedRMSGate[output]
+	if !ok || fusion.normalization != normalized || fusion.weight != weight ||
+		fusion.gate != gate || fusion.kind != activatedGateSiLU {
+		t.Fatalf("weighted RMS gate fusion = %+v, available %t", fusion, ok)
+	}
+	for _, skipped := range []*tensor.Tensor{normalized, weighted, activation} {
+		if _, ok := compiled.skipped[skipped]; !ok {
+			t.Fatalf("fused tensor %d was not skipped", skipped.ID)
+		}
+	}
+	if _, exists := compiled.weightedRMS[weighted]; exists {
+		t.Fatal("subsumed weighted RMS fusion remains active")
+	}
+}

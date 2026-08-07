@@ -18,6 +18,7 @@ import (
 
 type deviceKVCache struct {
 	owner      *deviceCacheOwner
+	storage    *deviceCacheStorage
 	Keys       []executor.DeviceValue
 	Values     []executor.DeviceValue
 	States     []deviceLayerStates
@@ -29,6 +30,75 @@ type deviceKVCache struct {
 	Candidates []LogitCandidate
 	Selection  executor.DeviceValue
 	Selected   tokenizer.TokenID
+}
+
+type deviceCacheStorage struct {
+	mu     sync.Mutex
+	refs   int
+	keys   []*executor.DeviceBuffer
+	values []*executor.DeviceBuffer
+}
+
+func (s *deviceCacheStorage) retain() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.refs <= 0 {
+		return false
+	}
+	s.refs++
+	return true
+}
+
+func (s *deviceCacheStorage) exclusive() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.refs == 1
+}
+
+func (s *deviceCacheStorage) release(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.refs <= 0 {
+		return nil
+	}
+	if s.refs > 1 {
+		s.refs--
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var errs []error
+	for index, buffer := range s.keys {
+		if err := buffer.Release(context.Background()); err != nil {
+			errs = append(errs, err)
+		} else {
+			s.keys[index] = nil
+		}
+	}
+	for index, buffer := range s.values {
+		if err := buffer.Release(context.Background()); err != nil {
+			errs = append(errs, err)
+		} else {
+			s.values[index] = nil
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		return err
+	}
+	s.refs = 0
+	s.keys = nil
+	s.values = nil
+	return nil
 }
 
 type deviceOutputMode uint8
@@ -85,7 +155,11 @@ func (o *deviceCacheOwner) release(ctx context.Context) error {
 		return nil
 	}
 	err := o.outputs.Release(ctx)
-	o.outputs = nil
+	if err != nil {
+		o.refs = 1
+	} else {
+		o.outputs = nil
+	}
 	return err
 }
 
@@ -97,12 +171,21 @@ type deviceKVPage struct {
 }
 
 func (c *deviceKVCache) Release(ctx context.Context) error {
-	if c == nil || c.owner == nil {
+	if c == nil {
 		return nil
 	}
-	err := c.owner.release(ctx)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.owner.release(context.Background()); err != nil {
+		return err
+	}
 	c.owner = nil
-	return err
+	if err := c.storage.release(context.Background()); err != nil {
+		return err
+	}
+	c.storage = nil
+	return nil
 }
 
 func (r *Runner) shiftDeviceCacheForAppend(
@@ -579,17 +662,34 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	retained, err := r.cuda.ExecuteRetainedCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds)
+	targets, storages, err := r.prepareDeviceCacheTargets(ctx, graphs, appends)
 	if err != nil {
 		return nil, err
 	}
+	releaseStorages := func() error {
+		var errs []error
+		for _, storage := range storages {
+			errs = append(errs, storage.release(context.Background()))
+		}
+		return errors.Join(errs...)
+	}
+	retained, err := r.cuda.ExecuteRetainedCompiledWithTargets(
+		ctx, compiled, hostFeeds, deviceFeeds, targets,
+	)
+	if err != nil {
+		return nil, errors.Join(err, releaseStorages())
+	}
 	fail := func(cause error) ([]*deviceKVCache, error) {
-		_ = retained.Release(context.Background())
-		return nil, cause
+		return nil, errors.Join(
+			cause,
+			retained.Release(context.Background()),
+			releaseStorages(),
+		)
 	}
 	next := make([]*deviceKVCache, len(graphs))
 	for index, graph := range graphs {
 		cache := &deviceKVCache{
+			storage:    storages[index],
 			Keys:       make([]executor.DeviceValue, len(graph.keys)),
 			Values:     make([]executor.DeviceValue, len(graph.values)),
 			States:     make([]deviceLayerStates, len(graph.states)),
@@ -657,6 +757,112 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		cache.owner = owner
 	}
 	return next, nil
+}
+
+func (r *Runner) prepareDeviceCacheTargets(
+	ctx context.Context,
+	graphs []deviceBatchGraph,
+	appends []deviceBatchAppend,
+) (map[*tensor.Tensor]executor.DeviceValue, []*deviceCacheStorage, error) {
+	targets := make(map[*tensor.Tensor]executor.DeviceValue)
+	storages := make([]*deviceCacheStorage, len(graphs))
+	used := make(map[*deviceCacheStorage]struct{})
+	fail := func(cause error) (map[*tensor.Tensor]executor.DeviceValue, []*deviceCacheStorage, error) {
+		var errs []error
+		errs = append(errs, cause)
+		for _, storage := range storages {
+			errs = append(errs, storage.release(context.Background()))
+		}
+		return nil, nil, errors.Join(errs...)
+	}
+	for branch, graph := range graphs {
+		past := appends[branch].Past
+		var storage *deviceCacheStorage
+		if past != nil && past.storage != nil && past.storage.exclusive() &&
+			deviceCacheStorageFits(past.storage, graph) {
+			if _, duplicate := used[past.storage]; !duplicate && past.storage.retain() {
+				storage = past.storage
+				used[storage] = struct{}{}
+			}
+		}
+		if storage == nil {
+			storage = &deviceCacheStorage{
+				refs:   1,
+				keys:   make([]*executor.DeviceBuffer, len(graph.keys)),
+				values: make([]*executor.DeviceBuffer, len(graph.values)),
+			}
+		}
+		storages[branch] = storage
+		for layer := range graph.keys {
+			schema, schemaErr := model.CacheSchema(
+				r.spec,
+				layer,
+				r.weights.Layers[layer],
+				graph.pastTokens+graph.tokenCount,
+			)
+			if schemaErr != nil {
+				return fail(schemaErr)
+			}
+			if !schema.Primary.Key.Mode.TokenAligned() || !schema.Primary.Value.Mode.TokenAligned() ||
+				graph.keys[layer].Shape.Rank != 3 || graph.values[layer].Shape.Rank != 3 {
+				continue
+			}
+			allocate := func(
+				buffers []*executor.DeviceBuffer,
+				node *tensor.Tensor,
+			) (executor.DeviceValue, error) {
+				buffer := buffers[layer]
+				capacityShape := node.Shape
+				capacityShape.Dims[2] = uint64(cachePageCapacity(
+					graph.pastTokens+graph.tokenCount,
+					appends[branch].PageTokens,
+					r.spec.ContextLength,
+				))
+				capacityBytes, sizeErr := capacityShape.Bytes(dtype.F32)
+				if sizeErr != nil {
+					return executor.DeviceValue{}, sizeErr
+				}
+				if buffer == nil {
+					buffer, sizeErr = r.cuda.AllocateDeviceBuffer(ctx, capacityBytes)
+					if sizeErr != nil {
+						return executor.DeviceValue{}, sizeErr
+					}
+					buffers[layer] = buffer
+				}
+				return buffer.Value(node.Shape)
+			}
+			key, keyErr := allocate(storage.keys, graph.keys[layer])
+			if keyErr != nil {
+				return fail(fmt.Errorf("inference: allocate key cache layer %d: %w", layer, keyErr))
+			}
+			value, valueErr := allocate(storage.values, graph.values[layer])
+			if valueErr != nil {
+				return fail(fmt.Errorf("inference: allocate value cache layer %d: %w", layer, valueErr))
+			}
+			targets[graph.keys[layer]] = key
+			targets[graph.values[layer]] = value
+		}
+	}
+	return targets, storages, nil
+}
+
+func deviceCacheStorageFits(storage *deviceCacheStorage, graph deviceBatchGraph) bool {
+	if storage == nil || len(storage.keys) != len(graph.keys) || len(storage.values) != len(graph.values) {
+		return false
+	}
+	for layer := range graph.keys {
+		if storage.keys[layer] != nil {
+			if _, err := storage.keys[layer].Value(graph.keys[layer].Shape); err != nil {
+				return false
+			}
+		}
+		if storage.values[layer] != nil {
+			if _, err := storage.values[layer].Value(graph.values[layer].Shape); err != nil {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (r *Runner) buildDeviceCachedBatchBranch(

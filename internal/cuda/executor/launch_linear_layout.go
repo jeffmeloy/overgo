@@ -400,6 +400,26 @@ func launchWeightedRMSNorm(
 	weight := pointers[fusion.weight]
 	result := pointers[output]
 	epsilon := attributes.Epsilon
+	if fusion.addLeft != nil {
+		left, right := pointers[fusion.addLeft], pointers[fusion.addRight]
+		if emitQ8 {
+			if q8Input == nil || q8Input.staging == 0 {
+				return errors.New("weighted RMS add Q8 workspace is unavailable")
+			}
+			if err := launchNormalizationABI(
+				state, functions.weightedRMSNormAddQ8, rows,
+				&left, &right, &weight, &result, &q8Input.staging, &width, &rows, &epsilon,
+			); err != nil {
+				return err
+			}
+			q8Input.stagedNode = output
+			return nil
+		}
+		return launchNormalizationABI(
+			state, functions.weightedRMSNormAdd, rows,
+			&left, &right, &weight, &result, &width, &rows, &epsilon,
+		)
+	}
 	if emitQ8 {
 		if q8Input == nil || q8Input.staging == 0 {
 			return errors.New("weighted RMS Q8 workspace is unavailable")
@@ -450,6 +470,56 @@ func launchActivatedGate(
 		driver.Dim3{X: blocks, Y: 1, Z: 1},
 		driver.Dim3{X: threads, Y: 1, Z: 1},
 		&gate, &up, &result, &q8Input.staging, &kind, &count,
+	); err != nil {
+		return err
+	}
+	q8Input.stagedNode = output
+	return nil
+}
+
+func launchWeightedRMSGate(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	output *tensor.Tensor,
+	fusion weightedRMSGateFusion,
+	emitQ8 bool,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	attributes, ok := fusion.normalization.Attrs.(tensor.RMSNormAttributes)
+	if !ok {
+		return errors.New("invalid fused gated RMSNorm attributes")
+	}
+	width, rows, err := rowDimensions32(output.Shape)
+	if err != nil {
+		return err
+	}
+	left := pointers[fusion.normalization.Inputs[0]]
+	right := left
+	useAdd := uint32(0)
+	if fusion.addLeft != nil {
+		left, right = pointers[fusion.addLeft], pointers[fusion.addRight]
+		useAdd = 1
+	}
+	gate := pointers[fusion.gate]
+	weight := pointers[fusion.weight]
+	result := pointers[output]
+	kind := uint32(fusion.kind)
+	epsilon := attributes.Epsilon
+	if !emitQ8 {
+		return launchNormalizationABI(
+			state, functions.weightedRMSGate, rows,
+			&left, &right, &gate, &weight, &result,
+			&kind, &useAdd, &width, &rows, &epsilon,
+		)
+	}
+	if q8Input == nil || q8Input.staging == 0 || width%uint32(q8InputBlockWidth) != 0 {
+		return errors.New("weighted RMS gate Q8 workspace is unavailable")
+	}
+	if err := launchNormalizationABI(
+		state, functions.weightedRMSGateQ8, rows,
+		&left, &right, &gate, &weight, &result, &q8Input.staging,
+		&kind, &useAdd, &width, &rows, &epsilon,
 	); err != nil {
 		return err
 	}

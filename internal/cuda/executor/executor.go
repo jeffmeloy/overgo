@@ -59,6 +59,21 @@ func (p *deviceBufferPool) acquire(state *device.State, size uint64) (deviceBuff
 	if err != nil {
 		return deviceBufferLease{}, err
 	}
+	return p.acquireBucket(state, bucket)
+}
+
+func (p *deviceBufferPool) acquireExact(state *device.State, size uint64) (deviceBufferLease, error) {
+	bucket, ok := checked.Align(size, minimumDeviceBufferBytes)
+	if !ok || bucket == 0 {
+		return deviceBufferLease{}, errors.New("CUDA buffer size is invalid")
+	}
+	return p.acquireBucket(state, bucket)
+}
+
+func (p *deviceBufferPool) acquireBucket(
+	state *device.State,
+	bucket uint64,
+) (deviceBufferLease, error) {
 	if available := p.free[bucket]; len(available) > 0 {
 		pointer := available[len(available)-1]
 		p.free[bucket] = available[:len(available)-1]
@@ -107,8 +122,83 @@ func deviceBufferBucket(size uint64) (uint64, error) {
 }
 
 type DeviceValue struct {
-	Pointer driver.DevicePtr
-	Shape   tensor.Shape
+	Pointer       driver.DevicePtr
+	Shape         tensor.Shape
+	CapacityBytes uint64
+}
+
+// DeviceBuffer: pooled capacity allocation for stable device values.
+type DeviceBuffer struct {
+	mu       sync.Mutex
+	executor *Executor
+	lease    deviceBufferLease
+	released bool
+}
+
+func (e *Executor) AllocateDeviceBuffer(ctx context.Context, bytes uint64) (*DeviceBuffer, error) {
+	if e == nil || bytes == 0 {
+		return nil, errors.New("CUDA device buffer request is invalid")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil {
+		return nil, errors.New("CUDA executor is closed")
+	}
+	var lease deviceBufferLease
+	err := e.worker.Do(ctx, func(state *device.State) error {
+		var allocateErr error
+		lease, allocateErr = e.resources.buffers.acquireExact(state, bytes)
+		return allocateErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &DeviceBuffer{executor: e, lease: lease}, nil
+}
+
+func (b *DeviceBuffer) Value(shape tensor.Shape) (DeviceValue, error) {
+	if b == nil {
+		return DeviceValue{}, errors.New("CUDA device buffer is unavailable")
+	}
+	bytes, err := shape.Bytes(dtype.F32)
+	if err != nil {
+		return DeviceValue{}, err
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.released || b.lease.pointer == 0 || bytes > b.lease.size {
+		return DeviceValue{}, errors.New("CUDA device buffer capacity is insufficient")
+	}
+	return DeviceValue{Pointer: b.lease.pointer, Shape: shape, CapacityBytes: b.lease.size}, nil
+}
+
+func (b *DeviceBuffer) Release(ctx context.Context) error {
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.released {
+		return nil
+	}
+	if b.executor == nil {
+		return errors.New("CUDA executor is closed")
+	}
+	b.executor.mu.RLock()
+	defer b.executor.mu.RUnlock()
+	if b.executor.closed || b.executor.worker == nil {
+		return errors.New("CUDA executor is closed")
+	}
+	err := b.executor.worker.Do(ctx, func(*device.State) error {
+		b.executor.resources.buffers.release(b.lease)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	b.released = true
+	b.lease = deviceBufferLease{}
+	return nil
 }
 
 type DeviceCopySegment struct {
@@ -124,11 +214,11 @@ type DeviceCopy struct {
 // RetainedOutputs: owns selected graph outputs in standalone device
 // allocations; Call Release when values are no longer used
 type RetainedOutputs struct {
-	mu          sync.Mutex
-	executor    *Executor
-	values      map[*tensor.Tensor]DeviceValue
-	allocations []driver.DevicePtr
-	released    bool
+	mu       sync.Mutex
+	executor *Executor
+	values   map[*tensor.Tensor]DeviceValue
+	leases   []deviceBufferLease
+	released bool
 }
 
 func (r *RetainedOutputs) Value(output *tensor.Tensor) (DeviceValue, bool) {
@@ -197,20 +287,20 @@ func (r *RetainedOutputs) Release(ctx context.Context) error {
 			releaseErr = errors.New("CUDA executor is closed")
 		} else {
 			releaseErr = r.executor.worker.Do(ctx, func(state *device.State) error {
-				var errs []error
-				for _, pointer := range r.allocations {
-					if err := state.Driver.MemFree(pointer); err != nil {
-						errs = append(errs, err)
-					}
+				for _, lease := range r.leases {
+					r.executor.resources.buffers.release(lease)
 				}
-				return errors.Join(errs...)
+				return nil
 			})
 		}
 		r.executor.mu.RUnlock()
 	}
+	if releaseErr != nil && (errors.Is(releaseErr, context.Canceled) || errors.Is(releaseErr, context.DeadlineExceeded)) {
+		return releaseErr
+	}
 	r.released = true
 	r.values = nil
-	r.allocations = nil
+	r.leases = nil
 	return releaseErr
 }
 
@@ -233,18 +323,14 @@ func (e *Executor) CopyDeviceValues(
 		return nil, nil, errors.New("CUDA executor is closed")
 	}
 	values := make([]DeviceValue, len(copies))
-	allocations := make([]driver.DevicePtr, 0, len(copies))
+	leases := make([]deviceBufferLease, 0, len(copies))
 	err := e.worker.Do(ctx, func(state *device.State) error {
 		fail := func(cause error) error {
-			var errs []error
-			errs = append(errs, cause)
-			for _, pointer := range allocations {
-				if releaseErr := state.Driver.MemFree(pointer); releaseErr != nil {
-					errs = append(errs, releaseErr)
-				}
+			for _, lease := range leases {
+				e.resources.buffers.release(lease)
 			}
-			allocations = nil
-			return errors.Join(errs...)
+			leases = nil
+			return cause
 		}
 		for index, copySpec := range copies {
 			elements, shapeErr := copySpec.Shape.Elements()
@@ -277,11 +363,12 @@ func (e *Executor) CopyDeviceValues(
 					expected,
 				))
 			}
-			pointer, allocErr := state.Driver.MemAlloc(bytes)
+			lease, allocErr := e.resources.buffers.acquire(state, bytes)
 			if allocErr != nil {
 				return fail(allocErr)
 			}
-			allocations = append(allocations, pointer)
+			leases = append(leases, lease)
+			pointer := lease.pointer
 			var offset uint64
 			for _, segment := range copySpec.Segments {
 				if uint64(pointer) > math.MaxUint64-offset {
@@ -309,35 +396,38 @@ func (e *Executor) CopyDeviceValues(
 		return nil, nil, err
 	}
 	return &RetainedOutputs{
-		executor:    e,
-		allocations: allocations,
+		executor: e,
+		leases:   leases,
 	}, values, nil
 }
 
 type executionResult struct {
-	host        map[*tensor.Tensor]reference.Value
-	values      map[*tensor.Tensor]DeviceValue
-	allocations []driver.DevicePtr
+	host   map[*tensor.Tensor]reference.Value
+	values map[*tensor.Tensor]DeviceValue
+	leases []deviceBufferLease
 }
 
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
-	outputs        []*tensor.Tensor
-	order          []*tensor.Tensor
-	memory         planner.Plan
-	weightedRMS    map[*tensor.Tensor]weightedRMSFusion
-	activatedGate  map[*tensor.Tensor]activatedGateFusion
-	q8Emit         map[*tensor.Tensor]struct{}
-	q8Argmax       map[*tensor.Tensor]*tensor.Tensor
-	skipped        map[*tensor.Tensor]struct{}
-	needBlas       bool
-	bf16InputBytes uint64
-	q8InputBytes   uint64
+	outputs         []*tensor.Tensor
+	order           []*tensor.Tensor
+	memory          planner.Plan
+	weightedRMS     map[*tensor.Tensor]weightedRMSFusion
+	activatedGate   map[*tensor.Tensor]activatedGateFusion
+	weightedRMSGate map[*tensor.Tensor]weightedRMSGateFusion
+	q8Emit          map[*tensor.Tensor]struct{}
+	q8Argmax        map[*tensor.Tensor]*tensor.Tensor
+	skipped         map[*tensor.Tensor]struct{}
+	needBlas        bool
+	bf16InputBytes  uint64
+	q8InputBytes    uint64
 }
 
 type weightedRMSFusion struct {
 	normalization *tensor.Tensor
 	weight        *tensor.Tensor
+	addLeft       *tensor.Tensor
+	addRight      *tensor.Tensor
 }
 
 type activatedGateKind uint32
@@ -352,6 +442,12 @@ type activatedGateFusion struct {
 	up         *tensor.Tensor
 	activation *tensor.Tensor
 	kind       activatedGateKind
+}
+
+type weightedRMSGateFusion struct {
+	weightedRMSFusion
+	gate *tensor.Tensor
+	kind activatedGateKind
 }
 
 const graphArenaAlignment = 256
@@ -445,7 +541,14 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			compiled.weightedRMS = make(map[*tensor.Tensor]weightedRMSFusion)
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.weightedRMS[node] = weightedRMSFusion{normalization: normalization, weight: weight}
+		fusion := weightedRMSFusion{normalization: normalization, weight: weight}
+		if source := normalization.Inputs[0]; source.Op == tensor.OpAdd && uses[source] == 1 {
+			if _, retained := outputSet[source]; !retained {
+				fusion.addLeft, fusion.addRight = source.Inputs[0], source.Inputs[1]
+				compiled.skipped[source] = struct{}{}
+			}
+		}
+		compiled.weightedRMS[node] = fusion
 		compiled.skipped[normalization] = struct{}{}
 	}
 	for _, node := range order {
@@ -464,6 +567,22 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		}
 		if _, retained := outputSet[activation]; retained {
 			continue
+		}
+		if weighted, fused := compiled.weightedRMS[up]; fused && uses[up] == 1 {
+			if _, retained := outputSet[up]; !retained {
+				if compiled.weightedRMSGate == nil {
+					compiled.weightedRMSGate = make(map[*tensor.Tensor]weightedRMSGateFusion)
+				}
+				compiled.weightedRMSGate[node] = weightedRMSGateFusion{
+					weightedRMSFusion: weighted,
+					gate:              activation.Inputs[0],
+					kind:              kind,
+				}
+				delete(compiled.weightedRMS, up)
+				compiled.skipped[up] = struct{}{}
+				compiled.skipped[activation] = struct{}{}
+				continue
+			}
 		}
 		if compiled.activatedGate == nil {
 			compiled.activatedGate = make(map[*tensor.Tensor]activatedGateFusion)
@@ -484,7 +603,9 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		producer := node.Inputs[1]
 		if _, weighted := compiled.weightedRMS[producer]; !weighted {
 			if _, activated := compiled.activatedGate[producer]; !activated {
-				continue
+				if _, gatedNorm := compiled.weightedRMSGate[producer]; !gatedNorm {
+					continue
+				}
 			}
 		}
 		if compiled.q8Emit == nil {
@@ -517,12 +638,32 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	}
 	dependencies := make(map[*tensor.Tensor][]*tensor.Tensor)
 	for node, fusion := range compiled.weightedRMS {
-		dependencies[node] = append(dependencies[node], fusion.normalization.Inputs[0])
+		if fusion.addLeft != nil {
+			dependencies[node] = append(dependencies[node], fusion.addLeft, fusion.addRight)
+		} else {
+			dependencies[node] = append(dependencies[node], fusion.normalization.Inputs[0])
+		}
 	}
 	for node, fusion := range compiled.activatedGate {
 		dependencies[node] = append(dependencies[node], fusion.gate)
 	}
-	memory, err := planner.BuildWithDependencies(outputs, graphArenaAlignment, dependencies)
+	for node, fusion := range compiled.weightedRMSGate {
+		dependencies[node] = append(dependencies[node], fusion.gate, fusion.weight)
+		if fusion.addLeft != nil {
+			dependencies[node] = append(dependencies[node], fusion.addLeft, fusion.addRight)
+		} else {
+			dependencies[node] = append(dependencies[node], fusion.normalization.Inputs[0])
+		}
+	}
+	aliases := make(map[*tensor.Tensor]*tensor.Tensor)
+	for _, node := range order {
+		if node.Op == tensor.OpFlatSlice && len(node.Inputs) == 1 {
+			aliases[node] = node.Inputs[0]
+		}
+	}
+	memory, err := planner.BuildWithRewrites(
+		outputs, graphArenaAlignment, dependencies, aliases, compiled.skipped,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -616,7 +757,7 @@ func (e *Executor) ExecuteCompiled(
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, feeds, nil, false)
+	result, err := e.runCompiled(ctx, compiled, feeds, nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -645,7 +786,7 @@ func (e *Executor) ExecuteCompiledWithDeviceFeeds(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, false)
+	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -674,12 +815,23 @@ func (e *Executor) ExecuteRetainedCompiledWithDeviceFeeds(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (*RetainedOutputs, error) {
-	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, true)
+	return e.ExecuteRetainedCompiledWithTargets(ctx, compiled, hostFeeds, deviceFeeds, nil)
+}
+
+// ExecuteRetainedCompiledWithTargets: retained execution into selected stable buffers.
+func (e *Executor) ExecuteRetainedCompiledWithTargets(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	targets map[*tensor.Tensor]DeviceValue,
+) (*RetainedOutputs, error) {
+	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, targets, true)
 	if err != nil {
 		return nil, err
 	}
 	return &RetainedOutputs{
-		executor: e, values: execution.values, allocations: execution.allocations,
+		executor: e, values: execution.values, leases: execution.leases,
 	}, nil
 }
 
@@ -688,6 +840,7 @@ func (e *Executor) runCompiled(
 	compiled *CompiledGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	targets map[*tensor.Tensor]DeviceValue,
 	retain bool,
 ) (*executionResult, error) {
 	if e == nil {
@@ -719,6 +872,7 @@ func (e *Executor) runCompiled(
 			compiled,
 			hostFeeds,
 			deviceFeeds,
+			targets,
 			resources.functions,
 			resources.blas,
 			&resources.q8Input,
@@ -737,6 +891,7 @@ func execute(
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	retainedTargets map[*tensor.Tensor]DeviceValue,
 	functions functionSet,
 	blas *blasState,
 	q8Input *q8InputState,
@@ -765,26 +920,54 @@ func execute(
 		outputSet[output] = struct{}{}
 	}
 	retainedValues := make(map[*tensor.Tensor]DeviceValue, len(outputs))
-	retainedAllocations := make([]driver.DevicePtr, 0, 1)
-	retainedOffsets, retainedBytes, err := retainedOutputLayout(order, outputSet)
+	retainedLeases := make([]deviceBufferLease, 0, 1)
+	for node, target := range retainedTargets {
+		if _, ok := outputSet[node]; !ok || target.Pointer == 0 || !target.Shape.Equal(node.Shape) {
+			return nil, errors.New("CUDA retained output target is invalid")
+		}
+		bytes, sizeErr := node.Shape.Bytes(node.Type)
+		if sizeErr != nil || target.CapacityBytes < bytes {
+			return nil, errors.New("CUDA retained output target capacity is insufficient")
+		}
+	}
+	ownedOutputs := make(map[*tensor.Tensor]struct{}, len(outputSet))
+	for output := range outputSet {
+		if _, targeted := retainedTargets[output]; !targeted {
+			ownedOutputs[output] = struct{}{}
+		}
+	}
+	retainedStorage := make(map[*tensor.Tensor]struct{}, len(ownedOutputs))
+	retainedSliceSources := make(map[*tensor.Tensor]*tensor.Tensor)
+	for output := range ownedOutputs {
+		if output.Op == tensor.OpFlatSlice && len(output.Inputs) == 1 &&
+			output.Inputs[0].Op != tensor.OpInput && output.Inputs[0].Op != tensor.OpFlatSlice {
+			retainedSliceSources[output] = output.Inputs[0]
+			retainedStorage[output.Inputs[0]] = struct{}{}
+			continue
+		}
+		retainedStorage[output] = struct{}{}
+	}
+	retainedOffsets, retainedBytes, err := retainedOutputLayout(order, retainedStorage)
 	if err != nil {
 		return nil, err
 	}
 	var retainedBase driver.DevicePtr
 	if retainOutputs && retainedBytes > 0 {
-		retainedBase, err = state.Driver.MemAlloc(retainedBytes)
+		lease, allocateErr := buffers.acquire(state, retainedBytes)
+		err = allocateErr
 		if err != nil {
 			return nil, err
 		}
-		retainedAllocations = append(retainedAllocations, retainedBase)
+		retainedBase = lease.pointer
+		retainedLeases = append(retainedLeases, lease)
 	}
 	retained := false
 	defer func() {
 		if retained {
 			return
 		}
-		for _, pointer := range retainedAllocations {
-			_ = state.Driver.MemFree(pointer)
+		for _, lease := range retainedLeases {
+			buffers.release(lease)
 		}
 	}()
 	inputLeases := make([]deviceBufferLease, 0)
@@ -798,18 +981,57 @@ func execute(
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		if node.Op != tensor.OpInput {
+			if _, skipped := compiled.skipped[node]; skipped {
+				continue
+			}
 			_, retainedOutput := outputSet[node]
-			if node.Op == tensor.OpReshape && !(retainOutputs && retainedOutput) {
+			_, retainStorage := retainedStorage[node]
+			if node.Op == tensor.OpReshape && !(retainOutputs && (retainedOutput || retainStorage)) {
 				pointers[node] = pointers[node.Inputs[0]]
 				continue
 			}
-			if retainOutputs && retainedOutput {
+			if node.Op == tensor.OpFlatSlice {
+				attributes, ok := node.Attrs.(tensor.FlatSliceAttributes)
+				if !ok || attributes.Offset > math.MaxUint64/4 ||
+					uint64(pointers[node.Inputs[0]]) > math.MaxUint64-attributes.Offset*4 {
+					return nil, errors.New("CUDA flat-slice view offset is invalid")
+				}
+				if _, retainedView := retainedSliceSources[node]; retainedView ||
+					!(retainOutputs && retainedOutput) {
+					pointer := pointers[node.Inputs[0]] + driver.DevicePtr(attributes.Offset*4)
+					pointers[node] = pointer
+					if retainedView {
+						bytes, sizeErr := node.Shape.Bytes(node.Type)
+						if sizeErr != nil {
+							return nil, sizeErr
+						}
+						retainedValues[node] = DeviceValue{
+							Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
+						}
+					}
+					continue
+				}
+			}
+			if retainOutputs && (retainedOutput || retainStorage) {
+				if target, targeted := retainedTargets[node]; targeted {
+					retainedValues[node] = target
+					pointers[node] = target.Pointer
+					continue
+				}
 				offset, present := retainedOffsets[node]
 				if !present || uint64(retainedBase) > math.MaxUint64-offset {
 					return nil, errors.New("CUDA retained output layout is invalid")
 				}
 				pointer := retainedBase + driver.DevicePtr(offset)
-				retainedValues[node] = DeviceValue{Pointer: pointer, Shape: node.Shape}
+				if retainedOutput {
+					bytes, sizeErr := node.Shape.Bytes(node.Type)
+					if sizeErr != nil {
+						return nil, sizeErr
+					}
+					retainedValues[node] = DeviceValue{
+						Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
+					}
+				}
 				pointers[node] = pointer
 				continue
 			}
@@ -977,7 +1199,10 @@ func execute(
 		if _, skipped := compiled.skipped[node]; skipped {
 			continue
 		}
-		if node.Op == tensor.OpReshape {
+		if node.Op == tensor.OpReshape || node.Op == tensor.OpFlatSlice {
+			if _, retainedView := retainedSliceSources[node]; retainedView {
+				continue
+			}
 			if _, retainedOutput := outputSet[node]; !(retainOutputs && retainedOutput) {
 				continue
 			}
@@ -1000,6 +1225,17 @@ func execute(
 			); err != nil {
 				abortCapture()
 				return nil, fmt.Errorf("launch tensor %d (activated_gate): %w", node.ID, err)
+			}
+			submitted = true
+			continue
+		}
+		if fusion, ok := compiled.weightedRMSGate[node]; ok {
+			_, emitQ8 := compiled.q8Emit[node]
+			if err := launchWeightedRMSGate(
+				state, functions, q8Input, node, fusion, emitQ8, pointers,
+			); err != nil {
+				abortCapture()
+				return nil, fmt.Errorf("launch tensor %d (weighted_rms_gate): %w", node.ID, err)
 			}
 			submitted = true
 			continue
@@ -1059,8 +1295,8 @@ func execute(
 	if retainOutputs {
 		retained = true
 		return &executionResult{
-			values:      retainedValues,
-			allocations: retainedAllocations,
+			values: retainedValues,
+			leases: retainedLeases,
 		}, nil
 	}
 
@@ -1083,129 +1319,135 @@ func execute(
 }
 
 type functionSet struct {
-	add                 driver.Function
-	multiply            driver.Function
-	divide              driver.Function
-	broadcastAdd        driver.Function
-	broadcastMultiply   driver.Function
-	broadcastDivide     driver.Function
-	scale               driver.Function
-	clamp               driver.Function
-	bf16Round           driver.Function
-	f32ToBF16           driver.Function
-	quantizeQ8Input     driver.Function
-	copy                driver.Function
-	silu                driver.Function
-	gelu                driver.Function
-	geluErf             driver.Function
-	xielu               driver.Function
-	reluSquared         driver.Function
-	relu                driver.Function
-	conv1DSame          driver.Function
-	conv2D              driver.Function
-	windowPartition2D   driver.Function
-	windowUnpartition2D driver.Function
-	samAttention        driver.Function
-	groupNorm           driver.Function
-	sigmoid             driver.Function
-	softplus            driver.Function
-	tanh                driver.Function
-	exp                 driver.Function
-	l2Norm              driver.Function
-	ssmConv             driver.Function
-	ssmScan             driver.Function
-	gatedDeltaNet       driver.Function
-	gatedLinearAttn     driver.Function
-	rwkv6               driver.Function
-	sumRows             driver.Function
-	fwht                driver.Function
-	argmax              driver.Function
-	topK                driver.Function
-	topKPairs           driver.Function
-	topKPartials        driver.Function
-	gatherLast          driver.Function
-	gatherLastQ8        driver.Function
-	sparseAttention     driver.Function
-	indexerScore        driver.Function
-	rwkv7               driver.Function
-	moe                 driver.Function
-	loraMerge           driver.Function
-	repeatHeads         driver.Function
-	transpose2D         driver.Function
-	groupSlice          driver.Function
-	flatSlice           driver.Function
-	rmsNorm             driver.Function
-	weightedRMSNorm     driver.Function
-	weightedRMSNormQ8   driver.Function
-	activatedGate       driver.Function
-	activatedGateQ8     driver.Function
-	layerNorm           driver.Function
-	softmax             driver.Function
-	mulMat              driver.Function
-	getRows             driver.Function
-	ropeNeoX            driver.Function
-	ropeNormal          driver.Function
-	ropeMulti           driver.Function
-	attention           driver.Function
-	attentionDecode     driver.Function
-	concat              driver.Function
-	getRowsQ8           driver.Function
-	mulMatQ8            driver.Function
-	mulMatQ8Input       driver.Function
-	mulMatQ8Argmax      driver.Function
-	q8ArgmaxReduction   driver.Function
-	getRowsQ81          driver.Function
-	mulMatQ81           driver.Function
-	getRowsQ8K          driver.Function
-	mulMatQ8K           driver.Function
-	getRowsQ40          driver.Function
-	mulMatQ40           driver.Function
-	getRowsQ41          driver.Function
-	mulMatQ41           driver.Function
-	getRowsQ50          driver.Function
-	mulMatQ50           driver.Function
-	getRowsQ51          driver.Function
-	mulMatQ51           driver.Function
-	getRowsQ10          driver.Function
-	mulMatQ10           driver.Function
-	getRowsQ20          driver.Function
-	mulMatQ20           driver.Function
-	getRowsTQ20         driver.Function
-	mulMatTQ20          driver.Function
-	getRowsTQ10         driver.Function
-	mulMatTQ10          driver.Function
-	getRowsQ2K          driver.Function
-	mulMatQ2K           driver.Function
-	getRowsQ3K          driver.Function
-	mulMatQ3K           driver.Function
-	getRowsQ4K          driver.Function
-	mulMatQ4K           driver.Function
-	getRowsQ5K          driver.Function
-	mulMatQ5K           driver.Function
-	getRowsIQ4XS        driver.Function
-	mulMatIQ4XS         driver.Function
-	getRowsIQ4NL        driver.Function
-	mulMatIQ4NL         driver.Function
-	getRowsIQ2XXS       driver.Function
-	mulMatIQ2XXS        driver.Function
-	getRowsIQ2XS        driver.Function
-	mulMatIQ2XS         driver.Function
-	getRowsIQ2S         driver.Function
-	mulMatIQ2S          driver.Function
-	getRowsIQ3XXS       driver.Function
-	mulMatIQ3XXS        driver.Function
-	getRowsIQ3S         driver.Function
-	mulMatIQ3S          driver.Function
-	getRowsIQ1S         driver.Function
-	mulMatIQ1S          driver.Function
-	getRowsIQ1M         driver.Function
-	mulMatIQ1M          driver.Function
-	getRowsMXFP4        driver.Function
-	mulMatMXFP4         driver.Function
-	getRowsNVFP4        driver.Function
-	mulMatNVFP4         driver.Function
-	getRowsQ6K          driver.Function
-	mulMatQ6K           driver.Function
+	add                  driver.Function
+	multiply             driver.Function
+	divide               driver.Function
+	broadcastAdd         driver.Function
+	broadcastMultiply    driver.Function
+	broadcastDivide      driver.Function
+	scale                driver.Function
+	clamp                driver.Function
+	bf16Round            driver.Function
+	f32ToBF16            driver.Function
+	quantizeQ8Input      driver.Function
+	copy                 driver.Function
+	silu                 driver.Function
+	gelu                 driver.Function
+	geluErf              driver.Function
+	xielu                driver.Function
+	reluSquared          driver.Function
+	relu                 driver.Function
+	conv1DSame           driver.Function
+	conv2D               driver.Function
+	windowPartition2D    driver.Function
+	windowUnpartition2D  driver.Function
+	samAttention         driver.Function
+	groupNorm            driver.Function
+	sigmoid              driver.Function
+	softplus             driver.Function
+	tanh                 driver.Function
+	exp                  driver.Function
+	l2Norm               driver.Function
+	ssmConv              driver.Function
+	ssmScan              driver.Function
+	gatedDeltaNet        driver.Function
+	gatedLinearAttn      driver.Function
+	rwkv6                driver.Function
+	sumRows              driver.Function
+	fwht                 driver.Function
+	argmax               driver.Function
+	topK                 driver.Function
+	topKPairs            driver.Function
+	topKPartials         driver.Function
+	gatherLast           driver.Function
+	gatherLastQ8         driver.Function
+	sparseAttention      driver.Function
+	indexerScore         driver.Function
+	rwkv7                driver.Function
+	moe                  driver.Function
+	moeGrouped           driver.Function
+	loraMerge            driver.Function
+	repeatHeads          driver.Function
+	transpose2D          driver.Function
+	groupSlice           driver.Function
+	flatSlice            driver.Function
+	rmsNorm              driver.Function
+	weightedRMSNorm      driver.Function
+	weightedRMSNormQ8    driver.Function
+	weightedRMSNormAdd   driver.Function
+	weightedRMSNormAddQ8 driver.Function
+	activatedGate        driver.Function
+	activatedGateQ8      driver.Function
+	weightedRMSGate      driver.Function
+	weightedRMSGateQ8    driver.Function
+	layerNorm            driver.Function
+	softmax              driver.Function
+	mulMat               driver.Function
+	getRows              driver.Function
+	ropeNeoX             driver.Function
+	ropeNormal           driver.Function
+	ropeMulti            driver.Function
+	attention            driver.Function
+	attentionDecode      driver.Function
+	attentionOnline      driver.Function
+	concat               driver.Function
+	getRowsQ8            driver.Function
+	mulMatQ8             driver.Function
+	mulMatQ8Input        driver.Function
+	mulMatQ8Argmax       driver.Function
+	q8ArgmaxReduction    driver.Function
+	getRowsQ81           driver.Function
+	mulMatQ81            driver.Function
+	getRowsQ8K           driver.Function
+	mulMatQ8K            driver.Function
+	getRowsQ40           driver.Function
+	mulMatQ40            driver.Function
+	getRowsQ41           driver.Function
+	mulMatQ41            driver.Function
+	getRowsQ50           driver.Function
+	mulMatQ50            driver.Function
+	getRowsQ51           driver.Function
+	mulMatQ51            driver.Function
+	getRowsQ10           driver.Function
+	mulMatQ10            driver.Function
+	getRowsQ20           driver.Function
+	mulMatQ20            driver.Function
+	getRowsTQ20          driver.Function
+	mulMatTQ20           driver.Function
+	getRowsTQ10          driver.Function
+	mulMatTQ10           driver.Function
+	getRowsQ2K           driver.Function
+	mulMatQ2K            driver.Function
+	getRowsQ3K           driver.Function
+	mulMatQ3K            driver.Function
+	getRowsQ4K           driver.Function
+	mulMatQ4K            driver.Function
+	getRowsQ5K           driver.Function
+	mulMatQ5K            driver.Function
+	getRowsIQ4XS         driver.Function
+	mulMatIQ4XS          driver.Function
+	getRowsIQ4NL         driver.Function
+	mulMatIQ4NL          driver.Function
+	getRowsIQ2XXS        driver.Function
+	mulMatIQ2XXS         driver.Function
+	getRowsIQ2XS         driver.Function
+	mulMatIQ2XS          driver.Function
+	getRowsIQ2S          driver.Function
+	mulMatIQ2S           driver.Function
+	getRowsIQ3XXS        driver.Function
+	mulMatIQ3XXS         driver.Function
+	getRowsIQ3S          driver.Function
+	mulMatIQ3S           driver.Function
+	getRowsIQ1S          driver.Function
+	mulMatIQ1S           driver.Function
+	getRowsIQ1M          driver.Function
+	mulMatIQ1M           driver.Function
+	getRowsMXFP4         driver.Function
+	mulMatMXFP4          driver.Function
+	getRowsNVFP4         driver.Function
+	mulMatNVFP4          driver.Function
+	getRowsQ6K           driver.Function
+	mulMatQ6K            driver.Function
 }
 
 type quantKernelDescriptor struct {
@@ -1450,6 +1692,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"indexer_score_f32", &result.indexerScore},
 		{"rwkv7_f32", &result.rwkv7},
 		{"moe_f32", &result.moe},
+		{"moe_grouped_f32", &result.moeGrouped},
 		{"lora_merge_f32", &result.loraMerge},
 		{"repeat_heads_f32", &result.repeatHeads},
 		{"transpose_2d_f32", &result.transpose2D},
@@ -1458,8 +1701,12 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"rms_norm_f32", &result.rmsNorm},
 		{"weighted_rms_norm_f32", &result.weightedRMSNorm},
 		{"weighted_rms_norm_q8_0_f32", &result.weightedRMSNormQ8},
+		{"weighted_rms_norm_add_f32", &result.weightedRMSNormAdd},
+		{"weighted_rms_norm_add_q8_0_f32", &result.weightedRMSNormAddQ8},
 		{"activated_gate_f32", &result.activatedGate},
 		{"activated_gate_q8_0_f32", &result.activatedGateQ8},
+		{"weighted_rms_gate_f32", &result.weightedRMSGate},
+		{"weighted_rms_gate_q8_0_f32", &result.weightedRMSGateQ8},
 		{"layer_norm_f32", &result.layerNorm},
 		{"softmax_f32", &result.softmax},
 		{"mul_mat_f32", &result.mulMat},
@@ -1469,6 +1716,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"rope_multi_f32", &result.ropeMulti},
 		{"attention_f32", &result.attention},
 		{"attention_decode_f32", &result.attentionDecode},
+		{"attention_online_f32", &result.attentionOnline},
 		{"concat_f32", &result.concat},
 		{"get_rows_q8_0_f32", &result.getRowsQ8},
 		{"mul_mat_q8_0_f32", &result.mulMatQ8},

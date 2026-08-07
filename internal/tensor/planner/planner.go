@@ -42,6 +42,17 @@ func BuildWithDependencies(
 	alignment uint64,
 	dependencies map[*tensor.Tensor][]*tensor.Tensor,
 ) (Plan, error) {
+	return BuildWithRewrites(outputs, alignment, dependencies, nil, nil)
+}
+
+// BuildWithRewrites extends liveness for fused dependencies, aliases, and eliminated nodes.
+func BuildWithRewrites(
+	outputs []*tensor.Tensor,
+	alignment uint64,
+	dependencies map[*tensor.Tensor][]*tensor.Tensor,
+	aliases map[*tensor.Tensor]*tensor.Tensor,
+	excluded map[*tensor.Tensor]struct{},
+) (Plan, error) {
 	if alignment == 0 || alignment&(alignment-1) != 0 {
 		return Plan{}, fmt.Errorf("planner alignment %d is not a power of two", alignment)
 	}
@@ -55,11 +66,15 @@ func BuildWithDependencies(
 	for index, node := range nodes {
 		indexes[node] = index
 		root := node
-		if node.Op == tensor.OpReshape {
-			if len(node.Inputs) != 1 || roots[node.Inputs[0]] == nil {
-				return Plan{}, fmt.Errorf("reshape tensor %d has invalid storage root", node.ID)
+		alias := aliases[node]
+		if node.Op == tensor.OpReshape || alias != nil {
+			if alias == nil && len(node.Inputs) == 1 {
+				alias = node.Inputs[0]
 			}
-			root = roots[node.Inputs[0]]
+			if alias == nil || roots[alias] == nil {
+				return Plan{}, fmt.Errorf("alias tensor %d has invalid storage root", node.ID)
+			}
+			root = roots[alias]
 		}
 		roots[node] = root
 		lastUse[root] = index
@@ -109,7 +124,10 @@ func BuildWithDependencies(
 		active = kept
 		free = coalesce(free)
 
-		if node.Op == tensor.OpInput || node.Op == tensor.OpReshape {
+		if node.Op == tensor.OpInput || node.Op == tensor.OpReshape || aliases[node] != nil {
+			continue
+		}
+		if _, skip := excluded[node]; skip {
 			continue
 		}
 		size, err := node.Shape.Bytes(node.Type)
@@ -141,7 +159,7 @@ func BuildWithDependencies(
 		active = append(active, allocation)
 	}
 	for _, node := range nodes {
-		if node.Op != tensor.OpReshape {
+		if node.Op != tensor.OpReshape && aliases[node] == nil {
 			continue
 		}
 		if allocation, ok := plan.Allocations[roots[node]]; ok {

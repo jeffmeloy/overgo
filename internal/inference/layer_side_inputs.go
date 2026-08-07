@@ -20,6 +20,8 @@ type boundLayerSideInputs struct {
 	currentPositions *tensor.Tensor
 }
 
+const maxExactFloat32Position = uint32(1 << 24)
+
 func bindLayerSideInputs(
 	builder *tensor.Builder,
 	spec model.Spec,
@@ -48,6 +50,13 @@ func bindLayerSideInputs(
 	if plan.Cache == model.CacheDeepSeek4 {
 		data := make([]float32, len(positions))
 		for index, position := range positions {
+			if position > maxExactFloat32Position {
+				return boundLayerSideInputs{}, fmt.Errorf(
+					"%s position %d exceeds exact F32 cache representation",
+					spec.Architecture,
+					position,
+				)
+			}
 			data[index] = float32(position)
 		}
 		shape := tensor.MustShape(1, 1, uint64(len(positions)))

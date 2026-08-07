@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 func launchAttentionLayout(
@@ -121,6 +122,22 @@ func launchAttentionLayout(
 				&queryHeads, &keyValueHeads, &keyValueTokens, &sequences, &scale,
 			)
 		}
+		const attentionOnlineThreads = uint32(256)
+		if valueWidth <= attentionOnlineThreads {
+			blocks := uint64(queryHeads) * uint64(queryTokens) * uint64(sequences)
+			if blocks > math.MaxUint32 {
+				return errors.New("online attention launch size exceeds uint32")
+			}
+			return launchGridABI(
+				state, functions.attentionOnline,
+				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
+				driver.Dim3{X: attentionOnlineThreads, Y: 1, Z: 1},
+				&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
+				&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
+				&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
+				&relativeBuckets, &relativeBidirectional,
+			)
+		}
 		return launch1DABI(
 			state, functions.attention, count,
 			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
@@ -139,6 +156,21 @@ func launchAttentionLayout(
 		}
 		left := pointers[node.Inputs[0]]
 		right := pointers[node.Inputs[1]]
+		if output == left && attributes.Axis+1 == uint32(node.Shape.Rank) {
+			leftBytes, sizeErr := node.Inputs[0].Shape.Bytes(dtype.F32)
+			if sizeErr != nil || uint64(output) > math.MaxUint64-leftBytes {
+				return errors.New("concat append offset overflows")
+			}
+			rightCount, countErr := elementCount32(node.Inputs[1].Shape)
+			if countErr != nil {
+				return countErr
+			}
+			destination := output + driver.DevicePtr(leftBytes)
+			return launch1DABI(
+				state, functions.copy, rightCount,
+				&right, &destination, &rightCount,
+			)
+		}
 		var inner uint64 = 1
 		for dimension := uint32(0); dimension < attributes.Axis; dimension++ {
 			inner *= node.Shape.Dims[dimension]

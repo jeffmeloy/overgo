@@ -67,12 +67,14 @@ type SequenceBatchState struct {
 
 // ContinuousBatch: dynamic independent-sequence cache set.
 type ContinuousBatch struct {
-	runner    *Runner
-	options   ContinuousBatchOptions
-	operation sync.Mutex
-	mu        sync.Mutex
-	sequences map[SequenceID]*continuousSequence
-	closed    bool
+	runner     *Runner
+	options    ContinuousBatchOptions
+	operation  sync.Mutex
+	mu         sync.Mutex
+	sequences  map[SequenceID]*continuousSequence
+	deferred   []*deviceKVCache
+	cleanupErr error
+	closed     bool
 }
 
 type continuousSequence struct {
@@ -236,7 +238,7 @@ func (b *ContinuousBatch) step(
 	b.mu.Lock()
 	for id, candidate := range candidates {
 		if current := b.sequences[id]; current != nil && current.device != nil {
-			_ = current.device.Release(context.Background())
+			b.deferCleanup(current.device, current.device.Release(context.Background()))
 		}
 		b.sequences[id] = candidate
 	}
@@ -252,13 +254,18 @@ func (b *ContinuousBatch) stepDeviceLocked(
 	r := b.runner
 	appends := make([]deviceBatchAppend, len(inputs))
 	working := make([]*deviceKVCache, len(inputs))
-	cleanupWorking := func() {
+	cleanupWorking := func() error {
+		var errs []error
 		for index, cache := range working {
 			current := b.sequences[inputs[index].ID]
 			if cache != nil && (current == nil || cache != current.device) {
-				_ = cache.Release(context.Background())
+				if err := cache.Release(context.Background()); err != nil {
+					errs = append(errs, err)
+					b.deferred = append(b.deferred, cache)
+				}
 			}
 		}
+		return errors.Join(errs...)
 	}
 	for index, input := range inputs {
 		current := b.sequences[input.ID]
@@ -271,8 +278,10 @@ func (b *ContinuousBatch) stepDeviceLocked(
 				b.options.DiscardTokens, true,
 			)
 			if err != nil {
-				cleanupWorking()
-				return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, err)
+				return nil, errors.Join(
+					fmt.Errorf("inference: sequence %d: %w", input.ID, err),
+					cleanupWorking(),
+				)
 			}
 			working[index] = shifted
 		}
@@ -290,9 +299,9 @@ func (b *ContinuousBatch) stepDeviceLocked(
 	default:
 		next, err = r.forwardDeviceCachedBatchLocked(ctx, appends)
 	}
-	cleanupWorking()
+	cleanupErr := cleanupWorking()
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, cleanupErr)
 	}
 	outputs := make([]SequenceBatchOutput, len(inputs))
 	for index, cache := range next {
@@ -304,9 +313,10 @@ func (b *ContinuousBatch) stepDeviceLocked(
 		}
 	}
 	b.mu.Lock()
+	b.cleanupErr = errors.Join(b.cleanupErr, cleanupErr)
 	for index, input := range inputs {
 		if current := b.sequences[input.ID]; current != nil && current.device != nil {
-			_ = current.device.Release(context.Background())
+			b.deferCleanup(current.device, current.device.Release(context.Background()))
 		}
 		b.sequences[input.ID] = &continuousSequence{device: next[index]}
 	}
@@ -327,10 +337,12 @@ func (b *ContinuousBatch) Remove(ctx context.Context, id SequenceID) error {
 	if !ok {
 		return fmt.Errorf("inference: sequence ID %d is not active", id)
 	}
-	delete(b.sequences, id)
 	if sequence.device != nil {
-		return sequence.device.Release(ctx)
+		if err := sequence.device.Release(ctx); err != nil {
+			return err
+		}
 	}
+	delete(b.sequences, id)
 	return nil
 }
 
@@ -371,6 +383,10 @@ func (b *ContinuousBatch) Fork(source, destination SequenceID) error {
 func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
 	if source == nil || source.owner == nil || !source.owner.retain() {
 		return nil, errors.New("inference: retained device cache is unavailable")
+	}
+	if source.storage != nil && !source.storage.retain() {
+		_ = source.owner.release(context.Background())
+		return nil, errors.New("inference: retained device cache storage is unavailable")
 	}
 	result := *source
 	result.Keys = slices.Clone(source.Keys)
@@ -427,20 +443,42 @@ func (b *ContinuousBatch) Close(ctx context.Context) error {
 	if b == nil {
 		return nil
 	}
+	b.operation.Lock()
+	defer b.operation.Unlock()
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.closed {
+	if b.closed && len(b.sequences) == 0 && len(b.deferred) == 0 {
 		return nil
 	}
 	b.closed = true
-	var errs []error
+	errs := []error{b.cleanupErr}
+	b.cleanupErr = nil
+	remaining := b.deferred[:0]
+	for _, cache := range b.deferred {
+		if err := cache.Release(ctx); err != nil {
+			errs = append(errs, err)
+			remaining = append(remaining, cache)
+		}
+	}
+	b.deferred = remaining
 	for id, sequence := range b.sequences {
 		if sequence.device != nil {
-			errs = append(errs, sequence.device.Release(ctx))
+			if err := sequence.device.Release(ctx); err != nil {
+				errs = append(errs, err)
+				continue
+			}
 		}
 		delete(b.sequences, id)
 	}
 	return errors.Join(errs...)
+}
+
+func (b *ContinuousBatch) deferCleanup(cache *deviceKVCache, err error) {
+	if err == nil {
+		return
+	}
+	b.cleanupErr = errors.Join(b.cleanupErr, err)
+	b.deferred = append(b.deferred, cache)
 }
 
 func sequencePages(tokens, pageTokens uint32) []SequenceCachePage {

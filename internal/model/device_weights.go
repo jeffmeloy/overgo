@@ -13,6 +13,13 @@ import (
 )
 
 const defaultWeightChunkSize = 16 << 20
+const weightUploadBufferCount = 2
+
+type weightUploadChunk struct {
+	offset uint64
+	data   []byte
+	err    error
+}
 
 // DeviceTensor: valid only while used on DeviceWeights' worker thread
 type DeviceTensor struct {
@@ -45,6 +52,7 @@ func (w *DeviceWeights) Load(
 	if file == nil {
 		return errors.New("device weights: GGUF file is nil")
 	}
+	var uploadBuffers [weightUploadBufferCount][]byte
 	return w.load(ctx, tensors, func(info gguf.TensorInfo) (DeviceTensor, error) {
 		if info.Size == 0 {
 			return DeviceTensor{}, fmt.Errorf("device tensor %q has zero size", info.Name)
@@ -57,7 +65,7 @@ func (w *DeviceWeights) Load(
 		}); err != nil {
 			return DeviceTensor{}, fmt.Errorf("allocate tensor %q: %w", info.Name, err)
 		}
-		if err := w.streamTensor(ctx, file, info, pointer); err != nil {
+		if err := w.streamTensor(ctx, file, info, pointer, &uploadBuffers); err != nil {
 			_ = w.worker.Do(context.Background(), func(state *device.State) error {
 				return state.Driver.MemFree(pointer)
 			})
@@ -72,36 +80,88 @@ func (w *DeviceWeights) streamTensor(
 	file *gguf.File,
 	info gguf.TensorInfo,
 	pointer driver.DevicePtr,
+	uploadBuffers *[weightUploadBufferCount][]byte,
 ) error {
-	chunkSize := uint64(defaultWeightChunkSize)
-	if info.Size < chunkSize {
-		chunkSize = info.Size
+	if info.Size <= defaultWeightChunkSize {
+		if cap((*uploadBuffers)[0]) < int(info.Size) {
+			(*uploadBuffers)[0] = make([]byte, int(info.Size))
+		}
+		data := (*uploadBuffers)[0][:int(info.Size)]
+		if err := file.ReadTensorRange(info, 0, data); err != nil {
+			return fmt.Errorf("read tensor %q at 0: %w", info.Name, err)
+		}
+		if err := w.worker.Do(ctx, func(state *device.State) error {
+			return state.Driver.MemcpyHtoD(pointer, data)
+		}); err != nil {
+			return fmt.Errorf("upload tensor %q at 0: %w", info.Name, err)
+		}
+		return nil
 	}
-	chunk := make([]byte, int(chunkSize))
-	for offset := uint64(0); offset < info.Size; {
-		if err := ctx.Err(); err != nil {
-			return err
+	chunkSize := uint64(defaultWeightChunkSize)
+	pipelineCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	free := make(chan []byte, weightUploadBufferCount)
+	ready := make(chan weightUploadChunk, weightUploadBufferCount)
+	done := make(chan struct{})
+	for index := range weightUploadBufferCount {
+		if cap((*uploadBuffers)[index]) < int(chunkSize) {
+			(*uploadBuffers)[index] = make([]byte, int(chunkSize))
 		}
-		length := chunkSize
-		if remaining := info.Size - offset; remaining < length {
-			length = remaining
+		free <- (*uploadBuffers)[index][:int(chunkSize)]
+	}
+	go func() {
+		defer close(done)
+		defer close(ready)
+		for offset := uint64(0); offset < info.Size; {
+			var buffer []byte
+			select {
+			case buffer = <-free:
+			case <-pipelineCtx.Done():
+				return
+			}
+			length := min(chunkSize, info.Size-offset)
+			data := buffer[:int(length)]
+			if err := file.ReadTensorRange(info, offset, data); err != nil {
+				select {
+				case ready <- weightUploadChunk{offset: offset, err: err}:
+				case <-pipelineCtx.Done():
+				}
+				return
+			}
+			select {
+			case ready <- weightUploadChunk{offset: offset, data: data}:
+				offset += length
+			case <-pipelineCtx.Done():
+				return
+			}
 		}
-		data := chunk[:int(length)]
-		if err := file.ReadTensorRange(info, offset, data); err != nil {
-			return fmt.Errorf("read tensor %q at %d: %w", info.Name, offset, err)
+	}()
+	for chunk := range ready {
+		if chunk.err != nil {
+			cancel()
+			<-done
+			return fmt.Errorf("read tensor %q at %d: %w", info.Name, chunk.offset, chunk.err)
 		}
-		if uint64(pointer) > math.MaxUint64-offset {
+		if uint64(pointer) > math.MaxUint64-chunk.offset {
+			cancel()
+			<-done
 			return fmt.Errorf("device pointer for tensor %q overflows", info.Name)
 		}
-		destination := pointer + driver.DevicePtr(offset)
+		destination := pointer + driver.DevicePtr(chunk.offset)
 		if err := w.worker.Do(ctx, func(state *device.State) error {
-			return state.Driver.MemcpyHtoD(destination, data)
+			return state.Driver.MemcpyHtoD(destination, chunk.data)
 		}); err != nil {
-			return fmt.Errorf("upload tensor %q at %d: %w", info.Name, offset, err)
+			cancel()
+			<-done
+			return fmt.Errorf("upload tensor %q at %d: %w", info.Name, chunk.offset, err)
 		}
-		offset += length
+		select {
+		case free <- chunk.data[:int(chunkSize)]:
+		case <-pipelineCtx.Done():
+		}
 	}
-	return nil
+	<-done
+	return ctx.Err()
 }
 
 // Do exposes loaded device pointers only inside owning worker callback

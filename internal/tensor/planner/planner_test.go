@@ -101,3 +101,32 @@ func TestBuildWithDependenciesExtendsProducerLifetime(t *testing.T) {
 		t.Fatal("extended producer shares storage with an intervening tensor")
 	}
 }
+
+func TestBuildWithRewritesAliasesViewsAndOmitsFusedNodes(t *testing.T) {
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(8)
+	input := builder.Input("input", dtype.F32, shape)
+	producer := builder.Scale(input, 2)
+	view := builder.FlatSlice(producer, 2, 4)
+	eliminated := builder.SiLU(view)
+	output := builder.Scale(eliminated, 3)
+	plan, err := BuildWithRewrites(
+		[]*tensor.Tensor{output},
+		16,
+		map[*tensor.Tensor][]*tensor.Tensor{output: {view}},
+		map[*tensor.Tensor]*tensor.Tensor{view: producer},
+		map[*tensor.Tensor]struct{}{eliminated: {}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, allocated := plan.Allocations[eliminated]; allocated {
+		t.Fatal("eliminated tensor received arena storage")
+	}
+	if plan.Allocations[view].Offset != plan.Allocations[producer].Offset {
+		t.Fatalf("view storage differs: producer=%+v view=%+v", plan.Allocations[producer], plan.Allocations[view])
+	}
+	if plan.Allocations[producer].Last < plan.Allocations[output].First {
+		t.Fatalf("aliased producer expired before rewritten consumer: %+v", plan.Allocations[producer])
+	}
+}

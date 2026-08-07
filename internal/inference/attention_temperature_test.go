@@ -2,6 +2,7 @@ package inference
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"overgo/internal/model"
@@ -35,6 +36,36 @@ func TestMistral3AttentionTemperatureInput(t *testing.T) {
 		if math.Abs(float64(value.Data[index]-want[index])) > 1e-7 {
 			t.Fatalf("temperature[%d] = %g, want %g", index, value.Data[index], want[index])
 		}
+	}
+}
+
+func TestDeepSeek4PositionRequiresExactF32Representation(t *testing.T) {
+	builder := tensor.NewBuilder()
+	feeds := make(map[*tensor.Tensor]reference.Value)
+	weights := model.LayerGraphWeights{}
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek4"}}
+	plan := model.LayerPlan{Cache: model.CacheDeepSeek4}
+	if _, err := bindLayerSideInputs(
+		builder,
+		spec,
+		[]uint32{maxExactFloat32Position},
+		plan,
+		feeds,
+		&weights,
+		layerSideInputs{},
+	); err != nil {
+		t.Fatalf("maximum exact position rejected: %v", err)
+	}
+	if _, err := bindLayerSideInputs(
+		tensor.NewBuilder(),
+		spec,
+		[]uint32{maxExactFloat32Position + 1},
+		plan,
+		make(map[*tensor.Tensor]reference.Value),
+		&model.LayerGraphWeights{},
+		layerSideInputs{},
+	); err == nil || !strings.Contains(err.Error(), "exact F32") {
+		t.Fatalf("inexact position error = %v", err)
 	}
 }
 

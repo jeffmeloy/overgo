@@ -40,6 +40,27 @@ func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
 	}
 }
 
+func TestCachePageCapacityRoundsAndClamps(t *testing.T) {
+	const (
+		page  = uint32(4)
+		limit = uint32(10)
+	)
+	for _, fixture := range []struct {
+		tokens uint32
+		want   uint32
+	}{
+		{1, 4},
+		{4, 4},
+		{5, 8},
+		{9, limit},
+		{limit, limit},
+	} {
+		if got := cachePageCapacity(fixture.tokens, page, limit); got != fixture.want {
+			t.Fatalf("capacity(%d) = %d, want %d", fixture.tokens, got, fixture.want)
+		}
+	}
+}
+
 func TestRebuildDeviceCachePagesPreservesFixedState(t *testing.T) {
 	fixed := executor.DeviceValue{
 		Pointer: driver.DevicePtr(3000),

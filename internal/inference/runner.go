@@ -14,6 +14,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -151,6 +152,7 @@ type preparedModel struct {
 	path                string
 	spec                model.Spec
 	program             modelrecipe.Plan
+	evidenceTier        recipe.EvidenceTier
 	cacheSchemas        []model.LayerCacheSchema
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
@@ -213,6 +215,13 @@ func (r *Runner) Spec() model.Spec {
 		return model.Spec{}
 	}
 	return r.spec
+}
+
+func (r *Runner) EvidenceTier() recipe.EvidenceTier {
+	if r == nil {
+		return ""
+	}
+	return r.evidenceTier
 }
 
 func (r *Runner) layerPlan(layer int) model.LayerPlan {

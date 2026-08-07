@@ -47,6 +47,10 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 		_ = loaded.Close()
 		t.Fatal(err)
 	}
+	if runner.EvidenceTier() != recipe.EvidenceExperimental {
+		_ = runner.Close()
+		t.Fatalf("Qwen3.5 evidence tier = %q", runner.EvidenceTier())
+	}
 	if err := runner.Close(); err != nil {
 		t.Fatal(err)
 	}

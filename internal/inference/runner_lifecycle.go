@@ -203,7 +203,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	}
 	loaded.File = nil
 	return &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, program: program, cacheSchemas: cacheSchemas,
+		file: file, path: path, spec: spec, program: program, evidenceTier: loaded.EvidenceTier, cacheSchemas: cacheSchemas,
 		weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,

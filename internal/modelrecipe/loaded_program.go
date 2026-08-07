@@ -15,14 +15,15 @@ import (
 
 // LoadedProgram: verified GGUF plus authoritative recipe program.
 type LoadedProgram struct {
-	File       *gguf.File
-	Path       string
-	Spec       model.Spec
-	Weights    model.Weights
-	Inventory  modelartifact.Inventory
-	Profile    ProfileDocument
-	Definition ModelDefinitionDocument
-	Program    Plan
+	File         *gguf.File
+	Path         string
+	Spec         model.Spec
+	Weights      model.Weights
+	Inventory    modelartifact.Inventory
+	Profile      ProfileDocument
+	Definition   ModelDefinitionDocument
+	EvidenceTier recipe.EvidenceTier
+	Program      Plan
 }
 
 // ResolveActiveGGUF: verifies and compiles the active recipe before execution.
@@ -38,13 +39,15 @@ func ResolveActiveGGUF(
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, loaded.Close())
 	}
-	definition, active, err := Active(ctx, store, loaded.Inventory.Manifest.ID, recipe.TaskInference)
+	activation, active, err := ActiveRecord(ctx, store, loaded.Inventory.Manifest.ID, recipe.TaskInference)
 	if err != nil {
 		return fail(err)
 	}
 	if !active {
 		return fail(errors.New("model recipe: active inference recipe is absent"))
 	}
+	definition := activation.Definition
+	loaded.EvidenceTier = activation.Tier
 	definitionID, ok := definition.Dependency(recipe.DependencyDefinition, 0)
 	if !ok {
 		return fail(errors.New("model recipe: active recipe has no model definition"))
@@ -72,6 +75,7 @@ func LoadFixtureGGUF(path string, placement recipe.Placement) (LoadedProgram, er
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, loaded.Close())
 	}
+	loaded.EvidenceTier = recipe.EvidenceExperimental
 	profile, err := NewProfileDocument(loaded.Spec.Profile())
 	if err != nil {
 		return fail(err)
@@ -153,6 +157,9 @@ func (l *LoadedProgram) bindResolved(
 func (l LoadedProgram) Validate() error {
 	if l.File == nil || l.Path == "" {
 		return errors.New("model recipe: loaded program source is unavailable")
+	}
+	if !l.EvidenceTier.Valid() {
+		return errors.New("model recipe: loaded program evidence tier is invalid")
 	}
 	if err := l.Program.ValidateServing(); err != nil {
 		return err

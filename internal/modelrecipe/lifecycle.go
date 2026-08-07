@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
@@ -141,6 +142,17 @@ func transition(
 			return artifact.CommitID{}, recipe.LifecycleEvent{}, fmt.Errorf("model recipe: unknown evidence %s", evidenceID)
 		}
 	}
+	if to == recipe.StatusRefused {
+		decision, found, decisionErr := findDecision(
+			ctx, store, definition.ID, recipe.DecisionRefused, evidence, pending,
+		)
+		if decisionErr != nil {
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, decisionErr
+		}
+		if !found || decision.Reason == "" {
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: refusal requires typed decision evidence")
+		}
+	}
 	event, err := recipe.NewLifecycleEvent(definition, previous.To, to, &previous.ID, supersedes, evidence)
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
@@ -199,13 +211,58 @@ func transition(
 	return commit, event, err
 }
 
-func Active(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool, error) {
+type Activation struct {
+	Definition recipe.Definition
+	Event      recipe.LifecycleEvent
+	Tier       recipe.EvidenceTier
+	Decisions  []recipe.Decision
+}
+
+func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, bool, error) {
 	id, ok, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, task))
 	if err != nil || !ok {
-		return recipe.Definition{}, ok, err
+		return Activation{}, ok, err
 	}
 	definition, err := loadDefinition(ctx, store, id)
-	return definition, err == nil, err
+	if err != nil {
+		return Activation{}, false, err
+	}
+	event, err := currentEvent(ctx, store, definition.ID)
+	if err != nil {
+		return Activation{}, false, err
+	}
+	decisions, err := loadDecisions(ctx, store, event.Evidence)
+	if err != nil {
+		return Activation{}, false, err
+	}
+	if event.To != recipe.StatusActive {
+		reason := ""
+		for _, decision := range decisions {
+			if decision.Subject == definition.ID && decision.Outcome == recipe.DecisionRefused {
+				reason = decision.Reason
+				break
+			}
+		}
+		if reason != "" {
+			return Activation{}, false, fmt.Errorf("model recipe: active alias names refused recipe: %s", reason)
+		}
+		return Activation{}, false, fmt.Errorf("model recipe: active alias names recipe in %q state", event.To)
+	}
+	tier := recipe.EvidenceExperimental
+	for _, decision := range decisions {
+		if decision.Subject == definition.ID && decision.Outcome == recipe.DecisionAccepted &&
+			evidenceTierRank(decision.Tier) > evidenceTierRank(tier) {
+			tier = decision.Tier
+		}
+	}
+	return Activation{
+		Definition: definition, Event: event, Tier: tier, Decisions: slices.Clone(decisions),
+	}, true, nil
+}
+
+func Active(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool, error) {
+	activation, ok, err := ActiveRecord(ctx, store, modelID, task)
+	return activation.Definition, ok, err
 }
 
 // ActiveProfile: parity-gated policy for runtime ingestion.
@@ -270,6 +327,90 @@ func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.
 		return recipe.LifecycleEvent{}, errors.New("model recipe: lifecycle content is absent or incompatible")
 	}
 	return recipe.ParseLifecycleEvent(content.Data)
+}
+
+func findDecision(
+	ctx context.Context,
+	store artifact.Reader,
+	subject artifact.ID,
+	outcome recipe.DecisionOutcome,
+	evidence []artifact.ID,
+	pending []artifact.Content,
+) (recipe.Decision, bool, error) {
+	pendingByID := make(map[artifact.ID]artifact.Content, len(pending))
+	for _, content := range pending {
+		pendingByID[content.Descriptor.ID] = content
+	}
+	for _, id := range evidence {
+		if content, ok := pendingByID[id]; ok {
+			if content.Descriptor.MediaType != recipe.DecisionMediaType || content.Descriptor.Schema != recipe.DecisionSchema {
+				continue
+			}
+			decision, err := recipe.ParseDecision(content.Data)
+			if err != nil {
+				return recipe.Decision{}, false, err
+			}
+			if decision.ID != id {
+				return recipe.Decision{}, false, errors.New("model recipe: pending decision identity mismatch")
+			}
+			if decision.Subject == subject && decision.Outcome == outcome {
+				return decision, true, nil
+			}
+			continue
+		}
+		content, ok, err := store.Content(ctx, id)
+		if err != nil {
+			return recipe.Decision{}, false, err
+		}
+		if !ok || content.Descriptor.MediaType != recipe.DecisionMediaType ||
+			content.Descriptor.Schema != recipe.DecisionSchema {
+			continue
+		}
+		decision, err := recipe.ParseDecision(content.Data)
+		if err != nil {
+			return recipe.Decision{}, false, err
+		}
+		if decision.Subject == subject && decision.Outcome == outcome {
+			return decision, true, nil
+		}
+	}
+	return recipe.Decision{}, false, nil
+}
+
+func loadDecisions(ctx context.Context, store artifact.Reader, ids []artifact.ID) ([]recipe.Decision, error) {
+	decisions := make([]recipe.Decision, 0)
+	for _, id := range ids {
+		content, ok, err := store.Content(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !ok || content.Descriptor.MediaType != recipe.DecisionMediaType ||
+			content.Descriptor.Schema != recipe.DecisionSchema {
+			continue
+		}
+		decision, err := recipe.ParseDecision(content.Data)
+		if err != nil {
+			return nil, err
+		}
+		if decision.ID != id {
+			return nil, errors.New("model recipe: decision identity mismatch")
+		}
+		decisions = append(decisions, decision)
+	}
+	return decisions, nil
+}
+
+func evidenceTierRank(tier recipe.EvidenceTier) int {
+	switch tier {
+	case recipe.EvidenceProduction:
+		return 3
+	case recipe.EvidenceParity:
+		return 2
+	case recipe.EvidenceExperimental:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) (recipe.Definition, error) {

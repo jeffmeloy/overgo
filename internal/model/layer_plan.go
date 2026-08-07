@@ -311,6 +311,7 @@ type ModelPlan struct {
 	CacheLayers uint32
 	CachedGraph CachedGraphPolicy
 	Terminal    TerminalPlan
+	Draft       DraftPlan
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -347,6 +348,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	plan := ModelPlan{
 		Profile: profile, Layers: make([]LayerPlan, layers), CacheLayers: cacheLayers,
 		Terminal: TerminalPlan{Normalization: profile.OutputNorm},
+		Draft:    profile.DraftPlan(spec.NextNPredictLayers),
 	}
 	if weights.Output != nil {
 		plan.Terminal.OutputHead = OutputHeadDedicated
@@ -367,6 +369,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		plan.Terminal.Normalization != plan.Profile.OutputNorm ||
 		(plan.Terminal.OutputHead == OutputHeadDedicated) != (weights.Output != nil) {
 		return fmt.Errorf("model plan architecture %s has invalid terminal policy", spec.Architecture)
+	}
+	if plan.Draft != plan.Profile.DraftPlan(spec.NextNPredictLayers) {
+		return fmt.Errorf("model plan architecture %s has invalid draft policy", spec.Architecture)
 	}
 	if spec.SharedKVLayers > 0 && (!plan.Profile.Has(ArchitectureSharedKV) ||
 		spec.SharedKVLayers >= spec.BlockCount) {

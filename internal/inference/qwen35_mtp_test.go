@@ -109,7 +109,7 @@ func TestValidateQwen35MTP(t *testing.T) {
 	if err := runner.validateQwen35MTP(); err != nil {
 		t.Fatal(err)
 	}
-	runner.spec.NextNPredictLayers = 0
+	runner.weights.Qwen35MTP = nil
 	if err := runner.validateQwen35MTP(); err == nil {
 		t.Fatal("missing Qwen3.5 MTP metadata was accepted")
 	}

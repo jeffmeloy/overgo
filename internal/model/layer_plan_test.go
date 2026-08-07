@@ -28,6 +28,20 @@ func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 	}
 }
 
+func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
+	spec := Spec{CommonSpec: CommonSpec{
+		Architecture: "step35", BlockCount: 1, NextNPredictLayers: 2,
+	}}
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Draft.Kind != DraftStep35MTP || plan.Draft.Heads != spec.NextNPredictLayers ||
+		plan.Draft.Session != DraftSessionMulti {
+		t.Fatalf("draft plan = %+v", plan.Draft)
+	}
+}
+
 func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 	tests := []struct {
 		name      string

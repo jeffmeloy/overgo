@@ -32,7 +32,7 @@ func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
 	if r == nil {
 		return false
 	}
-	plan := r.profile().DraftPlan(r.spec.NextNPredictLayers)
+	plan := r.program.Model.Draft
 	return plan.Kind == kind && plan.SessionEligible() && catalogs == int(plan.Heads)
 }
 

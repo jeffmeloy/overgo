@@ -92,3 +92,23 @@ func TestDuplicateLineageRequiresSameArtifactKind(t *testing.T) {
 		t.Fatal("cross-kind duplicate accepted")
 	}
 }
+
+func TestSplitPublicationRejectsCrossWiredPlan(t *testing.T) {
+	source := fixtureID(t, artifact.KindDataset, "source")
+	records := []Record{
+		{ID: "a", Group: "a"}, {ID: "b", Group: "b"}, {ID: "c", Group: "c"},
+	}
+	partitions := []SplitPartition{{Name: "train", Weight: 2}, {Name: "test", Weight: 1}}
+	first, err := BuildGroupSplit(source, records, 7, partitions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := BuildGroupSplit(source, records, 8, partitions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Memberships[0] = second.Memberships[0]
+	if _, err := first.PublicationBatch("fixture/cross-wired", nil); err == nil {
+		t.Fatal("cross-wired split plan accepted")
+	}
+}

@@ -167,8 +167,8 @@ func (m Membership) Lineage() artifact.Lineage {
 }
 
 func (p SplitPlan) PublicationBatch(key string, aliases []artifact.AliasBinding) (artifact.Batch, error) {
-	if len(p.Memberships) != len(p.Views) || len(p.Views) < 2 {
-		return artifact.Batch{}, errors.New("dataset: invalid split plan")
+	if err := p.validate(); err != nil {
+		return artifact.Batch{}, err
 	}
 	documents := append(slices.Clone(p.Views), p.Split)
 	batch, err := PublicationBatch(key, documents, aliases)
@@ -187,6 +187,62 @@ func (p SplitPlan) PublicationBatch(key string, aliases []artifact.AliasBinding)
 		return artifact.Batch{}, err
 	}
 	return batch, nil
+}
+
+func (p SplitPlan) validate() error {
+	if len(p.Memberships) != len(p.Views) || len(p.Views) < 2 ||
+		len(p.Split.Partitions) != len(p.Views) || p.Split.Type != TypeSplit || p.Split.Source == nil {
+		return errors.New("dataset: invalid split plan")
+	}
+	if err := p.Split.ValidateIdentity(); err != nil {
+		return err
+	}
+	source := *p.Split.Source
+	membershipByID := make(map[artifact.ID]Membership, len(p.Memberships))
+	for _, membership := range p.Memberships {
+		if err := membership.ValidateIdentity(); err != nil {
+			return err
+		}
+		if membership.Source != source {
+			return errors.New("dataset: split membership source differs")
+		}
+		if _, duplicate := membershipByID[membership.ID]; duplicate {
+			return errors.New("dataset: duplicate split membership")
+		}
+		membershipByID[membership.ID] = membership
+	}
+	viewByID := make(map[artifact.ID]Document, len(p.Views))
+	for _, view := range p.Views {
+		if err := view.ValidateIdentity(); err != nil {
+			return err
+		}
+		if view.Type != TypeView || view.Source == nil || *view.Source != source || view.Selector == nil {
+			return errors.New("dataset: split view differs from membership source")
+		}
+		if _, ok := membershipByID[*view.Selector]; !ok {
+			return errors.New("dataset: split view selector is not a membership")
+		}
+		if _, duplicate := viewByID[view.ID]; duplicate {
+			return errors.New("dataset: duplicate split view")
+		}
+		viewByID[view.ID] = view
+	}
+	usedMemberships := make(map[artifact.ID]struct{}, len(p.Memberships))
+	for _, partition := range p.Split.Partitions {
+		view, ok := viewByID[partition.View]
+		if !ok {
+			return errors.New("dataset: split partition view is absent")
+		}
+		membership := membershipByID[*view.Selector]
+		if membership.Partition != partition.Name {
+			return errors.New("dataset: split partition name differs from membership")
+		}
+		usedMemberships[membership.ID] = struct{}{}
+	}
+	if len(usedMemberships) != len(p.Memberships) {
+		return errors.New("dataset: split plan has unused membership")
+	}
+	return nil
 }
 
 func DuplicateLineage(duplicate, canonical artifact.ID) (artifact.Lineage, error) {

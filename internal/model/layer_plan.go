@@ -95,6 +95,20 @@ const (
 	DenseGraphRWKV7
 )
 
+// OutputHeadPolicy: compiled terminal projection source.
+type OutputHeadPolicy uint8
+
+const (
+	OutputHeadTokenEmbedding OutputHeadPolicy = iota
+	OutputHeadDedicated
+)
+
+// TerminalPlan: compiled final normalization and projection.
+type TerminalPlan struct {
+	Normalization OutputNormPolicy
+	OutputHead    OutputHeadPolicy
+}
+
 // DeepstackSource: compiled projected-stream source.
 type DeepstackSource int32
 
@@ -296,6 +310,7 @@ type ModelPlan struct {
 	Layers      []LayerPlan
 	CacheLayers uint32
 	CachedGraph CachedGraphPolicy
+	Terminal    TerminalPlan
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -331,19 +346,28 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	}
 	plan := ModelPlan{
 		Profile: profile, Layers: make([]LayerPlan, layers), CacheLayers: cacheLayers,
+		Terminal: TerminalPlan{Normalization: profile.OutputNorm},
+	}
+	if weights.Output != nil {
+		plan.Terminal.OutputHead = OutputHeadDedicated
 	}
 	for layer := range layers {
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
 		plan.Layers[layer] = spec.PlanLayer(layer, recurrent)
 	}
-	if err := validateModelPlan(spec, plan); err != nil {
+	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
 	}
 	plan.CachedGraph = cachedGraphPolicy(profile, plan.Layers)
 	return plan, nil
 }
 
-func validateModelPlan(spec Spec, plan ModelPlan) error {
+func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
+	if plan.Terminal.OutputHead > OutputHeadDedicated ||
+		plan.Terminal.Normalization != plan.Profile.OutputNorm ||
+		(plan.Terminal.OutputHead == OutputHeadDedicated) != (weights.Output != nil) {
+		return fmt.Errorf("model plan architecture %s has invalid terminal policy", spec.Architecture)
+	}
 	if spec.SharedKVLayers > 0 && (!plan.Profile.Has(ArchitectureSharedKV) ||
 		spec.SharedKVLayers >= spec.BlockCount) {
 		return fmt.Errorf("model plan architecture %s has invalid shared-KV layer count %d", spec.Architecture, spec.SharedKVLayers)

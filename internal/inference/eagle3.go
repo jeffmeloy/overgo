@@ -190,7 +190,7 @@ func (r *Runner) stepEagle3(
 	normalized := runtime.builder.WeightedRMSNorm(block.Output, norm, r.spec.RMSNormEpsilon)
 	outputInfo := target.outputTensor()
 	outputOwner := target
-	if r.weights.Output != nil {
+	if r.program.Model.Terminal.OutputHead == model.OutputHeadDedicated {
 		outputInfo, outputOwner = r.outputTensor(), r
 	}
 	var output *tensor.Tensor

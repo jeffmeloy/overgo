@@ -4,8 +4,29 @@ import (
 	"errors"
 	"testing"
 
+	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 )
+
+func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
+	tied, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tied.Terminal.Normalization != OutputNormModel ||
+		tied.Terminal.OutputHead != OutputHeadTokenEmbedding {
+		t.Fatalf("tied terminal = %+v", tied.Terminal)
+	}
+	output := gguf.TensorInfo{Name: "output.weight"}
+	dedicated, err := CompileModelPlan(spec, Weights{Output: &output})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dedicated.Terminal.OutputHead != OutputHeadDedicated {
+		t.Fatalf("dedicated terminal = %+v", dedicated.Terminal)
+	}
+}
 
 func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 	tests := []struct {

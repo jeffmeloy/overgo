@@ -75,14 +75,17 @@ func publishCandidate(
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
 	contents := []artifact.Content{definitionContent, eventContent}
+	var profileLineage []artifact.Lineage
 	if document != nil {
-		profileContent, contentErr := ProfileContent(*document)
+		profileContents, lineage, contentErr := profilePublicationFacts(*document)
 		if contentErr != nil {
 			return artifact.CommitID{}, recipe.LifecycleEvent{}, contentErr
 		}
-		contents = append(contents, profileContent)
+		contents = append(contents, profileContents...)
+		profileLineage = lineage
 	}
-	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies))
+	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies)+len(profileLineage))
+	lineage = append(lineage, profileLineage...)
 	for _, dependency := range definition.Dependencies {
 		lineage = append(lineage, artifact.Lineage{
 			Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn,

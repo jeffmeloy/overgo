@@ -15,6 +15,11 @@ type ProfileFactID string
 
 type ProfileFactOrigin string
 
+type ProfileFactSpec struct {
+	Fact ProfileFactID `json:"fact"`
+	Type string        `json:"type"`
+}
+
 const (
 	ProfileFactConfig   ProfileFactOrigin = "config-derived"
 	ProfileFactTensor   ProfileFactOrigin = "tensor-derived"
@@ -29,24 +34,37 @@ type ProfileFactProvenance struct {
 	DerivationID artifact.ID       `json:"derivation_id"`
 }
 
-var architectureProfileFacts = discoverProfileFacts()
+var architectureProfileFactSpecs = discoverProfileFacts()
+
+var architectureProfileFacts = func() []ProfileFactID {
+	facts := make([]ProfileFactID, len(architectureProfileFactSpecs))
+	for index, spec := range architectureProfileFactSpecs {
+		facts[index] = spec.Fact
+	}
+	return facts
+}()
 
 func ArchitectureProfileFacts() []ProfileFactID {
 	return slices.Clone(architectureProfileFacts)
 }
 
-func CatalogProfileProvenance(profile model.ArchitectureProfile) []ProfileFactProvenance {
-	derivation, _ := artifact.IdentifyBytes(
-		artifact.KindEvidence, []byte("overgo/profile-catalog/v2\x00"+profile.Name),
-	)
+func ArchitectureProfileFactSchema() []ProfileFactSpec {
+	return slices.Clone(architectureProfileFactSpecs)
+}
+
+func CatalogProfileProvenance(profile model.ArchitectureProfile) ([]ProfileFactProvenance, error) {
+	derivation, err := NewCatalogProfileDerivation(profile)
+	if err != nil {
+		return nil, err
+	}
 	provenance := make([]ProfileFactProvenance, len(architectureProfileFacts))
 	for index, fact := range architectureProfileFacts {
 		provenance[index] = ProfileFactProvenance{
 			Fact: fact, Origin: ProfileFactConfig,
-			SourceField: "architecture_catalog." + string(fact), DerivationID: derivation,
+			SourceField: "architecture_catalog." + string(fact), DerivationID: derivation.ID,
 		}
 	}
-	return provenance
+	return provenance, nil
 }
 
 func canonicalizeProfileProvenance(provenance *[]ProfileFactProvenance) error {
@@ -73,14 +91,14 @@ func validProfileFactOrigin(origin ProfileFactOrigin) bool {
 	}
 }
 
-func discoverProfileFacts() []ProfileFactID {
-	var facts []ProfileFactID
+func discoverProfileFacts() []ProfileFactSpec {
+	var facts []ProfileFactSpec
 	collectProfileFacts(reflect.TypeOf(model.ArchitectureProfile{}), "", &facts)
-	sort.Slice(facts, func(i, j int) bool { return facts[i] < facts[j] })
+	sort.Slice(facts, func(i, j int) bool { return facts[i].Fact < facts[j].Fact })
 	return facts
 }
 
-func collectProfileFacts(value reflect.Type, prefix string, facts *[]ProfileFactID) {
+func collectProfileFacts(value reflect.Type, prefix string, facts *[]ProfileFactSpec) {
 	for index := 0; index < value.NumField(); index++ {
 		field := value.Field(index)
 		if field.PkgPath != "" {
@@ -94,6 +112,6 @@ func collectProfileFacts(value reflect.Type, prefix string, facts *[]ProfileFact
 			collectProfileFacts(field.Type, name, facts)
 			continue
 		}
-		*facts = append(*facts, ProfileFactID(name))
+		*facts = append(*facts, ProfileFactSpec{Fact: ProfileFactID(name), Type: field.Type.String()})
 	}
 }

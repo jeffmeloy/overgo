@@ -360,6 +360,12 @@ func validateKnownDocument(content artifact.Content) error {
 			break
 		}
 		_, err = modelrecipe.ParseProfileParityEvidence(data)
+	case modelrecipe.CatalogProfileDerivationMediaType:
+		requireSchema(modelrecipe.CatalogProfileDerivationSchema)
+		if err != nil {
+			break
+		}
+		_, err = modelrecipe.ParseCatalogProfileDerivation(data)
 	case modelrecipe.ModelDefinitionMediaType:
 		requireSchema(modelrecipe.ModelDefinitionSchema)
 		if err != nil {

@@ -70,7 +70,7 @@ func (r ResolvedModelDefinition) Batch(
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	profileContent, err := ProfileContent(checked.Profile)
+	profileContents, profileLineage, err := profilePublicationFacts(checked.Profile)
 	if err != nil {
 		return artifact.Batch{}, err
 	}
@@ -78,7 +78,9 @@ func (r ResolvedModelDefinition) Batch(
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	batch.Contents = append(batch.Contents, profileContent, definitionContent)
+	batch.Contents = append(batch.Contents, profileContents...)
+	batch.Contents = append(batch.Contents, definitionContent)
+	batch.Lineage = append(batch.Lineage, profileLineage...)
 	batch.Lineage = append(batch.Lineage,
 		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Document.Model, Relation: artifact.RelationDerivedFrom},
 		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Profile.ID, Relation: artifact.RelationDependsOn},

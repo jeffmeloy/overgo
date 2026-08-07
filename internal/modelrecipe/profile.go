@@ -48,7 +48,11 @@ type ProfileDocument struct {
 }
 
 func NewProfileDocument(profile model.ArchitectureProfile) (ProfileDocument, error) {
-	return NewProfileDocumentWithProvenance(profile, CatalogProfileProvenance(profile))
+	provenance, err := CatalogProfileProvenance(profile)
+	if err != nil {
+		return ProfileDocument{}, err
+	}
+	return NewProfileDocumentWithProvenance(profile, provenance)
 }
 
 func NewProfileDocumentWithProvenance(
@@ -205,7 +209,8 @@ func PublishProfileCatalog(
 	if len(documents) == 0 {
 		return artifact.CommitID{}, errors.New("model recipe: profile catalog is empty")
 	}
-	contents := make([]artifact.Content, 0, len(documents))
+	contents := make([]artifact.Content, 0, len(documents)*2)
+	lineage := make([]artifact.Lineage, 0, len(documents))
 	aliases := make([]artifact.AliasBinding, 0, len(documents))
 	architectures := make(map[string]struct{}, len(documents))
 	for _, document := range documents {
@@ -216,11 +221,12 @@ func PublishProfileCatalog(
 			return artifact.CommitID{}, fmt.Errorf("model recipe: duplicate profile architecture %q", document.Architecture)
 		}
 		architectures[document.Architecture] = struct{}{}
-		content, contentErr := ProfileContent(document)
+		profileContents, profileLineage, contentErr := profilePublicationFacts(document)
 		if contentErr != nil {
 			return artifact.CommitID{}, contentErr
 		}
-		contents = append(contents, content)
+		contents = append(contents, profileContents...)
+		lineage = append(lineage, profileLineage...)
 		alias := registeredProfileAlias(document.Architecture)
 		current, ok, lookupErr := artifact.ResolveAlias(ctx, store, alias)
 		if lookupErr != nil {
@@ -235,7 +241,7 @@ func PublishProfileCatalog(
 		}
 		aliases = append(aliases, binding)
 	}
-	batch, err := artifact.NewDocumentBatch(key, contents, nil, aliases)
+	batch, err := artifact.NewDocumentBatch(key, contents, lineage, aliases)
 	if err != nil {
 		return artifact.CommitID{}, err
 	}
@@ -288,6 +294,9 @@ func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Pr
 	}
 	if document.ID != id {
 		return ProfileDocument{}, errors.New("model recipe: profile content identity differs")
+	}
+	if err := validateStoredProfileProvenance(ctx, store, document); err != nil {
+		return ProfileDocument{}, err
 	}
 	return document, nil
 }

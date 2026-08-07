@@ -16,9 +16,10 @@ import (
 	"overgo/internal/repodb"
 )
 
-const profileCatalogSemanticDigest = "4ca5d17e4464a68b86b917b51e7de4675e16d41a307e0d0508d79b7f059af79a"
+const profileCatalogSemanticDigest = "a057d9543ea45ec2b0e846226a2106838e7ad248a56998f78556332ecaf1c154"
 const architectureProfileFactCount = 129
 const architectureProfileFactDigest = "1c7ac19c3f85665bebeec3297385a4db87ae2addd851661884e5621fb8f88013"
+const architectureProfileFactSchemaDigest = "3cc9bf2d3ba00b78b4f6b033af82f731406ec003e92ba3bbc42d4ec9ec522bb9"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 
@@ -48,7 +49,10 @@ func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 
 func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	profile, _ := model.LookupArchitecture("llama")
-	base := CatalogProfileProvenance(profile)
+	base, err := CatalogProfileProvenance(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	facts := ArchitectureProfileFacts()
 	if len(base) != len(facts) || len(base) != architectureProfileFactCount {
 		t.Fatalf("profile facts = %d", len(base))
@@ -59,6 +63,13 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	}
 	if got := fmt.Sprintf("%x", digest.Sum(nil)); got != architectureProfileFactDigest {
 		t.Fatalf("profile fact digest = %s", got)
+	}
+	schema, err := json.Marshal(ArchitectureProfileFactSchema())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%x", sha256.Sum256(schema)); got != architectureProfileFactSchemaDigest {
+		t.Fatalf("profile fact schema digest = %s", got)
 	}
 	first, err := NewProfileDocumentWithProvenance(profile, base)
 	if err != nil {
@@ -157,6 +168,52 @@ func TestPublishProfilesSeedsRegisteredAliases(t *testing.T) {
 	if len(documents) != len(model.SupportedArchitectures()) {
 		t.Fatalf("documents = %d", len(documents))
 	}
+	derivationID := document.Provenance[0].DerivationID
+	content, ok, err := store.Content(ctx, derivationID)
+	if err != nil || !ok || content.Descriptor.MediaType != CatalogProfileDerivationMediaType {
+		t.Fatalf("profile derivation content = (%+v, %t, %v)", content.Descriptor, ok, err)
+	}
+	derivation, err := ParseCatalogProfileDerivation(content.Data)
+	if err != nil || derivation.ID != derivationID || derivation.Architecture != "llama" {
+		t.Fatalf("profile derivation = (%+v, %v)", derivation, err)
+	}
+	parents, err := store.Parents(ctx, document.ID)
+	if err != nil || len(parents) != 1 || parents[0].Parent != derivationID {
+		t.Fatalf("profile derivation lineage = (%+v, %v)", parents, err)
+	}
+}
+
+func TestRegisteredProfileRequiresStoredDerivationLineage(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	profile, _ := model.LookupArchitecture("llama")
+	document, err := NewProfileDocument(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := ProfileContent(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"fixture/profile/unbound",
+		[]artifact.Content{content},
+		nil,
+		[]artifact.AliasBinding{{Name: registeredProfileAlias("llama"), Target: document.ID}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := RegisteredProfile(ctx, store, "llama"); err == nil {
+		t.Fatal("profile without derivation lineage loaded")
+	}
 }
 
 func TestPublishProfileCatalogReplacesBootstrapAuthority(t *testing.T) {
@@ -209,6 +266,36 @@ func TestPublishProfileCatalogRejectsDuplicateArchitecture(t *testing.T) {
 		ctx, store, "fixture/catalog/duplicate", []ProfileDocument{document, document},
 	); err == nil {
 		t.Fatal("duplicate profile architecture accepted")
+	}
+}
+
+func TestPublishProfileCatalogRequiresExternalDerivation(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	profile, _ := model.LookupArchitecture("llama")
+	provenance, err := CatalogProfileProvenance(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	externalID, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("external-derivation"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range provenance {
+		provenance[index].Origin = ProfileFactExternal
+		provenance[index].SourceField = "external.profile"
+		provenance[index].DerivationID = externalID
+	}
+	document, err := NewProfileDocumentWithProvenance(profile, provenance)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishProfileCatalog(ctx, store, "fixture/catalog/external", []ProfileDocument{document}); err == nil {
+		t.Fatal("profile with absent external derivation committed")
 	}
 }
 

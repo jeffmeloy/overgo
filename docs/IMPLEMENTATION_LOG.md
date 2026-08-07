@@ -32,6 +32,10 @@ claims.
 
 ## Validated milestones
 
+- The August 7 RepoDB adversarial follow-up hardened import identity and symlink
+  containment, validated dataset split topology, removed overflow from bounded
+  tensor sample indexing, and made typed profile provenance resolve through
+  stored derivation evidence and lineage at publication and load boundaries.
 - The August 7 RepoDB evidence wave added bounded query tooling, injected
   durable-write recovery fixtures, typed lifecycle decisions, profile v2
   per-fact provenance, environment-bound phased runs, terminal gate records,

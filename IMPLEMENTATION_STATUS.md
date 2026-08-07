@@ -32,6 +32,13 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- The RepoDB adversarial follow-up closed four boundary weaknesses: importer
+  identity now binds the full export digest and resolves symlinks before root
+  containment; dataset split plans validate their complete source/view/
+  membership topology; bounded tensor sampling uses overflow-safe derived
+  indices; and profile facts bind a typed schema plus immutable derivation
+  evidence. Profile v2 loads fail closed without the declared evidence and
+  explicit `derived-from` lineage.
 - RepoDB now exposes bounded read-only artifact/alias/commit/lineage queries and
   a canonical JSONL importer. Imports resolve safe local files, symbolic JSON
   references, manifests, lineage, and aliases; validate known domain schemas;

@@ -767,15 +767,48 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 			next = tokenizer.TokenID(index)
 		}
 	}
+	alternate := next + 1
+	if int(alternate) >= len(outputs[0].Logits) {
+		alternate = next - 1
+	}
 	outputs, err = batch.Step(context.Background(), []SequenceBatchInput{
 		{ID: 10, Tokens: []tokenizer.TokenID{next}},
-		{ID: 20, Tokens: []tokenizer.TokenID{next}},
+		{ID: 20, Tokens: []tokenizer.TokenID{alternate}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(outputs[0].Logits, outputs[1].Logits) {
-		t.Fatal("fused cached branches diverged")
+	singles := make([]*ContinuousBatch, 2)
+	for index := range singles {
+		singles[index], err = runner.NewContinuousBatch(ContinuousBatchOptions{
+			MaxSequences: 1, Device: true, PageTokens: 4,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer singles[index].Close(context.Background())
+		if _, err = singles[index].Step(context.Background(), []SequenceBatchInput{{
+			ID: SequenceID(index + 1), Tokens: ids,
+		}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const packedLogitTolerance = 1e-4
+	for index, token := range []tokenizer.TokenID{next, alternate} {
+		single, singleErr := singles[index].Step(context.Background(), []SequenceBatchInput{{
+			ID: SequenceID(index + 1), Tokens: []tokenizer.TokenID{token},
+		}})
+		if singleErr != nil {
+			t.Fatal(singleErr)
+		}
+		if len(single) != 1 || len(single[0].Logits) != len(outputs[index].Logits) {
+			t.Fatal("packed and singleton logit shapes differ")
+		}
+		for logit := range single[0].Logits {
+			if math.Abs(float64(single[0].Logits[logit]-outputs[index].Logits[logit])) > packedLogitTolerance {
+				t.Fatalf("packed sequence %d logit %d differs from singleton", index, logit)
+			}
+		}
 	}
 	if err := batch.Remove(context.Background(), 10); err != nil {
 		t.Fatal(err)

@@ -1829,6 +1829,7 @@ extern "C" __global__ void attention_f32(
         unsigned int key_value_heads,
         unsigned int query_tokens,
         unsigned int key_value_tokens,
+        unsigned int sequences,
         float scale,
         float softcap,
         float max_alibi_bias,
@@ -1846,7 +1847,9 @@ extern "C" __global__ void attention_f32(
     const unsigned int value_channel = index % value_width;
     unsigned int row = index / value_width;
     const unsigned int query_head = row % query_heads;
-    const unsigned int query_token = row / query_heads;
+    row /= query_heads;
+    const unsigned int query_token = row % query_tokens;
+    const unsigned int sequence = row / query_tokens;
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
     const unsigned int query_position = query_start + query_token;
@@ -1869,7 +1872,7 @@ extern "C" __global__ void attention_f32(
         key_limit = symmetric_limit < key_value_tokens ? symmetric_limit : key_value_tokens;
     }
     const unsigned int query_offset =
-        (query_token * query_heads + query_head) * key_width;
+        ((sequence * query_tokens + query_token) * query_heads + query_head) * key_width;
 
 	unsigned int n_head_log2 = 1;
 	while (n_head_log2 * 2 <= query_heads) {
@@ -1893,7 +1896,7 @@ extern "C" __global__ void attention_f32(
 			block_ids[query_position] < 0.0f ||
 			block_ids[key_token] != block_ids[query_position])) continue;
         const unsigned int key_offset =
-            (key_token * key_value_heads + key_value_head) * key_width;
+            ((sequence * key_value_tokens + key_token) * key_value_heads + key_value_head) * key_width;
         float dot = 0.0f;
         for (unsigned int channel = 0; channel < key_width; ++channel) {
             dot += query[query_offset + channel] * key[key_offset + channel];
@@ -1940,7 +1943,7 @@ extern "C" __global__ void attention_f32(
 			block_ids[query_position] < 0.0f ||
 			block_ids[key_token] != block_ids[query_position])) continue;
         const unsigned int key_offset =
-            (key_token * key_value_heads + key_value_head) * key_width;
+            ((sequence * key_value_tokens + key_token) * key_value_heads + key_value_head) * key_width;
         float dot = 0.0f;
         for (unsigned int channel = 0; channel < key_width; ++channel) {
             dot += query[query_offset + channel] * key[key_offset + channel];
@@ -1979,7 +1982,7 @@ extern "C" __global__ void attention_f32(
         }
         const float probability = expf(score - maximum);
         const unsigned int value_offset =
-            (key_token * key_value_heads + key_value_head) * value_width;
+            ((sequence * key_value_tokens + key_token) * key_value_heads + key_value_head) * value_width;
         sum += probability;
         weighted += probability * value[value_offset + value_channel];
     }
@@ -1990,25 +1993,21 @@ extern "C" __global__ void concat_f32(
         const float * left,
         const float * right,
         float * output,
-        unsigned int left_count,
-        unsigned int left_width,
-        unsigned int right_width,
+        unsigned int inner,
+        unsigned int left_axis,
+        unsigned int right_axis,
         unsigned int axis,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
-        if (axis == 0) {
-            const unsigned int output_width = left_width + right_width;
-            const unsigned int column = index % output_width;
-            const unsigned int outer = index / output_width;
-            output[index] = column < left_width
-                ? left[outer * left_width + column]
-                : right[outer * right_width + column - left_width];
-        } else {
-            output[index] = index < left_count
-                ? left[index]
-                : right[index - left_count];
-        }
+        const unsigned int inner_index = index % inner;
+        const unsigned int axis_outer = index / inner;
+        const unsigned int output_axis = left_axis + right_axis;
+        const unsigned int axis_index = axis_outer % output_axis;
+        const unsigned int outer_index = axis_outer / output_axis;
+        output[index] = axis_index < left_axis
+            ? left[(outer_index * left_axis + axis_index) * inner + inner_index]
+            : right[(outer_index * right_axis + axis_index - left_axis) * inner + inner_index];
     }
 }
 

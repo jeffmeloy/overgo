@@ -1097,7 +1097,24 @@ func BuildQwen35BlockCached(
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
 	return buildQwen35BlockCached(
-		builder, input, spec, weights, positions, nil, recurrent,
+		builder, input, spec, weights, positions, nil, 1, recurrent,
+		pastKey, pastValue, convState, ssmState,
+	)
+}
+
+// BuildQwen35BlockCachedBatch: homogeneous packed-sequence block.
+func BuildQwen35BlockCachedBatch(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	sequences uint64,
+	recurrent bool,
+	pastKey, pastValue, convState, ssmState *tensor.Tensor,
+) (Qwen35BlockResult, error) {
+	return buildQwen35BlockCached(
+		builder, input, spec, weights, positions, nil, sequences, recurrent,
 		pastKey, pastValue, convState, ssmState,
 	)
 }
@@ -1117,7 +1134,7 @@ func BuildQwen35BlockCachedWithMultiPositions(
 		return Qwen35BlockResult{}, errors.New("Qwen hybrid architecture does not support multi-axis positions")
 	}
 	return buildQwen35BlockCached(
-		builder, input, spec, weights, multiPositions[0], &multiPositions, recurrent,
+		builder, input, spec, weights, multiPositions[0], &multiPositions, 1, recurrent,
 		pastKey, pastValue, convState, ssmState,
 	)
 }
@@ -1129,6 +1146,7 @@ func buildQwen35BlockCached(
 	weights LayerGraphWeights,
 	positions []uint32,
 	multiPositions *[4][]uint32,
+	sequences uint64,
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
@@ -1142,6 +1160,7 @@ func buildQwen35BlockCached(
 			spec,
 			weights,
 			positions,
+			sequences,
 			convState,
 			ssmState,
 		)
@@ -1153,6 +1172,7 @@ func buildQwen35BlockCached(
 		weights,
 		positions,
 		multiPositions,
+		sequences,
 		pastKey,
 		pastValue,
 	)
@@ -1173,6 +1193,7 @@ func buildQwen35AttentionBlock(
 	weights LayerGraphWeights,
 	positions []uint32,
 	multiPositions *[4][]uint32,
+	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil {
@@ -1192,7 +1213,9 @@ func buildQwen35AttentionBlock(
 	if err := required.validate("Qwen3.5 attention block"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+	if len(positions) == 0 || sequences == 0 ||
+		uint64(len(positions)) > math.MaxUint64/sequences ||
+		uint64(len(positions))*sequences != input.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Qwen3.5 attention position count is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "Qwen3.5 attention cache must contain both key and value"); err != nil {
@@ -1206,18 +1229,22 @@ func buildQwen35AttentionBlock(
 	queryAndGate := builder.MulMat(weights.AttentionQ, normalized)
 	query := builder.GroupSlice(queryAndGate, 0, headWidth, heads, 2*headWidth)
 	gate := builder.GroupSlice(queryAndGate, headWidth, headWidth, heads, 2*headWidth)
-	key := builder.Reshape(
-		builder.MulMat(weights.AttentionK, normalized),
-		headWidth,
-		uint64(spec.HeadCountKV),
-		tokens,
-	)
-	value := builder.Reshape(
-		builder.MulMat(weights.AttentionV, normalized),
-		uint64(spec.ValueLength),
-		uint64(spec.HeadCountKV),
-		tokens,
-	)
+	if sequences > 1 {
+		query = builder.Reshape(query, headWidth, heads, tokens, sequences)
+		gate = builder.Reshape(gate, headWidth, heads, tokens, sequences)
+	}
+	keyProjection := builder.MulMat(weights.AttentionK, normalized)
+	valueProjection := builder.MulMat(weights.AttentionV, normalized)
+	var key, value *tensor.Tensor
+	if sequences == 1 {
+		key = builder.Reshape(keyProjection, headWidth, uint64(spec.HeadCountKV), tokens)
+		value = builder.Reshape(valueProjection, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
+	} else {
+		key = builder.Reshape(keyProjection, headWidth, uint64(spec.HeadCountKV), tokens, sequences)
+		value = builder.Reshape(
+			valueProjection, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens, sequences,
+		)
+	}
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	frequencyScale := float32(1)
@@ -1275,9 +1302,9 @@ func buildQwen35AttentionBlock(
 	attention = builder.Reshape(
 		attention,
 		uint64(spec.HeadCount)*uint64(spec.ValueLength),
-		tokens,
+		tokens*sequences,
 	)
-	gate = builder.Reshape(gate, uint64(spec.HeadCount)*headWidth, tokens)
+	gate = builder.Reshape(gate, uint64(spec.HeadCount)*headWidth, tokens*sequences)
 	attention = builder.Multiply(attention, builder.Sigmoid(gate))
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	residual := builder.Add(input, attention)
@@ -1294,6 +1321,7 @@ func buildQwen35RecurrentBlock(
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
+	sequences uint64,
 	convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
@@ -1325,7 +1353,9 @@ func buildQwen35RecurrentBlock(
 	if err := required.validate("Qwen3.5 recurrent block"); err != nil {
 		return Qwen35BlockResult{}, err
 	}
-	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+	if len(positions) == 0 || sequences == 0 ||
+		uint64(len(positions)) > math.MaxUint64/sequences ||
+		uint64(len(positions))*sequences != input.Shape.Dims[1] {
 		return Qwen35BlockResult{}, errors.New("Qwen3.5 recurrent position count is invalid")
 	}
 	tokens := uint64(len(positions))
@@ -1335,8 +1365,12 @@ func buildQwen35RecurrentBlock(
 	keyDimension := stateWidth * keyHeads
 	valueDimension := uint64(spec.SSMInnerSize)
 	convChannels := 2*keyDimension + valueDimension
-	if !convState.Shape.Equal(tensor.MustShape(uint64(spec.SSMConvKernel-1), convChannels)) ||
-		!ssmState.Shape.Equal(tensor.MustShape(stateWidth, stateWidth, valueHeads, 1)) {
+	wantConvState := tensor.MustShape(uint64(spec.SSMConvKernel-1), convChannels)
+	if sequences > 1 {
+		wantConvState = tensor.MustShape(uint64(spec.SSMConvKernel-1), convChannels, sequences)
+	}
+	if !convState.Shape.Equal(wantConvState) ||
+		!ssmState.Shape.Equal(tensor.MustShape(stateWidth, stateWidth, valueHeads, sequences)) {
 		return Qwen35BlockResult{}, errors.New("Qwen3.5 recurrent cache shape is invalid")
 	}
 
@@ -1366,7 +1400,7 @@ func buildQwen35RecurrentBlock(
 			builder.Reshape(value, valueDimension, tokens),
 			0,
 		)
-		z = builder.Reshape(z, stateWidth, valueHeads, tokens, 1)
+		z = builder.Reshape(z, stateWidth, valueHeads, tokens, sequences)
 	} else {
 		z = builder.MulMat(weights.AttentionGate, normalized)
 	}
@@ -1381,22 +1415,34 @@ func buildQwen35RecurrentBlock(
 			betaAlpha, valueHeadsPerGroup, valueHeadsPerGroup,
 			keyHeads, 2*valueHeadsPerGroup,
 		)
-		beta = builder.Reshape(builder.Sigmoid(beta), 1, valueHeads, tokens, 1)
-		alpha = builder.Reshape(alpha, valueHeads, tokens)
+		beta = builder.Reshape(builder.Sigmoid(beta), 1, valueHeads, tokens, sequences)
+		alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
 	} else {
 		beta = builder.Reshape(
 			builder.Sigmoid(builder.MulMat(weights.SSMBeta, normalized)),
-			1, valueHeads, tokens, 1,
+			1, valueHeads, tokens, sequences,
 		)
 		alpha = builder.MulMat(weights.SSMAlpha, normalized)
+		if sequences > 1 {
+			alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
+		}
 	}
 	gate := builder.Multiply(
 		builder.Softplus(builder.Add(alpha, weights.SSMTimeStep)),
 		weights.SSMA,
 	)
-	gate = builder.Reshape(gate, 1, valueHeads, tokens, 1)
+	gate = builder.Reshape(gate, 1, valueHeads, tokens, sequences)
 
-	convInput := builder.Concat(convState, builder.Transpose2D(qkvMixed), 0)
+	var qkvTime *tensor.Tensor
+	if sequences > 1 && tokens == 1 {
+		qkvTime = builder.Reshape(qkvMixed, tokens, convChannels, sequences)
+	} else {
+		qkvTime = builder.Transpose2D(qkvMixed)
+		if sequences > 1 {
+			qkvTime = builder.Reshape(qkvTime, tokens, convChannels, sequences)
+		}
+	}
+	convInput := builder.Concat(convState, qkvTime, 0)
 	nextConvState := builder.GroupSlice(
 		convInput,
 		tokens,
@@ -1404,32 +1450,36 @@ func buildQwen35RecurrentBlock(
 		1,
 		uint64(spec.SSMConvKernel-1),
 	)
-	nextConvState = builder.Reshape(
-		nextConvState,
-		uint64(spec.SSMConvKernel-1),
-		convChannels,
-	)
+	if sequences == 1 {
+		nextConvState = builder.Reshape(
+			nextConvState, uint64(spec.SSMConvKernel-1), convChannels,
+		)
+	} else {
+		nextConvState = builder.Reshape(
+			nextConvState, uint64(spec.SSMConvKernel-1), convChannels, sequences,
+		)
+	}
 	convolved := builder.SiLU(builder.SSMConv(convInput, weights.SSMConv1D))
 	query := builder.GroupSlice(convolved, 0, stateWidth, keyHeads, stateWidth)
 	key := builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
 	value := builder.GroupSlice(convolved, 2*keyDimension, stateWidth, valueHeads, stateWidth)
-	query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, 1)
-	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, 1)
-	value = builder.Reshape(value, stateWidth, valueHeads, tokens, 1)
+	query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
+	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
+	value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
 	var packed *tensor.Tensor
 	if qwenPolicy == qwenGDNRepeatInterleave {
 		packed = builder.GatedDeltaNetRepeatInterleave(query, key, value, gate, beta, ssmState)
 	} else {
 		packed = builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)
 	}
-	attentionElements := stateWidth * valueHeads * tokens
+	attentionElements := stateWidth * valueHeads * tokens * sequences
 	attention := builder.FlatSlice(
 		packed,
 		0,
 		stateWidth,
 		valueHeads,
 		tokens,
-		1,
+		sequences,
 	)
 	nextSSMState := builder.FlatSlice(
 		packed,
@@ -1437,14 +1487,14 @@ func buildQwen35RecurrentBlock(
 		stateWidth,
 		stateWidth,
 		valueHeads,
-		1,
+		sequences,
 	)
-	z = builder.Reshape(z, stateWidth, valueHeads, tokens, 1)
+	z = builder.Reshape(z, stateWidth, valueHeads, tokens, sequences)
 	attention = builder.Multiply(
 		builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon),
 		builder.SiLU(z),
 	)
-	attention = builder.Reshape(attention, valueDimension, tokens)
+	attention = builder.Reshape(attention, valueDimension, tokens*sequences)
 	attention = builder.MulMat(weights.SSMOutput, attention)
 	residual := builder.Add(input, attention)
 	output := buildQwen35FeedForward(builder, residual, spec, weights)

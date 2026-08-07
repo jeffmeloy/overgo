@@ -451,7 +451,7 @@ func (b *Builder) mergeLoRAWeight(base *Tensor) *Tensor {
 	return result
 }
 
-// Concat: joins rank-2/3 tensors along dimension zero or the outer dimension.
+// Concat: joins tensors along one dimension.
 func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 	if b.err != nil {
 		return nil
@@ -464,10 +464,9 @@ func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 		b.setError(errors.New("concat input types differ"))
 		return nil
 	}
-	if left.Shape.Rank != right.Shape.Rank ||
-		(left.Shape.Rank != 2 && left.Shape.Rank != 3) ||
-		(axis != 0 && ((left.Shape.Rank == 2 && axis != 1) || (left.Shape.Rank == 3 && axis != 2))) {
-		b.setError(errors.New("concat supports dimension zero or the outer dimension"))
+	if left.Shape.Rank != right.Shape.Rank || left.Shape.Rank == 0 ||
+		axis >= uint32(left.Shape.Rank) {
+		b.setError(errors.New("concat axis exceeds input rank"))
 		return nil
 	}
 	dimensions := left.Shape.Slice()

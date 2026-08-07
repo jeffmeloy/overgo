@@ -131,9 +131,7 @@ func (b *Builder) FlatSlice(input *Tensor, offset uint64, dimensions ...uint64) 
 	)
 }
 
-// Attention: computes grouped-query scaled dot-product attention; Q has shape
-// [key width, query heads, tokens], K is [key width, KV heads, tokens], and V
-// [value width, KV heads, tokens]
+// Attention: grouped-query attention; optional outer sequence dimension.
 func (b *Builder) Attention(query, key, value *Tensor, scale float32, causal bool) *Tensor {
 	return b.AttentionWithOffset(query, key, value, scale, causal, 0)
 }
@@ -534,8 +532,9 @@ func (b *Builder) buildAttention(
 		b.setError(errors.New("attention input types differ"))
 		return nil
 	}
-	if query.Shape.Rank != 3 || key.Shape.Rank != 3 || value.Shape.Rank != 3 {
-		b.setError(errors.New("attention inputs must have rank 3"))
+	if (query.Shape.Rank != 3 && query.Shape.Rank != 4) ||
+		query.Shape.Rank != key.Shape.Rank || query.Shape.Rank != value.Shape.Rank {
+		b.setError(errors.New("attention inputs must have matching rank 3 or 4"))
 		return nil
 	}
 	if query.Shape.Dims[0] != key.Shape.Dims[0] {
@@ -548,6 +547,11 @@ func (b *Builder) buildAttention(
 	}
 	if key.Shape.Dims[2] != value.Shape.Dims[2] {
 		b.setError(errors.New("attention key/value token counts differ"))
+		return nil
+	}
+	if query.Shape.Rank == 4 &&
+		(query.Shape.Dims[3] != key.Shape.Dims[3] || key.Shape.Dims[3] != value.Shape.Dims[3]) {
+		b.setError(errors.New("attention sequence counts differ"))
 		return nil
 	}
 	queryRangeExceeds := uint64(options.queryStart) > key.Shape.Dims[2] ||
@@ -625,7 +629,11 @@ func (b *Builder) buildAttention(
 		b.setError(errors.New("attention block IDs must have shape [key tokens] and match input type"))
 		return nil
 	}
-	shape, err := NewShape(value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2])
+	dimensions := []uint64{value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2]}
+	if query.Shape.Rank == 4 {
+		dimensions = append(dimensions, query.Shape.Dims[3])
+	}
+	shape, err := NewShape(dimensions...)
 	if err != nil {
 		b.setError(err)
 		return nil

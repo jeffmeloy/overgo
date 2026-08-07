@@ -635,6 +635,54 @@ func TestExecutorCachedAttentionMatchesReference(t *testing.T) {
 	compare(t, got[output].Data, want[output].Data, 3e-5)
 }
 
+func TestExecutorBatchedCachedAttentionMatchesReference(t *testing.T) {
+	cudatest.Require(t)
+	const (
+		width      = 4
+		queryHeads = 2
+		keyHeads   = 1
+		pastTokens = 3
+		newTokens  = 1
+		sequences  = 2
+	)
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(width, queryHeads, newTokens, sequences))
+	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(width, keyHeads, pastTokens, sequences))
+	newKey := builder.Input("new_key", dtype.F32, tensor.MustShape(width, keyHeads, newTokens, sequences))
+	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(width, keyHeads, pastTokens, sequences))
+	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(width, keyHeads, newTokens, sequences))
+	key := builder.Concat(pastKey, newKey, 2)
+	value := builder.Concat(pastValue, newValue, 2)
+	output := builder.AttentionWithOffset(query, key, value, 0.5, true, pastTokens)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		query:     patternedValue(query.Shape, 1, 0.2, 0),
+		pastKey:   patternedValue(pastKey.Shape, 2, 0.15, 0),
+		newKey:    patternedValue(newKey.Shape, 3, 0.15, 0),
+		pastValue: patternedValue(pastValue.Shape, 4, 0.2, 0),
+		newValue:  patternedValue(newValue.Shape, 5, 0.2, 0),
+	}
+	outputs := []*tensor.Tensor{key, value, output}
+	want, err := reference.Execute(outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda, err := New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cuda.Close()
+	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[key].Data, want[key].Data, 0)
+	compare(t, got[value].Data, want[value].Data, 0)
+	compare(t, got[output].Data, want[output].Data, 3e-5)
+}
+
 func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()

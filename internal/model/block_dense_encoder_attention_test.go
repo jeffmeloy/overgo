@@ -1708,6 +1708,39 @@ func TestBuildQwen35AttentionBlock(t *testing.T) {
 	}
 }
 
+func TestBuildQwen35PackedAttentionBlock(t *testing.T) {
+	const (
+		embeddingWidth = 8
+		keyWidth       = 4
+		keyHeads       = 1
+		pastTokens     = 3
+		newTokens      = 1
+		sequenceCount  = 2
+		position       = pastTokens
+	)
+	builder := tensor.NewBuilder()
+	spec := qwen35TestSpec()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(embeddingWidth, sequenceCount))
+	pastKey := builder.Input(
+		"past_key", dtype.F32, tensor.MustShape(keyWidth, keyHeads, pastTokens, sequenceCount),
+	)
+	pastValue := builder.Input(
+		"past_value", dtype.F32, tensor.MustShape(keyWidth, keyHeads, pastTokens, sequenceCount),
+	)
+	result, err := BuildQwen35BlockCachedBatch(
+		builder, input, spec, qwen35AttentionInputs(builder, spec),
+		[]uint32{position}, sequenceCount, false, pastKey, pastValue, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCache := tensor.MustShape(keyWidth, keyHeads, pastTokens+newTokens, sequenceCount)
+	if !result.Output.Shape.Equal(input.Shape) ||
+		!result.Key.Shape.Equal(wantCache) || !result.Value.Shape.Equal(wantCache) {
+		t.Fatalf("unexpected packed Qwen3.5 attention result: %+v", result)
+	}
+}
+
 func TestBuildQwen35AttentionBlockUsesDistinctMRoPEPositions(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := qwen35TestSpec()

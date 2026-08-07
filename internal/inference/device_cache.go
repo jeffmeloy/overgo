@@ -400,6 +400,7 @@ type deviceBatchGraph struct {
 	pastTokens   uint32
 	nextPosition uint32
 	tokenCount   uint32
+	sequences    uint32
 }
 
 type deviceGraphState = model.CacheState[*tensor.Tensor]
@@ -413,6 +414,16 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
 	}
+	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends); handled {
+		return next, err
+	}
+	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends)
+}
+
+func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
+	ctx context.Context,
+	appends []deviceBatchAppend,
+) ([]*deviceKVCache, error) {
 	builder := r.newGraphBuilder()
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
@@ -420,7 +431,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
-			builder, index, appendInput.Tokens, appendInput.Past, hostFeeds, deviceFeeds,
+			builder, index, appendInput.Tokens, appendInput.Past, 1, hostFeeds, deviceFeeds,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -501,6 +512,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	branch int,
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
+	sequences uint64,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (deviceBatchGraph, error) {
@@ -521,11 +533,21 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(errors.New("device cache layer count differs"))
 		}
 	}
-	sequence, err := r.planForwardSequence(tokenIDs, pastTokens, nextPosition)
+	if sequences == 0 || uint64(len(tokenIDs))%sequences != 0 {
+		return fail(errors.New("packed sequence token count is invalid"))
+	}
+	tokensPerSequence := len(tokenIDs) / int(sequences)
+	sequence, err := r.planForwardSequence(
+		tokenIDs[:tokensPerSequence], pastTokens, nextPosition,
+	)
 	if err != nil {
 		return fail(err)
 	}
-	rows, positions := sequence.rows, sequence.positions
+	rows, err := r.tokenRows(tokenIDs)
+	if err != nil {
+		return fail(err)
+	}
+	positions := sequence.positions
 	prefix := fmt.Sprintf("seq.%d.", branch)
 	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
 	if err != nil {
@@ -534,7 +556,11 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	current := builder.GetRows(embeddingTable, rows)
 	deviceFeeds[embeddingTable] = embeddingPointer
 	if r.weights.PositionEmbedding != nil {
-		if positionErr := validateLearnedPositions(positions, r.spec.ContextLength); positionErr != nil {
+		repeatedPositions := make([]uint32, 0, len(positions)*int(sequences))
+		for range sequences {
+			repeatedPositions = append(repeatedPositions, positions...)
+		}
+		if positionErr := validateLearnedPositions(repeatedPositions, r.spec.ContextLength); positionErr != nil {
 			return fail(positionErr)
 		}
 		positionTable, pointer, positionErr := r.deviceInput(builder, *r.weights.PositionEmbedding)
@@ -542,7 +568,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(positionErr)
 		}
 		deviceFeeds[positionTable] = pointer
-		current = builder.Add(current, builder.GetRows(positionTable, positions))
+		current = builder.Add(current, builder.GetRows(positionTable, repeatedPositions))
 	}
 	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
 		current = builder.Scale(current, scale)
@@ -632,10 +658,19 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 				convState, ssmState = pastKey, pastValue
 				pastKey, pastValue = nil, nil
 			}
-			result, buildErr := model.BuildQwen35BlockCached(
-				builder, current, r.spec, graphWeights, positions, plan.Recurrent,
-				pastKey, pastValue, convState, ssmState,
-			)
+			var result model.Qwen35BlockResult
+			var buildErr error
+			if sequences == 1 {
+				result, buildErr = model.BuildQwen35BlockCached(
+					builder, current, r.spec, graphWeights, positions, plan.Recurrent,
+					pastKey, pastValue, convState, ssmState,
+				)
+			} else {
+				result, buildErr = model.BuildQwen35BlockCachedBatch(
+					builder, current, r.spec, graphWeights, positions, sequences, plan.Recurrent,
+					pastKey, pastValue, convState, ssmState,
+				)
+			}
 			if buildErr != nil {
 				return fail(buildErr)
 			}
@@ -709,7 +744,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if err != nil {
 		return fail(err)
 	}
-	lastHidden := builder.FlatSlice(current, hiddenElements-width, width, 1)
+	lastHidden := current
+	if sequences == 1 {
+		lastHidden = builder.FlatSlice(current, hiddenElements-width, width, 1)
+	} else if tokensPerSequence != 1 {
+		return fail(errors.New("packed output selection requires one token per sequence"))
+	}
 	logits := builder.MulMat(outputTable, lastHidden)
 	if r.weights.OutputBias != nil {
 		bias, pointer, biasErr := r.deviceInput(builder, *r.weights.OutputBias)
@@ -725,7 +765,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	return deviceBatchGraph{
 		logits: logits, keys: keys, values: values, states: states,
 		pastTokens: pastTokens, nextPosition: nextPosition,
-		tokenCount: uint32(len(tokenIDs)),
+		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
 	}, nil
 }
 

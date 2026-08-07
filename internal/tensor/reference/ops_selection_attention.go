@@ -239,6 +239,10 @@ func attention(
 	keyValueHeads := int(key.Shape.Dims[1])
 	queryTokens := int(query.Shape.Dims[2])
 	keyValueTokens := int(key.Shape.Dims[2])
+	sequences := 1
+	if query.Shape.Rank == 4 {
+		sequences = int(query.Shape.Dims[3])
+	}
 	if keyWidth <= 0 || valueWidth <= 0 || queryHeads <= 0 ||
 		keyValueHeads <= 0 || queryTokens <= 0 || keyValueTokens <= 0 {
 		return Value{}, errors.New("invalid attention dimensions")
@@ -252,7 +256,7 @@ func attention(
 	if blockIDs != nil && len(blockIDs.Data) != keyValueTokens {
 		return Value{}, errors.New("attention block ID count differs from KV tokens")
 	}
-	output := make([]float32, valueWidth*queryHeads*queryTokens)
+	output := make([]float32, valueWidth*queryHeads*queryTokens*sequences)
 	groupSize := queryHeads / keyValueHeads
 	nHeadLog2 := 1
 	for nHeadLog2*2 <= queryHeads {
@@ -261,98 +265,100 @@ func attention(
 	m0 := math.Pow(2, -float64(attributes.MaxALiBiBias)/float64(nHeadLog2))
 	m1 := math.Pow(2, -float64(attributes.MaxALiBiBias/2)/float64(nHeadLog2))
 	scores := make([]float64, keyValueTokens)
-	for queryToken := 0; queryToken < queryTokens; queryToken++ {
-		queryPosition := int(attributes.QueryStart) + queryToken
-		causalLimit := queryPosition + 1
-		keyLimit := keyValueTokens
-		if attributes.Causal {
-			keyLimit = causalLimit
-			if blockIDs != nil && blockIDs.Data[queryPosition] >= 0 {
-				keyLimit = keyValueTokens
-			}
-		}
-		keyFirst := 0
-		if attributes.ChunkedWindow {
+	for sequence := 0; sequence < sequences; sequence++ {
+		for queryToken := 0; queryToken < queryTokens; queryToken++ {
 			queryPosition := int(attributes.QueryStart) + queryToken
-			keyFirst = queryPosition / int(attributes.Window) * int(attributes.Window)
-		} else if attributes.SymmetricWindow {
-			halfWindow := int(attributes.Window / 2)
-			queryPosition := int(attributes.QueryStart) + queryToken
-			keyFirst = max(0, queryPosition-halfWindow)
-			keyLimit = min(keyValueTokens, queryPosition+halfWindow+1)
-		} else if attributes.Window > 0 && causalLimit > int(attributes.Window) {
-			keyFirst = causalLimit - int(attributes.Window)
-		}
-		for queryHead := 0; queryHead < queryHeads; queryHead++ {
-			keyValueHead := queryHead / groupSize
-			alibiSlope := 0.0
-			if attributes.MaxALiBiBias > 0 {
-				if queryHead < nHeadLog2 {
-					alibiSlope = math.Pow(m0, float64(queryHead+1))
-				} else {
-					alibiSlope = math.Pow(m1, float64(2*(queryHead-nHeadLog2)+1))
+			causalLimit := queryPosition + 1
+			keyLimit := keyValueTokens
+			if attributes.Causal {
+				keyLimit = causalLimit
+				if blockIDs != nil && blockIDs.Data[queryPosition] >= 0 {
+					keyLimit = keyValueTokens
 				}
 			}
-			maximum := math.Inf(-1)
-			if sinks != nil {
-				maximum = float64(sinks.Data[queryHead])
+			keyFirst := 0
+			if attributes.ChunkedWindow {
+				queryPosition := int(attributes.QueryStart) + queryToken
+				keyFirst = queryPosition / int(attributes.Window) * int(attributes.Window)
+			} else if attributes.SymmetricWindow {
+				halfWindow := int(attributes.Window / 2)
+				queryPosition := int(attributes.QueryStart) + queryToken
+				keyFirst = max(0, queryPosition-halfWindow)
+				keyLimit = min(keyValueTokens, queryPosition+halfWindow+1)
+			} else if attributes.Window > 0 && causalLimit > int(attributes.Window) {
+				keyFirst = causalLimit - int(attributes.Window)
 			}
-			queryOffset := (queryToken*queryHeads + queryHead) * keyWidth
-			for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
-				if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
-					continue
+			for queryHead := 0; queryHead < queryHeads; queryHead++ {
+				keyValueHead := queryHead / groupSize
+				alibiSlope := 0.0
+				if attributes.MaxALiBiBias > 0 {
+					if queryHead < nHeadLog2 {
+						alibiSlope = math.Pow(m0, float64(queryHead+1))
+					} else {
+						alibiSlope = math.Pow(m1, float64(2*(queryHead-nHeadLog2)+1))
+					}
 				}
-				keyOffset := (keyToken*keyValueHeads + keyValueHead) * keyWidth
-				var dot float64
-				for channel := 0; channel < keyWidth; channel++ {
-					dot += float64(query.Data[queryOffset+channel]) * float64(key.Data[keyOffset+channel])
+				maximum := math.Inf(-1)
+				if sinks != nil {
+					maximum = float64(sinks.Data[queryHead])
 				}
-				score := dot * float64(attributes.Scale)
-				if alibiSlope != 0 {
-					queryPosition := int(attributes.QueryStart) + queryToken
-					score -= math.Abs(float64(queryPosition-keyToken)) * alibiSlope
-				}
-				if bias != nil {
-					bucket := relativePositionBucket(
-						int(attributes.QueryStart)+queryToken,
-						keyToken,
-						int(attributes.RelativeBuckets),
-						attributes.RelativeBidirectional,
-					)
-					score += float64(bias.Data[bucket*queryHeads+queryHead])
-				}
-				if attributes.Softcap > 0 {
-					cap := float64(attributes.Softcap)
-					score = cap * math.Tanh(score/cap)
-				}
-				scores[keyToken] = score
-				if score > maximum {
-					maximum = score
-				}
-			}
-			var sum float64
-			if sinks != nil {
-				sum = math.Exp(float64(sinks.Data[queryHead]) - maximum)
-			}
-			for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
-				if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
-					continue
-				}
-				probability := math.Exp(scores[keyToken] - maximum)
-				scores[keyToken] = probability
-				sum += probability
-			}
-			outputOffset := (queryToken*queryHeads + queryHead) * valueWidth
-			for channel := 0; channel < valueWidth; channel++ {
-				var weighted float64
+				queryOffset := ((sequence*queryTokens+queryToken)*queryHeads + queryHead) * keyWidth
 				for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
 					if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
 						continue
 					}
-					valueOffset := (keyToken*keyValueHeads + keyValueHead) * valueWidth
-					weighted += scores[keyToken] * float64(value.Data[valueOffset+channel])
+					keyOffset := ((sequence*keyValueTokens+keyToken)*keyValueHeads + keyValueHead) * keyWidth
+					var dot float64
+					for channel := 0; channel < keyWidth; channel++ {
+						dot += float64(query.Data[queryOffset+channel]) * float64(key.Data[keyOffset+channel])
+					}
+					score := dot * float64(attributes.Scale)
+					if alibiSlope != 0 {
+						queryPosition := int(attributes.QueryStart) + queryToken
+						score -= math.Abs(float64(queryPosition-keyToken)) * alibiSlope
+					}
+					if bias != nil {
+						bucket := relativePositionBucket(
+							int(attributes.QueryStart)+queryToken,
+							keyToken,
+							int(attributes.RelativeBuckets),
+							attributes.RelativeBidirectional,
+						)
+						score += float64(bias.Data[bucket*queryHeads+queryHead])
+					}
+					if attributes.Softcap > 0 {
+						cap := float64(attributes.Softcap)
+						score = cap * math.Tanh(score/cap)
+					}
+					scores[keyToken] = score
+					if score > maximum {
+						maximum = score
+					}
 				}
-				output[outputOffset+channel] = float32(weighted / sum)
+				var sum float64
+				if sinks != nil {
+					sum = math.Exp(float64(sinks.Data[queryHead]) - maximum)
+				}
+				for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
+					if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
+						continue
+					}
+					probability := math.Exp(scores[keyToken] - maximum)
+					scores[keyToken] = probability
+					sum += probability
+				}
+				outputOffset := ((sequence*queryTokens+queryToken)*queryHeads + queryHead) * valueWidth
+				for channel := 0; channel < valueWidth; channel++ {
+					var weighted float64
+					for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
+						if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
+							continue
+						}
+						valueOffset := ((sequence*keyValueTokens+keyToken)*keyValueHeads + keyValueHead) * valueWidth
+						weighted += scores[keyToken] * float64(value.Data[valueOffset+channel])
+					}
+					output[outputOffset+channel] = float32(weighted / sum)
+				}
 			}
 		}
 	}
@@ -404,32 +410,28 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 	if leftElements > uint64(len(left.Data)) || rightElements > uint64(len(right.Data)) {
 		return Value{}, errors.New("invalid concat input storage")
 	}
-	if axis == 0 {
-		outputElements, shapeErr := shape.Elements()
-		if shapeErr != nil || outputElements > uint64(math.MaxInt) {
-			return Value{}, errors.New("invalid concat output size")
-		}
-		leftWidth := int(left.Shape.Dims[0])
-		rightWidth := int(right.Shape.Dims[0])
-		outputWidth := leftWidth + rightWidth
-		output := make([]float32, int(outputElements))
-		for outer := 0; outer < len(output)/outputWidth; outer++ {
-			copy(
-				output[outer*outputWidth:outer*outputWidth+leftWidth],
-				left.Data[outer*leftWidth:(outer+1)*leftWidth],
-			)
-			copy(
-				output[outer*outputWidth+leftWidth:(outer+1)*outputWidth],
-				right.Data[outer*rightWidth:(outer+1)*rightWidth],
-			)
-		}
-		return Value{Shape: shape, Data: output}, nil
+	outputElements, shapeErr := shape.Elements()
+	if shapeErr != nil || outputElements > uint64(math.MaxInt) {
+		return Value{}, errors.New("invalid concat output size")
 	}
-	if axis != uint32(left.Shape.Rank-1) {
-		return Value{}, errors.New("unsupported concat axis")
+	inner := 1
+	for dimension := uint32(0); dimension < axis; dimension++ {
+		inner *= int(left.Shape.Dims[dimension])
 	}
-	output := make([]float32, 0, len(left.Data)+len(right.Data))
-	output = append(output, left.Data...)
-	output = append(output, right.Data...)
+	leftAxis := int(left.Shape.Dims[axis])
+	rightAxis := int(right.Shape.Dims[axis])
+	outputAxis := leftAxis + rightAxis
+	outer := int(outputElements) / (inner * outputAxis)
+	output := make([]float32, int(outputElements))
+	for group := 0; group < outer; group++ {
+		outputBase := group * outputAxis * inner
+		leftBase := group * leftAxis * inner
+		rightBase := group * rightAxis * inner
+		copy(output[outputBase:outputBase+leftAxis*inner], left.Data[leftBase:leftBase+leftAxis*inner])
+		copy(
+			output[outputBase+leftAxis*inner:outputBase+outputAxis*inner],
+			right.Data[rightBase:rightBase+rightAxis*inner],
+		)
+	}
 	return Value{Shape: shape, Data: output}, nil
 }

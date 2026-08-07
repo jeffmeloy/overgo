@@ -520,6 +520,41 @@ func TestBuildQwen35RecurrentBlock(t *testing.T) {
 	}
 }
 
+func TestBuildQwen35PackedRecurrentBlock(t *testing.T) {
+	const (
+		embeddingWidth = 8
+		sequenceCount  = 2
+		position       = 7
+		convWindow     = 2
+		convChannels   = 8
+		stateWidth     = 2
+		valueHeads     = 2
+	)
+	builder := tensor.NewBuilder()
+	spec := qwen35TestSpec()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(embeddingWidth, sequenceCount))
+	convState := builder.Input(
+		string(CacheStateConvolution), dtype.F32,
+		tensor.MustShape(convWindow, convChannels, sequenceCount),
+	)
+	ssmState := builder.Input(
+		string(CacheStateSSM), dtype.F32,
+		tensor.MustShape(stateWidth, stateWidth, valueHeads, sequenceCount),
+	)
+	result, err := BuildQwen35BlockCachedBatch(
+		builder, input, spec, qwen35RecurrentInputs(builder, spec),
+		[]uint32{position}, sequenceCount, true, nil, nil, convState, ssmState,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Output.Shape.Equal(input.Shape) ||
+		!result.ConvState.Shape.Equal(convState.Shape) ||
+		!result.SSMState.Shape.Equal(ssmState.Shape) {
+		t.Fatalf("unexpected packed Qwen3.5 recurrent result: %+v", result)
+	}
+}
+
 func TestBuildQwen35MoEBlocks(t *testing.T) {
 	for _, recurrent := range []bool{false, true} {
 		name := "attention"

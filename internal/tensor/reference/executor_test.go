@@ -3,6 +3,7 @@ package reference
 import (
 	"math"
 	"reflect"
+	"slices"
 	"testing"
 
 	"llamacpp2go/internal/tensor"
@@ -1318,6 +1319,46 @@ func TestExecuteCachedAttentionAndConcat(t *testing.T) {
 		if results[output].Data[index] != want[index] {
 			t.Fatalf("cached attention[%d] = %v, want %v", index, results[output].Data[index], want[index])
 		}
+	}
+}
+
+func TestExecuteBatchedCachedAttentionAndMiddleConcat(t *testing.T) {
+	const (
+		width      = 1
+		heads      = 1
+		pastTokens = 2
+		newTokens  = 1
+		sequences  = 2
+	)
+	builder := tensor.NewBuilder()
+	query := builder.Input("query", dtype.F32, tensor.MustShape(width, heads, newTokens, sequences))
+	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(width, heads, pastTokens, sequences))
+	newKey := builder.Input("new_key", dtype.F32, tensor.MustShape(width, heads, newTokens, sequences))
+	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(width, heads, pastTokens, sequences))
+	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(width, heads, newTokens, sequences))
+	key := builder.Concat(pastKey, newKey, 2)
+	value := builder.Concat(pastValue, newValue, 2)
+	output := builder.AttentionWithOffset(query, key, value, 1, true, pastTokens)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	results, err := Execute([]*tensor.Tensor{value, output}, map[*tensor.Tensor]Value{
+		query:     {Shape: query.Shape, Data: make([]float32, sequences)},
+		pastKey:   {Shape: pastKey.Shape, Data: make([]float32, pastTokens*sequences)},
+		newKey:    {Shape: newKey.Shape, Data: make([]float32, newTokens*sequences)},
+		pastValue: {Shape: pastValue.Shape, Data: []float32{1, 3, 10, 30}},
+		newValue:  {Shape: newValue.Shape, Data: []float32{5, 50}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCache := []float32{1, 3, 5, 10, 30, 50}
+	if !slices.Equal(results[value].Data, wantCache) {
+		t.Fatalf("batched cache = %v, want %v", results[value].Data, wantCache)
+	}
+	wantOutput := []float32{3, 30}
+	if !slices.Equal(results[output].Data, wantOutput) {
+		t.Fatalf("batched attention = %v, want %v", results[output].Data, wantOutput)
 	}
 }
 

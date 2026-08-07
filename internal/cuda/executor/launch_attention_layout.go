@@ -62,6 +62,13 @@ func launchAttentionLayout(
 		if err != nil {
 			return err
 		}
+		sequences := uint32(1)
+		if queryNode.Shape.Rank == 4 {
+			sequences, err = uint32Checked(queryNode.Shape.Dims[3], "attention sequences")
+			if err != nil {
+				return err
+			}
+		}
 		query := pointers[queryNode]
 		key := pointers[keyNode]
 		value := pointers[valueNode]
@@ -94,37 +101,41 @@ func launchAttentionLayout(
 		return launch1DABI(
 			state, functions.attention, count,
 			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
-			&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
+			&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
 			&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
 			&relativeBuckets, &relativeBidirectional, &count,
 		)
 	case tensor.OpConcat:
 		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
-		if !ok || (attributes.Axis != 0 && attributes.Axis != uint32(node.Shape.Rank-1)) {
+		if !ok || attributes.Axis >= uint32(node.Shape.Rank) {
 			return errors.New("invalid concat attributes")
 		}
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
 		}
-		leftCount, err := elementCount32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
 		left := pointers[node.Inputs[0]]
 		right := pointers[node.Inputs[1]]
-		leftWidth, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "concat left width")
+		var inner uint64 = 1
+		for dimension := uint32(0); dimension < attributes.Axis; dimension++ {
+			inner *= node.Shape.Dims[dimension]
+		}
+		innerSize, err := uint32Checked(inner, "concat inner size")
 		if err != nil {
 			return err
 		}
-		rightWidth, err := uint32Checked(node.Inputs[1].Shape.Dims[0], "concat right width")
+		leftAxis, err := uint32Checked(node.Inputs[0].Shape.Dims[attributes.Axis], "concat left axis")
+		if err != nil {
+			return err
+		}
+		rightAxis, err := uint32Checked(node.Inputs[1].Shape.Dims[attributes.Axis], "concat right axis")
 		if err != nil {
 			return err
 		}
 		axis := attributes.Axis
 		return launch1DABI(
 			state, functions.concat, count,
-			&left, &right, &output, &leftCount, &leftWidth, &rightWidth, &axis, &count,
+			&left, &right, &output, &innerSize, &leftAxis, &rightAxis, &axis, &count,
 		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)

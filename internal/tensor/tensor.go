@@ -364,6 +364,14 @@ type CacheAppendPlan struct {
 	CapacityTokens       uint32
 }
 
+// CacheWriteMode: compiled cache topology.
+type CacheWriteMode uint8
+
+const (
+	CacheWriteConcat CacheWriteMode = iota
+	CacheWriteAppend
+)
+
 func NewBuilder() *Builder {
 	return &Builder{nextID: 1}
 }
@@ -552,13 +560,29 @@ func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 	return b.add("", left.Type, shape, OpConcat, []*Tensor{left, right}, ConcatAttributes{Axis: axis})
 }
 
-// AppendCache: bounded append or concat fallback.
+// WriteCache: explicit cache-write topology.
+func (b *Builder) WriteCache(left, right *Tensor, axis uint32, mode CacheWriteMode) *Tensor {
+	switch mode {
+	case CacheWriteConcat:
+		return b.Concat(left, right, axis)
+	case CacheWriteAppend:
+		return b.AppendCache(left, right, axis)
+	default:
+		if b != nil {
+			b.setError(errors.New("cache write mode is invalid"))
+		}
+		return nil
+	}
+}
+
+// AppendCache: bounded fixed-capacity append.
 func (b *Builder) AppendCache(left, right *Tensor, axis uint32) *Tensor {
 	if b == nil {
 		return nil
 	}
 	if b.cacheAppend == nil {
-		return b.Concat(left, right, axis)
+		b.setError(errors.New("cache append plan is unavailable"))
+		return nil
 	}
 	if b.err != nil {
 		return nil

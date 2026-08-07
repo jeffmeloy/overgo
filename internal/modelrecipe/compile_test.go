@@ -26,6 +26,21 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	if plan.Recipe.ID != definition.ID || plan.Model.Profile.Family != model.ArchitectureFamilyAttention {
 		t.Fatalf("compiled plan = %+v", plan)
 	}
+	if len(plan.Nodes) != 3 || plan.Decode.Session != DecodeSessionRequest {
+		t.Fatalf("compiled runtime program = %+v", plan)
+	}
+}
+
+func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
+	program, err := CompileRuntime(model.Spec{CommonSpec: model.CommonSpec{
+		Architecture: "llama", BlockCount: 1,
+	}}, model.Weights{Layers: []model.LayerWeights{{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if program.Decode.Session != DecodeSessionCapacity || len(program.Nodes) != 3 {
+		t.Fatalf("runtime program = %+v", program)
+	}
 }
 
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {

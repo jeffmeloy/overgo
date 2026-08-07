@@ -53,6 +53,28 @@ func TestBuilderCacheAppendUsesFixedCapacity(t *testing.T) {
 	}
 }
 
+func TestBuilderCacheAppendRequiresExplicitPlan(t *testing.T) {
+	builder := NewBuilder()
+	left := builder.Input("left", dtype.F32, MustShape(2, 1, 2))
+	right := builder.Input("right", dtype.F32, MustShape(2, 1, 1))
+	if output := builder.AppendCache(left, right, 2); output != nil {
+		t.Fatalf("unplanned cache append = %+v", output)
+	}
+	if err := builder.Err(); err == nil || !strings.Contains(err.Error(), "plan is unavailable") {
+		t.Fatalf("unplanned cache append error = %v", err)
+	}
+
+	concatBuilder := NewBuilder()
+	joined := concatBuilder.WriteCache(
+		concatBuilder.Input("left", dtype.F32, MustShape(2, 1, 2)),
+		concatBuilder.Input("right", dtype.F32, MustShape(2, 1, 1)),
+		2, CacheWriteConcat,
+	)
+	if err := concatBuilder.Err(); err != nil || joined.Op != OpConcat {
+		t.Fatalf("explicit cache concat = %+v, %v", joined, err)
+	}
+}
+
 func TestBuilderRejectsShapeMismatch(t *testing.T) {
 	builder := NewBuilder()
 	left := builder.Input("left", dtype.F32, MustShape(4))

@@ -144,7 +144,8 @@ func (r *Runner) forwardPackedQwen35DeviceBatchLocked(
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	graph, err := r.buildDeviceCachedBatchBranch(
-		builder, 0, tokens, packedPast, uint64(len(appends)), plan, hostFeeds, deviceFeeds,
+		builder, 0, tokens, packedPast, uint64(len(appends)), plan,
+		tensor.CacheWriteConcat, hostFeeds, deviceFeeds,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inference: packed device batch: %w", err)

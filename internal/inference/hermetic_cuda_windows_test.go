@@ -67,6 +67,12 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 			}
 		}
 	}
+	deviceBatch.mu.Lock()
+	session := deviceBatch.sequences[1].device.session
+	deviceBatch.mu.Unlock()
+	if session == nil || session.replays != 1 || session.program.identity.output.mode != deviceOutputLogits {
+		t.Fatalf("generic decode session = %+v", session)
+	}
 	beforeFailure := deviceBatch.Snapshot()
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -91,6 +97,32 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	if len(branched) != 2 || branched[0].Tokens != branched[1].Tokens ||
 		branched[0].Position != branched[1].Position {
 		t.Fatalf("forked states = %+v", branched)
+	}
+	deviceBatch.mu.Lock()
+	cohortSession := deviceBatch.sequences[1].device.session
+	var cohortReplays uint64
+	if cohortSession != nil {
+		cohortReplays = cohortSession.replays
+	}
+	deviceBatch.mu.Unlock()
+	if cohortSession == nil {
+		t.Fatal("forked cohort has no reusable session")
+	}
+	if _, err = deviceBatch.Step(context.Background(), []SequenceBatchInput{
+		{ID: 1, Tokens: []tokenizer.TokenID{4}},
+		{ID: 2, Tokens: []tokenizer.TokenID{5}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	deviceBatch.mu.Lock()
+	first := deviceBatch.sequences[1].device
+	second := deviceBatch.sequences[2].device
+	deviceBatch.mu.Unlock()
+	if first.session == nil || first.session != second.session || first.session != cohortSession ||
+		first.session.replays != cohortReplays+1 ||
+		first.sessionBranch != 0 || second.sessionBranch != 1 ||
+		first.session.program.identity.branches != 2 {
+		t.Fatalf("multi-branch decode sessions = %+v/%+v", first.session, second.session)
 	}
 }
 

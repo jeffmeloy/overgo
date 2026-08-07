@@ -32,14 +32,16 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
-- Qwen 3.5 singleton greedy decode now retains one compiled CUDA graph, indexed
-  cache-target plan, stable weight feeds, and cache-input bindings per page
-  capacity class. Runtime attributes update token positions, logical KV length,
-  query/cache offsets, and learned-position rows without rebuilding topology.
-  Fixed-capacity cache append writes in place; page transitions, forks, cache
-  edits, LoRA policy changes, and incompatible output modes rebuild or
-  invalidate explicitly. Unit, full-repository, vet, and real Qwen3.5-9B Q8
-  replay validation pass.
+- Capacity-cache decoders now retain neutral compiled CUDA sessions across
+  logits, greedy, and top-K decode. Exact compatible cohorts share one
+  multi-branch graph; compiled dynamic slots update token rows, positions,
+  logical attention length, and append offsets without maps, graph scans, or
+  replay-time attribute allocation. Fixed-capacity writes are explicit and
+  missing append plans fail closed. Page transitions, cohort changes, forks,
+  cache edits, and LoRA changes rebuild explicitly. Production startup compiles
+  this policy through the active model-recipe program, while typed block-policy
+  catalogs replace family-owned Qwen orchestration. Hermetic Llama cohort and
+  real Qwen3.5-9B Q8 CUDA validation pass.
 - Persistent CUDA execution now has a hermetic generated-model fixture,
   cancellation fault coverage, exact F32 position bounds, atomic retryable
   cleanup, page-capacity append targets, fork copy-on-write, retained-buffer
@@ -274,8 +276,8 @@ only when all callers migrate and the superseded authority is deleted.
 
 | Item | Current evidence | Completion boundary |
 | --- | --- | --- |
-| Indexed cache-target plan | Compiled graphs own output ordinals, alias contracts, indexed target slots, and indexed retained values; Qwen singleton decode sessions retain the compiled page-capacity target plan across tokens | Extend retained plans to compatible packed cohorts without weakening fork isolation or copy-on-write ownership |
-| Parameterized decode graph | Qwen singleton greedy decode replays a stable graph within each page class; indexed runtime attributes own positions, logical KV length, query/cache offsets, and learned-position rows; page transitions and policy changes rebuild explicitly | Generalize the bounded session key to compatible packed cohorts and additional reduced-output modes; preserve the existing fallback for variable topology |
+| Indexed cache-target plan | Compiled graphs own output ordinals, alias contracts, indexed target slots, indexed retained values, cache bindings, and per-branch ownership; compatible cohorts retain one page-capacity target plan | Pool the remaining target/result metadata arrays; variable-topology prefill remains request-compiled |
+| Parameterized decode graph | Recipe-admitted capacity-cache decoders replay stable logits, greedy, and top-K graphs within each page class; exact cohorts share one multi-branch graph; pointer-backed indexed attributes update with zero allocations | Extend reuse to explicitly compatible variable-token cohorts only when a bounded graph contract can preserve exact output and cache semantics |
 | Generated CUDA bindings | Complete: manifest generates kernel IDs, argument counts, function table, module lookup, launch validation data, ABI identity, asset hashes, and drift tests | Keep `kernels/manifest.json` authoritative; regenerate after every kernel ABI change |
 | Typed fusion rewrite catalog | Ordered rewrite catalog now owns residual/RMS/gate/Q8 and selection matching plus liveness dependencies; `Compile` contains no fusion-specific branches | Add explicit capability and alias descriptors plus catalog-wide CPU/CUDA equivalence fixtures |
 | Typed tensor attributes | Graph nodes now store a closed attribute interface; builders and graph validation enforce an exact operation-to-attribute catalog before any backend runs; backends still unwrap the validated variants | Make tensor construction private or generate an exhaustive tagged union so operation/attribute mismatches are structurally unrepresentable rather than validation-rejected |
@@ -285,8 +287,8 @@ only when all callers migrate and the superseded authority is deleted.
 | Item | Current evidence | Completion boundary |
 | --- | --- | --- |
 | Split profile input contracts | `ArchitectureProfile` is the authoritative typed fact set but spans metadata, binding, topology, cache, placement, and validation responsibilities | Separate immutable contracts feed compilation; `ModelPlan` contains only compiled runtime facts; hot execution does not inspect the universal profile |
-| Ordered `ModelPlan` program | `LayerPlan` compiles policy, while `BuildArchitectureBlockCached` still interprets block families through a central switch | `ModelPlan` owns ordered typed layer instructions with binding indexes and operator contracts; graph construction walks the program; migrated block-family switch arms are deleted |
-| Recipe-owned execution topology | Active recipes bind exact models, profiles, tensors, and workflow stages, but model forward topology remains behind the existing compiler/dispatcher | Recipes select embedding, ordered layer program, terminal normalization, projection, and selection topology; repeated layers remain compact typed instructions rather than architecture-named orchestration |
+| Ordered `ModelPlan` program | `LayerPlan` compiles policy and `BuildArchitectureBlockCached` indexes a complete typed builder catalog; the central family switch and Qwen device branch are deleted | Move remaining embedding, terminal normalization, and projection stages into the same ordered instruction program |
+| Recipe-owned execution topology | Production model opening compiles through `modelrecipe`; inference recipes contain compile-plan, compile-decode-plan, and forward nodes, and the compiled decode policy controls session admission | Extend recipe authority from model/decode selection to ordered embedding, terminal normalization, projection, and output-selection instructions |
 | Remove serving bootstrap fallback | Activated recipes require profile identity and parity evidence, while `ResolvedProfile` can still consult the embedded bootstrap registry | The first migrated serving family, preferably dense/recurrent Qwen, requires exact active recipe, profile, and compiled-plan identities; registry fallback exists only in explicit catalog-construction tooling; old serving paths are deleted |
 | Projector/runtime convergence | Projectors share graph math, feeds, catalogs, request plans, and CUDA execution but retain separate stage orchestration | Projector bindings, stage order, placement, and cache/output contracts compile through the same instruction and recipe machinery; model-named files retain only format translation and evidence fixtures |
 | Stable CUDA bundles | One large operation PTX bundle is pinned and verified | Generated bindings support a few stable elementwise/normalization, linear/quantized, attention/selection, recurrent/state-space, and media bundles without per-kernel module fragmentation |

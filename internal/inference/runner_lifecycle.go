@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
@@ -58,10 +59,11 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 	if err != nil {
 		return fail(err)
 	}
-	plan, err := model.CompileModelPlan(spec, weights)
+	program, err := modelrecipe.CompileRuntime(spec, weights)
 	if err != nil {
 		return fail(err)
 	}
+	plan := program.Model
 	cacheSchemas, err := model.CompileCacheSchemas(spec, plan, weights.Layers)
 	if err != nil {
 		return fail(err)
@@ -217,7 +219,7 @@ func OpenWithOptions(path string, options OpenOptions) (*Runner, error) {
 		}
 	}
 	return &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, plan: plan, cacheSchemas: cacheSchemas,
+		file: file, path: path, spec: spec, program: program, plan: plan, cacheSchemas: cacheSchemas,
 		weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,

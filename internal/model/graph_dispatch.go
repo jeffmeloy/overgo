@@ -20,6 +20,8 @@ type CachedBlockContext struct {
 	PerLayerInput    *tensor.Tensor
 	Layer            uint32
 	Recurrent        bool
+	CacheWrite       tensor.CacheWriteMode
+	Sequences        uint64
 }
 
 // BlockDispatchOptions: family-dispatch graph inputs.
@@ -45,71 +47,105 @@ func BuildArchitectureBlockCached(
 			"encoder-decoder blocks require explicit encoder state",
 		)
 	}
-	switch plan.Block {
-	case BlockMamba:
-		return BuildMambaBlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.PastKey, context.PastValue,
-		)
-	case BlockMamba2:
-		return BuildMamba2BlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.PastKey, context.PastValue,
-		)
-	case BlockFalconH1:
-		return BuildFalconH1BlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.Positions, context.PastKey, context.PastValue,
-			context.PastStates[CacheStateConvolution].Value,
-			context.PastStates[CacheStateSSM].Value,
-		)
-	case BlockJamba:
-		return BuildJambaRecurrentBlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.PastKey, context.PastValue,
-		)
-	case BlockGraniteHybrid:
-		return BuildGraniteHybridRecurrentBlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.PastKey, context.PastValue,
-		)
-	case BlockPLaMo2:
-		return BuildPLaMo2RecurrentBlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.PastKey, context.PastValue,
-		)
-	case BlockNemotronH:
-		return BuildNemotronHBlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.Positions, context.PastKey, context.PastValue, context.Layer,
-		)
-	case BlockKimiLinear:
-		return BuildKimiLinearBlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.Positions, plan.Recurrent, context.PastKey,
-			context.PastValue, context.Layer,
-		)
-	case BlockDSA:
-		return BuildDSABlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.Positions, context.PastKey, context.PastValue,
-			context.PastStates[CacheStateIndexerKey].Value,
-			context.PerLayerInput, context.Layer,
-		)
-	case BlockDeepSeek4:
-		return BuildDeepSeek4BlockCached(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.Positions, context.TokenRows, context.PastKey,
-			context.PastStates, context.CurrentPositions, context.Layer,
-		)
-	case BlockMLA:
-		return BuildMLABlockCachedForLayer(
-			context.Builder, context.Input, options.Spec, options.Weights,
-			context.Positions, context.PastKey, context.PastValue, context.Layer,
-		)
-	case BlockDense:
-		return BuildDenseBlockWithOptions(DenseBlockOptions(options))
-	default:
+	if int(plan.Block) >= len(cachedBlockCatalog) || cachedBlockCatalog[plan.Block] == nil {
 		return DenseBlockResult{}, errors.New("unknown compiled block policy")
 	}
+	return cachedBlockCatalog[plan.Block](options, plan)
+}
+
+type cachedBlockBuilder func(BlockDispatchOptions, LayerPlan) (DenseBlockResult, error)
+
+var cachedBlockCatalog = [...]cachedBlockBuilder{
+	BlockDense: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		return BuildDenseBlockWithOptions(DenseBlockOptions(options))
+	},
+	BlockMamba: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildMambaBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
+	},
+	BlockMamba2: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildMamba2BlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
+	},
+	BlockFalconH1: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildFalconH1BlockCached(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue,
+			c.PastStates[CacheStateConvolution].Value, c.PastStates[CacheStateSSM].Value,
+		)
+	},
+	BlockJamba: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildJambaRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
+	},
+	BlockGraniteHybrid: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildGraniteHybridRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
+	},
+	BlockPLaMo2: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildPLaMo2RecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
+	},
+	BlockNemotronH: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildNemotronHBlockCached(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue, c.Layer,
+		)
+	},
+	BlockKimiLinear: func(options BlockDispatchOptions, plan LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildKimiLinearBlockCached(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, plan.Recurrent,
+			c.PastKey, c.PastValue, c.Layer,
+		)
+	},
+	BlockMLA: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildMLABlockCachedForLayer(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue, c.Layer,
+		)
+	},
+	BlockDSA: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildDSABlockCached(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue,
+			c.PastStates[CacheStateIndexerKey].Value, c.PerLayerInput, c.Layer,
+		)
+	},
+	BlockDeepSeek4: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+		c := options.Context
+		return BuildDeepSeek4BlockCached(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.TokenRows,
+			c.PastKey, c.PastStates, c.CurrentPositions, c.Layer,
+		)
+	},
+	BlockQwenGDN: buildQwenGDNBlockCached,
+}
+
+func buildQwenGDNBlockCached(options BlockDispatchOptions, plan LayerPlan) (DenseBlockResult, error) {
+	c := options.Context
+	sequences := c.Sequences
+	if sequences == 0 {
+		sequences = 1
+	}
+	pastKey, pastValue := c.PastKey, c.PastValue
+	convState := c.PastStates[CacheStateConvolution].Value
+	ssmState := c.PastStates[CacheStateSSM].Value
+	if plan.Recurrent {
+		convState, ssmState = pastKey, pastValue
+		pastKey, pastValue = nil, nil
+	}
+	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: c.Builder, Input: c.Input, Spec: options.Spec, Weights: options.Weights,
+		Positions: c.Positions, MultiPositions: c.MultiPositions, Sequences: sequences,
+		Recurrent: plan.Recurrent, PastKey: pastKey, PastValue: pastValue,
+		ConvState: convState, SSMState: ssmState, CacheWrite: c.CacheWrite,
+	})
+	if err != nil {
+		return DenseBlockResult{}, err
+	}
+	if plan.Recurrent {
+		return DenseBlockResult{Output: result.Output, Key: result.ConvState, Value: result.SSMState}, nil
+	}
+	return DenseBlockResult{Output: result.Output, Key: result.Key, Value: result.Value}, nil
 }

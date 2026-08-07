@@ -245,6 +245,23 @@ type Qwen35BlockResult struct {
 	Recurrent bool
 }
 
+// Qwen35BlockOptions: hybrid block graph inputs.
+type Qwen35BlockOptions struct {
+	Builder        *tensor.Builder
+	Input          *tensor.Tensor
+	Spec           Spec
+	Weights        LayerGraphWeights
+	Positions      []uint32
+	MultiPositions *[4][]uint32
+	Sequences      uint64
+	Recurrent      bool
+	PastKey        *tensor.Tensor
+	PastValue      *tensor.Tensor
+	ConvState      *tensor.Tensor
+	SSMState       *tensor.Tensor
+	CacheWrite     tensor.CacheWriteMode
+}
+
 type LFM2BlockResult struct {
 	Output    *tensor.Tensor
 	Key       *tensor.Tensor
@@ -472,8 +489,8 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 			return DenseBlockResult{}, errors.New("dense block KV cache token count exceeds uint32")
 		}
 		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
-		cacheKey = builder.AppendCache(pastKey, key, 2)
-		cacheValue = builder.AppendCache(pastValue, value, 2)
+		cacheKey = builder.WriteCache(pastKey, key, 2, context.CacheWrite)
+		cacheValue = builder.WriteCache(pastValue, value, 2, context.CacheWrite)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	if spec.AttentionScale > 0 {
@@ -1096,10 +1113,11 @@ func BuildQwen35BlockCached(
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	return buildQwen35BlockCached(
-		builder, input, spec, weights, positions, nil, 1, recurrent,
-		pastKey, pastValue, convState, ssmState,
-	)
+	return BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: weights, Positions: positions,
+		Sequences: 1, Recurrent: recurrent, PastKey: pastKey, PastValue: pastValue,
+		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
+	})
 }
 
 // BuildQwen35BlockCachedBatch: homogeneous packed-sequence block.
@@ -1113,10 +1131,11 @@ func BuildQwen35BlockCachedBatch(
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (Qwen35BlockResult, error) {
-	return buildQwen35BlockCached(
-		builder, input, spec, weights, positions, nil, sequences, recurrent,
-		pastKey, pastValue, convState, ssmState,
-	)
+	return BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: weights, Positions: positions,
+		Sequences: sequences, Recurrent: recurrent, PastKey: pastKey, PastValue: pastValue,
+		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
+	})
 }
 
 // BuildQwen35BlockCachedWithMultiPositions: distinct MRoPE axes.
@@ -1133,9 +1152,24 @@ func BuildQwen35BlockCachedWithMultiPositions(
 	if profile.AttentionGraph.QwenGDN == qwenGDNNone || !profile.Has(ArchitectureMultiAxisPositions) {
 		return Qwen35BlockResult{}, errors.New("Qwen hybrid architecture does not support multi-axis positions")
 	}
+	return BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: weights,
+		Positions: multiPositions[0], MultiPositions: &multiPositions, Sequences: 1,
+		Recurrent: recurrent, PastKey: pastKey, PastValue: pastValue,
+		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
+	})
+}
+
+// BuildQwen35BlockWithOptions: typed hybrid block construction.
+func BuildQwen35BlockWithOptions(options Qwen35BlockOptions) (Qwen35BlockResult, error) {
+	if options.Sequences == 0 {
+		return Qwen35BlockResult{}, errors.New("Qwen hybrid sequence count is zero")
+	}
 	return buildQwen35BlockCached(
-		builder, input, spec, weights, multiPositions[0], &multiPositions, 1, recurrent,
-		pastKey, pastValue, convState, ssmState,
+		options.Builder, options.Input, options.Spec, options.Weights,
+		options.Positions, options.MultiPositions, options.Sequences, options.Recurrent,
+		options.PastKey, options.PastValue, options.ConvState, options.SSMState,
+		options.CacheWrite,
 	)
 }
 
@@ -1149,6 +1183,7 @@ func buildQwen35BlockCached(
 	sequences uint64,
 	recurrent bool,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
+	cacheWrite tensor.CacheWriteMode,
 ) (Qwen35BlockResult, error) {
 	if spec.Profile().AttentionGraph.QwenGDN == qwenGDNNone {
 		return Qwen35BlockResult{}, errors.New("Qwen hybrid block architecture is invalid")
@@ -1175,6 +1210,7 @@ func buildQwen35BlockCached(
 		sequences,
 		pastKey,
 		pastValue,
+		cacheWrite,
 	)
 	if err != nil {
 		return Qwen35BlockResult{}, err
@@ -1195,6 +1231,7 @@ func buildQwen35AttentionBlock(
 	multiPositions *[4][]uint32,
 	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
+	cacheWrite tensor.CacheWriteMode,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil {
 		return DenseBlockResult{}, errors.New("Qwen3.5 attention block input is nil")
@@ -1284,8 +1321,8 @@ func buildQwen35AttentionBlock(
 			return DenseBlockResult{}, errors.New("Qwen3.5 attention cache exceeds uint32")
 		}
 		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
-		cacheKey = builder.AppendCache(pastKey, key, 2)
-		cacheValue = builder.AppendCache(pastValue, value, 2)
+		cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
+		cacheValue = builder.WriteCache(pastValue, value, 2, cacheWrite)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	if spec.AttentionScale > 0 {

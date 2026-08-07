@@ -390,6 +390,7 @@ func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
 	}
 	result := *source
 	result.session = nil
+	result.sessionBranch = 0
 	result.Keys = slices.Clone(source.Keys)
 	result.Values = slices.Clone(source.Values)
 	result.Logits = slices.Clone(source.Logits)

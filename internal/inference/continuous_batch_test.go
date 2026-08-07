@@ -176,10 +176,12 @@ func TestCloneDeviceCacheSharesOwnerAndCopiesMetadata(t *testing.T) {
 	shape := tensor.MustShape(2, 1, 3)
 	owner := newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)
 	source := &deviceKVCache{
-		owner:   owner,
-		session: &deviceDecodeSession{capacity: 4},
-		Keys:    []executor.DeviceValue{{Shape: shape}},
-		Values:  []executor.DeviceValue{{Shape: shape}},
+		owner: owner,
+		session: &deviceDecodeSession{program: decodeSessionPlan{
+			identity: decodeSessionIdentity{capacity: 4},
+		}},
+		Keys:   []executor.DeviceValue{{Shape: shape}},
+		Values: []executor.DeviceValue{{Shape: shape}},
 		States: []deviceLayerStates{{
 			"fixed": {Mode: CacheStateFixed, Value: executor.DeviceValue{Shape: tensor.MustShape(2)}},
 		}},

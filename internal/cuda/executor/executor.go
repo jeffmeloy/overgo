@@ -489,14 +489,46 @@ func (a *RuntimeAttributes) Set(node *tensor.Tensor, attributes tensor.Attribute
 	if !ok || attributes == nil {
 		return errors.New("CUDA runtime attribute target is invalid")
 	}
-	if err := tensor.ValidateOperationAttributes(node.Op, attributes); err != nil {
+	resolved, err := resolveRuntimeAttributes(attributes)
+	if err != nil {
 		return err
 	}
-	if err := validateRuntimeAttributes(node, attributes); err != nil {
+	if err := tensor.ValidateOperationAttributes(node.Op, resolved); err != nil {
+		return err
+	}
+	if err := validateRuntimeAttributes(node, resolved); err != nil {
 		return err
 	}
 	a.values[index] = attributes
 	return nil
+}
+
+func resolveRuntimeAttributes(attributes tensor.Attributes) (tensor.Attributes, error) {
+	switch value := attributes.(type) {
+	case *tensor.GetRowsAttributes:
+		if value != nil {
+			return *value, nil
+		}
+	case *tensor.RoPEAttributes:
+		if value != nil {
+			return *value, nil
+		}
+	case *tensor.RoPEMultiAttributes:
+		if value != nil {
+			return *value, nil
+		}
+	case *tensor.AttentionAttributes:
+		if value != nil {
+			return *value, nil
+		}
+	case *tensor.CacheAppendAttributes:
+		if value != nil {
+			return *value, nil
+		}
+	default:
+		return attributes, nil
+	}
+	return nil, errors.New("CUDA runtime attribute binding is nil")
 }
 
 func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes) error {
@@ -1041,7 +1073,10 @@ func execute(
 	attributesFor := func(node *tensor.Tensor) tensor.Attributes {
 		if runtimeAttributes != nil {
 			if index, ok := compiled.orderIndexes[node]; ok && runtimeAttributes.values[index] != nil {
-				return runtimeAttributes.values[index]
+				attributes, resolveErr := resolveRuntimeAttributes(runtimeAttributes.values[index])
+				if resolveErr == nil {
+					return attributes
+				}
 			}
 		}
 		return node.Attrs

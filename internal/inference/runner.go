@@ -13,6 +13,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -149,6 +150,7 @@ type preparedModel struct {
 	file                *gguf.File
 	path                string
 	spec                model.Spec
+	program             modelrecipe.Plan
 	plan                model.ModelPlan
 	cacheSchemas        []model.LayerCacheSchema
 	weights             model.Weights

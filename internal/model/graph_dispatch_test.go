@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func TestCachedBlockCatalogCoversCompiledPolicies(t *testing.T) {
+	for policy := BlockDense; policy <= BlockQwenGDN; policy++ {
+		if int(policy) >= len(cachedBlockCatalog) || cachedBlockCatalog[policy] == nil {
+			t.Fatalf("block policy %d has no cached builder", policy)
+		}
+	}
+}
+
 func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
 	_, err := BuildArchitectureBlockCached(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: "unknown"}},

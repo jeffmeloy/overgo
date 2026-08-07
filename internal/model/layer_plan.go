@@ -21,6 +21,7 @@ const (
 	BlockMLA
 	BlockDSA
 	BlockDeepSeek4
+	BlockQwenGDN
 )
 
 // CachePolicy: compiled layer-state layout.
@@ -59,6 +60,15 @@ const (
 	CacheFallbackNone CacheFallbackPolicy = iota
 	CacheFallbackFeedForward
 	CacheFallbackMissingKV
+)
+
+// CacheWritePolicy: compiled cache graph capabilities.
+type CacheWritePolicy uint8
+
+const (
+	CacheWriteFixed CacheWritePolicy = iota
+	CacheWriteConcatOnly
+	CacheWriteConcatOrAppend
 )
 
 // CachedGraphPolicy: cached decoder graph composition.
@@ -105,6 +115,7 @@ type LayerPlan struct {
 	Residual          ResidualPolicy
 	FeedForward       FeedForwardPolicy
 	CacheMode         CacheStateMode
+	CacheWrite        CacheWritePolicy
 	Recurrent         bool
 	Sliding           bool
 	UsesRoPE          bool
@@ -152,6 +163,14 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	}
 	normalization := s.NormPlan()
 	cache := cachePolicy(s, profile, layer, recurrent)
+	block := blockPolicy(profile, recurrent)
+	cacheWrite := CacheWriteFixed
+	if cache.PrimaryMode().TokenAligned() {
+		cacheWrite = CacheWriteConcatOnly
+		if block == BlockDense || profile.Attention == AttentionQwenGDN {
+			cacheWrite = CacheWriteConcatOrAppend
+		}
+	}
 	return LayerPlan{
 		Layer:             layer,
 		GraphFamily:       profile.GraphFamily,
@@ -160,9 +179,10 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Position:          profile.Position,
 		Residual:          profile.Residual,
 		FeedForward:       profile.FeedForward,
-		Block:             blockPolicy(profile, recurrent),
+		Block:             block,
 		Cache:             cache,
 		CacheMode:         cache.PrimaryMode(),
+		CacheWrite:        cacheWrite,
 		Recurrent:         recurrent,
 		Sliding:           s.IsSlidingLayer(layer),
 		UsesRoPE:          s.UsesRoPE(layer),
@@ -193,6 +213,20 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		AttentionOutput: s.attentionOutputPlan(normalization),
 		ResidualStages:  s.residualStagePlan(profile, normalization),
 	}
+}
+
+// SupportsCapacityCache: all token caches admit bounded append.
+func (p ModelPlan) SupportsCapacityCache() bool {
+	if len(p.Layers) == 0 {
+		return false
+	}
+	for _, layer := range p.Layers {
+		if layer.CacheMode.TokenAligned() &&
+			(layer.CacheWrite != CacheWriteConcatOrAppend || layer.SharedKV) {
+			return false
+		}
+	}
+	return true
 }
 
 // SupportsMultiAxisPositions: model-level MRoPE contract.
@@ -412,6 +446,9 @@ func (p ModelPlan) Layer(layer int) (LayerPlan, error) {
 }
 
 func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
+	if profile.Attention == AttentionQwenGDN {
+		return BlockQwenGDN
+	}
 	if recurrent && profile.RecurrentBlock != BlockDense {
 		return profile.RecurrentBlock
 	}

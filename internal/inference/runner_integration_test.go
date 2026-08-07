@@ -818,7 +818,8 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	sessionBatch.mu.Lock()
 	session := sessionBatch.sequences[50].device.session
 	sessionBatch.mu.Unlock()
-	if session == nil || session.rebuilds < 2 || session.replays < 1 || session.capacity < 8 {
+	if session == nil || session.rebuilds < 2 || session.replays < 1 ||
+		session.program.identity.capacity < 8 {
 		t.Fatalf("parameterized decode session = %+v", session)
 	}
 	outputs, err = batch.Step(context.Background(), []SequenceBatchInput{

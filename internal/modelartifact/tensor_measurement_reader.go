@@ -53,7 +53,7 @@ func MeasureGGUF(
 		samples := make([]float64, 0, blockSamples*traits.BlockSize)
 		storage := make([]byte, traits.TypeSize)
 		for sample := uint64(0); sample < blockSamples; sample++ {
-			block := sample * blocks / blockSamples
+			block := evenlySpacedIndex(sample, blockSamples, blocks)
 			if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
 				return TensorMeasurementDocument{}, err
 			}
@@ -108,7 +108,7 @@ func MeasureSafetensors(
 		storage := make([]byte, width)
 		samples := make([]float64, sampleCount)
 		for sample := uint64(0); sample < sampleCount; sample++ {
-			element := sample * elements / sampleCount
+			element := evenlySpacedIndex(sample, sampleCount, elements)
 			if _, err := tensor.ReadAt(storage, int64(element*width)); err != nil {
 				return TensorMeasurementDocument{}, err
 			}
@@ -168,4 +168,9 @@ func ggufTensorElements(tensor gguf.TensorInfo) (uint64, error) {
 		elements *= dimension
 	}
 	return elements, nil
+}
+
+func evenlySpacedIndex(sample, sampleCount, population uint64) uint64 {
+	quotient, remainder := population/sampleCount, population%sampleCount
+	return sample*quotient + sample*remainder/sampleCount
 }

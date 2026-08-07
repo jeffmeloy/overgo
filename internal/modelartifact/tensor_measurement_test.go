@@ -114,6 +114,21 @@ func TestTensorMeasurementEnforcesReadBudget(t *testing.T) {
 	}
 }
 
+func TestEvenlySpacedIndexAvoidsIntermediateOverflow(t *testing.T) {
+	const sampleCount = uint64(4096)
+	previous := uint64(0)
+	for sample := uint64(0); sample < sampleCount; sample++ {
+		index := evenlySpacedIndex(sample, sampleCount, math.MaxUint64)
+		if sample > 0 && index <= previous {
+			t.Fatalf("sample %d index %d follows %d", sample, index, previous)
+		}
+		previous = index
+	}
+	if previous >= math.MaxUint64 {
+		t.Fatalf("final sample index = %d", previous)
+	}
+}
+
 func fixtureInventoryID(t *testing.T) artifact.ID {
 	t.Helper()
 	id, err := artifact.IdentifyBytes(artifact.KindTensorInventory, []byte("inventory"))

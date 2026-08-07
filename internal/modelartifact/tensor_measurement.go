@@ -21,6 +21,8 @@ const (
 
 	defaultMeasurementSamples   = 4096
 	defaultMeasurementReadBytes = 256 << 20
+	minimumMeasurementSamples   = 256
+	maximumMeasurementSamples   = 1 << 20
 )
 
 var tensorMeasurementContract = artifact.DocumentContract{
@@ -198,7 +200,8 @@ func sampleQuantile(sorted []float64, numerator, denominator uint64) float64 {
 func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 	if document == nil || document.Version != TensorMeasurementVersion ||
 		document.Inventory.Kind() != artifact.KindTensorInventory ||
-		document.Policy.MaxSamplesPerTensor < 256 || document.Policy.MaxSamplesPerTensor > 1<<20 ||
+		document.Policy.MaxSamplesPerTensor < minimumMeasurementSamples ||
+		document.Policy.MaxSamplesPerTensor > maximumMeasurementSamples ||
 		document.Policy.MaxReadBytes == 0 || document.ReadBytes == 0 ||
 		document.ReadBytes > document.Policy.MaxReadBytes || len(document.Measurements) == 0 ||
 		len(document.Measurements) > maxInventoryTensors {

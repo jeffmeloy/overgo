@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	"llamacpp2go/internal/cuda/driver"
 	"llamacpp2go/internal/inference"
 	"llamacpp2go/internal/sampling"
+	"llamacpp2go/internal/tokenizer"
 )
 
 const (
@@ -26,25 +28,32 @@ const (
 	defaultBenchmarkWarmup = 1
 	minBenchmarkWarmup     = 0
 	maxBenchmarkWarmup     = 100
+	maxBenchmarkSequences  = 1024
 )
 
 type options struct {
-	Model        string
-	Prompt       string
-	Device       int
-	Tokens       int
-	Runs         int
-	Warmup       int
-	Preload      bool
-	NativeQuant  bool
-	ContextShift bool
-	LoRA         []string
+	Model          string
+	Prompt         string
+	Device         int
+	Tokens         int
+	Runs           int
+	Warmup         int
+	Preload        bool
+	NativeQuant    bool
+	HostCache      bool
+	CachePrompt    bool
+	BatchSequences int
+	ContextShift   bool
+	LoRA           []string
 }
 
 type runMetrics struct {
 	Run                      int     `json:"run"`
 	PromptTokens             int     `json:"prompt_tokens"`
+	CachedPromptTokens       int     `json:"cached_prompt_tokens"`
 	OutputTokens             int     `json:"output_tokens"`
+	PromptMilliseconds       float64 `json:"prompt_ms"`
+	PromptTokensPerSecond    float64 `json:"prompt_tokens_per_second"`
 	TTFTMilliseconds         float64 `json:"ttft_ms"`
 	TotalMilliseconds        float64 `json:"total_ms"`
 	DecodeMilliseconds       float64 `json:"decode_ms"`
@@ -79,6 +88,11 @@ type benchmarkResult struct {
 	FileType               string            `json:"file_type"`
 	ParameterCount         uint64            `json:"parameter_count"`
 	ModelBytes             uint64            `json:"model_bytes"`
+	Preload                bool              `json:"preload"`
+	NativeQuant            bool              `json:"native_quant"`
+	HostCache              bool              `json:"host_cache"`
+	CachePrompt            bool              `json:"cache_prompt"`
+	BatchSequences         int               `json:"batch_sequences"`
 	Device                 driver.DeviceInfo `json:"device"`
 	LoadMilliseconds       float64           `json:"load_ms"`
 	HostHeapBeforeBytes    uint64            `json:"host_heap_before_bytes"`
@@ -99,18 +113,21 @@ func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("benchmark", flag.ContinueOnError)
 	var result options
 	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
-		PreloadName: "preload", NativeQuantName: "native-quant",
+		PreloadName: "preload", NativeQuantName: "native-quant", HostCacheName: "host-cache",
 	})
 	flags.IntVar(&result.Tokens, "tokens", defaultBenchmarkTokens, "maximum generated tokens per run")
 	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
 	flags.BoolVar(&result.ContextShift, "context-shift", false, "enable rolling context shift")
+	flags.BoolVar(&result.CachePrompt, "cache-prompt", false, "reuse retained prompt state between runs")
+	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Device = *modelFlags.DeviceOrdinal
 	result.Preload = modelFlags.Preload != nil && *modelFlags.Preload
 	result.NativeQuant = modelFlags.NativeQuant != nil && *modelFlags.NativeQuant
+	result.HostCache = modelFlags.HostCache != nil && *modelFlags.HostCache
 	result.LoRA = modelFlags.LoRAPaths()
 	if flags.NArg() != 2 {
 		return options{}, errors.New("usage: benchmark [options] <model.gguf> <prompt>")
@@ -130,6 +147,15 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.Preload && result.NativeQuant {
 		return options{}, errors.New("benchmark: -preload and -native-quant are mutually exclusive")
+	}
+	if result.HostCache && (result.Preload || result.NativeQuant) {
+		return options{}, errors.New("benchmark: -host-cache and device preload are mutually exclusive")
+	}
+	if result.BatchSequences < 0 || result.BatchSequences > maxBenchmarkSequences {
+		return options{}, fmt.Errorf("benchmark: -batch-sequences must be in [0,%d]", maxBenchmarkSequences)
+	}
+	if result.BatchSequences > 0 && result.CachePrompt {
+		return options{}, errors.New("benchmark: -cache-prompt is unavailable in continuous-batch mode")
 	}
 	return result, nil
 }
@@ -154,9 +180,11 @@ func run(args []string) error {
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
 	loadStarted := time.Now()
-	runner, err := inference.OpenWithOptions(options.Model, clioptions.BuildOpenOptions(
+	openOptions := clioptions.BuildOpenOptions(
 		options.Device, options.Preload, options.NativeQuant, options.LoRA, 1,
-	))
+	)
+	openOptions.CacheHostWeights = options.HostCache
+	runner, err := inference.OpenWithOptions(options.Model, openOptions)
 	if err != nil {
 		return err
 	}
@@ -173,6 +201,9 @@ func run(args []string) error {
 		return err
 	}
 	execute := func(index int) (runMetrics, error) {
+		if options.BatchSequences > 0 {
+			return executeContinuousBatch(context.Background(), runner, options, promptIDs, index)
+		}
 		sampler, samplerErr := sampling.New(sampling.Config{Temperature: 0})
 		if samplerErr != nil {
 			return runMetrics{}, samplerErr
@@ -183,11 +214,16 @@ func run(args []string) error {
 		}
 		started := time.Now()
 		firstToken := time.Time{}
+		promptEvaluation := inference.PromptEvaluation{}
 		outputTokens := 0
 		_, _, generationErr := runner.Generate(context.Background(), options.Prompt, inference.GenerateOptions{
 			MaxNewTokens: options.Tokens,
 			Sampler:      sampler,
 			ContextShift: options.ContextShift,
+			CachePrompt:  options.CachePrompt,
+			OnPromptEvaluated: func(evaluation inference.PromptEvaluation) {
+				promptEvaluation = evaluation
+			},
 			OnToken: func(inference.TokenEvent) error {
 				outputTokens++
 				if firstToken.IsZero() {
@@ -214,7 +250,9 @@ func run(args []string) error {
 		metrics := runMetrics{
 			Run:                    index,
 			PromptTokens:           len(promptIDs),
+			CachedPromptTokens:     promptEvaluation.Cached,
 			OutputTokens:           outputTokens,
+			PromptMilliseconds:     float64(promptEvaluation.Duration) / float64(time.Millisecond),
 			TTFTMilliseconds:       float64(ttft) / float64(time.Millisecond),
 			TotalMilliseconds:      float64(total) / float64(time.Millisecond),
 			DecodeMilliseconds:     float64(decode) / float64(time.Millisecond),
@@ -228,6 +266,10 @@ func run(args []string) error {
 			DeviceToDeviceBytes:    execution.DeviceToDeviceBytes,
 			DeviceMemsets:          execution.DeviceMemsets,
 			DeviceMemsetBytes:      execution.DeviceMemsetBytes,
+		}
+		uncachedPromptTokens := promptEvaluation.Tokens - promptEvaluation.Cached
+		if uncachedPromptTokens > 0 && promptEvaluation.Duration > 0 {
+			metrics.PromptTokensPerSecond = float64(uncachedPromptTokens) / promptEvaluation.Duration.Seconds()
 		}
 		if outputTokens > 0 {
 			metrics.KernelLaunchesPerToken = float64(execution.KernelLaunches) / float64(outputTokens)
@@ -267,6 +309,11 @@ func run(args []string) error {
 		FileType:               properties.FileType,
 		ParameterCount:         properties.ParameterCount,
 		ModelBytes:             properties.ModelSize,
+		Preload:                options.Preload,
+		NativeQuant:            options.NativeQuant,
+		HostCache:              options.HostCache,
+		CachePrompt:            options.CachePrompt,
+		BatchSequences:         options.BatchSequences,
 		Device:                 device,
 		LoadMilliseconds:       float64(loadDuration) / float64(time.Millisecond),
 		HostHeapBeforeBytes:    before.HeapAlloc,
@@ -295,6 +342,105 @@ func subtractExecutionStats(after, before driver.ExecutionStats) driver.Executio
 		DeviceMemsets:           after.DeviceMemsets - before.DeviceMemsets,
 		DeviceMemsetBytes:       after.DeviceMemsetBytes - before.DeviceMemsetBytes,
 	}
+}
+
+func executeContinuousBatch(
+	ctx context.Context,
+	runner *inference.Runner,
+	options options,
+	prompt []tokenizer.TokenID,
+	index int,
+) (runMetrics, error) {
+	device := options.Preload || options.NativeQuant
+	batch, err := runner.NewContinuousBatch(inference.ContinuousBatchOptions{
+		MaxSequences: options.BatchSequences,
+		Device:       device,
+		ContextShift: options.ContextShift,
+	})
+	if err != nil {
+		return runMetrics{}, err
+	}
+	defer batch.Close(context.Background())
+	inputs := make([]inference.SequenceBatchInput, options.BatchSequences)
+	for sequence := range inputs {
+		inputs[sequence] = inference.SequenceBatchInput{ID: inference.SequenceID(sequence + 1), Tokens: prompt}
+	}
+	beforeExecution, err := runner.DeviceExecutionStats(ctx)
+	if err != nil {
+		return runMetrics{}, err
+	}
+	started := time.Now()
+	outputs, err := batch.Step(ctx, inputs)
+	if err != nil {
+		return runMetrics{}, err
+	}
+	firstToken := time.Now()
+	outputTokens := len(outputs)
+	for generated := 1; generated < options.Tokens; generated++ {
+		for sequence, output := range outputs {
+			token, tokenErr := greedyToken(output.Logits)
+			if tokenErr != nil {
+				return runMetrics{}, tokenErr
+			}
+			inputs[sequence].Tokens = []tokenizer.TokenID{token}
+		}
+		outputs, err = batch.Step(ctx, inputs)
+		if err != nil {
+			return runMetrics{}, err
+		}
+		outputTokens += len(outputs)
+	}
+	finished := time.Now()
+	afterExecution, err := runner.DeviceExecutionStats(ctx)
+	if err != nil {
+		return runMetrics{}, err
+	}
+	execution := subtractExecutionStats(afterExecution, beforeExecution)
+	total := finished.Sub(started)
+	ttft := firstToken.Sub(started)
+	decode := total - ttft
+	promptTokens := len(prompt) * options.BatchSequences
+	metrics := runMetrics{
+		Run: index, PromptTokens: promptTokens, OutputTokens: outputTokens,
+		PromptMilliseconds: float64(ttft) / float64(time.Millisecond),
+		TTFTMilliseconds:   float64(ttft) / float64(time.Millisecond),
+		TotalMilliseconds:  float64(total) / float64(time.Millisecond),
+		DecodeMilliseconds: float64(decode) / float64(time.Millisecond),
+		KernelLaunches:     execution.KernelLaunches, StreamSynchronizations: execution.StreamSynchronizations,
+		HostToDeviceCopies: execution.HostToDeviceCopies, HostToDeviceBytes: execution.HostToDeviceBytes,
+		DeviceToHostCopies: execution.DeviceToHostCopies, DeviceToHostBytes: execution.DeviceToHostBytes,
+		DeviceToDeviceCopies: execution.DeviceToDeviceCopies, DeviceToDeviceBytes: execution.DeviceToDeviceBytes,
+		DeviceMemsets: execution.DeviceMemsets, DeviceMemsetBytes: execution.DeviceMemsetBytes,
+	}
+	if ttft > 0 {
+		metrics.PromptTokensPerSecond = float64(promptTokens) / ttft.Seconds()
+	}
+	if outputTokens > 0 {
+		metrics.KernelLaunchesPerToken = float64(execution.KernelLaunches) / float64(outputTokens)
+		metrics.SynchronizationsPerToken = float64(execution.StreamSynchronizations) / float64(outputTokens)
+		metrics.EndToEndTokensPerSecond = float64(outputTokens) / total.Seconds()
+	}
+	decodeTokens := outputTokens - options.BatchSequences
+	if decodeTokens > 0 && decode > 0 {
+		metrics.DecodeTokensPerSecond = float64(decodeTokens) / decode.Seconds()
+	}
+	return metrics, nil
+}
+
+func greedyToken(logits []float32) (tokenizer.TokenID, error) {
+	if len(logits) == 0 {
+		return 0, errors.New("benchmark: continuous batch produced no logits")
+	}
+	best, maximum := 0, float32(math.Inf(-1))
+	for token, value := range logits {
+		if math.IsNaN(float64(value)) {
+			return 0, errors.New("benchmark: continuous batch produced NaN logits")
+		}
+		if value > maximum {
+			best, maximum = token, value
+		}
+	}
+	return tokenizer.TokenID(best), nil
 }
 
 func summarizeRuns(runs []runMetrics) summaryMetrics {

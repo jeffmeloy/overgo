@@ -93,17 +93,34 @@ func (w *DeviceF32Weights) LayerGraphInputs(
 	builder *tensor.Builder,
 	info LayerWeights,
 ) (LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
+	return BindDeviceLayerGraphInputs(builder, info, func(
+		builder *tensor.Builder,
+		info gguf.TensorInfo,
+	) (*tensor.Tensor, driver.DevicePtr, error) {
+		return w.Input(builder, info.Name)
+	})
+}
+
+// BindDeviceLayerGraphInputs: shared layer-catalog binding.
+func BindDeviceLayerGraphInputs(
+	builder *tensor.Builder,
+	info LayerWeights,
+	bind DeviceTensorBinder,
+) (LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
 	if builder == nil {
-		return LayerGraphWeights{}, nil, errors.New("F32 device layer graph builder is nil")
+		return LayerGraphWeights{}, nil, errors.New("device layer graph builder is nil")
+	}
+	if bind == nil {
+		return LayerGraphWeights{}, nil, errors.New("device layer graph binder is nil")
 	}
 	if info.FeedForwardRouter != nil &&
 		((info.FeedForwardUpExperts == nil && info.FeedForwardGateUpExperts == nil) ||
 			info.FeedForwardDownExperts == nil) {
-		return LayerGraphWeights{}, nil, errors.New("F32 device expert layer catalog is incomplete")
+		return LayerGraphWeights{}, nil, errors.New("device expert layer catalog is incomplete")
 	}
 	feeds := make(map[*tensor.Tensor]driver.DevicePtr, 11)
 	result := LayerGraphWeights{}
-	if err := bindDeviceLayerGraphFields(w, builder, &info, &result, feeds); err != nil {
+	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, feeds); err != nil {
 		return LayerGraphWeights{}, nil, err
 	}
 	if err := builder.Err(); err != nil {

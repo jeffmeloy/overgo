@@ -121,7 +121,11 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		return launch1DABI(state, functions.rmsNorm, rows, &input, &output, &width, &rows, &epsilon)
+		launchCount, err := normalizationLaunchCount(rows)
+		if err != nil {
+			return err
+		}
+		return launch1DABI(state, functions.rmsNorm, launchCount, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
 		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
 		if !ok {
@@ -133,7 +137,11 @@ func launchLinearLayout(
 		}
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
-		return launch1DABI(state, functions.layerNorm, rows, &input, &output, &width, &rows, &epsilon)
+		launchCount, err := normalizationLaunchCount(rows)
+		if err != nil {
+			return err
+		}
+		return launch1DABI(state, functions.layerNorm, launchCount, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpSoftmax:
 		width, rows, err := rowDimensions32(node.Shape)
 		if err != nil {
@@ -171,8 +179,12 @@ func launchLinearLayout(
 			}
 			count := leftRows * rightRows
 			function := quantKernels[leftNode.Type].mulMat(functions)
+			launchCount, err := quantMulMatLaunchCount(leftNode.Type, count)
+			if err != nil {
+				return err
+			}
 			return launch1DABI(
-				state, function, count, &left, &right, &output, &inner, &leftRows, &rightRows,
+				state, function, launchCount, &left, &right, &output, &inner, &leftRows, &rightRows,
 			)
 		}
 		if blas == nil {
@@ -249,8 +261,12 @@ func launchLinearLayout(
 				}
 				function := quantKernels[leftNode.Type].mulMat(functions)
 				rightRows := uint32(1)
+				launchCount, launchErr := quantMulMatLaunchCount(leftNode.Type, leftRows)
+				if launchErr != nil {
+					return launchErr
+				}
 				if err = launch1DABI(
-					state, function, leftRows,
+					state, function, launchCount,
 					&left, &right, &groupOutput, &inner, &leftRows, &rightRows,
 				); err != nil {
 					return err
@@ -294,4 +310,23 @@ func launchLinearLayout(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+func quantMulMatLaunchCount(storage dtype.Type, outputs uint32) (uint32, error) {
+	if storage != dtype.Q8_0 {
+		return outputs, nil
+	}
+	const q8DotProductThreads = uint32(32)
+	if outputs > math.MaxUint32/q8DotProductThreads {
+		return 0, errors.New("Q8_0 mul_mat launch size exceeds uint32")
+	}
+	return outputs * q8DotProductThreads, nil
+}
+
+func normalizationLaunchCount(rows uint32) (uint32, error) {
+	const normalizationThreadsPerRow = uint32(32)
+	if rows > math.MaxUint32/normalizationThreadsPerRow {
+		return 0, errors.New("normalization launch size exceeds uint32")
+	}
+	return rows * normalizationThreadsPerRow, nil
 }

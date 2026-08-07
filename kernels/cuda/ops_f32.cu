@@ -32,6 +32,11 @@ enum GGMLStorageType : unsigned int {
     GGML_Q2_0 = 42,
 };
 
+constexpr unsigned int CUDA_WARP_WIDTH = 32;
+constexpr unsigned int Q8_0_BLOCK_WIDTH = 32;
+constexpr unsigned int Q8_0_BLOCK_BYTES = 34;
+constexpr unsigned int Q8_0_SCALE_BYTES = 2;
+
 extern "C" __global__ void add_f32(
         const float * input_a,
         const float * input_b,
@@ -1267,18 +1272,24 @@ extern "C" __global__ void rms_norm_f32(
         unsigned int width,
         unsigned int rows,
         float epsilon) {
-    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int row = thread_index / CUDA_WARP_WIDTH;
     if (row >= rows) {
         return;
     }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int offset = row * width;
     float sum_squares = 0.0f;
-    for (unsigned int column = 0; column < width; ++column) {
+    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
         const float value = input[offset + column];
         sum_squares += value * value;
     }
+    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
+        sum_squares += __shfl_down_sync(0xffffffff, sum_squares, delta);
+    }
+    sum_squares = __shfl_sync(0xffffffff, sum_squares, 0);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
-    for (unsigned int column = 0; column < width; ++column) {
+    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
         output[offset + column] = input[offset + column] * inverse;
     }
 }
@@ -1289,23 +1300,33 @@ extern "C" __global__ void layer_norm_f32(
         unsigned int width,
         unsigned int rows,
         float epsilon) {
-    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int row = thread_index / CUDA_WARP_WIDTH;
     if (row >= rows) {
         return;
     }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int offset = row * width;
     float sum = 0.0f;
-    for (unsigned int column = 0; column < width; ++column) {
+    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
         sum += input[offset + column];
     }
+    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, delta);
+    }
+    sum = __shfl_sync(0xffffffff, sum, 0);
     const float mean = sum / (float) width;
     float sum_squares = 0.0f;
-    for (unsigned int column = 0; column < width; ++column) {
+    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
         const float centered = input[offset + column] - mean;
         sum_squares += centered * centered;
     }
+    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
+        sum_squares += __shfl_down_sync(0xffffffff, sum_squares, delta);
+    }
+    sum_squares = __shfl_sync(0xffffffff, sum_squares, 0);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
-    for (unsigned int column = 0; column < width; ++column) {
+    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
         output[offset + column] = (input[offset + column] - mean) * inverse;
     }
 }
@@ -2003,13 +2024,14 @@ extern "C" __global__ void get_rows_q8_0_f32(
     }
     const unsigned int column = index % width;
     const unsigned int output_row = index / width;
-    const unsigned int blocks_per_row = width / 32;
+    const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
     const unsigned int block_index =
-        rows[output_row] * blocks_per_row + column / 32;
-    const unsigned char * block = table + block_index * 34;
+        rows[output_row] * blocks_per_row + column / Q8_0_BLOCK_WIDTH;
+    const unsigned char * block = table + block_index * Q8_0_BLOCK_BYTES;
     const float scale = __half2float(*reinterpret_cast<const __half *>(block));
     const signed char quantized =
-        *(reinterpret_cast<const signed char *>(block + 2) + column % 32);
+        *(reinterpret_cast<const signed char *>(block + Q8_0_SCALE_BYTES) +
+            column % Q8_0_BLOCK_WIDTH);
     output[index] = scale * (float) quantized;
 }
 
@@ -2020,31 +2042,35 @@ extern "C" __global__ void mul_mat_q8_0_f32(
         unsigned int inner,
         unsigned int left_rows,
         unsigned int right_rows) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int count = left_rows * right_rows;
-    if (index >= count) {
+    const unsigned int output_index = thread_index / CUDA_WARP_WIDTH;
+    if (output_index >= count) {
         return;
     }
-    const unsigned int left_row = index % left_rows;
-    const unsigned int right_row = index / left_rows;
-    const unsigned int blocks_per_row = inner / 32;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int left_row = output_index % left_rows;
+    const unsigned int right_row = output_index / left_rows;
+    const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
     const unsigned char * weight_row =
-        left + left_row * blocks_per_row * 34;
+        left + left_row * blocks_per_row * Q8_0_BLOCK_BYTES;
     const float * input_row = right + right_row * inner;
     float sum = 0.0f;
     for (unsigned int block_index = 0; block_index < blocks_per_row; ++block_index) {
-        const unsigned char * block = weight_row + block_index * 34;
+        const unsigned char * block =
+            weight_row + block_index * Q8_0_BLOCK_BYTES;
         const float scale = __half2float(*reinterpret_cast<const __half *>(block));
         const signed char * quantized =
-            reinterpret_cast<const signed char *>(block + 2);
-        const unsigned int column_base = block_index * 32;
-        float block_sum = 0.0f;
-        for (unsigned int column = 0; column < 32; ++column) {
-            block_sum += (float) quantized[column] * input_row[column_base + column];
-        }
-        sum += scale * block_sum;
+            reinterpret_cast<const signed char *>(block + Q8_0_SCALE_BYTES);
+        const unsigned int column = block_index * Q8_0_BLOCK_WIDTH + lane;
+        sum += scale * (float) quantized[lane] * input_row[column];
     }
-    output[index] = sum;
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    if (lane == 0) {
+        output[output_index] = sum;
+    }
 }
 
 __device__ unsigned int load_u32_le(const unsigned char * source) {

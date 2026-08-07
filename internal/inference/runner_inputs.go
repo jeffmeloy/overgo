@@ -174,5 +174,5 @@ func (r *Runner) layerDeviceInputs(
 	if r.deviceWeights == nil {
 		return model.LayerGraphWeights{}, nil, errors.New("inference: device weights are unavailable")
 	}
-	return r.deviceWeights.LayerGraphInputs(builder, info)
+	return model.BindDeviceLayerGraphInputs(builder, info, r.deviceInput)
 }

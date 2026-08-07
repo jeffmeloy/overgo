@@ -149,8 +149,14 @@ func bindHostLayerGraphFields(
 	}
 }
 
+// DeviceTensorBinder: metadata-to-device graph binding.
+type DeviceTensorBinder func(
+	*tensor.Builder,
+	gguf.TensorInfo,
+) (*tensor.Tensor, driver.DevicePtr, error)
+
 func bindDeviceLayerGraphFields(
-	weights *DeviceF32Weights,
+	bind DeviceTensorBinder,
 	builder *tensor.Builder,
 	info *LayerWeights,
 	result *LayerGraphWeights,
@@ -173,7 +179,7 @@ func bindDeviceLayerGraphFields(
 			}
 			tensorInfo = &item
 		}
-		node, pointer, err := weights.Input(builder, tensorInfo.Name)
+		node, pointer, err := bind(builder, *tensorInfo)
 		if err != nil {
 			return err
 		}

@@ -60,3 +60,47 @@ func TestDeviceBufferBucket(t *testing.T) {
 		t.Fatal("expected zero-size buffer rejection")
 	}
 }
+
+func TestRetainedOutputLayoutUsesOneAlignedSpan(t *testing.T) {
+	const fixtureWidth = 5
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(fixtureWidth, 1))
+	first := builder.SiLU(input)
+	second := builder.Sigmoid(first)
+	order, err := tensor.Topological(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offsets, bytes, err := retainedOutputLayout(order, map[*tensor.Tensor]struct{}{
+		first: {}, second: {},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if offsets[first]%graphArenaAlignment != 0 || offsets[second]%graphArenaAlignment != 0 {
+		t.Fatalf("retained offsets are not aligned: %v", offsets)
+	}
+	if offsets[first] == offsets[second] || bytes <= offsets[second] {
+		t.Fatalf("retained layout overlaps or truncates: offsets %v bytes %d", offsets, bytes)
+	}
+}
+
+func TestCompileFusesSingleUseWeightedRMSNorm(t *testing.T) {
+	const fixtureWidth = 8
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(fixtureWidth, 2))
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(fixtureWidth))
+	normalized := builder.RMSNorm(input, 1e-5)
+	output := builder.Multiply(normalized, weight)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fusion, ok := compiled.weightedRMS[output]
+	if !ok || fusion.normalization != normalized || fusion.weight != weight {
+		t.Fatalf("weighted RMSNorm fusion = %+v, available %t", fusion, ok)
+	}
+	if _, skipped := compiled.skipped[normalized]; !skipped {
+		t.Fatal("fused RMSNorm launch was not skipped")
+	}
+}

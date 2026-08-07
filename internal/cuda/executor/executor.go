@@ -10,6 +10,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"llamacpp2go/internal/checked"
 	"llamacpp2go/internal/cuda/cublas"
 	"llamacpp2go/internal/cuda/device"
 	"llamacpp2go/internal/cuda/driver"
@@ -319,13 +320,47 @@ type executionResult struct {
 
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
-	outputs  []*tensor.Tensor
-	order    []*tensor.Tensor
-	memory   planner.Plan
-	needBlas bool
+	outputs     []*tensor.Tensor
+	order       []*tensor.Tensor
+	memory      planner.Plan
+	weightedRMS map[*tensor.Tensor]weightedRMSFusion
+	skipped     map[*tensor.Tensor]struct{}
+	needBlas    bool
+}
+
+type weightedRMSFusion struct {
+	normalization *tensor.Tensor
+	weight        *tensor.Tensor
 }
 
 const graphArenaAlignment = 256
+
+func retainedOutputLayout(
+	order []*tensor.Tensor,
+	outputs map[*tensor.Tensor]struct{},
+) (map[*tensor.Tensor]uint64, uint64, error) {
+	offsets := make(map[*tensor.Tensor]uint64, len(outputs))
+	var total uint64
+	for _, node := range order {
+		if node.Op == tensor.OpInput {
+			continue
+		}
+		if _, keep := outputs[node]; !keep {
+			continue
+		}
+		offset, ok := checked.Align(total, graphArenaAlignment)
+		if !ok {
+			return nil, 0, errors.New("CUDA retained output offset overflows")
+		}
+		bytes, err := node.Shape.Bytes(node.Type)
+		if err != nil || offset > math.MaxUint64-bytes {
+			return nil, 0, errors.New("CUDA retained output size overflows")
+		}
+		offsets[node] = offset
+		total = offset + bytes
+	}
+	return offsets, total, nil
+}
 
 // Compile: validates and plans an immutable tensor graph.
 func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
@@ -340,14 +375,51 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	compiled := &CompiledGraph{
 		outputs: slices.Clone(outputs), order: order, memory: memory,
 	}
+	uses := make(map[*tensor.Tensor]int, len(order))
+	outputSet := make(map[*tensor.Tensor]struct{}, len(outputs))
+	for _, output := range outputs {
+		outputSet[output] = struct{}{}
+	}
+	for _, node := range order {
+		for _, input := range node.Inputs {
+			uses[input]++
+		}
+	}
 	for _, node := range order {
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
 			node.Inputs[0].Type == dtype.F32 {
 			compiled.needBlas = true
-			break
 		}
+		if node.Op != tensor.OpMultiply || len(node.Inputs) != 2 {
+			continue
+		}
+		normalization, weight := node.Inputs[0], node.Inputs[1]
+		if normalization.Op != tensor.OpRMSNorm {
+			normalization, weight = weight, normalization
+		}
+		if normalization.Op != tensor.OpRMSNorm || uses[normalization] != 1 {
+			continue
+		}
+		if _, retained := outputSet[normalization]; retained || !rmsWeightCompatible(normalization, weight) {
+			continue
+		}
+		if compiled.weightedRMS == nil {
+			compiled.weightedRMS = make(map[*tensor.Tensor]weightedRMSFusion)
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.weightedRMS[node] = weightedRMSFusion{normalization: normalization, weight: weight}
+		compiled.skipped[normalization] = struct{}{}
 	}
 	return compiled, nil
+}
+
+func rmsWeightCompatible(normalization, weight *tensor.Tensor) bool {
+	if normalization == nil || weight == nil || len(normalization.Inputs) != 1 || weight.Type != dtype.F32 {
+		return false
+	}
+	width := normalization.Shape.Dims[0]
+	elements, err := weight.Shape.Elements()
+	return err == nil && elements == width && weight.Shape.Dims[0] == width
 }
 
 func New(deviceOrdinal int) (*Executor, error) {
@@ -556,7 +628,19 @@ func execute(
 		outputSet[output] = struct{}{}
 	}
 	retainedValues := make(map[*tensor.Tensor]DeviceValue, len(outputs))
-	retainedAllocations := make([]driver.DevicePtr, 0, len(outputs))
+	retainedAllocations := make([]driver.DevicePtr, 0, 1)
+	retainedOffsets, retainedBytes, err := retainedOutputLayout(order, outputSet)
+	if err != nil {
+		return nil, err
+	}
+	var retainedBase driver.DevicePtr
+	if retainOutputs && retainedBytes > 0 {
+		retainedBase, err = state.Driver.MemAlloc(retainedBytes)
+		if err != nil {
+			return nil, err
+		}
+		retainedAllocations = append(retainedAllocations, retainedBase)
+	}
 	retained := false
 	defer func() {
 		if retained {
@@ -577,16 +661,17 @@ func execute(
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		if node.Op != tensor.OpInput {
-			if _, keep := outputSet[node]; retainOutputs && keep {
-				bytes, bytesErr := node.Shape.Bytes(node.Type)
-				if bytesErr != nil {
-					return nil, bytesErr
+			_, retainedOutput := outputSet[node]
+			if node.Op == tensor.OpReshape && !(retainOutputs && retainedOutput) {
+				pointers[node] = pointers[node.Inputs[0]]
+				continue
+			}
+			if retainOutputs && retainedOutput {
+				offset, present := retainedOffsets[node]
+				if !present || uint64(retainedBase) > math.MaxUint64-offset {
+					return nil, errors.New("CUDA retained output layout is invalid")
 				}
-				pointer, allocateErr := state.Driver.MemAlloc(bytes)
-				if allocateErr != nil {
-					return nil, allocateErr
-				}
-				retainedAllocations = append(retainedAllocations, pointer)
+				pointer := retainedBase + driver.DevicePtr(offset)
 				retainedValues[node] = DeviceValue{Pointer: pointer, Shape: node.Shape}
 				pointers[node] = pointer
 				continue
@@ -732,6 +817,21 @@ func execute(
 		if node.Op == tensor.OpInput {
 			continue
 		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		if node.Op == tensor.OpReshape {
+			if _, retainedOutput := outputSet[node]; !(retainOutputs && retainedOutput) {
+				continue
+			}
+		}
+		if fusion, ok := compiled.weightedRMS[node]; ok {
+			if err := launchWeightedRMSNorm(state, functions, node, fusion, pointers); err != nil {
+				return nil, fmt.Errorf("launch tensor %d (weighted_rms_norm): %w", node.ID, err)
+			}
+			submitted = true
+			continue
+		}
 		if err := launchNode(state, functions, blas, node, pointers, attributePointers); err != nil {
 			return nil, fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 		}
@@ -814,6 +914,7 @@ type functionSet struct {
 	groupSlice          driver.Function
 	flatSlice           driver.Function
 	rmsNorm             driver.Function
+	weightedRMSNorm     driver.Function
 	layerNorm           driver.Function
 	softmax             driver.Function
 	mulMat              driver.Function
@@ -1064,6 +1165,7 @@ func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, erro
 		{"group_slice_f32", &result.groupSlice},
 		{"flat_slice_f32", &result.flatSlice},
 		{"rms_norm_f32", &result.rmsNorm},
+		{"weighted_rms_norm_f32", &result.weightedRMSNorm},
 		{"layer_norm_f32", &result.layerNorm},
 		{"softmax_f32", &result.softmax},
 		{"mul_mat_f32", &result.mulMat},

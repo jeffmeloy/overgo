@@ -36,6 +36,7 @@ constexpr unsigned int CUDA_WARP_WIDTH = 32;
 constexpr unsigned int Q8_0_BLOCK_WIDTH = 32;
 constexpr unsigned int Q8_0_BLOCK_BYTES = 34;
 constexpr unsigned int Q8_0_SCALE_BYTES = 2;
+constexpr unsigned int Q8_0_VECTORS_PER_WARP = 4;
 
 extern "C" __global__ void add_f32(
         const float * input_a,
@@ -797,7 +798,7 @@ extern "C" __global__ void gated_delta_net_f32(
         unsigned int sequences,
         unsigned int gate_width,
         unsigned int repeat_interleave) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int index = blockIdx.x;
     const unsigned int count = heads * sequences;
     if (index >= count) {
         return;
@@ -809,59 +810,66 @@ extern "C" __global__ void gated_delta_net_f32(
     const unsigned int state_elements = size * size;
     float * state = output + attention_elements + index * state_elements;
     const float * source_state = input_state + index * state_elements;
-    for (unsigned int i = 0; i < state_elements; ++i) {
-        state[i] = source_state[i];
-    }
-
     const float scale = rsqrtf((float) size);
-    for (unsigned int token = 0; token < tokens; ++token) {
-        const unsigned int value_base =
-            ((sequence * tokens + token) * heads + head) * size;
-        const unsigned int query_head = repeat_interleave
-            ? head / (heads / query_heads)
-            : head % query_heads;
-        const unsigned int key_head = repeat_interleave
-            ? head / (heads / key_heads)
-            : head % key_heads;
-        const unsigned int query_base =
-            ((sequence * tokens + token) * query_heads + query_head) * size;
-        const unsigned int key_base =
-            ((sequence * tokens + token) * key_heads + key_head) * size;
-        const unsigned int gate_base =
-            ((sequence * tokens + token) * heads + head) * gate_width;
-        const float beta_value =
-            beta[(sequence * tokens + token) * heads + head];
-
-        if (gate_width == 1) {
-            const float gate_scale = expf(gate[gate_base]);
-            for (unsigned int i = 0; i < state_elements; ++i) {
-                state[i] *= gate_scale;
-            }
-        } else {
-            for (unsigned int row = 0; row < size; ++row) {
-                for (unsigned int column = 0; column < size; ++column) {
-                    state[row * size + column] *=
-                        expf(gate[gate_base + column]);
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int warps = blockDim.x / CUDA_WARP_WIDTH;
+    for (unsigned int row = warp; row < size; row += warps) {
+        float * state_row = state + row * size;
+        const float * source_row = source_state + row * size;
+        for (unsigned int column = lane; column < size; column += CUDA_WARP_WIDTH) {
+            state_row[column] = source_row[column];
+        }
+        for (unsigned int token = 0; token < tokens; ++token) {
+            const unsigned int value_base =
+                ((sequence * tokens + token) * heads + head) * size;
+            const unsigned int query_head = repeat_interleave
+                ? head / (heads / query_heads)
+                : head % query_heads;
+            const unsigned int key_head = repeat_interleave
+                ? head / (heads / key_heads)
+                : head % key_heads;
+            const unsigned int query_base =
+                ((sequence * tokens + token) * query_heads + query_head) * size;
+            const unsigned int key_base =
+                ((sequence * tokens + token) * key_heads + key_head) * size;
+            const unsigned int gate_base =
+                ((sequence * tokens + token) * heads + head) * gate_width;
+            const float beta_value =
+                beta[(sequence * tokens + token) * heads + head];
+            if (gate_width == 1) {
+                const float gate_scale = expf(gate[gate_base]);
+                for (unsigned int column = lane; column < size; column += CUDA_WARP_WIDTH) {
+                    state_row[column] *= gate_scale;
+                }
+            } else {
+                for (unsigned int column = lane; column < size; column += CUDA_WARP_WIDTH) {
+                    state_row[column] *= expf(gate[gate_base + column]);
                 }
             }
-        }
-
-        for (unsigned int row = 0; row < size; ++row) {
-            float * state_row = state + row * size;
             float dot = 0.0f;
-            for (unsigned int column = 0; column < size; ++column) {
+            for (unsigned int column = lane; column < size; column += CUDA_WARP_WIDTH) {
                 dot += state_row[column] * key[key_base + column];
             }
+            for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+                dot += __shfl_down_sync(0xffffffff, dot, offset);
+            }
+            dot = __shfl_sync(0xffffffff, dot, 0);
             const float delta =
                 (value[value_base + row] - dot) * beta_value;
-            for (unsigned int column = 0; column < size; ++column) {
+            for (unsigned int column = lane; column < size; column += CUDA_WARP_WIDTH) {
                 state_row[column] += delta * key[key_base + column];
             }
             dot = 0.0f;
-            for (unsigned int column = 0; column < size; ++column) {
+            for (unsigned int column = lane; column < size; column += CUDA_WARP_WIDTH) {
                 dot += state_row[column] * query[query_base + column];
             }
-            output[value_base + row] = dot * scale;
+            for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+                dot += __shfl_down_sync(0xffffffff, dot, offset);
+            }
+            if (lane == 0) {
+                output[value_base + row] = dot * scale;
+            }
         }
     }
 }
@@ -1291,6 +1299,35 @@ extern "C" __global__ void rms_norm_f32(
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
     for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
         output[offset + column] = input[offset + column] * inverse;
+    }
+}
+
+extern "C" __global__ void weighted_rms_norm_f32(
+        const float * input,
+        const float * weight,
+        float * output,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int row = thread_index / CUDA_WARP_WIDTH;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int offset = row * width;
+    float sum_squares = 0.0f;
+    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+        const float value = input[offset + column];
+        sum_squares += value * value;
+    }
+    for (unsigned int delta = CUDA_WARP_WIDTH / 2; delta > 0; delta /= 2) {
+        sum_squares += __shfl_down_sync(0xffffffff, sum_squares, delta);
+    }
+    sum_squares = __shfl_sync(0xffffffff, sum_squares, 0);
+    const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
+    for (unsigned int column = lane; column < width; column += CUDA_WARP_WIDTH) {
+        output[offset + column] = input[offset + column] * inverse * weight[column];
     }
 }
 
@@ -2042,33 +2079,49 @@ extern "C" __global__ void mul_mat_q8_0_f32(
         unsigned int left_rows,
         unsigned int right_rows) {
     const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int count = left_rows * right_rows;
-    const unsigned int output_index = thread_index / CUDA_WARP_WIDTH;
-    if (output_index >= count) {
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int right_tiles =
+        (right_rows + Q8_0_VECTORS_PER_WARP - 1) / Q8_0_VECTORS_PER_WARP;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_tile = warp_index / left_rows;
+    if (right_tile >= right_tiles) {
         return;
     }
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int left_row = output_index % left_rows;
-    const unsigned int right_row = output_index / left_rows;
+    const unsigned int right_first = right_tile * Q8_0_VECTORS_PER_WARP;
     const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
     const unsigned char * weight_row =
         left + left_row * blocks_per_row * Q8_0_BLOCK_BYTES;
-    const float * input_row = right + right_row * inner;
-    float sum = 0.0f;
+    float sums[Q8_0_VECTORS_PER_WARP] = {};
     for (unsigned int block_index = 0; block_index < blocks_per_row; ++block_index) {
         const unsigned char * block =
             weight_row + block_index * Q8_0_BLOCK_BYTES;
-        const float scale = __half2float(*reinterpret_cast<const __half *>(block));
+        float scale = lane == 0
+            ? __half2float(*reinterpret_cast<const __half *>(block))
+            : 0.0f;
+        scale = __shfl_sync(0xffffffff, scale, 0);
         const signed char * quantized =
             reinterpret_cast<const signed char *>(block + Q8_0_SCALE_BYTES);
         const unsigned int column = block_index * Q8_0_BLOCK_WIDTH + lane;
-        sum += scale * (float) quantized[lane] * input_row[column];
+        const float weight = scale * (float) quantized[lane];
+#pragma unroll
+        for (unsigned int vector = 0; vector < Q8_0_VECTORS_PER_WARP; ++vector) {
+            const unsigned int right_row = right_first + vector;
+            if (right_row < right_rows) {
+                sums[vector] += weight * right[right_row * inner + column];
+            }
+        }
     }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffff, sum, offset);
-    }
-    if (lane == 0) {
-        output[output_index] = sum;
+#pragma unroll
+    for (unsigned int vector = 0; vector < Q8_0_VECTORS_PER_WARP; ++vector) {
+        float sum = sums[vector];
+        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+            sum += __shfl_down_sync(0xffffffff, sum, offset);
+        }
+        const unsigned int right_row = right_first + vector;
+        if (lane == 0 && right_row < right_rows) {
+            output[right_row * left_rows + left_row] = sum;
+        }
     }
 }
 

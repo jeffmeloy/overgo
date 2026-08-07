@@ -119,6 +119,7 @@ func launchRecurrentSelection(
 			return errors.New("GatedDeltaNet launch count exceeds uint32")
 		}
 		count := heads * sequences
+		const gatedDeltaNetThreads = uint32(256)
 		repeatInterleave := kernelBool(attributes.RepeatInterleave)
 		query := pointers[node.Inputs[0]]
 		key := pointers[node.Inputs[1]]
@@ -126,8 +127,10 @@ func launchRecurrentSelection(
 		gate := pointers[node.Inputs[3]]
 		beta := pointers[node.Inputs[4]]
 		stateInput := pointers[node.Inputs[5]]
-		return launch1DABI(
-			state, functions.gatedDeltaNet, count,
+		return launchGridABI(
+			state, functions.gatedDeltaNet,
+			driver.Dim3{X: count, Y: 1, Z: 1},
+			driver.Dim3{X: gatedDeltaNetThreads, Y: 1, Z: 1},
 			&query, &key, &value, &gate, &beta, &stateInput, &output,
 			&size, &qHeads, &kHeads, &heads, &tokens, &sequences, &gateWidth, &repeatInterleave,
 		)

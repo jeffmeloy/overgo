@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 30,
+  "abiVersion": 31,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "0958936ebed6c57e7d4c92467283279bcbb3e0688c6670da54bfb68a06da0df8",
+      "sourceSha256": "482e9bafa5272c0c5948eb69b57dd6a1f0451767076a96c3d383bee8b79df634",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "ac763a08eebb331b3ccba4b1bfc98e0d43ee06f6d68773bc1e948a1507b85685",
+      "assetSha256": "b8ae22e5f3c1d8990e9a2ddda09f6fe67d26608097553b35597085bc91553b2b",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -89,6 +89,7 @@
         "indexer_score_f32",
         "rwkv7_f32",
         "rms_norm_f32",
+        "weighted_rms_norm_f32",
         "layer_norm_f32",
         "softmax_f32",
         "mul_mat_f32",
@@ -560,6 +561,19 @@
           ],
           "functions": [
             "rwkv7_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "weighted_rms_norm_f32"
           ]
         },
         {

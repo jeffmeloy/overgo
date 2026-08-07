@@ -426,6 +426,10 @@ func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 }
 
 func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
+	const (
+		inputRows          = 5
+		q8FixtureBlockSize = 32
+	)
 	cudatest.Require(t)
 	worker, err := device.New(0)
 	if err != nil {
@@ -435,7 +439,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 	storage := make([]byte, 68)
 	binary.LittleEndian.PutUint16(storage[0:], 0x3800)  // 0.5
 	binary.LittleEndian.PutUint16(storage[34:], 0x3800) // 0.5
-	for index := 0; index < 32; index++ {
+	for index := 0; index < q8FixtureBlockSize; index++ {
 		storage[2+index] = byte(int8(index - 16))
 		storage[36+index] = 2
 	}
@@ -460,19 +464,20 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 	}
 	defer cuda.Close()
 	builder := tensor.NewBuilder()
-	weights := builder.Input("weights", dtype.Q8_0, tensor.MustShape(32, 2))
+	weights := builder.Input("weights", dtype.Q8_0, tensor.MustShape(q8FixtureBlockSize, 2))
 	rows := builder.GetRows(weights, []uint32{1})
-	input := builder.Input("input", dtype.F32, tensor.MustShape(32, 1))
+	input := builder.Input("input", dtype.F32, tensor.MustShape(q8FixtureBlockSize, inputRows))
 	product := builder.MulMat(weights, input)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
-	inputValue, _ := reference.NewValue(input.Shape, []float32{
-		1, 1, 1, 1, 1, 1, 1, 1,
-		1, 1, 1, 1, 1, 1, 1, 1,
-		1, 1, 1, 1, 1, 1, 1, 1,
-		1, 1, 1, 1, 1, 1, 1, 1,
-	})
+	inputData := make([]float32, q8FixtureBlockSize*inputRows)
+	for row := range inputRows {
+		for column := range q8FixtureBlockSize {
+			inputData[row*q8FixtureBlockSize+column] = float32(row + 1)
+		}
+	}
+	inputValue, _ := reference.NewValue(input.Shape, inputData)
 	results, err := cuda.ExecuteWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{rows, product},
@@ -488,7 +493,13 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 		1, 1, 1, 1, 1, 1, 1, 1,
 		1, 1, 1, 1, 1, 1, 1, 1,
 	}, 0)
-	compare(t, results[product].Data, []float32{-8, 32}, 1e-5)
+	compare(t, results[product].Data, []float32{
+		-8, 32,
+		-16, 64,
+		-24, 96,
+		-32, 128,
+		-40, 160,
+	}, 1e-5)
 }
 
 func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {

@@ -41,20 +41,30 @@ func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
 		return Plan{}, err
 	}
 	indexes := make(map[*tensor.Tensor]int, len(nodes))
+	roots := make(map[*tensor.Tensor]*tensor.Tensor, len(nodes))
 	lastUse := make(map[*tensor.Tensor]int, len(nodes))
 	for index, node := range nodes {
 		indexes[node] = index
-		lastUse[node] = index
+		root := node
+		if node.Op == tensor.OpReshape {
+			if len(node.Inputs) != 1 || roots[node.Inputs[0]] == nil {
+				return Plan{}, fmt.Errorf("reshape tensor %d has invalid storage root", node.ID)
+			}
+			root = roots[node.Inputs[0]]
+		}
+		roots[node] = root
+		lastUse[root] = index
 	}
 	for index, node := range nodes {
 		for _, input := range node.Inputs {
-			if index > lastUse[input] {
-				lastUse[input] = index
+			root := roots[input]
+			if index > lastUse[root] {
+				lastUse[root] = index
 			}
 		}
 	}
 	for _, output := range outputs {
-		lastUse[output] = len(nodes)
+		lastUse[roots[output]] = len(nodes)
 	}
 
 	plan := Plan{
@@ -75,7 +85,7 @@ func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
 		active = kept
 		free = coalesce(free)
 
-		if node.Op == tensor.OpInput {
+		if node.Op == tensor.OpInput || node.Op == tensor.OpReshape {
 			continue
 		}
 		size, err := node.Shape.Bytes(node.Type)
@@ -105,6 +115,15 @@ func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
 		}
 		plan.Allocations[node] = allocation
 		active = append(active, allocation)
+	}
+	for _, node := range nodes {
+		if node.Op != tensor.OpReshape {
+			continue
+		}
+		if allocation, ok := plan.Allocations[roots[node]]; ok {
+			allocation.Tensor = node
+			plan.Allocations[node] = allocation
+		}
 	}
 	return plan, nil
 }

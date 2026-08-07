@@ -51,3 +51,27 @@ func TestBuildKeepsOutputLive(t *testing.T) {
 		t.Fatal("two live outputs share an allocation")
 	}
 }
+
+func TestBuildAliasesReshapeStorageAndLifetime(t *testing.T) {
+	const fixtureWidth = 4
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(fixtureWidth)
+	left := builder.Input("left", dtype.F32, shape)
+	right := builder.Input("right", dtype.F32, shape)
+	computed := builder.Add(left, right)
+	view := builder.Reshape(computed, 2, fixtureWidth/2)
+	output := builder.Scale(view, 2)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := Build([]*tensor.Tensor{output}, 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Allocations[computed].Offset != plan.Allocations[view].Offset {
+		t.Fatalf("reshape storage differs: computed=%+v view=%+v", plan.Allocations[computed], plan.Allocations[view])
+	}
+	if plan.Allocations[computed].Last < plan.Allocations[output].First {
+		t.Fatalf("reshape root expired before consumer: %+v", plan.Allocations[computed])
+	}
+}

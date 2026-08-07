@@ -86,6 +86,25 @@ func launch1DABI(
 	count uint32,
 	arguments ...any,
 ) error {
+	if count == 0 {
+		return nil
+	}
+	const threads = uint32(256)
+	blocks := (count + threads - 1) / threads
+	return launchGridABI(
+		state, function,
+		driver.Dim3{X: blocks, Y: 1, Z: 1},
+		driver.Dim3{X: threads, Y: 1, Z: 1},
+		arguments...,
+	)
+}
+
+func launchGridABI(
+	state *device.State,
+	function driver.Function,
+	grid, block driver.Dim3,
+	arguments ...any,
+) error {
 	pointers := make([]unsafe.Pointer, len(arguments))
 	for index, argument := range arguments {
 		value := reflect.ValueOf(argument)
@@ -94,7 +113,7 @@ func launch1DABI(
 		}
 		pointers[index] = value.UnsafePointer()
 	}
-	err := launch1D(state, function, count, pointers)
+	err := state.Driver.LaunchKernel(function, grid, block, 0, state.Stream, pointers)
 	runtime.KeepAlive(arguments)
 	return err
 }

@@ -177,9 +177,8 @@ func launchLinearLayout(
 			if uint64(leftRows)*uint64(rightRows) > math.MaxUint32 {
 				return fmt.Errorf("%s mul_mat output element count exceeds uint32", leftNode.Type)
 			}
-			count := leftRows * rightRows
 			function := quantKernels[leftNode.Type].mulMat(functions)
-			launchCount, err := quantMulMatLaunchCount(leftNode.Type, count)
+			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
 			if err != nil {
 				return err
 			}
@@ -261,7 +260,7 @@ func launchLinearLayout(
 				}
 				function := quantKernels[leftNode.Type].mulMat(functions)
 				rightRows := uint32(1)
-				launchCount, launchErr := quantMulMatLaunchCount(leftNode.Type, leftRows)
+				launchCount, launchErr := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
 				if launchErr != nil {
 					return launchErr
 				}
@@ -312,15 +311,56 @@ func launchLinearLayout(
 	}
 }
 
-func quantMulMatLaunchCount(storage dtype.Type, outputs uint32) (uint32, error) {
-	if storage != dtype.Q8_0 {
-		return outputs, nil
+func launchWeightedRMSNorm(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion weightedRMSFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	attributes, ok := fusion.normalization.Attrs.(tensor.RMSNormAttributes)
+	if !ok {
+		return errors.New("invalid fused RMSNorm attributes")
 	}
-	const q8DotProductThreads = uint32(32)
-	if outputs > math.MaxUint32/q8DotProductThreads {
+	width, rows, err := rowDimensions32(output.Shape)
+	if err != nil {
+		return err
+	}
+	launchCount, err := normalizationLaunchCount(rows)
+	if err != nil {
+		return err
+	}
+	input := pointers[fusion.normalization.Inputs[0]]
+	weight := pointers[fusion.weight]
+	result := pointers[output]
+	epsilon := attributes.Epsilon
+	return launch1DABI(
+		state, functions.weightedRMSNorm, launchCount,
+		&input, &weight, &result, &width, &rows, &epsilon,
+	)
+}
+
+func quantMulMatLaunchCount(storage dtype.Type, leftRows, rightRows uint32) (uint32, error) {
+	const (
+		q8DotProductThreads = uint32(32)
+		q8VectorsPerWarp    = uint32(4)
+	)
+	warps := uint64(leftRows) * uint64(rightRows)
+	if storage == dtype.Q8_0 {
+		rightTiles := (rightRows-1)/q8VectorsPerWarp + 1
+		warps = uint64(leftRows) * uint64(rightTiles)
+	}
+	if warps > uint64(math.MaxUint32/q8DotProductThreads) && storage == dtype.Q8_0 {
 		return 0, errors.New("Q8_0 mul_mat launch size exceeds uint32")
 	}
-	return outputs * q8DotProductThreads, nil
+	if warps > math.MaxUint32 {
+		return 0, errors.New("quantized mul_mat launch size exceeds uint32")
+	}
+	launches := uint32(warps)
+	if storage == dtype.Q8_0 {
+		launches *= q8DotProductThreads
+	}
+	return launches, nil
 }
 
 func normalizationLaunchCount(rows uint32) (uint32, error) {

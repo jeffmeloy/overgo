@@ -32,6 +32,16 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Persistent CUDA execution now has a hermetic generated-model fixture,
+  cancellation fault coverage, exact F32 position bounds, atomic retryable
+  cleanup, page-capacity append targets, fork copy-on-write, retained-buffer
+  pools, online-softmax attention, factored grouped MoE, fused residual/RMS/gate
+  epilogues, retained producer views, and bounded reusable weight-upload
+  staging. The follow-up adversarial sweep fixed full-context cache
+  over-allocation, retained-reshape target loss, unreachable cleanup failures,
+  partial-release hazards, policy-local MoE shared storage, and dead arena
+  allocations. Full CPU, CUDA, manifest, and vet verification passes at kernel
+  ABI v35.
 - The RepoDB follow-through moved manifests onto the common artifact document
   contract, centralized safe document reads, alias resolution, publication
   batches, and commit validation, and replaced whole-catalog reconstruction
@@ -238,10 +248,54 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 - Pinned Jinja globals for bounded exceptions, dates, namespaces, and ranges.
 - Fused recurrent/hybrid continuous batching with named state and device forks.
 
+## Adversarial SQA roadmap
+
+The current feature baseline is implemented. The following internal work is
+ordered by correctness risk and authority reduction. A replacement is complete
+only when all callers migrate and the superseded authority is deleted.
+
+### P0: execution correctness
+
+| Item | Current evidence | Completion boundary |
+| --- | --- | --- |
+| Authoritative view semantics | `FlatSlice` liveness and retained producer views are fixed through explicit planner rewrites; `Reshape` remains planner-native while CUDA compilation supplies other aliases | One typed operation-storage contract defines alias root, byte offset, extent, and lifetime; planner, validator, reference executor, and CUDA executor consume it; an adversarial allocation-reuse test covers every view operator |
+| Retained-target alias validation | Stable targets validate output membership, shape, pointer, and capacity; append concat intentionally aliases its left cache input | Compiled operator contracts declare permitted input aliases, write extent, alignment, and initialization requirements; runtime performs overflow-safe range-overlap checks and rejects undeclared exact or partial aliases before capture |
+| Cache-release lock scope | Cleanup is cancellation-atomic and retryable, but final `deviceCacheStorage` release holds its ownership mutex across worker submissions | Final ownership transitions to an explicit releasing state under lock; buffers detach atomically and release through one worker transaction outside the ownership lock; cancellation, worker failure, fork, remove, and close interleavings have hermetic tests |
+
+### P1: stable runtime compilation
+
+| Item | Current evidence | Completion boundary |
+| --- | --- | --- |
+| Indexed cache-target plan | Page-capacity buffers append in place and reuse stable pointers, but each request rebuilds cache schemas and a tensor-keyed target map | Compiled session graph owns cache output ordinals, capacity shapes, alias contracts, and indexed host/device slots; decode fills slices without schema lookup or tensor-keyed target maps |
+| Parameterized decode graph | CUDA retains and updates one graph executable; logical token lengths still cause request graph reconstruction and capture/update work | Runtime token count, position, cache length, and output mode are bounded graph parameters; decode replays a stable graph within a capacity class; page-boundary rebuilds are measured and explicit |
+| Generated CUDA bindings | ABI manifest, CUDA entry points, Go function fields/lookups, launch code, version, and hashes remain coordinated manually | Manifest or generated schema is the single source for kernel IDs, bindings, argument layouts, launch validation, ABI version, and drift tests; adding a kernel requires no parallel handwritten binding edits |
+| Typed fusion rewrite catalog | Residual/RMS/gate/Q8 and selection fusions carry correct liveness dependencies, but matching remains embedded in `Executor.Compile` | Each rewrite owns a typed match, replacement instruction, dependencies, view/alias contract, capability predicate, and CPU/CUDA equivalence fixture; compiler orchestration contains no fusion-specific branches |
+| Typed tensor attributes | Builders validate typed attributes, but immutable graph nodes store `Attrs any` and backends repeat type assertions | A sealed descriptor interface or generated tagged union makes operation/attribute mismatches unrepresentable; builders, validators, reference execution, rewrites, and CUDA launch consume exhaustive typed variants |
+
+### P2: single model-compilation authority
+
+| Item | Current evidence | Completion boundary |
+| --- | --- | --- |
+| Split profile input contracts | `ArchitectureProfile` is the authoritative typed fact set but spans metadata, binding, topology, cache, placement, and validation responsibilities | Separate immutable contracts feed compilation; `ModelPlan` contains only compiled runtime facts; hot execution does not inspect the universal profile |
+| Ordered `ModelPlan` program | `LayerPlan` compiles policy, while `BuildArchitectureBlockCached` still interprets block families through a central switch | `ModelPlan` owns ordered typed layer instructions with binding indexes and operator contracts; graph construction walks the program; migrated block-family switch arms are deleted |
+| Recipe-owned execution topology | Active recipes bind exact models, profiles, tensors, and workflow stages, but model forward topology remains behind the existing compiler/dispatcher | Recipes select embedding, ordered layer program, terminal normalization, projection, and selection topology; repeated layers remain compact typed instructions rather than architecture-named orchestration |
+| Remove serving bootstrap fallback | Activated recipes require profile identity and parity evidence, while `ResolvedProfile` can still consult the embedded bootstrap registry | The first migrated serving family, preferably dense/recurrent Qwen, requires exact active recipe, profile, and compiled-plan identities; registry fallback exists only in explicit catalog-construction tooling; old serving paths are deleted |
+| Projector/runtime convergence | Projectors share graph math, feeds, catalogs, request plans, and CUDA execution but retain separate stage orchestration | Projector bindings, stage order, placement, and cache/output contracts compile through the same instruction and recipe machinery; model-named files retain only format translation and evidence fixtures |
+| Stable CUDA bundles | One large operation PTX bundle is pinned and verified | Generated bindings support a few stable elementwise/normalization, linear/quantized, attention/selection, recurrent/state-space, and media bundles without per-kernel module fragmentation |
+
+### Verification follow-up
+
+| Item | State | Completion boundary |
+| --- | --- | --- |
+| Local Windows race run | Environment-blocked: repository tests use cgo-disabled Go and this host has no GCC-compatible race toolchain | Install a supported C compiler and pass `go test -race ./internal/inference ./internal/model ./internal/cuda/executor`; CI race coverage remains required meanwhile |
+| Real-model stable-session benchmark | Qwen3.5-9B Q8 confirms bounded device memory, zero D2D cache copies, graph reuse, and reduced launch count | Re-run after indexed targets and parameterized decode graphs; record prompt/decode distributions, capture/update counts, transfer bytes, allocation high-water mark, and output parity against the pinned seed fixture |
+
 ## Closure roadmap
 
-Pinned internal execution work is complete for the current baseline. Remaining
-rows require an upstream contract, external artifact, or additional platform.
+Pinned feature execution is complete for the current baseline. Internal
+correctness and authority-reduction work continues in the adversarial SQA
+roadmap above; the rows below otherwise require an upstream contract, external
+artifact, or additional platform.
 
 | Item | State | Completion boundary |
 | --- | --- | --- |

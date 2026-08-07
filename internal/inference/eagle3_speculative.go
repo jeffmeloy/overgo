@@ -5,9 +5,9 @@ import (
 	"errors"
 	"slices"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // Eagle3Draft: bounded greedy proposals.

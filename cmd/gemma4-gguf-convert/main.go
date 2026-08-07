@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"llamacpp2go/internal/gemma4convert"
+	"overgo/internal/gemma4convert"
 )
 
 func main() {

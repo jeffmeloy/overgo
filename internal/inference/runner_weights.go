@@ -3,8 +3,8 @@ package inference
 import (
 	"slices"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
 )
 
 func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {

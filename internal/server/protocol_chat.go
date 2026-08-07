@@ -10,9 +10,9 @@ import (
 
 	"fmt"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/inference"
+	"overgo/internal/projector"
+	"overgo/internal/strictjson"
 
 	"net/http"
 
@@ -184,7 +184,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 	return prompt, nil
 }
 
-const chatMediaMarkerPrefix = "<__llamacpp2go_media_"
+const chatMediaMarkerPrefix = "<__overgo_media_"
 
 func (h *Handler) parseChatMultimodalPrompt(
 	ctx context.Context,

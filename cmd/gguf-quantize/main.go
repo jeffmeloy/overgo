@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/quant"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/gguf"
+	"overgo/internal/quant"
+	"overgo/internal/tensor/dtype"
 )
 
 func main() {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/model"
+	"overgo/internal/tensor/reference"
 )
 
 func TestNonCausalRunnerRejectsCacheEntryPoint(t *testing.T) {

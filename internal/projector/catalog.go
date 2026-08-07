@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensorcatalog"
+	"overgo/internal/gguf"
+	"overgo/internal/tensorcatalog"
 )
 
 func validateProjectorTensorShapes(file *gguf.File, required map[string][]uint64) error {

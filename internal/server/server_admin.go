@@ -13,10 +13,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/strictjson"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/sampling"
+	"overgo/internal/strictjson"
+	"overgo/internal/tokenizer"
 )
 
 type propertiesSamplingParams struct {
@@ -133,7 +133,7 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		ChatTemplateCaps: map[string]bool{},
 		BOSToken:         model.BOSToken,
 		EOSToken:         model.EOSToken,
-		BuildInfo:        "llamacpp2go",
+		BuildInfo:        "overgo",
 		IsSleeping:       false,
 	}
 	result.DefaultGenerationSettings.NCtx = model.ContextLength
@@ -634,21 +634,21 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 	response.WriteHeader(http.StatusOK)
 	_, _ = fmt.Fprintf(
 		response,
-		"# HELP llamacpp2go_up Whether the server is running.\n"+
-			"# TYPE llamacpp2go_up gauge\n"+
-			"llamacpp2go_up 1\n"+
-			"# TYPE llamacpp2go_http_requests_total counter\n"+
-			"llamacpp2go_http_requests_total %d\n"+
-			"# TYPE llamacpp2go_http_requests_active gauge\n"+
-			"llamacpp2go_http_requests_active %d\n"+
-			"# TYPE llamacpp2go_generation_requests_total counter\n"+
-			"llamacpp2go_generation_requests_total %d\n"+
-			"# TYPE llamacpp2go_generation_errors_total counter\n"+
-			"llamacpp2go_generation_errors_total %d\n"+
-			"# TYPE llamacpp2go_generated_tokens_total counter\n"+
-			"llamacpp2go_generated_tokens_total %d\n"+
-			"# TYPE llamacpp2go_process_uptime_seconds gauge\n"+
-			"llamacpp2go_process_uptime_seconds %.3f\n",
+		"# HELP overgo_up Whether the server is running.\n"+
+			"# TYPE overgo_up gauge\n"+
+			"overgo_up 1\n"+
+			"# TYPE overgo_http_requests_total counter\n"+
+			"overgo_http_requests_total %d\n"+
+			"# TYPE overgo_http_requests_active gauge\n"+
+			"overgo_http_requests_active %d\n"+
+			"# TYPE overgo_generation_requests_total counter\n"+
+			"overgo_generation_requests_total %d\n"+
+			"# TYPE overgo_generation_errors_total counter\n"+
+			"overgo_generation_errors_total %d\n"+
+			"# TYPE overgo_generated_tokens_total counter\n"+
+			"overgo_generated_tokens_total %d\n"+
+			"# TYPE overgo_process_uptime_seconds gauge\n"+
+			"overgo_process_uptime_seconds %.3f\n",
 		h.requestsTotal.Load(),
 		h.requestsActive.Load(),
 		h.generationRequests.Load(),
@@ -660,14 +660,14 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 		if stats, err := api.DeviceMemoryStats(request.Context()); err == nil {
 			_, _ = fmt.Fprintf(
 				response,
-				"# HELP llamacpp2go_cuda_memory_current_bytes CUDA bytes currently allocated by this Runner.\n"+
-					"# TYPE llamacpp2go_cuda_memory_current_bytes gauge\n"+
-					"llamacpp2go_cuda_memory_current_bytes %d\n"+
-					"# HELP llamacpp2go_cuda_memory_peak_bytes Lifetime high-water CUDA bytes allocated by this Runner.\n"+
-					"# TYPE llamacpp2go_cuda_memory_peak_bytes gauge\n"+
-					"llamacpp2go_cuda_memory_peak_bytes %d\n"+
-					"# TYPE llamacpp2go_cuda_allocations_current gauge\n"+
-					"llamacpp2go_cuda_allocations_current %d\n",
+				"# HELP overgo_cuda_memory_current_bytes CUDA bytes currently allocated by this Runner.\n"+
+					"# TYPE overgo_cuda_memory_current_bytes gauge\n"+
+					"overgo_cuda_memory_current_bytes %d\n"+
+					"# HELP overgo_cuda_memory_peak_bytes Lifetime high-water CUDA bytes allocated by this Runner.\n"+
+					"# TYPE overgo_cuda_memory_peak_bytes gauge\n"+
+					"overgo_cuda_memory_peak_bytes %d\n"+
+					"# TYPE overgo_cuda_allocations_current gauge\n"+
+					"overgo_cuda_allocations_current %d\n",
 				stats.CurrentBytes,
 				stats.PeakBytes,
 				stats.Allocations,
@@ -678,20 +678,20 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 		if stats, err := api.DeviceExecutionStats(request.Context()); err == nil {
 			_, _ = fmt.Fprintf(
 				response,
-				"# TYPE llamacpp2go_cuda_custom_kernel_launches_total counter\n"+
-					"llamacpp2go_cuda_custom_kernel_launches_total %d\n"+
-					"# TYPE llamacpp2go_cuda_stream_synchronizations_total counter\n"+
-					"llamacpp2go_cuda_stream_synchronizations_total %d\n"+
-					"# TYPE llamacpp2go_cuda_context_synchronizations_total counter\n"+
-					"llamacpp2go_cuda_context_synchronizations_total %d\n"+
-					"# TYPE llamacpp2go_cuda_host_to_device_bytes_total counter\n"+
-					"llamacpp2go_cuda_host_to_device_bytes_total %d\n"+
-					"# TYPE llamacpp2go_cuda_device_to_host_bytes_total counter\n"+
-					"llamacpp2go_cuda_device_to_host_bytes_total %d\n"+
-					"# TYPE llamacpp2go_cuda_device_to_device_bytes_total counter\n"+
-					"llamacpp2go_cuda_device_to_device_bytes_total %d\n"+
-					"# TYPE llamacpp2go_cuda_device_memset_bytes_total counter\n"+
-					"llamacpp2go_cuda_device_memset_bytes_total %d\n",
+				"# TYPE overgo_cuda_custom_kernel_launches_total counter\n"+
+					"overgo_cuda_custom_kernel_launches_total %d\n"+
+					"# TYPE overgo_cuda_stream_synchronizations_total counter\n"+
+					"overgo_cuda_stream_synchronizations_total %d\n"+
+					"# TYPE overgo_cuda_context_synchronizations_total counter\n"+
+					"overgo_cuda_context_synchronizations_total %d\n"+
+					"# TYPE overgo_cuda_host_to_device_bytes_total counter\n"+
+					"overgo_cuda_host_to_device_bytes_total %d\n"+
+					"# TYPE overgo_cuda_device_to_host_bytes_total counter\n"+
+					"overgo_cuda_device_to_host_bytes_total %d\n"+
+					"# TYPE overgo_cuda_device_to_device_bytes_total counter\n"+
+					"overgo_cuda_device_to_device_bytes_total %d\n"+
+					"# TYPE overgo_cuda_device_memset_bytes_total counter\n"+
+					"overgo_cuda_device_memset_bytes_total %d\n",
 				stats.KernelLaunches,
 				stats.StreamSynchronizations,
 				stats.ContextSynchronizations,
@@ -791,7 +791,7 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 			"tags":     []string{},
 			"object":   "model",
 			"created":  created,
-			"owned_by": "llamacpp2go",
+			"owned_by": "overgo",
 			"meta": map[string]any{
 				"vocab_type":  model.VocabularyType,
 				"n_vocab":     model.VocabularySize,

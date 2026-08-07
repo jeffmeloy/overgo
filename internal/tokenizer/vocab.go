@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 const NullToken TokenID = -1

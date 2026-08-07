@@ -19,15 +19,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/inference"
+	"overgo/internal/projector"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 const (
-	DefaultModelID             = "llamacpp2go"
+	DefaultModelID             = "overgo"
 	DefaultMaxTokens           = 4096
 	DefaultMaxConcurrent       = 1
 	DefaultMaxEmbeddingInputs  = 16

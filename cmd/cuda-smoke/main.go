@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/kernel"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/kernel"
 )
 
 func run() error {

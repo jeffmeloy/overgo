@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"image"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 const hunyuanVLProjectorType = "hunyuanvl"

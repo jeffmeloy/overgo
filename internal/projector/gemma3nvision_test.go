@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	cudatest "llamacpp2go/internal/cuda/testutil"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 type gemma3nPromptTokenizer struct{ texts []string }

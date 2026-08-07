@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 func (r *Runner) Greedy(

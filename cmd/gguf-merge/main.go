@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func main() {

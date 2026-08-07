@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/reference"
 )
 
 // LoRAWeight: validated adapter pair for one base tensor.

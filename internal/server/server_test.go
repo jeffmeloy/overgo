@@ -23,16 +23,16 @@ import (
 
 	"image/png"
 
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/cuda/driver"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 
-	"llamacpp2go/internal/projector"
+	"overgo/internal/projector"
 
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/testutil"
+	"overgo/internal/sampling"
+	"overgo/internal/testutil"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 
 	"net/http"
 
@@ -975,7 +975,7 @@ func TestMetricsOmitDeviceMemoryWhenSnapshotFails(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
-	if strings.Contains(response.Body.String(), "llamacpp2go_cuda_memory_") {
+	if strings.Contains(response.Body.String(), "overgo_cuda_memory_") {
 		t.Fatalf("failed device metrics leaked into response: %s", response.Body.String())
 	}
 }
@@ -1461,22 +1461,22 @@ func TestCompletion(t *testing.T) {
 		t.Fatalf("metrics status = %d", metricsResponse.Code)
 	}
 	for _, metric := range []string{
-		"llamacpp2go_up 1",
-		"llamacpp2go_http_requests_total 2",
-		"llamacpp2go_http_requests_active 1",
-		"llamacpp2go_generation_requests_total 1",
-		"llamacpp2go_generation_errors_total 0",
-		"llamacpp2go_generated_tokens_total 2",
-		"llamacpp2go_cuda_memory_current_bytes 123",
-		"llamacpp2go_cuda_memory_peak_bytes 456",
-		"llamacpp2go_cuda_allocations_current 2",
-		"llamacpp2go_cuda_custom_kernel_launches_total 12",
-		"llamacpp2go_cuda_stream_synchronizations_total 3",
-		"llamacpp2go_cuda_context_synchronizations_total 1",
-		"llamacpp2go_cuda_host_to_device_bytes_total 1024",
-		"llamacpp2go_cuda_device_to_host_bytes_total 2048",
-		"llamacpp2go_cuda_device_to_device_bytes_total 3072",
-		"llamacpp2go_cuda_device_memset_bytes_total 4096",
+		"overgo_up 1",
+		"overgo_http_requests_total 2",
+		"overgo_http_requests_active 1",
+		"overgo_generation_requests_total 1",
+		"overgo_generation_errors_total 0",
+		"overgo_generated_tokens_total 2",
+		"overgo_cuda_memory_current_bytes 123",
+		"overgo_cuda_memory_peak_bytes 456",
+		"overgo_cuda_allocations_current 2",
+		"overgo_cuda_custom_kernel_launches_total 12",
+		"overgo_cuda_stream_synchronizations_total 3",
+		"overgo_cuda_context_synchronizations_total 1",
+		"overgo_cuda_host_to_device_bytes_total 1024",
+		"overgo_cuda_device_to_host_bytes_total 2048",
+		"overgo_cuda_device_to_device_bytes_total 3072",
+		"overgo_cuda_device_memset_bytes_total 4096",
 	} {
 		if !strings.Contains(metricsResponse.Body.String(), metric) {
 			t.Fatalf("metrics lack %q:\n%s", metric, metricsResponse.Body.String())

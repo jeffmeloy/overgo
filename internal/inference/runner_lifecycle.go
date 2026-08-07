@@ -7,12 +7,12 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tokenizer"
 )
 
 func Open(path string, deviceOrdinal int) (*Runner, error) {

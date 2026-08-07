@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sort"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 func deepSeek4HCInit(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {

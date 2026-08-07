@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 const DefaultInfillBatchSize = 2048

@@ -8,10 +8,10 @@ import (
 	"math"
 	"os"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/clioptions"
+	"overgo/internal/inference"
+	"overgo/internal/model"
+	"overgo/internal/tokenizer"
 )
 
 type report struct {

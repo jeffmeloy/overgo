@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/tensor/reference"
 )
 
 type projectorResource interface {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/quant"
+	"overgo/internal/quant"
 )
 
 func TestQuantizeToConvertsMatricesAndPreservesOtherTensors(t *testing.T) {

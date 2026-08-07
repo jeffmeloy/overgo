@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestBuilderAndTopological(t *testing.T) {

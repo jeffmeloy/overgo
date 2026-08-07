@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 func launchMoE(

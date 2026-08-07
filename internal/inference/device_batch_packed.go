@@ -7,13 +7,13 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/model"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 type qwen35DeviceCohortKey struct {

@@ -344,7 +344,7 @@ func (f *remoteMediaFetcher) fetchTyped(
 		return nil, "", errors.New("remote media request is invalid")
 	}
 	request.Header.Set("Accept", accept)
-	request.Header.Set("User-Agent", "llamacpp2go-media/1")
+	request.Header.Set("User-Agent", "overgo-media/1")
 	response, err := f.client.Do(request)
 	if err != nil {
 		return nil, "", fmt.Errorf("fetch remote media: %w", err)

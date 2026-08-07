@@ -5,7 +5,7 @@ package device
 import (
 	"bytes"
 	"context"
-	cudatest "llamacpp2go/internal/cuda/testutil"
+	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 )
 
@@ -18,7 +18,7 @@ func TestWorkerMemoryRoundTrip(t *testing.T) {
 	}
 	defer worker.Close()
 
-	source := []byte("llamacpp2go CUDA memory round trip")
+	source := []byte("overgo CUDA memory round trip")
 	destination := make([]byte, len(source))
 	var duringBytes uint64
 	err = worker.Do(context.Background(), func(state *State) error {

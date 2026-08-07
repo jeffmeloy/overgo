@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 func normalizeGenerateOptions(options *GenerateOptions) error {

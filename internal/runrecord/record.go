@@ -10,16 +10,16 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 const (
 	Version             uint16 = 1
-	RunMediaType               = "application/vnd.llamacpp2go.run+json"
-	RunSchema                  = "llamacpp2go/run/v1"
-	EvaluationMediaType        = "application/vnd.llamacpp2go.evaluation+json"
-	EvaluationSchema           = "llamacpp2go/evaluation/v1"
+	RunMediaType               = "application/vnd.overgo.run+json"
+	RunSchema                  = "overgo/run/v1"
+	EvaluationMediaType        = "application/vnd.overgo.evaluation+json"
+	EvaluationSchema           = "overgo/evaluation/v1"
 	maxLabelBytes              = 128
 )
 

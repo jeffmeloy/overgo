@@ -4,13 +4,13 @@ package cublas
 
 import (
 	"context"
-	cudatest "llamacpp2go/internal/cuda/testutil"
 	"math"
+	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestSGEMMIntegration(t *testing.T) {

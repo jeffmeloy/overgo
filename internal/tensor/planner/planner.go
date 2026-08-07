@@ -6,8 +6,8 @@ import (
 	"math"
 	"sort"
 
-	"llamacpp2go/internal/checked"
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
 )
 
 // Allocation: arena range assigned to intermediate tensor

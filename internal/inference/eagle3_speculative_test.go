@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 func TestEagle3CoordinatorRejectsInvalidState(t *testing.T) {

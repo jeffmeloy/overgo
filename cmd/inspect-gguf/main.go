@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/clioptions"
+	"overgo/internal/gguf"
 )
 
 type metadataReport struct {

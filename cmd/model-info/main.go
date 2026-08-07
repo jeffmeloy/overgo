@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
+	"overgo/internal/clioptions"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
 )
 
 func run(arguments []string) error {

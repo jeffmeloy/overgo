@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"llamacpp2go/internal/safetensors"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/safetensors"
+	"overgo/internal/strictjson"
 )
 
 const maxConfigBytes = 16 << 20

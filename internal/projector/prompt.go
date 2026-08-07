@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/tokenizer"
 )
 
 const Qwen3VLImagePad = "<|image_pad|>"

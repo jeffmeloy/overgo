@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"llamacpp2go/internal/sampling"
+	"overgo/internal/sampling"
 )
 
 func main() {

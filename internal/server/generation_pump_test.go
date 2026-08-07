@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 )
 
 func TestGenerationPumpFiltersCountsAndFlushes(t *testing.T) {

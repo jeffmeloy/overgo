@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 )
 
 func TestResponseHistoryStoreEvictsOldestAndClones(t *testing.T) {

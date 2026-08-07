@@ -6,11 +6,11 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 func TestValidateStep35MTP(t *testing.T) {
@@ -54,9 +54,9 @@ func TestLastValueColumn(t *testing.T) {
 }
 
 func TestStep35MTPChainsIndependentHeads(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_STEP35_MTP_MODEL")
+	modelPath := os.Getenv("OVERGO_STEP35_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_STEP35_MTP_MODEL is not set")
+		t.Skip("OVERGO_STEP35_MTP_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
@@ -160,9 +160,9 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 }
 
 func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_HYV3_MTP_MODEL")
+	modelPath := os.Getenv("OVERGO_HYV3_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_HYV3_MTP_MODEL is not set")
+		t.Skip("OVERGO_HYV3_MTP_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal: 0, PreloadQuantizedWeights: true,

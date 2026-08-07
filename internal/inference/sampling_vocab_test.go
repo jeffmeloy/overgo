@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 func TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces(t *testing.T) {

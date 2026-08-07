@@ -10,10 +10,10 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/hfrepo"
-	"llamacpp2go/internal/repodb"
+	"overgo/internal/artifact"
+	"overgo/internal/gguf"
+	"overgo/internal/hfrepo"
+	"overgo/internal/repodb"
 )
 
 const (

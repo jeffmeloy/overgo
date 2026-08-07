@@ -123,9 +123,9 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 		name string
 		env  string
 	}{
-		{name: "qwen-json", env: "LLAMACPP2GO_QWEN3_MODEL"},
-		{name: "qwen35-hermes", env: "LLAMACPP2GO_QWEN35_MODEL"},
-		{name: "bonsai-hermes", env: "LLAMACPP2GO_BONSAI_MODEL"},
+		{name: "qwen-json", env: "OVERGO_QWEN3_MODEL"},
+		{name: "qwen35-hermes", env: "OVERGO_QWEN35_MODEL"},
+		{name: "bonsai-hermes", env: "OVERGO_BONSAI_MODEL"},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
 			path := os.Getenv(fixture.env)

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 func TestTensorInventoryDocumentRoundTrip(t *testing.T) {

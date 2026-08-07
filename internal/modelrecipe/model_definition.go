@@ -7,18 +7,18 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/modelartifact"
-	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/modelartifact"
+	"overgo/internal/recipe"
+	"overgo/internal/strictjson"
 )
 
 const (
 	ModelDefinitionVersion   uint16 = 1
-	ModelDefinitionMediaType        = "application/vnd.llamacpp2go.model-definition+json"
-	ModelDefinitionSchema           = "llamacpp2go/model-definition/v1"
+	ModelDefinitionMediaType        = "application/vnd.overgo.model-definition+json"
+	ModelDefinitionSchema           = "overgo/model-definition/v1"
 )
 
 var modelDefinitionContract = artifact.DocumentContract{

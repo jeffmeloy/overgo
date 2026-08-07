@@ -6,8 +6,8 @@ import (
 	"flag"
 	"os"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/inference"
+	"overgo/internal/clioptions"
+	"overgo/internal/inference"
 )
 
 type report struct {

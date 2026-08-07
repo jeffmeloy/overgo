@@ -7,9 +7,9 @@ import (
 	"math"
 	"os"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/hfgguf"
-	"llamacpp2go/internal/hfrepo"
+	"overgo/internal/clioptions"
+	"overgo/internal/hfgguf"
+	"overgo/internal/hfrepo"
 )
 
 type tensorReport struct {

@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"sync"
 
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/cuda/driver"
 )
 
 // State: contains resources that are valid only on Worker's locked OS thread

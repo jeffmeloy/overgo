@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/recipe"
+	"overgo/internal/artifact"
+	"overgo/internal/model"
+	"overgo/internal/recipe"
 )
 
 func CompileActive(

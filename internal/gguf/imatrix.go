@@ -11,8 +11,8 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/quant"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/quant"
+	"overgo/internal/tensor/dtype"
 )
 
 const (

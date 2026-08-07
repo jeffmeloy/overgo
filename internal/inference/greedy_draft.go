@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 type greedyDraft[S any] struct {

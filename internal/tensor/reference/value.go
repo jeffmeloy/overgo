@@ -4,8 +4,8 @@ import (
 	"errors"
 	"slices"
 
-	"llamacpp2go/internal/checked"
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
 )
 
 func (v Value) Clone() Value {

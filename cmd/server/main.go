@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/projector"
-	llamaserver "llamacpp2go/internal/server"
+	"overgo/internal/clioptions"
+	"overgo/internal/inference"
+	"overgo/internal/projector"
+	llamaserver "overgo/internal/server"
 )
 
 const (
@@ -80,13 +80,13 @@ func run() error {
 	apiKeyFile := flag.String(
 		"api-key-file",
 		"",
-		"read the /v1 bearer token from this file (or LLAMACPP2GO_API_KEY)",
+		"read the /v1 bearer token from this file (or OVERGO_API_KEY)",
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
 	mediaPolicyPath := flag.String("media-policy", "media_policy.yaml", "remote-media YAML policy; empty disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "resource_policy.yaml", "Responses file-ID YAML policy; empty disables file IDs")
-	ffmpegPath := flag.String("ffmpeg", os.Getenv("LLAMACPP2GO_FFMPEG"), "FFmpeg executable for encoded video")
+	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
 	videoFPS := flag.Float64("video-fps", llamaserver.DefaultVideoFPS, "video frame sampling rate")
 	videoMaxFrames := flag.Int("video-max-frames", llamaserver.DefaultVideoFrameLimit, "maximum decoded video frames")
 	flag.Parse()
@@ -117,7 +117,7 @@ func run() error {
 		defer vision.Close()
 		audio, _ = vision.(projector.AudioProjector)
 	}
-	apiKey := strings.TrimSpace(os.Getenv("LLAMACPP2GO_API_KEY"))
+	apiKey := strings.TrimSpace(os.Getenv("OVERGO_API_KEY"))
 	if *apiKeyFile != "" {
 		data, readErr := os.ReadFile(*apiKeyFile)
 		if readErr != nil {

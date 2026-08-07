@@ -4,8 +4,8 @@ import (
 	"errors"
 	"math"
 
-	"llamacpp2go/internal/binaryschema"
-	"llamacpp2go/internal/checked"
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 )
 
 var ErrLimit = errors.New("state codec size limit exceeded")

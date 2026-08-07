@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestModelTensorName(t *testing.T) {

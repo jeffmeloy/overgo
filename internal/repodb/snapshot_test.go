@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {

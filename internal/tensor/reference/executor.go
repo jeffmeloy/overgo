@@ -6,8 +6,8 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 // Value: contiguous F32 reference tensor

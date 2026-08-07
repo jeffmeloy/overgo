@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/repodb"
+	"overgo/internal/artifact"
+	"overgo/internal/model"
+	"overgo/internal/recipe"
+	"overgo/internal/repodb"
 )
 
 const profileCatalogSemanticDigest = "711d84023214af0db882be811b71eecdc7c80a3823a84022c7b00081c50dac08"

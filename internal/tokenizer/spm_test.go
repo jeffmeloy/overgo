@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestLlamaSPMEncodeDecode(t *testing.T) {

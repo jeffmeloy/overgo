@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestByteCodecRoundTrip(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/tensor"
+	"overgo/internal/tokenizer"
 )
 
 // ContinuousGeneratorOptions: fused scheduler bounds.

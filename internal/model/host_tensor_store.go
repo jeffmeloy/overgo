@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/reference"
 )
 
 // HostTensorStore: lazy persistent F32 host weights.

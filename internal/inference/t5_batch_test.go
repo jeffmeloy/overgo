@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 func TestDecodeT5BatchRejectsInvalidSourceMask(t *testing.T) {

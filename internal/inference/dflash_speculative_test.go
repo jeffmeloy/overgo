@@ -3,8 +3,8 @@ package inference
 import (
 	"testing"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 func TestDFlashLogitRowSkipsLastTokenRow(t *testing.T) {

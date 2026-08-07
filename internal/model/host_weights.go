@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/quant"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/gguf"
+	"overgo/internal/quant"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 // HostLayer: one dense layer dequantized to contiguous F32 values

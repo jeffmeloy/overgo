@@ -8,8 +8,8 @@ import (
 	"slices"
 	"sort"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 type legacyDefinitionBody struct {

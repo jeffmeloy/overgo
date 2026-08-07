@@ -3,8 +3,8 @@ package model
 import (
 	"testing"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestBuildCohere2MTPPipeline(t *testing.T) {

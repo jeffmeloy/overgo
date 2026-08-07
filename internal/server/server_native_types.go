@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/projector"
+	"overgo/internal/tokenizer"
 )
 
 type nativeCompletionRequest struct {

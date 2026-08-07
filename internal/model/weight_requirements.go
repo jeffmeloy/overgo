@@ -1,9 +1,9 @@
 package model
 
 import (
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensorcatalog"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensorcatalog"
 )
 
 // tensorRequirement: ordered catalog binding

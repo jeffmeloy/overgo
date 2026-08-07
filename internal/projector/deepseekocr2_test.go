@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	cudatest "llamacpp2go/internal/cuda/testutil"
-	"llamacpp2go/internal/gguf"
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/gguf"
 )
 
 func TestDeepSeekOCR2TinyFixture(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 func TestPromptTokenIDsPreservesExactSequence(t *testing.T) {

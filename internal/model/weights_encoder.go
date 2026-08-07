@@ -3,7 +3,7 @@ package model
 import (
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func readT5EncoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {

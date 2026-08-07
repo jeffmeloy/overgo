@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	cudaKernel "llamacpp2go/internal/cuda/kernel"
+	cudaKernel "overgo/internal/cuda/kernel"
 )
 
 func TestPTXEntriesSorted(t *testing.T) {

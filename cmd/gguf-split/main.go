@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func main() {

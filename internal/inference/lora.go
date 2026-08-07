@@ -10,10 +10,10 @@ import (
 	"slices"
 	"sort"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // LoRAConfig: startup adapter path and scale.

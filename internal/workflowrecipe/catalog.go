@@ -1,6 +1,6 @@
 package workflowrecipe
 
-import "llamacpp2go/internal/recipe"
+import "overgo/internal/recipe"
 
 var placements = []recipe.Placement{
 	recipe.PlacementHost, recipe.PlacementDevice, recipe.PlacementHybrid,

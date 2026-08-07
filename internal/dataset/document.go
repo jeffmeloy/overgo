@@ -9,14 +9,14 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 const (
 	Version   uint16 = 1
-	MediaType        = "application/vnd.llamacpp2go.dataset+json"
-	Schema           = "llamacpp2go/dataset/v1"
+	MediaType        = "application/vnd.overgo.dataset+json"
+	Schema           = "overgo/dataset/v1"
 
 	maxEntries   = 1 << 20
 	maxNameBytes = 1024

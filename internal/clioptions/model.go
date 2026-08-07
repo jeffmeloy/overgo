@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 )
 
 // ModelFlags: common model-loading flags.

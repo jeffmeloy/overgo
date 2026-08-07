@@ -5,8 +5,8 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 // ProjectedInputsJSON: portable projected-prompt payload.

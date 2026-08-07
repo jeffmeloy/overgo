@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (Value, error) {

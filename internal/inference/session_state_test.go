@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 func TestSessionStateRoundTripRestoresSampler(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"flag"
 	"os"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/clioptions"
+	"overgo/internal/gguf"
+	"overgo/internal/tokenizer"
 )
 
 func main() {

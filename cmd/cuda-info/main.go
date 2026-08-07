@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 )
 
 type report struct {

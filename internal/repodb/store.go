@@ -12,7 +12,7 @@ import (
 	"sort"
 	"sync"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 var (

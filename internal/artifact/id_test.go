@@ -8,7 +8,7 @@ import (
 
 const (
 	fixtureModelPayload = "fixture-model"
-	fixtureMediaType    = "application/vnd.llamacpp2go.model"
+	fixtureMediaType    = "application/vnd.overgo.model"
 )
 
 func TestIDRoundTrip(t *testing.T) {

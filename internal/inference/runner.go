@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 type TokenEvent struct {

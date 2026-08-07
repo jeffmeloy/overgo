@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/tensor"
 )
 
 func launchMathVision(

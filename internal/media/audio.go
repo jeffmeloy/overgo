@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/checked"
+	"overgo/internal/checked"
 )
 
 const (

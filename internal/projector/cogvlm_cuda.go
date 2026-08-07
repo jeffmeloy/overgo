@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float32) (reference.Value, error) {

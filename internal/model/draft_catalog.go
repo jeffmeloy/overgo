@@ -1,6 +1,6 @@
 package model
 
-import "llamacpp2go/internal/gguf"
+import "overgo/internal/gguf"
 
 // DraftWeightCatalog: family-neutral draft tensor view.
 type DraftWeightCatalog struct {

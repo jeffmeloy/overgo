@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 // SSMConv: applies channel-wise sliding convolution used by recurrent SSM

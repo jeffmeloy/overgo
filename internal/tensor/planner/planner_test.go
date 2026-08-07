@@ -3,8 +3,8 @@ package planner
 import (
 	"testing"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestBuildReusesExpiredAllocation(t *testing.T) {

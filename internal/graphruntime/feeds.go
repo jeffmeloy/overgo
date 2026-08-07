@@ -3,10 +3,10 @@ package graphruntime
 import (
 	"errors"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 type Feeds struct {

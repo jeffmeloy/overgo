@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/dtype"
 )
 
 // LayerWeights: initial dense transformer weight set

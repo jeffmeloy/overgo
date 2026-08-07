@@ -7,16 +7,16 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/model"
+	"overgo/internal/recipe"
+	"overgo/internal/strictjson"
 )
 
 const (
 	ProfileParityVersion   uint16 = 1
-	ProfileParityMediaType        = "application/vnd.llamacpp2go.model-profile-parity+json"
-	ProfileParitySchema           = "llamacpp2go/model-profile-parity/v1"
+	ProfileParityMediaType        = "application/vnd.overgo.model-profile-parity+json"
+	ProfileParitySchema           = "overgo/model-profile-parity/v1"
 )
 
 var profileParityContract = artifact.DocumentContract{

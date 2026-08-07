@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/inference"
+	"overgo/internal/strictjson"
 )
 
 func selectAnthropicTools(

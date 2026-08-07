@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/cuda/driver"
 )
 
 // VectorAddPTX: contains Phase 1 CUDA smoke-test kernel

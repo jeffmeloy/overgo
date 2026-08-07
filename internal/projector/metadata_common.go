@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func validateVisionProjector(file *gguf.File, typeKey, expectedType string) error {

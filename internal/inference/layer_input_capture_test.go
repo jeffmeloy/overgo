@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 func TestLayerInputCapturePreservesRequestedOrder(t *testing.T) {

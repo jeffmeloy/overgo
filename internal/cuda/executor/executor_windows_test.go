@@ -5,25 +5,25 @@ package executor
 import (
 	"context"
 
-	"llamacpp2go/internal/cuda/device"
+	"overgo/internal/cuda/device"
 
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/cuda/driver"
 
-	"llamacpp2go/internal/model"
+	"overgo/internal/model"
 
-	"llamacpp2go/internal/quant"
+	"overgo/internal/quant"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor/reference"
 
 	"math"
 
 	"testing"
 
-	cudatest "llamacpp2go/internal/cuda/testutil"
+	cudatest "overgo/internal/cuda/testutil"
 )
 
 func TestExecutorImplicitZeroFeed(t *testing.T) {

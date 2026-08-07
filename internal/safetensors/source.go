@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/binaryschema"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/binaryschema"
+	"overgo/internal/strictjson"
 )
 
 const (

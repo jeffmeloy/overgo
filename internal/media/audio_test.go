@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestAudioCodecs(t *testing.T) {

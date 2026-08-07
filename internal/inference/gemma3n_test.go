@@ -4,9 +4,9 @@ import (
 	"math"
 	"testing"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/model"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 func TestGemma3nPredictCoefficientLayout(t *testing.T) {

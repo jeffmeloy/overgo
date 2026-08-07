@@ -7,7 +7,7 @@ import (
 	"image"
 	"math"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 const (

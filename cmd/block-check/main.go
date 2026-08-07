@@ -9,13 +9,13 @@ import (
 	"os"
 	"time"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/clioptions"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 type report struct {

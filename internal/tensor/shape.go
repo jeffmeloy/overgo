@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 const MaxDimensions = 4

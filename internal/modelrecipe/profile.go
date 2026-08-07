@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"reflect"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/model"
+	"overgo/internal/recipe"
+	"overgo/internal/strictjson"
 )
 
 const (
 	ProfileVersion   uint16 = 1
-	ProfileMediaType        = "application/vnd.llamacpp2go.model-profile+json"
-	ProfileSchema           = "llamacpp2go/model-profile/v1"
+	ProfileMediaType        = "application/vnd.overgo.model-profile+json"
+	ProfileSchema           = "overgo/model-profile/v1"
 )
 
 var profileContract = artifact.DocumentContract{

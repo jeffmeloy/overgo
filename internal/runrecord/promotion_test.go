@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/modelrecipe"
-	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/repodb"
-	"llamacpp2go/internal/runrecord"
-	"llamacpp2go/internal/workflowrecipe"
+	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
+	"overgo/internal/workflowrecipe"
 )
 
 func TestEvaluationPromotesWorkflowRecipe(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 func writeInvalidRequest(response http.ResponseWriter, err error) {

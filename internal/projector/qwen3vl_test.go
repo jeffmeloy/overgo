@@ -8,17 +8,17 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	cudatest "llamacpp2go/internal/cuda/testutil"
 	"math"
 	"os"
+	cudatest "overgo/internal/cuda/testutil"
 	"slices"
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/testutil"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
+	"overgo/internal/testutil"
+	"overgo/internal/tokenizer"
 )
 
 type qwen3VLPromptTokenizer struct{}
@@ -36,11 +36,11 @@ func (qwen3VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.
 }
 
 func TestQwen3VLRealFixture(t *testing.T) {
-	projectorPath := os.Getenv("LLAMACPP2GO_QWEN35_MMPROJ")
-	imagePath := os.Getenv("LLAMACPP2GO_QWEN35_IMAGE")
-	goldenPath := os.Getenv("LLAMACPP2GO_QWEN35_GOLDEN")
+	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
+	imagePath := os.Getenv("OVERGO_QWEN35_IMAGE")
+	goldenPath := os.Getenv("OVERGO_QWEN35_GOLDEN")
 	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_QWEN35_MMPROJ, LLAMACPP2GO_QWEN35_IMAGE, and LLAMACPP2GO_QWEN35_GOLDEN")
+		t.Skip("set OVERGO_QWEN35_MMPROJ, OVERGO_QWEN35_IMAGE, and OVERGO_QWEN35_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
@@ -89,7 +89,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 		t.Fatalf("pixel values = %d, want shape %v", len(processed.PixelValues), golden.PixelValues.Shape)
 	}
 	compareProbes(t, "pixel values", processed.PixelValues, golden.PixelValues, 0.15)
-	if os.Getenv("LLAMACPP2GO_QWEN35_PROJECTOR_FULL") == "" {
+	if os.Getenv("OVERGO_QWEN35_PROJECTOR_FULL") == "" {
 		return
 	}
 	output, err := runner.EncodeImage(context.Background(), input, DefaultQwen3VLPreprocessOptions())
@@ -382,10 +382,10 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 }
 
 func TestQwen3VLRealVideoFixture(t *testing.T) {
-	projectorPath := os.Getenv("LLAMACPP2GO_QWEN35_MMPROJ")
-	goldenPath := os.Getenv("LLAMACPP2GO_QWEN35_VIDEO_GOLDEN")
+	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
+	goldenPath := os.Getenv("OVERGO_QWEN35_VIDEO_GOLDEN")
 	if projectorPath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_QWEN35_MMPROJ and LLAMACPP2GO_QWEN35_VIDEO_GOLDEN")
+		t.Skip("set OVERGO_QWEN35_MMPROJ and OVERGO_QWEN35_VIDEO_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
@@ -442,7 +442,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 		t.Fatal("video prompt differs from golden")
 	}
 	compareProbes(t, "video pixel values", processed.PixelValues, golden.PixelValues, 0.15)
-	if os.Getenv("LLAMACPP2GO_QWEN35_VIDEO_FULL") == "" {
+	if os.Getenv("OVERGO_QWEN35_VIDEO_FULL") == "" {
 		return
 	}
 	output, err := runner.EncodeFrames(context.Background(), frames, DefaultQwen3VLVideoPreprocessOptions())

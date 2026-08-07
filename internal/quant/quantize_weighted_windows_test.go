@@ -10,13 +10,13 @@ import (
 	"testing"
 	"unsafe"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestQuantizeWeightedMatchesPinnedGGML(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_GGML_BASE_ORACLE")
+	path := os.Getenv("OVERGO_GGML_BASE_ORACLE")
 	if path == "" {
-		t.Skip("set LLAMACPP2GO_GGML_BASE_ORACLE to pinned ggml-base.dll")
+		t.Skip("set OVERGO_GGML_BASE_ORACLE to pinned ggml-base.dll")
 	}
 	library := syscall.NewLazyDLL(path)
 	initialize := library.NewProc("ggml_quantize_init")

@@ -5,7 +5,7 @@ import (
 	"maps"
 	"slices"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 // CacheStateMode: serialized range behavior.

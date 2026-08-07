@@ -14,8 +14,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/model"
+	"overgo/internal/clioptions"
+	"overgo/internal/model"
 )
 
 const (

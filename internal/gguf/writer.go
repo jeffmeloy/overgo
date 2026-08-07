@@ -7,8 +7,8 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/binaryschema"
-	"llamacpp2go/internal/checked"
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 )
 
 const (

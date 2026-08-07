@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/clioptions"
+	"overgo/internal/inference"
+	"overgo/internal/model"
+	"overgo/internal/projector"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 type stringListFlag []string
@@ -111,7 +111,7 @@ func run() error {
 	videoPath := flag.String("video", "", "encoded multimodal video; GIF native, other formats through FFmpeg")
 	videoMaxFrames := flag.Int("video-max-frames", 32, "maximum decoded video frames")
 	videoFPS := flag.Float64("video-fps", 24, "source FPS for multimodal video timestamps")
-	ffmpegPath := flag.String("ffmpeg", os.Getenv("LLAMACPP2GO_FFMPEG"), "FFmpeg executable for non-GIF video input")
+	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for non-GIF video input")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	flag.Parse()
 	if flag.NArg() != 2 {

@@ -648,7 +648,7 @@ claims.
   `/props`, `/slots`, `/completion`, `/completions`, `/chat/completions`,
   chat token-count, `/embedding`, and `/embeddings` utility routes with
   constant-time token comparison. Secrets are loaded from
-  `LLAMACPP2GO_API_KEY` or `-api-key-file`; health and metrics remain available
+  `OVERGO_API_KEY` or `-api-key-file`; health and metrics remain available
   to orchestration probes. Native and OpenAI model-discovery routes remain
   public like the pinned server.
 - `/v1/embeddings` accepts bounded string batches and returns mean-pooled,
@@ -688,7 +688,7 @@ claims.
   tensors retained in native one-bit CUDA storage. For two greedy tokens,
   both Go and the pinned CPU `llama-completion` oracle produce `Hello, I`;
   Go exposes exact IDs `[9419, 11, 353]`. The optional
-  `LLAMACPP2GO_BONSAI_MODEL` integration test preserves this differential.
+  `OVERGO_BONSAI_MODEL` integration test preserves this differential.
 - Qwen3.5 hybrid cache serialization carries fixed convolution/delta-net state
   for recurrent layers and append-only KV tensors for full-attention layers.
   A save/load session resumed after the first generated token exactly

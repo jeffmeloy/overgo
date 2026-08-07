@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestHostTensorStoreRetainsLoadedTensor(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"llamacpp2go/internal/sampling"
+	"overgo/internal/sampling"
 )
 
 var chatToolNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)

@@ -3,8 +3,8 @@ package model
 import (
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/dtype"
 )
 
 func loadStateSpaceLayer(

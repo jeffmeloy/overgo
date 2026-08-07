@@ -10,16 +10,16 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/safetensors"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/gguf"
+	"overgo/internal/safetensors"
+	"overgo/internal/strictjson"
 )
 
 const (
 	TensorInventoryVersion   uint16 = 1
-	TensorInventoryMediaType        = "application/vnd.llamacpp2go.tensor-inventory+json"
-	TensorInventorySchema           = "llamacpp2go/tensor-inventory/v1"
+	TensorInventoryMediaType        = "application/vnd.overgo.tensor-inventory+json"
+	TensorInventorySchema           = "overgo/tensor-inventory/v1"
 	maxInventoryTensors             = 500_000
 	maxInventoryRank                = 64
 	maxInventoryNameBytes           = 16 << 10

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 type testToolOutputStream struct {

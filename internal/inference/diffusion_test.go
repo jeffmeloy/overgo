@@ -9,10 +9,10 @@ import (
 	"reflect"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 func TestRunDiffusionTimestepConfidenceTransfer(t *testing.T) {

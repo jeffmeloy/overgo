@@ -7,9 +7,9 @@ import (
 	"image"
 	"math"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 const llama4ProjectorType = "llama4"

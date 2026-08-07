@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	cudatest "llamacpp2go/internal/cuda/testutil"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 type graphOutputCheck struct {

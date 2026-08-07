@@ -5,15 +5,15 @@ package model
 import (
 	"bytes"
 	"context"
-	cudatest "llamacpp2go/internal/cuda/testutil"
+	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 func TestDeviceF32WeightsFeedExecutor(t *testing.T) {

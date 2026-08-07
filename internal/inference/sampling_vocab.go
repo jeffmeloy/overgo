@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 func (r *Runner) DeviceMemoryStats(ctx context.Context) (driver.MemoryStats, error) {

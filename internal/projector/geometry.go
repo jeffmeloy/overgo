@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/checked"
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
 )
 
 const (

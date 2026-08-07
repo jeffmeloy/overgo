@@ -4,11 +4,11 @@ import (
 	"reflect"
 	"testing"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/model"
+	"overgo/internal/tensor"
+	"overgo/internal/tokenizer"
 )
 
 func TestDecodeCandidatePairsSplitsPackedRows(t *testing.T) {

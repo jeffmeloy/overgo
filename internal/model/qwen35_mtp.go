@@ -3,7 +3,7 @@ package model
 import (
 	"errors"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 // BuildQwen35MTPInput: normalized token/target-hidden fusion.

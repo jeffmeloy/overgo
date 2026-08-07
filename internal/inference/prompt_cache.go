@@ -10,9 +10,9 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // ClearPromptCaches: releases retained request state; preserves prepared assets.

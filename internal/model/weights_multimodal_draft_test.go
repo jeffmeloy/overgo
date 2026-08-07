@@ -3,9 +3,9 @@ package model
 import (
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 
 	"os"
 
@@ -173,9 +173,9 @@ func TestReadWeightsQwen3NextRecurrentLayouts(t *testing.T) {
 }
 
 func TestReadRealQwen35Catalog(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
+	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
-		t.Skip("set LLAMACPP2GO_QWEN35_MODEL to run real Qwen3.5 catalog validation")
+		t.Skip("set OVERGO_QWEN35_MODEL to run real Qwen3.5 catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -197,9 +197,9 @@ func TestReadRealQwen35Catalog(t *testing.T) {
 }
 
 func TestReadRealKimiLinearCatalog(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_KIMI_LINEAR_MODEL")
+	path := os.Getenv("OVERGO_KIMI_LINEAR_MODEL")
 	if path == "" {
-		t.Skip("set LLAMACPP2GO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
+		t.Skip("set OVERGO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -228,9 +228,9 @@ func TestReadRealKimiLinearCatalog(t *testing.T) {
 }
 
 func TestReadRealGemma3Catalog(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_GEMMA3_MODEL")
+	path := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if path == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA3_MODEL to run real Gemma 3 catalog validation")
+		t.Skip("set OVERGO_GEMMA3_MODEL to run real Gemma 3 catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -776,9 +776,9 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 }
 
 func TestReadRealUMT5Catalog(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_UMT5_MODEL")
+	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
-		t.Skip("set LLAMACPP2GO_UMT5_MODEL to run real UMT5 catalog validation")
+		t.Skip("set OVERGO_UMT5_MODEL to run real UMT5 catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

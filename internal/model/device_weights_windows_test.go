@@ -6,12 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	cudatest "llamacpp2go/internal/cuda/testutil"
+	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/cuda/device"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestDeviceWeightsIntegration(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"slices"
 	"sync"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/reference"
 )
 
 const qwen3VLProjectorType = "qwen3vl_merger"

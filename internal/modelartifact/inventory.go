@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/hfrepo"
+	"overgo/internal/artifact"
+	"overgo/internal/gguf"
+	"overgo/internal/hfrepo"
 )
 
 const (

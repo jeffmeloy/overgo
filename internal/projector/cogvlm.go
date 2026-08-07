@@ -7,9 +7,9 @@ import (
 	"image"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 const (

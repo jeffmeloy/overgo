@@ -752,12 +752,12 @@
         "pkg:golang/gopkg.in/yaml.v3@v3.0.1",
         "pkg:golang/stdlib@1.26"
       ],
-      "ref": "pkg:golang/llamacpp2go"
+      "ref": "pkg:golang/overgo"
     }
   ],
   "metadata": {
     "component": {
-      "bom-ref": "pkg:golang/llamacpp2go",
+      "bom-ref": "pkg:golang/overgo",
       "licenses": [
         {
           "license": {
@@ -765,29 +765,29 @@
           }
         }
       ],
-      "name": "llamacpp2go",
-      "purl": "pkg:golang/llamacpp2go",
+      "name": "overgo",
+      "purl": "pkg:golang/overgo",
       "type": "application",
-      "version": "0.0.0+upstream.42fc2430"
+      "version": "0.1.0"
     },
     "properties": [
       {
-        "name": "llamacpp2go:cgo",
+        "name": "overgo:cgo",
         "value": "false"
       },
       {
-        "name": "llamacpp2go:cuda-target",
+        "name": "overgo:cuda-target",
         "value": "compute_89"
       },
       {
-        "name": "llamacpp2go:upstream-commit",
+        "name": "overgo:upstream-commit",
         "value": "42fc243060709331ff9b158a9ed2cbe37219ae83"
       }
     ],
     "tools": {
       "components": [
         {
-          "bom-ref": "component:llamacpp2go-sbom-generator",
+          "bom-ref": "component:overgo-sbom-generator",
           "licenses": [
             {
               "license": {
@@ -795,7 +795,7 @@
               }
             }
           ],
-          "name": "llamacpp2go sbom generator",
+          "name": "overgo sbom generator",
           "type": "application",
           "version": "1"
         }

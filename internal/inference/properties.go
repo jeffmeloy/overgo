@@ -1,8 +1,8 @@
 package inference
 
 import (
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/tokenizer"
 )
 
 // ModelProperties: immutable model metadata exposed by llama.cpp's

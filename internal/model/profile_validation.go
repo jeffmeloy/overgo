@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 type profileOrdinal interface {

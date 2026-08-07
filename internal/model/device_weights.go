@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 )
 
 const defaultWeightChunkSize = 16 << 20

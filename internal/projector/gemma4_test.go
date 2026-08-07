@@ -7,16 +7,16 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	cudatest "llamacpp2go/internal/cuda/testutil"
 	"math"
 	"os"
+	cudatest "overgo/internal/cuda/testutil"
 	"slices"
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/testutil"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/testutil"
+	"overgo/internal/tokenizer"
 )
 
 type gemma4PromptTokenizer struct{}
@@ -300,11 +300,11 @@ func TestOrderedVariableTokenRunsPreserveMediaKinds(t *testing.T) {
 }
 
 func TestGemma4RealFixture(t *testing.T) {
-	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
-	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_IMAGE")
-	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_GOLDEN")
+	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
+	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
+	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
 	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_IMAGE, and LLAMACPP2GO_GEMMA4_GOLDEN")
+		t.Skip("set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_IMAGE, and OVERGO_GEMMA4_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
@@ -369,7 +369,7 @@ func TestGemma4RealFixture(t *testing.T) {
 			t.Fatalf("position %d = %v, want %v", row, processed.Positions[row*2:row*2+2], position)
 		}
 	}
-	if os.Getenv("LLAMACPP2GO_GEMMA4_PROJECTOR_FULL") == "" {
+	if os.Getenv("OVERGO_GEMMA4_PROJECTOR_FULL") == "" {
 		return
 	}
 	stages := map[string]probeRecord{
@@ -442,10 +442,10 @@ func gemma4InterleavePatchRows(values []float32, width int) []float32 {
 }
 
 func TestGemma4RealPromptTokens(t *testing.T) {
-	vocabPath := os.Getenv("LLAMACPP2GO_GEMMA4_VOCAB")
-	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_GOLDEN")
+	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
+	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
 	if vocabPath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA4_VOCAB and LLAMACPP2GO_GEMMA4_GOLDEN")
+		t.Skip("set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_GOLDEN")
 	}
 	var golden struct {
 		InputIDs                  []tokenizer.TokenID `json:"input_ids"`
@@ -483,11 +483,11 @@ func TestGemma4RealPromptTokens(t *testing.T) {
 }
 
 func TestGemma4RealAudioFixture(t *testing.T) {
-	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
-	wavePath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_WAVE")
-	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
+	wavePath := os.Getenv("OVERGO_GEMMA4_AUDIO_WAVE")
+	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
 	if projectorPath == "" || wavePath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_AUDIO_WAVE, and LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+		t.Skip("set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_AUDIO_WAVE, and OVERGO_GEMMA4_AUDIO_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
@@ -555,10 +555,10 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 }
 
 func TestGemma4RealAudioPromptTokens(t *testing.T) {
-	vocabPath := os.Getenv("LLAMACPP2GO_GEMMA4_VOCAB")
-	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
+	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
 	if vocabPath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA4_VOCAB and LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+		t.Skip("set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_AUDIO_GOLDEN")
 	}
 	var golden struct {
 		InputIDs       []tokenizer.TokenID `json:"input_ids"`
@@ -596,11 +596,11 @@ func TestGemma4RealAudioPromptTokens(t *testing.T) {
 }
 
 func TestGemma4RealResizeFixture(t *testing.T) {
-	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
-	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_RESIZE_IMAGE")
-	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_RESIZE_GOLDEN")
+	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
+	imagePath := os.Getenv("OVERGO_GEMMA4_RESIZE_IMAGE")
+	goldenPath := os.Getenv("OVERGO_GEMMA4_RESIZE_GOLDEN")
 	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_RESIZE_IMAGE, and LLAMACPP2GO_GEMMA4_RESIZE_GOLDEN")
+		t.Skip("set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_RESIZE_IMAGE, and OVERGO_GEMMA4_RESIZE_GOLDEN")
 	}
 	type probeRecord struct {
 		ProbeIndex []int     `json:"probe_index"`
@@ -677,7 +677,7 @@ func tinyGemma4Metadata() []gguf.Metadata {
 
 func openGemma4Fixture(path string) (*Gemma4Runner, error) {
 	return OpenGemma4WithOptions(path, Gemma4OpenOptions{
-		CUDA: os.Getenv("LLAMACPP2GO_GEMMA4_PROJECTOR_CUDA") != "",
+		CUDA: os.Getenv("OVERGO_GEMMA4_PROJECTOR_CUDA") != "",
 	})
 }
 

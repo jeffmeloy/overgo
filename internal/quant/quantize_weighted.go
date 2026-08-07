@@ -7,7 +7,7 @@ import (
 	"math"
 	"sort"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 var (

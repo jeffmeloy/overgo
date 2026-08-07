@@ -19,12 +19,12 @@ import (
 	"strconv"
 	"strings"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/media"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/media"
+	"overgo/internal/projector"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 func imageProjectedPrompt(
@@ -214,7 +214,7 @@ func resolveFFmpeg(configured string) (string, error) {
 			}
 		}
 	}
-	return "", errors.New("FFmpeg is unavailable; set -ffmpeg or LLAMACPP2GO_FFMPEG")
+	return "", errors.New("FFmpeg is unavailable; set -ffmpeg or OVERGO_FFMPEG")
 }
 
 func projectedInputsForPrompt(

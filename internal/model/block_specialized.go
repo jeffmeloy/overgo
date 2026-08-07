@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 const (

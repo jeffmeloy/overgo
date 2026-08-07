@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // StartSession: tokenizes prompt and generates at least one token, returning

@@ -1,6 +1,6 @@
 package model
 
-import "llamacpp2go/internal/gguf"
+import "overgo/internal/gguf"
 
 // ReadWeights: family-routed tensor catalog validation.
 func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {

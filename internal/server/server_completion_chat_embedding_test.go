@@ -21,12 +21,12 @@ import (
 
 	"image/png"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/projector"
+	"overgo/internal/inference"
+	"overgo/internal/projector"
 
-	"llamacpp2go/internal/sampling"
+	"overgo/internal/sampling"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 
 	"math"
 	"reflect"

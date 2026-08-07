@@ -1,6 +1,6 @@
 package projector
 
-import "llamacpp2go/internal/gguf"
+import "overgo/internal/gguf"
 
 type metadataIntField struct {
 	key    string

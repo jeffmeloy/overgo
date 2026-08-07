@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	cudaKernel "llamacpp2go/internal/cuda/kernel"
+	cudaKernel "overgo/internal/cuda/kernel"
 )
 
 const manifestPath = "kernels/manifest.json"

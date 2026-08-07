@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/inference"
+	"overgo/internal/strictjson"
 )
 
 const projectedInputsJSONLimit = 1 << 30

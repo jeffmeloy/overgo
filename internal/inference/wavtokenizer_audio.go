@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"sync"
 
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 const (

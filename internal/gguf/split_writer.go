@@ -6,7 +6,7 @@ import (
 	"io"
 	"math"
 
-	"llamacpp2go/internal/checked"
+	"overgo/internal/checked"
 )
 
 // SplitOptions: controls tensor partitioning for WriteSplit

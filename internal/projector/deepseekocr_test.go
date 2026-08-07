@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	cudatest "llamacpp2go/internal/cuda/testutil"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tokenizer"
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/gguf"
+	"overgo/internal/tokenizer"
 )
 
 type deepSeekOCRPromptTokenizer struct{ texts []string }

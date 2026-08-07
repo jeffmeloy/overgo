@@ -3,7 +3,7 @@ package tokenizer
 import (
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func FuzzEncodeDecodeNeverPanics(f *testing.F) {

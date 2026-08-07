@@ -1,6 +1,6 @@
 package projector
 
-import "llamacpp2go/internal/tensor/reference"
+import "overgo/internal/tensor/reference"
 
 type gridImage struct {
 	PixelValues []float32

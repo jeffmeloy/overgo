@@ -8,9 +8,9 @@ import (
 
 	"fmt"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/strictjson"
 
 	"net/http"
 

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
@@ -29,9 +29,9 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 }
 
 func TestRealUMT5Tokenization(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_UMT5_MODEL")
+	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_UMT5_MODEL is not set")
+		t.Skip("OVERGO_UMT5_MODEL is not set")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

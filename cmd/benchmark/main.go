@@ -10,12 +10,12 @@ import (
 	"sort"
 	"time"
 
-	"llamacpp2go/internal/clioptions"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/inference"
+	"overgo/internal/model"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 const (

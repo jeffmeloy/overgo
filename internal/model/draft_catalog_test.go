@@ -3,7 +3,7 @@ package model
 import (
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestWeightsDraftCatalogs(t *testing.T) {

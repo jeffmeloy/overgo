@@ -2,7 +2,7 @@ package model
 
 import (
 	"fmt"
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 
 	"math"
 

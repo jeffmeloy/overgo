@@ -3,7 +3,7 @@ package tensorcatalog
 import (
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestValidateCatalog(t *testing.T) {

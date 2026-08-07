@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 type forwardSequencePlan struct {

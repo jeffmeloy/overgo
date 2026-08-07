@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 const fixtureManifestLocation = "C:/models/fixture.gguf"

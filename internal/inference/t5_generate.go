@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // GenerateT5: source text to generated decoder tokens and resumable session.

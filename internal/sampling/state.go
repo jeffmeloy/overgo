@@ -8,7 +8,7 @@ import (
 	"math"
 	"sort"
 
-	"llamacpp2go/internal/statecodec"
+	"overgo/internal/statecodec"
 )
 
 const (

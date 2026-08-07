@@ -9,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 func TestIncrementalCacheMatchesFullForward(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := Open(modelPath, 0)
 	if err != nil {
@@ -191,9 +191,9 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 }
 
 func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal:           0,
@@ -239,9 +239,9 @@ func assertMaximumDifference(t *testing.T, label string, got, want []float32, to
 }
 
 func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := Open(modelPath, 0)
 	if err != nil {
@@ -287,17 +287,17 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 }
 
 func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	assertNativeQuantGreedyOracle(t, modelPath)
 }
 
 func TestNativeQ8DeviceContextShift(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal:           0,
@@ -548,17 +548,17 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 }
 
 func TestNativeQ6KGreedyMatchesOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN3_Q6K_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN3_Q6K_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_Q6K_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_Q6K_MODEL is not set")
 	}
 	assertNativeQuantGreedyOracle(t, modelPath)
 }
 
 func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN35_MODEL is not set")
+		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal:           0,
@@ -730,9 +730,9 @@ ws ::= [ \t\n\r]*
 }
 
 func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN35_MODEL is not set")
+		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
@@ -843,9 +843,9 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 }
 
 func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN35_MTP_MODEL")
+	modelPath := os.Getenv("OVERGO_QWEN35_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_QWEN35_MTP_MODEL is not set")
+		t.Skip("OVERGO_QWEN35_MTP_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
@@ -940,10 +940,10 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 }
 
 func TestGemma4AssistantGreedyVerification(t *testing.T) {
-	assistantPath := os.Getenv("LLAMACPP2GO_GEMMA4_ASSISTANT_MODEL")
-	targetPath := os.Getenv("LLAMACPP2GO_GEMMA4_TARGET_MODEL")
+	assistantPath := os.Getenv("OVERGO_GEMMA4_ASSISTANT_MODEL")
+	targetPath := os.Getenv("OVERGO_GEMMA4_TARGET_MODEL")
 	if assistantPath == "" || targetPath == "" {
-		t.Skip("LLAMACPP2GO_GEMMA4_ASSISTANT_MODEL and LLAMACPP2GO_GEMMA4_TARGET_MODEL are not set")
+		t.Skip("OVERGO_GEMMA4_ASSISTANT_MODEL and OVERGO_GEMMA4_TARGET_MODEL are not set")
 	}
 	assistant, err := OpenWithOptions(assistantPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
 	if err != nil {
@@ -1022,10 +1022,10 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 }
 
 func TestEagle3GreedyAndSampledVerification(t *testing.T) {
-	draftPath := os.Getenv("LLAMACPP2GO_EAGLE3_MODEL")
-	targetPath := os.Getenv("LLAMACPP2GO_EAGLE3_TARGET_MODEL")
+	draftPath := os.Getenv("OVERGO_EAGLE3_MODEL")
+	targetPath := os.Getenv("OVERGO_EAGLE3_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
-		t.Skip("LLAMACPP2GO_EAGLE3_MODEL and LLAMACPP2GO_EAGLE3_TARGET_MODEL are not set")
+		t.Skip("OVERGO_EAGLE3_MODEL and OVERGO_EAGLE3_TARGET_MODEL are not set")
 	}
 	draftRunner, err := OpenWithOptions(draftPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
 	if err != nil {
@@ -1094,10 +1094,10 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 }
 
 func TestDFlashGreedyAndSampledVerification(t *testing.T) {
-	draftPath := os.Getenv("LLAMACPP2GO_DFLASH_MODEL")
-	targetPath := os.Getenv("LLAMACPP2GO_DFLASH_TARGET_MODEL")
+	draftPath := os.Getenv("OVERGO_DFLASH_MODEL")
+	targetPath := os.Getenv("OVERGO_DFLASH_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
-		t.Skip("LLAMACPP2GO_DFLASH_MODEL and LLAMACPP2GO_DFLASH_TARGET_MODEL are not set")
+		t.Skip("OVERGO_DFLASH_MODEL and OVERGO_DFLASH_TARGET_MODEL are not set")
 	}
 	draftRunner, err := OpenWithOptions(draftPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
 	if err != nil {
@@ -1172,9 +1172,9 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 }
 
 func TestWavTokenizerDecodeWaveform(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_WAVTOKENIZER_MODEL")
+	modelPath := os.Getenv("OVERGO_WAVTOKENIZER_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_WAVTOKENIZER_MODEL is not set")
+		t.Skip("OVERGO_WAVTOKENIZER_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
 	if err != nil {
@@ -1196,9 +1196,9 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 }
 
 func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_COHERE2_MTP_MODEL")
+	modelPath := os.Getenv("OVERGO_COHERE2_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_COHERE2_MTP_MODEL is not set")
+		t.Skip("OVERGO_COHERE2_MTP_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
@@ -1288,9 +1288,9 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 }
 
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_BONSAI_MODEL")
+	modelPath := os.Getenv("OVERGO_BONSAI_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_BONSAI_MODEL is not set")
+		t.Skip("OVERGO_BONSAI_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal:           0,
@@ -1320,9 +1320,9 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_GEMMA3_MODEL")
+	modelPath := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_GEMMA3_MODEL is not set")
+		t.Skip("OVERGO_GEMMA3_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal:           0,
@@ -1384,9 +1384,9 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 }
 
 func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_UMT5_MODEL")
+	modelPath := os.Getenv("OVERGO_UMT5_MODEL")
 	if modelPath == "" {
-		t.Skip("LLAMACPP2GO_UMT5_MODEL is not set")
+		t.Skip("OVERGO_UMT5_MODEL is not set")
 	}
 	runner, err := OpenWithOptions(modelPath, OpenOptions{
 		DeviceOrdinal:           0,

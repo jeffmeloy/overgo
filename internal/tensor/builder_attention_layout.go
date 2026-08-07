@@ -6,7 +6,7 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 // Reshape: changes only logical dimensions and preserves contiguous order

@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 const (

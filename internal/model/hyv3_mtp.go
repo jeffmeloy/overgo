@@ -1,6 +1,6 @@
 package model
 
-import "llamacpp2go/internal/tensor"
+import "overgo/internal/tensor"
 
 // BuildHYV3MTPInput: post-norm hidden/token fusion.
 func BuildHYV3MTPInput(

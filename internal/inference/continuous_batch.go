@@ -8,9 +8,9 @@ import (
 	"sort"
 	"sync"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // SequenceID: continuous-batch cache owner.

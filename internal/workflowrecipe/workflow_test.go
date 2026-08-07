@@ -3,8 +3,8 @@ package workflowrecipe
 import (
 	"testing"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/recipe"
+	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 )
 
 type workflowFixture struct {

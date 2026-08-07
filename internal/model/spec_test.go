@@ -1,7 +1,7 @@
 package model
 
 import (
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 
 	"math"
 

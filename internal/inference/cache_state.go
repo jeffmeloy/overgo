@@ -6,11 +6,11 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/checked"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/statecodec"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/checked"
+	"overgo/internal/model"
+	"overgo/internal/statecodec"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 const (

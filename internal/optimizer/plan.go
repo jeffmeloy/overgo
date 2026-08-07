@@ -8,7 +8,7 @@ import (
 	"hash"
 )
 
-const planIdentityDomain = "llamacpp2go.optimizer.plan.v1"
+const planIdentityDomain = "overgo.optimizer.plan.v1"
 
 // UpdateKind: derived group update policy.
 type UpdateKind uint8

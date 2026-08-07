@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/testutil"
+	"overgo/internal/gguf"
+	"overgo/internal/testutil"
 )
 
 func TestLoadLoRAValidatesProjectionAndEmbeddingPairs(t *testing.T) {

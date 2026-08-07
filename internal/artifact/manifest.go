@@ -11,8 +11,8 @@ import (
 
 const (
 	ManifestVersion   = uint16(1)
-	ManifestMediaType = "application/vnd.llamacpp2go.artifact-manifest+json"
-	ManifestSchema    = "llamacpp2go.artifact-manifest.v1"
+	ManifestMediaType = "application/vnd.overgo.artifact-manifest+json"
+	ManifestSchema    = "overgo.artifact-manifest.v1"
 	maxComponentName  = 1024
 	maxComponents     = 1 << 20
 )

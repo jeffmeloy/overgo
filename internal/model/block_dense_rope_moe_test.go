@@ -1,9 +1,9 @@
 package model
 
 import (
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 
 	"slices"
 

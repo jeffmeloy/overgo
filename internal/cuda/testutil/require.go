@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const environmentVariable = "LLAMACPP2GO_CUDA_TEST"
+const environmentVariable = "OVERGO_CUDA_TEST"
 
 func Require(t testing.TB) {
 	t.Helper()

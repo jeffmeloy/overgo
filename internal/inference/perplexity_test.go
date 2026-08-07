@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"llamacpp2go/internal/model"
+	"overgo/internal/model"
 )
 
 func TestApplyLogitSoftcap(t *testing.T) {

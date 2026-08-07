@@ -7,7 +7,7 @@ import (
 	"io"
 	"math"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 const (

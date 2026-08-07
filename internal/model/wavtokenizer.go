@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 // WavPosNetGraphWeights: PosNet graph inputs

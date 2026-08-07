@@ -12,8 +12,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/inference"
+	"overgo/internal/strictjson"
 )
 
 func selectResponsesTools(

@@ -4,7 +4,7 @@ The machine-readable inventory is `SBOM.cdx.json`.
 
 | Component | License status |
 | --- | --- |
-| llamacpp2go Go source | `NOASSERTION` — the repository owner has not declared a project license |
+| overgo Go source | `NOASSERTION` — the repository owner has not declared a project license |
 | Project-owned CUDA C++ sources and generated PTX | `NOASSERTION` |
 | Pinned llama.cpp compatibility baseline | MIT |
 | Generated IQ codebook tables extracted from pinned `ggml-common.h` | MIT |

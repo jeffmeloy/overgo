@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 type imagePromptItem struct {

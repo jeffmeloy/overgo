@@ -8,14 +8,14 @@ import (
 	"slices"
 	"sort"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 const (
 	LifecycleVersion   = uint16(1)
-	LifecycleMediaType = "application/vnd.llamacpp2go.recipe-lifecycle+json"
-	LifecycleSchema    = "llamacpp2go.recipe-lifecycle.v1"
+	LifecycleMediaType = "application/vnd.overgo.recipe-lifecycle+json"
+	LifecycleSchema    = "overgo.recipe-lifecycle.v1"
 )
 
 var lifecycleContract = artifact.DocumentContract{

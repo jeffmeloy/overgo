@@ -30,8 +30,8 @@ jobs:
         run: go run ./cmd/release -out dist -verify-reproducible
       - uses: actions/upload-artifact@v4
         with:
-          name: llamacpp2go-windows-amd64
+          name: overgo-windows-amd64
           path: |
-            dist/llamacpp2go-windows-amd64.zip
-            dist/llamacpp2go-windows-amd64.zip.sha256
+            dist/overgo-windows-amd64.zip
+            dist/overgo-windows-amd64.zip.sha256
           if-no-files-found: error

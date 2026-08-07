@@ -7,17 +7,17 @@ import (
 
 	"fmt"
 
-	"llamacpp2go/internal/model"
+	"overgo/internal/model"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor/reference"
 
 	"testing"
 
-	cudatest "llamacpp2go/internal/cuda/testutil"
+	cudatest "overgo/internal/cuda/testutil"
 )
 
 func TestExecutorSSMScanMatchesReference(t *testing.T) {

@@ -3,8 +3,8 @@ package graphruntime
 import (
 	"testing"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 func TestHostFeedsExecute(t *testing.T) {

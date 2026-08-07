@@ -9,9 +9,9 @@ import (
 )
 
 func TestDecodeVideoFileFFmpeg(t *testing.T) {
-	ffmpeg := os.Getenv("LLAMACPP2GO_FFMPEG_TEST")
+	ffmpeg := os.Getenv("OVERGO_FFMPEG_TEST")
 	if ffmpeg == "" {
-		t.Skip("set LLAMACPP2GO_FFMPEG_TEST to run FFmpeg integration tests")
+		t.Skip("set OVERGO_FFMPEG_TEST to run FFmpeg integration tests")
 	}
 	path := filepath.Join(t.TempDir(), "input.mkv")
 	command := exec.Command(

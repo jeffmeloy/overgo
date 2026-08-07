@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/cuda/driver"
 )
 
 // Library: dynamically loaded cuBLAS library

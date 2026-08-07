@@ -6,7 +6,7 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 const (

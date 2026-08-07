@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/repodb"
+	"overgo/internal/artifact"
+	"overgo/internal/repodb"
 )
 
 func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {

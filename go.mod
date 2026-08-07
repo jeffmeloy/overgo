@@ -1,4 +1,4 @@
-module llamacpp2go
+module overgo
 
 go 1.26
 

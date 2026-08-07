@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {

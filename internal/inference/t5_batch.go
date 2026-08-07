@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // PaddedTokenBatch: rectangular tokens plus unpadded lengths.

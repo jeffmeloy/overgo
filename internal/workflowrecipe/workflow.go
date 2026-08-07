@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/recipe"
+	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 )
 
 const (

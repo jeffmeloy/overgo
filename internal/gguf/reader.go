@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/binaryschema"
-	"llamacpp2go/internal/checked"
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 )
 
 // Options: bounds allocations made from file-controlled counts

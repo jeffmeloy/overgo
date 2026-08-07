@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/cuda/driver"
 )
 
 func TestParseOptionsBounds(t *testing.T) {

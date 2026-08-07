@@ -5,7 +5,7 @@ package cublas
 import (
 	"errors"
 
-	"llamacpp2go/internal/cuda/driver"
+	"overgo/internal/cuda/driver"
 )
 
 type Library struct{}

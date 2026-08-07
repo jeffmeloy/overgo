@@ -1,6 +1,6 @@
 package model
 
-import "llamacpp2go/internal/gguf"
+import "overgo/internal/gguf"
 
 // RopeDimensionDefaultPolicy: missing rotary-width relationship.
 type RopeDimensionDefaultPolicy uint8

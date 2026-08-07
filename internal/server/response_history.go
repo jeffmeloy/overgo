@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 )
 
 const (

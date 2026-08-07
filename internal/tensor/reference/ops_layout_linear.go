@@ -6,7 +6,7 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 func transpose2D(shape tensor.Shape, input Value) (Value, error) {

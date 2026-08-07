@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tokenizer"
 )
 
 const (

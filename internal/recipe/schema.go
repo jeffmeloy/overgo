@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 const (
 	LegacyVersion = uint16(1)
 	Version       = uint16(2)
-	MediaType     = "application/vnd.llamacpp2go.recipe+json"
-	LegacySchema  = "llamacpp2go.recipe.v1"
-	Schema        = "llamacpp2go.recipe.v2"
+	MediaType     = "application/vnd.overgo.recipe+json"
+	LegacySchema  = "overgo.recipe.v1"
+	Schema        = "overgo.recipe.v2"
 	maxName       = 128
 )
 

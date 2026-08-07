@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 func TestGemma4AssistantCoordinatorRejectsInvalidState(t *testing.T) {

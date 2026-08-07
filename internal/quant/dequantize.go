@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 // Dequantize: converts supported ggml storage into F32 values

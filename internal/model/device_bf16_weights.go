@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 // DeviceBF16Weights: host-converted resident decode catalog.

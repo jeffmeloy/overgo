@@ -3,8 +3,8 @@ package inference
 import (
 	"testing"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
 )
 
 func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {

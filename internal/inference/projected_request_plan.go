@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/model"
+	"overgo/internal/tensor/reference"
 )
 
 type projectedRequestPlan struct {

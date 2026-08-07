@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // Step35MTPSampledDraft: proposals plus sampler checkpoints.

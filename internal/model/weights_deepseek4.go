@@ -3,8 +3,8 @@ package model
 import (
 	"fmt"
 
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 func readDeepSeek4WeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {

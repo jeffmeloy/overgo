@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 func TestMergeWritesCanonicalCopyWithoutOverwriting(t *testing.T) {

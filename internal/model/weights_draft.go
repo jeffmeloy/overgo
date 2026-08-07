@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor/dtype"
 )
 
 func readDraftWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {

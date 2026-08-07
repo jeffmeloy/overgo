@@ -3,7 +3,7 @@
 package driver
 
 import (
-	cudatest "llamacpp2go/internal/cuda/testutil"
+	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 )
 

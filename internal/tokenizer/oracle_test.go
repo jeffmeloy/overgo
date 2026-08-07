@@ -9,15 +9,15 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 // TestUpstreamTokenizerCorpus compares against checked-in llama.cpp
-// tokenizer oracle when LLAMACPP2GO_LLAMA_CPP points at source checkout
+// tokenizer oracle when OVERGO_LLAMA_CPP points at source checkout
 func TestUpstreamTokenizerCorpus(t *testing.T) {
-	source := os.Getenv("LLAMACPP2GO_LLAMA_CPP")
+	source := os.Getenv("OVERGO_LLAMA_CPP")
 	if source == "" {
-		t.Skip("LLAMACPP2GO_LLAMA_CPP is not set")
+		t.Skip("OVERGO_LLAMA_CPP is not set")
 	}
 	for _, name := range []string{"qwen2", "qwen35", "deepseek-llm", "gpt-2", "llama-spm", "llama-bpe", "bert-bge"} {
 		t.Run(name, func(t *testing.T) {

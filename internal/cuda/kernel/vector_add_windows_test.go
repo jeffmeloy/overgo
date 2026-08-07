@@ -4,10 +4,10 @@ package kernel
 
 import (
 	"context"
-	cudatest "llamacpp2go/internal/cuda/testutil"
+	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 
-	"llamacpp2go/internal/cuda/device"
+	"overgo/internal/cuda/device"
 )
 
 func TestVectorAddIntegration(t *testing.T) {

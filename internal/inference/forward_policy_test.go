@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/model"
+	"overgo/internal/model"
 )
 
 func TestForwardUsesCompiledPolicy(t *testing.T) {

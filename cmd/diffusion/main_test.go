@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 )
 
 func TestParseCLI(t *testing.T) {

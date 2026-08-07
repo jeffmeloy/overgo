@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/hfrepo"
-	"llamacpp2go/internal/safetensors"
+	"overgo/internal/hfrepo"
+	"overgo/internal/safetensors"
 )
 
 func TestValidateDenseRepositoryUsesRuntimeCatalog(t *testing.T) {

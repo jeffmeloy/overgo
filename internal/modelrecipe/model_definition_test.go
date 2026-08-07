@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/modelartifact"
-	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/repodb"
-	"llamacpp2go/internal/testutil"
+	"overgo/internal/artifact"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/modelartifact"
+	"overgo/internal/recipe"
+	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestCodecCatalogOwnsSupportedTypePolicy(t *testing.T) {

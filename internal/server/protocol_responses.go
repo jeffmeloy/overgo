@@ -6,7 +6,7 @@ import (
 
 	"fmt"
 
-	"llamacpp2go/internal/inference"
+	"overgo/internal/inference"
 
 	"net/http"
 

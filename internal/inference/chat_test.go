@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/tokenizer"
 )
 
 func TestChatMessageDecodesTextContentParts(t *testing.T) {
@@ -296,9 +296,9 @@ func TestFormatChatSelectsNamedToolUseTemplate(t *testing.T) {
 }
 
 func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := Open(path, 0)
 	if err != nil {
@@ -321,9 +321,9 @@ func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := Open(path, 0)
 	if err != nil {
@@ -429,9 +429,9 @@ func toolWeatherDefinition() ChatTool {
 }
 
 func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_GEMMA3_MODEL")
+	path := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_GEMMA3_MODEL is not set")
+		t.Skip("OVERGO_GEMMA3_MODEL is not set")
 	}
 	runner, err := Open(path, 0)
 	if err != nil {
@@ -453,9 +453,9 @@ func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
+	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_QWEN35_MODEL is not set")
+		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := Open(path, 0)
 	if err != nil {
@@ -478,9 +478,9 @@ func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
+	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_QWEN35_MODEL is not set")
+		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := Open(path, 0)
 	if err != nil {
@@ -578,9 +578,9 @@ func hermesToolOracle(history bool) string {
 }
 
 func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_BONSAI_MODEL")
+	path := os.Getenv("OVERGO_BONSAI_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_BONSAI_MODEL is not set")
+		t.Skip("OVERGO_BONSAI_MODEL is not set")
 	}
 	runner, err := Open(path, 0)
 	if err != nil {
@@ -603,9 +603,9 @@ func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_BONSAI_MODEL")
+	path := os.Getenv("OVERGO_BONSAI_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_BONSAI_MODEL is not set")
+		t.Skip("OVERGO_BONSAI_MODEL is not set")
 	}
 	runner, err := Open(path, 0)
 	if err != nil {

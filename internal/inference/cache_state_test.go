@@ -6,13 +6,13 @@ import (
 	"reflect"
 	"testing"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/statecodec"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/statecodec"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 const fixtureCacheStateName model.CacheStateName = "fixture_state"

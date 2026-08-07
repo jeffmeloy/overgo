@@ -5,9 +5,9 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 func validSampledLimits(maximum int, minimumProbability float64) bool {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 // PublicationBatch: atomic dataset document publication.

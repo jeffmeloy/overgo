@@ -8,7 +8,7 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 func TestFloat16ToFloat32(t *testing.T) {

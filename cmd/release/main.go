@@ -52,7 +52,7 @@ var releaseDocuments = []string{
 	"kernels/manifest.json",
 }
 
-const archiveName = "llamacpp2go-windows-amd64.zip"
+const archiveName = "overgo-windows-amd64.zip"
 
 type archiveEntry struct {
 	Name string
@@ -122,7 +122,7 @@ func buildRelease(root, output string, verify bool) error {
 }
 
 func buildArchive(root string) ([]byte, error) {
-	stage, err := os.MkdirTemp("", "llamacpp2go-release-*")
+	stage, err := os.MkdirTemp("", "overgo-release-*")
 	if err != nil {
 		return nil, err
 	}

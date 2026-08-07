@@ -3,8 +3,8 @@ package model
 import (
 	"slices"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 )
 
 // TensorShapePlan: layer tensor and cache dimensions.

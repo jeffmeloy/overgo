@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {

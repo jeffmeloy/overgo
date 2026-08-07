@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 // Cohere2MTPDraft: greedy single-block proposals.

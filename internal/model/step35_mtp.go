@@ -1,6 +1,6 @@
 package model
 
-import "llamacpp2go/internal/tensor"
+import "overgo/internal/tensor"
 
 // BuildStep35MTPInput: token/target-hidden fusion.
 func BuildStep35MTPInput(

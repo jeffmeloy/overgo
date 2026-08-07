@@ -8,7 +8,7 @@ import (
 	"image/gif"
 	"io"
 
-	"llamacpp2go/internal/media"
+	"overgo/internal/media"
 )
 
 func DecodeGIFVideo(reader io.Reader, maxFrames int) ([]image.Image, error) {

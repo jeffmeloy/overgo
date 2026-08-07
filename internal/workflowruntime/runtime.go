@@ -9,10 +9,10 @@ import (
 	"slices"
 	"sync"
 
-	"llamacpp2go/internal/artifact"
-	"llamacpp2go/internal/recipe"
-	"llamacpp2go/internal/runrecord"
-	"llamacpp2go/internal/workflowrecipe"
+	"overgo/internal/artifact"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
+	"overgo/internal/workflowrecipe"
 )
 
 const executionFailureCode = "execution_failed"

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/gguf"
 )
 
 // deviceTensorStore: shared CUDA tensor ownership.

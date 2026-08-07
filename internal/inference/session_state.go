@@ -8,11 +8,11 @@ import (
 	"hash"
 	"math"
 
-	"llamacpp2go/internal/checked"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/statecodec"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/checked"
+	"overgo/internal/gguf"
+	"overgo/internal/sampling"
+	"overgo/internal/statecodec"
+	"overgo/internal/tokenizer"
 )
 
 const (

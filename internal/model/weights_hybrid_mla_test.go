@@ -3,9 +3,9 @@ package model
 import (
 	"fmt"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 
 	"strings"
 

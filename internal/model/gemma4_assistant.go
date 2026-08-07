@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 // BuildGemma4AssistantInput: target token/hidden fusion.

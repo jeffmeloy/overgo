@@ -1,6 +1,6 @@
 package model
 
-import "llamacpp2go/internal/gguf"
+import "overgo/internal/gguf"
 
 type metadataField[T any] struct {
 	key         string

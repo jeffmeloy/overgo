@@ -15,10 +15,11 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/clioptions"
+	"overgo/internal/clioptions"
 )
 
 const (
+	projectVersion = "0.1.0"
 	upstreamCommit = "42fc243060709331ff9b158a9ed2cbe37219ae83"
 	sbomPath       = "SBOM.cdx.json"
 )
@@ -124,16 +125,16 @@ func generate(root string) ([]byte, error) {
 		"specVersion":  "1.6",
 		"version":      1,
 		"components":   components,
-		"dependencies": []map[string]any{{"ref": "pkg:golang/llamacpp2go", "dependsOn": dependsOn}},
+		"dependencies": []map[string]any{{"ref": "pkg:golang/overgo", "dependsOn": dependsOn}},
 		"metadata": map[string]any{
-			"component": component("application", "llamacpp2go", "0.0.0+upstream."+upstreamCommit[:8], "NOASSERTION", "pkg:golang/llamacpp2go"),
+			"component": component("application", "overgo", projectVersion, "NOASSERTION", "pkg:golang/overgo"),
 			"properties": []map[string]string{
-				{"name": "llamacpp2go:cgo", "value": "false"},
-				{"name": "llamacpp2go:cuda-target", "value": "compute_89"},
-				{"name": "llamacpp2go:upstream-commit", "value": upstreamCommit},
+				{"name": "overgo:cgo", "value": "false"},
+				{"name": "overgo:cuda-target", "value": "compute_89"},
+				{"name": "overgo:upstream-commit", "value": upstreamCommit},
 			},
 			"tools": map[string]any{"components": []map[string]any{
-				component("application", "llamacpp2go sbom generator", "1", "NOASSERTION", ""),
+				component("application", "overgo sbom generator", "1", "NOASSERTION", ""),
 			}},
 		},
 	}

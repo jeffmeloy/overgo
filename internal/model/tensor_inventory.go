@@ -3,7 +3,7 @@ package model
 import (
 	"reflect"
 
-	"llamacpp2go/internal/gguf"
+	"overgo/internal/gguf"
 )
 
 var tensorInfoType = reflect.TypeOf(gguf.TensorInfo{})

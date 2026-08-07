@@ -6,10 +6,10 @@ import (
 	"image/color"
 	"testing"
 
-	cudatest "llamacpp2go/internal/cuda/testutil"
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/testutil"
-	"llamacpp2go/internal/tokenizer"
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/gguf"
+	"overgo/internal/testutil"
+	"overgo/internal/tokenizer"
 )
 
 type qwen2VLPromptTokenizer struct {

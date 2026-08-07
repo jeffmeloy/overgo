@@ -10,10 +10,10 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 // DiffusionAlgorithm: mask-position ranking mode.

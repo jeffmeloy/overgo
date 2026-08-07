@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 func loraMerge(shape tensor.Shape, inputs []Value, attributes tensor.LoRAMergeAttributes) (Value, error) {

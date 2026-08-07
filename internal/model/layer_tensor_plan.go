@@ -1,6 +1,6 @@
 package model
 
-import "llamacpp2go/internal/tensor"
+import "overgo/internal/tensor"
 
 type rotaryGraphKind uint8
 

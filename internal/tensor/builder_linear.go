@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"llamacpp2go/internal/tensor/dtype"
+	"overgo/internal/tensor/dtype"
 )
 
 // RepeatHeads: broadcasts single head in [width,1,tokens] tensor across

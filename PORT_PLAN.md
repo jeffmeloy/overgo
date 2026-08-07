@@ -31,7 +31,7 @@ The review used this local source tree:
 
 The target repository is:
 
-- path: `C:\Users\jeffm\OneDrive\Documents\llamacpp2go`
+- path: `C:\Users\jeffm\OneDrive\Documents\overgo`
 - state: empty Git repository with no commits
 
 The source tree is moving quickly. Every compatibility result and generated fixture must record the exact upstream commit.
@@ -198,7 +198,7 @@ These should not be checked into Git. Record hashes in a local test manifest and
 Recommended initial layout:
 
 ```text
-llamacpp2go/
+overgo/
   cmd/
     llama/
     server/

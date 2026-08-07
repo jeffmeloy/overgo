@@ -14,11 +14,11 @@ import (
 	"sort"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/safetensors"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/projector"
+	"overgo/internal/safetensors"
+	"overgo/internal/tokenizer"
 )
 
 const gemma4ProjectorImageSize = 224

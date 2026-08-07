@@ -15,7 +15,7 @@ import (
 	"slices"
 	"sort"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 const (

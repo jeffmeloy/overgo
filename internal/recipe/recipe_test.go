@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/artifact"
+	"overgo/internal/artifact"
 )
 
 const (

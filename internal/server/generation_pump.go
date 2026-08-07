@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/tokenizer"
 )
 
 // generationPump: stop filtering plus token accounting

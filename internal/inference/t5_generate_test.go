@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/model"
+	"overgo/internal/tokenizer"
 )
 
 func TestGenerateT5Admission(t *testing.T) {

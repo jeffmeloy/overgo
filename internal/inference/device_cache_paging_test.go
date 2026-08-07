@@ -3,10 +3,10 @@ package inference
 import (
 	"testing"
 
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/executor"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
+	"overgo/internal/model"
+	"overgo/internal/tensor"
 )
 
 func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {

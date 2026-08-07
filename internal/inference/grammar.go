@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 const (

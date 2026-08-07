@@ -37,9 +37,9 @@ try {
     }
 
     if ($CUDA) {
-        $previous = $env:LLAMACPP2GO_CUDA_TEST
+        $previous = $env:OVERGO_CUDA_TEST
         try {
-            $env:LLAMACPP2GO_CUDA_TEST = "1"
+            $env:OVERGO_CUDA_TEST = "1"
             go test ./internal/cuda/... ./internal/model ./internal/projector -count=1
             if ($LASTEXITCODE -ne 0) {
                 throw "CUDA integration tests failed"
@@ -53,7 +53,7 @@ try {
                 throw "cuda-smoke failed"
             }
         } finally {
-            $env:LLAMACPP2GO_CUDA_TEST = $previous
+            $env:OVERGO_CUDA_TEST = $previous
         }
     }
 } finally {

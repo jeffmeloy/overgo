@@ -10,13 +10,13 @@ import (
 	"image"
 	"strings"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/media"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/strictjson"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/reference"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/media"
+	"overgo/internal/projector"
+	"overgo/internal/strictjson"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
 
 func (h *Handler) parseNativePrompts(ctx context.Context, raw json.RawMessage) ([]nativePrompt, error) {

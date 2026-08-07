@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"sort"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/media"
+	"overgo/internal/inference"
+	"overgo/internal/media"
 )
 
 type embeddingRequest struct {

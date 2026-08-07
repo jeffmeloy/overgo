@@ -1,6 +1,6 @@
-# llamacpp2go
+# overgo
 
-`llamacpp2go` is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
+`overgo` 0.1 is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
 Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR with DeepSeek-OCR v1/v2 image projection, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM text/projected-visual decoding, CodeShell,
@@ -218,7 +218,7 @@ compressed MRoPE grids; odd frame counts repeat the final frame. Gemma 4 uses a
 70-token budget per frame, emits `mm:ss` frame blocks, and applies blockwise
 bidirectional attention only within each frame on sliding layers.
 `-video <path>` decodes animated GIF natively. Other encoded formats use
-FFmpeg from `-ffmpeg`, `LLAMACPP2GO_FFMPEG`, `PATH`, or the detected Windows
+FFmpeg from `-ffmpeg`, `OVERGO_FFMPEG`, `PATH`, or the detected Windows
 installation. FFmpeg samples at `-video-fps`; `-video-max-frames` bounds work.
 Gemma 4 audio uses `-audio <path>` with mono 16 kHz PCM16/float32 WAV or raw
 float32-LE `.f32`. Its encoder-free path pads to 640-sample rows, applies
@@ -478,7 +478,7 @@ configuration fails at startup until an external executor contract exists,
 and rejected requests identify the applicable policy category.
 Single-turn Chat and Responses `input_video` parts accept bounded base64/data-URI
 or policy-allowed remote encoded video. GIF is decoded natively; other installed
-formats use FFmpeg from `-ffmpeg`, `LLAMACPP2GO_FFMPEG`, or PATH. `-video-fps`
+formats use FFmpeg from `-ffmpeg`, `OVERGO_FFMPEG`, or PATH. `-video-fps`
 defaults to 2 and `-video-max-frames` defaults to 32. Video history and mixing a
 video with other media remain explicit exclusions.
 Responses reasoning accepts `effort` values from `none` through `max` and
@@ -563,7 +563,7 @@ generated tokens, uptime, and readiness without an external package.
 `-request-timeout <duration>` applies an end-to-end handler deadline; zero
 keeps long generations unbounded. SIGINT/SIGTERM stop admission and allow a
 30-second graceful HTTP drain before the model is closed.
-Set `LLAMACPP2GO_API_KEY` or pass `-api-key-file <path>` to require a
+Set `OVERGO_API_KEY` or pass `-api-key-file <path>` to require a
 constant-time checked bearer token on generation/embedding `/v1/*` routes,
 `/apply-template`,
 `/completion`, `/completions`, `/embedding`, `/embeddings`, `/rerank`,
@@ -581,12 +581,12 @@ peak bytes, live allocation count, custom launches, synchronization totals,
 and host/device plus device/device transfer bytes when the generator exposes a device
 memory snapshot; snapshot failures omit only those gauges.
 
-Set `LLAMACPP2GO_LLAMA_CPP` to a pinned llama.cpp checkout to enable the
+Set `OVERGO_LLAMA_CPP` to a pinned llama.cpp checkout to enable the
 tokenizer oracle corpus during `go test ./...`.
 
-Set `LLAMACPP2GO_QWEN3_MODEL` and/or `LLAMACPP2GO_QWEN3_Q6K_MODEL` to the
+Set `OVERGO_QWEN3_MODEL` and/or `OVERGO_QWEN3_Q6K_MODEL` to the
 validated local Qwen3 files to run optional cache and native-quantized
-end-to-end integration tests. Set `LLAMACPP2GO_QWEN35_MODEL` to a compatible
+end-to-end integration tests. Set `OVERGO_QWEN35_MODEL` to a compatible
 Qwen3.5 hybrid GGUF to validate gated full attention, recurrent convolution,
 fused delta-net state, serialization, and resumed generation. Qwen3.5-MoE
 catalog, graph, and CUDA differential tests use synthetic fixtures until a
@@ -607,7 +607,7 @@ positive-residual correction, and transactional draft/target sampler state.
 `SaveQwen35MTPSession`/`LoadQwen35MTPSession` preserve the target trunk cache,
 independent MTP KV, pending hidden row, and absolute positions in a bounded
 payload fingerprint-bound to both draft and target models.
-Set `LLAMACPP2GO_QWEN35_MTP_MODEL` to a bundled trunk-plus-MTP fixture to run
+Set `OVERGO_QWEN35_MTP_MODEL` to a bundled trunk-plus-MTP fixture to run
 the optional two-step native-quantized session integration test.
 Step3.5 files declaring multiple trained NextN heads expose
 `NewStep35MTPSession`/`AdvanceStep35MTP`. Each head retains its full decoder
@@ -620,12 +620,12 @@ target resynchronization; `DraftStep35MTPSampled` and
 `VerifyStep35MTPSampled` add probability-ratio acceptance and transactional
 sampler state. `SaveStep35MTPSession`/`LoadStep35MTPSession` preserve all head
 caches, active draft rows, trunk cache, positions, and model binding. Set
-`LLAMACPP2GO_STEP35_MTP_MODEL` to run the optional native-quantized multi-head
+`OVERGO_STEP35_MTP_MODEL` to run the optional native-quantized multi-head
 session and coordinator integration test.
 HY-V3 exposes the parallel `NewHYV3MTPSession`/`AdvanceHYV3MTP`, greedy and
 sampled draft/verify, and save/load APIs. It reuses the per-head growing-prefix
 coordinator while retaining HY-V3's distinct post-final-norm target and draft
-hidden states. Set `LLAMACPP2GO_HYV3_MTP_MODEL` to run its optional
+hidden states. Set `OVERGO_HYV3_MTP_MODEL` to run its optional
 native-quantized session and coordinator integration test.
 Cohere2-MoE files declaring the pinned single NextN block expose
 `NewCohere2MTPSession`/`AdvanceCohere2MTP`, with
@@ -635,7 +635,7 @@ optional shared-expert averaging, LayerNorm-or-RMSNorm selection, post-norm
 hidden state, and direct logit scaling. Greedy and sampled draft/verify plus
 `SaveCohere2MTPSession`/`LoadCohere2MTPSession` provide the same transactional,
 target-bound coordination guarantees as the Qwen3.5 single-block path. Set
-`LLAMACPP2GO_COHERE2_MTP_MODEL` to run the optional native-quantized session,
+`OVERGO_COHERE2_MTP_MODEL` to run the optional native-quantized session,
 state, and coordinator integration test.
 GLM4/GLM4-MoE, EXAONE 4/EXAONE-MoE, BailingMoE2, and MiMo2 load their declared
 single NextN tail as an executable full decoder block with stateful greedy
@@ -738,9 +738,9 @@ synthetic-fixture and CUDA-differential validated.
 PLaMo2 mixed fused-QKV attention/Mamba layers, learned B/C/dt normalization,
 post-normalized mixer and fused SwiGLU branches, and hybrid recurrent/KV cache
 are synthetic-fixture and CUDA-differential validated.
-Set `LLAMACPP2GO_BONSAI_MODEL` to the local Bonsai 27B Q1_0 Qwen3.5 fixture
+Set `OVERGO_BONSAI_MODEL` to the local Bonsai 27B Q1_0 Qwen3.5 fixture
 to validate real-model native one-bit weights against the pinned CPU oracle.
-Set `LLAMACPP2GO_GEMMA3_MODEL` and `LLAMACPP2GO_UMT5_MODEL` to run the
+Set `OVERGO_GEMMA3_MODEL` and `OVERGO_UMT5_MODEL` to run the
 optional real-model Gemma greedy-ID/perplexity and UMT5
 tokenizer/catalog/encoder checks. The UMT5 differential oracle is llama-embedding with
 `--attention non-causal`; its default attention selection for the validated

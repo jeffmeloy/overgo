@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/inference"
+	"overgo/internal/sampling"
+	"overgo/internal/strictjson"
 )
 
 func validateNativeCompletionOptions(body nativeCompletionRequest) error {

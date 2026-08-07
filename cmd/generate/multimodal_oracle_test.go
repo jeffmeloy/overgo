@@ -10,19 +10,19 @@ import (
 	"slices"
 	"testing"
 
-	"llamacpp2go/internal/inference"
-	"llamacpp2go/internal/media"
-	"llamacpp2go/internal/projector"
-	"llamacpp2go/internal/sampling"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/inference"
+	"overgo/internal/media"
+	"overgo/internal/projector"
+	"overgo/internal/sampling"
+	"overgo/internal/tokenizer"
 )
 
 func TestQwen35VideoEndToEndOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_QWEN35_MODEL")
-	projectorPath := os.Getenv("LLAMACPP2GO_QWEN35_MMPROJ")
-	goldenPath := os.Getenv("LLAMACPP2GO_QWEN35_VIDEO_GOLDEN")
+	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
+	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
+	goldenPath := os.Getenv("OVERGO_QWEN35_VIDEO_GOLDEN")
 	if modelPath == "" || projectorPath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_QWEN35_MODEL, LLAMACPP2GO_QWEN35_MMPROJ, and LLAMACPP2GO_QWEN35_VIDEO_GOLDEN")
+		t.Skip("set OVERGO_QWEN35_MODEL, OVERGO_QWEN35_MMPROJ, and OVERGO_QWEN35_VIDEO_GOLDEN")
 	}
 	var golden struct {
 		InputIDs          []tokenizer.TokenID `json:"input_ids"`
@@ -89,12 +89,12 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 }
 
 func TestGemma4ImageEndToEndOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_GEMMA4_MODEL")
-	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
-	imagePath := os.Getenv("LLAMACPP2GO_GEMMA4_IMAGE")
-	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_GOLDEN")
+	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
+	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
+	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
+	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
 	if modelPath == "" || projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA4_MODEL, LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_IMAGE, and LLAMACPP2GO_GEMMA4_GOLDEN")
+		t.Skip("set OVERGO_GEMMA4_MODEL, OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_IMAGE, and OVERGO_GEMMA4_GOLDEN")
 	}
 	var golden struct {
 		InputIDs          []tokenizer.TokenID `json:"input_ids"`
@@ -155,12 +155,12 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 }
 
 func TestGemma4AudioEndToEndOracle(t *testing.T) {
-	modelPath := os.Getenv("LLAMACPP2GO_GEMMA4_MODEL")
-	projectorPath := os.Getenv("LLAMACPP2GO_GEMMA4_MMPROJ")
-	wavePath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_WAVE")
-	goldenPath := os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
+	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
+	wavePath := os.Getenv("OVERGO_GEMMA4_AUDIO_WAVE")
+	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
 	if modelPath == "" || projectorPath == "" || wavePath == "" || goldenPath == "" {
-		t.Skip("set LLAMACPP2GO_GEMMA4_MODEL, LLAMACPP2GO_GEMMA4_MMPROJ, LLAMACPP2GO_GEMMA4_AUDIO_WAVE, and LLAMACPP2GO_GEMMA4_AUDIO_GOLDEN")
+		t.Skip("set OVERGO_GEMMA4_MODEL, OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_AUDIO_WAVE, and OVERGO_GEMMA4_AUDIO_GOLDEN")
 	}
 	var golden struct {
 		InputIDs          []tokenizer.TokenID `json:"input_ids"`
@@ -221,7 +221,7 @@ func TestGemma4AudioEndToEndOracle(t *testing.T) {
 		t.Fatalf("generated IDs = %v; golden is incomplete", generated)
 	}
 	got := generated[len(ids)]
-	if os.Getenv("LLAMACPP2GO_GEMMA4_AUDIO_EXACT") != "" {
+	if os.Getenv("OVERGO_GEMMA4_AUDIO_EXACT") != "" {
 		if got != golden.GeneratedTokenIDs[0] {
 			t.Fatalf("first generated token = %d, want %d", got, golden.GeneratedTokenIDs[0])
 		}

@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/hfrepo"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/safetensors"
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/gguf"
+	"overgo/internal/hfrepo"
+	"overgo/internal/model"
+	"overgo/internal/safetensors"
+	"overgo/internal/strictjson"
 )
 
 var denseLayerNames = map[string]string{

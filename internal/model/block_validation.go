@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/tensor"
+	"overgo/internal/tensor"
 )
 
 type graphWeight struct {

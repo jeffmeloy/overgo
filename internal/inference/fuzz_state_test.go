@@ -3,7 +3,7 @@ package inference
 import (
 	"testing"
 
-	"llamacpp2go/internal/sampling"
+	"overgo/internal/sampling"
 )
 
 func FuzzCacheStateNeverPanics(f *testing.F) {

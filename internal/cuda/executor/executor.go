@@ -10,15 +10,15 @@ import (
 	"sync"
 	"unsafe"
 
-	"llamacpp2go/internal/checked"
-	"llamacpp2go/internal/cuda/cublas"
-	"llamacpp2go/internal/cuda/device"
-	"llamacpp2go/internal/cuda/driver"
-	"llamacpp2go/internal/cuda/kernel"
-	"llamacpp2go/internal/tensor"
-	"llamacpp2go/internal/tensor/dtype"
-	"llamacpp2go/internal/tensor/planner"
-	"llamacpp2go/internal/tensor/reference"
+	"overgo/internal/checked"
+	"overgo/internal/cuda/cublas"
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/planner"
+	"overgo/internal/tensor/reference"
 )
 
 // Executor: evaluates initial F32 tensor graph on one CUDA worker

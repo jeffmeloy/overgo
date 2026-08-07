@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"llamacpp2go/internal/strictjson"
+	"overgo/internal/strictjson"
 )
 
 const anthropicThinkingSignaturePrefix = "local_v1."

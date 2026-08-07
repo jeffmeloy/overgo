@@ -4,9 +4,9 @@ import (
 	"os"
 	"testing"
 
-	"llamacpp2go/internal/gguf"
-	"llamacpp2go/internal/model"
-	"llamacpp2go/internal/tokenizer"
+	"overgo/internal/gguf"
+	"overgo/internal/model"
+	"overgo/internal/tokenizer"
 )
 
 func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
@@ -71,9 +71,9 @@ func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
 }
 
 func TestModelPropertiesFromRealGGUF(t *testing.T) {
-	path := os.Getenv("LLAMACPP2GO_QWEN3_MODEL")
+	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
-		t.Skip("LLAMACPP2GO_QWEN3_MODEL is not set")
+		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

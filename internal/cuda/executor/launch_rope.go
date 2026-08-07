@@ -14,13 +14,14 @@ func launchRoPE(
 	functions functionSet,
 	blas *blasState,
 	node *tensor.Tensor,
+	runtimeAttributes tensor.Attributes,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
 	output := pointers[node]
 	switch node.Op {
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
-		attributes, ok := node.Attrs.(tensor.RoPEAttributes)
+		attributes, ok := runtimeAttributes.(tensor.RoPEAttributes)
 		if !ok {
 			return errors.New("invalid RoPE attributes")
 		}
@@ -68,7 +69,7 @@ func launchRoPE(
 			&betaFast, &betaSlow, &count,
 		)
 	case tensor.OpRoPEMulti:
-		attributes, ok := node.Attrs.(tensor.RoPEMultiAttributes)
+		attributes, ok := runtimeAttributes.(tensor.RoPEMultiAttributes)
 		if !ok {
 			return errors.New("invalid rope_multi attributes")
 		}

@@ -14,6 +14,7 @@ func launchNode(
 	blas *blasState,
 	q8Input *q8InputState,
 	node *tensor.Tensor,
+	attributes tensor.Attributes,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
@@ -42,11 +43,15 @@ func launchNode(
 	case tensor.OpRepeatHeads, tensor.OpTranspose2D, tensor.OpGroupSlice, tensor.OpFlatSlice,
 		tensor.OpRMSNorm, tensor.OpLayerNorm, tensor.OpSoftmax, tensor.OpMulMat,
 		tensor.OpGroupedMulMat, tensor.OpGetRows:
-		return launchLinearLayout(state, functions, blas, q8Input, node, pointers, attributePointers)
+		return launchLinearLayout(
+			state, functions, blas, q8Input, node, attributes, pointers, attributePointers,
+		)
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal, tensor.OpRoPEMulti:
-		return launchRoPE(state, functions, blas, node, pointers, attributePointers)
-	case tensor.OpReshape, tensor.OpAttention, tensor.OpConcat:
-		return launchAttentionLayout(state, functions, blas, node, pointers, attributePointers)
+		return launchRoPE(state, functions, blas, node, attributes, pointers, attributePointers)
+	case tensor.OpReshape, tensor.OpAttention, tensor.OpConcat, tensor.OpCacheAppend:
+		return launchAttentionLayout(
+			state, functions, blas, node, attributes, pointers, attributePointers,
+		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

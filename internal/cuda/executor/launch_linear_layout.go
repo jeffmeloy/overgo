@@ -19,13 +19,14 @@ func launchLinearLayout(
 	blas *blasState,
 	q8Input *q8InputState,
 	node *tensor.Tensor,
+	runtimeAttributes tensor.Attributes,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
 	output := pointers[node]
 	switch node.Op {
 	case tensor.OpRepeatHeads:
-		attributes, ok := node.Attrs.(tensor.RepeatHeadsAttributes)
+		attributes, ok := runtimeAttributes.(tensor.RepeatHeadsAttributes)
 		if !ok || attributes.Heads == 0 || len(node.Inputs) != 1 {
 			return errors.New("invalid RepeatHeads attributes")
 		}
@@ -63,7 +64,7 @@ func launchLinearLayout(
 		input := pointers[node.Inputs[0]]
 		return launch1DABI(state, functions[kernelTranspose2dF32], count, &input, &output, &width, &rows, &count)
 	case tensor.OpGroupSlice:
-		attributes, ok := node.Attrs.(tensor.GroupSliceAttributes)
+		attributes, ok := runtimeAttributes.(tensor.GroupSliceAttributes)
 		if !ok {
 			return errors.New("invalid GroupSlice attributes")
 		}
@@ -97,7 +98,7 @@ func launchLinearLayout(
 			&input, &output, &inputWidth, &offset, &width, &groups, &stride, &count,
 		)
 	case tensor.OpFlatSlice:
-		attributes, ok := node.Attrs.(tensor.FlatSliceAttributes)
+		attributes, ok := runtimeAttributes.(tensor.FlatSliceAttributes)
 		if !ok {
 			return errors.New("invalid FlatSlice attributes")
 		}
@@ -112,7 +113,7 @@ func launchLinearLayout(
 		input := pointers[node.Inputs[0]]
 		return launch1DABI(state, functions[kernelFlatSliceF32], count, &input, &output, &offset, &count)
 	case tensor.OpRMSNorm:
-		attributes, ok := node.Attrs.(tensor.RMSNormAttributes)
+		attributes, ok := runtimeAttributes.(tensor.RMSNormAttributes)
 		if !ok {
 			return errors.New("invalid RMSNorm attributes")
 		}
@@ -124,7 +125,7 @@ func launchLinearLayout(
 		epsilon := attributes.Epsilon
 		return launchNormalizationABI(state, functions[kernelRmsNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
-		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
+		attributes, ok := runtimeAttributes.(tensor.LayerNormAttributes)
 		if !ok {
 			return errors.New("invalid LayerNorm attributes")
 		}
@@ -321,7 +322,7 @@ func launchLinearLayout(
 		runtime.KeepAlive(output)
 		return nil
 	case tensor.OpGetRows:
-		attributes, ok := node.Attrs.(tensor.GetRowsAttributes)
+		attributes, ok := runtimeAttributes.(tensor.GetRowsAttributes)
 		if !ok {
 			return errors.New("invalid get_rows attributes")
 		}

@@ -137,6 +137,7 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpSAMAttention, "sam_attention", OperationAttention, allExecutionBackends},
 	{OpTopKPairs, "top_k_pairs", OperationLinear, allExecutionBackends},
 	{OpTopKPartials, "top_k_partials", OperationLinear, allExecutionBackends},
+	{OpCacheAppend, "cache_append", OperationLayout, allExecutionBackends},
 }
 
 // DescribeOperation: typed operation lookup.
@@ -215,6 +216,39 @@ func CompileOutputTargetContract(node *Tensor) (OutputTargetContract, error) {
 		alignment = 1
 	}
 	contract := OutputTargetContract{Bytes: bytes, Alignment: alignment}
+	if node.Op == OpCacheAppend {
+		if len(node.Inputs) != 2 {
+			return OutputTargetContract{}, errors.New("cache append input contract is invalid")
+		}
+		attributes, ok := node.Attrs.(CacheAppendAttributes)
+		if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
+			return OutputTargetContract{}, errors.New("cache append attributes are invalid")
+		}
+		inputBytes, sizeErr := node.Inputs[0].Shape.Bytes(node.Inputs[0].Type)
+		writeBytes, writeErr := node.Inputs[1].Shape.Bytes(node.Inputs[1].Type)
+		inner := uint64(1)
+		for axis := uint32(0); axis < attributes.Axis; axis++ {
+			if inner > math.MaxUint64/node.Shape.Dims[axis] {
+				return OutputTargetContract{}, errors.New("cache append offset overflows")
+			}
+			inner *= node.Shape.Dims[axis]
+		}
+		if inner != 0 && uint64(attributes.Offset) > math.MaxUint64/inner {
+			return OutputTargetContract{}, errors.New("cache append offset overflows")
+		}
+		writeOffsetElements := uint64(attributes.Offset) * inner
+		view := StorageView{ElementOffset: writeOffsetElements}
+		writeOffset, offsetErr := view.ByteOffset(node.Type)
+		if sizeErr != nil || writeErr != nil || offsetErr != nil || inputBytes > bytes ||
+			writeOffset > bytes || writeBytes > bytes-writeOffset {
+			return OutputTargetContract{}, errors.New("cache append output target extent is invalid")
+		}
+		contract.Alias = &OutputAliasContract{
+			Input: 0, InitializedBytes: inputBytes,
+			WriteOffsetBytes: writeOffset, WriteBytes: writeBytes,
+		}
+		return contract, nil
+	}
 	if node.Op != OpConcat || len(node.Inputs) != 2 {
 		return contract, nil
 	}

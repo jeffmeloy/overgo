@@ -67,6 +67,35 @@ func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
 	}
 }
 
+func TestCompiledRuntimeAttributesUseNodeIndexes(t *testing.T) {
+	builder := tensor.NewBuilder()
+	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: 2, CapacityTokens: 4})
+	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1, 4))
+	appendValue := builder.Input("append", dtype.F32, tensor.MustShape(2, 1, 1))
+	output := builder.AppendCache(input, appendValue, 2)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attributes := compiled.NewRuntimeAttributes()
+	if err = attributes.Set(output, tensor.CacheAppendAttributes{Axis: 2, Offset: 3}); err != nil {
+		t.Fatal(err)
+	}
+	if attributes.values[compiled.orderIndexes[output]].(tensor.CacheAppendAttributes).Offset != 3 {
+		t.Fatalf("runtime attributes = %+v", attributes.values)
+	}
+	if err = attributes.Set(output, tensor.RMSNormAttributes{Epsilon: 1e-5}); err == nil {
+		t.Fatal("mismatched runtime attributes accepted")
+	}
+	if err = attributes.Set(output, tensor.CacheAppendAttributes{Axis: 2, Offset: 4}); err == nil {
+		t.Fatal("out-of-capacity runtime append accepted")
+	}
+	other := tensor.NewBuilder().Input("other", dtype.F32, tensor.MustShape(4))
+	if err = attributes.Set(other, tensor.GetRowsAttributes{Rows: []uint32{1}}); err == nil {
+		t.Fatal("foreign runtime node accepted")
+	}
+}
+
 func TestGeneratedKernelArgumentCountValidation(t *testing.T) {
 	kernel := boundKernel{
 		id:            kernelAddF32,

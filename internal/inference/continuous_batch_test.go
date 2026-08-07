@@ -176,9 +176,10 @@ func TestCloneDeviceCacheSharesOwnerAndCopiesMetadata(t *testing.T) {
 	shape := tensor.MustShape(2, 1, 3)
 	owner := newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)
 	source := &deviceKVCache{
-		owner:  owner,
-		Keys:   []executor.DeviceValue{{Shape: shape}},
-		Values: []executor.DeviceValue{{Shape: shape}},
+		owner:   owner,
+		session: &deviceDecodeSession{capacity: 4},
+		Keys:    []executor.DeviceValue{{Shape: shape}},
+		Values:  []executor.DeviceValue{{Shape: shape}},
 		States: []deviceLayerStates{{
 			"fixed": {Mode: CacheStateFixed, Value: executor.DeviceValue{Shape: tensor.MustShape(2)}},
 		}},
@@ -188,7 +189,8 @@ func TestCloneDeviceCacheSharesOwnerAndCopiesMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner.refs != 2 || fork.owner != owner || fork.Tokens != 3 || fork.Position != 7 {
+	if owner.refs != 2 || fork.owner != owner || fork.session != nil ||
+		fork.Tokens != 3 || fork.Position != 7 {
 		t.Fatalf("fork = %+v, owner refs = %d", fork, owner.refs)
 	}
 	fork.Keys[0].Shape = tensor.MustShape(1)

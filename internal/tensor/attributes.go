@@ -34,6 +34,7 @@ func (RepeatHeadsAttributes) tensorAttributes()          {}
 func (ConcatAttributes) tensorAttributes()               {}
 func (GroupSliceAttributes) tensorAttributes()           {}
 func (FlatSliceAttributes) tensorAttributes()            {}
+func (CacheAppendAttributes) tensorAttributes()          {}
 func (TopKAttributes) tensorAttributes()                 {}
 func (SparseAttentionAttributes) tensorAttributes()      {}
 func (IndexerScoreAttributes) tensorAttributes()         {}
@@ -73,6 +74,7 @@ const (
 	attributeIndexerScore
 	attributeEmbeddedInput
 	attributeLoRAMerge
+	attributeCacheAppend
 )
 
 var operationAttributeKinds = [...]attributeKind{
@@ -111,6 +113,7 @@ var operationAttributeKinds = [...]attributeKind{
 	OpSparseAttention:      attributeSparseAttention,
 	OpIndexerScore:         attributeIndexerScore,
 	OpLoRAMerge:            attributeLoRAMerge,
+	OpCacheAppend:          attributeCacheAppend,
 }
 
 func validateOperationAttributes(op Op, attributes Attributes) error {
@@ -135,6 +138,11 @@ func validateOperationAttributes(op Op, attributes Attributes) error {
 		return fmt.Errorf("%s attributes are invalid", op)
 	}
 	return nil
+}
+
+// ValidateOperationAttributes checks one operation/descriptor pair.
+func ValidateOperationAttributes(op Op, attributes Attributes) error {
+	return validateOperationAttributes(op, attributes)
 }
 
 func attributeKindOf(attributes Attributes) attributeKind {
@@ -199,6 +207,8 @@ func attributeKindOf(attributes Attributes) attributeKind {
 		return attributeEmbeddedInput
 	case LoRAMergeAttributes:
 		return attributeLoRAMerge
+	case CacheAppendAttributes:
+		return attributeCacheAppend
 	default:
 		return attributeNone
 	}

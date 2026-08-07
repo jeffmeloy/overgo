@@ -389,6 +389,7 @@ func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
 		return nil, errors.New("inference: retained device cache storage is unavailable")
 	}
 	result := *source
+	result.session = nil
 	result.Keys = slices.Clone(source.Keys)
 	result.Values = slices.Clone(source.Values)
 	result.Logits = slices.Clone(source.Logits)

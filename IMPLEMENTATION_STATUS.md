@@ -32,6 +32,14 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Qwen 3.5 singleton greedy decode now retains one compiled CUDA graph, indexed
+  cache-target plan, stable weight feeds, and cache-input bindings per page
+  capacity class. Runtime attributes update token positions, logical KV length,
+  query/cache offsets, and learned-position rows without rebuilding topology.
+  Fixed-capacity cache append writes in place; page transitions, forks, cache
+  edits, LoRA policy changes, and incompatible output modes rebuild or
+  invalidate explicitly. Unit, full-repository, vet, and real Qwen3.5-9B Q8
+  replay validation pass.
 - Persistent CUDA execution now has a hermetic generated-model fixture,
   cancellation fault coverage, exact F32 position bounds, atomic retryable
   cleanup, page-capacity append targets, fork copy-on-write, retained-buffer
@@ -266,8 +274,8 @@ only when all callers migrate and the superseded authority is deleted.
 
 | Item | Current evidence | Completion boundary |
 | --- | --- | --- |
-| Indexed cache-target plan | Compiled graphs own output ordinals, alias contracts, indexed target slots, and indexed retained values; model plans own layer-cache schema templates; a typed target plan compiles page-capacity shapes and slots before allocation | Retain the target plan with a reusable session graph instead of reconstructing both per decode |
-| Parameterized decode graph | CUDA retains and updates one graph executable; logical token lengths still cause request graph reconstruction and capture/update work | Runtime token count, position, cache length, and output mode are bounded graph parameters; decode replays a stable graph within a capacity class; page-boundary rebuilds are measured and explicit |
+| Indexed cache-target plan | Compiled graphs own output ordinals, alias contracts, indexed target slots, and indexed retained values; Qwen singleton decode sessions retain the compiled page-capacity target plan across tokens | Extend retained plans to compatible packed cohorts without weakening fork isolation or copy-on-write ownership |
+| Parameterized decode graph | Qwen singleton greedy decode replays a stable graph within each page class; indexed runtime attributes own positions, logical KV length, query/cache offsets, and learned-position rows; page transitions and policy changes rebuild explicitly | Generalize the bounded session key to compatible packed cohorts and additional reduced-output modes; preserve the existing fallback for variable topology |
 | Generated CUDA bindings | Complete: manifest generates kernel IDs, argument counts, function table, module lookup, launch validation data, ABI identity, asset hashes, and drift tests | Keep `kernels/manifest.json` authoritative; regenerate after every kernel ABI change |
 | Typed fusion rewrite catalog | Ordered rewrite catalog now owns residual/RMS/gate/Q8 and selection matching plus liveness dependencies; `Compile` contains no fusion-specific branches | Add explicit capability and alias descriptors plus catalog-wide CPU/CUDA equivalence fixtures |
 | Typed tensor attributes | Graph nodes now store a closed attribute interface; builders and graph validation enforce an exact operation-to-attribute catalog before any backend runs; backends still unwrap the validated variants | Make tensor construction private or generate an exhaustive tagged union so operation/attribute mismatches are structurally unrepresentable rather than validation-rejected |

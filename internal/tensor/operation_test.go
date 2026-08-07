@@ -8,7 +8,7 @@ import (
 
 func TestOperationCatalogIsDenseAndUnique(t *testing.T) {
 	descriptors := Operations()
-	if len(descriptors) != int(OpTopKPartials)+1 {
+	if len(descriptors) != int(OpCacheAppend)+1 {
 		t.Fatalf("descriptor count = %d", len(descriptors))
 	}
 	names := make(map[string]struct{}, len(descriptors))
@@ -96,6 +96,24 @@ func TestOutputTargetAliasContract(t *testing.T) {
 		contract.Alias.Input != 0 || contract.Alias.InitializedBytes != 3*4 ||
 		contract.Alias.WriteOffsetBytes != 3*4 || contract.Alias.WriteBytes != 2*4 {
 		t.Fatalf("concat target contract = %+v", contract)
+	}
+	capacityBuilder := NewBuilder()
+	capacityBuilder.SetCacheAppendPlan(CacheAppendPlan{
+		ActiveTokens: 2, SourceCapacityTokens: 2, CapacityTokens: 4,
+	})
+	cache := capacityBuilder.AppendCache(
+		capacityBuilder.Input("cache", dtype.F32, MustShape(2, 1, 2)),
+		capacityBuilder.Input("append", dtype.F32, MustShape(2, 1, 1)),
+		2,
+	)
+	contract, err = CompileOutputTargetContract(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contract.Bytes != 8*4 || contract.Alias == nil ||
+		contract.Alias.InitializedBytes != 4*4 || contract.Alias.WriteOffsetBytes != 4*4 ||
+		contract.Alias.WriteBytes != 2*4 {
+		t.Fatalf("cache append target contract = %+v", contract)
 	}
 	scaled := builder.Scale(left, 2)
 	contract, err = CompileOutputTargetContract(scaled)

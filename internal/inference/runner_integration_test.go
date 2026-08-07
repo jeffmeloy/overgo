@@ -794,6 +794,33 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if err != nil || len(selected) != 2 || selected[0].Token != selected[1].Token {
 		t.Fatalf("device feedback selections = %+v, error %v", selected, err)
 	}
+	sessionBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
+		MaxSequences: 1, Device: true, PageTokens: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sessionBatch.Close(context.Background())
+	sessionOutput, err := sessionBatch.StepGreedy(context.Background(), []SequenceBatchInput{{
+		ID: 50, Tokens: ids,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 6 {
+		sessionOutput, err = sessionBatch.StepGreedy(context.Background(), []SequenceBatchInput{{
+			ID: 50, Tokens: []tokenizer.TokenID{sessionOutput[0].Token},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	sessionBatch.mu.Lock()
+	session := sessionBatch.sequences[50].device.session
+	sessionBatch.mu.Unlock()
+	if session == nil || session.rebuilds < 2 || session.replays < 1 || session.capacity < 8 {
+		t.Fatalf("parameterized decode session = %+v", session)
+	}
 	outputs, err = batch.Step(context.Background(), []SequenceBatchInput{
 		{ID: 10, Tokens: []tokenizer.TokenID{next}},
 		{ID: 20, Tokens: []tokenizer.TokenID{alternate}},

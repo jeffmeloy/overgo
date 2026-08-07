@@ -1,10 +1,58 @@
 package reference
 
 import (
+	"math"
 	"testing"
 
 	"overgo/internal/tensor"
 )
+
+func TestCacheAppendPreservesCapacityAndWritesLogicalOffset(t *testing.T) {
+	shape := tensor.MustShape(2, 1, 4)
+	result, err := cacheAppend(
+		shape,
+		Value{Shape: tensor.MustShape(2, 1, 2), Data: []float32{1, 2, 3, 4}},
+		Value{Shape: tensor.MustShape(2, 1, 1), Data: []float32{5, 6}},
+		tensor.CacheAppendAttributes{Axis: 2, Offset: 2},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{1, 2, 3, 4, 5, 6, 0, 0}
+	for index := range want {
+		if result.Data[index] != want[index] {
+			t.Fatalf("cache append = %v, want %v", result.Data, want)
+		}
+	}
+}
+
+func TestAttentionUsesLogicalTokensWithinCapacity(t *testing.T) {
+	query := Value{Shape: tensor.MustShape(1, 1, 1), Data: []float32{1}}
+	compactKey := Value{Shape: tensor.MustShape(1, 1, 2), Data: []float32{1, 2}}
+	compactValue := Value{Shape: tensor.MustShape(1, 1, 2), Data: []float32{10, 20}}
+	capacityKey := Value{Shape: tensor.MustShape(1, 1, 4), Data: []float32{1, 2, 100, 100}}
+	capacityValue := Value{Shape: tensor.MustShape(1, 1, 4), Data: []float32{10, 20, -100, -100}}
+	shape := tensor.MustShape(1, 1, 1)
+	compact, err := attention(
+		shape, query, compactKey, compactValue, nil, nil, nil,
+		tensor.AttentionAttributes{Scale: 1, Causal: true, QueryStart: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capacity, err := attention(
+		shape, query, capacityKey, capacityValue, nil, nil, nil,
+		tensor.AttentionAttributes{
+			Scale: 1, Causal: true, QueryStart: 1, KeyValueTokens: 2,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if delta := math.Abs(float64(compact.Data[0] - capacity.Data[0])); delta > 1e-6 {
+		t.Fatalf("logical/capacity attention = %v/%v", compact.Data, capacity.Data)
+	}
+}
 
 func TestSelectTopKPairs(t *testing.T) {
 	output := make([]float32, 4)

@@ -310,13 +310,18 @@ func attention(
 	queryHeads := int(query.Shape.Dims[1])
 	keyValueHeads := int(key.Shape.Dims[1])
 	queryTokens := int(query.Shape.Dims[2])
-	keyValueTokens := int(key.Shape.Dims[2])
+	keyCapacityTokens := int(key.Shape.Dims[2])
+	keyValueTokens := keyCapacityTokens
+	if attributes.KeyValueTokens != 0 {
+		keyValueTokens = int(attributes.KeyValueTokens)
+	}
 	sequences := 1
 	if query.Shape.Rank == 4 {
 		sequences = int(query.Shape.Dims[3])
 	}
 	if keyWidth <= 0 || valueWidth <= 0 || queryHeads <= 0 ||
-		keyValueHeads <= 0 || queryTokens <= 0 || keyValueTokens <= 0 {
+		keyValueHeads <= 0 || queryTokens <= 0 || keyValueTokens <= 0 ||
+		keyValueTokens > keyCapacityTokens {
 		return Value{}, errors.New("invalid attention dimensions")
 	}
 	if queryHeads%keyValueHeads != 0 {
@@ -325,7 +330,7 @@ func attention(
 	if attributes.Causal && uint64(attributes.QueryStart)+uint64(queryTokens) > uint64(keyValueTokens) {
 		return Value{}, errors.New("attention query range exceeds KV tokens")
 	}
-	if blockIDs != nil && len(blockIDs.Data) != keyValueTokens {
+	if blockIDs != nil && len(blockIDs.Data) < keyValueTokens {
 		return Value{}, errors.New("attention block ID count differs from KV tokens")
 	}
 	output := make([]float32, valueWidth*queryHeads*queryTokens*sequences)
@@ -379,7 +384,7 @@ func attention(
 					if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
 						continue
 					}
-					keyOffset := ((sequence*keyValueTokens+keyToken)*keyValueHeads + keyValueHead) * keyWidth
+					keyOffset := ((sequence*keyCapacityTokens+keyToken)*keyValueHeads + keyValueHead) * keyWidth
 					var dot float64
 					for channel := 0; channel < keyWidth; channel++ {
 						dot += float64(query.Data[queryOffset+channel]) * float64(key.Data[keyOffset+channel])
@@ -426,7 +431,7 @@ func attention(
 						if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
 							continue
 						}
-						valueOffset := ((sequence*keyValueTokens+keyToken)*keyValueHeads + keyValueHead) * valueWidth
+						valueOffset := ((sequence*keyCapacityTokens+keyToken)*keyValueHeads + keyValueHead) * valueWidth
 						weighted += scores[keyToken] * float64(value.Data[valueOffset+channel])
 					}
 					output[outputOffset+channel] = float32(weighted / sum)
@@ -505,5 +510,45 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 			right.Data[rightBase:rightBase+rightAxis*inner],
 		)
 	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
+func cacheAppend(
+	shape tensor.Shape,
+	left, right Value,
+	attributes tensor.CacheAppendAttributes,
+) (Value, error) {
+	if attributes.Axis+1 != uint32(shape.Rank) || left.Shape.Rank != shape.Rank {
+		return Value{}, errors.New("invalid cache append shape")
+	}
+	outputElements, err := shape.Elements()
+	if err != nil || outputElements > uint64(math.MaxInt) {
+		return Value{}, errors.New("invalid cache append storage")
+	}
+	leftElements, err := left.Shape.Elements()
+	if err != nil || leftElements > outputElements || leftElements > uint64(len(left.Data)) {
+		return Value{}, errors.New("invalid cache append source storage")
+	}
+	rightElements, err := right.Shape.Elements()
+	if err != nil || rightElements > uint64(len(right.Data)) {
+		return Value{}, errors.New("invalid cache append value storage")
+	}
+	inner := uint64(1)
+	for dimension := uint32(0); dimension < attributes.Axis; dimension++ {
+		if shape.Dims[dimension] != 0 && inner > math.MaxUint64/shape.Dims[dimension] {
+			return Value{}, errors.New("cache append offset overflows")
+		}
+		inner *= shape.Dims[dimension]
+	}
+	if inner != 0 && uint64(attributes.Offset) > math.MaxUint64/inner {
+		return Value{}, errors.New("cache append offset overflows")
+	}
+	offset := uint64(attributes.Offset) * inner
+	if offset > outputElements || rightElements > outputElements-offset {
+		return Value{}, errors.New("cache append range exceeds capacity")
+	}
+	output := make([]float32, int(outputElements))
+	copy(output, left.Data[:leftElements])
+	copy(output[offset:offset+rightElements], right.Data[:rightElements])
 	return Value{Shape: shape, Data: output}, nil
 }

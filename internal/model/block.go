@@ -471,9 +471,9 @@ func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult,
 		if pastKey.Shape.Dims[2] > math.MaxUint32 {
 			return DenseBlockResult{}, errors.New("dense block KV cache token count exceeds uint32")
 		}
-		queryStart = uint32(pastKey.Shape.Dims[2])
-		cacheKey = builder.Concat(pastKey, key, 2)
-		cacheValue = builder.Concat(pastValue, value, 2)
+		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
+		cacheKey = builder.AppendCache(pastKey, key, 2)
+		cacheValue = builder.AppendCache(pastValue, value, 2)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	if spec.AttentionScale > 0 {
@@ -1283,9 +1283,9 @@ func buildQwen35AttentionBlock(
 		if pastKey.Shape.Dims[2] > math.MaxUint32 {
 			return DenseBlockResult{}, errors.New("Qwen3.5 attention cache exceeds uint32")
 		}
-		queryStart = uint32(pastKey.Shape.Dims[2])
-		cacheKey = builder.Concat(pastKey, key, 2)
-		cacheValue = builder.Concat(pastValue, value, 2)
+		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
+		cacheKey = builder.AppendCache(pastKey, key, 2)
+		cacheValue = builder.AppendCache(pastValue, value, 2)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	if spec.AttentionScale > 0 {

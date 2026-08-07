@@ -26,6 +26,33 @@ func TestBuilderAndTopological(t *testing.T) {
 	}
 }
 
+func TestBuilderCacheAppendUsesFixedCapacity(t *testing.T) {
+	const (
+		activeTokens   = uint32(2)
+		capacityTokens = uint32(4)
+		channels       = uint64(2)
+	)
+	builder := NewBuilder()
+	builder.SetCacheAppendPlan(CacheAppendPlan{
+		ActiveTokens: activeTokens, CapacityTokens: capacityTokens,
+	})
+	left := builder.Input("left", dtype.F32, MustShape(channels, 1, uint64(capacityTokens)))
+	right := builder.Input("right", dtype.F32, MustShape(channels, 1, 1))
+	output := builder.AppendCache(left, right, 2)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes, ok := output.Attrs.(CacheAppendAttributes)
+	if !ok || output.Op != OpCacheAppend || !output.Shape.Equal(left.Shape) ||
+		attributes.Axis != 2 || attributes.Offset != activeTokens {
+		t.Fatalf("cache append = %+v/%+v", output, attributes)
+	}
+	if capacity, fixed := builder.CacheCapacity(); !fixed || capacity != capacityTokens ||
+		builder.CacheTokenOffset(0) != activeTokens {
+		t.Fatalf("cache plan = %d/%t", capacity, fixed)
+	}
+}
+
 func TestBuilderRejectsShapeMismatch(t *testing.T) {
 	builder := NewBuilder()
 	left := builder.Input("left", dtype.F32, MustShape(4))

@@ -466,6 +466,102 @@ type RetainedTargets struct {
 	values   []DeviceValue
 }
 
+// RuntimeAttributes: graph-indexed per-execution attribute overrides.
+type RuntimeAttributes struct {
+	compiled *CompiledGraph
+	values   []tensor.Attributes
+}
+
+// NewRuntimeAttributes: indexed override slots.
+func (c *CompiledGraph) NewRuntimeAttributes() *RuntimeAttributes {
+	if c == nil {
+		return nil
+	}
+	return &RuntimeAttributes{compiled: c, values: make([]tensor.Attributes, len(c.order))}
+}
+
+// Set: validated runtime attribute override.
+func (a *RuntimeAttributes) Set(node *tensor.Tensor, attributes tensor.Attributes) error {
+	if a == nil || a.compiled == nil {
+		return errors.New("CUDA runtime attributes are unavailable")
+	}
+	index, ok := a.compiled.orderIndexes[node]
+	if !ok || attributes == nil {
+		return errors.New("CUDA runtime attribute target is invalid")
+	}
+	if err := tensor.ValidateOperationAttributes(node.Op, attributes); err != nil {
+		return err
+	}
+	if err := validateRuntimeAttributes(node, attributes); err != nil {
+		return err
+	}
+	a.values[index] = attributes
+	return nil
+}
+
+func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes) error {
+	sameLength := func(left, right []uint32) bool { return len(left) == len(right) }
+	switch node.Op {
+	case tensor.OpGetRows:
+		initial, next := node.Attrs.(tensor.GetRowsAttributes), attributes.(tensor.GetRowsAttributes)
+		if !sameLength(initial.Rows, next.Rows) {
+			return errors.New("CUDA runtime row count changes compiled shape")
+		}
+		rowCount := node.Inputs[0].Shape.Dims[node.Inputs[0].Shape.Rank-1]
+		for _, row := range next.Rows {
+			if uint64(row) >= rowCount {
+				return errors.New("CUDA runtime row exceeds input table")
+			}
+		}
+	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
+		initial, next := node.Attrs.(tensor.RoPEAttributes), attributes.(tensor.RoPEAttributes)
+		if !sameLength(node.Attrs.(tensor.RoPEAttributes).Positions, attributes.(tensor.RoPEAttributes).Positions) ||
+			initial.RotaryDimensions != next.RotaryDimensions ||
+			initial.FrequencyBase != next.FrequencyBase ||
+			initial.FrequencyScale != next.FrequencyScale ||
+			initial.OriginalContext != next.OriginalContext ||
+			initial.ExtFactor != next.ExtFactor ||
+			initial.AttentionFactor != next.AttentionFactor ||
+			initial.BetaFast != next.BetaFast || initial.BetaSlow != next.BetaSlow {
+			return errors.New("CUDA runtime RoPE override changes compiled policy")
+		}
+	case tensor.OpRoPEMulti:
+		initial, next := node.Attrs.(tensor.RoPEMultiAttributes), attributes.(tensor.RoPEMultiAttributes)
+		for axis := range initial.Positions {
+			if !sameLength(initial.Positions[axis], next.Positions[axis]) {
+				return errors.New("CUDA runtime multi-RoPE position count changes compiled shape")
+			}
+		}
+		if initial.Sections != next.Sections || initial.RotaryDimensions != next.RotaryDimensions ||
+			initial.FrequencyBase != next.FrequencyBase || initial.FrequencyScale != next.FrequencyScale {
+			return errors.New("CUDA runtime multi-RoPE override changes compiled policy")
+		}
+	case tensor.OpAttention:
+		initial, next := node.Attrs.(tensor.AttentionAttributes), attributes.(tensor.AttentionAttributes)
+		queryStart, logicalTokens := uint64(next.QueryStart), uint64(next.KeyValueTokens)
+		initial.QueryStart, next.QueryStart = 0, 0
+		initial.KeyValueTokens, next.KeyValueTokens = 0, 0
+		capacity := node.Inputs[1].Shape.Dims[2]
+		if logicalTokens == 0 {
+			logicalTokens = capacity
+		}
+		queryTokens := node.Inputs[0].Shape.Dims[2]
+		if initial != next || logicalTokens > capacity ||
+			(next.Causal && queryStart+queryTokens > logicalTokens) {
+			return errors.New("CUDA runtime attention override changes compiled policy or exceeds capacity")
+		}
+	case tensor.OpCacheAppend:
+		initial, next := node.Attrs.(tensor.CacheAppendAttributes), attributes.(tensor.CacheAppendAttributes)
+		if initial.Axis != next.Axis || next.Axis >= uint32(node.Shape.Rank) ||
+			uint64(next.Offset)+node.Inputs[1].Shape.Dims[next.Axis] > node.Shape.Dims[next.Axis] {
+			return errors.New("CUDA runtime cache append exceeds compiled capacity")
+		}
+	default:
+		return fmt.Errorf("CUDA operation %s has no runtime parameters", node.Op)
+	}
+	return nil
+}
+
 // OutputSlot: compiled output ordinal.
 type OutputSlot uint32
 
@@ -512,6 +608,7 @@ type CompiledGraph struct {
 	outputs         []*tensor.Tensor
 	outputIndexes   map[*tensor.Tensor]int
 	order           []*tensor.Tensor
+	orderIndexes    map[*tensor.Tensor]int
 	memory          planner.Plan
 	weightedRMS     map[*tensor.Tensor]weightedRMSFusion
 	activatedGate   map[*tensor.Tensor]activatedGateFusion
@@ -598,7 +695,6 @@ func validateRetainedTargetAlias(
 		alias := contract.Alias
 		if alias == nil || alias.Input != index || target.Pointer != pointers[input] ||
 			alias.InitializedBytes != inputBytes ||
-			alias.WriteOffsetBytes != inputBytes ||
 			alias.WriteOffsetBytes > contract.Bytes ||
 			alias.WriteBytes > contract.Bytes-alias.WriteOffsetBytes {
 			return fmt.Errorf(
@@ -648,6 +744,10 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		outputIndexes:   make(map[*tensor.Tensor]int, len(outputs)),
 		targetContracts: make([]tensor.OutputTargetContract, len(outputs)),
 		order:           order,
+		orderIndexes:    make(map[*tensor.Tensor]int, len(order)),
+	}
+	for index, node := range order {
+		compiled.orderIndexes[node] = index
 	}
 	uses := make(map[*tensor.Tensor]int, len(order))
 	consumers := make(map[*tensor.Tensor][]*tensor.Tensor, len(order))
@@ -769,7 +869,7 @@ func (e *Executor) ExecuteCompiled(
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, feeds, nil, nil, false)
+	result, err := e.runCompiled(ctx, compiled, feeds, nil, nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -798,7 +898,7 @@ func (e *Executor) ExecuteCompiledWithDeviceFeeds(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, false)
+	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -838,7 +938,23 @@ func (e *Executor) ExecuteRetainedCompiledWithTargets(
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	targets *RetainedTargets,
 ) (*RetainedOutputs, error) {
-	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, targets, true)
+	return e.ExecuteRetainedCompiledParameterized(
+		ctx, compiled, hostFeeds, deviceFeeds, targets, nil,
+	)
+}
+
+// ExecuteRetainedCompiledParameterized: indexed targets and attributes.
+func (e *Executor) ExecuteRetainedCompiledParameterized(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	targets *RetainedTargets,
+	attributes *RuntimeAttributes,
+) (*RetainedOutputs, error) {
+	execution, err := e.runCompiled(
+		ctx, compiled, hostFeeds, deviceFeeds, targets, attributes, true,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -853,6 +969,7 @@ func (e *Executor) runCompiled(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	targets *RetainedTargets,
+	attributes *RuntimeAttributes,
 	retain bool,
 ) (*executionResult, error) {
 	if e == nil {
@@ -885,6 +1002,7 @@ func (e *Executor) runCompiled(
 			hostFeeds,
 			deviceFeeds,
 			targets,
+			attributes,
 			resources.functions,
 			resources.blas,
 			&resources.q8Input,
@@ -904,6 +1022,7 @@ func execute(
 	feeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	retainedTargets *RetainedTargets,
+	runtimeAttributes *RuntimeAttributes,
 	functions functionSet,
 	blas *blasState,
 	q8Input *q8InputState,
@@ -915,6 +1034,18 @@ func execute(
 	outputs := compiled.outputs
 	order := compiled.order
 	plan := compiled.memory
+	if runtimeAttributes != nil &&
+		(runtimeAttributes.compiled != compiled || len(runtimeAttributes.values) != len(order)) {
+		return nil, errors.New("CUDA runtime attributes belong to another compiled graph")
+	}
+	attributesFor := func(node *tensor.Tensor) tensor.Attributes {
+		if runtimeAttributes != nil {
+			if index, ok := compiled.orderIndexes[node]; ok && runtimeAttributes.values[index] != nil {
+				return runtimeAttributes.values[index]
+			}
+		}
+		return node.Attrs
+	}
 
 	if plan.ArenaSize > 0 && arena == 0 {
 		return nil, errors.New("CUDA executor arena is unavailable")
@@ -1157,25 +1288,25 @@ func execute(
 		var values []uint32
 		switch node.Op {
 		case tensor.OpGetRows:
-			attributes, ok := node.Attrs.(tensor.GetRowsAttributes)
+			attributes, ok := attributesFor(node).(tensor.GetRowsAttributes)
 			if !ok {
 				return nil, errors.New("invalid get_rows attributes")
 			}
 			values = attributes.Rows
 		case tensor.OpRoPENeoX:
-			attributes, ok := node.Attrs.(tensor.RoPEAttributes)
+			attributes, ok := attributesFor(node).(tensor.RoPEAttributes)
 			if !ok {
 				return nil, errors.New("invalid rope_neox attributes")
 			}
 			values = attributes.Positions
 		case tensor.OpRoPENormal:
-			attributes, ok := node.Attrs.(tensor.RoPEAttributes)
+			attributes, ok := attributesFor(node).(tensor.RoPEAttributes)
 			if !ok {
 				return nil, errors.New("invalid rope_normal attributes")
 			}
 			values = attributes.Positions
 		case tensor.OpRoPEMulti:
-			attributes, ok := node.Attrs.(tensor.RoPEMultiAttributes)
+			attributes, ok := attributesFor(node).(tensor.RoPEMultiAttributes)
 			if !ok {
 				return nil, errors.New("invalid rope_multi attributes")
 			}
@@ -1294,7 +1425,9 @@ func execute(
 			submitted = true
 			continue
 		}
-		if err := launchNode(state, functions, blas, q8Input, node, pointers, attributePointers); err != nil {
+		if err := launchNode(
+			state, functions, blas, q8Input, node, attributesFor(node), pointers, attributePointers,
+		); err != nil {
 			abortCapture()
 			return nil, fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 		}

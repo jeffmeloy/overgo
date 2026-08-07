@@ -431,6 +431,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid concat attributes")
 		}
 		return concat(node.Shape, inputs[0], inputs[1], attributes.Axis)
+	case tensor.OpCacheAppend:
+		attributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid cache append attributes")
+		}
+		return cacheAppend(node.Shape, inputs[0], inputs[1], attributes)
 	default:
 		return Value{}, fmt.Errorf("unsupported operation %s", node.Op)
 	}

@@ -16,6 +16,7 @@ func launchAttentionLayout(
 	functions functionSet,
 	blas *blasState,
 	node *tensor.Tensor,
+	runtimeAttributes tensor.Attributes,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
@@ -29,7 +30,7 @@ func launchAttentionLayout(
 		input := pointers[node.Inputs[0]]
 		return launch1DABI(state, functions[kernelCopyF32], count, &input, &output, &count)
 	case tensor.OpAttention:
-		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
+		attributes, ok := runtimeAttributes.(tensor.AttentionAttributes)
 		if !ok {
 			return errors.New("invalid attention attributes")
 		}
@@ -60,9 +61,16 @@ func launchAttentionLayout(
 		if err != nil {
 			return err
 		}
-		keyValueTokens, err := uint32Checked(keyNode.Shape.Dims[2], "attention KV tokens")
+		keyCapacityTokens, err := uint32Checked(keyNode.Shape.Dims[2], "attention KV capacity")
 		if err != nil {
 			return err
+		}
+		keyValueTokens := keyCapacityTokens
+		if attributes.KeyValueTokens != 0 {
+			keyValueTokens = attributes.KeyValueTokens
+		}
+		if keyValueTokens > keyCapacityTokens {
+			return errors.New("attention logical KV tokens exceed capacity")
 		}
 		sequences := uint32(1)
 		if queryNode.Shape.Rank == 4 {
@@ -70,6 +78,9 @@ func launchAttentionLayout(
 			if err != nil {
 				return err
 			}
+		}
+		if sequences > 1 && keyValueTokens != keyCapacityTokens {
+			return errors.New("parameterized attention capacity requires one sequence")
 		}
 		query := pointers[queryNode]
 		key := pointers[keyNode]
@@ -146,7 +157,7 @@ func launchAttentionLayout(
 			&relativeBuckets, &relativeBidirectional, &count,
 		)
 	case tensor.OpConcat:
-		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
+		attributes, ok := runtimeAttributes.(tensor.ConcatAttributes)
 		if !ok || attributes.Axis >= uint32(node.Shape.Rank) {
 			return errors.New("invalid concat attributes")
 		}
@@ -191,6 +202,56 @@ func launchAttentionLayout(
 		return launch1DABI(
 			state, functions[kernelConcatF32], count,
 			&left, &right, &output, &innerSize, &leftAxis, &rightAxis, &axis, &count,
+		)
+	case tensor.OpCacheAppend:
+		attributes, ok := runtimeAttributes.(tensor.CacheAppendAttributes)
+		if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
+			return errors.New("invalid cache append attributes")
+		}
+		left := pointers[node.Inputs[0]]
+		right := pointers[node.Inputs[1]]
+		leftCount, err := elementCount32(node.Inputs[0].Shape)
+		if err != nil {
+			return err
+		}
+		rightCount, err := elementCount32(node.Inputs[1].Shape)
+		if err != nil {
+			return err
+		}
+		outputCount, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		if output != left {
+			if err := launch1DABI(
+				state, functions[kernelCopyF32], leftCount, &left, &output, &leftCount,
+			); err != nil {
+				return err
+			}
+		}
+		inner := uint64(1)
+		for dimension := uint32(0); dimension < attributes.Axis; dimension++ {
+			if inner > math.MaxUint64/node.Shape.Dims[dimension] {
+				return errors.New("cache append offset overflows")
+			}
+			inner *= node.Shape.Dims[dimension]
+		}
+		if inner != 0 && uint64(attributes.Offset) > math.MaxUint64/inner {
+			return errors.New("cache append offset overflows")
+		}
+		offset := uint64(attributes.Offset) * inner
+		traits, _ := dtype.F32.Traits()
+		if offset > uint64(outputCount) || uint64(rightCount) > uint64(outputCount)-offset ||
+			offset > math.MaxUint64/traits.TypeSize {
+			return errors.New("cache append range exceeds capacity")
+		}
+		byteOffset := offset * traits.TypeSize
+		if uint64(output) > math.MaxUint64-byteOffset {
+			return errors.New("cache append destination overflows")
+		}
+		destination := output + driver.DevicePtr(byteOffset)
+		return launch1DABI(
+			state, functions[kernelCopyF32], rightCount, &right, &destination, &rightCount,
 		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)

@@ -78,6 +78,7 @@ const (
 	OpSAMAttention
 	OpTopKPairs
 	OpTopKPartials
+	OpCacheAppend
 )
 
 type ScaleAttributes struct {
@@ -144,6 +145,7 @@ type AttentionAttributes struct {
 	SymmetricWindow       bool
 	ChunkedWindow         bool
 	QueryStart            uint32
+	KeyValueTokens        uint32
 	Window                uint32
 	RelativeBuckets       uint32
 	RelativeBidirectional bool
@@ -292,6 +294,12 @@ type FlatSliceAttributes struct {
 	Offset uint64
 }
 
+// CacheAppendAttributes: bounded logical append into capacity storage.
+type CacheAppendAttributes struct {
+	Axis   uint32
+	Offset uint32
+}
+
 type TopKAttributes struct {
 	K     uint32
 	Chunk uint32
@@ -341,11 +349,19 @@ type LoRAMergeAttributes struct {
 
 // Builder: graph constructor and validator.
 type Builder struct {
-	nextID     uint64
-	nodes      []*Tensor
-	err        error
-	loras      map[string][]LoRADefinition
-	loraInputs map[string]*Tensor
+	nextID      uint64
+	nodes       []*Tensor
+	err         error
+	loras       map[string][]LoRADefinition
+	loraInputs  map[string]*Tensor
+	cacheAppend *CacheAppendPlan
+}
+
+// CacheAppendPlan: logical range inside fixed-capacity cache storage.
+type CacheAppendPlan struct {
+	ActiveTokens         uint32
+	SourceCapacityTokens uint32
+	CapacityTokens       uint32
 }
 
 func NewBuilder() *Builder {
@@ -358,6 +374,47 @@ func (b *Builder) Err() error {
 
 func (b *Builder) Nodes() []*Tensor {
 	return append([]*Tensor(nil), b.nodes...)
+}
+
+// SetCacheAppendPlan: fixed-capacity cache construction.
+func (b *Builder) SetCacheAppendPlan(plan CacheAppendPlan) {
+	if b.err != nil {
+		return
+	}
+	if plan.SourceCapacityTokens == 0 {
+		plan.SourceCapacityTokens = plan.CapacityTokens
+	}
+	if plan.CapacityTokens == 0 || plan.ActiveTokens >= plan.CapacityTokens ||
+		plan.SourceCapacityTokens > plan.CapacityTokens ||
+		plan.ActiveTokens > plan.SourceCapacityTokens {
+		b.setError(errors.New("cache append plan is invalid"))
+		return
+	}
+	b.cacheAppend = &plan
+}
+
+// CacheTokenOffset: configured logical offset or fallback.
+func (b *Builder) CacheTokenOffset(fallback uint32) uint32 {
+	if b != nil && b.cacheAppend != nil {
+		return b.cacheAppend.ActiveTokens
+	}
+	return fallback
+}
+
+// CacheCapacity: configured cache storage width.
+func (b *Builder) CacheCapacity() (uint32, bool) {
+	if b == nil || b.cacheAppend == nil {
+		return 0, false
+	}
+	return b.cacheAppend.CapacityTokens, true
+}
+
+// CacheSourceCapacity: configured source storage width.
+func (b *Builder) CacheSourceCapacity() (uint32, bool) {
+	if b == nil || b.cacheAppend == nil {
+		return 0, false
+	}
+	return b.cacheAppend.SourceCapacityTokens, true
 }
 
 func (b *Builder) Input(name string, dataType dtype.Type, shape Shape) *Tensor {
@@ -493,6 +550,44 @@ func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 		return nil
 	}
 	return b.add("", left.Type, shape, OpConcat, []*Tensor{left, right}, ConcatAttributes{Axis: axis})
+}
+
+// AppendCache: bounded append or concat fallback.
+func (b *Builder) AppendCache(left, right *Tensor, axis uint32) *Tensor {
+	if b == nil {
+		return nil
+	}
+	if b.cacheAppend == nil {
+		return b.Concat(left, right, axis)
+	}
+	if b.err != nil {
+		return nil
+	}
+	if left == nil || right == nil || left.Type != right.Type ||
+		left.Shape.Rank == 0 || left.Shape.Rank != right.Shape.Rank ||
+		axis+1 != uint32(left.Shape.Rank) ||
+		left.Shape.Dims[axis] != uint64(b.cacheAppend.SourceCapacityTokens) {
+		b.setError(errors.New("cache append input shape is invalid"))
+		return nil
+	}
+	for dimension := range left.Shape.Rank {
+		if uint32(dimension) != axis && left.Shape.Dims[dimension] != right.Shape.Dims[dimension] {
+			b.setError(errors.New("cache append non-token dimensions differ"))
+			return nil
+		}
+	}
+	added := right.Shape.Dims[axis]
+	if added > math.MaxUint32 ||
+		uint64(b.cacheAppend.ActiveTokens)+added > uint64(b.cacheAppend.CapacityTokens) {
+		b.setError(errors.New("cache append exceeds capacity"))
+		return nil
+	}
+	shape := left.Shape
+	shape.Dims[axis] = uint64(b.cacheAppend.CapacityTokens)
+	return b.add(
+		"", left.Type, shape, OpCacheAppend, []*Tensor{left, right},
+		CacheAppendAttributes{Axis: axis, Offset: b.cacheAppend.ActiveTokens},
+	)
 }
 
 func (b *Builder) unary(op Op, input *Tensor, attrs Attributes) *Tensor {

@@ -647,6 +647,21 @@ func (b *Builder) buildAttention(
 	if options.blockIDs != nil {
 		inputs = append(inputs, options.blockIDs)
 	}
+	var keyValueTokens uint32
+	if key.Op == OpCacheAppend {
+		appendAttributes, ok := key.Attrs.(CacheAppendAttributes)
+		if !ok || len(key.Inputs) != 2 || appendAttributes.Axis >= uint32(key.Shape.Rank) {
+			b.setError(errors.New("attention cache append range is invalid"))
+			return nil
+		}
+		added := key.Inputs[1].Shape.Dims[appendAttributes.Axis]
+		if added > math.MaxUint32 ||
+			uint64(appendAttributes.Offset)+added > math.MaxUint32 {
+			b.setError(errors.New("attention cache append range is invalid"))
+			return nil
+		}
+		keyValueTokens = appendAttributes.Offset + uint32(added)
+	}
 	return b.add(
 		"",
 		query.Type,
@@ -661,6 +676,7 @@ func (b *Builder) buildAttention(
 			SymmetricWindow:       options.symmetricWindow,
 			ChunkedWindow:         options.chunkedWindow,
 			QueryStart:            options.queryStart,
+			KeyValueTokens:        keyValueTokens,
 			Window:                options.window,
 			RelativeBuckets:       relativeBuckets,
 			RelativeBidirectional: options.relativeBidirectional,

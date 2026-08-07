@@ -282,6 +282,7 @@ func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32) error {
 	}
 	cache.Tokens = keep
 	cache.Position = keep
+	cache.session = nil
 	cache.Logits = nil
 	cache.Candidates = nil
 	return rebuildDeviceCachePages(cache, cache.PageTokens)

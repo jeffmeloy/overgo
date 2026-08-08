@@ -85,10 +85,6 @@ func loadGGUFFacts(path string) (LoadedProgram, error) {
 	if err != nil {
 		return fail(err)
 	}
-	loaded.state.Spec, err = model.ReadSpec(file)
-	if err != nil {
-		return fail(err)
-	}
 	return loaded, nil
 }
 

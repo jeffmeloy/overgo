@@ -24,16 +24,10 @@ func (c DocumentCodec[T]) New(value T) (T, error) {
 	if err := c.validate(); err != nil {
 		return value, err
 	}
-	value = c.clone(value)
-	c.SetIdentity(&value, ID{})
-	if err := c.Canonicalize(&value); err != nil {
-		return value, err
-	}
-	data, err := c.Encode(value)
+	value, data, contract, err := c.canonical(value)
 	if err != nil {
 		return value, err
 	}
-	contract := c.contract(value)
 	id, err := contract.Identify(data)
 	if err != nil {
 		return value, err
@@ -50,65 +44,73 @@ func (c DocumentCodec[T]) Parse(data []byte) (T, error) {
 	if err := c.Decode(data, &decoded); err != nil {
 		return decoded, fmt.Errorf("%s: decode document: %w", c.Name, err)
 	}
-	value, err := c.New(decoded)
-	if err != nil {
-		return decoded, err
-	}
-	canonical, err := c.ContentBytes(value)
+	value, canonical, contract, err := c.canonical(decoded)
 	if err != nil {
 		return decoded, err
 	}
 	if !bytes.Equal(canonical, data) {
 		return decoded, fmt.Errorf("%s: non-canonical document", c.Name)
 	}
+	id, err := contract.Identify(canonical)
+	if err != nil {
+		return decoded, err
+	}
+	c.SetIdentity(&value, id)
 	return value, nil
 }
 
 func (c DocumentCodec[T]) ValidateIdentity(value T) error {
+	_, _, err := c.validated(value)
+	return err
+}
+
+func (c DocumentCodec[T]) validated(value T) ([]byte, DocumentContract, error) {
 	if err := c.validate(); err != nil {
-		return err
+		return nil, DocumentContract{}, err
 	}
 	id := c.Identity(value)
-	canonical := c.clone(value)
-	c.SetIdentity(&canonical, ID{})
-	if err := c.Canonicalize(&canonical); err != nil {
-		return err
+	canonical, data, contract, err := c.canonical(value)
+	if err != nil {
+		return nil, DocumentContract{}, err
 	}
 	c.SetIdentity(&canonical, id)
-	contract := c.contract(canonical)
 	if id.Kind() != contract.Kind {
-		return fmt.Errorf("%s: invalid document identity", c.Name)
+		return nil, DocumentContract{}, fmt.Errorf("%s: invalid document identity", c.Name)
 	}
 	if !reflect.DeepEqual(value, canonical) {
-		return fmt.Errorf("%s: document is not canonical", c.Name)
-	}
-	c.SetIdentity(&canonical, ID{})
-	data, err := c.Encode(canonical)
-	if err != nil {
-		return err
+		return nil, DocumentContract{}, fmt.Errorf("%s: document is not canonical", c.Name)
 	}
 	if err := contract.ValidateIdentity(id, data); err != nil {
-		return fmt.Errorf("%s: document identity mismatch", c.Name)
+		return nil, DocumentContract{}, fmt.Errorf("%s: document identity mismatch", c.Name)
 	}
-	return nil
+	return data, contract, nil
 }
 
 func (c DocumentCodec[T]) ContentBytes(value T) ([]byte, error) {
-	if err := c.ValidateIdentity(value); err != nil {
-		return nil, err
-	}
-	canonical := c.clone(value)
-	c.SetIdentity(&canonical, ID{})
-	return c.Encode(canonical)
+	data, _, err := c.validated(value)
+	return data, err
 }
 
 func (c DocumentCodec[T]) Content(value T) (Content, error) {
 	id := c.Identity(value)
-	data, err := c.ContentBytes(value)
+	data, contract, err := c.validated(value)
 	if err != nil {
 		return Content{}, err
 	}
-	return c.contract(value).Content(id, data)
+	return contract.Content(id, data)
+}
+
+func (c DocumentCodec[T]) canonical(value T) (T, []byte, DocumentContract, error) {
+	value = c.clone(value)
+	c.SetIdentity(&value, ID{})
+	if err := c.Canonicalize(&value); err != nil {
+		return value, nil, DocumentContract{}, err
+	}
+	data, err := c.Encode(value)
+	if err != nil {
+		return value, nil, DocumentContract{}, err
+	}
+	return value, data, c.contract(value), nil
 }
 
 func (c DocumentCodec[T]) clone(value T) T {

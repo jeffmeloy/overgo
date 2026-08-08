@@ -12,14 +12,19 @@ type codecFixture struct {
 }
 
 func TestDocumentCodecOwnsCanonicalLifecycle(t *testing.T) {
+	const expectedEncodesPerOperation = 1
 	contract := DocumentContract{
 		Kind: KindEvidence, MediaType: "application/vnd.overgo.codec-fixture+json",
 		Schema: "overgo/codec-fixture/v1",
 	}
+	encodeCalls := 0
 	codec := DocumentCodec[codecFixture]{
 		Name: "codec fixture", Contract: contract,
 		Decode: func(data []byte, value *codecFixture) error { return json.Unmarshal(data, value) },
-		Encode: func(value codecFixture) ([]byte, error) { return json.Marshal(value) },
+		Encode: func(value codecFixture) ([]byte, error) {
+			encodeCalls++
+			return json.Marshal(value)
+		},
 		Canonicalize: func(value *codecFixture) error {
 			slices.Sort(value.Names)
 			return nil
@@ -39,13 +44,21 @@ func TestDocumentCodecOwnsCanonicalLifecycle(t *testing.T) {
 	if input.Names[0] != "second" || !slices.Equal(document.Names, []string{"first", "second"}) {
 		t.Fatalf("input/document names = %v/%v", input.Names, document.Names)
 	}
+	encodeCalls = 0
 	content, err := codec.Content(document)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if encodeCalls != expectedEncodesPerOperation {
+		t.Fatalf("content encoded %d times", encodeCalls)
+	}
+	encodeCalls = 0
 	parsed, err := codec.Parse(content.Data)
 	if err != nil || parsed.ID != document.ID || !slices.Equal(parsed.Names, document.Names) {
 		t.Fatalf("parsed document = %+v/%v", parsed, err)
+	}
+	if encodeCalls != expectedEncodesPerOperation {
+		t.Fatalf("parse encoded %d times", encodeCalls)
 	}
 	mutated := document
 	mutated.Names = []string{"second", "first"}

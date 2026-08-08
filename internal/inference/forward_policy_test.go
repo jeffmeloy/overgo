@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/model"
-	"overgo/internal/modelrecipe"
 )
 
 func TestForwardUsesCompiledPolicy(t *testing.T) {
@@ -20,13 +19,9 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 		{"t5", "requires NewT5Session"},
 	} {
 		t.Run(test.architecture, func(t *testing.T) {
-			profile, ok := model.LookupArchitecture(test.architecture)
-			if !ok {
-				t.Fatal("architecture is not registered")
-			}
+			spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture, BlockCount: 1}}
 			runner := &Runner{preparedModel: preparedModel{
-				spec:    model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture}},
-				program: modelrecipe.Plan{Model: model.ModelPlan{Profile: profile}},
+				spec: spec, program: fixtureProgram(spec, model.Weights{}),
 			}}
 			_, err := runner.Forward(context.Background(), nil)
 			if err == nil || !strings.Contains(err.Error(), test.message) {

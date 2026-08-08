@@ -225,31 +225,35 @@ func (r *Runner) EvidenceTier() recipe.EvidenceTier {
 }
 
 func (r *Runner) layerPlan(layer int) model.LayerPlan {
-	if r == nil || layer < 0 || layer >= len(r.program.Model.Layers) {
+	if r == nil {
 		panic("inference: compiled layer plan is unavailable")
 	}
-	return r.program.Model.Layers[layer]
+	plan, err := r.program.Model.Layer(layer)
+	if err != nil {
+		panic("inference: compiled layer plan is unavailable")
+	}
+	return plan
 }
 
 func (r *Runner) draftLayerPlan(offset uint32) (model.LayerPlan, error) {
-	if r == nil || int(offset) >= len(r.program.Model.DraftLayers) {
+	if r == nil {
 		return model.LayerPlan{}, errors.New("inference: compiled draft layer is unavailable")
 	}
-	return r.program.Model.DraftLayers[offset], nil
+	return r.program.Model.DraftLayer(offset)
 }
 
 func (r *Runner) profile() model.ArchitectureProfile {
-	if r == nil || r.program.Model.Profile.Name == "" {
+	if r == nil || r.program.Model.Profile().Name == "" {
 		panic("inference: compiled profile is unavailable")
 	}
-	return r.program.Model.Profile
+	return r.program.Model.Profile()
 }
 
 func (r *Runner) forwardPolicy() model.ForwardPolicy {
-	if r == nil || r.program.Model.Profile.Name == "" {
+	if r == nil || r.program.Model.Profile().Name == "" {
 		panic("inference: compiled forward policy is unavailable")
 	}
-	return r.program.Model.Profile.Forward
+	return r.program.Model.Profile().Forward
 }
 
 func (r *Runner) Vocab() *tokenizer.Vocab {
@@ -626,7 +630,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		Tokens:   pastTokens + uint32(len(tokenIDs)),
 		Position: cachePosition,
 	}
-	if r.hasPreloadedWeights() && r.program.Model.CachedGraph == model.CachedGraphDense {
+	if r.hasPreloadedWeights() && r.program.Model.CachedGraph() == model.CachedGraphDense {
 		return r.forwardDenseLayersPreloaded(
 			ctx, activation, embeddingSkip, perLayerInputs, positions, multiPositions,
 			deepstackBase, deepstackInputs, attentionBlockIDs,

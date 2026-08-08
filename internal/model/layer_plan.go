@@ -231,10 +231,10 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 
 // SupportsCapacityCache: all token caches admit bounded append.
 func (p ModelPlan) SupportsCapacityCache() bool {
-	if len(p.Layers) == 0 {
+	if len(p.layers) == 0 {
 		return false
 	}
-	for _, layer := range p.Layers {
+	for _, layer := range p.layers {
 		if layer.CacheMode.TokenAligned() &&
 			(layer.CacheWrite != CacheWriteConcatOrAppend || layer.SharedKV) {
 			return false
@@ -306,13 +306,13 @@ func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (Auxiliary
 
 // ModelPlan: immutable model and per-layer execution contract.
 type ModelPlan struct {
-	Profile     ArchitectureProfile
-	Layers      []LayerPlan
-	DraftLayers []LayerPlan
-	CacheLayers uint32
-	CachedGraph CachedGraphPolicy
-	Terminal    TerminalPlan
-	Draft       DraftPlan
+	profile     ArchitectureProfile
+	layers      []LayerPlan
+	draftLayers []LayerPlan
+	cacheLayers uint32
+	cachedGraph CachedGraphPolicy
+	terminal    TerminalPlan
+	draft       DraftPlan
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -347,69 +347,69 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		cacheLayers = spec.DecoderBlockCount
 	}
 	plan := ModelPlan{
-		Profile: profile, Layers: make([]LayerPlan, layers), CacheLayers: cacheLayers,
-		Terminal: TerminalPlan{Normalization: profile.OutputNorm},
-		Draft:    profile.DraftPlan(spec.NextNPredictLayers),
+		profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
+		terminal: TerminalPlan{Normalization: profile.OutputNorm},
+		draft:    profile.DraftPlan(spec.NextNPredictLayers),
 	}
 	if weights.Output != nil {
-		plan.Terminal.OutputHead = OutputHeadDedicated
+		plan.terminal.OutputHead = OutputHeadDedicated
 	}
 	for layer := range layers {
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
-		plan.Layers[layer] = spec.PlanLayer(layer, recurrent)
+		plan.layers[layer] = spec.PlanLayer(layer, recurrent)
 	}
-	if plan.Draft.AppendedBlocks {
-		plan.DraftLayers = make([]LayerPlan, plan.Draft.Heads)
+	if plan.draft.AppendedBlocks {
+		plan.draftLayers = make([]LayerPlan, plan.draft.Heads)
 		executable := spec
-		if plan.Draft.Kind == DraftNextNMTP {
-			executable.BlockCount += plan.Draft.Heads
+		if plan.draft.Kind == DraftNextNMTP {
+			executable.BlockCount += plan.draft.Heads
 		}
-		for offset := range plan.DraftLayers {
-			plan.DraftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
+		for offset := range plan.draftLayers {
+			plan.draftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
 		}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
 	}
-	plan.CachedGraph = cachedGraphPolicy(profile, plan.Layers)
+	plan.cachedGraph = cachedGraphPolicy(profile, plan.layers)
 	return plan, nil
 }
 
 func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
-	if plan.Terminal.OutputHead > OutputHeadDedicated ||
-		plan.Terminal.Normalization != plan.Profile.OutputNorm ||
-		(plan.Terminal.OutputHead == OutputHeadDedicated) != (weights.Output != nil) {
+	if plan.terminal.OutputHead > OutputHeadDedicated ||
+		plan.terminal.Normalization != plan.profile.OutputNorm ||
+		(plan.terminal.OutputHead == OutputHeadDedicated) != (weights.Output != nil) {
 		return fmt.Errorf("model plan architecture %s has invalid terminal policy", spec.Architecture)
 	}
-	if plan.Draft != plan.Profile.DraftPlan(spec.NextNPredictLayers) {
+	if plan.draft != plan.profile.DraftPlan(spec.NextNPredictLayers) {
 		return fmt.Errorf("model plan architecture %s has invalid draft policy", spec.Architecture)
 	}
 	wantDraftLayers := 0
-	if plan.Draft.AppendedBlocks {
-		wantDraftLayers = int(plan.Draft.Heads)
+	if plan.draft.AppendedBlocks {
+		wantDraftLayers = int(plan.draft.Heads)
 	}
-	if len(plan.DraftLayers) != wantDraftLayers {
+	if len(plan.draftLayers) != wantDraftLayers {
 		return fmt.Errorf("model plan architecture %s has invalid draft layers", spec.Architecture)
 	}
-	for offset, layer := range plan.DraftLayers {
+	for offset, layer := range plan.draftLayers {
 		if layer.Layer != spec.BlockCount+uint32(offset) {
 			return fmt.Errorf("model plan draft layer %d identity is inconsistent", offset)
 		}
 	}
-	if spec.SharedKVLayers > 0 && (!plan.Profile.Has(ArchitectureSharedKV) ||
+	if spec.SharedKVLayers > 0 && (!plan.profile.Has(ArchitectureSharedKV) ||
 		spec.SharedKVLayers >= spec.BlockCount) {
 		return fmt.Errorf("model plan architecture %s has invalid shared-KV layer count %d", spec.Architecture, spec.SharedKVLayers)
 	}
 	producedAuxiliary := make(map[AuxiliaryFlow]bool)
 	norm := spec.NormPlan()
-	for index, layer := range plan.Layers {
-		if layer.Layer != uint32(index) || layer.GraphFamily != plan.Profile.GraphFamily ||
-			layer.CatalogFamily != plan.Profile.CatalogFamily {
+	for index, layer := range plan.layers {
+		if layer.Layer != uint32(index) || layer.GraphFamily != plan.profile.GraphFamily ||
+			layer.CatalogFamily != plan.profile.CatalogFamily {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
 		if layer.SharedKV {
-			if layer.HasKV || layer.KVSource >= layer.Layer || int(layer.KVSource) >= len(plan.Layers) ||
-				!plan.Layers[layer.KVSource].HasKV {
+			if layer.HasKV || layer.KVSource >= layer.Layer || int(layer.KVSource) >= len(plan.layers) ||
+				!plan.layers[layer.KVSource].HasKV {
 				return fmt.Errorf("model plan layer %d shared-KV source %d is invalid", index, layer.KVSource)
 			}
 		}
@@ -433,24 +433,24 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		}
 	}
 	if spec.DeepstackLayerCount > 0 {
-		switch plan.Profile.Deepstack {
+		switch plan.profile.Deepstack {
 		case DeepstackMappedBefore:
-			if len(spec.DeepstackMapping) < len(plan.Layers) {
-				return fmt.Errorf("model plan deepstack map has %d entries for %d layers", len(spec.DeepstackMapping), len(plan.Layers))
+			if len(spec.DeepstackMapping) < len(plan.layers) {
+				return fmt.Errorf("model plan deepstack map has %d entries for %d layers", len(spec.DeepstackMapping), len(plan.layers))
 			}
 		case DeepstackSequentialAfter:
-			if int(spec.DeepstackLayerCount) > len(plan.Layers) {
-				return fmt.Errorf("model plan has %d deepstack streams for %d layers", spec.DeepstackLayerCount, len(plan.Layers))
+			if int(spec.DeepstackLayerCount) > len(plan.layers) {
+				return fmt.Errorf("model plan has %d deepstack streams for %d layers", spec.DeepstackLayerCount, len(plan.layers))
 			}
 		default:
 			return fmt.Errorf("model plan architecture %s has no deepstack policy", spec.Architecture)
 		}
 	}
-	if plan.Profile.AttentionBlocks != AttentionBlocksNone && !plan.Profile.Has(ArchitectureMultimodal) {
+	if plan.profile.AttentionBlocks != AttentionBlocksNone && !plan.profile.Has(ArchitectureMultimodal) {
 		return fmt.Errorf("model plan architecture %s has attention blocks without multimodal support", spec.Architecture)
 	}
 	if spec.AttentionTempScale != 0 || spec.AttentionTempFloor != 0 || spec.AttentionTempOffset != 0 {
-		if plan.Profile.Temperature == AttentionTemperatureNone || spec.AttentionTempScale <= 0 ||
+		if plan.profile.Temperature == AttentionTemperatureNone || spec.AttentionTempScale <= 0 ||
 			spec.AttentionTempFloor == 0 || math.IsNaN(float64(spec.AttentionTempScale)) ||
 			math.IsInf(float64(spec.AttentionTempScale), 0) || math.IsNaN(float64(spec.AttentionTempOffset)) ||
 			math.IsInf(float64(spec.AttentionTempOffset), 0) {
@@ -461,7 +461,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		(norm.Operation != NormalizationLayer || norm.PreAttention || !norm.PostAttention || !norm.Bias) {
 		return fmt.Errorf("model plan architecture %s has an invalid BERT normalization layout", spec.Architecture)
 	}
-	draft := plan.Profile.DraftPlan(spec.NextNPredictLayers)
+	draft := plan.profile.DraftPlan(spec.NextNPredictLayers)
 	if spec.NextNPredictLayers > 0 && (draft.Kind == DraftNone || !draft.HasHead(0)) {
 		return fmt.Errorf("model plan architecture %s has no draft policy for %d heads", spec.Architecture, spec.NextNPredictLayers)
 	}
@@ -485,7 +485,7 @@ func cachedGraphPolicy(profile ArchitectureProfile, layers []LayerPlan) CachedGr
 
 // HasCache: reports a compiled cache policy.
 func (p ModelPlan) HasCache(policy CachePolicy) bool {
-	for _, layer := range p.Layers {
+	for _, layer := range p.layers {
 		if layer.Cache == policy {
 			return true
 		}
@@ -495,11 +495,40 @@ func (p ModelPlan) HasCache(policy CachePolicy) bool {
 
 // Layer: bounds-checked layer contract.
 func (p ModelPlan) Layer(layer int) (LayerPlan, error) {
-	if layer < 0 || layer >= len(p.Layers) {
-		return LayerPlan{}, fmt.Errorf("model plan layer %d is outside [0,%d)", layer, len(p.Layers))
+	if layer < 0 || layer >= len(p.layers) {
+		return LayerPlan{}, fmt.Errorf("model plan layer %d is outside [0,%d)", layer, len(p.layers))
 	}
-	return p.Layers[layer], nil
+	return p.layers[layer], nil
 }
+
+// Profile: compiled architecture policy.
+func (p ModelPlan) Profile() ArchitectureProfile { return p.profile }
+
+// LayerCount: compiled trunk layer count.
+func (p ModelPlan) LayerCount() int { return len(p.layers) }
+
+// Layers: owned trunk layer-program copy.
+func (p ModelPlan) Layers() []LayerPlan { return append([]LayerPlan(nil), p.layers...) }
+
+// DraftLayer: bounds-checked appended draft contract.
+func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
+	if int(offset) >= len(p.draftLayers) {
+		return LayerPlan{}, fmt.Errorf("model plan draft layer %d is unavailable", offset)
+	}
+	return p.draftLayers[offset], nil
+}
+
+// CacheLayerCount: compiled cache-layer count.
+func (p ModelPlan) CacheLayerCount() uint32 { return p.cacheLayers }
+
+// CachedGraph: compiled cached graph policy.
+func (p ModelPlan) CachedGraph() CachedGraphPolicy { return p.cachedGraph }
+
+// Terminal: compiled output stages.
+func (p ModelPlan) Terminal() TerminalPlan { return p.terminal }
+
+// Draft: compiled speculative policy.
+func (p ModelPlan) Draft() DraftPlan { return p.draft }
 
 func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 	if profile.Attention == AttentionQwenGDN {

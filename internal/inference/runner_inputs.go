@@ -156,7 +156,7 @@ func (r *Runner) buildOutputNorm(
 	input *tensor.Tensor,
 	bind func(gguf.TensorInfo) (*tensor.Tensor, error),
 ) (*tensor.Tensor, error) {
-	if r.program.Model.Terminal.Normalization == model.OutputNormAbsent {
+	if r.program.Model.Terminal().Normalization == model.OutputNormAbsent {
 		return input, nil
 	}
 	if r.spec.UsesUnweightedLayerNorm() {

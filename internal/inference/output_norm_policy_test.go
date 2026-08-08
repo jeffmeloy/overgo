@@ -5,19 +5,15 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
 func TestBuildOutputNormUsesCompiledPolicy(t *testing.T) {
 	t.Run("absent", func(t *testing.T) {
-		profile, _ := model.LookupArchitecture("bert")
+		spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "bert", BlockCount: 1}}
 		runner := &Runner{preparedModel: preparedModel{
-			spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "bert"}},
-			program: modelrecipe.Plan{Model: model.ModelPlan{
-				Profile: profile, Terminal: model.TerminalPlan{Normalization: model.OutputNormAbsent},
-			}},
+			spec: spec, program: fixtureProgram(spec, model.Weights{}),
 		}}
 		builder := tensor.NewBuilder()
 		input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
@@ -34,15 +30,12 @@ func TestBuildOutputNormUsesCompiledPolicy(t *testing.T) {
 	})
 
 	t.Run("weighted", func(t *testing.T) {
-		profile, _ := model.LookupArchitecture("llama")
+		spec := model.Spec{CommonSpec: model.CommonSpec{
+			Architecture: "llama", BlockCount: 1, EmbeddingLength: 2, RMSNormEpsilon: 1e-5,
+		}}
+		weights := model.Weights{OutputNorm: gguf.TensorInfo{Name: "output_norm.weight"}}
 		runner := &Runner{preparedModel: preparedModel{
-			spec: model.Spec{CommonSpec: model.CommonSpec{
-				Architecture: "llama", EmbeddingLength: 2, RMSNormEpsilon: 1e-5,
-			}},
-			program: modelrecipe.Plan{Model: model.ModelPlan{
-				Profile: profile, Terminal: model.TerminalPlan{Normalization: model.OutputNormModel},
-			}},
-			weights: model.Weights{OutputNorm: gguf.TensorInfo{Name: "output_norm.weight"}},
+			spec: spec, program: fixtureProgram(spec, weights), weights: weights,
 		}}
 		builder := tensor.NewBuilder()
 		input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))

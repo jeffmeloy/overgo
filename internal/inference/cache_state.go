@@ -175,8 +175,8 @@ func (r *Runner) validateCache(cache *KVCache) error {
 }
 
 func (r *Runner) cacheLayerCount() int {
-	if r.program.Model.CacheLayers != 0 {
-		return int(r.program.Model.CacheLayers)
+	if r.program.Model.CacheLayerCount() != 0 {
+		return int(r.program.Model.CacheLayerCount())
 	}
 	panic("inference: compiled cache layer count is unavailable")
 }

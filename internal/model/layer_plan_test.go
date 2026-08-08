@@ -14,17 +14,17 @@ func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tied.Terminal.Normalization != OutputNormModel ||
-		tied.Terminal.OutputHead != OutputHeadTokenEmbedding {
-		t.Fatalf("tied terminal = %+v", tied.Terminal)
+	if tied.Terminal().Normalization != OutputNormModel ||
+		tied.Terminal().OutputHead != OutputHeadTokenEmbedding {
+		t.Fatalf("tied terminal = %+v", tied.Terminal())
 	}
 	output := gguf.TensorInfo{Name: "output.weight"}
 	dedicated, err := CompileModelPlan(spec, Weights{Output: &output})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dedicated.Terminal.OutputHead != OutputHeadDedicated {
-		t.Fatalf("dedicated terminal = %+v", dedicated.Terminal)
+	if dedicated.Terminal().OutputHead != OutputHeadDedicated {
+		t.Fatalf("dedicated terminal = %+v", dedicated.Terminal())
 	}
 }
 
@@ -36,14 +36,14 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Draft.Kind != DraftStep35MTP || plan.Draft.Heads != spec.NextNPredictLayers ||
-		plan.Draft.Session != DraftSessionMulti {
-		t.Fatalf("draft plan = %+v", plan.Draft)
+	if plan.Draft().Kind != DraftStep35MTP || plan.Draft().Heads != spec.NextNPredictLayers ||
+		plan.Draft().Session != DraftSessionMulti {
+		t.Fatalf("draft plan = %+v", plan.Draft())
 	}
-	if len(plan.DraftLayers) != int(spec.NextNPredictLayers) ||
-		plan.DraftLayers[0].Layer != spec.BlockCount ||
-		plan.DraftLayers[1].Layer != spec.BlockCount+1 {
-		t.Fatalf("draft layers = %+v", plan.DraftLayers)
+	first, firstErr := plan.DraftLayer(0)
+	second, secondErr := plan.DraftLayer(1)
+	if firstErr != nil || secondErr != nil || first.Layer != spec.BlockCount || second.Layer != spec.BlockCount+1 {
+		t.Fatalf("draft layers = %+v/%+v (%v/%v)", first, second, firstErr, secondErr)
 	}
 }
 
@@ -162,7 +162,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(plan.Layers) != 1 || plan.Layers[0].Block != test.block || plan.Layers[0].Cache != test.cache {
+			if plan.LayerCount() != 1 || plan.layers[0].Block != test.block || plan.layers[0].Cache != test.cache {
 				t.Fatalf("plan = %+v", plan)
 			}
 		})
@@ -181,7 +181,7 @@ func TestCompileModelPlanWithProfilePinsResolvedPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile.Attention != AttentionLFM2 || plan.Layers[0].Attention != AttentionLFM2 {
+	if plan.Profile().Attention != AttentionLFM2 || plan.layers[0].Attention != AttentionLFM2 {
 		t.Fatalf("resolved profile was not pinned: %+v", plan)
 	}
 
@@ -271,8 +271,8 @@ func TestCompileModelPlanSelectsCachedGraphPolicy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if plan.CachedGraph != test.want {
-				t.Fatalf("cached graph = %v, want %v; plan = %+v", plan.CachedGraph, test.want, plan)
+			if plan.CachedGraph() != test.want {
+				t.Fatalf("cached graph = %v, want %v; plan = %+v", plan.CachedGraph(), test.want, plan)
 			}
 		})
 	}
@@ -286,8 +286,8 @@ func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile.Forward != ForwardNonCausal {
-		t.Fatalf("forward policy = %v", plan.Profile.Forward)
+	if plan.Profile().Forward != ForwardNonCausal {
+		t.Fatalf("forward policy = %v", plan.Profile().Forward)
 	}
 }
 
@@ -301,17 +301,17 @@ func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", architecture, err)
 		}
-		if plan.CachedGraph != CachedGraphDense {
+		if plan.CachedGraph() != CachedGraphDense {
 			continue
 		}
-		if plan.Profile.GraphFamily != ArchitectureFamilyAttention &&
-			plan.Profile.GraphFamily != ArchitectureFamilyMoE {
-			t.Fatalf("%s selected dense graph for family %v", architecture, plan.Profile.GraphFamily)
+		if plan.Profile().GraphFamily != ArchitectureFamilyAttention &&
+			plan.Profile().GraphFamily != ArchitectureFamilyMoE {
+			t.Fatalf("%s selected dense graph for family %v", architecture, plan.Profile().GraphFamily)
 		}
-		if plan.Profile.Has(ArchitectureAltUp) {
+		if plan.Profile().Has(ArchitectureAltUp) {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
-		for _, layer := range plan.Layers {
+		for _, layer := range plan.layers {
 			if layer.Block != BlockDense || layer.Attention != AttentionStandard ||
 				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
@@ -328,7 +328,7 @@ func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Layers) != 3 || plan.CacheLayers != 2 || !plan.HasCache(CacheT5) {
+	if plan.LayerCount() != 3 || plan.CacheLayerCount() != 2 || !plan.HasCache(CacheT5) {
 		t.Fatalf("plan = %+v", plan)
 	}
 	if _, err := plan.Layer(3); err == nil {

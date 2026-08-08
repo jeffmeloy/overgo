@@ -476,7 +476,7 @@ func buildDenseBlockFromPlan(
 }
 
 func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) (reference.Value, error) {
-	if r.program.Model.Terminal.Normalization == model.OutputNormAbsent {
+	if r.program.Model.Terminal().Normalization == model.OutputNormAbsent {
 		return activation, nil
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)

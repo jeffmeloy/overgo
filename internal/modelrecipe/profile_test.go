@@ -344,7 +344,7 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, ok, err := compileActiveFixture(ctx, store, modelID, spec, model.Weights{})
-	if err != nil || !ok || plan.Model.Profile != profile {
+	if err != nil || !ok || plan.Model.Profile() != profile {
 		t.Fatalf("active profile plan = (%+v, %v, %v)", plan.Model, ok, err)
 	}
 	activeProfile, ok, err := ActiveProfile(ctx, store, modelID, recipe.TaskInference)
@@ -409,7 +409,7 @@ func TestCompileWithProfileMatchesRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Model.Profile.Name != "llama" || len(plan.Model.Layers) != 1 {
+	if plan.Model.Profile().Name != "llama" || plan.Model.LayerCount() != 1 {
 		t.Fatalf("plan = %+v", plan.Model)
 	}
 }

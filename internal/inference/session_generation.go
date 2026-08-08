@@ -155,7 +155,7 @@ func (r *Runner) ContinueSession(
 }
 
 func (r *Runner) outputTensor() gguf.TensorInfo {
-	if r.program.Model.Terminal.OutputHead == model.OutputHeadDedicated {
+	if r.program.Model.Terminal().OutputHead == model.OutputHeadDedicated {
 		return *r.weights.Output
 	}
 	return r.weights.TokenEmbedding

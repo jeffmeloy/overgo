@@ -116,15 +116,19 @@ func CompileCacheSchemas(
 	plan ModelPlan,
 	layers []LayerWeights,
 ) ([]LayerCacheSchema, error) {
-	if len(plan.Layers) != len(layers) {
+	if plan.LayerCount() != len(layers) {
 		return nil, fmt.Errorf(
 			"cache schema layer count %d differs from plan count %d",
-			len(layers), len(plan.Layers),
+			len(layers), plan.LayerCount(),
 		)
 	}
 	result := make([]LayerCacheSchema, len(layers))
 	for index, layer := range layers {
-		schema, err := CacheSchemaForPlan(spec, plan.Layers[index], layer, 1)
+		layerPlan, err := plan.Layer(index)
+		if err != nil {
+			return nil, err
+		}
+		schema, err := CacheSchemaForPlan(spec, layerPlan, layer, 1)
 		if err != nil {
 			return nil, fmt.Errorf("cache schema layer %d: %w", index, err)
 		}

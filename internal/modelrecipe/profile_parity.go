@@ -74,8 +74,8 @@ func newProfileParityEvidence(
 	evidence := ProfileParityEvidence{
 		Version: ProfileParityVersion, Recipe: definition.ID, Model: definition.Model,
 		Profile: document.ID, Architecture: document.Architecture,
-		Layers: uint32(len(plan.Model.Layers)), CacheLayers: plan.Model.CacheLayers,
-		CachedGraph: plan.Model.CachedGraph,
+		Layers: uint32(plan.Model.LayerCount()), CacheLayers: plan.Model.CacheLayerCount(),
+		CachedGraph: plan.Model.CachedGraph(),
 	}
 	return profileParityCodec.New(evidence)
 }

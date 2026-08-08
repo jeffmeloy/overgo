@@ -318,7 +318,7 @@ func (r *Runner) validateStep35MTP() error {
 }
 
 func (r *Runner) usesStep35MTPGraph() bool {
-	return r != nil && r.program.Model.Draft.Kind == model.DraftStep35MTP
+	return r != nil && r.program.Model.Draft().Kind == model.DraftStep35MTP
 }
 
 func (r *Runner) validateHYV3MTP() error {
@@ -332,14 +332,14 @@ func (r *Runner) validateMultiHeadMTP() error {
 	if r == nil {
 		return errors.New("inference: MTP runner is nil")
 	}
-	if r.program.Model.Draft.Kind == model.DraftHYV3MTP {
+	if r.program.Model.Draft().Kind == model.DraftHYV3MTP {
 		return r.validateHYV3MTP()
 	}
 	return r.validateStep35MTP()
 }
 
 func (r *Runner) multiHeadMTPWeights() []model.Step35MTPWeights {
-	if r != nil && r.program.Model.Draft.Kind == model.DraftHYV3MTP {
+	if r != nil && r.program.Model.Draft().Kind == model.DraftHYV3MTP {
 		return r.weights.HYV3MTP
 	}
 	if r == nil {

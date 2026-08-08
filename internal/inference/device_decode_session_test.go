@@ -17,13 +17,12 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 		pageTokens    = uint32(4)
 		contextTokens = uint32(16)
 	)
+	spec := model.Spec{CommonSpec: model.CommonSpec{
+		Architecture: "llama", BlockCount: 1, ContextLength: contextTokens,
+	}}
 	runner := &Runner{preparedModel: preparedModel{
-		spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: contextTokens}},
-		program: modelrecipe.Plan{Model: model.ModelPlan{Profile: model.ArchitectureProfile{
-			Name: "fixture", Attention: model.AttentionQwenGDN,
-		}, Layers: []model.LayerPlan{{
-			CacheMode: model.CacheStateToken, CacheWrite: model.CacheWriteConcatOrAppend,
-		}}}, Decode: modelrecipe.DecodePlan{
+		spec: spec,
+		program: modelrecipe.Plan{Model: fixtureProgram(spec, model.Weights{}).Model, Decode: modelrecipe.DecodePlan{
 			Session: modelrecipe.DecodeSessionCapacity,
 		}},
 	}}

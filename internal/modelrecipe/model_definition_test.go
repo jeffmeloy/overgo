@@ -78,8 +78,8 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.ID != document.ID || plan.Model.Profile.DenseGraph != model.DenseGraphTalkie {
-		t.Fatalf("resolved definition/plan = (%s, %+v)", parsed.ID, plan.Model.Profile)
+	if parsed.ID != document.ID || plan.Model.Profile().DenseGraph != model.DenseGraphTalkie {
+		t.Fatalf("resolved definition/plan = (%s, %+v)", parsed.ID, plan.Model.Profile())
 	}
 }
 

@@ -190,7 +190,7 @@ func (p Plan) ValidateServing() error {
 	if err := validateProgramIdentity(p.Recipe, p.Identity); err != nil {
 		return err
 	}
-	if p.Model.Profile.Name == "" || len(p.Model.Layers) == 0 {
+	if p.Model.Profile().Name == "" || p.Model.LayerCount() == 0 {
 		return errors.New("model recipe: serving model program is incomplete")
 	}
 	if !slices.Equal(p.Nodes, p.Recipe.Nodes) {

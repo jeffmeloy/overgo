@@ -23,7 +23,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Recipe.ID != definition.ID || plan.Model.Profile.Family != model.ArchitectureFamilyAttention {
+	if plan.Recipe.ID != definition.ID || plan.Model.Profile().Family != model.ArchitectureFamilyAttention {
 		t.Fatalf("compiled plan = %+v", plan)
 	}
 	if len(plan.Nodes) != 3 || plan.Decode.Session != DecodeSessionRequest {
@@ -73,7 +73,9 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 	if err := program.ValidateServing(); err != nil {
 		t.Fatal(err)
 	}
-	if !program.Model.Layers[0].Recurrent || program.Model.Layers[1].Recurrent ||
+	first, _ := program.Model.Layer(0)
+	second, _ := program.Model.Layer(1)
+	if !first.Recurrent || second.Recurrent ||
 		program.Decode.Session != DecodeSessionCapacity {
 		t.Fatalf("Qwen3.5 program = %+v", program)
 	}

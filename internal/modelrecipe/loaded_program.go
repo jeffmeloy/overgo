@@ -120,7 +120,7 @@ func (l *LoadedProgram) bindResolved(
 	if err := program.ValidateServing(); err != nil {
 		return err
 	}
-	if observed.Architecture != program.Model.Profile.Name {
+	if observed.Architecture != program.Model.Profile().Name {
 		return errors.New("model recipe: loaded program architecture differs")
 	}
 	l.state.Spec, l.state.Weights, l.state.Program = observed, weights, program
@@ -149,7 +149,7 @@ func (l LoadedProgram) LayerPlans() ([]model.LayerPlan, bool) {
 	if l.state == nil {
 		return nil, false
 	}
-	return append([]model.LayerPlan(nil), l.state.Program.Model.Layers...), true
+	return l.state.Program.Model.Layers(), true
 }
 
 // Consume: transfers resolved serving ownership exactly once.

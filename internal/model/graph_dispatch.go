@@ -46,13 +46,18 @@ func BuildArchitectureBlockCached(
 		return DenseBlockResult{}, errors.New("compiled layer plan is required")
 	}
 	context := options.Context
+	if context.MultiPositions != nil {
+		if !options.Spec.SupportsMultiAxisPositions() {
+			return DenseBlockResult{}, errors.New("layer architecture does not support multi-axis positions")
+		}
+		context.Positions = context.MultiPositions[0]
+		options.Context = context
+	}
 	plan := *options.Plan
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
 	}
-	if plan.Program != compileLayerProgram(
-		plan.Block, options.Spec.Profile(), plan.Recurrent, plan.Composition,
-	) {
+	if plan.Program != compileLayerProgram(plan, options.Spec.Profile()) {
 		return DenseBlockResult{}, errors.New("compiled layer program differs from layer policy")
 	}
 	if plan.GraphFamily == ArchitectureFamilyEncoderDecoder {
@@ -110,6 +115,7 @@ type layerExecution struct {
 	residual *tensor.Tensor
 	current  *tensor.Tensor
 	result   DenseBlockResult
+	dense    *denseFeedForwardState
 }
 
 func executeLayerProgram(
@@ -355,12 +361,38 @@ func executeLayerInstruction(
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 || plan.Block != BlockDense {
 			return errors.New("compiled dense-transformer stage is invalid")
 		}
-		result, err := buildDenseBlockWithOptions(options)
+		result, err := buildDenseBlock(options)
 		if err != nil {
 			return err
 		}
 		execution.current = result.Output
 		execution.result = result
+		return nil
+	case LayerOperatorDenseAttention:
+		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
+			plan.Block != BlockDense {
+			return errors.New("compiled dense-attention stage is invalid")
+		}
+		result, state, err := buildDenseAttentionStage(options)
+		if err != nil {
+			return err
+		}
+		execution.current = result.Output
+		execution.result = result
+		execution.dense = state
+		return nil
+	case LayerOperatorDenseFeedForward:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			plan.Block != BlockDense || execution.dense == nil {
+			return errors.New("compiled dense feed-forward stage is invalid")
+		}
+		result, err := buildDenseFeedForwardStage(execution.dense)
+		if err != nil {
+			return err
+		}
+		execution.current = result.Output
+		execution.result = result
+		execution.dense = nil
 		return nil
 	case LayerOperatorLinearAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||

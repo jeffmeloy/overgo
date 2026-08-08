@@ -52,6 +52,8 @@ type LayerOperator uint8
 const (
 	LayerOperatorNone LayerOperator = iota
 	LayerOperatorDenseTransformer
+	LayerOperatorDenseAttention
+	LayerOperatorDenseFeedForward
 	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
 	LayerOperatorHyperAttention
@@ -320,7 +322,6 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 			composition = LayerCompositionAttentionOnly
 		}
 	}
-	program := compileLayerProgram(block, profile, recurrent, composition)
 	experts := s.moeGraphPlan(layer)
 	if block == BlockNemotronH {
 		experts.Routing = tensor.MoERoutingSigmoid
@@ -341,7 +342,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 			cacheWrite = CacheWriteConcatOrAppend
 		}
 	}
-	return LayerPlan{
+	plan := LayerPlan{
 		Layer:             layer,
 		GraphFamily:       profile.GraphFamily,
 		CatalogFamily:     profile.CatalogFamily,
@@ -350,7 +351,6 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Residual:          profile.Residual,
 		FeedForward:       profile.FeedForward,
 		Block:             block,
-		Program:           program,
 		Composition:       composition,
 		Cache:             cache,
 		CacheMode:         cache.PrimaryMode(),
@@ -385,6 +385,8 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		AttentionOutput: s.attentionOutputPlan(normalization),
 		ResidualStages:  s.residualStagePlan(profile, normalization),
 	}
+	plan.Program = compileLayerProgram(plan, profile)
+	return plan
 }
 
 // SupportsCapacityCache: all token caches admit bounded append.
@@ -577,9 +579,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			layer.CatalogFamily != plan.profile.CatalogFamily {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if layer.Program != compileLayerProgram(
-			layer.Block, plan.profile, layer.Recurrent, layer.Composition,
-		) {
+		if layer.Program != compileLayerProgram(layer, plan.profile) {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
 		if layer.SharedKV {
@@ -725,12 +725,10 @@ func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 	return profile.Block
 }
 
-func compileLayerProgram(
-	block BlockPolicy,
-	profile ArchitectureProfile,
-	recurrent bool,
-	composition LayerCompositionPolicy,
-) LayerProgram {
+func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgram {
+	block := plan.Block
+	recurrent := plan.Recurrent
+	composition := plan.Composition
 	if profile.Attention == AttentionLFM2 && recurrent {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixLFM2, false),
@@ -813,6 +811,15 @@ func compileLayerProgram(
 	}
 	switch block {
 	case BlockDense:
+		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
+			return newLayerProgram(
+				leafLayerStage(
+					LayerOperatorDenseAttention,
+					[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+				),
+				layerStage(LayerOperatorDenseFeedForward),
+			)
+		}
 		return leafLayerProgram(
 			LayerOperatorDenseTransformer,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,

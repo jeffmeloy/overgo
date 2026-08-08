@@ -13,7 +13,7 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			composition = LayerCompositionAttentionOnly
 		}
 		program := compileLayerProgram(
-			policy, ArchitectureProfile{}, false, composition,
+			LayerPlan{Block: policy, Composition: composition}, ArchitectureProfile{},
 		)
 		_, ok := program.Instruction(0)
 		if !ok {
@@ -22,7 +22,9 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		var want []LayerOperator
 		switch policy {
 		case BlockDense:
-			want = []LayerOperator{LayerOperatorDenseTransformer}
+			want = []LayerOperator{
+				LayerOperatorDenseAttention, LayerOperatorDenseFeedForward,
+			}
 		case BlockKimiLinear:
 			want = []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
@@ -88,9 +90,29 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 	}
 }
 
+func TestDenseProgramsIsolateAtomicGraphs(t *testing.T) {
+	fixtures := []struct {
+		name    string
+		plan    LayerPlan
+		profile ArchitectureProfile
+	}{
+		{name: "special graph", plan: LayerPlan{Block: BlockDense}, profile: ArchitectureProfile{DenseGraph: DenseGraphBERT}},
+		{name: "sparse layer", plan: LayerPlan{Block: BlockDense, DeciSparse: true}},
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			program := compileLayerProgram(fixture.plan, fixture.profile)
+			instruction, ok := program.Instruction(0)
+			if !ok || program.Count != 1 || instruction.Operator != LayerOperatorDenseTransformer {
+				t.Fatalf("atomic dense program = %+v", program)
+			}
+		})
+	}
+}
+
 func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	program := compileLayerProgram(
-		BlockKimiLinear, ArchitectureProfile{}, true, LayerCompositionStandard,
+		LayerPlan{Block: BlockKimiLinear, Recurrent: true}, ArchitectureProfile{},
 	)
 	instruction, ok := program.Instruction(0)
 	if !ok || program.Count != 6 || instruction.Operator != LayerOperatorAttentionNorm {
@@ -106,7 +128,8 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 
 func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	program := compileLayerProgram(
-		BlockDense, ArchitectureProfile{Attention: AttentionLFM2}, true, LayerCompositionStandard,
+		LayerPlan{Block: BlockDense, Recurrent: true},
+		ArchitectureProfile{Attention: AttentionLFM2},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -155,8 +178,11 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			program := compileLayerProgram(
-				BlockNemotronH, ArchitectureProfile{},
-				fixture.recurrent, fixture.composition,
+				LayerPlan{
+					Block: BlockNemotronH, Recurrent: fixture.recurrent,
+					Composition: fixture.composition,
+				},
+				ArchitectureProfile{},
 			)
 			instruction, ok := program.Instruction(mixerStage)
 			if !ok || instruction.Operator != fixture.mixer {
@@ -173,8 +199,8 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	)
 	for _, recurrent := range []bool{false, true} {
 		program := compileLayerProgram(
-			BlockDense, ArchitectureProfile{Attention: AttentionQwenGDN},
-			recurrent, LayerCompositionStandard,
+			LayerPlan{Block: BlockDense, Recurrent: recurrent},
+			ArchitectureProfile{Attention: AttentionQwenGDN},
 		)
 		instruction, ok := program.Instruction(mixerStage)
 		if !ok || program.Count != qwenProgramStageCount {

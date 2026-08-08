@@ -42,7 +42,7 @@ func TestBuildGroveMoEGroupedChunkExperts(t *testing.T) {
 		FeedForwardUpChunkExperts:   builder.Input("up_chexps", dtype.F32, tensor.MustShape(8, 3, 2)),
 		FeedForwardDownChunkExperts: builder.Input("down_chexps", dtype.F32, tensor.MustShape(3, 8, 2)),
 	}
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
 	if err != nil {
@@ -72,7 +72,7 @@ func TestBuildGroveMoEGroupedChunkExperts(t *testing.T) {
 		t.Fatalf("unexpected grouped GroveMoE pass: attrs=%+v inputs=%v", grouped, moes[1].Inputs)
 	}
 	spec.ExpertsPerGroup = 3
-	if _, err := BuildDenseBlockCachedForLayer(
+	if _, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	); err == nil {
 		t.Fatal("GroveMoE accepted invalid expert grouping")
@@ -108,7 +108,7 @@ func TestBuildGLM4MoEBlock(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
 	)
 	if err != nil {
@@ -165,7 +165,7 @@ func TestBuildMiMo2UsesSinksValueScaleAndSigmoidMoE(t *testing.T) {
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
 	}
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
 	)
 	if err != nil {
@@ -237,7 +237,7 @@ func TestBuildStep35UsesPartialRoPEHeadGateAndLimitedExperts(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 8)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(8, 8)),
 	}
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
 	if err != nil {
@@ -300,7 +300,7 @@ func TestBuildDOTS1MoEBlock(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1,
 	)
 	if err != nil {
@@ -355,7 +355,7 @@ func TestBuildMiniMaxM2Block(t *testing.T) {
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
 	}
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +398,7 @@ func TestBuildDenseApertus(t *testing.T) {
 	weights.AttentionOutputBias = builder.Input("attn_output_bias", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardGate = nil
 	weights.RopeFactors = builder.Input("rope_long", dtype.F32, tensor.MustShape(2))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,7 +466,7 @@ func TestBuildDenseGPTNeoXResidualModes(t *testing.T) {
 			weights.FeedForwardGate = nil
 			weights.FeedForwardUpBias = builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(12))
 			weights.FeedForwardDownBias = builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(8))
-			output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+			output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -513,7 +513,7 @@ func TestBuildDenseGPTJParallelResidualNormalRoPEGELU(t *testing.T) {
 	weights.FeedForwardGate = nil
 	weights.FeedForwardUpBias = builder.Input("ffn_up_bias", dtype.F32, tensor.MustShape(12))
 	weights.FeedForwardDownBias = builder.Input("ffn_down_bias", dtype.F32, tensor.MustShape(8))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -563,7 +563,7 @@ func TestBuildDenseGLM4(t *testing.T) {
 	weights.FeedForwardPostNorm = builder.Input("post_ffw_norm", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardGate = nil
 	weights.FeedForwardUp = builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 24))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -612,7 +612,7 @@ func TestBuildDenseGLM4UsesDistinctMRoPEPositions(t *testing.T) {
 	weights.FeedForwardGate = nil
 	weights.FeedForwardUp = builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 24))
 	positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
-	result, err := BuildDenseBlockCachedForLayerWithMultiPositions(
+	result, err := buildFixtureDenseBlockCachedWithMultiPositions(
 		builder, input, spec, weights, positions, nil, nil, 0,
 	)
 	if err != nil {
@@ -674,7 +674,7 @@ func TestBuildDenseEXAONE4SlidingPattern(t *testing.T) {
 		weights.AttentionQKVBias = builder.Input("attn_qkv_bias", dtype.F32, tensor.MustShape(16))
 		weights.AttentionPostNorm = builder.Input("post_attention_norm", dtype.F32, tensor.MustShape(8))
 		weights.FeedForwardPostNorm = builder.Input("post_ffw_norm", dtype.F32, tensor.MustShape(8))
-		result, err := BuildDenseBlockCachedForLayer(
+		result, err := buildFixtureDenseBlockCachedForLayer(
 			builder, input, spec, weights, []uint32{0, 1}, nil, nil, test.layer,
 		)
 		if err != nil {
@@ -730,7 +730,7 @@ func TestBuildDenseFalconNormLayouts(t *testing.T) {
 				weights.AttentionNorm2 = builder.Input("attn_norm_2", dtype.F32, tensor.MustShape(8))
 				weights.AttentionNorm2Bias = builder.Input("attn_norm_2_bias", dtype.F32, tensor.MustShape(8))
 			}
-			output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+			output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -795,7 +795,7 @@ func TestBuildDenseBitNetSubNormsAndScales(t *testing.T) {
 	weights.FeedForwardGateScale = scale("ffn_gate_scale")
 	weights.FeedForwardUpScale = scale("ffn_up_scale")
 	weights.FeedForwardDownScale = scale("ffn_down_scale")
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -833,7 +833,7 @@ func TestBuildDenseQwen3BlockWithCache(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1))
 	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(4, 1, 3))
 	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(4, 1, 3))
-	result, err := BuildDenseBlockCached(
+	result, err := buildFixtureDenseBlockCached(
 		builder,
 		input,
 		spec,
@@ -870,7 +870,7 @@ func TestBuildDenseLlamaBlockUsesNormalRoPE(t *testing.T) {
 	weights.AttentionQNorm = nil
 	weights.AttentionKNorm = nil
 	weights.RopeFactors = builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -921,7 +921,7 @@ func TestBuildLlamaEmbedBlocksUseBidirectionalNormalRoPE(t *testing.T) {
 				weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 				weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
 			}
-			result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+			result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -957,7 +957,7 @@ func TestBuildLlamaEmbedBlocksUseBidirectionalNormalRoPE(t *testing.T) {
 			cacheWeights.AttentionKNorm = nil
 			pastKey := cacheBuilder.Input("past_key", dtype.F32, tensor.MustShape(4, 1, 1))
 			pastValue := cacheBuilder.Input("past_value", dtype.F32, tensor.MustShape(4, 1, 1))
-			_, err = BuildDenseBlockCached(cacheBuilder, cacheInput, spec, cacheWeights, []uint32{1}, pastKey, pastValue)
+			_, err = buildFixtureDenseBlockCached(cacheBuilder, cacheInput, spec, cacheWeights, []uint32{1}, pastKey, pastValue)
 			if err == nil || !strings.Contains(err.Error(), "does not support a KV cache") {
 				t.Fatalf("cached Llama Embed block error = %v", err)
 			}
@@ -978,7 +978,7 @@ func TestBuildPanguEmbeddedBlockUsesCausalNeoXRoPEAndOutputBias(t *testing.T) {
 	weights.AttentionKNorm = nil
 	weights.AttentionOutputBias = builder.Input("attn_out_bias", dtype.F32, tensor.MustShape(8))
 	weights.RopeFactors = builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
-	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1043,7 +1043,7 @@ func TestBuildModernBERTBlocksUseDenseFirstSymmetricWindows(t *testing.T) {
 			if test.layer > 0 {
 				weights.AttentionNorm = builder.Input("attn_norm", dtype.F32, tensor.MustShape(8))
 			}
-			result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2, 3, 4}, nil, nil, test.layer)
+			result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2, 3, 4}, nil, nil, test.layer)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1130,7 +1130,7 @@ func TestBuildGemmaEmbeddingBlocksUseQKNormAndPeriodicSymmetricWindows(t *testin
 				FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 				FeedForwardPostNorm: builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
 			}
-			result, err := BuildDenseBlockCachedForLayer(
+			result, err := buildFixtureDenseBlockCachedForLayer(
 				builder, input, spec, weights, []uint32{0, 1, 2, 3, 4}, nil, nil, test.layer,
 			)
 			if err != nil {
@@ -1195,7 +1195,7 @@ func TestBuildTalkieBlockUsesPostRoPEQueryGainAndEmbeddingSkip(t *testing.T) {
 	}
 	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(4, 1, 1))
 	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(4, 1, 1))
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{1, 2}, pastKey, pastValue, 0,
 	)
 	if err != nil {
@@ -1257,7 +1257,7 @@ func TestBuildDenseLlamaBlockUsesLinearRoPEScale(t *testing.T) {
 	weights := denseBlockInputs(builder, spec)
 	weights.AttentionQNorm = nil
 	weights.AttentionKNorm = nil
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1311,7 +1311,7 @@ func TestBuildDenseGemma2BlockUsesSoftcappedSlidingAttention(t *testing.T) {
 	weights.FeedForwardPostNorm = builder.Input(
 		"post_ffw_norm", dtype.F32, tensor.MustShape(8),
 	)
-	output, err := BuildDenseBlockCachedForLayer(
+	output, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
 	if err != nil {
@@ -1360,7 +1360,7 @@ func TestBuildDenseGemmaBlockUsesScaledNeoXGEGLU(t *testing.T) {
 	weights := denseBlockInputs(builder, spec)
 	weights.AttentionQNorm = nil
 	weights.AttentionKNorm = nil
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1415,7 +1415,7 @@ func TestBuildDenseBlockConsumesProjectionBiases(t *testing.T) {
 	weights.FeedForwardGateBias = builder.Input("ffn_gate.bias", dtype.F32, tensor.MustShape(12))
 	weights.FeedForwardUpBias = builder.Input("ffn_up.bias", dtype.F32, tensor.MustShape(12))
 	weights.FeedForwardDownBias = builder.Input("ffn_down.bias", dtype.F32, tensor.MustShape(8))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1462,7 +1462,7 @@ func TestBuildGPT2DenseBlockUsesLearnedPositionsWithoutRoPE(t *testing.T) {
 	weights.AttentionOutputBias = builder.Input("attn_output.bias", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardUpBias = builder.Input("ffn_up.bias", dtype.F32, tensor.MustShape(16))
 	weights.FeedForwardDownBias = builder.Input("ffn_down.bias", dtype.F32, tensor.MustShape(8))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{3, 4})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{3, 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1504,7 +1504,7 @@ func TestBuildBloomDenseBlockUsesALiBiWithoutRoPE(t *testing.T) {
 	weights.AttentionOutputBias = builder.Input("attn_output.bias", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardUpBias = builder.Input("ffn_up.bias", dtype.F32, tensor.MustShape(16))
 	weights.FeedForwardDownBias = builder.Input("ffn_down.bias", dtype.F32, tensor.MustShape(8))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1548,7 +1548,7 @@ func TestBuildMPTBiasFreeBlockUsesALiBi(t *testing.T) {
 	weights.AttentionKNorm = nil
 	weights.FeedForwardGate = nil
 	weights.AttentionQKV = builder.Input("attn_qkv", dtype.F32, tensor.MustShape(8, 24))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1597,7 +1597,7 @@ func TestBuildMPTQKLayerNormUsesFullProjections(t *testing.T) {
 	weights.AttentionQNormBias = builder.Input("attn_q_norm_bias", dtype.F32, tensor.MustShape(8))
 	weights.AttentionKNormBias = builder.Input("attn_k_norm_bias", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardActivationScale = builder.Input("ffn_act_scales", dtype.F32, tensor.MustShape(16))
-	output, err := BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1636,7 +1636,7 @@ func TestBuildOLMoClampsSeparateQKV(t *testing.T) {
 	weights.AttentionNormBias = nil
 	weights.FeedForwardNorm = nil
 	weights.FeedForwardNormBias = nil
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
 	if err != nil {

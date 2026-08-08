@@ -56,7 +56,7 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	noise := input("noise", tensor.MustShape(4, 3), 0.1)
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, noise, spec, weights, []uint32{2, 3, 4}, cacheKey, cacheValue, 0,
 	)
 	if err != nil {

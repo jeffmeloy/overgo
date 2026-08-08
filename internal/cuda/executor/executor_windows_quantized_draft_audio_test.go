@@ -134,7 +134,7 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	noise := input("noise", tensor.MustShape(4, 3), 0.08, -0.1)
-	result, err := model.BuildDenseBlockCachedForLayer(builder, noise, spec, weights, []uint32{2, 3, 4}, key, value, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, noise, spec, weights, []uint32{2, 3, 4}, key, value, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

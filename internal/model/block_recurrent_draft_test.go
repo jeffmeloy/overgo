@@ -885,7 +885,7 @@ func TestBuildLlama4AttentionAndMoE(t *testing.T) {
 				weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6))
 				weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8))
 			}
-			result, err := BuildDenseBlockCachedForLayer(
+			result, err := buildFixtureDenseBlockCachedForLayer(
 				builder, input, spec, weights, []uint32{8192, 8193}, nil, nil, test.layer,
 			)
 			if err != nil {
@@ -938,7 +938,7 @@ func TestBuildMistral3TemperatureMoEBlock(t *testing.T) {
 	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
 	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
 	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
-	result, err := BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{8, 9}, nil, nil, 0,
 	)
 	if err != nil {
@@ -988,7 +988,7 @@ func TestBuildGPTOSSBiasedMoEBlock(t *testing.T) {
 	weights.FeedForwardUpBias = builder.Input("up_bias", dtype.F32, tensor.MustShape(6, 4))
 	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
 	weights.FeedForwardDownBias = builder.Input("down_bias", dtype.F32, tensor.MustShape(8, 4))
-	result, err := BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

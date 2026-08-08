@@ -150,6 +150,52 @@ func buildFixtureCachedBlock(
 	})
 }
 
+func buildFixtureDenseBlockCachedForLayer(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec model.Spec,
+	weights model.LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layer uint32,
+) (model.DenseBlockResult, error) {
+	return buildFixtureCachedBlock(
+		builder, input, spec, weights, positions, pastKey, pastValue, layer, false,
+	)
+}
+
+func buildFixtureDenseBlock(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec model.Spec,
+	weights model.LayerGraphWeights,
+	positions []uint32,
+) (*tensor.Tensor, error) {
+	result, err := buildFixtureDenseBlockCachedForLayer(
+		builder, input, spec, weights, positions, nil, nil, 0,
+	)
+	return result.Output, err
+}
+
+func buildFixtureDenseBlockCachedWithMultiPositions(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec model.Spec,
+	weights model.LayerGraphWeights,
+	positions [4][]uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layer uint32,
+) (model.DenseBlockResult, error) {
+	plan := spec.PlanLayer(layer, false)
+	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, MultiPositions: &positions,
+			PastKey: pastKey, PastValue: pastValue, Layer: layer,
+		},
+		Spec: spec, Weights: weights, Plan: &plan,
+	})
+}
+
 func checkCUDAGraph(
 	t *testing.T,
 	feeds map[*tensor.Tensor]reference.Value,

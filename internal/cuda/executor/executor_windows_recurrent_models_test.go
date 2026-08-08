@@ -1305,7 +1305,7 @@ func TestExecutorDenseQwen3BlockMatchesReference(t *testing.T) {
 			tensor.MustShape(8),
 		),
 	}
-	output, err := model.BuildDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
+	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1389,7 +1389,7 @@ func TestExecutorDenseOLMo2BlockMatchesReference(t *testing.T) {
 			tensor.MustShape(8),
 		),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder,
 		input,
 		spec,
@@ -1454,7 +1454,7 @@ func TestExecutorDenseOLMoClampedQKVMatchesReference(t *testing.T) {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
 	if err != nil {

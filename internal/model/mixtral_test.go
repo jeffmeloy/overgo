@@ -55,7 +55,7 @@ func TestMixtralMetadataCatalogAndGraph(t *testing.T) {
 	graphWeights.FeedForwardGateExperts = b.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	graphWeights.FeedForwardUpExperts = b.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	graphWeights.FeedForwardDownExperts = b.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
-	output, err := BuildDenseBlock(b, input, spec, graphWeights, []uint32{0, 1})
+	output, err := buildFixtureDenseBlock(b, input, spec, graphWeights, []uint32{0, 1})
 	if err != nil {
 		t.Fatal(err)
 	}

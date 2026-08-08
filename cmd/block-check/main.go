@@ -80,10 +80,17 @@ func run() error {
 	for index := range positions {
 		positions[index] = uint32(index)
 	}
-	output, err := model.BuildDenseBlock(builder, input, spec, graphWeights, positions)
+	plan := spec.PlanLayer(uint32(*layerIndex), false)
+	blockResult, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: positions, Layer: plan.Layer,
+		},
+		Spec: spec, Weights: graphWeights, Plan: &plan,
+	})
 	if err != nil {
 		return err
 	}
+	output := blockResult.Output
 	inputData := make([]float32, int(spec.EmbeddingLength)*(*tokenCount))
 	for index := range inputData {
 		inputData[index] = float32(math.Sin(float64(index+1)*0.017)) * 0.25

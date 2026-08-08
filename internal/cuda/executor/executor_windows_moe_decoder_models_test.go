@@ -46,7 +46,7 @@ func TestExecutorGPTJBlockMatchesReference(t *testing.T) {
 		FeedForwardDownBias: input("ffn_down_bias", tensor.MustShape(8), 0.02, -0.03),
 	}
 	current := input("current", tensor.MustShape(8, 3), 0.08, -0.1)
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, current, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestExecutorRND1NonCausalMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
 	if err != nil {
@@ -146,7 +146,7 @@ func TestExecutorLLaDAMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestExecutorLagunaYaRNMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 10)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestExecutorAFMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestExecutorOLMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
 	if err != nil {
@@ -390,7 +390,7 @@ func TestExecutorMixtralBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
 	if err != nil {
@@ -453,7 +453,7 @@ func TestExecutorPhiMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
 		RopeFactors:            builder.Input("rope_long", dtype.F32, tensor.MustShape(2)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
 	if err != nil {
@@ -526,7 +526,7 @@ func TestExecutorEXAOneMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,7 +585,7 @@ func TestExecutorBailingMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -641,7 +641,7 @@ func TestExecutorDeepSeekMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -706,7 +706,7 @@ func TestExecutorGraniteMoEUngatedBlockMatchesReference(t *testing.T) {
 				deepstack = builder.Input("deepstack_input", dtype.F32, input.Shape)
 				layerInput = builder.Add(layerInput, deepstack)
 			}
-			result, err := model.BuildDenseBlockCachedForLayer(builder, layerInput, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+			result, err := buildFixtureDenseBlockCachedForLayer(builder, layerInput, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -762,7 +762,7 @@ func TestExecutorSmallThinkerBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1,
 	)
 	if err != nil {
@@ -822,7 +822,7 @@ func TestExecutorDOTS1BlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1,
 	)
 	if err != nil {
@@ -883,7 +883,7 @@ func TestExecutorMiniMaxM2BlockMatchesReference(t *testing.T) {
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 		FeedForwardExpertBias:  builder.Input("expert_bias", dtype.F32, tensor.MustShape(4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
 	if err != nil {
@@ -961,7 +961,7 @@ func TestExecutorGrokBlockMatchesReference(t *testing.T) {
 				weights.FeedForwardUp = builder.Input("dense_up", dtype.F32, tensor.MustShape(8, 12))
 				weights.FeedForwardDown = builder.Input("dense_down", dtype.F32, tensor.MustShape(12, 8))
 			}
-			result, err := model.BuildDenseBlockCachedForLayer(
+			result, err := buildFixtureDenseBlockCachedForLayer(
 				builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 			)
 			if err != nil {
@@ -1031,7 +1031,7 @@ func TestExecutorMellumBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(
+	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 3,
 	)
 	if err != nil {
@@ -1076,7 +1076,7 @@ func TestExecutorQwenBlockMatchesReference(t *testing.T) {
 	w := model.LayerGraphWeights{
 		AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)), AttentionQKVBias: b.Input("qkvb", dtype.F32, tensor.MustShape(24)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
+	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1108,7 +1108,7 @@ func TestExecutorChatGLMBlockMatchesReference(t *testing.T) {
 	s := model.Spec{CommonSpec: model.CommonSpec{Architecture: "chatglm", EmbeddingLength: 8, FeedForwardLength: 12, RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000}}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 24)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
-	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
+	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1148,7 +1148,7 @@ func testExecutorHunyuanBlockMatchesReference(t *testing.T, architecture string,
 	s := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 12, RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeSections: sections, RopeFrequencyBase: 40000}}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
-	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
+	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1180,7 +1180,7 @@ func TestExecutorCogVLMTokenBlockMatchesReference(t *testing.T) {
 	s := model.Spec{CommonSpec: model.CommonSpec{Architecture: "cogvlm", EmbeddingLength: 8, FeedForwardLength: 12, RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4, RopeFrequencyBase: 10000}}
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	w := model.LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
-	r, err := model.BuildDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
+	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1226,7 +1226,7 @@ func TestExecutorDBRXBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1280,7 +1280,7 @@ func TestExecutorArcticBlockMatchesReference(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4)),
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
 	}
-	result, err := model.BuildDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

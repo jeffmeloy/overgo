@@ -270,93 +270,18 @@ type DenseBlockOptions struct {
 	Plan    *LayerPlan
 }
 
-// BuildDenseBlockWithOptions: typed dense layer construction.
-func BuildDenseBlockWithOptions(options DenseBlockOptions) (DenseBlockResult, error) {
+// buildDenseBlockWithOptions: typed dense layer construction.
+func buildDenseBlockWithOptions(options DenseBlockOptions) (DenseBlockResult, error) {
 	if options.Context.MultiPositions != nil {
 		if !options.Spec.SupportsMultiAxisPositions() {
 			return DenseBlockResult{}, errors.New("dense block architecture does not support multi-axis positions")
 		}
 		options.Context.Positions = options.Context.MultiPositions[0]
 	}
-	return buildDenseBlockCachedForLayer(options)
+	return buildDenseBlock(options)
 }
 
-// BuildDenseBlock: pre-normalized grouped-query transformer block.
-func BuildDenseBlock(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-) (*tensor.Tensor, error) {
-	result, err := BuildDenseBlockCached(builder, input, spec, weights, positions, nil, nil)
-	return result.Output, err
-}
-
-// BuildDenseBlockCached additionally accepts and returns layer's rank-3
-// RoPE-key/value cache; Past cache tensors must either both be nil or both be
-// present
-func BuildDenseBlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey *tensor.Tensor,
-	pastValue *tensor.Tensor,
-) (DenseBlockResult, error) {
-	plan := spec.PlanLayer(0, false)
-	return BuildDenseBlockWithOptions(DenseBlockOptions{
-		Context: CachedBlockContext{
-			Builder: builder, Input: input, Positions: positions,
-			PastKey: pastKey, PastValue: pastValue,
-		},
-		Spec: spec, Weights: weights, Plan: &plan,
-	})
-}
-
-func BuildDenseBlockCachedForLayer(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey *tensor.Tensor,
-	pastValue *tensor.Tensor,
-	layerIndex uint32,
-) (DenseBlockResult, error) {
-	plan := spec.PlanLayer(layerIndex, false)
-	return BuildDenseBlockWithOptions(DenseBlockOptions{
-		Context: CachedBlockContext{
-			Builder: builder, Input: input, Positions: positions,
-			PastKey: pastKey, PastValue: pastValue, Layer: layerIndex,
-		},
-		Spec: spec, Weights: weights, Plan: &plan,
-	})
-}
-
-// BuildDenseBlockCachedForLayerWithMultiPositions: distinct MRoPE axes.
-func BuildDenseBlockCachedForLayerWithMultiPositions(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	multiPositions [4][]uint32,
-	pastKey *tensor.Tensor,
-	pastValue *tensor.Tensor,
-	layerIndex uint32,
-) (DenseBlockResult, error) {
-	plan := spec.PlanLayer(layerIndex, false)
-	return BuildDenseBlockWithOptions(DenseBlockOptions{
-		Context: CachedBlockContext{
-			Builder: builder, Input: input, MultiPositions: &multiPositions,
-			PastKey: pastKey, PastValue: pastValue, Layer: layerIndex,
-		},
-		Spec: spec, Weights: weights, Plan: &plan,
-	})
-}
-
-func buildDenseBlockCachedForLayer(options DenseBlockOptions) (DenseBlockResult, error) {
+func buildDenseBlock(options DenseBlockOptions) (DenseBlockResult, error) {
 	context := options.Context
 	builder := context.Builder
 	input := context.Input

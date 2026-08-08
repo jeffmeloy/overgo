@@ -429,7 +429,7 @@ func executeDenseTransformer(
 	plan LayerPlan,
 	operands layerOperands,
 ) (DenseBlockResult, error) {
-	return BuildDenseBlockWithOptions(DenseBlockOptions(options))
+	return buildDenseBlockWithOptions(DenseBlockOptions(options))
 }
 
 func buildSentinelCache(

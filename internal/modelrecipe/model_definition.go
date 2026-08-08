@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,6 +22,24 @@ const (
 
 var modelDefinitionContract = artifact.DocumentContract{
 	Kind: artifact.KindModelDefinition, MediaType: ModelDefinitionMediaType, Schema: ModelDefinitionSchema,
+}
+
+var modelDefinitionCodec = artifact.DocumentCodec[ModelDefinitionDocument]{
+	Name: "model definition", Contract: modelDefinitionContract,
+	Decode: func(data []byte, value *ModelDefinitionDocument) error {
+		var body modelDefinitionBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = ModelDefinitionDocument{
+			Version: body.Version, Model: body.Model, Profile: body.Profile,
+			TensorInventory: body.TensorInventory, Architecture: body.Architecture, Spec: body.Spec,
+		}
+		return nil
+	},
+	Encode: modelDefinitionContent, Canonicalize: canonicalizeModelDefinition,
+	Identity:    func(value ModelDefinitionDocument) artifact.ID { return value.ID },
+	SetIdentity: func(value *ModelDefinitionDocument, id artifact.ID) { value.ID = id },
 }
 
 type modelDefinitionBody struct {
@@ -127,20 +144,7 @@ func NewModelDefinitionDocument(
 		Profile: profile.ID, TensorInventory: tensors.ID,
 		Architecture: profile.Architecture, Spec: bound,
 	}
-	content, err := modelDefinitionContent(document)
-	if err != nil {
-		return ModelDefinitionDocument{}, err
-	}
-	if len(content) > artifact.MaxContentBytes {
-		return ModelDefinitionDocument{}, errors.New("model recipe: model definition exceeds inline content limit")
-	}
-	var cloned modelDefinitionBody
-	if err := strictjson.DecodeBytes(content, &cloned); err != nil {
-		return ModelDefinitionDocument{}, err
-	}
-	document.Spec = cloned.Spec
-	document.ID, err = modelDefinitionContract.Identify(content)
-	return document, err
+	return modelDefinitionCodec.New(document)
 }
 
 func NewModelDefinitionFromGGUF(
@@ -166,58 +170,19 @@ func NewModelDefinitionFromGGUF(
 }
 
 func ParseModelDefinitionDocument(content []byte) (ModelDefinitionDocument, error) {
-	var body modelDefinitionBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return ModelDefinitionDocument{}, fmt.Errorf("model recipe: decode model definition: %w", err)
-	}
-	document := ModelDefinitionDocument{
-		Version: body.Version, Model: body.Model, Profile: body.Profile,
-		TensorInventory: body.TensorInventory, Architecture: body.Architecture, Spec: body.Spec,
-	}
-	if err := document.validateShape(); err != nil {
-		return ModelDefinitionDocument{}, err
-	}
-	canonical, err := modelDefinitionContent(document)
-	if err != nil {
-		return ModelDefinitionDocument{}, err
-	}
-	if !bytes.Equal(content, canonical) {
-		return ModelDefinitionDocument{}, errors.New("model recipe: non-canonical model definition")
-	}
-	document.ID, err = modelDefinitionContract.Identify(content)
-	return document, err
+	return modelDefinitionCodec.Parse(content)
 }
 
 func (d ModelDefinitionDocument) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindModelDefinition {
-		return errors.New("model recipe: invalid model definition identity")
-	}
-	if err := d.validateShape(); err != nil {
-		return err
-	}
-	content, err := modelDefinitionContent(d)
-	if err != nil {
-		return err
-	}
-	if err := modelDefinitionContract.ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("model recipe: model definition identity mismatch")
-	}
-	return nil
+	return modelDefinitionCodec.ValidateIdentity(d)
 }
 
 func (d ModelDefinitionDocument) ContentBytes() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	return modelDefinitionContent(d)
+	return modelDefinitionCodec.ContentBytes(d)
 }
 
 func (d ModelDefinitionDocument) Content() (artifact.Content, error) {
-	content, err := d.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return modelDefinitionContract.Content(d.ID, content)
+	return modelDefinitionCodec.Content(d)
 }
 
 func (d ModelDefinitionDocument) Batch(key string) (artifact.Batch, error) {
@@ -341,5 +306,27 @@ func modelDefinitionContent(document ModelDefinitionDocument) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("model recipe: encode model definition: %w", err)
 	}
+	if len(content) > artifact.MaxContentBytes {
+		return nil, errors.New("model recipe: model definition exceeds inline content limit")
+	}
 	return content, nil
+}
+
+func canonicalizeModelDefinition(document *ModelDefinitionDocument) error {
+	if document == nil {
+		return errors.New("model recipe: nil model definition")
+	}
+	if err := document.validateShape(); err != nil {
+		return err
+	}
+	content, err := modelDefinitionContent(*document)
+	if err != nil {
+		return err
+	}
+	var body modelDefinitionBody
+	if err := strictjson.DecodeBytes(content, &body); err != nil {
+		return err
+	}
+	document.Spec = body.Spec
+	return nil
 }

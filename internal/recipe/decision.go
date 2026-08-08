@@ -1,11 +1,9 @@
 package recipe
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -23,6 +21,18 @@ const (
 
 var decisionContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: DecisionMediaType, Schema: DecisionSchema,
+}
+
+var decisionCodec = artifact.DocumentCodec[Decision]{
+	Name: "recipe decision", Contract: decisionContract,
+	Decode: func(data []byte, value *Decision) error { return strictjson.DecodeBytes(data, value) },
+	Encode: decisionBytes, Canonicalize: canonicalizeDecision,
+	Clone: func(value Decision) Decision {
+		value.Evidence = slices.Clone(value.Evidence)
+		return value
+	},
+	Identity:    func(value Decision) artifact.ID { return value.ID },
+	SetIdentity: func(value *Decision, id artifact.ID) { value.ID = id },
 }
 
 type DecisionOutcome string
@@ -70,80 +80,26 @@ func NewDecision(
 	decider Decider,
 	evidence []artifact.ID,
 ) (Decision, error) {
-	decision := Decision{
+	return decisionCodec.New(Decision{
 		Version: DecisionVersion, Subject: subject, Outcome: outcome, Tier: tier,
 		Reason: reason, Decider: decider, Evidence: slices.Clone(evidence),
-	}
-	if err := canonicalizeDecision(&decision); err != nil {
-		return Decision{}, err
-	}
-	content, err := decisionBytes(decision)
-	if err != nil {
-		return Decision{}, err
-	}
-	decision.ID, err = decisionContract.Identify(content)
-	return decision, err
+	})
 }
 
 func ParseDecision(content []byte) (Decision, error) {
-	var decision Decision
-	if err := strictjson.DecodeBytes(content, &decision); err != nil {
-		return Decision{}, fmt.Errorf("recipe: decode decision: %w", err)
-	}
-	parsed, err := NewDecision(
-		decision.Subject, decision.Outcome, decision.Tier, decision.Reason,
-		decision.Decider, decision.Evidence,
-	)
-	if err != nil {
-		return Decision{}, err
-	}
-	canonical, err := parsed.ContentBytes()
-	if err != nil {
-		return Decision{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Decision{}, errors.New("recipe: non-canonical decision content")
-	}
-	return parsed, nil
+	return decisionCodec.Parse(content)
 }
 
 func (d Decision) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindEvidence {
-		return errors.New("recipe: invalid decision identity")
-	}
-	canonical := d
-	canonical.ID = artifact.ID{}
-	if err := canonicalizeDecision(&canonical); err != nil {
-		return err
-	}
-	if !sameDecision(d, canonical) {
-		return errors.New("recipe: decision is not canonical")
-	}
-	content, err := decisionBytes(canonical)
-	if err != nil {
-		return err
-	}
-	if err := decisionContract.ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("recipe: decision identity mismatch")
-	}
-	return nil
+	return decisionCodec.ValidateIdentity(d)
 }
 
 func (d Decision) ContentBytes() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	canonical := d
-	canonical.ID = artifact.ID{}
-	return decisionBytes(canonical)
+	return decisionCodec.ContentBytes(d)
 }
 
 func (d Decision) Content() (artifact.Content, error) {
-	content, err := d.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return decisionContract.Content(d.ID, content)
+	return decisionCodec.Content(d)
 }
 
 func DecisionDocumentContract() artifact.DocumentContract { return decisionContract }
@@ -197,11 +153,4 @@ func validGitCommit(value string) bool {
 
 func decisionBytes(decision Decision) ([]byte, error) {
 	return json.Marshal(decision)
-}
-
-func sameDecision(left, right Decision) bool {
-	right.ID = left.ID
-	return left.Version == right.Version && left.ID == right.ID && left.Subject == right.Subject &&
-		left.Outcome == right.Outcome && left.Tier == right.Tier && left.Reason == right.Reason &&
-		left.Decider == right.Decider && slices.Equal(left.Evidence, right.Evidence)
 }

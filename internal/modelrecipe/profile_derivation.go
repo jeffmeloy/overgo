@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -26,6 +25,17 @@ var catalogProfileDerivationContract = artifact.DocumentContract{
 	Kind:      artifact.KindEvidence,
 	MediaType: CatalogProfileDerivationMediaType,
 	Schema:    CatalogProfileDerivationSchema,
+}
+
+var catalogProfileDerivationCodec = artifact.DocumentCodec[CatalogProfileDerivation]{
+	Name: "catalog profile derivation", Contract: catalogProfileDerivationContract,
+	Decode: func(data []byte, value *CatalogProfileDerivation) error {
+		return strictjson.DecodeBytes(data, &value.catalogProfileDerivationBody)
+	},
+	Encode:       catalogProfileDerivationContent,
+	Canonicalize: func(value *CatalogProfileDerivation) error { return value.validateShape() },
+	Identity:     func(value CatalogProfileDerivation) artifact.ID { return value.ID },
+	SetIdentity:  func(value *CatalogProfileDerivation, id artifact.ID) { value.ID = id },
 }
 
 type catalogProfileDerivationBody struct {
@@ -57,63 +67,19 @@ func NewCatalogProfileDerivation(profile model.ArchitectureProfile) (CatalogProf
 		Architecture: profile.Name, Source: catalogProfileSource,
 		FactSchemaSHA256: sha256Hex(schema), PolicySHA256: sha256Hex(policy),
 	}}
-	if err := document.validateShape(); err != nil {
-		return CatalogProfileDerivation{}, err
-	}
-	content, err := catalogProfileDerivationContent(document)
-	if err != nil {
-		return CatalogProfileDerivation{}, err
-	}
-	document.ID, err = catalogProfileDerivationContract.Identify(content)
-	return document, err
+	return catalogProfileDerivationCodec.New(document)
 }
 
 func ParseCatalogProfileDerivation(content []byte) (CatalogProfileDerivation, error) {
-	var body catalogProfileDerivationBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return CatalogProfileDerivation{}, fmt.Errorf("model recipe: decode profile derivation: %w", err)
-	}
-	document := CatalogProfileDerivation{catalogProfileDerivationBody: body}
-	if err := document.validateShape(); err != nil {
-		return CatalogProfileDerivation{}, err
-	}
-	canonical, err := catalogProfileDerivationContent(document)
-	if err != nil {
-		return CatalogProfileDerivation{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return CatalogProfileDerivation{}, errors.New("model recipe: non-canonical profile derivation")
-	}
-	document.ID, err = catalogProfileDerivationContract.Identify(canonical)
-	return document, err
+	return catalogProfileDerivationCodec.Parse(content)
 }
 
 func (d CatalogProfileDerivation) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindEvidence {
-		return errors.New("model recipe: invalid profile derivation identity")
-	}
-	if err := d.validateShape(); err != nil {
-		return err
-	}
-	content, err := catalogProfileDerivationContent(d)
-	if err != nil {
-		return err
-	}
-	if err := catalogProfileDerivationContract.ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("model recipe: profile derivation identity mismatch")
-	}
-	return nil
+	return catalogProfileDerivationCodec.ValidateIdentity(d)
 }
 
 func (d CatalogProfileDerivation) Content() (artifact.Content, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return artifact.Content{}, err
-	}
-	content, err := catalogProfileDerivationContent(d)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return catalogProfileDerivationContract.Content(d.ID, content)
+	return catalogProfileDerivationCodec.Content(d)
 }
 
 func (d CatalogProfileDerivation) validateShape() error {

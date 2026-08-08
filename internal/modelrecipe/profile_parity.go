@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +20,26 @@ const (
 
 var profileParityContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: ProfileParityMediaType, Schema: ProfileParitySchema,
+}
+
+var profileParityCodec = artifact.DocumentCodec[ProfileParityEvidence]{
+	Name: "model profile parity", Contract: profileParityContract,
+	Decode: func(data []byte, value *ProfileParityEvidence) error {
+		var body profileParityBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = ProfileParityEvidence{
+			Version: body.Version, Recipe: body.Recipe, Model: body.Model,
+			Profile: body.Profile, Architecture: body.Architecture,
+			Layers: body.Layers, CacheLayers: body.CacheLayers, CachedGraph: body.CachedGraph,
+		}
+		return nil
+	},
+	Encode:       profileParityContent,
+	Canonicalize: func(value *ProfileParityEvidence) error { return value.validateShape() },
+	Identity:     func(value ProfileParityEvidence) artifact.ID { return value.ID },
+	SetIdentity:  func(value *ProfileParityEvidence, id artifact.ID) { value.ID = id },
 }
 
 type profileParityBody struct {
@@ -58,67 +77,19 @@ func newProfileParityEvidence(
 		Layers: uint32(len(plan.Model.Layers)), CacheLayers: plan.Model.CacheLayers,
 		CachedGraph: plan.Model.CachedGraph,
 	}
-	if err := evidence.validateShape(); err != nil {
-		return ProfileParityEvidence{}, err
-	}
-	content, err := profileParityContent(evidence)
-	if err != nil {
-		return ProfileParityEvidence{}, err
-	}
-	evidence.ID, err = profileParityContract.Identify(content)
-	return evidence, err
+	return profileParityCodec.New(evidence)
 }
 
 func ParseProfileParityEvidence(content []byte) (ProfileParityEvidence, error) {
-	var body profileParityBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return ProfileParityEvidence{}, fmt.Errorf("model recipe: decode profile parity: %w", err)
-	}
-	evidence := ProfileParityEvidence{
-		Version: body.Version, Recipe: body.Recipe, Model: body.Model,
-		Profile: body.Profile, Architecture: body.Architecture,
-		Layers: body.Layers, CacheLayers: body.CacheLayers, CachedGraph: body.CachedGraph,
-	}
-	if err := evidence.validateShape(); err != nil {
-		return ProfileParityEvidence{}, err
-	}
-	canonical, err := profileParityContent(evidence)
-	if err != nil {
-		return ProfileParityEvidence{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return ProfileParityEvidence{}, errors.New("model recipe: non-canonical profile parity content")
-	}
-	evidence.ID, err = profileParityContract.Identify(content)
-	return evidence, err
+	return profileParityCodec.Parse(content)
 }
 
 func (e ProfileParityEvidence) Content() (artifact.Content, error) {
-	if err := e.ValidateIdentity(); err != nil {
-		return artifact.Content{}, err
-	}
-	content, err := profileParityContent(e)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return profileParityContract.Content(e.ID, content)
+	return profileParityCodec.Content(e)
 }
 
 func (e ProfileParityEvidence) ValidateIdentity() error {
-	if e.ID.Kind() != artifact.KindEvidence {
-		return errors.New("model recipe: invalid profile parity identity")
-	}
-	if err := e.validateShape(); err != nil {
-		return err
-	}
-	content, err := profileParityContent(e)
-	if err != nil {
-		return err
-	}
-	if err := profileParityContract.ValidateIdentity(e.ID, content); err != nil {
-		return errors.New("model recipe: profile parity identity mismatch")
-	}
-	return nil
+	return profileParityCodec.ValidateIdentity(e)
 }
 
 func (e ProfileParityEvidence) validateShape() error {

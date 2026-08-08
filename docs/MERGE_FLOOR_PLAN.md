@@ -40,6 +40,7 @@ Two dependency directions, each with a named failure mode:
 | 6 | Statistical / longitudinal layer | DEFERRED to wave 1 | `internal/runrecord` advisories + gate wiring |
 | 7 | Exporter durable commit + remaining scopes | PARTIAL | `cmd/repodb-export` (adaptive_new) |
 | 8 | PowerShell retirement (Go/bash automation) | PARTIAL | `scripts/*.ps1`, README, docs |
+| 9 | Data organization (models/datasets/checkpoints) | PARTIAL | data roots, `internal/artifact` locations, guard |
 
 ## Built components
 
@@ -204,6 +205,73 @@ Sequence: it rides component 1 (gate) already having absorbed the hygiene
 chain, so the remaining work is the CUDA lane home + two script ports + doc
 repointing. Retiring `verify.ps1` is the last step, gated on the CUDA lane.
 
+### 9. Data organization (PARTIAL)
+
+Data is where this project's irreversible mistakes live (both historical
+catastrophes were data-path errors). The floor's stance is mechanical, not
+disciplinary.
+
+**Core principle -- the store references bulk by location, never copies bytes.**
+`repodbimport.importFile` hashes a file for content identity and records a
+`LocationFile` at its resolved absolute path; the bytes never enter the store.
+So models, datasets, and checkpoints stay physically put while the store holds
+their content ID + location. "Data never moves, code comes to the data" is a
+property of the design. The store is provenance and orchestration, not a blob
+store.
+
+**Three data roots, distinct lifecycles -- kept separate on purpose:**
+
+| Root | Contents | Provenance | Reproducible |
+|------|----------|-----------|--------------|
+| `models/` | vendor/downloaded inputs (~700 GB) | download source | No -- irreplaceable |
+| `datasets/` | training data (raw + canonical content store) | manifest/source | Partial |
+| `checkpoints/` | trained outputs | base + data + recipe + run | Yes -- regenerable |
+
+Downloaded and trained models have OPPOSITE reproducibility, so they must not
+share a directory -- mixing them loses track of what is irreplaceable versus
+what can be pruned and regenerated. Both repos already separate them
+(`KindModel` vs `KindCheckpoint` in the store; adaptive_new's `checkpoints/`
+distinct from `models/`).
+
+**Checkpoints are lineage-bearing artifacts.** A trained model is a
+`KindCheckpoint` artifact whose `depends-on` edges name its base model,
+dataset (with the persisted split), and training recipe, plus a link to the
+producing run record. "What produced this, from what, at which commit, with
+what eval" is a store query -- the capability-evidence contract made
+structural. Retention policy falls out: full lineage + passing eval =>
+reproducible => prunable; missing lineage => irreplaceable => protected.
+Promotion to serving is an alias flip to the content ID, not a byte copy (the
+E4B name-binding failure cannot recur because recipes bind IDs, not names).
+
+**Guard coverage (DONE this component):** the destructive-command guard now
+protects `checkpoints/` alongside `models/`, `datasets/`, `docs/repodb/`, and
+`repodb-store`; `.gitignore` covers all three data roots. Trained checkpoints
+represent real GPU-hours and are not all reproducible until training is
+deterministic, so leaving them unguarded was the exact hole class behind the
+prior data-loss incidents.
+
+**Remaining (PENDING):**
+- Single data-root config contract: one owner (`OVERGO_DATA_ROOT` env or the
+  gitignored `local-models.yaml`) naming where the three roots live, read by
+  the importer AND the runtime. Today `generate` takes ad-hoc path flags and
+  `server` a model-id -- no unified root, which is how smoke-matrix staleness
+  (E4B) started. Establish before the wave-1 model port.
+- Discovery as a store query: a servable model = artifact present at its
+  location with an active oracle-backed recipe -- the same query that drives
+  the smoke matrix and evidence tier. Unifies discovery with the tier.
+- Junction discipline (unchanged doctrine): data stays at its canonical home;
+  overgo references by absolute path via the config, never junction-copies
+  into a worktree. `dir /AL /S` before any recursive delete.
+- GGUF first-class: a model/checkpoint that is one `.gguf` is hashed as the
+  artifact; no sidecars written next to it.
+
+**Merge rule (spans components 3-4 and 7):** ingest FACTS, reference BULK.
+adaptive_new's recipes, measurements, magics, and findings import into the
+store; its weights, dataset payloads, the measurements-log content, and
+`docs/repodb/content` are referenced by location, never copied. The importer
+already does the right thing (hash + locate); the discipline is never pointing
+an ingest at the byte payloads.
+
 ## The porting discipline this floor enables
 
 Per capability (skill.md Porting Discipline):
@@ -235,6 +303,8 @@ expensively answered question (the `schedule.go` num_steps case).
 - [ ] Statistical layer calibrated against wave-1 runs (component 6).
 - [ ] PowerShell scripts retired to Go/bash; guard-vs-shipped-PS contradiction
       resolved (component 8).
+- [x] Guard + gitignore cover all three data roots incl. checkpoints (component 9).
+- [ ] Single data-root config contract; discovery as a store query (component 9).
 
 First four are met -- the floor is load-bearing for the wave-1 pilot (dense
 Qwen recipe parity) NOW. Components 5-7 complete it in parallel with that

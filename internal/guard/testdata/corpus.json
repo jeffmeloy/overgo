@@ -105,6 +105,24 @@
       "rule": "protected"
     },
     {
+      "name": "delete-under-checkpoints-is-gpu-hours",
+      "command": "rm checkpoints/gemma4u-derived/step_4000.gguf",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "move-a-checkpoint",
+      "command": "mv checkpoints/qwen05b-um1 C:/tmp/out",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "reading-a-checkpoint-is-ordinary",
+      "command": "ls checkpoints/gemma4u-derived/",
+      "expect": "ALLOW",
+      "rule": "protected"
+    },
+    {
       "name": "reading-under-models-is-the-whole-job",
       "command": "ls models/SomeModel/",
       "expect": "ALLOW",

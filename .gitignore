@@ -2,6 +2,9 @@
 /build/
 /dist/
 /repodb-store/
+/models/
+/datasets/
+/checkpoints/
 /kernels/generated/
 *.exe
 *.out

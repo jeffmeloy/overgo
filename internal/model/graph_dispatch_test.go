@@ -10,8 +10,42 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 	for policy := BlockDense; policy <= BlockQwenGDN; policy++ {
 		program := compileLayerProgram(policy, false)
 		instruction, ok := program.Instruction(0)
-		if !ok || program.Count != 1 || instruction.Operator != policy {
+		if !ok {
 			t.Fatalf("block policy %d has no compiled operator", policy)
+		}
+		var want []LayerOperator
+		switch policy {
+		case BlockMamba, BlockMamba2:
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+			}
+		case BlockJamba:
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+			}
+		case BlockGraniteHybrid:
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorScale,
+				LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+				LayerOperatorScale, LayerOperatorResidual,
+			}
+		}
+		if len(want) != 0 {
+			if program.Count != uint8(len(want)) {
+				t.Fatalf("semantic program %d count = %d", policy, program.Count)
+			}
+			for index, operator := range want {
+				instruction, _ := program.Instruction(index)
+				if instruction.Operator != operator {
+					t.Fatalf("semantic program %d stage %d = %d, want %d", policy, index, instruction.Operator, operator)
+				}
+			}
+			continue
+		}
+		if program.Count != 1 || instruction.Operator != LayerOperatorFamilyBlock ||
+			instruction.Family != policy {
+			t.Fatalf("block policy %d family program = %+v", policy, program)
 		}
 	}
 }

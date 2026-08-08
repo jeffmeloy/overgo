@@ -45,15 +45,29 @@ const (
 	RuntimeTensorCurrentPositions
 )
 
+// LayerOperator: semantic execution stage.
+type LayerOperator uint8
+
+const (
+	LayerOperatorFamilyBlock LayerOperator = iota
+	LayerOperatorAttentionNorm
+	LayerOperatorRecurrentMix
+	LayerOperatorFeedForwardNorm
+	LayerOperatorFeedForwardMix
+	LayerOperatorScale
+	LayerOperatorResidual
+)
+
 const (
 	maxLayerCacheBindings  = 4
 	maxLayerTensorBindings = 2
-	maxLayerInstructions   = 1
+	maxLayerInstructions   = 8
 )
 
 // LayerOperatorInstruction: compiled operator and operand indexes.
 type LayerOperatorInstruction struct {
-	Operator    BlockPolicy
+	Operator    LayerOperator
+	Family      BlockPolicy
 	CacheCount  uint8
 	TensorCount uint8
 	Caches      [maxLayerCacheBindings]RuntimeCacheBinding
@@ -621,7 +635,31 @@ func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 }
 
 func compileLayerProgram(block BlockPolicy, recurrent bool) LayerProgram {
-	instruction := LayerOperatorInstruction{Operator: block}
+	if block == BlockGraniteHybrid {
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(BlockMamba2),
+			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
+			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardMix),
+			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
+		)
+	}
+	if block == BlockJamba {
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(BlockMamba),
+			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
+			layerStage(LayerOperatorFeedForwardMix), layerStage(LayerOperatorResidual),
+		)
+	}
+	if block == BlockMamba || block == BlockMamba2 {
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(block),
+			layerStage(LayerOperatorResidual),
+		)
+	}
+	instruction := LayerOperatorInstruction{
+		Operator: LayerOperatorFamilyBlock,
+		Family:   block,
+	}
 	bindCaches := func(bindings ...RuntimeCacheBinding) {
 		instruction.CacheCount = uint8(len(bindings))
 		copy(instruction.Caches[:], bindings)
@@ -649,6 +687,28 @@ func compileLayerProgram(block BlockPolicy, recurrent bool) LayerProgram {
 		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue)
 	}
 	return LayerProgram{Count: 1, Instructions: [maxLayerInstructions]LayerOperatorInstruction{instruction}}
+}
+
+func layerStage(operator LayerOperator) LayerOperatorInstruction {
+	return LayerOperatorInstruction{Operator: operator}
+}
+
+func recurrentLayerStage(family BlockPolicy) LayerOperatorInstruction {
+	instruction := layerStage(LayerOperatorRecurrentMix)
+	instruction.Family = family
+	instruction.CacheCount = 2
+	instruction.Caches[0] = RuntimeCachePrimaryKey
+	instruction.Caches[1] = RuntimeCachePrimaryValue
+	return instruction
+}
+
+func newLayerProgram(stages ...LayerOperatorInstruction) LayerProgram {
+	if len(stages) > maxLayerInstructions {
+		return LayerProgram{}
+	}
+	program := LayerProgram{Count: uint8(len(stages))}
+	copy(program.Instructions[:], stages)
+	return program
 }
 
 func cachePolicy(spec Spec, profile ArchitectureProfile, layer uint32, recurrent bool) CachePolicy {

@@ -595,7 +595,13 @@ func TestBuildMambaBlock(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	result, err := BuildMambaBlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, false)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -635,7 +641,13 @@ func TestBuildMamba2Block(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	result, err := BuildMamba2BlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, false)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -740,7 +752,14 @@ func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	result, err := BuildGraniteHybridRecurrentBlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, true)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+			Recurrent: true,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,7 +7,7 @@ import (
 	"overgo/internal/tensor"
 )
 
-func BuildMambaBlockCached(
+func buildMambaMixerCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -15,15 +15,14 @@ func BuildMambaBlockCached(
 	convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Mamba block input/state is nil")
+		return DenseBlockResult{}, errors.New("Mamba mixer input/state is nil")
 	}
 	profile := spec.Profile()
 	if (profile.Block != BlockMamba && profile.RecurrentBlock != BlockJamba) || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Mamba block architecture/input is invalid")
+		return DenseBlockResult{}, errors.New("Mamba mixer architecture/input is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("SSM input", weights.SSMInput),
 		requireGraphWeight("SSM convolution", weights.SSMConv1D),
 		requireGraphWeight("SSM convolution bias", weights.SSMConv1DBias),
@@ -34,7 +33,7 @@ func BuildMambaBlockCached(
 		requireGraphWeight("SSM D", weights.SSMD),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	if err := required.validate("Mamba block"); err != nil {
+	if err := required.validate("Mamba mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if profile.RecurrentBlock == BlockJamba {
@@ -55,8 +54,7 @@ func BuildMambaBlockCached(
 	inner := uint64(spec.SSMInnerSize)
 	stateWidth := uint64(spec.SSMStateSize)
 	rank := uint64(spec.SSMTimeStepRank)
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	xz := builder.MulMat(weights.SSMInput, normalized)
+	xz := builder.MulMat(weights.SSMInput, input)
 	x := builder.Reshape(builder.GroupSlice(xz, 0, inner, 1, inner), inner, tokens)
 	z := builder.Reshape(builder.GroupSlice(xz, inner, inner, 1, inner), inner, tokens)
 	convInput := builder.Concat(convState, builder.Transpose2D(x), 0)
@@ -99,53 +97,10 @@ func BuildMambaBlockCached(
 	attention = builder.Add(attention, builder.Multiply(x, weights.SSMD))
 	attention = builder.Multiply(attention, builder.SiLU(z))
 	attention = builder.MulMat(weights.SSMOutput, attention)
-	output := builder.Add(input, attention)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
-}
-
-func BuildJambaRecurrentBlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	convState, ssmState *tensor.Tensor,
-) (DenseBlockResult, error) {
-	if spec.Profile().RecurrentBlock != BlockJamba {
-		return DenseBlockResult{}, errors.New("Jamba recurrent block architecture is invalid")
-	}
-	result, err := BuildMambaBlockCached(builder, input, spec, weights, convState, ssmState)
-	if err != nil {
-		return DenseBlockResult{}, err
-	}
-	if weights.FeedForwardNorm == nil {
-		return DenseBlockResult{}, errors.New("Jamba feed-forward norm is nil")
-	}
-	normalized := builder.WeightedRMSNorm(result.Output, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	var feedForward *tensor.Tensor
-	if weights.FeedForwardRouter != nil {
-		if weights.FeedForwardGateExperts == nil || weights.FeedForwardUpExperts == nil ||
-			weights.FeedForwardDownExperts == nil {
-			return DenseBlockResult{}, errors.New("Jamba expert catalog is incomplete")
-		}
-		plan := spec.moeGraphPlan(0)
-		plan.NormalizeTopKProb = false
-		feedForward = plan.BuildLayer(builder, normalized, nil, weights)
-	} else {
-		if weights.FeedForwardGate == nil || weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
-			return DenseBlockResult{}, errors.New("Jamba dense FFN catalog is incomplete")
-		}
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		up := builder.MulMat(weights.FeedForwardUp, normalized)
-		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	}
-	result.Output = builder.Add(result.Output, feedForward)
-	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
-	}
-	return result, nil
+	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
 }
 
 func buildMamba2MixerCached(
@@ -165,7 +120,6 @@ func buildMamba2MixerCached(
 		return DenseBlockResult{}, errors.New("Mamba2 mixer architecture/input is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("SSM input", weights.SSMInput),
 		requireGraphWeight("SSM convolution", weights.SSMConv1D),
 		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
@@ -191,8 +145,7 @@ func buildMamba2MixerCached(
 		return DenseBlockResult{}, errors.New("Mamba2 recurrent cache shape is invalid")
 	}
 	tokens := input.Shape.Dims[1]
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	zxBCdt := builder.MulMat(weights.SSMInput, normalized)
+	zxBCdt := builder.MulMat(weights.SSMInput, input)
 	z := builder.Reshape(builder.GroupSlice(zxBCdt, 0, headWidth, heads, headWidth), headWidth, heads, tokens, 1)
 	xBC := builder.Reshape(builder.GroupSlice(zxBCdt, inner, convWidth, 1, convWidth), convWidth, tokens)
 	dt := builder.Reshape(
@@ -339,7 +292,7 @@ func BuildFalconH1BlockCached(
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
 
-	ssm, err := buildMamba2MixerCached(builder, input, spec, weights, convState, ssmState)
+	ssm, err := buildMamba2MixerCached(builder, normalized, spec, weights, convState, ssmState)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -368,94 +321,6 @@ func BuildFalconH1BlockCached(
 			CacheStateSSM:         {Mode: CacheStateFixed, Value: ssm.Value},
 		},
 	}, nil
-}
-
-func BuildMamba2BlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	convState, ssmState *tensor.Tensor,
-) (DenseBlockResult, error) {
-	if spec.Profile().Block != BlockMamba2 {
-		return DenseBlockResult{}, errors.New("Mamba2 block architecture is invalid")
-	}
-	if weights.SSMConv1DBias == nil {
-		return DenseBlockResult{}, errors.New("Mamba2 block SSM convolution bias is nil")
-	}
-	result, err := buildMamba2MixerCached(builder, input, spec, weights, convState, ssmState)
-	if err != nil {
-		return DenseBlockResult{}, err
-	}
-	result.Output = builder.Add(input, result.Output)
-	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
-	}
-	return result, nil
-}
-
-func BuildGraniteHybridRecurrentBlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	convState, ssmState *tensor.Tensor,
-) (DenseBlockResult, error) {
-	if spec.Profile().RecurrentBlock != BlockGraniteHybrid {
-		return DenseBlockResult{}, errors.New("Granite Hybrid recurrent block architecture is invalid")
-	}
-	result, err := buildMamba2MixerCached(builder, input, spec, weights, convState, ssmState)
-	if err != nil {
-		return DenseBlockResult{}, err
-	}
-	mixer := result.Output
-	if spec.ResidualScale > 0 {
-		mixer = builder.Scale(mixer, spec.ResidualScale)
-	}
-	residual := builder.Add(input, mixer)
-	if weights.FeedForwardNorm == nil {
-		return DenseBlockResult{}, errors.New("Granite Hybrid feed-forward norm is nil")
-	}
-	normalized := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	var feedForward *tensor.Tensor
-	if weights.FeedForwardRouter != nil {
-		if weights.FeedForwardUpExperts == nil || weights.FeedForwardDownExperts == nil {
-			return DenseBlockResult{}, errors.New("Granite Hybrid expert catalog is incomplete")
-		}
-		feedForward = spec.moeGraphPlan(0).BuildLayer(builder, normalized, nil, weights)
-		if spec.SharedExpertFF > 0 {
-			if weights.FeedForwardSharedGate == nil || weights.FeedForwardSharedUp == nil ||
-				weights.FeedForwardSharedDown == nil {
-				return DenseBlockResult{}, errors.New("Granite Hybrid shared expert catalog is incomplete")
-			}
-			shared := buildSharedSwiGLU(builder, normalized, weights)
-			feedForward = builder.Add(feedForward, shared)
-		}
-	} else {
-		if weights.FeedForwardGate == nil || weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
-			return DenseBlockResult{}, errors.New("Granite Hybrid dense FFN catalog is incomplete")
-		}
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		up := builder.MulMat(weights.FeedForwardUp, normalized)
-		if weights.FeedForwardGateBias != nil {
-			gate = builder.Add(gate, weights.FeedForwardGateBias)
-		}
-		if weights.FeedForwardUpBias != nil {
-			up = builder.Add(up, weights.FeedForwardUpBias)
-		}
-		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-		if weights.FeedForwardDownBias != nil {
-			feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
-		}
-	}
-	if spec.ResidualScale > 0 {
-		feedForward = builder.Scale(feedForward, spec.ResidualScale)
-	}
-	result.Output = builder.Add(residual, feedForward)
-	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
-	}
-	return result, nil
 }
 
 func BuildPLaMo2RecurrentBlockCached(
@@ -576,15 +441,15 @@ func BuildNemotronHBlockCached(
 	if err := requireTensorPair(pastKey, pastValue, "Nemotron-H cache must contain both tensors"); err != nil {
 		return DenseBlockResult{}, err
 	}
+	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	if spec.IsRecurrentLayer(layerIndex) {
-		result, err := buildMamba2MixerCached(builder, input, spec, weights, pastKey, pastValue)
+		result, err := buildMamba2MixerCached(builder, normalized, spec, weights, pastKey, pastValue)
 		if err != nil {
 			return DenseBlockResult{}, err
 		}
 		result.Output = builder.Add(input, result.Output)
 		return result, builder.Err()
 	}
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	tokens := input.Shape.Dims[1]
 	if spec.LayerFeedForwardLength(layerIndex) == 0 {
 		if err := (graphWeights{

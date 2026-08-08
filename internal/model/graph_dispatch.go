@@ -50,15 +50,7 @@ func BuildArchitectureBlockCached(
 			"encoder-decoder blocks require explicit encoder state",
 		)
 	}
-	instruction, ok := plan.Program.Instruction(0)
-	if !ok || plan.Program.Count != 1 || instruction.Operator != plan.Block {
-		return DenseBlockResult{}, errors.New("compiled layer operator is invalid")
-	}
-	operands, err := resolveLayerOperands(context, instruction)
-	if err != nil {
-		return DenseBlockResult{}, err
-	}
-	return executeLayerOperator(options, plan, instruction, operands)
+	return executeLayerProgram(options, plan)
 }
 
 type layerOperands struct {
@@ -104,29 +96,157 @@ func resolveLayerOperands(
 	return operands, nil
 }
 
-func executeLayerOperator(
+type layerExecution struct {
+	residual *tensor.Tensor
+	current  *tensor.Tensor
+	result   DenseBlockResult
+}
+
+func executeLayerProgram(
+	options BlockDispatchOptions,
+	plan LayerPlan,
+) (DenseBlockResult, error) {
+	if plan.Program.Count == 0 || int(plan.Program.Count) > len(plan.Program.Instructions) {
+		return DenseBlockResult{}, errors.New("compiled layer program is invalid")
+	}
+	execution := layerExecution{
+		residual: options.Context.Input, current: options.Context.Input,
+	}
+	for index := range int(plan.Program.Count) {
+		instruction, ok := plan.Program.Instruction(index)
+		if !ok {
+			return DenseBlockResult{}, errors.New("compiled layer instruction is missing")
+		}
+		operands, err := resolveLayerOperands(options.Context, instruction)
+		if err != nil {
+			return DenseBlockResult{}, err
+		}
+		if err := executeLayerInstruction(options, plan, instruction, operands, &execution); err != nil {
+			return DenseBlockResult{}, err
+		}
+	}
+	if execution.result.Output == nil {
+		return DenseBlockResult{}, errors.New("compiled layer program produced no output")
+	}
+	return execution.result, nil
+}
+
+func executeLayerInstruction(
+	options BlockDispatchOptions,
+	plan LayerPlan,
+	instruction LayerOperatorInstruction,
+	operands layerOperands,
+	execution *layerExecution,
+) error {
+	c := options.Context
+	switch instruction.Operator {
+	case LayerOperatorAttentionNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			options.Weights.AttentionNorm == nil {
+			return errors.New("compiled attention-normalization stage is invalid")
+		}
+		execution.current = c.Builder.WeightedRMSNorm(
+			execution.current, options.Weights.AttentionNorm, options.Spec.RMSNormEpsilon,
+		)
+		return c.Builder.Err()
+	case LayerOperatorRecurrentMix:
+		if instruction.CacheCount != 2 {
+			return errors.New("compiled recurrent-mixing stage is invalid")
+		}
+		var result DenseBlockResult
+		var err error
+		switch instruction.Family {
+		case BlockMamba:
+			result, err = buildMambaMixerCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
+		case BlockMamba2:
+			if plan.Block == BlockMamba2 && options.Weights.SSMConv1DBias == nil {
+				return errors.New("Mamba2 recurrent-mixing convolution bias is nil")
+			}
+			result, err = buildMamba2MixerCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
+		default:
+			return errors.New("compiled recurrent-mixing policy is invalid")
+		}
+		if err != nil {
+			return err
+		}
+		execution.result = result
+		execution.current = result.Output
+		return nil
+	case LayerOperatorFeedForwardNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			options.Weights.FeedForwardNorm == nil {
+			return errors.New("compiled feed-forward normalization stage is invalid")
+		}
+		execution.current = c.Builder.WeightedRMSNorm(
+			execution.residual, options.Weights.FeedForwardNorm, options.Spec.RMSNormEpsilon,
+		)
+		return c.Builder.Err()
+	case LayerOperatorFeedForwardMix:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
+			return errors.New("compiled feed-forward stage is invalid")
+		}
+		feedForward, err := buildStandardFeedForwardMix(
+			c.Builder, execution.current, plan, options.Spec, options.Weights,
+		)
+		if err != nil {
+			return err
+		}
+		execution.current = feedForward
+		return nil
+	case LayerOperatorScale:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			options.Spec.ResidualScale <= 0 {
+			return errors.New("compiled scale stage is invalid")
+		}
+		execution.current = c.Builder.Scale(execution.current, options.Spec.ResidualScale)
+		return c.Builder.Err()
+	case LayerOperatorResidual:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			execution.current == nil || execution.residual == nil {
+			return errors.New("compiled residual stage is invalid")
+		}
+		execution.current = c.Builder.Add(execution.residual, execution.current)
+		execution.residual = execution.current
+		execution.result.Output = execution.current
+		return c.Builder.Err()
+	case LayerOperatorFamilyBlock:
+		result, err := executeFamilyBlock(options, plan, instruction, operands)
+		if err != nil {
+			return err
+		}
+		execution.current = result.Output
+		execution.result = result
+		return nil
+	default:
+		return errors.New("compiled layer operator is unknown")
+	}
+}
+
+func executeFamilyBlock(
 	options BlockDispatchOptions,
 	plan LayerPlan,
 	instruction LayerOperatorInstruction,
 	operands layerOperands,
 ) (DenseBlockResult, error) {
 	c := options.Context
-	switch instruction.Operator {
+	if instruction.Family != plan.Block || instruction.Family == BlockMamba ||
+		instruction.Family == BlockMamba2 {
+		return DenseBlockResult{}, errors.New("compiled family block differs from layer plan")
+	}
+	switch instruction.Family {
 	case BlockDense:
 		return BuildDenseBlockWithOptions(DenseBlockOptions(options))
-	case BlockMamba:
-		return BuildMambaBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
-	case BlockMamba2:
-		return BuildMamba2BlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
 	case BlockFalconH1:
 		return BuildFalconH1BlockCached(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
 		)
-	case BlockJamba:
-		return BuildJambaRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
-	case BlockGraniteHybrid:
-		return BuildGraniteHybridRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
 	case BlockPLaMo2:
 		return BuildPLaMo2RecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
 	case BlockNemotronH:
@@ -157,8 +277,63 @@ func executeLayerOperator(
 	case BlockQwenGDN:
 		return executeQwenGDNOperator(options, plan, operands)
 	default:
-		return DenseBlockResult{}, errors.New("compiled layer operator is unknown")
+		return DenseBlockResult{}, errors.New("compiled family block is unknown")
 	}
+}
+
+func buildStandardFeedForwardMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	plan LayerPlan,
+	spec Spec,
+	weights LayerGraphWeights,
+) (*tensor.Tensor, error) {
+	if weights.FeedForwardRouter != nil {
+		required := graphWeights{
+			requireGraphWeight("feed-forward router", weights.FeedForwardRouter),
+			requireGraphWeight("feed-forward expert down", weights.FeedForwardDownExperts),
+		}
+		if weights.FeedForwardGateUpExperts != nil {
+			required.add("feed-forward fused expert gate/up", weights.FeedForwardGateUpExperts)
+		} else if plan.Block != BlockGraniteHybrid {
+			required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
+			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
+		} else {
+			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
+		}
+		if err := required.validate("compiled feed-forward stage"); err != nil {
+			return nil, err
+		}
+		feedForward := plan.Experts.BuildLayer(builder, input, nil, weights)
+		if plan.Block == BlockGraniteHybrid && spec.SharedExpertFF > 0 {
+			if weights.FeedForwardSharedGate == nil || weights.FeedForwardSharedUp == nil ||
+				weights.FeedForwardSharedDown == nil {
+				return nil, errors.New("compiled shared feed-forward stage is incomplete")
+			}
+			feedForward = builder.Add(feedForward, buildSharedSwiGLU(builder, input, weights))
+		}
+		return feedForward, builder.Err()
+	}
+	if err := (graphWeights{
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}).validate("compiled feed-forward stage"); err != nil {
+		return nil, err
+	}
+	gate := builder.MulMat(weights.FeedForwardGate, input)
+	up := builder.MulMat(weights.FeedForwardUp, input)
+	if weights.FeedForwardGateBias != nil {
+		gate = builder.Add(gate, weights.FeedForwardGateBias)
+	}
+	if weights.FeedForwardUpBias != nil {
+		up = builder.Add(up, weights.FeedForwardUpBias)
+	}
+	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+	if weights.FeedForwardDownBias != nil {
+		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
+	}
+	return feedForward, builder.Err()
 }
 
 func executeQwenGDNOperator(

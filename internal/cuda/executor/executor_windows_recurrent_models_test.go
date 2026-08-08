@@ -78,7 +78,13 @@ func TestExecutorMambaBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := model.BuildMambaBlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, false)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +141,13 @@ func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := model.BuildMamba2BlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, false)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +284,14 @@ func TestExecutorGraniteHybridRecurrentBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := model.BuildGraniteHybridRecurrentBlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, true)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+			Recurrent: true,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +426,14 @@ func TestExecutorJambaRecurrentMoEBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := model.BuildJambaRecurrentBlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, true)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+			Recurrent: true,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

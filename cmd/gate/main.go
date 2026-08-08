@@ -2,7 +2,7 @@
 // test scope, claim/manifest/SBOM verification, the scoped commit, and the
 // store record. Never raw `git commit` during a campaign — the guard enforces
 // that; this binary is the sanctioned path and marks its own commit
-// subprocess with OVERGO_COMMIT_GATE=1.
+// subprocess with guard.GateEnv=1 (the guard owns that env-var name).
 //
 // Incident lineage honored here: -message-file only (shell-parsed prose loses
 // backticked text to command substitution); a staged path outside -paths
@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/guard"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
@@ -273,7 +274,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 	}
 	cmd := exec.Command("git", "commit", "-F", g.messageFile)
 	cmd.Dir = g.repo
-	cmd.Env = append(os.Environ(), "OVERGO_COMMIT_GATE=1")
+	cmd.Env = append(os.Environ(), guard.GateEnv+"=1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))

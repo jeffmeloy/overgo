@@ -7,23 +7,8 @@ import (
 	"overgo/internal/tensor"
 )
 
-// buildMLABlockCachedWithPlan: latent-attention leaf.
-func buildMLABlockCachedWithPlan(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue *tensor.Tensor,
-	plan LayerPlan,
-) (DenseBlockResult, error) {
-	return buildMLABlockCachedForLayer(
-		builder, input, spec, weights, positions, pastKey, pastValue, nil, nil, plan.Layer,
-	)
-}
-
-// buildDSABlockCachedWithPlan: sparse latent-attention leaf.
-func buildDSABlockCachedWithPlan(
+// buildLatentAttentionBlockCachedWithPlan: MLA/DSA leaf.
+func buildLatentAttentionBlockCachedWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,

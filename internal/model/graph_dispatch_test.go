@@ -22,11 +22,11 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		case BlockDense:
 			want = []LayerOperator{LayerOperatorDenseTransformer}
 		case BlockKimiLinear:
-			want = []LayerOperator{LayerOperatorLinearAttention}
+			want = []LayerOperator{LayerOperatorLatentAttention}
 		case BlockMLA:
 			want = []LayerOperator{LayerOperatorLatentAttention}
 		case BlockDSA:
-			want = []LayerOperator{LayerOperatorSparseLatentAttention}
+			want = []LayerOperator{LayerOperatorLatentAttention}
 		case BlockDeepSeek4:
 			want = []LayerOperator{LayerOperatorHyperConnection}
 		case BlockMamba, BlockMamba2:
@@ -72,6 +72,16 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 				t.Fatalf("semantic program %d recurrent stage has no math policy", policy)
 			}
 		}
+	}
+}
+
+func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
+	program := compileLayerProgram(
+		BlockKimiLinear, AttentionStandard, true, LayerCompositionStandard,
+	)
+	instruction, ok := program.Instruction(0)
+	if !ok || program.Count != 1 || instruction.Operator != LayerOperatorLinearAttention {
+		t.Fatalf("Kimi recurrent program = %+v", program)
 	}
 }
 

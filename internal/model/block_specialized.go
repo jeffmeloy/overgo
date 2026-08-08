@@ -654,8 +654,8 @@ func BuildRWKV7BlockCached(
 	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState, Auxiliary: auxiliary}, nil
 }
 
-// buildKimiLinearBlockCachedWithPlan: KDA or no-RoPE MLA block.
-func buildKimiLinearBlockCachedWithPlan(
+// buildKimiKDABlockCachedWithPlan: recurrent KDA leaf.
+func buildKimiKDABlockCachedWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -666,9 +666,6 @@ func buildKimiLinearBlockCachedWithPlan(
 ) (DenseBlockResult, error) {
 	if spec.Profile().Block != BlockKimiLinear {
 		return DenseBlockResult{}, errors.New("Kimi Linear block requires kimi-linear architecture")
-	}
-	if !plan.Recurrent {
-		return buildMLABlockCachedWithPlan(builder, input, spec, weights, positions, pastKey, pastValue, plan)
 	}
 	layerIndex := plan.Layer
 	if builder == nil || input == nil || pastKey == nil || pastValue == nil {

@@ -54,7 +54,6 @@ const (
 	LayerOperatorDenseTransformer
 	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
-	LayerOperatorSparseLatentAttention
 	LayerOperatorHyperConnection
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
@@ -805,6 +804,12 @@ func compileLayerProgram(
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 		)
 	case BlockKimiLinear:
+		if !recurrent {
+			return leafLayerProgram(
+				LayerOperatorLatentAttention,
+				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+			)
+		}
 		return leafLayerProgram(
 			LayerOperatorLinearAttention,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
@@ -816,7 +821,7 @@ func compileLayerProgram(
 		)
 	case BlockDSA:
 		return leafLayerProgram(
-			LayerOperatorSparseLatentAttention,
+			LayerOperatorLatentAttention,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
 			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
 		)

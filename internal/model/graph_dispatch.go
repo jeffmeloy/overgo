@@ -350,10 +350,10 @@ func executeLayerInstruction(
 		return nil
 	case LayerOperatorLinearAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
-			plan.Block != BlockKimiLinear {
+			plan.Block != BlockKimiLinear || !plan.Recurrent {
 			return errors.New("compiled linear-attention stage is invalid")
 		}
-		result, err := buildKimiLinearBlockCachedWithPlan(
+		result, err := buildKimiKDABlockCachedWithPlan(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], operands.caches[1], plan,
 		)
@@ -364,24 +364,15 @@ func executeLayerInstruction(
 		execution.result = result
 		return nil
 	case LayerOperatorLatentAttention:
-		if instruction.CacheCount != 2 || instruction.TensorCount != 0 || plan.Block != BlockMLA {
+		valid := instruction.CacheCount == 2 && instruction.TensorCount == 0 &&
+			(plan.Block == BlockMLA || plan.Block == BlockKimiLinear && !plan.Recurrent)
+		if plan.Block == BlockDSA {
+			valid = instruction.CacheCount == 3 && instruction.TensorCount == 1
+		}
+		if !valid {
 			return errors.New("compiled latent-attention stage is invalid")
 		}
-		result, err := buildMLABlockCachedWithPlan(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan,
-		)
-		if err != nil {
-			return err
-		}
-		execution.current = result.Output
-		execution.result = result
-		return nil
-	case LayerOperatorSparseLatentAttention:
-		if instruction.CacheCount != 3 || instruction.TensorCount != 1 || plan.Block != BlockDSA {
-			return errors.New("compiled sparse-latent-attention stage is invalid")
-		}
-		result, err := buildDSABlockCachedWithPlan(
+		result, err := buildLatentAttentionBlockCachedWithPlan(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan,
 		)

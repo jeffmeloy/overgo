@@ -93,21 +93,22 @@ func (c expertSupplementalCatalog) has(item expertSupplementalCatalog) bool {
 
 // ExpertPolicy: routed/shared expert planning policy.
 type ExpertPolicy struct {
-	Composition         expertCompositionKind
-	Condition           expertCompositionCondition
-	Normalization       expertNormalizationPolicy
-	Routing             expertRoutingPolicy
-	Activation          tensor.MoEActivation
-	SelectionBias       bool
-	RouterInputOriginal bool
-	ResidualScale       bool
-	ClampSwiGLU         bool
-	FusedGateUp         bool
-	OptionalGate        bool
-	Catalog             expertCatalogPolicy
-	BiasCatalog         expertBiasCatalogPolicy
-	SharedCatalog       sharedExpertCatalogPolicy
-	SupplementalCatalog expertSupplementalCatalog
+	Composition           expertCompositionKind
+	Condition             expertCompositionCondition
+	Normalization         expertNormalizationPolicy
+	Routing               expertRoutingPolicy
+	Activation            tensor.MoEActivation
+	SelectionBias         bool
+	OptionalSelectionBias bool
+	RouterInputOriginal   bool
+	ResidualScale         bool
+	ClampSwiGLU           bool
+	FusedGateUp           bool
+	OptionalGate          bool
+	Catalog               expertCatalogPolicy
+	BiasCatalog           expertBiasCatalogPolicy
+	SharedCatalog         sharedExpertCatalogPolicy
+	SupplementalCatalog   expertSupplementalCatalog
 }
 
 func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN bool) bool {

@@ -392,7 +392,10 @@
     "Experts": {
       "BiasCatalog": 1,
       "Catalog": 4,
+      "Composition": 1,
       "FusedGateUp": true,
+      "Normalization": 1,
+      "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
     "Family": 1,
@@ -431,7 +434,10 @@
     "Experts": {
       "BiasCatalog": 1,
       "Catalog": 4,
+      "Composition": 1,
       "FusedGateUp": true,
+      "Normalization": 1,
+      "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
     "Family": 1,
@@ -842,7 +848,10 @@
     "Experts": {
       "BiasCatalog": 1,
       "Catalog": 4,
+      "Composition": 1,
       "FusedGateUp": true,
+      "Normalization": 1,
+      "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
     "Family": 1,
@@ -1325,6 +1334,7 @@
     "CatalogFamily": 2,
     "Experts": {
       "Composition": 1,
+      "Normalization": 1,
       "SelectionBias": true
     },
     "Family": 2,
@@ -1707,7 +1717,10 @@
     "Experts": {
       "BiasCatalog": 1,
       "Catalog": 4,
+      "Composition": 1,
       "FusedGateUp": true,
+      "Normalization": 1,
+      "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
     "Metadata": {

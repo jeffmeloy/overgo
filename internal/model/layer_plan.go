@@ -104,6 +104,7 @@ const (
 	FeedForwardMixNone FeedForwardMixPolicy = iota
 	FeedForwardMixStandardSwiGLU
 	FeedForwardMixFusedSwiGLU
+	FeedForwardMixSquaredReLU
 	FeedForwardMixNemotron
 	FeedForwardMixQwenGDN
 )
@@ -318,7 +319,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 			composition = LayerCompositionAttentionOnly
 		}
 	}
-	program := compileLayerProgram(block, profile.Attention, recurrent, composition)
+	program := compileLayerProgram(block, profile, recurrent, composition)
 	experts := s.moeGraphPlan(layer)
 	if block == BlockNemotronH {
 		experts.Routing = tensor.MoERoutingSigmoid
@@ -576,7 +577,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
 		if layer.Program != compileLayerProgram(
-			layer.Block, layer.Attention, layer.Recurrent, layer.Composition,
+			layer.Block, plan.profile, layer.Recurrent, layer.Composition,
 		) {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
@@ -725,18 +726,18 @@ func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 
 func compileLayerProgram(
 	block BlockPolicy,
-	attention AttentionPolicy,
+	profile ArchitectureProfile,
 	recurrent bool,
 	composition LayerCompositionPolicy,
 ) LayerProgram {
-	if attention == AttentionLFM2 && recurrent {
+	if profile.Attention == AttentionLFM2 && recurrent {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixLFM2, false),
 			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
 			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
 		)
 	}
-	if attention == AttentionQwenGDN {
+	if profile.Attention == AttentionQwenGDN {
 		mixer := attentionLayerStage(AttentionMixQwenGDN)
 		if recurrent {
 			mixer = recurrentLayerStage(RecurrentMixQwenGDN, false)
@@ -817,8 +818,8 @@ func compileLayerProgram(
 		)
 	case BlockKimiLinear:
 		if !recurrent {
-			return leafLayerProgram(
-				LayerOperatorLatentAttention,
+			return latentLayerProgram(
+				profile,
 				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 			)
 		}
@@ -832,13 +833,13 @@ func compileLayerProgram(
 			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
 		)
 	case BlockMLA:
-		return leafLayerProgram(
-			LayerOperatorLatentAttention,
+		return latentLayerProgram(
+			profile,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 		)
 	case BlockDSA:
-		return leafLayerProgram(
-			LayerOperatorLatentAttention,
+		return latentLayerProgram(
+			profile,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
 			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
 		)
@@ -851,6 +852,27 @@ func compileLayerProgram(
 	default:
 		return LayerProgram{}
 	}
+}
+
+func latentLayerProgram(
+	profile ArchitectureProfile,
+	caches []RuntimeCacheBinding,
+	tensors []RuntimeTensorBinding,
+) LayerProgram {
+	mix := FeedForwardMixStandardSwiGLU
+	if profile.FeedForward == FeedForwardSquaredReLU {
+		mix = FeedForwardMixSquaredReLU
+	}
+	stages := []LayerOperatorInstruction{
+		layerStage(LayerOperatorAttentionNorm),
+		leafLayerStage(LayerOperatorLatentAttention, caches, tensors),
+		layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
+		feedForwardLayerStage(mix),
+	}
+	if profile.MLAVariant == mlaVariantMiniCPM3 {
+		stages = append(stages, layerStage(LayerOperatorScale))
+	}
+	return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
 }
 
 func leafLayerProgram(

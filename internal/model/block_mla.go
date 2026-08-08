@@ -7,25 +7,25 @@ import (
 	"overgo/internal/tensor"
 )
 
-// buildLatentAttentionBlockCachedWithPlan: MLA/DSA leaf.
-func buildLatentAttentionBlockCachedWithPlan(
+// buildLatentAttentionMixCachedWithPlan: MLA/DSA mixer.
+func buildLatentAttentionMixCachedWithPlan(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
 	plan LayerPlan,
 ) (DenseBlockResult, error) {
-	return buildMLABlockCachedForLayer(
-		builder, input, spec, weights, positions, pastKey, pastValue,
+	return buildMLAAttentionMixCachedForLayer(
+		builder, normalized, spec, weights, positions, pastKey, pastValue,
 		pastIndexerKey, previousTopK, plan.Layer,
 	)
 }
 
-func buildMLABlockCachedForLayer(
+func buildMLAAttentionMixCachedForLayer(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
@@ -43,12 +43,10 @@ func buildMLABlockCachedForLayer(
 	isDeepSeek32 := profile.MLAVariant == mlaVariantDeepSeek32
 	isKimi := profile.MLAVariant == mlaVariantKimi
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("attention Q", weights.AttentionQ),
 		requireGraphWeight("attention KV-A", weights.AttentionKVAMQA),
 		requireGraphWeight("attention KV-A norm", weights.AttentionKVANorm),
 		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
 	}
 	if weights.AttentionKVB != nil {
 		required.add("attention KV-B", weights.AttentionKVB)
@@ -59,26 +57,6 @@ func buildMLABlockCachedForLayer(
 	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
 		required.add("attention Q-B", weights.AttentionQB)
 		required.add("attention Q-A norm", weights.AttentionQNorm)
-	}
-	if (isDeepSeek2 || isDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
-		required.add("feed-forward router", weights.FeedForwardRouter)
-		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
-		if weights.FeedForwardGateUpExperts == nil {
-			required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
-			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
-		}
-		required.add("feed-forward shared gate", weights.FeedForwardSharedGate)
-		required.add("feed-forward shared up", weights.FeedForwardSharedUp)
-		required.add("feed-forward shared down", weights.FeedForwardSharedDown)
-	} else {
-		required.add("feed-forward up", weights.FeedForwardUp)
-		required.add("feed-forward down", weights.FeedForwardDown)
-		if isMiniCPM3 || isDeepSeek2 || isKimi {
-			required.add("feed-forward gate", weights.FeedForwardGate)
-		}
-	}
-	if isMiniCPM3 {
-		required.add("feed-forward gate", weights.FeedForwardGate)
 	}
 	if isDSA && spec.LayerHasFullIndexer(layerIndex) {
 		if err := (graphWeights{
@@ -94,8 +72,8 @@ func buildMLABlockCachedForLayer(
 	if err := required.validate("MLA block"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if builder == nil || input == nil || input.Shape.Rank != 2 || len(positions) == 0 ||
-		uint64(len(positions)) != input.Shape.Dims[1] {
+	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 || len(positions) == 0 ||
+		uint64(len(positions)) != normalized.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("MLA block input shape is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "MLA cache must contain both key and value"); err != nil {
@@ -107,7 +85,6 @@ func buildMLABlockCachedForLayer(
 	ropeWidth := uint64(spec.RopeDimensionCount)
 	nopeWidth := keyWidth - ropeWidth
 	valueWidth := uint64(spec.ValueLength)
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
 	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
 		queryMixed = builder.WeightedRMSNorm(queryMixed, weights.AttentionQNorm, spec.RMSNormEpsilon)
@@ -270,8 +247,6 @@ func buildMLABlockCachedForLayer(
 	if isMiniCPM3 {
 		attention = builder.Scale(attention, spec.ResidualScale)
 	}
-	residual := builder.Add(input, attention)
-	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	states := CacheStates[*tensor.Tensor](nil)
 	if indexerKey != nil {
 		states = CacheStates[*tensor.Tensor]{
@@ -282,31 +257,11 @@ func buildMLABlockCachedForLayer(
 	if isDeepSeek32 {
 		auxiliary = nil
 	}
-	if (isDeepSeek2 || isDSA || isKimi) && layerIndex >= spec.LeadingDenseBlocks {
-		moePlan := spec.moeGraphPlan(layerIndex)
-		moePlan.NormalizeTopKProb = spec.ExpertWeightsNorm
-		moePlan.SelectionBias = weights.FeedForwardExpertBias != nil
-		feedForward := moePlan.BuildLayer(builder, normalized, nil, weights)
-		shared := buildSharedSwiGLU(builder, normalized, weights)
-		output := builder.Add(residual, builder.Add(feedForward, shared))
-		if err := builder.Err(); err != nil {
-			return DenseBlockResult{}, err
-		}
-		return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue, Auxiliary: auxiliary, States: states}, nil
-	}
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	activated := builder.ReLUSquared(up)
-	if isMiniCPM3 || isDeepSeek2 || isDSA || isKimi {
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		activated = builder.SwiGLU(gate, up)
-	}
-	feedForward := builder.MulMat(weights.FeedForwardDown, activated)
-	if isMiniCPM3 {
-		feedForward = builder.Scale(feedForward, spec.ResidualScale)
-	}
-	output := builder.Add(residual, feedForward)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue, Auxiliary: auxiliary, States: states}, nil
+	return DenseBlockResult{
+		Output: attention, Key: cacheKey, Value: cacheValue,
+		Auxiliary: auxiliary, States: states,
+	}, nil
 }

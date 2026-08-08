@@ -318,15 +318,16 @@ func (s Spec) attentionGraphPlan(layer uint32) AttentionGraphPlan {
 
 // MoEGraphPlan: compiled routed-expert controls.
 type MoEGraphPlan struct {
-	TopK               uint32
-	NormalizeTopKProb  bool
-	Scale              float32
-	Routing            tensor.MoERouting
-	Activation         tensor.MoEActivation
-	FusedGateUp        bool
-	SelectionBias      bool
-	ExpertIndexDivisor uint32
-	SwiGLUClamp        float32
+	TopK                  uint32
+	NormalizeTopKProb     bool
+	Scale                 float32
+	Routing               tensor.MoERouting
+	Activation            tensor.MoEActivation
+	FusedGateUp           bool
+	SelectionBias         bool
+	OptionalSelectionBias bool
+	ExpertIndexDivisor    uint32
+	SwiGLUClamp           float32
 }
 
 // MoEGraphInputs: routed-expert tensor bindings.
@@ -420,6 +421,7 @@ func (s Spec) moeGraphPlan(layer uint32) MoEGraphPlan {
 	return MoEGraphPlan{
 		TopK: s.ExpertUsedCount, NormalizeTopKProb: normalize,
 		Scale: s.ExpertWeightsScale, Routing: routing, Activation: activation,
-		SelectionBias: policy.SelectionBias, ExpertIndexDivisor: 1, SwiGLUClamp: clamp,
+		SelectionBias: policy.SelectionBias, OptionalSelectionBias: policy.OptionalSelectionBias,
+		ExpertIndexDivisor: 1, SwiGLUClamp: clamp,
 	}
 }

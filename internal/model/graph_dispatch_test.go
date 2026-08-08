@@ -12,7 +12,9 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		if policy == BlockNemotronH {
 			composition = LayerCompositionAttentionOnly
 		}
-		program := compileLayerProgram(policy, AttentionStandard, false, composition)
+		program := compileLayerProgram(
+			policy, ArchitectureProfile{}, false, composition,
+		)
 		_, ok := program.Instruction(0)
 		if !ok {
 			t.Fatalf("block policy %d has no compiled operator", policy)
@@ -22,11 +24,20 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		case BlockDense:
 			want = []LayerOperator{LayerOperatorDenseTransformer}
 		case BlockKimiLinear:
-			want = []LayerOperator{LayerOperatorLatentAttention}
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+			}
 		case BlockMLA:
-			want = []LayerOperator{LayerOperatorLatentAttention}
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+			}
 		case BlockDSA:
-			want = []LayerOperator{LayerOperatorLatentAttention}
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+			}
 		case BlockDeepSeek4:
 			want = []LayerOperator{LayerOperatorHyperConnection}
 		case BlockMamba, BlockMamba2:
@@ -77,7 +88,7 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 
 func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	program := compileLayerProgram(
-		BlockKimiLinear, AttentionStandard, true, LayerCompositionStandard,
+		BlockKimiLinear, ArchitectureProfile{}, true, LayerCompositionStandard,
 	)
 	instruction, ok := program.Instruction(0)
 	if !ok || program.Count != 6 || instruction.Operator != LayerOperatorAttentionNorm {
@@ -93,7 +104,7 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 
 func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	program := compileLayerProgram(
-		BlockDense, AttentionLFM2, true, LayerCompositionStandard,
+		BlockDense, ArchitectureProfile{Attention: AttentionLFM2}, true, LayerCompositionStandard,
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -142,7 +153,8 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			program := compileLayerProgram(
-				BlockNemotronH, AttentionStandard, fixture.recurrent, fixture.composition,
+				BlockNemotronH, ArchitectureProfile{},
+				fixture.recurrent, fixture.composition,
 			)
 			instruction, ok := program.Instruction(mixerStage)
 			if !ok || instruction.Operator != fixture.mixer {
@@ -159,7 +171,8 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	)
 	for _, recurrent := range []bool{false, true} {
 		program := compileLayerProgram(
-			BlockDense, AttentionQwenGDN, recurrent, LayerCompositionStandard,
+			BlockDense, ArchitectureProfile{Attention: AttentionQwenGDN},
+			recurrent, LayerCompositionStandard,
 		)
 		instruction, ok := program.Instruction(mixerStage)
 		if !ok || program.Count != qwenProgramStageCount {

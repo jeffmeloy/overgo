@@ -46,7 +46,7 @@ func BuildArchitectureBlockCached(
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
 	}
 	if plan.Program != compileLayerProgram(
-		plan.Block, plan.Attention, plan.Recurrent, plan.Composition,
+		plan.Block, options.Spec.Profile(), plan.Recurrent, plan.Composition,
 	) {
 		return DenseBlockResult{}, errors.New("compiled layer program differs from layer policy")
 	}
@@ -287,6 +287,10 @@ func executeLayerInstruction(
 			feedForward, err = buildFusedFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
 			)
+		case FeedForwardMixSquaredReLU:
+			feedForward, err = buildSquaredReLUFeedForwardMix(
+				c.Builder, execution.current, options.Weights,
+			)
 		case FeedForwardMixNemotron:
 			feedForward, err = buildNemotronFeedForwardMix(
 				c.Builder, execution.current, options.Weights, plan.Experts,
@@ -377,8 +381,8 @@ func executeLayerInstruction(
 		if !valid {
 			return errors.New("compiled latent-attention stage is invalid")
 		}
-		result, err := buildLatentAttentionBlockCachedWithPlan(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+		result, err := buildLatentAttentionMixCachedWithPlan(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan,
 		)
 		if err != nil {
@@ -469,6 +473,21 @@ func buildFusedFeedForwardMix(
 	return builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up)), builder.Err()
 }
 
+func buildSquaredReLUFeedForwardMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	weights LayerGraphWeights,
+) (*tensor.Tensor, error) {
+	if err := (graphWeights{
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}).validate("compiled squared-ReLU feed-forward stage"); err != nil {
+		return nil, err
+	}
+	up := builder.MulMat(weights.FeedForwardUp, input)
+	return builder.MulMat(weights.FeedForwardDown, builder.ReLUSquared(up)), builder.Err()
+}
+
 func buildStandardFeedForwardMix(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
@@ -477,6 +496,9 @@ func buildStandardFeedForwardMix(
 	weights LayerGraphWeights,
 ) (*tensor.Tensor, error) {
 	if weights.FeedForwardRouter != nil {
+		if plan.Experts.OptionalSelectionBias {
+			plan.Experts.SelectionBias = weights.FeedForwardExpertBias != nil
+		}
 		required := graphWeights{
 			requireGraphWeight("feed-forward router", weights.FeedForwardRouter),
 			requireGraphWeight("feed-forward expert down", weights.FeedForwardDownExperts),

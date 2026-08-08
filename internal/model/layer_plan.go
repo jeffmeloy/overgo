@@ -77,6 +77,7 @@ const (
 	RecurrentMixMamba2
 	RecurrentMixPLaMo2
 	RecurrentMixQwenGDN
+	RecurrentMixLFM2
 )
 
 // AttentionMixPolicy: attention operator implementation.
@@ -326,6 +327,10 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	}
 	if profile.Attention == AttentionQwenGDN {
 		experts.NormalizeTopKProb = true
+	}
+	if profile.Attention == AttentionLFM2 && recurrent {
+		experts.NormalizeTopKProb = true
+		experts.SelectionBias = true
 	}
 	cacheWrite := CacheWriteFixed
 	if cache.PrimaryMode().TokenAligned() {
@@ -724,6 +729,13 @@ func compileLayerProgram(
 	recurrent bool,
 	composition LayerCompositionPolicy,
 ) LayerProgram {
+	if attention == AttentionLFM2 && recurrent {
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixLFM2, false),
+			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
+			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+		)
+	}
 	if attention == AttentionQwenGDN {
 		mixer := attentionLayerStage(AttentionMixQwenGDN)
 		if recurrent {

@@ -249,6 +249,11 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, sequences, operands.caches[0], operands.caches[1],
 			)
+		case RecurrentMixLFM2:
+			result, err = buildLFM2RecurrentMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1],
+			)
 		default:
 			return errors.New("compiled recurrent-mixing policy is invalid")
 		}
@@ -406,13 +411,6 @@ func executeDenseTransformer(
 	plan LayerPlan,
 	operands layerOperands,
 ) (DenseBlockResult, error) {
-	c := options.Context
-	if plan.Attention == AttentionLFM2 {
-		return buildLFM2BlockCachedWithPlan(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan,
-		)
-	}
 	return BuildDenseBlockWithOptions(DenseBlockOptions(options))
 }
 

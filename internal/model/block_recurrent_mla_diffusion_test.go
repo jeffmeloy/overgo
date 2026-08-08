@@ -14,6 +14,24 @@ import (
 	"testing"
 )
 
+func buildFixtureLayerWithPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	plan LayerPlan,
+) (DenseBlockResult, error) {
+	return BuildArchitectureBlockCached(BlockDispatchOptions{
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, Positions: positions,
+			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer, Recurrent: plan.Recurrent,
+		},
+		Spec: spec, Weights: weights, Plan: &plan,
+	})
+}
+
 func TestBuildRefactExpertBlock(t *testing.T) {
 	for _, gated := range []bool{false, true} {
 		builder := tensor.NewBuilder()
@@ -362,13 +380,9 @@ func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
 	plan := spec.PlanLayer(0, true)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
-		Context: CachedBlockContext{
-			Builder: builder, Input: input, Positions: []uint32{0, 1},
-			PastKey: state, PastValue: reserved, Recurrent: true,
-		},
-		Spec: spec, Weights: weights, Plan: &plan,
-	})
+	result, err := buildFixtureLayerWithPlan(
+		builder, input, spec, weights, []uint32{0, 1}, state, reserved, plan,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +420,7 @@ func TestBuildLFM2CenteredShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := buildLFM2BlockCachedWithPlan(
+	result, err := buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1, 2}, state, reserved,
 		spec.PlanLayer(0, true),
 	)
@@ -447,7 +461,7 @@ func TestBuildLFM2CenteredShortConvolutionSupportsEvenKernel(t *testing.T) {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	result, err := buildLFM2BlockCachedWithPlan(
+	result, err := buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1},
 		builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(3, 4)),
 		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), spec.PlanLayer(0, true),
@@ -495,7 +509,7 @@ func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := buildLFM2BlockCachedWithPlan(
+	result, err := buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1}, state, reserved,
 		spec.PlanLayer(2, true),
 	)

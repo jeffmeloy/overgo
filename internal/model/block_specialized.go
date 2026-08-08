@@ -801,56 +801,30 @@ func addKimiFeedForwardRequirements(
 	required.add("shared expert down", weights.FeedForwardSharedDown)
 }
 
-// buildLFM2BlockCachedWithPlan: compiled attention/convolution layer.
-func buildLFM2BlockCachedWithPlan(
+// buildLFM2RecurrentMixCached: short-convolution mixer.
+func buildLFM2RecurrentMixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
-	plan LayerPlan,
 ) (DenseBlockResult, error) {
-	if spec.Profile().Attention != AttentionLFM2 {
+	if spec.Profile().Attention != AttentionLFM2 || builder == nil || normalized == nil ||
+		pastKey == nil || pastValue == nil {
 		return DenseBlockResult{}, errors.New("LFM2 block requires lfm2 or lfm2moe architecture")
 	}
-	if !plan.Recurrent {
-		return BuildDenseBlockWithOptions(DenseBlockOptions{
-			Context: CachedBlockContext{
-				Builder: builder, Input: input, Positions: positions,
-				PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
-			},
-			Spec: spec, Weights: weights, Plan: &plan,
-		})
-	}
-	if builder == nil || input == nil || pastKey == nil || pastValue == nil {
-		return DenseBlockResult{}, errors.New("LFM2 recurrent block input or state is nil")
-	}
 	required := graphWeights{
-		requireGraphWeight("operator norm", weights.AttentionNorm),
 		requireGraphWeight("short-convolution input", weights.ShortConvInput),
 		requireGraphWeight("short-convolution kernel", weights.ShortConvKernel),
 		requireGraphWeight("short-convolution output", weights.ShortConvOutput),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
 	}
-	usesExperts := weights.FeedForwardRouter != nil
-	if usesExperts {
-		required.add("feed-forward router", weights.FeedForwardRouter)
-		required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
-		required.add("feed-forward expert up", weights.FeedForwardUpExperts)
-		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
-		required.add("feed-forward expert correction bias", weights.FeedForwardExpertBias)
-	} else {
-		required.add("feed-forward gate", weights.FeedForwardGate)
-		required.add("feed-forward up", weights.FeedForwardUp)
-		required.add("feed-forward down", weights.FeedForwardDown)
-	}
-	if err := required.validate("LFM2 recurrent block"); err != nil {
+	if err := required.validate("LFM2 recurrent mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if input.Shape.Rank != 2 || len(positions) == 0 ||
-		uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("LFM2 recurrent block input shape is invalid")
+	if normalized.Shape.Rank != 2 || len(positions) == 0 ||
+		uint64(len(positions)) != normalized.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("LFM2 recurrent mixer input shape is invalid")
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	window := uint64(spec.ShortConvCacheLength - 1)
@@ -859,7 +833,6 @@ func buildLFM2BlockCachedWithPlan(
 		return DenseBlockResult{}, errors.New("LFM2 recurrent cache shape is invalid")
 	}
 	tokens := uint64(len(positions))
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	mixed := builder.MulMat(weights.ShortConvInput, normalized)
 	b := builder.Reshape(builder.GroupSlice(mixed, 0, embedding, 1, 3*embedding), embedding, tokens)
 	c := builder.Reshape(builder.GroupSlice(mixed, embedding, embedding, 1, 3*embedding), embedding, tokens)
@@ -885,25 +858,11 @@ func buildLFM2BlockCachedWithPlan(
 	nextState = builder.Reshape(nextState, window, embedding)
 	convolved := builder.SSMConv(convInput, weights.ShortConvKernel)
 	shortConv := builder.MulMat(weights.ShortConvOutput, builder.Multiply(c, convolved))
-	residual := builder.Add(input, shortConv)
-	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	var feedForward *tensor.Tensor
-	if usesExperts {
-		experts := plan.Experts
-		experts.NormalizeTopKProb = true
-		experts.SelectionBias = true
-		feedForward = experts.BuildLayer(builder, normalized, nil, weights)
-	} else {
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		up := builder.MulMat(weights.FeedForwardUp, normalized)
-		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	}
-	output := builder.Add(residual, feedForward)
 	nextReserved := builder.Scale(pastValue, 1)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{
-		Output: output, Key: nextState, Value: nextReserved,
+		Output: shortConv, Key: nextState, Value: nextReserved,
 	}, nil
 }

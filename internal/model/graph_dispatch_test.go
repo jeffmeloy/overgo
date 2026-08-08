@@ -85,6 +85,30 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	}
 }
 
+func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
+	program := compileLayerProgram(
+		BlockDense, AttentionLFM2, true, LayerCompositionStandard,
+	)
+	want := []LayerOperator{
+		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+	}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("LFM2 recurrent stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("LFM2 recurrent stage %d = %d", index, instruction.Operator)
+		}
+	}
+	mixer, _ := program.Instruction(1)
+	feedForward, _ := program.Instruction(4)
+	if mixer.Recurrent != RecurrentMixLFM2 || feedForward.FeedForward != FeedForwardMixStandardSwiGLU {
+		t.Fatalf("LFM2 recurrent policies = %d/%d", mixer.Recurrent, feedForward.FeedForward)
+	}
+}
+
 func TestLayerDispatchRejectsMutatedProgram(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
 	plan := spec.PlanLayer(0, false)

@@ -151,18 +151,6 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	}
 }
 
-func TestLayerDispatchRejectsMutatedProgram(t *testing.T) {
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
-	plan := spec.PlanLayer(0, false)
-	plan.Program.Instructions[0].Operator = LayerOperatorNone
-	_, err := BuildArchitectureBlockCached(BlockDispatchOptions{
-		Spec: spec, Plan: &plan, Context: CachedBlockContext{},
-	})
-	if err == nil || !strings.Contains(err.Error(), "differs from layer policy") {
-		t.Fatalf("mutated program error = %v", err)
-	}
-}
-
 func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 	const mixerStage = 1
 	fixtures := []struct {

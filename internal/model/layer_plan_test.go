@@ -2,11 +2,25 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 )
+
+func TestValidateModelPlanRejectsMutatedProgram(t *testing.T) {
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.layers[0].Program.Instructions[0].Operator = LayerOperatorNone
+	if err := validateModelPlan(spec, Weights{}, plan); err == nil ||
+		!strings.Contains(err.Error(), "operator program is inconsistent") {
+		t.Fatalf("mutated program error = %v", err)
+	}
+}
 
 func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}

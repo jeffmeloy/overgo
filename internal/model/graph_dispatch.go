@@ -57,9 +57,6 @@ func BuildArchitectureBlockCached(
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
 	}
-	if plan.Program != compileLayerProgram(plan, options.Spec.Profile()) {
-		return DenseBlockResult{}, errors.New("compiled layer program differs from layer policy")
-	}
 	if plan.GraphFamily == ArchitectureFamilyEncoderDecoder {
 		return DenseBlockResult{}, errors.New(
 			"encoder-decoder blocks require explicit encoder state",
@@ -115,7 +112,8 @@ type layerExecution struct {
 	residual *tensor.Tensor
 	current  *tensor.Tensor
 	result   DenseBlockResult
-	dense    *denseFeedForwardState
+	dense    denseFeedForwardState
+	hasDense bool
 }
 
 func executeLayerProgram(
@@ -380,10 +378,11 @@ func executeLayerInstruction(
 		execution.current = result.Output
 		execution.result = result
 		execution.dense = state
+		execution.hasDense = true
 		return nil
 	case LayerOperatorDenseFeedForward:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
-			plan.Block != BlockDense || execution.dense == nil {
+			plan.Block != BlockDense || !execution.hasDense {
 			return errors.New("compiled dense feed-forward stage is invalid")
 		}
 		result, err := buildDenseFeedForwardStage(execution.dense)
@@ -392,7 +391,7 @@ func executeLayerInstruction(
 		}
 		execution.current = result.Output
 		execution.result = result
-		execution.dense = nil
+		execution.hasDense = false
 		return nil
 	case LayerOperatorLinearAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||

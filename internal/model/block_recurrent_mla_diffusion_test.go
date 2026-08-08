@@ -543,7 +543,7 @@ func TestBuildPLMMLABlock(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := BuildPLMBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil)
+	result, err := buildMLABlockCachedWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, spec.PlanLayer(0, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -964,7 +964,7 @@ func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string)
 		FeedForwardSharedUp:       builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6)),
 		FeedForwardSharedDown:     builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8)),
 	}
-	result, err := BuildMLABlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
+	result, err := buildMLABlockCachedWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, spec.PlanLayer(1, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1023,7 +1023,7 @@ func TestBuildMiniCPM3MLABlock(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := BuildMLABlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil)
+	result, err := buildMLABlockCachedWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, spec.PlanLayer(0, false))
 	if err != nil {
 		t.Fatal(err)
 	}

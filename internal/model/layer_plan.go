@@ -53,6 +53,7 @@ const (
 	LayerOperatorFamilyBlock LayerOperator = iota
 	LayerOperatorDenseTransformer
 	LayerOperatorLinearAttention
+	LayerOperatorLatentAttention
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionMix
@@ -813,6 +814,18 @@ func compileLayerProgram(
 			Count: 1,
 			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
 				Operator:   LayerOperatorLinearAttention,
+				CacheCount: 2,
+				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
+					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,
+				},
+			}},
+		}
+	}
+	if block == BlockMLA {
+		return LayerProgram{
+			Count: 1,
+			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
+				Operator:   LayerOperatorLatentAttention,
 				CacheCount: 2,
 				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
 					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,

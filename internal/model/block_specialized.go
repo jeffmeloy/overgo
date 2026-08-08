@@ -667,9 +667,7 @@ func buildKimiLinearBlockCachedWithPlan(
 		return DenseBlockResult{}, errors.New("Kimi Linear block requires kimi-linear architecture")
 	}
 	if !plan.Recurrent {
-		return BuildMLABlockCachedForLayer(
-			builder, input, spec, weights, positions, pastKey, pastValue, plan.Layer,
-		)
+		return buildMLABlockCachedWithPlan(builder, input, spec, weights, positions, pastKey, pastValue, plan)
 	}
 	layerIndex := plan.Layer
 	if builder == nil || input == nil || pastKey == nil || pastValue == nil {

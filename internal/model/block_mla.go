@@ -7,44 +7,19 @@ import (
 	"overgo/internal/tensor"
 )
 
-// BuildPLMBlockCached: PLM MLA block
-func BuildPLMBlockCached(
+// buildMLABlockCachedWithPlan: latent-attention leaf.
+func buildMLABlockCachedWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
-	if spec.Profile().MLAVariant != mlaVariantPLM {
-		return DenseBlockResult{}, errors.New("PLM block requires plm architecture")
-	}
-	return BuildMLABlockCached(builder, input, spec, weights, positions, pastKey, pastValue)
-}
-
-// BuildMLABlockCached: MLA block; layer-zero policy
-func BuildMLABlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue *tensor.Tensor,
-) (DenseBlockResult, error) {
-	return BuildMLABlockCachedForLayer(builder, input, spec, weights, positions, pastKey, pastValue, 0)
-}
-
-// BuildMLABlockCachedForLayer: MLA block with layer-dependent FFN
-func BuildMLABlockCachedForLayer(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue *tensor.Tensor,
-	layerIndex uint32,
-) (DenseBlockResult, error) {
-	return buildMLABlockCachedForLayer(builder, input, spec, weights, positions, pastKey, pastValue, nil, nil, layerIndex)
+	return buildMLABlockCachedForLayer(
+		builder, input, spec, weights, positions, pastKey, pastValue, nil, nil, plan.Layer,
+	)
 }
 
 // BuildGLMDSABlockCached: GLM-DSA compatibility wrapper.

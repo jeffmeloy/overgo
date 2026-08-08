@@ -362,7 +362,7 @@ func TestExecutorDeepSeek2AbsorbedMLABlockMatchesReference(t *testing.T) {
 		FeedForwardUp:             builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:           builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildMLABlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	result, err := buildFixtureCachedBlock(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +409,7 @@ func TestExecutorPLMMLABlockMatchesReference(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildPLMBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil)
+	result, err := buildFixtureCachedBlock(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -464,7 +464,7 @@ func TestExecutorMiniCPM3MLABlockMatchesReference(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := model.BuildMLABlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil)
+	result, err := buildFixtureCachedBlock(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}

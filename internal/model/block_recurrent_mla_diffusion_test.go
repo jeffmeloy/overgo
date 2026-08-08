@@ -1081,7 +1081,7 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
 		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
 	}
-	full, err := BuildGLMDSABlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, 0)
+	full, err := buildDSABlockCachedWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, spec.PlanLayer(0, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1124,7 +1124,7 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 		FeedForwardDown:  sharedBuilder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
 	previous := sharedBuilder.Input("top_k", dtype.F32, tensor.MustShape(2, 2))
-	shared, err := BuildGLMDSABlockCached(sharedBuilder, sharedInput, spec, sharedWeights, []uint32{0, 1}, nil, nil, nil, previous, 1)
+	shared, err := buildDSABlockCachedWithPlan(sharedBuilder, sharedInput, spec, sharedWeights, []uint32{0, 1}, nil, nil, nil, previous, spec.PlanLayer(1, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1170,8 +1170,8 @@ func TestBuildDeepSeek32FullIndexer(t *testing.T) {
 		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
 		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
 	}
-	result, err := BuildDSABlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, 0,
+	result, err := buildDSABlockCachedWithPlan(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, spec.PlanLayer(0, false),
 	)
 	if err != nil {
 		t.Fatal(err)

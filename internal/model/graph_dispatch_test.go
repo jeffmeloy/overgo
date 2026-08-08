@@ -25,6 +25,8 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			want = []LayerOperator{LayerOperatorLinearAttention}
 		case BlockMLA:
 			want = []LayerOperator{LayerOperatorLatentAttention}
+		case BlockDSA:
+			want = []LayerOperator{LayerOperatorSparseLatentAttention}
 		case BlockMamba, BlockMamba2:
 			want = []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,

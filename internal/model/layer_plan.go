@@ -54,6 +54,7 @@ const (
 	LayerOperatorDenseTransformer
 	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
+	LayerOperatorSparseLatentAttention
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionMix
@@ -833,6 +834,20 @@ func compileLayerProgram(
 			}},
 		}
 	}
+	if block == BlockDSA {
+		return LayerProgram{
+			Count: 1,
+			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
+				Operator:    LayerOperatorSparseLatentAttention,
+				CacheCount:  3,
+				TensorCount: 1,
+				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
+					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey,
+				},
+				Tensors: [maxLayerTensorBindings]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
+			}},
+		}
+	}
 	instruction := LayerOperatorInstruction{
 		Operator: LayerOperatorFamilyBlock,
 		Family:   block,
@@ -846,9 +861,6 @@ func compileLayerProgram(
 		copy(instruction.Tensors[:], bindings)
 	}
 	switch block {
-	case BlockDSA:
-		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey)
-		bindTensors(RuntimeTensorPerLayerInput)
 	case BlockDeepSeek4:
 		bindCaches(RuntimeCachePrimaryKey)
 		bindTensors(RuntimeTensorCurrentPositions)

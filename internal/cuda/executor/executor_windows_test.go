@@ -256,8 +256,8 @@ func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
 	spec := modeltest.GLMDSA().Spec
 	input := builder.Input("input", dtype.F32, tensor.MustShape(uint64(spec.EmbeddingLength), dsaFixtureTokens))
 	weights := dsaFixtureWeights(builder, spec)
-	result, err := model.BuildGLMDSABlockCached(
-		builder, input, spec, weights, fixturePositions(dsaFixtureTokens), nil, nil, nil, nil, 0,
+	result, err := buildFixtureCachedBlock(
+		builder, input, spec, weights, fixturePositions(dsaFixtureTokens), nil, nil, 0, false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -283,8 +283,8 @@ func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
 	spec := modeltest.DeepSeek32().Spec
 	input := builder.Input("input", dtype.F32, tensor.MustShape(uint64(spec.EmbeddingLength), dsaFixtureTokens))
 	weights := dsaFixtureWeights(builder, spec)
-	result, err := model.BuildDSABlockCached(
-		builder, input, spec, weights, fixturePositions(dsaFixtureTokens), nil, nil, nil, nil, 0,
+	result, err := buildFixtureCachedBlock(
+		builder, input, spec, weights, fixturePositions(dsaFixtureTokens), nil, nil, 0, false,
 	)
 	if err != nil {
 		t.Fatal(err)

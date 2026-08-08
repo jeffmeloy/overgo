@@ -22,35 +22,19 @@ func buildMLABlockCachedWithPlan(
 	)
 }
 
-// BuildGLMDSABlockCached: GLM-DSA compatibility wrapper.
-func BuildGLMDSABlockCached(
+// buildDSABlockCachedWithPlan: sparse latent-attention leaf.
+func buildDSABlockCachedWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
-	layerIndex uint32,
-) (DenseBlockResult, error) {
-	return BuildDSABlockCached(
-		builder, input, spec, weights, positions,
-		pastKey, pastValue, pastIndexerKey, previousTopK, layerIndex,
-	)
-}
-
-// BuildDSABlockCached: sparse MLA plus indexer state.
-func BuildDSABlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
-	layerIndex uint32,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
 	return buildMLABlockCachedForLayer(
 		builder, input, spec, weights, positions, pastKey, pastValue,
-		pastIndexerKey, previousTopK, layerIndex,
+		pastIndexerKey, previousTopK, plan.Layer,
 	)
 }
 

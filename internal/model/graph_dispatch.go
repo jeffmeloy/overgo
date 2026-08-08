@@ -372,6 +372,20 @@ func executeLayerInstruction(
 		execution.current = result.Output
 		execution.result = result
 		return nil
+	case LayerOperatorSparseLatentAttention:
+		if instruction.CacheCount != 3 || instruction.TensorCount != 1 || plan.Block != BlockDSA {
+			return errors.New("compiled sparse-latent-attention stage is invalid")
+		}
+		result, err := buildDSABlockCachedWithPlan(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan,
+		)
+		if err != nil {
+			return err
+		}
+		execution.current = result.Output
+		execution.result = result
+		return nil
 	case LayerOperatorFamilyBlock:
 		result, err := executeFamilyBlock(options, plan, instruction, operands)
 		if err != nil {
@@ -412,11 +426,6 @@ func executeFamilyBlock(
 		return DenseBlockResult{}, errors.New("compiled family block differs from layer plan")
 	}
 	switch instruction.Family {
-	case BlockDSA:
-		return BuildDSABlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], c.Layer,
-		)
 	case BlockDeepSeek4:
 		return BuildDeepSeek4BlockCached(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.TokenRows,

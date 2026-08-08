@@ -44,14 +44,14 @@ func bindLayerGraphCacheInputs[T any](
 		result.key = zero(cacheKeyInputName, schema.Primary.Key.Value.Shape)
 		result.value = zero(cacheValueInputName, schema.Primary.Value.Value.Shape)
 	}
-	for stateName, stateSchema := range schema.States {
+	schema.RangeStates(func(stateName model.CacheStateName, stateSchema model.CacheState[model.CacheValueSchema]) {
 		if !stateSchema.Value.ZeroInitial || result.states[stateName].Value != nil {
-			continue
+			return
 		}
 		result.states[stateName] = model.CacheState[*tensor.Tensor]{
 			Mode: stateSchema.Mode, Value: zero(string(stateName), stateSchema.Value.Shape),
 		}
-	}
+	})
 	return result
 }
 

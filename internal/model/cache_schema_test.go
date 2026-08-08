@@ -24,15 +24,17 @@ func TestLayerCacheSchemaMaterializesTokenDimensions(t *testing.T) {
 				Mode: CacheStateFixed, Value: CacheValueSchema{Shape: fixedShape},
 			},
 		),
-		States: CacheStates[CacheValueSchema]{
-			CacheStatePositions: {
-				Mode: CacheStateToken, Value: CacheValueSchema{Shape: tokenShape},
-			},
-		},
 	}
+	schema.addState(CacheStatePositions, CacheState[CacheValueSchema]{
+		Mode: CacheStateToken, Value: CacheValueSchema{Shape: tokenShape},
+	})
 	materialized := schema.WithTokenCount(fixtureTokens)
+	positions, present := materialized.State(CacheStatePositions)
+	if !present {
+		t.Fatal("position state is missing")
+	}
 	if materialized.Primary.Key.Value.Shape.Dims[2] != fixtureTokens ||
-		materialized.States[CacheStatePositions].Value.Shape.Dims[2] != fixtureTokens {
+		positions.Value.Shape.Dims[2] != fixtureTokens {
 		t.Fatalf("materialized schema = %+v", materialized)
 	}
 	if !materialized.Primary.Value.Value.Shape.Equal(fixedShape) ||
@@ -47,5 +49,33 @@ func TestCompileCacheSchemasRejectsLayerCountMismatch(t *testing.T) {
 		Spec{}, []LayerPlan{{Layer: fixtureLayer}}, []LayerWeights{{}, {}},
 	); err == nil {
 		t.Fatal("cache catalog accepted mismatched layer counts")
+	}
+}
+
+func TestCacheSchemaReportsInvalidRecurrentDimensions(t *testing.T) {
+	const (
+		fixtureLayerCount      = 1
+		fixtureEmbeddingWidth  = 2
+		fixtureNoHistoryKernel = 1
+		fixtureInnerWidth      = 2
+		fixtureStateWidth      = 2
+		fixtureTokenCount      = 1
+	)
+	spec := Spec{
+		CommonSpec: CommonSpec{
+			Architecture: "mamba", BlockCount: fixtureLayerCount,
+			EmbeddingLength: fixtureEmbeddingWidth,
+		},
+		RecurrentSpec: RecurrentSpec{
+			SSMConvKernel: fixtureNoHistoryKernel,
+			SSMInnerSize:  fixtureInnerWidth, SSMStateSize: fixtureStateWidth,
+		},
+	}
+	plan := LayerPlan{
+		Layer: 0, Block: BlockMamba, Cache: CacheMamba,
+		CacheMode: CacheStateFixed,
+	}
+	if _, err := CacheSchemaForPlan(spec, plan, LayerWeights{}, fixtureTokenCount); err == nil {
+		t.Fatal("zero-history recurrent cache shape was accepted")
 	}
 }

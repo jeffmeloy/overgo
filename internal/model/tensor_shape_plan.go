@@ -69,11 +69,27 @@ func (p TensorShapePlan) ExpertDown() []uint64 {
 }
 
 func (p TensorShapePlan) KeyCache(tokens uint32) tensor.Shape {
-	return tensor.MustShape(p.Key, p.KVHeads, uint64(tokens))
+	shape, err := p.KeyCacheShape(tokens)
+	if err != nil {
+		panic(err)
+	}
+	return shape
 }
 
 func (p TensorShapePlan) ValueCache(tokens uint32) tensor.Shape {
-	return tensor.MustShape(p.Value, p.KVHeads, uint64(tokens))
+	shape, err := p.ValueCacheShape(tokens)
+	if err != nil {
+		panic(err)
+	}
+	return shape
+}
+
+func (p TensorShapePlan) KeyCacheShape(tokens uint32) (tensor.Shape, error) {
+	return tensor.NewShape(p.Key, p.KVHeads, uint64(tokens))
+}
+
+func (p TensorShapePlan) ValueCacheShape(tokens uint32) (tensor.Shape, error) {
+	return tensor.NewShape(p.Value, p.KVHeads, uint64(tokens))
 }
 
 func tensorInfoMatches(info gguf.TensorInfo, shape []uint64) bool {

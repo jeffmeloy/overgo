@@ -239,8 +239,10 @@ func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
 			}
 			first, second := schema.Primary.Key.Value.Shape, schema.Primary.Value.Value.Shape
 			if test.architecture == "falcon-h1" {
-				first = schema.States[model.CacheStateConvolution].Value.Shape
-				second = schema.States[model.CacheStateSSM].Value.Shape
+				convolution, _ := schema.State(model.CacheStateConvolution)
+				ssm, _ := schema.State(model.CacheStateSSM)
+				first = convolution.Value.Shape
+				second = ssm.Value.Shape
 			}
 			if first.Rank == 0 || second.Rank == 0 {
 				t.Fatalf("state shapes = %v, %v", first.Slice(), second.Slice())

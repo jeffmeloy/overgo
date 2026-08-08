@@ -195,18 +195,26 @@ func (r *Runner) cacheSchema(
 }
 
 func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) error {
-	for name, expected := range schema.States {
+	var validationErr error
+	schema.RangeStates(func(name model.CacheStateName, expected model.CacheState[model.CacheValueSchema]) {
+		if validationErr != nil {
+			return
+		}
 		state, present := layer.States[name]
 		if !present {
-			return fmt.Errorf("required state %q is missing", name)
+			validationErr = fmt.Errorf("required state %q is missing", name)
+			return
 		}
 		if state.Mode != expected.Mode || !cacheShapeMatches(state.Value.Shape, expected.Value) {
-			return fmt.Errorf("state %q shape or mode is invalid", name)
+			validationErr = fmt.Errorf("state %q shape or mode is invalid", name)
 		}
+	})
+	if validationErr != nil {
+		return validationErr
 	}
 	if schema.StrictStates {
 		for name := range layer.States {
-			if _, present := schema.States[name]; !present {
+			if !schema.HasState(name) {
 				return fmt.Errorf("state %q is unexpected", name)
 			}
 		}

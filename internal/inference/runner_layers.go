@@ -340,10 +340,15 @@ func (r *Runner) runLFM2LayerNonCausal(
 	}
 	spec := r.spec
 	spec.NonCausalAttention = true
-	result, err := model.BuildLFM2BlockCachedWithPlan(
-		builder, input, spec, graphWeights, positions, state, reserved,
-		r.layerPlan(layerIndex),
-	)
+	plan := r.layerPlan(layerIndex)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: positions,
+			PastKey: state, PastValue: reserved,
+			Layer: uint32(layerIndex), Recurrent: info.Recurrent,
+		},
+		Spec: spec, Weights: graphWeights, Plan: &plan,
+	})
 	if err != nil {
 		return reference.Value{}, err
 	}

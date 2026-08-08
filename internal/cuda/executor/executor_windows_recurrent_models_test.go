@@ -574,33 +574,33 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 					feeds[convState] = patternedValue(convState.Shape, 7, 0.03, -0.02)
 					feeds[ssmState] = patternedValue(ssmState.Shape, 11, 0.02, 0.01)
 				}
-				var (
-					result model.Qwen35BlockResult
-					err    error
-				)
+				plan := spec.PlanLayer(0, recurrent)
+				var result model.DenseBlockResult
+				var err error
 				if !recurrent && architecture != "qwen3next" {
 					positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
-					result, err = model.BuildQwen35BlockWithOptions(model.Qwen35BlockOptions{
-						Builder: builder, Input: input, Spec: spec, Weights: weights,
-						Positions: positions[0], MultiPositions: &positions, Sequences: 1,
-						CacheWrite: tensor.CacheWriteConcat,
+					result, err = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+						Spec: spec, Weights: weights, Plan: &plan,
+						Context: model.CachedBlockContext{
+							Builder: builder, Input: input, Positions: positions[0], MultiPositions: &positions,
+							Sequences: 1, CacheWrite: tensor.CacheWriteConcat,
+						},
 					})
 				} else {
-					result, err = model.BuildQwen35BlockWithOptions(model.Qwen35BlockOptions{
-						Builder: builder, Input: input, Spec: spec, Weights: weights,
-						Positions: []uint32{0, 1}, Sequences: 1, Recurrent: recurrent,
-						ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
+					result, err = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+						Spec: spec, Weights: weights, Plan: &plan,
+						Context: model.CachedBlockContext{
+							Builder: builder, Input: input, Positions: []uint32{0, 1},
+							PastKey: convState, PastValue: ssmState, Recurrent: recurrent,
+							Sequences: 1, CacheWrite: tensor.CacheWriteConcat,
+						},
 					})
 				}
 				if err != nil {
 					t.Fatal(err)
 				}
 				outputs := []*tensor.Tensor{result.Output}
-				if recurrent {
-					outputs = append(outputs, result.ConvState, result.SSMState)
-				} else {
-					outputs = append(outputs, result.Key, result.Value)
-				}
+				outputs = append(outputs, result.Key, result.Value)
 				want, err := reference.Execute(outputs, feeds)
 				if err != nil {
 					t.Fatal(err)
@@ -648,7 +648,7 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	block, err := model.BuildQwen35MTPBlockCached(
-		builder, current, spec, weights, []uint32{19}, nil, nil,
+		builder, current, spec, weights, []uint32{19}, nil, nil, dense.PlanLayer(0, false),
 	)
 	if err != nil {
 		t.Fatal(err)

@@ -536,6 +536,9 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		for offset := range plan.draftLayers {
 			plan.draftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
 		}
+	} else if plan.draft.Kind == DraftQwen35MTP && plan.draft.SessionEligible() {
+		executable := qwen35MTPExecutableSpec(spec)
+		plan.draftLayers = []LayerPlan{executable.PlanLayer(0, false)}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
@@ -556,6 +559,8 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	wantDraftLayers := 0
 	if plan.draft.AppendedBlocks {
 		wantDraftLayers = int(plan.draft.Heads)
+	} else if plan.draft.Kind == DraftQwen35MTP && plan.draft.SessionEligible() {
+		wantDraftLayers = 1
 	}
 	if len(plan.draftLayers) != wantDraftLayers {
 		return fmt.Errorf("model plan architecture %s has invalid draft layers", spec.Architecture)
@@ -564,7 +569,11 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		return fmt.Errorf("model plan architecture %s has invalid cache schemas", spec.Architecture)
 	}
 	for offset, layer := range plan.draftLayers {
-		if layer.Layer != spec.BlockCount+uint32(offset) {
+		wantLayer := spec.BlockCount + uint32(offset)
+		if plan.draft.Kind == DraftQwen35MTP {
+			wantLayer = 0
+		}
+		if layer.Layer != wantLayer {
 			return fmt.Errorf("model plan draft layer %d identity is inconsistent", offset)
 		}
 	}

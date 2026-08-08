@@ -77,13 +77,17 @@ func (r *Runner) AdvanceQwen35MTP(
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	mtp := r.weights.Qwen35MTP
+	plan, err := r.draftLayerPlan(0)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
 	return r.advanceSingleHeadMTP(ctx, tokenID, session, singleHeadMTPAdapter{
 		nodePrefix: "qwen35_mtp", layer: mtp.Layer,
 		embeddingNorm: mtp.EmbeddingNorm, hiddenNorm: mtp.HiddenNorm, project: mtp.EHProjection,
 		tokenEmbedding: mtp.TokenEmbedding, outputNorm: mtp.OutputNorm, output: mtp.Output,
 		buildInput: model.BuildQwen35MTPInput,
 		buildBlock: func(builder *tensor.Builder, input *tensor.Tensor, spec model.Spec, weights model.LayerGraphWeights, positions []uint32, pastKey, pastValue *tensor.Tensor) (singleHeadMTPBlock, error) {
-			block, err := model.BuildQwen35MTPBlockCached(builder, input, spec, weights, positions, pastKey, pastValue)
+			block, err := model.BuildQwen35MTPBlockCached(builder, input, spec, weights, positions, pastKey, pastValue, plan)
 			return singleHeadMTPBlock{output: block.Output, key: block.Key, value: block.Value}, err
 		},
 		buildOutputs: model.BuildQwen35MTPOutputs,

@@ -2,6 +2,50 @@ package model
 
 import "overgo/internal/tensor"
 
+type Qwen35BlockOptions struct {
+	Builder        *tensor.Builder
+	Input          *tensor.Tensor
+	Spec           Spec
+	Weights        LayerGraphWeights
+	Positions      []uint32
+	MultiPositions *[4][]uint32
+	Sequences      uint64
+	Recurrent      bool
+	PastKey        *tensor.Tensor
+	PastValue      *tensor.Tensor
+	ConvState      *tensor.Tensor
+	SSMState       *tensor.Tensor
+	CacheWrite     tensor.CacheWriteMode
+}
+
+type qwen35BlockFixtureResult struct {
+	Output, Key, Value, ConvState, SSMState *tensor.Tensor
+	Recurrent                               bool
+}
+
+func BuildQwen35BlockWithOptions(options Qwen35BlockOptions) (qwen35BlockFixtureResult, error) {
+	plan := options.Spec.PlanLayer(0, options.Recurrent)
+	pastKey, pastValue := options.PastKey, options.PastValue
+	if options.Recurrent {
+		pastKey, pastValue = options.ConvState, options.SSMState
+	}
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: options.Spec, Weights: options.Weights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: options.Builder, Input: options.Input, Positions: options.Positions,
+			MultiPositions: options.MultiPositions, PastKey: pastKey, PastValue: pastValue,
+			Recurrent: options.Recurrent, CacheWrite: options.CacheWrite,
+			Sequences: options.Sequences,
+		},
+	})
+	fixture := qwen35BlockFixtureResult{Output: result.Output, Key: result.Key, Value: result.Value}
+	if options.Recurrent {
+		fixture.Key, fixture.Value = nil, nil
+		fixture.ConvState, fixture.SSMState, fixture.Recurrent = result.Key, result.Value, true
+	}
+	return fixture, err
+}
+
 func buildFixtureLayerWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,

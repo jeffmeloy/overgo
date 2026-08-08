@@ -236,32 +236,6 @@ type DenseBlockResult struct {
 	States    CacheStates[*tensor.Tensor]
 }
 
-type Qwen35BlockResult struct {
-	Output    *tensor.Tensor
-	Key       *tensor.Tensor
-	Value     *tensor.Tensor
-	ConvState *tensor.Tensor
-	SSMState  *tensor.Tensor
-	Recurrent bool
-}
-
-// Qwen35BlockOptions: hybrid block graph inputs.
-type Qwen35BlockOptions struct {
-	Builder        *tensor.Builder
-	Input          *tensor.Tensor
-	Spec           Spec
-	Weights        LayerGraphWeights
-	Positions      []uint32
-	MultiPositions *[4][]uint32
-	Sequences      uint64
-	Recurrent      bool
-	PastKey        *tensor.Tensor
-	PastValue      *tensor.Tensor
-	ConvState      *tensor.Tensor
-	SSMState       *tensor.Tensor
-	CacheWrite     tensor.CacheWriteMode
-}
-
 type denseBlockContext struct {
 	builder            *tensor.Builder
 	input              *tensor.Tensor
@@ -1045,36 +1019,6 @@ func buildDeciSparseBlockCached(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
-}
-
-// BuildQwen35BlockWithOptions: typed hybrid block construction.
-func BuildQwen35BlockWithOptions(options Qwen35BlockOptions) (Qwen35BlockResult, error) {
-	if options.Sequences == 0 {
-		return Qwen35BlockResult{}, errors.New("Qwen hybrid sequence count is zero")
-	}
-	plan := options.Spec.PlanLayer(0, options.Recurrent)
-	pastKey, pastValue := options.PastKey, options.PastValue
-	if options.Recurrent {
-		pastKey, pastValue = options.ConvState, options.SSMState
-	}
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
-		Spec: options.Spec, Weights: options.Weights, Plan: &plan,
-		Context: CachedBlockContext{
-			Builder: options.Builder, Input: options.Input, Positions: options.Positions,
-			MultiPositions: options.MultiPositions, PastKey: pastKey, PastValue: pastValue,
-			Recurrent: options.Recurrent, CacheWrite: options.CacheWrite,
-			Sequences: options.Sequences,
-		},
-	})
-	if err != nil {
-		return Qwen35BlockResult{}, err
-	}
-	qwen := Qwen35BlockResult{Output: result.Output, Key: result.Key, Value: result.Value}
-	if options.Recurrent {
-		qwen.Key, qwen.Value = nil, nil
-		qwen.ConvState, qwen.SSMState, qwen.Recurrent = result.Key, result.Value, true
-	}
-	return qwen, nil
 }
 
 func buildQwen35AttentionMixCached(

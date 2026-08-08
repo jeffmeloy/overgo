@@ -343,6 +343,21 @@ func executeLayerInstruction(
 		execution.current = result.Output
 		execution.result = result
 		return nil
+	case LayerOperatorLinearAttention:
+		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
+			plan.Block != BlockKimiLinear {
+			return errors.New("compiled linear-attention stage is invalid")
+		}
+		result, err := buildKimiLinearBlockCachedWithPlan(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan,
+		)
+		if err != nil {
+			return err
+		}
+		execution.current = result.Output
+		execution.result = result
+		return nil
 	case LayerOperatorFamilyBlock:
 		result, err := executeFamilyBlock(options, plan, instruction, operands)
 		if err != nil {
@@ -383,11 +398,6 @@ func executeFamilyBlock(
 		return DenseBlockResult{}, errors.New("compiled family block differs from layer plan")
 	}
 	switch instruction.Family {
-	case BlockKimiLinear:
-		return BuildKimiLinearBlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, plan.Recurrent,
-			operands.caches[0], operands.caches[1], c.Layer,
-		)
 	case BlockMLA:
 		return BuildMLABlockCachedForLayer(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,

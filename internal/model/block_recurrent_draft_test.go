@@ -38,7 +38,10 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 		weights.SSMNorm = builder.Input("ssm_norm", dtype.F32, tensor.MustShape(2))
 		conv := builder.Input("conv", dtype.F32, tensor.MustShape(2, 12))
 		state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
-		result, err := BuildKimiLinearBlockCached(builder, input, spec, weights, []uint32{0, 1}, true, conv, state, 0)
+		result, err := buildKimiLinearBlockCachedWithPlan(
+			builder, input, spec, weights, []uint32{0, 1}, conv, state,
+			spec.PlanLayer(0, true),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +78,10 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 		weights.AttentionKB = builder.Input("kb", dtype.F32, tensor.MustShape(2, 3, 2))
 		weights.AttentionVB = builder.Input("vb", dtype.F32, tensor.MustShape(3, 2, 2))
 		weights.AttentionOutput = builder.Input("o", dtype.F32, tensor.MustShape(4, 8))
-		result, err := BuildKimiLinearBlockCached(builder, input, spec, weights, []uint32{0, 1}, false, nil, nil, 1)
+		result, err := buildKimiLinearBlockCachedWithPlan(
+			builder, input, spec, weights, []uint32{0, 1}, nil, nil,
+			spec.PlanLayer(1, false),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

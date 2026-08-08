@@ -52,6 +52,7 @@ type LayerOperator uint8
 const (
 	LayerOperatorFamilyBlock LayerOperator = iota
 	LayerOperatorDenseTransformer
+	LayerOperatorLinearAttention
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionMix
@@ -800,6 +801,18 @@ func compileLayerProgram(
 			Count: 1,
 			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
 				Operator:   LayerOperatorDenseTransformer,
+				CacheCount: 2,
+				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
+					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,
+				},
+			}},
+		}
+	}
+	if block == BlockKimiLinear {
+		return LayerProgram{
+			Count: 1,
+			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
+				Operator:   LayerOperatorLinearAttention,
 				CacheCount: 2,
 				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
 					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,

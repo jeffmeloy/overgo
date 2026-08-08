@@ -712,8 +712,8 @@ func TestExecutorKimiLinearKDABlockMatchesReference(t *testing.T) {
 	}
 	conv := builder.Input("conv", dtype.F32, tensor.MustShape(2, 12))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
-	result, err := model.BuildKimiLinearBlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, true, conv, state, 0,
+	result, err := buildFixtureCachedBlock(
+		builder, input, spec, weights, []uint32{0, 1}, conv, state, 0, true,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -965,8 +965,8 @@ func TestExecutorKimiLinearMLABlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("su", dtype.F32, tensor.MustShape(8, 6)),
 		FeedForwardSharedDown:  builder.Input("sd", dtype.F32, tensor.MustShape(6, 8)),
 	}
-	result, err := model.BuildKimiLinearBlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, false, nil, nil, 1,
+	result, err := buildFixtureCachedBlock(
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1, false,
 	)
 	if err != nil {
 		t.Fatal(err)

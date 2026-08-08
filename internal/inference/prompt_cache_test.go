@@ -193,61 +193,66 @@ func TestTrimHostPromptCache(t *testing.T) {
 }
 
 func TestTrimDeviceCacheSuffix(t *testing.T) {
-	shape := tensor.MustShape(2, 3, 4)
-	cache := &deviceKVCache{
-		Keys: []executor.DeviceValue{{
-			Pointer: 1000,
-			Shape:   shape,
-		}},
-		Values: []executor.DeviceValue{{
-			Pointer: 2000,
-			Shape:   shape,
-		}},
-		Tokens:   4,
-		Position: 4,
-		Logits:   []float32{1, 2},
+	const (
+		fixtureWidth        = uint32(2)
+		fixtureHeads        = uint32(3)
+		fixtureTokens       = uint32(4)
+		fixtureKeptTokens   = uint32(2)
+		fixtureKeyPointer   = driver.DevicePtr(1000)
+		fixtureValuePointer = driver.DevicePtr(2000)
+	)
+	fixture := deviceAttentionCacheFixture{
+		KeyWidth: fixtureWidth, ValueWidth: fixtureWidth, Heads: fixtureHeads,
+		Tokens: fixtureTokens, KeyPointer: fixtureKeyPointer, ValuePointer: fixtureValuePointer,
 	}
-	if err := trimDeviceCacheSuffix(cache, 2); err != nil {
+	cache := fixture.cache()
+	cache.Position = fixtureTokens
+	cache.Logits = []float32{1, 2}
+	if err := trimDeviceCacheSuffix(cache, fixtureKeptTokens); err != nil {
 		t.Fatal(err)
 	}
-	if cache.Tokens != 2 ||
-		cache.Position != 2 ||
-		cache.Keys[0].Pointer != 1000 ||
-		cache.Values[0].Pointer != 2000 ||
-		cache.Keys[0].Shape.Dims[2] != 2 ||
-		cache.Values[0].Shape.Dims[2] != 2 ||
+	if cache.Tokens != fixtureKeptTokens ||
+		cache.Position != fixtureKeptTokens ||
+		cache.Keys[0] != fixture.value(fixtureKeyPointer, fixtureWidth, fixtureKeptTokens) ||
+		cache.Values[0] != fixture.value(fixtureValuePointer, fixtureWidth, fixtureKeptTokens) ||
 		cache.Logits != nil {
 		t.Fatalf("trimmed device cache = %+v", cache)
 	}
 }
 
 func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1, ContextLength: 2}},
-		weights: model.Weights{Layers: make([]model.LayerWeights, 1)}},
+	const (
+		fixtureWidth        = uint32(2)
+		fixtureHeads        = uint32(3)
+		fixtureTokens       = uint32(2)
+		fixtureDiscard      = 1
+		fixturePosition     = uint32(5)
+		fixtureKeyPointer   = driver.DevicePtr(1000)
+		fixtureValuePointer = driver.DevicePtr(2000)
+	)
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{
+		Architecture: "llama", BlockCount: 1, ContextLength: fixtureTokens,
+	}}, weights: model.Weights{Layers: make([]model.LayerWeights, 1)}},
 	}
 	runner = attachFixtureProgram(runner)
-	shape := tensor.MustShape(2, 3, 2)
-	cache := &deviceKVCache{
-		Keys: []executor.DeviceValue{{
-			Pointer: driver.DevicePtr(1000),
-			Shape:   shape,
-		}},
-		Values: []executor.DeviceValue{{
-			Pointer: driver.DevicePtr(2000),
-			Shape:   shape,
-		}},
-		Tokens:   2,
-		Position: 5,
+	fixture := deviceAttentionCacheFixture{
+		KeyWidth: fixtureWidth, ValueWidth: fixtureWidth, Heads: fixtureHeads,
+		Tokens: fixtureTokens, KeyPointer: fixtureKeyPointer, ValuePointer: fixtureValuePointer,
 	}
-	if err := runner.shiftDeviceCacheForAppend(cache, 1); err != nil {
+	cache := fixture.cache()
+	cache.Position = fixturePosition
+	if err := runner.shiftDeviceCacheForAppend(cache, fixtureDiscard); err != nil {
 		t.Fatal(err)
 	}
-	if cache.Tokens != 1 ||
-		cache.Position != 5 ||
-		cache.Keys[0].Pointer != 1024 ||
-		cache.Values[0].Pointer != 2024 ||
-		cache.Keys[0].Shape.Dims[2] != 1 ||
-		cache.Values[0].Shape.Dims[2] != 1 {
+	wantTokens := fixtureTokens - fixtureDiscard
+	wantKey := fixture.value(
+		fixture.advanced(fixtureKeyPointer, fixtureWidth, fixtureDiscard), fixtureWidth, wantTokens,
+	)
+	wantValue := fixture.value(
+		fixture.advanced(fixtureValuePointer, fixtureWidth, fixtureDiscard), fixtureWidth, wantTokens,
+	)
+	if cache.Tokens != wantTokens || cache.Position != fixturePosition ||
+		cache.Keys[0] != wantKey || cache.Values[0] != wantValue {
 		t.Fatalf("shifted cache = %+v", cache)
 	}
 }

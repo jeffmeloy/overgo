@@ -71,31 +71,36 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 }
 
 func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
-	cache := &deviceKVCache{
-		Keys: []executor.DeviceValue{{
-			Pointer: driver.DevicePtr(1000),
-			Shape:   tensor.MustShape(2, 1, 5),
-		}},
-		Values: []executor.DeviceValue{{
-			Pointer: driver.DevicePtr(2000),
-			Shape:   tensor.MustShape(3, 1, 5),
-		}},
-		Tokens: 5,
+	const (
+		fixtureKeyWidth     = uint32(2)
+		fixtureValueWidth   = uint32(3)
+		fixtureHeads        = uint32(1)
+		fixtureTokens       = uint32(5)
+		fixturePageTokens   = uint32(2)
+		fixtureKeyPointer   = driver.DevicePtr(1000)
+		fixtureValuePointer = driver.DevicePtr(2000)
+	)
+	fixture := deviceAttentionCacheFixture{
+		KeyWidth: fixtureKeyWidth, ValueWidth: fixtureValueWidth,
+		Heads: fixtureHeads, Tokens: fixtureTokens,
+		KeyPointer: fixtureKeyPointer, ValuePointer: fixtureValuePointer,
 	}
-	if err := rebuildDeviceCachePages(cache, 2); err != nil {
+	cache := fixture.cache()
+	if err := rebuildDeviceCachePages(cache, fixturePageTokens); err != nil {
 		t.Fatal(err)
 	}
-	if cache.PageTokens != 2 || len(cache.Pages) != 3 {
+	wantPages := int((fixtureTokens + fixturePageTokens - 1) / fixturePageTokens)
+	if cache.PageTokens != fixturePageTokens || len(cache.Pages) != wantPages {
 		t.Fatalf("page table = %+v", cache.Pages)
 	}
-	wantStarts := []uint32{0, 2, 4}
-	wantCounts := []uint32{2, 2, 1}
 	for index, page := range cache.Pages {
-		if page.Start != wantStarts[index] || page.Tokens != wantCounts[index] ||
-			page.Keys[0].Shape.Dims[2] != uint64(wantCounts[index]) ||
-			page.Values[0].Shape.Dims[2] != uint64(wantCounts[index]) ||
-			page.Keys[0].Pointer != driver.DevicePtr(1000+8*wantStarts[index]) ||
-			page.Values[0].Pointer != driver.DevicePtr(2000+12*wantStarts[index]) {
+		wantStart := uint32(index) * fixturePageTokens
+		wantCount := min(fixturePageTokens, fixtureTokens-wantStart)
+		if page.Start != wantStart || page.Tokens != wantCount ||
+			page.Keys[0].Shape != fixture.shape(fixtureKeyWidth, wantCount) ||
+			page.Values[0].Shape != fixture.shape(fixtureValueWidth, wantCount) ||
+			page.Keys[0].Pointer != fixture.advanced(fixtureKeyPointer, fixtureKeyWidth, wantStart) ||
+			page.Values[0].Pointer != fixture.advanced(fixtureValuePointer, fixtureValueWidth, wantStart) {
 			t.Fatalf("page %d = %+v", index, page)
 		}
 	}
@@ -190,7 +195,6 @@ func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
 		fixtureSSMGroups      = 1
 		fixtureSSMStateWidth  = 1
 		fixtureRemovedTokens  = 1
-		fixtureScalarBytes    = 4
 		fixtureKeyPointer     = driver.DevicePtr(1000)
 		fixtureValuePointer   = driver.DevicePtr(2000)
 		fixtureFixedPointer   = driver.DevicePtr(3000)
@@ -210,41 +214,36 @@ func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
 		weights: model.Weights{Layers: []model.LayerWeights{{}}}},
 	}
 	runner = attachFixtureProgram(runner)
-	cache := &deviceKVCache{
-		Keys: []executor.DeviceValue{{
-			Pointer: fixtureKeyPointer,
-			Shape:   tensor.MustShape(fixtureKeyWidth, fixtureKVHeads, uint64(fixtureContextTokens)),
-		}},
-		Values: []executor.DeviceValue{{
-			Pointer: fixtureValuePointer,
-			Shape:   tensor.MustShape(fixtureValueWidth, fixtureKVHeads, uint64(fixtureContextTokens)),
-		}},
-		States: []deviceLayerStates{{
-			fixtureFixedState: {
-				Mode: CacheStateFixed,
-				Value: executor.DeviceValue{
-					Pointer: fixtureFixedPointer,
-					Shape:   tensor.MustShape(fixtureEmbeddingWidth, uint64(fixtureContextTokens)),
-				},
-			},
-			fixtureTokenState: {
-				Mode: CacheStateToken,
-				Value: executor.DeviceValue{
-					Pointer: fixtureTokenPointer,
-					Shape: tensor.MustShape(
-						fixtureSSMStateWidth, fixtureKVHeads, uint64(fixtureContextTokens),
-					),
-				},
-			},
-		}},
-		Tokens: fixtureContextTokens,
+	fixture := deviceAttentionCacheFixture{
+		KeyWidth: fixtureKeyWidth, ValueWidth: fixtureValueWidth,
+		Heads: fixtureKVHeads, Tokens: fixtureContextTokens,
+		KeyPointer: fixtureKeyPointer, ValuePointer: fixtureValuePointer,
 	}
+	cache := fixture.cache()
+	cache.States = []deviceLayerStates{{
+		fixtureFixedState: {
+			Mode: CacheStateFixed,
+			Value: executor.DeviceValue{
+				Pointer: fixtureFixedPointer,
+				Shape:   tensor.MustShape(fixtureEmbeddingWidth, uint64(fixtureContextTokens)),
+			},
+		},
+		fixtureTokenState: {
+			Mode: CacheStateToken,
+			Value: executor.DeviceValue{
+				Pointer: fixtureTokenPointer,
+				Shape: tensor.MustShape(
+					fixtureSSMStateWidth, fixtureKVHeads, uint64(fixtureContextTokens),
+				),
+			},
+		},
+	}}
 	if err := runner.shiftDeviceCacheForAppendPolicy(cache, fixtureRemovedTokens, fixtureRemovedTokens); err != nil {
 		t.Fatal(err)
 	}
 	wantTokens := fixtureContextTokens - uint32(fixtureRemovedTokens)
-	wantKeyPointer := fixtureKeyPointer + driver.DevicePtr(fixtureKeyWidth*fixtureScalarBytes)
-	wantValuePointer := fixtureValuePointer + driver.DevicePtr(fixtureValueWidth*fixtureScalarBytes)
+	wantKeyPointer := fixture.advanced(fixtureKeyPointer, fixtureKeyWidth, uint32(fixtureRemovedTokens))
+	wantValuePointer := fixture.advanced(fixtureValuePointer, fixtureValueWidth, uint32(fixtureRemovedTokens))
 	if cache.Tokens != wantTokens || cache.Keys[0].Pointer != wantKeyPointer ||
 		cache.Values[0].Pointer != wantValuePointer {
 		t.Fatalf("shifted primary cache = %+v", cache)
@@ -253,7 +252,7 @@ func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
 		!fixed.Shape.Equal(tensor.MustShape(fixtureEmbeddingWidth, uint64(fixtureContextTokens))) {
 		t.Fatalf("fixed state = %+v", fixed)
 	}
-	wantTokenPointer := fixtureTokenPointer + driver.DevicePtr(fixtureScalarBytes)
+	wantTokenPointer := fixture.advanced(fixtureTokenPointer, fixtureSSMStateWidth, uint32(fixtureRemovedTokens))
 	if token := cache.States[0][fixtureTokenState].Value; token.Pointer != wantTokenPointer ||
 		token.Shape.Dims[2] != uint64(wantTokens) {
 		t.Fatalf("token state = %+v", token)

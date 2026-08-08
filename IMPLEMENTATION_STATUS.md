@@ -32,6 +32,20 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Recipe-bound model compilation now performs one post-activation specification
+  read, seals every layer cache schema into `ModelPlan`, and emits fixed ordered
+  layer instructions with indexed tensor/cache operands. Runtime graph dispatch
+  consumes that program directly; `cachedBlockCatalog` and the public Qwen GDN
+  forwarding wrappers are deleted. Family leaf functions now implement math,
+  not topology selection.
+- Canonical artifact operations encode each document once. Construction,
+  parsing, identity validation, stored content, and caller-owned content reuse
+  the same canonical byte result instead of recanonicalizing or re-encoding.
+- F32 cache literals exposed one common device-layout operation. A dtype-aware
+  contiguous last-axis view now owns checked byte strides, pointer advancement,
+  capacity bounds, and resulting shapes for cache shifts, pages, compaction,
+  packed sequence splits, and device selections. Shared cache fixtures derive
+  expected shapes and offsets from the same named dimensions and storage type.
 - Resolved GGUF programs are sealed and validated once, then consumed exactly
   once by inference; runner startup no longer rereads the bound specification,
   weight catalog, or model plan. Test-only compile/profile/model fallbacks were

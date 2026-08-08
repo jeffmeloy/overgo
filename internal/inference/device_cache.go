@@ -276,16 +276,11 @@ func shiftDeviceTokenState(
 			value.Shape.Slice(), tokens,
 		)
 	}
-	stride := value.Shape.Dims[0] * value.Shape.Dims[1]
-	if stride > math.MaxUint64/4 || discard > math.MaxUint64/(stride*4) {
-		return errors.New("shifted device cache offset overflows")
+	view, err := value.SliceLastAxis(dtype.F32, discard, uint64(tokens)-discard)
+	if err != nil {
+		return fmt.Errorf("shifted device cache: %w", err)
 	}
-	offset := discard * stride * 4
-	if uint64(value.Pointer) > math.MaxUint64-offset {
-		return errors.New("shifted device cache pointer overflows")
-	}
-	value.Pointer += driver.DevicePtr(offset)
-	value.Shape.Dims[2] = uint64(tokens) - discard
+	*value = view
 	return nil
 }
 
@@ -417,20 +412,15 @@ func deviceCacheRangeCopy(
 	recurrent bool,
 ) (executor.DeviceCopy, error) {
 	if recurrent {
-		elements, err := value.Shape.Elements()
+		bytes, err := value.Shape.Bytes(dtype.F32)
 		if err != nil {
 			return executor.DeviceCopy{}, err
-		}
-		if elements > math.MaxUint64/4 {
-			return executor.DeviceCopy{}, errors.New(
-				"recurrent device cache byte size overflows",
-			)
 		}
 		return executor.DeviceCopy{
 			Shape: value.Shape,
 			Segments: []executor.DeviceCopySegment{{
 				Source: value.Pointer,
-				Bytes:  elements * 4,
+				Bytes:  bytes,
 			}},
 		}, nil
 	}
@@ -442,45 +432,42 @@ func deviceCacheRangeCopy(
 			tokens,
 		)
 	}
-	stride := value.Shape.Dims[0] * value.Shape.Dims[1]
-	if stride > math.MaxUint64/4 {
-		return executor.DeviceCopy{}, errors.New(
-			"attention device cache stride overflows",
-		)
-	}
-	strideBytes := stride * 4
-	if strideBytes == 0 {
-		return executor.DeviceCopy{}, errors.New(
-			"attention device cache stride is zero",
-		)
-	}
 	suffixToken := uint64(keep) + uint64(discard)
-	if suffixToken > uint64(tokens) ||
-		suffixToken > math.MaxUint64/strideBytes {
+	if suffixToken > uint64(tokens) {
 		return executor.DeviceCopy{}, errors.New(
 			"attention device cache range overflows",
-		)
-	}
-	suffixSource := uint64(value.Pointer) + suffixToken*strideBytes
-	if suffixSource < uint64(value.Pointer) {
-		return executor.DeviceCopy{}, errors.New(
-			"attention device cache source pointer overflows",
 		)
 	}
 	shape := value.Shape
 	shape.Dims[2] = uint64(tokens - discard)
 	segments := make([]executor.DeviceCopySegment, 0, 2)
 	if keep > 0 {
+		prefix, err := value.SliceLastAxis(dtype.F32, 0, uint64(keep))
+		if err != nil {
+			return executor.DeviceCopy{}, fmt.Errorf("attention device cache prefix: %w", err)
+		}
+		bytes, err := prefix.Shape.Bytes(dtype.F32)
+		if err != nil {
+			return executor.DeviceCopy{}, err
+		}
 		segments = append(segments, executor.DeviceCopySegment{
-			Source: value.Pointer,
-			Bytes:  uint64(keep) * strideBytes,
+			Source: prefix.Pointer,
+			Bytes:  bytes,
 		})
 	}
 	suffixTokens := tokens - keep - discard
 	if suffixTokens > 0 {
+		suffix, err := value.SliceLastAxis(dtype.F32, suffixToken, uint64(suffixTokens))
+		if err != nil {
+			return executor.DeviceCopy{}, fmt.Errorf("attention device cache suffix: %w", err)
+		}
+		bytes, err := suffix.Shape.Bytes(dtype.F32)
+		if err != nil {
+			return executor.DeviceCopy{}, err
+		}
 		segments = append(segments, executor.DeviceCopySegment{
-			Source: driver.DevicePtr(suffixSource),
-			Bytes:  uint64(suffixTokens) * strideBytes,
+			Source: suffix.Pointer,
+			Bytes:  bytes,
 		})
 	}
 	return executor.DeviceCopy{Shape: shape, Segments: segments}, nil
@@ -1548,20 +1535,11 @@ func deviceCachePageValue(
 	if source.Shape.Rank != 3 || source.Shape.Dims[2] != uint64(tokens) {
 		return source, nil
 	}
-	stride := source.Shape.Dims[0] * source.Shape.Dims[1]
-	if stride == 0 || stride > math.MaxUint64/4 ||
-		uint64(start) > math.MaxUint64/(stride*4) {
+	view, err := source.SliceLastAxis(dtype.F32, uint64(start), uint64(count))
+	if err != nil {
 		return executor.DeviceValue{}, fmt.Errorf(
-			"inference: device cache layer %d page offset overflows", layer,
+			"inference: device cache layer %d page: %w", layer, err,
 		)
 	}
-	offset := uint64(start) * stride * 4
-	if uint64(source.Pointer) > math.MaxUint64-offset {
-		return executor.DeviceValue{}, fmt.Errorf(
-			"inference: device cache layer %d page pointer overflows", layer,
-		)
-	}
-	source.Pointer += driver.DevicePtr(offset)
-	source.Shape.Dims[2] = uint64(count)
-	return source, nil
+	return view, nil
 }

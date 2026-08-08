@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
 
@@ -63,7 +64,6 @@ func TestPackedDeviceCopyAndSplitTokenCache(t *testing.T) {
 		pastTokens    = 3
 		nextTokens    = pastTokens + 1
 		sequences     = 2
-		f32Bytes      = 4
 		firstPointer  = driver.DevicePtr(1024)
 		secondPointer = driver.DevicePtr(2048)
 		packedPointer = driver.DevicePtr(4096)
@@ -88,7 +88,11 @@ func TestPackedDeviceCopyAndSplitTokenCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantShape := tensor.MustShape(width, heads, nextTokens)
-	wantPointer := packedPointer + driver.DevicePtr(width*heads*nextTokens*f32Bytes)
+	sequenceBytes, err := wantShape.Bytes(dtype.F32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPointer := packedPointer + driver.DevicePtr(sequenceBytes)
 	if !second.Shape.Equal(wantShape) || second.Pointer != wantPointer {
 		t.Fatalf("split value = pointer %d shape %v", second.Pointer, second.Shape.Slice())
 	}
@@ -99,7 +103,6 @@ func TestSplitPackedDeviceValueRetainsExplicitSequenceAxis(t *testing.T) {
 		stateWidth    = 2
 		heads         = 3
 		sequences     = 2
-		f32Bytes      = 4
 		packedPointer = driver.DevicePtr(8192)
 	)
 	template := tensor.MustShape(stateWidth, stateWidth, heads, 1)
@@ -110,7 +113,11 @@ func TestSplitPackedDeviceValueRetainsExplicitSequenceAxis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantPointer := packedPointer + driver.DevicePtr(stateWidth*stateWidth*heads*f32Bytes)
+	sequenceBytes, err := template.Bytes(dtype.F32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPointer := packedPointer + driver.DevicePtr(sequenceBytes)
 	if !second.Shape.Equal(template) || second.Pointer != wantPointer {
 		t.Fatalf("split state = pointer %d shape %v", second.Pointer, second.Shape.Slice())
 	}
@@ -122,11 +129,14 @@ func TestPackedDeviceViewRequiresContiguousSequenceSlabs(t *testing.T) {
 		heads        = 2
 		tokens       = 3
 		sequences    = 2
-		f32Bytes     = 4
 		firstPointer = driver.DevicePtr(16384)
 	)
 	shape := tensor.MustShape(width, heads, tokens)
-	stride := driver.DevicePtr(width * heads * tokens * f32Bytes)
+	strideBytes, err := shape.Bytes(dtype.F32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stride := driver.DevicePtr(strideBytes)
 	values := []executor.DeviceValue{
 		{Pointer: firstPointer, Shape: shape},
 		{Pointer: firstPointer + stride, Shape: shape},

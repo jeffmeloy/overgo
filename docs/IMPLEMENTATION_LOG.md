@@ -32,6 +32,13 @@ claims.
 
 ## Validated milestones
 
+- The August 7 compiled-program wave removed the pre-recipe specification read,
+  sealed cache schemas into model plans, compiled fixed layer instructions with
+  indexed operands, deleted `cachedBlockCatalog` and the remaining public Qwen
+  GDN forwarding wrappers, and made canonical document encoding single-pass.
+  A follow-up literal sweep extracted one dtype-aware checked device-value view;
+  cache shift/page/compaction and packed split/selection paths no longer carry
+  independent F32 stride, pointer, capacity, or shape arithmetic.
 - The August 7 execution-authority follow-up made resolved programs one-shot,
   removed serving admission bypasses, required compiled layer plans, deleted
   the family-owned host Qwen graph path, compiled terminal normalization/output

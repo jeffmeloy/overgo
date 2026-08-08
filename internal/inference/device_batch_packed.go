@@ -20,8 +20,6 @@ type qwen35DeviceCohortKey struct {
 	tokens, position, pageTokens uint32
 }
 
-const f32DeviceStorageBytes = uint64(4)
-
 func (r *Runner) forwardPackedQwen35CohortsLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
@@ -238,9 +236,9 @@ func (r *Runner) forwardPackedQwen35DeviceBatchLocked(
 		}
 		switch plan.mode {
 		case deviceOutputGreedy:
-			cache.Selection = executor.DeviceValue{
-				Pointer: deviceSelection.Pointer + driver.DevicePtr(uint64(sequence)*f32DeviceStorageBytes),
-				Shape:   tensor.MustShape(1),
+			cache.Selection, err = deviceSelection.SliceLastAxis(dtype.F32, uint64(sequence), 1)
+			if err != nil {
+				return fail(fmt.Errorf("inference: packed selection %d: %w", sequence, err))
 			}
 			cache.Selected = selected[sequence]
 		case deviceOutputTopK:
@@ -521,18 +519,9 @@ func splitPackedDeviceValue(
 	if sequence < 0 || sequence >= sequences || sequences < 2 {
 		return executor.DeviceValue{}, errors.New("packed device split index is invalid")
 	}
-	elements, err := packed.Shape.Elements()
-	if err != nil || elements%uint64(sequences) != 0 {
-		return executor.DeviceValue{}, errors.New("packed device split size is invalid")
-	}
-	strideElements := elements / uint64(sequences)
-	if strideElements > math.MaxUint64/f32DeviceStorageBytes ||
-		uint64(sequence) > math.MaxUint64/(strideElements*f32DeviceStorageBytes) {
-		return executor.DeviceValue{}, errors.New("packed device split offset overflows")
-	}
-	offset := uint64(sequence) * strideElements * f32DeviceStorageBytes
-	if uint64(packed.Pointer) > math.MaxUint64-offset {
-		return executor.DeviceValue{}, errors.New("packed device split pointer overflows")
+	view, err := packed.SliceLastAxis(dtype.F32, uint64(sequence), 1)
+	if err != nil {
+		return executor.DeviceValue{}, fmt.Errorf("packed device split: %w", err)
 	}
 	var shape tensor.Shape
 	switch {
@@ -548,5 +537,6 @@ func splitPackedDeviceValue(
 	if err != nil {
 		return executor.DeviceValue{}, err
 	}
-	return executor.DeviceValue{Pointer: packed.Pointer + driver.DevicePtr(offset), Shape: shape}, nil
+	view.Shape = shape
+	return view, nil
 }

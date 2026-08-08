@@ -8,15 +8,16 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 const fixtureCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestRunAndEvaluationRoundTrip(t *testing.T) {
-	recipeID := fixtureID(t, artifact.KindRecipe, "recipe")
-	datasetID := fixtureID(t, artifact.KindDataset, "dataset")
-	inputID := fixtureID(t, artifact.KindFile, "input")
-	outputID := fixtureID(t, artifact.KindOutput, "output")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
+	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
+	inputID := testutil.ArtifactID(t, artifact.KindFile, "input")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output")
 	run, err := NewRun(recipeID, OutcomeSucceeded, []artifact.ID{inputID}, []artifact.ID{outputID}, "")
 	if err != nil {
 		t.Fatal(err)
@@ -56,10 +57,10 @@ func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	recipeID := fixtureID(t, artifact.KindRecipe, "recipe")
-	datasetID := fixtureID(t, artifact.KindDataset, "dataset")
-	inputID := fixtureID(t, artifact.KindFile, "input")
-	outputID := fixtureID(t, artifact.KindOutput, "output")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
+	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
+	inputID := testutil.ArtifactID(t, artifact.KindFile, "input")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/facts", Artifacts: []artifact.Descriptor{
 		{ID: recipeID}, {ID: datasetID}, {ID: inputID}, {ID: outputID},
 	}}); err != nil {
@@ -96,9 +97,9 @@ func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 }
 
 func TestRunAndEvaluationRejectInvalidFacts(t *testing.T) {
-	recipeID := fixtureID(t, artifact.KindRecipe, "recipe")
-	datasetID := fixtureID(t, artifact.KindDataset, "dataset")
-	runID := fixtureID(t, artifact.KindRun, "run")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
+	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "run")
 	if _, err := NewRun(recipeID, OutcomeSucceeded, nil, nil, ""); err == nil {
 		t.Fatal("successful run without output accepted")
 	}
@@ -127,8 +128,8 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 	if err != nil || parsedEnvironment != environment {
 		t.Fatalf("environment round trip = (%+v, %v)", parsedEnvironment, err)
 	}
-	recipeID := fixtureID(t, artifact.KindRecipe, "bound-recipe")
-	outputID := fixtureID(t, artifact.KindOutput, "bound-output")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bound-recipe")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "bound-output")
 	run, err := NewBoundRun(
 		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "",
 		fixtureCodeCommit, environment.ID, 100, []PhaseMetric{
@@ -159,9 +160,9 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 }
 
 func TestBoundRunRejectsUncontrolledTimingFacts(t *testing.T) {
-	recipeID := fixtureID(t, artifact.KindRecipe, "bound-recipe")
-	outputID := fixtureID(t, artifact.KindOutput, "bound-output")
-	environmentID := fixtureID(t, artifact.KindEvidence, "environment")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bound-recipe")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "bound-output")
+	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "environment")
 	newRun := func(commit string, phases []PhaseMetric) error {
 		_, err := NewBoundRun(
 			recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", commit,
@@ -202,8 +203,8 @@ func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recipeID := fixtureID(t, artifact.KindRecipe, "bound-recipe")
-	outputID := fixtureID(t, artifact.KindOutput, "bound-output")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bound-recipe")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "bound-output")
 	environmentContent, err := environment.Content()
 	if err != nil {
 		t.Fatal(err)
@@ -235,13 +236,4 @@ func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
 	if err != nil || len(parents) != 2 {
 		t.Fatalf("bound run parents = (%+v, %v)", parents, err)
 	}
-}
-
-func fixtureID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

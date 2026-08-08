@@ -9,6 +9,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 const lifecycleDecisionCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -20,8 +21,8 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("lifecycle-model"))
-	evidenceID, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("validation"))
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "lifecycle-model")
+	evidenceID := testutil.ArtifactID(t, artifact.KindEvidence, "validation")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/lifecycle/facts",
 		Artifacts: []artifact.Descriptor{
@@ -89,8 +90,8 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("decision-model"))
-	derivationID, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("decision-derivation"))
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "decision-model")
+	derivationID := testutil.ArtifactID(t, artifact.KindEvidence, "decision-derivation")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/decision/facts",
 		Artifacts: []artifact.Descriptor{

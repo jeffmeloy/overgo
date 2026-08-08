@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 const benchmarkReplayCommits = 256
@@ -18,10 +19,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 	}
 	for sequence := range benchmarkReplayCommits {
 		payload := []byte(fmt.Sprintf("benchmark-artifact-%d", sequence))
-		id, identifyErr := artifact.IdentifyBytes(artifact.KindRun, payload)
-		if identifyErr != nil {
-			b.Fatal(identifyErr)
-		}
+		id := testutil.ArtifactBytesID(b, artifact.KindRun, payload)
 		_, err = store.Commit(context.Background(), artifact.Batch{
 			Key: fmt.Sprintf("benchmark/%d", sequence),
 			Artifacts: []artifact.Descriptor{{

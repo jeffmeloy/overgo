@@ -14,6 +14,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 const profileCatalogSemanticDigest = "a057d9543ea45ec2b0e846226a2106838e7ad248a56998f78556332ecaf1c154"
@@ -281,10 +282,7 @@ func TestPublishProfileCatalogRequiresExternalDerivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	externalID, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("external-derivation"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	externalID := testutil.ArtifactID(t, artifact.KindEvidence, "external-derivation")
 	for index := range provenance {
 		provenance[index].Origin = ProfileFactExternal
 		provenance[index].SourceField = "external.profile"
@@ -386,10 +384,7 @@ func TestProfileCandidateRejectsParityDrift(t *testing.T) {
 }
 
 func TestCompileWithProfileMatchesRegistry(t *testing.T) {
-	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("profile-model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-model")
 	profile, ok := model.LookupArchitecture("llama")
 	if !ok {
 		t.Fatal("llama profile is absent")
@@ -439,10 +434,7 @@ func commitFixtureModel(
 ) artifact.ID {
 	t.Helper()
 	data := []byte(payload)
-	id, err := artifact.IdentifyBytes(artifact.KindModel, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := testutil.ArtifactBytesID(t, artifact.KindModel, data)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: key, Contents: []artifact.Content{{
 		Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data))}, Data: data,
 	}}}); err != nil {

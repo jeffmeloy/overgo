@@ -9,6 +9,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -19,10 +20,10 @@ func TestEvaluationPromotesWorkflowRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	modelID := testID(t, artifact.KindModel, "model")
-	tokenizerID := testID(t, artifact.KindTokenizer, "tokenizer")
-	datasetID := testID(t, artifact.KindDataset, "dataset")
-	outputID := testID(t, artifact.KindOutput, "output")
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
+	tokenizerID := testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer")
+	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/workflow/facts", Artifacts: []artifact.Descriptor{
 		{ID: modelID}, {ID: tokenizerID}, {ID: datasetID}, {ID: outputID},
 	}}); err != nil {
@@ -81,13 +82,4 @@ func TestEvaluationPromotesWorkflowRecipe(t *testing.T) {
 	if err != nil || !ok || active.ID != definition.ID {
 		t.Fatalf("active workflow = (%s, %v, %v)", active.ID, ok, err)
 	}
-}
-
-func testID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

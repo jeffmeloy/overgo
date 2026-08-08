@@ -5,13 +5,11 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 func TestTensorInventoryDocumentRoundTrip(t *testing.T) {
-	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("tensor-inventory-model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "tensor-inventory-model")
 	document, err := NewTensorInventoryDocument(modelID, TensorFormatSafetensors, []TensorFact{
 		{Name: "matrix", Shape: []uint64{2, 3}, Storage: "bf16", Bytes: 12},
 		{Name: "scalar", Shape: []uint64{}, Storage: "f32", Bytes: 4},
@@ -37,10 +35,7 @@ func TestTensorInventoryDocumentRoundTrip(t *testing.T) {
 }
 
 func TestTensorInventoryDocumentRejectsInvalidFacts(t *testing.T) {
-	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("invalid-tensor-inventory-model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "invalid-tensor-inventory-model")
 	tests := map[string][]TensorFact{
 		"empty":     {},
 		"unordered": {{Name: "z", Shape: []uint64{}, Storage: "f32"}, {Name: "a", Shape: []uint64{}, Storage: "f32"}},

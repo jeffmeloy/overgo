@@ -32,6 +32,11 @@ claims.
 
 ## Validated milestones
 
+- The August 7 semantic-fixture sweep moved compact Qwen 3.5 hybrid dimensions,
+  cadence, layer inventory, and serving markers into one `modeltest` fixture.
+  A shared checked artifact-identity builder replaced local helpers and ignored
+  identity errors across the test tree, deleting more call-site surface than
+  the two common utilities added.
 - The August 7 compiled-program wave removed the pre-recipe specification read,
   sealed cache schemas into model plans, compiled fixed layer instructions with
   indexed operands, deleted `cachedBlockCatalog` and the remaining public Qwen

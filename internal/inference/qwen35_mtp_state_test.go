@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/modeltest"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
@@ -74,15 +75,11 @@ func TestQwen35MTPSessionStateRejectsCorruption(t *testing.T) {
 }
 
 func qwen35MTPStateRunner() *Runner {
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", Name: "state-test", BlockCount: 2,
-		NextNPredictLayers: 1, ContextLength: 32, EmbeddingLength: 8,
-		FeedForwardLength: 16,
-
-		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4,
-		RopeSections: [4]int32{1, 1, 0, 0}}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 4, SSMStateSize: 2,
-		SSMTimeStepRank: 2, SSMGroupCount: 1, FullAttentionInterval: 2},
-	}
+	fixture := modeltest.Qwen35DenseRecurrentPair()
+	spec := fixture.Spec
+	spec.Name = "state-test"
+	spec.NextNPredictLayers = 1
+	spec.ContextLength = 32
 	return fixtureRunner(spec, model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{MTPOnly: true}})
 }
 

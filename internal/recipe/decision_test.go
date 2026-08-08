@@ -5,14 +5,15 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 const decisionTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
-	subject, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("subject"))
-	derivation, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("derivation"))
-	evidence, _ := artifact.IdentifyBytes(artifact.KindRun, []byte("run"))
+	subject := testutil.ArtifactID(t, artifact.KindRecipe, "subject")
+	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "derivation")
+	evidence := testutil.ArtifactID(t, artifact.KindRun, "run")
 	decision, err := NewDecision(
 		subject, DecisionRefused, EvidenceParity, "output parity failed",
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation},
@@ -51,8 +52,8 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 }
 
 func TestDecisionRejectsMissingReasonAndDecider(t *testing.T) {
-	subject, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("subject"))
-	derivation, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("derivation"))
+	subject := testutil.ArtifactID(t, artifact.KindRecipe, "subject")
+	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "derivation")
 	if _, err := NewDecision(
 		subject, DecisionRefused, EvidenceExperimental, "",
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation}, nil,

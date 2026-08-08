@@ -183,10 +183,7 @@ func activateProgram(t *testing.T, store artifact.Repository, definition recipe.
 		t.Fatal(err)
 	}
 	evidence := []byte("program-validation")
-	evidenceID, err := artifact.IdentifyBytes(artifact.KindEvidence, evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	evidenceID := testutil.ArtifactBytesID(t, artifact.KindEvidence, evidence)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/program/evidence/" + definition.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},

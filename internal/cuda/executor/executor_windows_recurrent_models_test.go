@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"overgo/internal/model"
+	"overgo/internal/modeltest"
 
 	"overgo/internal/tensor"
 
@@ -539,7 +540,7 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				builder := tensor.NewBuilder()
-				spec := qwen35ExecutorSpec()
+				spec := modeltest.Qwen35().Spec
 				if architecture == "qwen35moe" || architecture == "qwen3next" || architecture == "qwen3next-legacy" {
 					spec.Architecture = architecture
 					if architecture == "qwen3next-legacy" {
@@ -618,7 +619,7 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := qwen35ExecutorSpec()
+	spec := modeltest.Qwen35().Spec
 	spec.Architecture = "qwen35moe"
 	spec.NextNPredictLayers = 1
 	dense := spec
@@ -1060,27 +1061,6 @@ func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	compare(t, got[output].Data, want[output].Data, 2e-6)
-}
-
-func qwen35ExecutorSpec() model.Spec {
-	return model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35",
-		EmbeddingLength:   8,
-		FeedForwardLength: 12,
-
-		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2,
-		HeadCountKV:       1,
-		KeyLength:         4,
-		ValueLength:       4,
-		RopeFrequencyBase: 10000,
-
-		RopeDimensionCount: 4,
-		RopeSections:       [4]int32{1, 1, 0, 0}}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3,
-		SSMInnerSize:          4,
-		SSMStateSize:          2,
-		SSMTimeStepRank:       2,
-		SSMGroupCount:         1,
-		FullAttentionInterval: 4},
-	}
 }
 
 func qwen35ExecutorWeights(

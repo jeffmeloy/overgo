@@ -6,12 +6,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 	record, err := NewGateRecord(
-		fixtureID(t, artifact.KindRecipe, "gate-recipe"),
-		fixtureID(t, artifact.KindEvidence, "gate-environment"), fixtureCodeCommit,
+		testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe"),
+		testutil.ArtifactID(t, artifact.KindEvidence, "gate-environment"), fixtureCodeCommit,
 		OutcomeSucceeded, "", 100, []GateStep{
 			{Name: "unit", Phase: PhaseTest, Outcome: StepSucceeded, DurationNS: 30},
 			{Name: "integration", Phase: PhaseTest, Outcome: StepSucceeded, DurationNS: 40},
@@ -41,8 +42,8 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recipeID := fixtureID(t, artifact.KindRecipe, "gate-recipe")
-	environmentID := fixtureID(t, artifact.KindEvidence, "gate-environment")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe")
+	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "gate-environment")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/gate-dependencies",
 		Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: environmentID}},
@@ -85,8 +86,8 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 }
 
 func TestGateRecordRejectsOutcomeStepContradictions(t *testing.T) {
-	recipeID := fixtureID(t, artifact.KindRecipe, "gate-recipe")
-	environmentID := fixtureID(t, artifact.KindEvidence, "gate-environment")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe")
+	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "gate-environment")
 	if _, err := NewGateRecord(
 		recipeID, environmentID, fixtureCodeCommit, OutcomeSucceeded, "", 10,
 		[]GateStep{{Name: "unit", Phase: PhaseTest, Outcome: StepFailed, DurationNS: 10}},

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 const (
@@ -23,10 +24,7 @@ const (
 
 func fixtureDescriptor(t *testing.T, kind artifact.Kind, payload string) artifact.Descriptor {
 	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(payload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := testutil.ArtifactID(t, kind, payload)
 	return artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: fixtureMediaType}
 }
 

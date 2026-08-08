@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 )
 
@@ -21,6 +22,22 @@ const (
 	wavRIFFPayloadBytes  = 36
 	wavFormatPayloadSize = 16
 )
+
+// ArtifactID: checked fixture identity.
+func ArtifactID(t testing.TB, kind artifact.Kind, content string) artifact.ID {
+	t.Helper()
+	return ArtifactBytesID(t, kind, []byte(content))
+}
+
+// ArtifactBytesID: checked binary fixture identity.
+func ArtifactBytesID(t testing.TB, kind artifact.Kind, content []byte) artifact.ID {
+	t.Helper()
+	id, err := artifact.IdentifyBytes(kind, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
 
 func WriteGGUF(
 	t testing.TB,

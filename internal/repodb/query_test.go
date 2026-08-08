@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
@@ -14,8 +15,8 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	tensorID, _ := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("tensor"))
-	datasetID, _ := artifact.IdentifyBytes(artifact.KindDataset, []byte("dataset"))
+	tensorID := testutil.ArtifactID(t, artifact.KindTensorSet, "tensor")
+	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: tensorID,
 	}})
@@ -32,7 +33,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	outputID, _ := artifact.IdentifyBytes(artifact.KindOutput, []byte("output"))
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output")
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key:       "fixture/query/output",
 		Artifacts: []artifact.Descriptor{{ID: outputID, Size: 6}},
@@ -92,8 +93,8 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	parent, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("parent"))
-	child, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("child"))
+	parent := testutil.ArtifactID(t, artifact.KindEvidence, "parent")
+	child := testutil.ArtifactID(t, artifact.KindEvidence, "child")
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key:       "fixture/query/cycle-base",
 		Artifacts: []artifact.Descriptor{{ID: parent, Size: 6}, {ID: child, Size: 5}},

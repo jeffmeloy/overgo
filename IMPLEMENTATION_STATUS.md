@@ -32,6 +32,12 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
 
 ## Recently completed
 
+- Compact Qwen 3.5 hybrid tests now consume one semantic model fixture for
+  attention, recurrent, cadence, layer-inventory, and serving-weight facts.
+  Model-recipe, inference, cache, and CUDA tests state only their deltas. One
+  checked artifact fixture helper also replaces package-local identity builders
+  and every ignored identity error across recipe, RepoDB, dataset, workflow,
+  run-record, model-artifact, and inference tests.
 - Recipe-bound model compilation now performs one post-activation specification
   read, seals every layer cache schema into `ModelPlan`, and emits fixed ordered
   layer instructions with indexed tensor/cache operands. Runtime graph dispatch

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestActiveRecipeQwen35Open(t *testing.T) {
@@ -115,10 +116,7 @@ func publishActiveGGUFRecipe(
 		t.Fatal(err)
 	}
 	evidence := []byte("qwen35-active-recipe")
-	evidenceID, err := artifact.IdentifyBytes(artifact.KindEvidence, evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	evidenceID := testutil.ArtifactBytesID(t, artifact.KindEvidence, evidence)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "integration/qwen35/evidence",
 		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},

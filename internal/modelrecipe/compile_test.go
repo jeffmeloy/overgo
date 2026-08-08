@@ -5,14 +5,15 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modeltest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost)
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +34,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 }
 
 func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("capacity-model"))
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "capacity-model")
 	definition, err := inferenceFixture(modelID, recipe.PlacementHybrid)
 	if err != nil {
 		t.Fatal(err)
@@ -50,27 +51,17 @@ func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 }
 
 func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("qwen35-model"))
-	profileID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("qwen35-profile"))
-	definitionID, _ := artifact.IdentifyBytes(artifact.KindModelDefinition, []byte("qwen35-definition"))
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "qwen35-model")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "qwen35-profile")
+	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "qwen35-definition")
 	definition, err := InferenceWithModelDefinition(
 		modelID, profileID, definitionID, recipe.PlacementHybrid,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec := model.Spec{
-		CommonSpec:    model.CommonSpec{Architecture: "qwen35", BlockCount: 2},
-		AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4},
-		RecurrentSpec: model.RecurrentSpec{
-			SSMConvKernel: 3, SSMInnerSize: 4, SSMStateSize: 2,
-			SSMTimeStepRank: 2, SSMGroupCount: 1, FullAttentionInterval: 2,
-		},
-	}
-	program, err := Compile(definition, spec, model.Weights{
-		TokenEmbedding: gguf.TensorInfo{Name: "token_embd.weight"},
-		Layers:         []model.LayerWeights{{Recurrent: true}, {}},
-	})
+	fixture := modeltest.Qwen35DenseRecurrentPair()
+	program, err := Compile(definition, fixture.Spec, fixture.ServingWeights())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +77,7 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 }
 
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("persisted-model"))
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "persisted-model")
 	definition, err := inferenceFixture(modelID, recipe.PlacementDevice)
 	if err != nil {
 		t.Fatal(err)

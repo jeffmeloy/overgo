@@ -38,10 +38,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("model-definition-fixture"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "model-definition-fixture")
 	tensors, err := modelartifact.NewTensorInventoryDocument(
 		modelID, modelartifact.TensorFormatGGUF,
 		[]modelartifact.TensorFact{{
@@ -153,10 +150,7 @@ func TestModelDefinitionRejectsBindingDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("binding-drift-model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "binding-drift-model")
 	tensors, err := modelartifact.NewTensorInventoryDocument(
 		modelID, modelartifact.TensorFormatGGUF,
 		[]modelartifact.TensorFact{{Name: "weight", Shape: []uint64{}, Storage: "f32", Bytes: definitionF32Bytes}},

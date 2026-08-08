@@ -7,10 +7,11 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
-	source := fixtureID(t, artifact.KindDataset, "source")
+	source := testutil.ArtifactID(t, artifact.KindDataset, "source")
 	records := []Record{
 		{ID: "a-2", Group: "a"}, {ID: "b-1", Group: "b"},
 		{ID: "a-1", Group: "a"}, {ID: "c-1", Group: "c"},
@@ -55,7 +56,7 @@ func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	source := fixtureID(t, artifact.KindDataset, "source")
+	source := testutil.ArtifactID(t, artifact.KindDataset, "source")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/source", Artifacts: []artifact.Descriptor{{ID: source}},
 	}); err != nil {
@@ -82,19 +83,19 @@ func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
 }
 
 func TestDuplicateLineageRequiresSameArtifactKind(t *testing.T) {
-	duplicate := fixtureID(t, artifact.KindDatasetShard, "duplicate")
-	canonical := fixtureID(t, artifact.KindDatasetShard, "canonical")
+	duplicate := testutil.ArtifactID(t, artifact.KindDatasetShard, "duplicate")
+	canonical := testutil.ArtifactID(t, artifact.KindDatasetShard, "canonical")
 	edge, err := DuplicateLineage(duplicate, canonical)
 	if err != nil || edge.Relation != artifact.RelationDuplicateOf {
 		t.Fatalf("duplicate edge = (%+v, %v)", edge, err)
 	}
-	if _, err := DuplicateLineage(duplicate, fixtureID(t, artifact.KindFile, "file")); err == nil {
+	if _, err := DuplicateLineage(duplicate, testutil.ArtifactID(t, artifact.KindFile, "file")); err == nil {
 		t.Fatal("cross-kind duplicate accepted")
 	}
 }
 
 func TestSplitPublicationRejectsCrossWiredPlan(t *testing.T) {
-	source := fixtureID(t, artifact.KindDataset, "source")
+	source := testutil.ArtifactID(t, artifact.KindDataset, "source")
 	records := []Record{
 		{ID: "a", Group: "a"}, {ID: "b", Group: "b"}, {ID: "c", Group: "c"},
 	}

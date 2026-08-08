@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 const (
@@ -15,7 +16,7 @@ const (
 
 func fixtureRecipe(t *testing.T) (Definition, *Catalog) {
 	t.Helper()
-	modelID, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
 	catalog, err := NewCatalog(
 		Module{
 			ID: fixtureSourceModule, Tasks: []Task{TaskInference}, Placements: []Placement{PlacementHost},
@@ -84,8 +85,8 @@ func TestCatalogCloneOwnsModuleMap(t *testing.T) {
 
 func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 	definition, _ := fixtureRecipe(t)
-	profileID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("profile"))
-	tokenizerID, _ := artifact.IdentifyBytes(artifact.KindTokenizer, []byte("tokenizer"))
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "profile")
+	tokenizerID := testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer")
 	dependencies := []Dependency{
 		{Role: DependencyTokenizer, Artifact: tokenizerID},
 		{Role: DependencyModel, Artifact: definition.Model},
@@ -112,7 +113,7 @@ func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 	if found, ok := bound.Dependency(DependencyProfile, 0); !ok || found != profileID {
 		t.Fatalf("profile dependency = (%s, %v)", found, ok)
 	}
-	otherProfile, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("other-profile"))
+	otherProfile := testutil.ArtifactID(t, artifact.KindProfile, "other-profile")
 	dependencies[0].Artifact = otherProfile
 	changed, err := NewDefinitionWithDependencies(
 		definition.Task, dependencies, definition.Nodes, definition.Edges,
@@ -151,7 +152,7 @@ func TestDefinitionReadsCanonicalLegacyVersion(t *testing.T) {
 
 func TestDefinitionRejectsInvalidDependencies(t *testing.T) {
 	definition, _ := fixtureRecipe(t)
-	profileID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("profile"))
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "profile")
 	for _, dependencies := range [][]Dependency{
 		{{Role: DependencyProfile, Artifact: profileID}},
 		{{Role: DependencyModel, Artifact: definition.Model}, {Role: DependencyModel, Artifact: definition.Model}},

@@ -7,11 +7,12 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestDocumentRoundTripAndCanonicalValue(t *testing.T) {
-	owner := fixtureID(t, artifact.KindFile, "owner")
-	fixture := fixtureID(t, artifact.KindEvidence, "fixture")
+	owner := testutil.ArtifactID(t, artifact.KindFile, "owner")
+	fixture := testutil.ArtifactID(t, artifact.KindEvidence, "fixture")
 	document, err := New(
 		"decode.page_size", json.RawMessage(`{ "tokens": 256, "class": "decode" }`),
 		TierImplementation, StatusClosed, []artifact.ID{owner},
@@ -35,8 +36,8 @@ func TestDocumentRoundTripAndCanonicalValue(t *testing.T) {
 }
 
 func TestDocumentRejectsMissingTypedFacts(t *testing.T) {
-	owner := fixtureID(t, artifact.KindFile, "owner")
-	fixture := fixtureID(t, artifact.KindEvidence, "fixture")
+	owner := testutil.ArtifactID(t, artifact.KindFile, "owner")
+	fixture := testutil.ArtifactID(t, artifact.KindEvidence, "fixture")
 	newDocument := func(value json.RawMessage, owners []artifact.ID, fixtureID artifact.ID) error {
 		_, err := New(
 			"decode.page_size", value, TierDerivationBlocked, StatusOpen, owners,
@@ -72,8 +73,8 @@ func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	owner := fixtureID(t, artifact.KindFile, "owner")
-	fixture := fixtureID(t, artifact.KindEvidence, "fixture")
+	owner := testutil.ArtifactID(t, artifact.KindFile, "owner")
+	fixture := testutil.ArtifactID(t, artifact.KindEvidence, "fixture")
 	document, err := New(
 		"decode.page_size", json.RawMessage(`256`), TierImplementation, StatusClosed,
 		[]artifact.ID{owner}, "Fixed-capacity append validates page geometry.",
@@ -102,13 +103,4 @@ func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
 	if err != nil || !ok || loaded.ID != document.ID {
 		t.Fatalf("loaded document = (%+v, %t, %v)", loaded, ok, err)
 	}
-}
-
-func fixtureID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

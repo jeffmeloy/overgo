@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modeltest"
 	"overgo/internal/statecodec"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -888,23 +889,11 @@ func TestHybridCacheStateRoundTrip(t *testing.T) {
 }
 
 func hybridCacheTestRunner() *Runner {
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35",
-		BlockCount: 2}, AttentionSpec: model.AttentionSpec{KeyLength: 4,
-		ValueLength: 4,
-		HeadCountKV: 1}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3,
-		SSMInnerSize:    4,
-		SSMStateSize:    2,
-		SSMTimeStepRank: 2,
-		SSMGroupCount:   1},
-	}
+	fixture := modeltest.Qwen35DenseRecurrentPair()
+	spec := fixture.Spec
 	return &Runner{preparedModel: preparedModel{spec: spec,
-		program: fixtureProgram(spec, model.Weights{Layers: []model.LayerWeights{
-			{Recurrent: true}, {Recurrent: false},
-		}}),
-		weights: model.Weights{Layers: []model.LayerWeights{
-			{Recurrent: true},
-			{Recurrent: false},
-		}}},
+		program: fixtureProgram(spec, fixture.Weights),
+		weights: fixture.Weights},
 	}
 }
 

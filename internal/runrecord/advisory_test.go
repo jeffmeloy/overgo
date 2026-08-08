@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 func TestMADRegressionAdvisoryReplaysKnownSeries(t *testing.T) {
@@ -60,7 +61,7 @@ func TestMADRegressionAdvisoryRejectsMixedEnvironment(t *testing.T) {
 		advisoryObservation(t, 1, 1, 1, 1), advisoryObservation(t, 2, 1, 1, 1),
 		advisoryObservation(t, 3, 1, 1, 1), advisoryObservation(t, 4, 2, 1, 1),
 	}
-	otherEnvironment := fixtureID(t, artifact.KindEvidence, "other-environment")
+	otherEnvironment := testutil.ArtifactID(t, artifact.KindEvidence, "other-environment")
 	prior := observations[1]
 	otherRun, err := NewBoundRun(
 		prior.Run.Recipe, prior.Run.Outcome, prior.Run.Inputs, prior.Run.Outputs, prior.Run.Failure,
@@ -83,9 +84,9 @@ func TestMADRegressionAdvisoryRejectsMixedEnvironment(t *testing.T) {
 
 func advisoryObservation(t *testing.T, sequence uint64, value float64, prefill, decode uint64) Observation {
 	t.Helper()
-	recipeID := fixtureID(t, artifact.KindRecipe, "advisory-recipe")
-	environmentID := fixtureID(t, artifact.KindEvidence, "advisory-environment")
-	outputID := fixtureID(t, artifact.KindOutput, "output-"+string(rune('a'+sequence)))
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "advisory-recipe")
+	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "advisory-environment")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output-"+string(rune('a'+sequence)))
 	run, err := NewBoundRun(
 		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", fixtureCodeCommit,
 		environmentID, prefill+decode+10, []PhaseMetric{
@@ -97,7 +98,7 @@ func advisoryObservation(t *testing.T, sequence uint64, value float64, prefill, 
 		t.Fatal(err)
 	}
 	evaluation, err := NewEvaluation(
-		recipeID, run.ID, fixtureID(t, artifact.KindDataset, "advisory-dataset"),
+		recipeID, run.ID, testutil.ArtifactID(t, artifact.KindDataset, "advisory-dataset"),
 		[]Metric{{Name: "latency", Value: value, Unit: "ms", Direction: DirectionMinimize}},
 	)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/testutil"
 )
 
 func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
@@ -130,10 +131,5 @@ func TestEvenlySpacedIndexAvoidsIntermediateOverflow(t *testing.T) {
 }
 
 func fixtureInventoryID(t *testing.T) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(artifact.KindTensorInventory, []byte("inventory"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
+	return testutil.ArtifactID(t, artifact.KindTensorInventory, "inventory")
 }

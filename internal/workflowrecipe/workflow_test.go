@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testutil"
 )
 
 type workflowFixture struct {
@@ -13,23 +14,16 @@ type workflowFixture struct {
 
 func newWorkflowFixture(t *testing.T) workflowFixture {
 	t.Helper()
-	identify := func(kind artifact.Kind, value string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte(value))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
-	}
 	return workflowFixture{bindings: Bindings{
-		Model:      identify(artifact.KindModel, "model"),
-		Profile:    identify(artifact.KindProfile, "profile"),
-		Tokenizer:  identify(artifact.KindTokenizer, "tokenizer"),
-		Projector:  identify(artifact.KindProjector, "projector"),
-		Dataset:    identify(artifact.KindDataset, "dataset"),
-		Checkpoint: identify(artifact.KindCheckpoint, "checkpoint"),
+		Model:      testutil.ArtifactID(t, artifact.KindModel, "model"),
+		Profile:    testutil.ArtifactID(t, artifact.KindProfile, "profile"),
+		Tokenizer:  testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer"),
+		Projector:  testutil.ArtifactID(t, artifact.KindProjector, "projector"),
+		Dataset:    testutil.ArtifactID(t, artifact.KindDataset, "dataset"),
+		Checkpoint: testutil.ArtifactID(t, artifact.KindCheckpoint, "checkpoint"),
 		Adapters: []artifact.ID{
-			identify(artifact.KindAdapter, "adapter-0"),
-			identify(artifact.KindAdapter, "adapter-1"),
+			testutil.ArtifactID(t, artifact.KindAdapter, "adapter-0"),
+			testutil.ArtifactID(t, artifact.KindAdapter, "adapter-1"),
 		},
 	}}
 }

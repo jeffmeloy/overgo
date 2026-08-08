@@ -8,11 +8,12 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
-	assetA := fixtureID(t, artifact.KindDatasetShard, "asset-a")
-	assetB := fixtureID(t, artifact.KindFile, "asset-b")
+	assetA := testutil.ArtifactID(t, artifact.KindDatasetShard, "asset-a")
+	assetB := testutil.ArtifactID(t, artifact.KindFile, "asset-b")
 	version, err := NewVersion([]Asset{
 		{Name: "second", Artifact: assetB, Records: 3},
 		{Name: "first", Artifact: assetA, Records: 2},
@@ -20,7 +21,7 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selector := fixtureID(t, artifact.KindDatasetShard, "selector")
+	selector := testutil.ArtifactID(t, artifact.KindDatasetShard, "selector")
 	viewA, err := NewView(version.ID, &selector, []string{"target", "prompt"})
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +96,7 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 }
 
 func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
-	source := fixtureID(t, artifact.KindDataset, "source")
+	source := testutil.ArtifactID(t, artifact.KindDataset, "source")
 	if _, err := NewView(source, nil, nil); err == nil {
 		t.Fatal("identity view accepted")
 	}
@@ -103,7 +104,7 @@ func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
 		t.Fatal("singleton mixture accepted")
 	}
 	version, err := NewVersion([]Asset{{
-		Name: "asset", Artifact: fixtureID(t, artifact.KindFile, "asset"), Records: 1,
+		Name: "asset", Artifact: testutil.ArtifactID(t, artifact.KindFile, "asset"), Records: 1,
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -124,13 +125,4 @@ func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
 	if _, err := Parse(modified); err == nil {
 		t.Fatal("unknown dataset field accepted")
 	}
-}
-
-func fixtureID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

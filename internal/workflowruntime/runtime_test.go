@@ -10,6 +10,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -121,8 +122,8 @@ func runtimeFixture(t *testing.T) (*repodb.Store, recipe.Definition) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	modelID := fixtureID(t, artifact.KindModel, "model")
-	tokenizerID := fixtureID(t, artifact.KindTokenizer, "tokenizer")
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
+	tokenizerID := testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer")
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key:       "runtime/dependencies",
 		Artifacts: []artifact.Descriptor{{ID: modelID}, {ID: tokenizerID}},
@@ -178,18 +179,9 @@ func registerGenerationAdapters(t *testing.T, runtime *Runtime, fail bool) {
 
 func fixtureContent(t *testing.T, kind artifact.Kind, value string) artifact.Content {
 	t.Helper()
-	id := fixtureID(t, kind, value)
+	id := testutil.ArtifactID(t, kind, value)
 	return artifact.Content{
 		Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(value)), MediaType: "text/plain"},
 		Data:       []byte(value),
 	}
-}
-
-func fixtureID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

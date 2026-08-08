@@ -195,7 +195,7 @@ func buildMamba2MixerCached(
 	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
 }
 
-func buildFalconH1HybridMixCached(
+func buildAttentionSSMHybridMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,
@@ -380,7 +380,7 @@ func buildPLaMo2MixerCached(
 	return DenseBlockResult{Output: mixer, Key: nextConvState, Value: nextSSMState}, nil
 }
 
-func buildNemotronAttentionMixCached(
+func buildCausalProjectionMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,
@@ -447,7 +447,7 @@ func buildNemotronAttentionMixCached(
 	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, builder.Err()
 }
 
-func buildNemotronFeedForwardMix(
+func buildRoutedSquaredReLUFeedForwardMix(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	weights LayerGraphWeights,

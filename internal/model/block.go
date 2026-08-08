@@ -950,7 +950,7 @@ func deepSeek4LimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, li
 	return builder.SwiGLU(gate, up)
 }
 
-func buildQwen35AttentionMixCached(
+func buildGatedProjectionMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,
@@ -1074,7 +1074,7 @@ func buildQwen35AttentionMixCached(
 	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, nil
 }
 
-func buildQwen35RecurrentMixCached(
+func buildGatedDeltaMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,
@@ -1257,7 +1257,7 @@ func buildQwen35RecurrentMixCached(
 	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
 }
 
-func buildQwen35FeedForwardMix(
+func buildRoutedSwiGLUFeedForwardMix(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	weights LayerGraphWeights,

@@ -79,8 +79,8 @@ const (
 	RecurrentMixMamba
 	RecurrentMixMamba2
 	RecurrentMixPLaMo2
-	RecurrentMixQwenGDN
-	RecurrentMixLFM2
+	RecurrentMixGatedDelta
+	RecurrentMixShortConvolution
 	RecurrentMixDynamicWKV6
 )
 
@@ -89,8 +89,8 @@ type AttentionMixPolicy uint8
 
 const (
 	AttentionMixNone AttentionMixPolicy = iota
-	AttentionMixNemotron
-	AttentionMixQwenGDN
+	AttentionMixCausalProjection
+	AttentionMixGatedProjection
 	AttentionMixOutputProjection
 )
 
@@ -99,7 +99,7 @@ type HybridMixPolicy uint8
 
 const (
 	HybridMixNone HybridMixPolicy = iota
-	HybridMixFalconH1
+	HybridMixAttentionSSM
 )
 
 // FeedForwardMixPolicy: feed-forward operator implementation.
@@ -110,8 +110,8 @@ const (
 	FeedForwardMixStandardSwiGLU
 	FeedForwardMixFusedSwiGLU
 	FeedForwardMixSquaredReLU
-	FeedForwardMixNemotron
-	FeedForwardMixQwenGDN
+	FeedForwardMixRoutedSquaredReLU
+	FeedForwardMixRoutedSwiGLU
 )
 
 const (
@@ -759,7 +759,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	composition := plan.Composition
 	if profile.Attention == AttentionLFM2 && recurrent {
 		return residualMixerProgram(
-			recurrentLayerStage(RecurrentMixLFM2, false), FeedForwardMixStandardSwiGLU, false,
+			recurrentLayerStage(RecurrentMixShortConvolution, false), FeedForwardMixStandardSwiGLU, false,
 		)
 	}
 	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
@@ -769,15 +769,15 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		)
 	}
 	if profile.Attention == AttentionQwenGDN {
-		mixer := attentionLayerStage(AttentionMixQwenGDN)
+		mixer := attentionLayerStage(AttentionMixGatedProjection)
 		if recurrent {
-			mixer = recurrentLayerStage(RecurrentMixQwenGDN, false)
+			mixer = recurrentLayerStage(RecurrentMixGatedDelta, false)
 		}
-		return residualMixerProgram(mixer, FeedForwardMixQwenGDN, false)
+		return residualMixerProgram(mixer, FeedForwardMixRoutedSwiGLU, false)
 	}
 	if block == BlockFalconH1 {
 		return residualMixerProgram(
-			hybridLayerStage(HybridMixFalconH1), FeedForwardMixStandardSwiGLU, false,
+			hybridLayerStage(HybridMixAttentionSSM), FeedForwardMixStandardSwiGLU, false,
 		)
 	}
 	if block == BlockGraniteHybrid {
@@ -810,13 +810,13 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		case LayerCompositionAttentionOnly:
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixNemotron),
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixCausalProjection),
 				layerStage(LayerOperatorResidual),
 			)
 		case LayerCompositionFeedForwardOnly:
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), cacheSentinelLayerStage(),
-				feedForwardLayerStage(FeedForwardMixNemotron), layerStage(LayerOperatorResidual),
+				feedForwardLayerStage(FeedForwardMixRoutedSquaredReLU), layerStage(LayerOperatorResidual),
 			)
 		default:
 			return LayerProgram{}

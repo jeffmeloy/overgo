@@ -173,35 +173,33 @@ func executeLayerInstruction(
 		)
 		return c.Builder.Err()
 	case LayerOperatorAttentionMix:
-		if instruction.TensorCount != 0 {
+		cacheCount := uint8(2)
+		if instruction.Attention == AttentionMixOutputProjection {
+			cacheCount = 0
+		}
+		if instruction.TensorCount != 0 || instruction.CacheCount != cacheCount {
 			return errors.New("compiled attention-mixing stage is invalid")
 		}
 		var result DenseBlockResult
 		var err error
 		switch instruction.Attention {
-		case AttentionMixNemotron:
-			if instruction.CacheCount != 2 {
-				return errors.New("compiled attention-mixing cache bindings are invalid")
-			}
-			result, err = buildNemotronAttentionMixCached(
+		case AttentionMixCausalProjection:
+			result, err = buildCausalProjectionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
-		case AttentionMixQwenGDN:
-			if instruction.CacheCount != 2 {
-				return errors.New("compiled attention-mixing cache bindings are invalid")
-			}
+		case AttentionMixGatedProjection:
 			sequences := c.Sequences
 			if sequences == 0 {
 				sequences = 1
 			}
-			result, err = buildQwen35AttentionMixCached(
+			result, err = buildGatedProjectionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, c.MultiPositions, sequences,
 				operands.caches[0], operands.caches[1], c.CacheWrite,
 			)
 		case AttentionMixOutputProjection:
-			if instruction.CacheCount != 0 || options.Weights.AttentionOutput == nil {
+			if options.Weights.AttentionOutput == nil {
 				return errors.New("compiled output-projection stage is invalid")
 			}
 			projected := c.Builder.MulMat(options.Weights.AttentionOutput, execution.current)
@@ -228,8 +226,8 @@ func executeLayerInstruction(
 		var result DenseBlockResult
 		var err error
 		switch instruction.Hybrid {
-		case HybridMixFalconH1:
-			result, err = buildFalconH1HybridMixCached(
+		case HybridMixAttentionSSM:
+			result, err = buildAttentionSSMHybridMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
 			)
@@ -267,17 +265,17 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case RecurrentMixQwenGDN:
+		case RecurrentMixGatedDelta:
 			sequences := c.Sequences
 			if sequences == 0 {
 				sequences = 1
 			}
-			result, err = buildQwen35RecurrentMixCached(
+			result, err = buildGatedDeltaMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, sequences, operands.caches[0], operands.caches[1],
 			)
-		case RecurrentMixLFM2:
-			result, err = buildLFM2RecurrentMixCached(
+		case RecurrentMixShortConvolution:
+			result, err = buildShortConvolutionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1],
 			)
@@ -323,12 +321,12 @@ func executeLayerInstruction(
 			feedForward, err = buildSquaredReLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
 			)
-		case FeedForwardMixNemotron:
-			feedForward, err = buildNemotronFeedForwardMix(
+		case FeedForwardMixRoutedSquaredReLU:
+			feedForward, err = buildRoutedSquaredReLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights, plan.Experts,
 			)
-		case FeedForwardMixQwenGDN:
-			feedForward, err = buildQwen35FeedForwardMix(
+		case FeedForwardMixRoutedSwiGLU:
+			feedForward, err = buildRoutedSwiGLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
 				plan.Experts, plan.ExpertComposition,
 			)

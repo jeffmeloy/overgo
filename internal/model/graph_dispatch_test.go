@@ -154,7 +154,7 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	}
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
-	if mixer.Recurrent != RecurrentMixLFM2 || feedForward.FeedForward != FeedForwardMixStandardSwiGLU {
+	if mixer.Recurrent != RecurrentMixShortConvolution || feedForward.FeedForward != FeedForwardMixStandardSwiGLU {
 		t.Fatalf("LFM2 recurrent policies = %d/%d", mixer.Recurrent, feedForward.FeedForward)
 	}
 }
@@ -202,10 +202,10 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 		if !ok || program.Count != qwenProgramStageCount {
 			t.Fatalf("Qwen GDN program = %+v", program)
 		}
-		if recurrent && instruction.Recurrent != RecurrentMixQwenGDN {
+		if recurrent && instruction.Recurrent != RecurrentMixGatedDelta {
 			t.Fatalf("Qwen recurrent stage = %+v", instruction)
 		}
-		if !recurrent && instruction.Attention != AttentionMixQwenGDN {
+		if !recurrent && instruction.Attention != AttentionMixGatedProjection {
 			t.Fatalf("Qwen attention stage = %+v", instruction)
 		}
 	}

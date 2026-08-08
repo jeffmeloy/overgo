@@ -754,8 +754,8 @@ func buildKimiKDAMixCached(
 	return DenseBlockResult{Output: attention, Key: nextConv, Value: nextState}, nil
 }
 
-// buildLFM2RecurrentMixCached: short-convolution mixer.
-func buildLFM2RecurrentMixCached(
+// buildShortConvolutionMixCached: short-convolution recurrence.
+func buildShortConvolutionMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,

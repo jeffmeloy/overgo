@@ -159,8 +159,9 @@ func executeLayerInstruction(
 			options.Weights.AttentionNorm == nil {
 			return errors.New("compiled attention-normalization stage is invalid")
 		}
-		execution.current = c.Builder.WeightedRMSNorm(
-			execution.current, options.Weights.AttentionNorm, options.Spec.RMSNormEpsilon,
+		execution.current = ApplyNormalization(
+			c.Builder, execution.current, options.Weights.AttentionNorm,
+			options.Weights.AttentionNormBias, options.Spec,
 		)
 		return c.Builder.Err()
 	case LayerOperatorAttentionPostNorm:
@@ -207,6 +208,11 @@ func executeLayerInstruction(
 				projected = c.Builder.Add(projected, options.Weights.AttentionOutputBias)
 			}
 			result.Output, err = projected, c.Builder.Err()
+		case AttentionMixBidirectionalFusedQKV:
+			result, err = buildBidirectionalFusedQKVMix(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan.Layer,
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -298,8 +304,9 @@ func executeLayerInstruction(
 			options.Weights.FeedForwardNorm == nil {
 			return errors.New("compiled feed-forward normalization stage is invalid")
 		}
-		execution.current = c.Builder.WeightedRMSNorm(
-			execution.residual, options.Weights.FeedForwardNorm, options.Spec.RMSNormEpsilon,
+		execution.current = ApplyNormalization(
+			c.Builder, execution.residual, options.Weights.FeedForwardNorm,
+			options.Weights.FeedForwardNormBias, options.Spec,
 		)
 		return c.Builder.Err()
 	case LayerOperatorFeedForwardMix:
@@ -313,7 +320,7 @@ func executeLayerInstruction(
 			feedForward, err = buildStandardFeedForwardMix(
 				c.Builder, execution.current, plan, options.Spec, options.Weights,
 			)
-		case FeedForwardMixFusedSwiGLU:
+		case FeedForwardMixFusedGLU:
 			feedForward, err = buildFusedFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
 			)
@@ -538,7 +545,16 @@ func buildFusedFeedForwardMix(
 	fused := builder.MulMat(weights.FeedForwardUp, input)
 	gate := builder.Reshape(builder.GroupSlice(fused, 0, width, 1, fusedWidth), width, tokens)
 	up := builder.Reshape(builder.GroupSlice(fused, width, width, 1, fusedWidth), width, tokens)
-	return builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up)), builder.Err()
+	var activated *tensor.Tensor
+	switch spec.HiddenActivation {
+	case "reglu":
+		activated = builder.ReGLU(gate, up)
+	case "gelu", "geglu":
+		activated = builder.GEGLU(gate, up)
+	default:
+		activated = builder.SwiGLU(gate, up)
+	}
+	return builder.MulMat(weights.FeedForwardDown, activated), builder.Err()
 }
 
 func buildSquaredReLUFeedForwardMix(

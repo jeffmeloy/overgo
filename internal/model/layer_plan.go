@@ -92,6 +92,7 @@ const (
 	AttentionMixCausalProjection
 	AttentionMixGatedProjection
 	AttentionMixOutputProjection
+	AttentionMixBidirectionalFusedQKV
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -108,7 +109,7 @@ type FeedForwardMixPolicy uint8
 const (
 	FeedForwardMixNone FeedForwardMixPolicy = iota
 	FeedForwardMixStandardSwiGLU
-	FeedForwardMixFusedSwiGLU
+	FeedForwardMixFusedGLU
 	FeedForwardMixSquaredReLU
 	FeedForwardMixRoutedSquaredReLU
 	FeedForwardMixRoutedSwiGLU
@@ -797,7 +798,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixPLaMo2, false),
 			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedSwiGLU),
+			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedGLU),
 			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 		)
 	}
@@ -835,6 +836,13 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	switch block {
 	case BlockDense:
+		if profile.DenseGraph == DenseGraphModernBERT {
+			return newLayerProgram(
+				attentionLayerStage(AttentionMixBidirectionalFusedQKV), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedGLU),
+				layerStage(LayerOperatorResidual),
+			)
+		}
 		if plan.DeciSparse {
 			stages := []LayerOperatorInstruction{cacheSentinelLayerStage()}
 			if plan.Composition == LayerCompositionIdentity {

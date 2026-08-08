@@ -172,7 +172,7 @@ func buildBERTEncoderBlock(
 	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
 }
 
-func buildModernBERTBlock(
+func buildBidirectionalFusedQKVMix(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -196,9 +196,6 @@ func buildModernBERTBlock(
 	required := graphWeights{
 		requireGraphWeight("attention QKV", weights.AttentionQKV),
 		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
 	}
 	if layerIndex > 0 {
 		required.add("attention norm", weights.AttentionNorm)
@@ -244,31 +241,10 @@ func buildModernBERTBlock(
 	attention := builder.AttentionWithOptions(query, key, value, attentionOptions)
 	attention = builder.Reshape(attention, width, tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	residual := builder.Add(input, attention)
-	normalized = ApplyNormalization(builder, residual, weights.FeedForwardNorm, nil, spec)
-	fused := builder.MulMat(weights.FeedForwardUp, normalized)
-	feedForwardWidth := uint64(spec.FeedForwardLength)
-	gate := builder.Reshape(
-		builder.GroupSlice(fused, 0, feedForwardWidth, 1, 2*feedForwardWidth),
-		feedForwardWidth, tokens,
-	)
-	up := builder.Reshape(
-		builder.GroupSlice(fused, feedForwardWidth, feedForwardWidth, 1, 2*feedForwardWidth),
-		feedForwardWidth, tokens,
-	)
-	switch spec.HiddenActivation {
-	case "swiglu":
-		fused = builder.SwiGLU(gate, up)
-	case "reglu":
-		fused = builder.ReGLU(gate, up)
-	default:
-		fused = builder.GEGLU(gate, up)
-	}
-	output := builder.Add(residual, builder.MulMat(weights.FeedForwardDown, fused))
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
+	return DenseBlockResult{Output: attention, Key: key, Value: value}, nil
 }
 
 func buildGemmaEmbeddingBlock(

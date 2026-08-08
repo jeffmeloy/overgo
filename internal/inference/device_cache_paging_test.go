@@ -178,52 +178,84 @@ func BenchmarkRebuildDeviceCachePages(b *testing.B) {
 }
 
 func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
+	const (
+		fixtureLayerCount     = 1
+		fixtureContextTokens  = uint32(4)
+		fixtureEmbeddingWidth = 4
+		fixtureKeyWidth       = 2
+		fixtureValueWidth     = 3
+		fixtureKVHeads        = 1
+		fixtureConvKernel     = 2
+		fixtureSSMInnerWidth  = 2
+		fixtureSSMGroups      = 1
+		fixtureSSMStateWidth  = 1
+		fixtureRemovedTokens  = 1
+		fixtureScalarBytes    = 4
+		fixtureKeyPointer     = driver.DevicePtr(1000)
+		fixtureValuePointer   = driver.DevicePtr(2000)
+		fixtureFixedPointer   = driver.DevicePtr(3000)
+		fixtureTokenPointer   = driver.DevicePtr(4000)
+		fixtureFixedState     = "fixed"
+		fixtureTokenState     = "token"
+	)
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{
-		Architecture: "falcon-h1", BlockCount: 1, ContextLength: 4, EmbeddingLength: 4,
+		Architecture: "falcon-h1", BlockCount: fixtureLayerCount,
+		ContextLength: fixtureContextTokens, EmbeddingLength: fixtureEmbeddingWidth,
 	}, AttentionSpec: model.AttentionSpec{
-		KeyLength: 2, ValueLength: 3, HeadCountKV: 1,
+		KeyLength: fixtureKeyWidth, ValueLength: fixtureValueWidth, HeadCountKV: fixtureKVHeads,
 	}, RecurrentSpec: model.RecurrentSpec{
-		SSMConvKernel: 2, SSMInnerSize: 2, SSMGroupCount: 1, SSMStateSize: 1,
+		SSMConvKernel: fixtureConvKernel, SSMInnerSize: fixtureSSMInnerWidth,
+		SSMGroupCount: fixtureSSMGroups, SSMStateSize: fixtureSSMStateWidth,
 	}},
 		weights: model.Weights{Layers: []model.LayerWeights{{}}}},
 	}
 	runner = attachFixtureProgram(runner)
 	cache := &deviceKVCache{
 		Keys: []executor.DeviceValue{{
-			Pointer: driver.DevicePtr(1000), Shape: tensor.MustShape(2, 1, 4),
+			Pointer: fixtureKeyPointer,
+			Shape:   tensor.MustShape(fixtureKeyWidth, fixtureKVHeads, uint64(fixtureContextTokens)),
 		}},
 		Values: []executor.DeviceValue{{
-			Pointer: driver.DevicePtr(2000), Shape: tensor.MustShape(3, 1, 4),
+			Pointer: fixtureValuePointer,
+			Shape:   tensor.MustShape(fixtureValueWidth, fixtureKVHeads, uint64(fixtureContextTokens)),
 		}},
 		States: []deviceLayerStates{{
-			"fixed": {
+			fixtureFixedState: {
 				Mode: CacheStateFixed,
 				Value: executor.DeviceValue{
-					Pointer: driver.DevicePtr(3000), Shape: tensor.MustShape(4, 4),
+					Pointer: fixtureFixedPointer,
+					Shape:   tensor.MustShape(fixtureEmbeddingWidth, uint64(fixtureContextTokens)),
 				},
 			},
-			"token": {
+			fixtureTokenState: {
 				Mode: CacheStateToken,
 				Value: executor.DeviceValue{
-					Pointer: driver.DevicePtr(4000), Shape: tensor.MustShape(1, 1, 4),
+					Pointer: fixtureTokenPointer,
+					Shape: tensor.MustShape(
+						fixtureSSMStateWidth, fixtureKVHeads, uint64(fixtureContextTokens),
+					),
 				},
 			},
 		}},
-		Tokens: 4,
+		Tokens: fixtureContextTokens,
 	}
-	if err := runner.shiftDeviceCacheForAppendPolicy(cache, 1, 1); err != nil {
+	if err := runner.shiftDeviceCacheForAppendPolicy(cache, fixtureRemovedTokens, fixtureRemovedTokens); err != nil {
 		t.Fatal(err)
 	}
-	if cache.Tokens != 3 || cache.Keys[0].Pointer != driver.DevicePtr(1008) ||
-		cache.Values[0].Pointer != driver.DevicePtr(2012) {
+	wantTokens := fixtureContextTokens - uint32(fixtureRemovedTokens)
+	wantKeyPointer := fixtureKeyPointer + driver.DevicePtr(fixtureKeyWidth*fixtureScalarBytes)
+	wantValuePointer := fixtureValuePointer + driver.DevicePtr(fixtureValueWidth*fixtureScalarBytes)
+	if cache.Tokens != wantTokens || cache.Keys[0].Pointer != wantKeyPointer ||
+		cache.Values[0].Pointer != wantValuePointer {
 		t.Fatalf("shifted primary cache = %+v", cache)
 	}
-	if fixed := cache.States[0]["fixed"].Value; fixed.Pointer != driver.DevicePtr(3000) ||
-		!fixed.Shape.Equal(tensor.MustShape(4, 4)) {
+	if fixed := cache.States[0][fixtureFixedState].Value; fixed.Pointer != fixtureFixedPointer ||
+		!fixed.Shape.Equal(tensor.MustShape(fixtureEmbeddingWidth, uint64(fixtureContextTokens))) {
 		t.Fatalf("fixed state = %+v", fixed)
 	}
-	if token := cache.States[0]["token"].Value; token.Pointer != driver.DevicePtr(4004) ||
-		token.Shape.Dims[2] != 3 {
+	wantTokenPointer := fixtureTokenPointer + driver.DevicePtr(fixtureScalarBytes)
+	if token := cache.States[0][fixtureTokenState].Value; token.Pointer != wantTokenPointer ||
+		token.Shape.Dims[2] != uint64(wantTokens) {
 		t.Fatalf("token state = %+v", token)
 	}
 }

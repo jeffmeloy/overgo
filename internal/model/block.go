@@ -1109,63 +1109,6 @@ func buildDeciSparseBlockCached(
 	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
-// BuildQwen35BlockCached: gated attention/GDN hybrid.
-func BuildQwen35BlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	recurrent bool,
-	pastKey, pastValue, convState, ssmState *tensor.Tensor,
-) (Qwen35BlockResult, error) {
-	return BuildQwen35BlockWithOptions(Qwen35BlockOptions{
-		Builder: builder, Input: input, Spec: spec, Weights: weights, Positions: positions,
-		Sequences: 1, Recurrent: recurrent, PastKey: pastKey, PastValue: pastValue,
-		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
-	})
-}
-
-// BuildQwen35BlockCachedBatch: homogeneous packed-sequence block.
-func BuildQwen35BlockCachedBatch(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	sequences uint64,
-	recurrent bool,
-	pastKey, pastValue, convState, ssmState *tensor.Tensor,
-) (Qwen35BlockResult, error) {
-	return BuildQwen35BlockWithOptions(Qwen35BlockOptions{
-		Builder: builder, Input: input, Spec: spec, Weights: weights, Positions: positions,
-		Sequences: sequences, Recurrent: recurrent, PastKey: pastKey, PastValue: pastValue,
-		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
-	})
-}
-
-// BuildQwen35BlockCachedWithMultiPositions: distinct MRoPE axes.
-func BuildQwen35BlockCachedWithMultiPositions(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	multiPositions [4][]uint32,
-	recurrent bool,
-	pastKey, pastValue, convState, ssmState *tensor.Tensor,
-) (Qwen35BlockResult, error) {
-	profile := spec.Profile()
-	if profile.AttentionGraph.QwenGDN == qwenGDNNone || !profile.Has(ArchitectureMultiAxisPositions) {
-		return Qwen35BlockResult{}, errors.New("Qwen hybrid architecture does not support multi-axis positions")
-	}
-	return BuildQwen35BlockWithOptions(Qwen35BlockOptions{
-		Builder: builder, Input: input, Spec: spec, Weights: weights,
-		Positions: multiPositions[0], MultiPositions: &multiPositions, Sequences: 1,
-		Recurrent: recurrent, PastKey: pastKey, PastValue: pastValue,
-		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
-	})
-}
-
 // BuildQwen35BlockWithOptions: typed hybrid block construction.
 func BuildQwen35BlockWithOptions(options Qwen35BlockOptions) (Qwen35BlockResult, error) {
 	if options.Sequences == 0 {

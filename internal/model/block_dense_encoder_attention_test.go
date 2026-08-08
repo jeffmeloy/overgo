@@ -1663,18 +1663,10 @@ func TestBuildQwen35AttentionBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := qwen35TestSpec()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	result, err := BuildQwen35BlockCached(
-		builder,
-		input,
-		spec,
-		qwen35AttentionInputs(builder, spec),
-		[]uint32{0, 1},
-		false,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: qwen35AttentionInputs(builder, spec),
+		Positions: []uint32{0, 1}, Sequences: 1, CacheWrite: tensor.CacheWriteConcat,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1727,10 +1719,11 @@ func TestBuildQwen35PackedAttentionBlock(t *testing.T) {
 	pastValue := builder.Input(
 		"past_value", dtype.F32, tensor.MustShape(keyWidth, keyHeads, pastTokens, sequenceCount),
 	)
-	result, err := BuildQwen35BlockCachedBatch(
-		builder, input, spec, qwen35AttentionInputs(builder, spec),
-		[]uint32{position}, sequenceCount, false, pastKey, pastValue, nil, nil,
-	)
+	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: qwen35AttentionInputs(builder, spec),
+		Positions: []uint32{position}, Sequences: sequenceCount,
+		PastKey: pastKey, PastValue: pastValue, CacheWrite: tensor.CacheWriteConcat,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1746,10 +1739,11 @@ func TestBuildQwen35AttentionBlockUsesDistinctMRoPEPositions(t *testing.T) {
 	spec := qwen35TestSpec()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
-	result, err := BuildQwen35BlockCachedWithMultiPositions(
-		builder, input, spec, qwen35AttentionInputs(builder, spec), positions,
-		false, nil, nil, nil, nil,
-	)
+	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: builder, Input: input, Spec: spec, Weights: qwen35AttentionInputs(builder, spec),
+		Positions: positions[0], MultiPositions: &positions, Sequences: 1,
+		CacheWrite: tensor.CacheWriteConcat,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

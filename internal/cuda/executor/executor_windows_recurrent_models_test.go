@@ -573,15 +573,17 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 				)
 				if !recurrent && architecture != "qwen3next" {
 					positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
-					result, err = model.BuildQwen35BlockCachedWithMultiPositions(
-						builder, input, spec, weights, positions,
-						false, nil, nil, nil, nil,
-					)
+					result, err = model.BuildQwen35BlockWithOptions(model.Qwen35BlockOptions{
+						Builder: builder, Input: input, Spec: spec, Weights: weights,
+						Positions: positions[0], MultiPositions: &positions, Sequences: 1,
+						CacheWrite: tensor.CacheWriteConcat,
+					})
 				} else {
-					result, err = model.BuildQwen35BlockCached(
-						builder, input, spec, weights, []uint32{0, 1}, recurrent,
-						nil, nil, convState, ssmState,
-					)
+					result, err = model.BuildQwen35BlockWithOptions(model.Qwen35BlockOptions{
+						Builder: builder, Input: input, Spec: spec, Weights: weights,
+						Positions: []uint32{0, 1}, Sequences: 1, Recurrent: recurrent,
+						ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
+					})
 				}
 				if err != nil {
 					t.Fatal(err)

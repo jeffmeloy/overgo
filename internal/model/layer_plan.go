@@ -24,6 +24,55 @@ const (
 	BlockQwenGDN
 )
 
+// RuntimeCacheBinding: indexed cache operand.
+type RuntimeCacheBinding uint8
+
+const (
+	RuntimeCacheNone RuntimeCacheBinding = iota
+	RuntimeCachePrimaryKey
+	RuntimeCachePrimaryValue
+	RuntimeCacheConvolution
+	RuntimeCacheSSM
+	RuntimeCacheIndexerKey
+)
+
+// RuntimeTensorBinding: indexed auxiliary tensor operand.
+type RuntimeTensorBinding uint8
+
+const (
+	RuntimeTensorNone RuntimeTensorBinding = iota
+	RuntimeTensorPerLayerInput
+	RuntimeTensorCurrentPositions
+)
+
+const (
+	maxLayerCacheBindings  = 4
+	maxLayerTensorBindings = 2
+	maxLayerInstructions   = 1
+)
+
+// LayerOperatorInstruction: compiled operator and operand indexes.
+type LayerOperatorInstruction struct {
+	Operator    BlockPolicy
+	CacheCount  uint8
+	TensorCount uint8
+	Caches      [maxLayerCacheBindings]RuntimeCacheBinding
+	Tensors     [maxLayerTensorBindings]RuntimeTensorBinding
+}
+
+// LayerProgram: ordered fixed-capacity layer instructions.
+type LayerProgram struct {
+	Count        uint8
+	Instructions [maxLayerInstructions]LayerOperatorInstruction
+}
+
+func (p LayerProgram) Instruction(index int) (LayerOperatorInstruction, bool) {
+	if index < 0 || index >= int(p.Count) || index >= len(p.Instructions) {
+		return LayerOperatorInstruction{}, false
+	}
+	return p.Instructions[index], true
+}
+
 // CachePolicy: compiled layer-state layout.
 type CachePolicy uint8
 
@@ -123,6 +172,7 @@ type LayerPlan struct {
 	GraphFamily       ArchitectureFamily
 	CatalogFamily     ArchitectureFamily
 	Block             BlockPolicy
+	Program           LayerProgram
 	Cache             CachePolicy
 	Attention         AttentionPolicy
 	Position          PositionPolicy
@@ -178,6 +228,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	normalization := s.NormPlan()
 	cache := cachePolicy(s, profile, layer, recurrent)
 	block := blockPolicy(profile, recurrent)
+	program := compileLayerProgram(block, recurrent)
 	cacheWrite := CacheWriteFixed
 	if cache.PrimaryMode().TokenAligned() {
 		cacheWrite = CacheWriteConcatOnly
@@ -194,6 +245,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Residual:          profile.Residual,
 		FeedForward:       profile.FeedForward,
 		Block:             block,
+		Program:           program,
 		Cache:             cache,
 		CacheMode:         cache.PrimaryMode(),
 		CacheWrite:        cacheWrite,
@@ -419,6 +471,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			layer.CatalogFamily != plan.profile.CatalogFamily {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
+		if layer.Program != compileLayerProgram(layer.Block, layer.Recurrent) {
+			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
+		}
 		if layer.SharedKV {
 			if layer.HasKV || layer.KVSource >= layer.Layer || int(layer.KVSource) >= len(plan.layers) ||
 				!plan.layers[layer.KVSource].HasKV {
@@ -563,6 +618,37 @@ func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 		return profile.RecurrentBlock
 	}
 	return profile.Block
+}
+
+func compileLayerProgram(block BlockPolicy, recurrent bool) LayerProgram {
+	instruction := LayerOperatorInstruction{Operator: block}
+	bindCaches := func(bindings ...RuntimeCacheBinding) {
+		instruction.CacheCount = uint8(len(bindings))
+		copy(instruction.Caches[:], bindings)
+	}
+	bindTensors := func(bindings ...RuntimeTensorBinding) {
+		instruction.TensorCount = uint8(len(bindings))
+		copy(instruction.Tensors[:], bindings)
+	}
+	switch block {
+	case BlockFalconH1:
+		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheConvolution, RuntimeCacheSSM)
+	case BlockDSA:
+		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey)
+		bindTensors(RuntimeTensorPerLayerInput)
+	case BlockDeepSeek4:
+		bindCaches(RuntimeCachePrimaryKey)
+		bindTensors(RuntimeTensorCurrentPositions)
+	case BlockQwenGDN:
+		if recurrent {
+			bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue)
+		} else {
+			bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheConvolution, RuntimeCacheSSM)
+		}
+	default:
+		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue)
+	}
+	return LayerProgram{Count: 1, Instructions: [maxLayerInstructions]LayerOperatorInstruction{instruction}}
 }
 
 func cachePolicy(spec Spec, profile ArchitectureProfile, layer uint32, recurrent bool) CachePolicy {

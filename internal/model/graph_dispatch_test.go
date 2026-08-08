@@ -6,10 +6,12 @@ import (
 	"testing"
 )
 
-func TestCachedBlockCatalogCoversCompiledPolicies(t *testing.T) {
+func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 	for policy := BlockDense; policy <= BlockQwenGDN; policy++ {
-		if int(policy) >= len(cachedBlockCatalog) || cachedBlockCatalog[policy] == nil {
-			t.Fatalf("block policy %d has no cached builder", policy)
+		program := compileLayerProgram(policy, false)
+		instruction, ok := program.Instruction(0)
+		if !ok || program.Count != 1 || instruction.Operator != policy {
+			t.Fatalf("block policy %d has no compiled operator", policy)
 		}
 	}
 }

@@ -50,92 +50,131 @@ func BuildArchitectureBlockCached(
 			"encoder-decoder blocks require explicit encoder state",
 		)
 	}
-	if int(plan.Block) >= len(cachedBlockCatalog) || cachedBlockCatalog[plan.Block] == nil {
-		return DenseBlockResult{}, errors.New("unknown compiled block policy")
+	instruction, ok := plan.Program.Instruction(0)
+	if !ok || plan.Program.Count != 1 || instruction.Operator != plan.Block {
+		return DenseBlockResult{}, errors.New("compiled layer operator is invalid")
 	}
-	return cachedBlockCatalog[plan.Block](options, plan)
+	operands, err := resolveLayerOperands(context, instruction)
+	if err != nil {
+		return DenseBlockResult{}, err
+	}
+	return executeLayerOperator(options, plan, instruction, operands)
 }
 
-type cachedBlockBuilder func(BlockDispatchOptions, LayerPlan) (DenseBlockResult, error)
+type layerOperands struct {
+	caches  [maxLayerCacheBindings]*tensor.Tensor
+	tensors [maxLayerTensorBindings]*tensor.Tensor
+}
 
-var cachedBlockCatalog = [...]cachedBlockBuilder{
-	BlockDense: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
+func resolveLayerOperands(
+	context CachedBlockContext,
+	instruction LayerOperatorInstruction,
+) (layerOperands, error) {
+	var operands layerOperands
+	if int(instruction.CacheCount) > len(operands.caches) ||
+		int(instruction.TensorCount) > len(operands.tensors) {
+		return operands, errors.New("compiled layer operand count is invalid")
+	}
+	for index := range int(instruction.CacheCount) {
+		switch instruction.Caches[index] {
+		case RuntimeCachePrimaryKey:
+			operands.caches[index] = context.PastKey
+		case RuntimeCachePrimaryValue:
+			operands.caches[index] = context.PastValue
+		case RuntimeCacheConvolution:
+			operands.caches[index] = context.PastStates[CacheStateConvolution].Value
+		case RuntimeCacheSSM:
+			operands.caches[index] = context.PastStates[CacheStateSSM].Value
+		case RuntimeCacheIndexerKey:
+			operands.caches[index] = context.PastStates[CacheStateIndexerKey].Value
+		default:
+			return operands, errors.New("compiled layer cache binding is invalid")
+		}
+	}
+	for index := range int(instruction.TensorCount) {
+		switch instruction.Tensors[index] {
+		case RuntimeTensorPerLayerInput:
+			operands.tensors[index] = context.PerLayerInput
+		case RuntimeTensorCurrentPositions:
+			operands.tensors[index] = context.CurrentPositions
+		default:
+			return operands, errors.New("compiled layer tensor binding is invalid")
+		}
+	}
+	return operands, nil
+}
+
+func executeLayerOperator(
+	options BlockDispatchOptions,
+	plan LayerPlan,
+	instruction LayerOperatorInstruction,
+	operands layerOperands,
+) (DenseBlockResult, error) {
+	c := options.Context
+	switch instruction.Operator {
+	case BlockDense:
 		return BuildDenseBlockWithOptions(DenseBlockOptions(options))
-	},
-	BlockMamba: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
-		return BuildMambaBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
-	},
-	BlockMamba2: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
-		return BuildMamba2BlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
-	},
-	BlockFalconH1: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
+	case BlockMamba:
+		return BuildMambaBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
+	case BlockMamba2:
+		return BuildMamba2BlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
+	case BlockFalconH1:
 		return BuildFalconH1BlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue,
-			c.PastStates[CacheStateConvolution].Value, c.PastStates[CacheStateSSM].Value,
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
 		)
-	},
-	BlockJamba: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
-		return BuildJambaRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
-	},
-	BlockGraniteHybrid: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
-		return BuildGraniteHybridRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
-	},
-	BlockPLaMo2: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
-		return BuildPLaMo2RecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, c.PastKey, c.PastValue)
-	},
-	BlockNemotronH: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
+	case BlockJamba:
+		return BuildJambaRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
+	case BlockGraniteHybrid:
+		return BuildGraniteHybridRecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
+	case BlockPLaMo2:
+		return BuildPLaMo2RecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
+	case BlockNemotronH:
 		return BuildNemotronHBlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue, c.Layer,
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], c.Layer,
 		)
-	},
-	BlockKimiLinear: func(options BlockDispatchOptions, plan LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
+	case BlockKimiLinear:
 		return BuildKimiLinearBlockCached(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, plan.Recurrent,
-			c.PastKey, c.PastValue, c.Layer,
+			operands.caches[0], operands.caches[1], c.Layer,
 		)
-	},
-	BlockMLA: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
+	case BlockMLA:
 		return BuildMLABlockCachedForLayer(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue, c.Layer,
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], c.Layer,
 		)
-	},
-	BlockDSA: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
+	case BlockDSA:
 		return BuildDSABlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.PastKey, c.PastValue,
-			c.PastStates[CacheStateIndexerKey].Value, c.PerLayerInput, c.Layer,
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], c.Layer,
 		)
-	},
-	BlockDeepSeek4: func(options BlockDispatchOptions, _ LayerPlan) (DenseBlockResult, error) {
-		c := options.Context
+	case BlockDeepSeek4:
 		return BuildDeepSeek4BlockCached(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.TokenRows,
-			c.PastKey, c.PastStates, c.CurrentPositions, c.Layer,
+			operands.caches[0], c.PastStates, operands.tensors[0], c.Layer,
 		)
-	},
-	BlockQwenGDN: buildQwenGDNBlockCached,
+	case BlockQwenGDN:
+		return executeQwenGDNOperator(options, plan, operands)
+	default:
+		return DenseBlockResult{}, errors.New("compiled layer operator is unknown")
+	}
 }
 
-func buildQwenGDNBlockCached(options BlockDispatchOptions, plan LayerPlan) (DenseBlockResult, error) {
+func executeQwenGDNOperator(
+	options BlockDispatchOptions,
+	plan LayerPlan,
+	operands layerOperands,
+) (DenseBlockResult, error) {
 	c := options.Context
 	sequences := c.Sequences
 	if sequences == 0 {
 		sequences = 1
 	}
-	pastKey, pastValue := c.PastKey, c.PastValue
-	convState := c.PastStates[CacheStateConvolution].Value
-	ssmState := c.PastStates[CacheStateSSM].Value
+	pastKey, pastValue := operands.caches[0], operands.caches[1]
+	convState, ssmState := operands.caches[2], operands.caches[3]
 	if plan.Recurrent {
-		convState, ssmState = pastKey, pastValue
+		convState, ssmState = operands.caches[0], operands.caches[1]
 		pastKey, pastValue = nil, nil
 	}
 	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{

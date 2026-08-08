@@ -32,9 +32,10 @@ func BuildQwen35MTPBlockCached(
 	}
 	dense := spec
 	dense.Architecture = "qwen35"
-	return BuildQwen35BlockCached(
-		builder, input, dense, weights, positions, false, pastKey, pastValue, nil, nil,
-	)
+	return BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+		Builder: builder, Input: input, Spec: dense, Weights: weights, Positions: positions,
+		Sequences: 1, PastKey: pastKey, PastValue: pastValue, CacheWrite: tensor.CacheWriteConcat,
+	})
 }
 
 // BuildQwen35MTPOutputs: shared-head logits plus next hidden.

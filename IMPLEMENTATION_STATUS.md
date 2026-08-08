@@ -41,11 +41,17 @@ and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
   Dense/recurrent Qwen host execution uses the neutral dispatcher and common
   cache schema instead of its family-owned runner, removing 79 net lines.
   Compiled terminal instructions now own final-normalization and output-head
-  selection across ordinary decode and Eagle3 coordination.
+  selection across ordinary decode and Eagle3 coordination. The compiled model
+  program is sealed; callers receive bounded layer copies and cannot mutate
+  profile, cache, terminal, draft, or graph policy after recipe resolution.
+  Gemma 4 assistant plus Step/HY/NextN draft layers also consume compile-time
+  topology instead of reconstructing it during graph building.
 - A generic typed artifact codec now owns canonical construction, parsing,
-  identity validation, content encoding, and caller isolation. Dataset,
-  closure-ledger, environment, gate-result, and regression-advisory documents
-  use it, deleting 62 net lines including the codec's adversarial fixture.
+  identity validation, content encoding, caller isolation, and value-selected
+  version schemas. Dataset, closure-ledger, recipe definition/lifecycle/
+  decision, profile/parity/derivation/model-definition, tensor inventory/
+  measurement, environment, run/evaluation, gate-result, and regression-
+  advisory documents use it with net lifecycle-code deletion.
 - The RepoDB adversarial follow-up closed four boundary weaknesses: importer
   identity now binds the full export digest and resolves symlinks before root
   containment; dataset split plans validate their complete source/view/
@@ -333,8 +339,8 @@ only when all callers migrate and the superseded authority is deleted.
 | Item | Current evidence | Completion boundary |
 | --- | --- | --- |
 | Split profile input contracts | `ArchitectureProfile` is the authoritative typed fact set but spans metadata, binding, topology, cache, placement, and validation responsibilities | Separate immutable contracts feed compilation; `ModelPlan` contains only compiled runtime facts; hot execution does not inspect the universal profile |
-| Ordered `ModelPlan` program | `LayerPlan` compiles policy and `BuildArchitectureBlockCached` indexes a complete typed builder catalog; the central family switch and Qwen device branch are deleted | Move remaining embedding, terminal normalization, and projection stages into the same ordered instruction program |
-| Recipe-owned execution topology | CLI/server assembly resolves one active RepoDB recipe, verifies model/profile/definition/tensor identities, compiles the model/decode program, and transfers that program into inference; runtime state stores no second `ModelPlan` authority | Extend recipe authority from model/decode selection to ordered embedding, terminal normalization, projection, and output-selection instructions |
+| Ordered `ModelPlan` program | `LayerPlan` compiles trunk, assistant, and appended-draft topology; cache schema, cached graph, terminal normalization, projection selection, and draft-session policy are sealed compiled facts; `BuildArchitectureBlockCached` indexes a complete typed leaf catalog | Move remaining embedding and specialized projector stages into the same ordered instruction program |
+| Recipe-owned execution topology | CLI/server assembly resolves one active RepoDB recipe, verifies model/profile/definition/tensor identities, compiles the sealed model/decode program, and transfers it once into inference; runtime state stores no second plan authority and cannot mutate compiled slices or policies | Extend the same authority to projector bindings and stage order; retain leaf math catalogs as typed execution backends rather than topology authorities |
 | Remove serving bootstrap fallback | Complete for production model opening: missing, inactive, incompatible, or artifact-mismatched recipes fail before weight catalogs or CUDA resources; dense/recurrent Qwen has compiled and environment-gated vertical fixtures | Keep bootstrap lookup only in catalog construction and explicitly named test fixtures; add real-model evidence to CI |
 | Projector/runtime convergence | Projectors share graph math, feeds, catalogs, request plans, and CUDA execution but retain separate stage orchestration | Projector bindings, stage order, placement, and cache/output contracts compile through the same instruction and recipe machinery; model-named files retain only format translation and evidence fixtures |
 | Stable CUDA bundles | One large operation PTX bundle is pinned and verified | Generated bindings support a few stable elementwise/normalization, linear/quantized, attention/selection, recurrent/state-space, and media bundles without per-kernel module fragmentation |

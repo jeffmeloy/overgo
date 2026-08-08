@@ -37,6 +37,11 @@ claims.
   the family-owned host Qwen graph path, compiled terminal normalization/output
   selection, and consolidated five canonical document lifecycles behind a
   typed artifact codec with net code deletion.
+- The follow-on sealed `ModelPlan` policy and layer storage, compiled Gemma 4
+  assistant and appended MTP layer topology, and extended the typed document
+  codec to version-selected schemas. Recipe definitions/lifecycle/decisions,
+  profiles and model evidence, model definitions, and versioned run records now
+  retain only domain canonicalization around the shared lifecycle.
 - The August 7 RepoDB adversarial follow-up hardened import identity and symlink
   containment, validated dataset split topology, removed overflow from bounded
   tensor sample indexing, and made typed profile provenance resolve through

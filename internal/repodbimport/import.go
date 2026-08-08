@@ -305,6 +305,13 @@ func resolveNode(
 	if err != nil {
 		return false, artifact.ID{}, nil, nil, err
 	}
+	// Known documents are canonicalized by their OWN codec before identity:
+	// the reference-resolution marshal above is generic and cannot know each
+	// type's canonical field order, and stored bytes are identity.
+	data, err = canonicalizeKnownDocument(node.record.MediaType, node.record.Schema, data)
+	if err != nil {
+		return false, artifact.ID{}, nil, nil, err
+	}
 	id, err := artifact.IdentifyBytes(node.kind, data)
 	if err != nil {
 		return false, artifact.ID{}, nil, nil, err
@@ -315,128 +322,128 @@ func resolveNode(
 	if err := content.Validate(); err != nil {
 		return false, artifact.ID{}, nil, nil, err
 	}
-	if err := validateKnownDocument(content); err != nil {
-		return false, artifact.ID{}, nil, nil, err
-	}
 	return true, id, &content, nil, nil
 }
 
-func validateKnownDocument(content artifact.Content) error {
-	data := content.Data
+// canonicalizeKnownDocument returns the domain codec's canonical bytes for a
+// known media type (admitting any field order), and the input unchanged for
+// unknown types. Each codec owns its canonical-form fact.
+func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, error) {
+	canonical := data
 	var err error
 	requireSchema := func(allowed ...string) {
-		if !slices.Contains(allowed, content.Descriptor.Schema) {
+		if !slices.Contains(allowed, schema) {
 			err = errors.New("schema differs from media type")
 		}
 	}
-	switch content.Descriptor.MediaType {
+	switch mediaType {
 	case recipe.MediaType:
 		requireSchema(recipe.Schema)
 		if err != nil {
 			break
 		}
-		_, err = recipe.ParseDefinition(data)
+		_, canonical, err = recipe.NormalizeDefinition(data)
 	case recipe.LifecycleMediaType:
 		requireSchema(recipe.LifecycleSchema)
 		if err != nil {
 			break
 		}
-		_, err = recipe.ParseLifecycleEvent(data)
+		_, canonical, err = recipe.NormalizeLifecycleEvent(data)
 	case recipe.DecisionMediaType:
 		requireSchema(recipe.DecisionSchema)
 		if err != nil {
 			break
 		}
-		_, err = recipe.ParseDecision(data)
+		_, canonical, err = recipe.NormalizeDecision(data)
 	case modelrecipe.ProfileMediaType:
 		requireSchema(modelrecipe.ProfileSchema, modelrecipe.LegacyProfileSchema)
 		if err != nil {
 			break
 		}
-		_, err = modelrecipe.ParseProfileDocument(data)
+		_, canonical, err = modelrecipe.NormalizeProfileDocument(data)
 	case modelrecipe.ProfileParityMediaType:
 		requireSchema(modelrecipe.ProfileParitySchema)
 		if err != nil {
 			break
 		}
-		_, err = modelrecipe.ParseProfileParityEvidence(data)
+		_, canonical, err = modelrecipe.NormalizeProfileParityEvidence(data)
 	case modelrecipe.CatalogProfileDerivationMediaType:
 		requireSchema(modelrecipe.CatalogProfileDerivationSchema)
 		if err != nil {
 			break
 		}
-		_, err = modelrecipe.ParseCatalogProfileDerivation(data)
+		_, canonical, err = modelrecipe.NormalizeCatalogProfileDerivation(data)
 	case modelrecipe.ModelDefinitionMediaType:
 		requireSchema(modelrecipe.ModelDefinitionSchema)
 		if err != nil {
 			break
 		}
-		_, err = modelrecipe.ParseModelDefinitionDocument(data)
+		_, canonical, err = modelrecipe.NormalizeModelDefinitionDocument(data)
 	case dataset.MediaType:
 		requireSchema(dataset.Schema)
 		if err != nil {
 			break
 		}
-		_, err = dataset.Parse(data)
+		_, canonical, err = dataset.Normalize(data)
 	case dataset.MembershipMediaType:
 		requireSchema(dataset.MembershipSchema)
 		if err != nil {
 			break
 		}
-		_, err = dataset.ParseMembership(data)
+		_, canonical, err = dataset.NormalizeMembership(data)
 	case closureledger.MediaType:
 		requireSchema(closureledger.Schema)
 		if err != nil {
 			break
 		}
-		_, err = closureledger.Parse(data)
+		_, canonical, err = closureledger.Normalize(data)
 	case runrecord.RunMediaType:
 		requireSchema(runrecord.RunSchema, runrecord.LegacyRunSchema)
 		if err != nil {
 			break
 		}
-		_, err = runrecord.ParseRun(data)
+		_, canonical, err = runrecord.NormalizeRun(data)
 	case runrecord.EvaluationMediaType:
 		requireSchema(runrecord.EvaluationSchema)
 		if err != nil {
 			break
 		}
-		_, err = runrecord.ParseEvaluation(data)
+		_, canonical, err = runrecord.NormalizeEvaluation(data)
 	case runrecord.EnvironmentMediaType:
 		requireSchema(runrecord.EnvironmentSchema)
 		if err != nil {
 			break
 		}
-		_, err = runrecord.ParseEnvironment(data)
+		_, canonical, err = runrecord.NormalizeEnvironment(data)
 	case runrecord.AdvisoryMediaType:
 		requireSchema(runrecord.AdvisorySchema)
 		if err != nil {
 			break
 		}
-		_, err = runrecord.ParseAdvisory(data)
+		_, canonical, err = runrecord.NormalizeAdvisory(data)
 	case runrecord.GateMediaType:
 		requireSchema(runrecord.GateSchema)
 		if err != nil {
 			break
 		}
-		_, err = runrecord.ParseGateResult(data)
+		_, canonical, err = runrecord.NormalizeGateResult(data)
 	case modelartifact.TensorInventoryMediaType:
 		requireSchema(modelartifact.TensorInventorySchema)
 		if err != nil {
 			break
 		}
-		_, err = modelartifact.ParseTensorInventoryDocument(data)
+		_, canonical, err = modelartifact.NormalizeTensorInventoryDocument(data)
 	case modelartifact.TensorMeasurementMediaType:
 		requireSchema(modelartifact.TensorMeasurementSchema)
 		if err != nil {
 			break
 		}
-		_, err = modelartifact.ParseTensorMeasurementDocument(data)
+		_, canonical, err = modelartifact.NormalizeTensorMeasurementDocument(data)
 	}
 	if err != nil {
-		return fmt.Errorf("repodb import: invalid %q document: %w", content.Descriptor.MediaType, err)
+		return nil, fmt.Errorf("repodb import: invalid %q document: %w", mediaType, err)
 	}
-	return nil
+	return canonical, nil
 }
 
 func resolveReferences(value any, names map[string]artifact.ID) (any, bool, error) {

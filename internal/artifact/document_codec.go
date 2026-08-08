@@ -59,6 +59,32 @@ func (c DocumentCodec[T]) Parse(data []byte) (T, error) {
 	return value, nil
 }
 
+// Normalize accepts a document in any JSON field order, validates it, and
+// returns the value plus its canonical bytes. Parse demands canonical input
+// because stored bytes are identity; Normalize is the admission path for
+// documents produced outside this codec — the importer's resolved-reference
+// marshal cannot know each type's canonical field order, and the codec is the
+// one owner of that fact.
+func (c DocumentCodec[T]) Normalize(data []byte) (T, []byte, error) {
+	var decoded T
+	if err := c.validate(); err != nil {
+		return decoded, nil, err
+	}
+	if err := c.Decode(data, &decoded); err != nil {
+		return decoded, nil, fmt.Errorf("%s: decode document: %w", c.Name, err)
+	}
+	value, canonical, contract, err := c.canonical(decoded)
+	if err != nil {
+		return decoded, nil, err
+	}
+	id, err := contract.Identify(canonical)
+	if err != nil {
+		return decoded, nil, err
+	}
+	c.SetIdentity(&value, id)
+	return value, canonical, nil
+}
+
 func (c DocumentCodec[T]) ValidateIdentity(value T) error {
 	_, _, err := c.validated(value)
 	return err

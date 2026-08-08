@@ -15,13 +15,13 @@ const (
 	rwkv7DecayScale      = float32(-0.606531)
 )
 
-// buildDeepSeek4BlockCachedWithPlan: hyperconnection leaf.
-func buildDeepSeek4BlockCachedWithPlan(
+// buildDeepSeek4AttentionCachedWithPlan: hyper-attention stage.
+func buildDeepSeek4AttentionCachedWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	positions, tokenRows []uint32,
+	positions []uint32,
 	pastKV *tensor.Tensor,
 	pastStates CacheStates[*tensor.Tensor],
 	currentPositions *tensor.Tensor,
@@ -55,25 +55,6 @@ func buildDeepSeek4BlockCachedWithPlan(
 		requireGraphWeight("attention HC function", weights.HyperAttentionFN),
 		requireGraphWeight("attention HC base", weights.HyperAttentionBase),
 		requireGraphWeight("attention HC scale", weights.HyperAttentionScale),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward router", weights.FeedForwardRouter),
-		requireGraphWeight("expert gate", weights.FeedForwardGateExperts),
-		requireGraphWeight("expert up", weights.FeedForwardUpExperts),
-		requireGraphWeight("expert down", weights.FeedForwardDownExperts),
-		requireGraphWeight("shared gate", weights.FeedForwardSharedGate),
-		requireGraphWeight("shared up", weights.FeedForwardSharedUp),
-		requireGraphWeight("shared down", weights.FeedForwardSharedDown),
-		requireGraphWeight("feed-forward HC function", weights.HyperFeedForwardFN),
-		requireGraphWeight("feed-forward HC base", weights.HyperFeedForwardBase),
-		requireGraphWeight("feed-forward HC scale", weights.HyperFeedForwardScale),
-	}
-	if layerIndex < spec.HashLayerCount {
-		required.add("hash routing table", weights.FeedForwardHashExperts)
-		if len(tokenRows) != len(positions) {
-			return DenseBlockResult{}, errors.New("DeepSeek 4 hash routing rows are missing")
-		}
-	} else {
-		required.add("router bias", weights.FeedForwardRouterBias)
 	}
 	ratio := spec.CompressRatios[layerIndex]
 	if ratio != 0 {
@@ -90,12 +71,7 @@ func buildDeepSeek4BlockCachedWithPlan(
 		required.add("indexer compressor APE", weights.IndexerCompressorAPE)
 		required.add("indexer compressor norm", weights.IndexerCompressorNorm)
 	}
-	if layerIndex+1 == spec.BlockCount {
-		required.add("output HC function", weights.HyperHeadFN)
-		required.add("output HC base", weights.HyperHeadBase)
-		required.add("output HC scale", weights.HyperHeadScale)
-	}
-	if err := required.validate("DeepSeek 4"); err != nil {
+	if err := required.validate("DeepSeek 4 attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -196,15 +172,66 @@ func buildDeepSeek4BlockCachedWithPlan(
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	input = builder.DeepSeek4HCPost(attention, residual, weights.HyperAttentionFN, weights.HyperAttentionScale,
 		weights.HyperAttentionBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
-	residual = input
-	current = builder.DeepSeek4HCPre(input, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: input, Key: cacheKV, Value: cacheKV, States: states}, nil
+}
+
+// buildDeepSeek4FeedForwardWithPlan: hyper-FFN and terminal head.
+func buildDeepSeek4FeedForwardWithPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	tokenRows []uint32,
+	plan LayerPlan,
+) (*tensor.Tensor, error) {
+	layerIndex := plan.Layer
+	if spec.Profile().Block != BlockDeepSeek4 || builder == nil || input == nil ||
+		input.Shape.Rank != 3 || input.Shape.Dims[1] != uint64(spec.HyperConnectionCount) ||
+		layerIndex >= spec.BlockCount {
+		return nil, errors.New("DeepSeek 4 feed-forward input is invalid")
+	}
+	required := graphWeights{
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward router", weights.FeedForwardRouter),
+		requireGraphWeight("expert gate", weights.FeedForwardGateExperts),
+		requireGraphWeight("expert up", weights.FeedForwardUpExperts),
+		requireGraphWeight("expert down", weights.FeedForwardDownExperts),
+		requireGraphWeight("shared gate", weights.FeedForwardSharedGate),
+		requireGraphWeight("shared up", weights.FeedForwardSharedUp),
+		requireGraphWeight("shared down", weights.FeedForwardSharedDown),
+		requireGraphWeight("feed-forward HC function", weights.HyperFeedForwardFN),
+		requireGraphWeight("feed-forward HC base", weights.HyperFeedForwardBase),
+		requireGraphWeight("feed-forward HC scale", weights.HyperFeedForwardScale),
+	}
+	if layerIndex < spec.HashLayerCount {
+		required.add("hash routing table", weights.FeedForwardHashExperts)
+		if len(tokenRows) != int(input.Shape.Dims[2]) {
+			return nil, errors.New("DeepSeek 4 hash routing rows are missing")
+		}
+	} else {
+		required.add("router bias", weights.FeedForwardRouterBias)
+	}
+	if layerIndex+1 == spec.BlockCount {
+		required.add("output HC function", weights.HyperHeadFN)
+		required.add("output HC base", weights.HyperHeadBase)
+		required.add("output HC scale", weights.HyperHeadScale)
+	}
+	if err := required.validate("DeepSeek 4 feed-forward"); err != nil {
+		return nil, err
+	}
+	hc := spec.HyperConnectionCount
+	residual := input
+	current := builder.DeepSeek4HCPre(input, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
 		weights.HyperFeedForwardBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	current = builder.WeightedRMSNorm(current, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	var selected *tensor.Tensor
 	if layerIndex < spec.HashLayerCount {
 		selected = builder.GetRows(weights.FeedForwardHashExperts, tokenRows)
 	}
-	moePlan := spec.moeGraphPlan(layerIndex)
+	moePlan := plan.Experts
 	moePlan.Routing = tensor.MoERoutingSqrtSoftplus
 	moePlan.SelectionBias = true
 	moePlan.SwiGLUClamp = spec.LayerExpertSwiGLUClamp(layerIndex)
@@ -225,9 +252,9 @@ func buildDeepSeek4BlockCachedWithPlan(
 			weights.HyperHeadBase, hc, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	}
 	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
+		return nil, err
 	}
-	return DenseBlockResult{Output: output, Key: cacheKV, Value: cacheKV, States: states}, nil
+	return output, nil
 }
 
 // BuildRWKV6Qwen2BlockCached: RMS/SwiGLU QRWKV recurrent block.

@@ -54,7 +54,8 @@ const (
 	LayerOperatorDenseTransformer
 	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
-	LayerOperatorHyperConnection
+	LayerOperatorHyperAttention
+	LayerOperatorHyperFeedForward
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionMix
@@ -844,10 +845,13 @@ func compileLayerProgram(
 			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
 		)
 	case BlockDeepSeek4:
-		return leafLayerProgram(
-			LayerOperatorHyperConnection,
-			[]RuntimeCacheBinding{RuntimeCachePrimaryKey},
-			[]RuntimeTensorBinding{RuntimeTensorCurrentPositions},
+		return newLayerProgram(
+			leafLayerStage(
+				LayerOperatorHyperAttention,
+				[]RuntimeCacheBinding{RuntimeCachePrimaryKey},
+				[]RuntimeTensorBinding{RuntimeTensorCurrentPositions},
+			),
+			layerStage(LayerOperatorHyperFeedForward),
 		)
 	default:
 		return LayerProgram{}

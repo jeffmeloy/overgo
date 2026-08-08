@@ -39,7 +39,9 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
 			}
 		case BlockDeepSeek4:
-			want = []LayerOperator{LayerOperatorHyperConnection}
+			want = []LayerOperator{
+				LayerOperatorHyperAttention, LayerOperatorHyperFeedForward,
+			}
 		case BlockMamba, BlockMamba2:
 			want = []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,

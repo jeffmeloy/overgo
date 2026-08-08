@@ -1291,10 +1291,14 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 		HyperHeadScale:          builder.Input("hc_head_scale", dtype.F32, tensor.MustShape(1)),
 	}
 	positionState := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 2))
-	result, err := buildDeepSeek4BlockCachedWithPlan(
-		builder, input, spec, weights, []uint32{0, 1}, []uint32{3, 4}, nil, nil,
-		positionState, spec.PlanLayer(0, false),
-	)
+	plan := spec.PlanLayer(0, false)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, Positions: []uint32{0, 1}, TokenRows: []uint32{3, 4},
+			CurrentPositions: positionState,
+		},
+		Spec: spec, Weights: weights, Plan: &plan,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

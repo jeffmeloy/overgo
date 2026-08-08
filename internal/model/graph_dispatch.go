@@ -391,12 +391,12 @@ func executeLayerInstruction(
 		execution.current = result.Output
 		execution.result = result
 		return nil
-	case LayerOperatorHyperConnection:
+	case LayerOperatorHyperAttention:
 		if instruction.CacheCount != 1 || instruction.TensorCount != 1 || plan.Block != BlockDeepSeek4 {
-			return errors.New("compiled hyperconnection stage is invalid")
+			return errors.New("compiled hyper-attention stage is invalid")
 		}
-		result, err := buildDeepSeek4BlockCachedWithPlan(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.TokenRows,
+		result, err := buildDeepSeek4AttentionCachedWithPlan(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], c.PastStates, operands.tensors[0], plan,
 		)
 		if err != nil {
@@ -404,6 +404,20 @@ func executeLayerInstruction(
 		}
 		execution.current = result.Output
 		execution.result = result
+		return nil
+	case LayerOperatorHyperFeedForward:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			plan.Block != BlockDeepSeek4 {
+			return errors.New("compiled hyper-feed-forward stage is invalid")
+		}
+		output, err := buildDeepSeek4FeedForwardWithPlan(
+			c.Builder, execution.current, options.Spec, options.Weights, c.TokenRows, plan,
+		)
+		if err != nil {
+			return err
+		}
+		execution.current = output
+		execution.result.Output = output
 		return nil
 	default:
 		return errors.New("compiled layer operator is unknown")

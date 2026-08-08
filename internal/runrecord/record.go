@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,6 +56,30 @@ var evaluationCodec = artifact.DocumentCodec[Evaluation]{
 	},
 	Identity:    func(value Evaluation) artifact.ID { return value.ID },
 	SetIdentity: func(value *Evaluation, id artifact.ID) { value.ID = id },
+}
+
+var runCodec = artifact.DocumentCodec[Run]{
+	Name: "run record", ContractFor: func(value Run) artifact.DocumentContract {
+		return runContractForVersion(value.Version)
+	},
+	Decode: func(data []byte, value *Run) error {
+		var body runBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = Run{
+			Version: body.Version, Recipe: body.Recipe, Outcome: body.Outcome,
+			Inputs: body.Inputs, Outputs: body.Outputs, Failure: body.Failure,
+			CodeCommit: body.CodeCommit, MeasuredNS: body.MeasuredNS, Phases: body.Phases,
+		}
+		if body.Environment != nil {
+			value.Environment = *body.Environment
+		}
+		return nil
+	},
+	Encode: runContent, Canonicalize: canonicalizeRun, Clone: cloneRun,
+	Identity:    func(value Run) artifact.ID { return value.ID },
+	SetIdentity: func(value *Run, id artifact.ID) { value.ID = id },
 }
 
 type Outcome string
@@ -161,19 +184,10 @@ func NewRun(
 	inputs, outputs []artifact.ID,
 	failure string,
 ) (Run, error) {
-	run := Run{
+	return runCodec.New(Run{
 		Version: Version, Recipe: recipeID, Outcome: outcome,
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs), Failure: failure,
-	}
-	if err := canonicalizeRun(&run); err != nil {
-		return Run{}, err
-	}
-	content, err := runContent(run)
-	if err != nil {
-		return Run{}, err
-	}
-	run.ID, err = legacyRunContract.Identify(content)
-	return run, err
+	})
 }
 
 func NewBoundRun(
@@ -185,90 +199,28 @@ func NewBoundRun(
 	measuredNS uint64,
 	phases []PhaseMetric,
 ) (Run, error) {
-	run := Run{
+	return runCodec.New(Run{
 		Version: RunVersion, Recipe: recipeID, Outcome: outcome,
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs), Failure: failure,
 		CodeCommit: codeCommit, Environment: environment, MeasuredNS: measuredNS,
 		Phases: slices.Clone(phases),
-	}
-	if err := canonicalizeRun(&run); err != nil {
-		return Run{}, err
-	}
-	content, err := runContent(run)
-	if err != nil {
-		return Run{}, err
-	}
-	run.ID, err = runContract.Identify(content)
-	return run, err
+	})
 }
 
 func ParseRun(content []byte) (Run, error) {
-	var body runBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return Run{}, fmt.Errorf("run record: decode run: %w", err)
-	}
-	var run Run
-	var err error
-	if body.Version == Version {
-		run, err = NewRun(body.Recipe, body.Outcome, body.Inputs, body.Outputs, body.Failure)
-	} else if body.Version == RunVersion {
-		if body.Environment == nil {
-			return Run{}, errors.New("run record: bound run lacks environment")
-		}
-		run, err = NewBoundRun(
-			body.Recipe, body.Outcome, body.Inputs, body.Outputs, body.Failure,
-			body.CodeCommit, *body.Environment, body.MeasuredNS, body.Phases,
-		)
-	} else {
-		return Run{}, errors.New("run record: unsupported run version")
-	}
-	if err != nil {
-		return Run{}, err
-	}
-	canonical, err := run.ContentBytes()
-	if err != nil {
-		return Run{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Run{}, errors.New("run record: non-canonical run content")
-	}
-	return run, nil
+	return runCodec.Parse(content)
 }
 
 func (r Run) ValidateIdentity() error {
-	if r.ID.Kind() != artifact.KindRun {
-		return errors.New("run record: invalid run identity")
-	}
-	canonical := cloneRun(r)
-	if err := canonicalizeRun(&canonical); err != nil {
-		return err
-	}
-	if !sameRun(r, canonical) {
-		return errors.New("run record: run is not canonical")
-	}
-	content, err := runContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := runContractForVersion(r.Version).ValidateIdentity(r.ID, content); err != nil {
-		return errors.New("run record: run identity mismatch")
-	}
-	return nil
+	return runCodec.ValidateIdentity(r)
 }
 
 func (r Run) ContentBytes() ([]byte, error) {
-	if err := r.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	return runContent(r)
+	return runCodec.ContentBytes(r)
 }
 
 func (r Run) Content() (artifact.Content, error) {
-	content, err := r.ContentBytes()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return runContractForVersion(r.Version).Content(r.ID, content)
+	return runCodec.Content(r)
 }
 
 func (r Run) Lineage() []artifact.Lineage {
@@ -507,14 +459,6 @@ func evaluationContent(evaluation Evaluation) ([]byte, error) {
 		return nil, fmt.Errorf("run record: encode evaluation: %w", err)
 	}
 	return content, nil
-}
-
-func sameRun(left, right Run) bool {
-	return left.Version == right.Version && left.Recipe == right.Recipe &&
-		left.Outcome == right.Outcome && left.Failure == right.Failure &&
-		left.CodeCommit == right.CodeCommit && left.Environment == right.Environment &&
-		left.MeasuredNS == right.MeasuredNS && slices.Equal(left.Phases, right.Phases) &&
-		slices.Equal(left.Inputs, right.Inputs) && slices.Equal(left.Outputs, right.Outputs)
 }
 
 func cloneRun(run Run) Run {

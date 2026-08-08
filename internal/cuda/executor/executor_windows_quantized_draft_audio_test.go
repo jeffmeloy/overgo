@@ -4,30 +4,18 @@ package executor
 
 import (
 	"context"
-
 	"encoding/binary"
-
 	"fmt"
-
-	"overgo/internal/cuda/device"
-
-	"overgo/internal/cuda/driver"
-
-	"overgo/internal/model"
-
-	"overgo/internal/quant"
-
-	"overgo/internal/tensor"
-
-	"overgo/internal/tensor/dtype"
-
-	"overgo/internal/tensor/reference"
-
 	"math"
-
 	"testing"
 
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/model"
+	"overgo/internal/quant"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
@@ -362,22 +350,8 @@ func TestExecutorGemma3nActiveStageMatchesReference(t *testing.T) {
 func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	cudatest.Require(t)
 	worker := newFixtureWorker(t)
-	var pointer driver.DevicePtr
 	leftData := []float32{1, 2, 3, 4}
-	err := worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(leftData) * 4))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, driver.Bytes(leftData))
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemFree(pointer)
-	})
+	pointer := copyFixtureDeviceBytes(t, worker, driver.Bytes(leftData))
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(4)
@@ -411,21 +385,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 		storage[2+index] = byte(int8(index - 16))
 		storage[36+index] = 2
 	}
-	var pointer driver.DevicePtr
-	err := worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, storage)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemFree(pointer)
-	})
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	builder := tensor.NewBuilder()
 	weights := builder.Input("weights", dtype.Q8_0, tensor.MustShape(q8FixtureBlockSize, 2))
@@ -485,21 +445,7 @@ func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 	}
 	storage[0] = 0x0f
 	storage[128] = 0xe4
-	var pointer driver.DevicePtr
-	err := worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, storage)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemFree(pointer)
-	})
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	builder := tensor.NewBuilder()
 	weights := builder.Input("weights", dtype.Q6K, tensor.MustShape(256, 2))
@@ -636,21 +582,7 @@ func testExecutorSmallQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type)
 	}
 
 	worker := newFixtureWorker(t)
-	var pointer driver.DevicePtr
-	err = worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, storage)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemFree(pointer)
-	})
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 
 	width := traits.BlockSize
@@ -730,21 +662,7 @@ func testExecutorClassicQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Typ
 	}
 
 	worker := newFixtureWorker(t)
-	var pointer driver.DevicePtr
-	err = worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, storage)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemFree(pointer)
-	})
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 
 	builder := tensor.NewBuilder()
@@ -887,21 +805,7 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 	}
 
 	worker := newFixtureWorker(t)
-	var pointer driver.DevicePtr
-	err = worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, storage)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemFree(pointer)
-	})
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 
 	builder := tensor.NewBuilder()

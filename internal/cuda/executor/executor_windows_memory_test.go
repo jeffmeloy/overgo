@@ -130,7 +130,9 @@ func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer retained.Release(context.Background())
+	fixtureCleanup(t, "release retained fixture slices", func() error {
+		return retained.Release(context.Background())
+	})
 	firstValue, firstOK := retained.Value(first)
 	secondValue, secondOK := retained.Value(second)
 	wantPointerDelta := fixtureShapeBytes(
@@ -161,7 +163,9 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer buffer.Release(context.Background())
+	fixtureCleanup(t, "release append fixture buffer", func() error {
+		return buffer.Release(context.Background())
+	})
 
 	initialBuilder := tensor.NewBuilder()
 	initialShape := tensor.MustShape(3)
@@ -224,7 +228,9 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer retained.Release(context.Background())
+	fixtureCleanup(t, "release appended fixture output", func() error {
+		return retained.Release(context.Background())
+	})
 	got, err := retained.CopyToHost(context.Background(), joined)
 	if err != nil {
 		t.Fatal(err)
@@ -242,7 +248,9 @@ func TestExecutorRejectsUndeclaredRetainedTargetAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer buffer.Release(context.Background())
+	fixtureCleanup(t, "release alias fixture buffer", func() error {
+		return buffer.Release(context.Background())
+	})
 	value, err := buffer.Value(shape)
 	if err != nil {
 		t.Fatal(err)
@@ -320,7 +328,9 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer retained.Release(context.Background())
+	fixtureCleanup(t, "release copied fixture source", func() error {
+		return retained.Release(context.Background())
+	})
 	source, ok := retained.Value(output)
 	if !ok {
 		t.Fatal("retained output is unavailable")
@@ -340,7 +350,9 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer copiedOwner.Release(context.Background())
+	fixtureCleanup(t, "release copied fixture owner", func() error {
+		return copiedOwner.Release(context.Background())
+	})
 	data := make([]float32, 4)
 	err = cuda.worker.Do(context.Background(), func(state *device.State) error {
 		return state.Driver.MemcpyDtoH(driver.Bytes(data), copied[0].Pointer)

@@ -4,9 +4,11 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -45,7 +47,7 @@ func newFixtureExecutor(t testing.TB) *Executor {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = executor.Close() })
+	fixtureCleanup(t, "close CUDA fixture executor", executor.Close)
 	return executor
 }
 
@@ -56,7 +58,7 @@ func newFixtureWorker(t testing.TB) *device.Worker {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = worker.Close() })
+	fixtureCleanup(t, "close CUDA fixture worker", worker.Close)
 	return worker
 }
 
@@ -66,8 +68,48 @@ func newFixtureExecutorWithWorker(t testing.TB, worker *device.Worker) *Executor
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = executor.Close() })
+	fixtureCleanup(t, "close CUDA fixture executor", executor.Close)
 	return executor
+}
+
+func fixtureCleanup(t testing.TB, operation string, cleanup func() error) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := cleanup(); err != nil {
+			t.Errorf("%s: %v", operation, err)
+		}
+	})
+}
+
+func copyFixtureDeviceBytes(
+	t testing.TB,
+	worker *device.Worker,
+	data []byte,
+) driver.DevicePtr {
+	t.Helper()
+	var pointer driver.DevicePtr
+	err := worker.Do(context.Background(), func(state *device.State) error {
+		var allocateErr error
+		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(data)))
+		if allocateErr != nil {
+			return allocateErr
+		}
+		if copyErr := state.Driver.MemcpyHtoD(pointer, data); copyErr != nil {
+			freeErr := state.Driver.MemFree(pointer)
+			pointer = 0
+			return errors.Join(copyErr, freeErr)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureCleanup(t, "release CUDA fixture buffer", func() error {
+		return worker.Do(context.Background(), func(state *device.State) error {
+			return state.Driver.MemFree(pointer)
+		})
+	})
+	return pointer
 }
 
 func fixturePositions(tokens uint32) []uint32 {

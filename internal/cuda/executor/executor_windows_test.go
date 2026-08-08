@@ -7,7 +7,6 @@ import (
 	"math"
 	"testing"
 
-	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/model"
@@ -461,18 +460,7 @@ func TestExecutorQuantizedGroupedMulMatMatchesReference(t *testing.T) {
 	right := builder.Input("right", dtype.F32, rightShape)
 	output := builder.GroupedMulMat(left, right)
 	worker := newFixtureWorker(t)
-	var pointer driver.DevicePtr
-	if err = worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, storage)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error { return state.Driver.MemFree(pointer) })
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
@@ -1082,47 +1070,16 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 		t.Fatal(err)
 	}
 
-	worker, err := device.New(cudaFixtureDevice)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr, 4)
 	storages := []struct {
 		node *tensor.Tensor
 		data []byte
 	}{{gate, gateStorage}, {up, upStorage}, {down, downStorage}, {gateUp, gateUpStorage}}
-	var allocations []driver.DevicePtr
-	err = worker.Do(context.Background(), func(state *device.State) error {
-		for _, item := range storages {
-			pointer, allocateErr := state.Driver.MemAlloc(uint64(len(item.data)))
-			if allocateErr != nil {
-				return allocateErr
-			}
-			allocations = append(allocations, pointer)
-			deviceFeeds[item.node] = pointer
-			if copyErr := state.Driver.MemcpyHtoD(pointer, item.data); copyErr != nil {
-				return copyErr
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
+	for _, item := range storages {
+		deviceFeeds[item.node] = copyFixtureDeviceBytes(t, worker, item.data)
 	}
-	defer worker.Do(context.Background(), func(state *device.State) error {
-		for _, pointer := range allocations {
-			if err := state.Driver.MemFree(pointer); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.ExecuteWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{output, fusedOutput, squaredOutput},
@@ -1231,28 +1188,9 @@ func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
 	left := builder.Input("left", dtype.Q8_0, leftShape)
 	right := builder.Input("right", dtype.F32, rightShape)
 	output := builder.MulMat(left, right)
-	worker, err := device.New(cudaFixtureDevice)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
-	var pointer driver.DevicePtr
-	if err = worker.Do(context.Background(), func(state *device.State) error {
-		var allocateErr error
-		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
-		if allocateErr != nil {
-			return allocateErr
-		}
-		return state.Driver.MemcpyHtoD(pointer, storage)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Do(context.Background(), func(state *device.State) error { return state.Driver.MemFree(pointer) })
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	worker := newFixtureWorker(t)
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
+	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
 	if err != nil {

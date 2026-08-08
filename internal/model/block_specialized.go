@@ -15,8 +15,8 @@ const (
 	rwkv7DecayScale      = float32(-0.606531)
 )
 
-// BuildDeepSeek4BlockCached: HC compressed-attention block.
-func BuildDeepSeek4BlockCached(
+// buildDeepSeek4BlockCachedWithPlan: hyperconnection leaf.
+func buildDeepSeek4BlockCachedWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -25,8 +25,9 @@ func BuildDeepSeek4BlockCached(
 	pastKV *tensor.Tensor,
 	pastStates CacheStates[*tensor.Tensor],
 	currentPositions *tensor.Tensor,
-	layerIndex uint32,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
+	layerIndex := plan.Layer
 	if spec.Profile().Block != BlockDeepSeek4 || builder == nil || input == nil ||
 		(input.Shape.Rank != 2 && input.Shape.Rank != 3) || layerIndex >= spec.BlockCount || len(positions) == 0 ||
 		uint64(len(positions)) != input.Shape.Dims[input.Shape.Rank-1] ||

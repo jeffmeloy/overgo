@@ -50,11 +50,12 @@ const (
 type LayerOperator uint8
 
 const (
-	LayerOperatorFamilyBlock LayerOperator = iota
+	LayerOperatorNone LayerOperator = iota
 	LayerOperatorDenseTransformer
 	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
 	LayerOperatorSparseLatentAttention
+	LayerOperatorHyperConnection
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionMix
@@ -116,7 +117,6 @@ const (
 // LayerOperatorInstruction: compiled operator and operand indexes.
 type LayerOperatorInstruction struct {
 	Operator               LayerOperator
-	Family                 BlockPolicy
 	Attention              AttentionMixPolicy
 	Hybrid                 HybridMixPolicy
 	Recurrent              RecurrentMixPolicy
@@ -798,76 +798,50 @@ func compileLayerProgram(
 			layerStage(LayerOperatorResidual),
 		)
 	}
-	if block == BlockDense {
-		return LayerProgram{
-			Count: 1,
-			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
-				Operator:   LayerOperatorDenseTransformer,
-				CacheCount: 2,
-				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
-					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,
-				},
-			}},
-		}
-	}
-	if block == BlockKimiLinear {
-		return LayerProgram{
-			Count: 1,
-			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
-				Operator:   LayerOperatorLinearAttention,
-				CacheCount: 2,
-				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
-					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,
-				},
-			}},
-		}
-	}
-	if block == BlockMLA {
-		return LayerProgram{
-			Count: 1,
-			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
-				Operator:   LayerOperatorLatentAttention,
-				CacheCount: 2,
-				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
-					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,
-				},
-			}},
-		}
-	}
-	if block == BlockDSA {
-		return LayerProgram{
-			Count: 1,
-			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
-				Operator:    LayerOperatorSparseLatentAttention,
-				CacheCount:  3,
-				TensorCount: 1,
-				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
-					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey,
-				},
-				Tensors: [maxLayerTensorBindings]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
-			}},
-		}
-	}
-	instruction := LayerOperatorInstruction{
-		Operator: LayerOperatorFamilyBlock,
-		Family:   block,
-	}
-	bindCaches := func(bindings ...RuntimeCacheBinding) {
-		instruction.CacheCount = uint8(len(bindings))
-		copy(instruction.Caches[:], bindings)
-	}
-	bindTensors := func(bindings ...RuntimeTensorBinding) {
-		instruction.TensorCount = uint8(len(bindings))
-		copy(instruction.Tensors[:], bindings)
-	}
 	switch block {
+	case BlockDense:
+		return leafLayerProgram(
+			LayerOperatorDenseTransformer,
+			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+		)
+	case BlockKimiLinear:
+		return leafLayerProgram(
+			LayerOperatorLinearAttention,
+			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+		)
+	case BlockMLA:
+		return leafLayerProgram(
+			LayerOperatorLatentAttention,
+			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+		)
+	case BlockDSA:
+		return leafLayerProgram(
+			LayerOperatorSparseLatentAttention,
+			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
+			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
+		)
 	case BlockDeepSeek4:
-		bindCaches(RuntimeCachePrimaryKey)
-		bindTensors(RuntimeTensorCurrentPositions)
+		return leafLayerProgram(
+			LayerOperatorHyperConnection,
+			[]RuntimeCacheBinding{RuntimeCachePrimaryKey},
+			[]RuntimeTensorBinding{RuntimeTensorCurrentPositions},
+		)
 	default:
-		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue)
+		return LayerProgram{}
 	}
-	return LayerProgram{Count: 1, Instructions: [maxLayerInstructions]LayerOperatorInstruction{instruction}}
+}
+
+func leafLayerProgram(
+	operator LayerOperator,
+	caches []RuntimeCacheBinding,
+	tensors []RuntimeTensorBinding,
+) LayerProgram {
+	instruction := layerStage(operator)
+	instruction.CacheCount = uint8(len(caches))
+	instruction.TensorCount = uint8(len(tensors))
+	copy(instruction.Caches[:], caches)
+	copy(instruction.Tensors[:], tensors)
+	return newLayerProgram(instruction)
 }
 
 func layerStage(operator LayerOperator) LayerOperatorInstruction {

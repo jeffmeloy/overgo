@@ -386,8 +386,14 @@ func executeLayerInstruction(
 		execution.current = result.Output
 		execution.result = result
 		return nil
-	case LayerOperatorFamilyBlock:
-		result, err := executeFamilyBlock(options, plan, instruction, operands)
+	case LayerOperatorHyperConnection:
+		if instruction.CacheCount != 1 || instruction.TensorCount != 1 || plan.Block != BlockDeepSeek4 {
+			return errors.New("compiled hyperconnection stage is invalid")
+		}
+		result, err := buildDeepSeek4BlockCachedWithPlan(
+			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.TokenRows,
+			operands.caches[0], c.PastStates, operands.tensors[0], plan,
+		)
 		if err != nil {
 			return err
 		}
@@ -412,28 +418,6 @@ func executeDenseTransformer(
 		)
 	}
 	return BuildDenseBlockWithOptions(DenseBlockOptions(options))
-}
-
-func executeFamilyBlock(
-	options BlockDispatchOptions,
-	plan LayerPlan,
-	instruction LayerOperatorInstruction,
-	operands layerOperands,
-) (DenseBlockResult, error) {
-	c := options.Context
-	if instruction.Family != plan.Block || instruction.Family == BlockMamba ||
-		instruction.Family == BlockMamba2 {
-		return DenseBlockResult{}, errors.New("compiled family block differs from layer plan")
-	}
-	switch instruction.Family {
-	case BlockDeepSeek4:
-		return BuildDeepSeek4BlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.TokenRows,
-			operands.caches[0], c.PastStates, operands.tensors[0], c.Layer,
-		)
-	default:
-		return DenseBlockResult{}, errors.New("compiled family block is unknown")
-	}
 }
 
 func buildSentinelCache(

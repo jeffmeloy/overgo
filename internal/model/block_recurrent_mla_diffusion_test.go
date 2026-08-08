@@ -1256,7 +1256,10 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 		HyperHeadScale:          builder.Input("hc_head_scale", dtype.F32, tensor.MustShape(1)),
 	}
 	positionState := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 2))
-	result, err := BuildDeepSeek4BlockCached(builder, input, spec, weights, []uint32{0, 1}, []uint32{3, 4}, nil, nil, positionState, 0)
+	result, err := buildDeepSeek4BlockCachedWithPlan(
+		builder, input, spec, weights, []uint32{0, 1}, []uint32{3, 4}, nil, nil,
+		positionState, spec.PlanLayer(0, false),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

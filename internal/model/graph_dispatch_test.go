@@ -13,7 +13,7 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			composition = LayerCompositionAttentionOnly
 		}
 		program := compileLayerProgram(policy, AttentionStandard, false, composition)
-		instruction, ok := program.Instruction(0)
+		_, ok := program.Instruction(0)
 		if !ok {
 			t.Fatalf("block policy %d has no compiled operator", policy)
 		}
@@ -27,6 +27,8 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			want = []LayerOperator{LayerOperatorLatentAttention}
 		case BlockDSA:
 			want = []LayerOperator{LayerOperatorSparseLatentAttention}
+		case BlockDeepSeek4:
+			want = []LayerOperator{LayerOperatorHyperConnection}
 		case BlockMamba, BlockMamba2:
 			want = []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -58,24 +60,17 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
 			}
 		}
-		if len(want) != 0 {
-			if program.Count != uint8(len(want)) {
-				t.Fatalf("semantic program %d count = %d", policy, program.Count)
-			}
-			for index, operator := range want {
-				instruction, _ := program.Instruction(index)
-				if instruction.Operator != operator {
-					t.Fatalf("semantic program %d stage %d = %d, want %d", policy, index, instruction.Operator, operator)
-				}
-				if operator == LayerOperatorRecurrentMix && instruction.Recurrent == RecurrentMixNone {
-					t.Fatalf("semantic program %d recurrent stage has no math policy", policy)
-				}
-			}
-			continue
+		if program.Count != uint8(len(want)) {
+			t.Fatalf("semantic program %d count = %d", policy, program.Count)
 		}
-		if program.Count != 1 || instruction.Operator != LayerOperatorFamilyBlock ||
-			instruction.Family != policy {
-			t.Fatalf("block policy %d family program = %+v", policy, program)
+		for index, operator := range want {
+			instruction, _ := program.Instruction(index)
+			if instruction.Operator != operator {
+				t.Fatalf("semantic program %d stage %d = %d, want %d", policy, index, instruction.Operator, operator)
+			}
+			if operator == LayerOperatorRecurrentMix && instruction.Recurrent == RecurrentMixNone {
+				t.Fatalf("semantic program %d recurrent stage has no math policy", policy)
+			}
 		}
 	}
 }

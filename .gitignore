@@ -1,6 +1,7 @@
 /bin/
 /build/
 /dist/
+/repodb-store/
 /kernels/generated/
 *.exe
 *.out

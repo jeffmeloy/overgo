@@ -195,6 +195,13 @@ func validateManifest(root string, document manifest) error {
 		if name == "" || item.Status == "" || len(item.Features) == 0 {
 			return fmt.Errorf("compatibility manifest: model %q is incomplete", name)
 		}
+		// Evidence tier: "implemented" claims oracle-backed behavior, not
+		// structural coverage. A model without real-model validation or a
+		// pinned fixture is honestly "experimental" -- breadth must not
+		// inherit evidence it does not carry.
+		if item.Status == "implemented" && !modelHasValidation(item) {
+			return fmt.Errorf("compatibility manifest: model %q claims implemented without real_model_validation or a validated fixture; use experimental until oracle evidence exists", name)
+		}
 	}
 	if _, err := os.Stat(filepath.Join(root, "internal", "model", "architecture.go")); err == nil {
 		if err := validateModelCoverage(document.Models, model.SupportedArchitectures()); err != nil {
@@ -204,6 +211,23 @@ func validateManifest(root string, document manifest) error {
 		return fmt.Errorf("compatibility manifest: inspect architecture registry: %w", err)
 	}
 	return nil
+}
+
+func modelHasValidation(item modelClaim) bool {
+	if item.ValidatedFixture != "" || item.AdditionalValidatedFixture != "" ||
+		item.MultimodalValidatedFixture != "" || item.VideoValidatedFixture != "" {
+		return true
+	}
+	switch v := item.RealModelValidation.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(v) != "" && !strings.EqualFold(strings.TrimSpace(v), "none")
+	case bool:
+		return v
+	default:
+		return true
+	}
 }
 
 func validateModelCoverage(models map[string]modelClaim, supported []string) error {

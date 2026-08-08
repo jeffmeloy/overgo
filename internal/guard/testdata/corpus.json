@@ -1,0 +1,254 @@
+{
+  "_note": "Guard corpus: every case is a command actually issued in the lineage repos or a minimal variant. DENY proves each rule fires; ALLOW proves it does not fire on the neighbouring safe command -- the half that decides whether the guard survives contact with real work.",
+  "cases": [
+    {
+      "name": "powershell-tool-disabled",
+      "tool": "PowerShell",
+      "command": "Get-ChildItem",
+      "expect": "DENY",
+      "rule": "powershell"
+    },
+    {
+      "name": "powershell-invocation-from-bash",
+      "command": "powershell -Command \"gci\"",
+      "expect": "DENY",
+      "rule": "powershell"
+    },
+    {
+      "name": "prose-mentioning-powershell-quoted",
+      "command": "git log --grep='remove powershell verify chain'",
+      "expect": "ALLOW",
+      "rule": "powershell"
+    },
+    {
+      "name": "worktree-remove-is-the-170gb-command",
+      "command": "git worktree remove C:/Users/jeffm/some_lane",
+      "expect": "DENY",
+      "rule": "worktree"
+    },
+    {
+      "name": "worktree-remove-force",
+      "command": "git worktree remove --force .claude/worktrees/lane",
+      "expect": "DENY",
+      "rule": "worktree"
+    },
+    {
+      "name": "worktree-list-is-read-only",
+      "command": "git worktree list",
+      "expect": "ALLOW",
+      "rule": "worktree"
+    },
+    {
+      "name": "branch-d-is-the-sanctioned-retirement",
+      "command": "git branch -d retired_lane",
+      "expect": "ALLOW",
+      "rule": "worktree"
+    },
+    {
+      "name": "wrapped-worktree-remove-is-unwrapped",
+      "command": "bash -c 'git worktree remove .claude/worktrees/lane'",
+      "expect": "DENY",
+      "rule": "worktree"
+    },
+    {
+      "name": "rm-rf-anywhere",
+      "command": "rm -rf build/",
+      "expect": "DENY",
+      "rule": "force"
+    },
+    {
+      "name": "git-clean",
+      "command": "git clean -fdx",
+      "expect": "DENY",
+      "rule": "force"
+    },
+    {
+      "name": "rm-without-force-is-ordinary",
+      "command": "rm /tmp/scratch_run.txt",
+      "expect": "ALLOW",
+      "rule": "force"
+    },
+    {
+      "name": "remove-item-recurse-force",
+      "command": "Remove-Item -Recurse -Force dist",
+      "expect": "DENY",
+      "rule": "force"
+    },
+    {
+      "name": "delete-under-models",
+      "command": "rm models/SomeModel/x.bin",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "double-quoted-protected-target",
+      "command": "rm \"C:/t/models/x\"",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "single-quoted-protected-target",
+      "command": "rm 'C:/t/models/x'",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "quoted-spaced-protected-target",
+      "command": "mv \"C:/t/models/a b\" C:/t/out",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "delete-under-repodb-store",
+      "command": "rm -r C:/data/repodb-store/snapshots",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "reading-under-models-is-the-whole-job",
+      "command": "ls models/SomeModel/",
+      "expect": "ALLOW",
+      "rule": "protected"
+    },
+    {
+      "name": "message-naming-a-quoted-protected-target",
+      "command": "go run ./cmd/repodb-query -note \"x; rm C:/t/models/x\"",
+      "expect": "ALLOW",
+      "rule": "protected"
+    },
+    {
+      "name": "double-quoted-dollar-substitution-executes",
+      "command": "echo \"$(rm C:/t/models/x)\"",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "double-quoted-backtick-substitution-executes",
+      "command": "echo \"`rm C:/t/models/x`\"",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "escaped-substitutions-are-literal",
+      "command": "echo \"\\$(rm C:/t/models/x) \\`rm C:/t/models/x\\`\"",
+      "expect": "ALLOW",
+      "rule": "protected"
+    },
+    {
+      "name": "raw-git-commit",
+      "command": "git commit -m \"quick fix\"",
+      "expect": "DENY",
+      "rule": "commit-gate"
+    },
+    {
+      "name": "gate-issued-commit-is-exempt",
+      "command": "git commit -m \"quick fix\"",
+      "gate_env": true,
+      "expect": "ALLOW",
+      "rule": "commit-gate"
+    },
+    {
+      "name": "git-commit-completing-a-merge",
+      "command": "git commit --no-edit",
+      "merge_in_progress": true,
+      "expect": "ALLOW",
+      "rule": "commit-gate"
+    },
+    {
+      "name": "hyphen-prefixed-commit-is-prose-not-a-commit",
+      "command": "git log --grep=pre-commit",
+      "expect": "ALLOW",
+      "rule": "commit-gate"
+    },
+    {
+      "name": "wrapped-raw-commit-is-unwrapped",
+      "command": "bash -c 'git commit -m wip'",
+      "expect": "DENY",
+      "rule": "commit-gate"
+    },
+    {
+      "name": "heredoc-writes-go-with-escape",
+      "command": "cat > internal/tensor/x.go <<'EOF'\nfunc f() { s := \"a\\\\tb\" }\nEOF",
+      "expect": "DENY",
+      "rule": "heredoc"
+    },
+    {
+      "name": "heredoc-python-writes-json-with-escape",
+      "command": "python - <<'PY'\nimport json\nd = {'x': 'a\\\\nb'}\njson.dump(d, open('compatibility.yaml','w'))\nPY",
+      "expect": "DENY",
+      "rule": "heredoc"
+    },
+    {
+      "name": "heredoc-read-only-no-write",
+      "command": "python - <<'PY'\nimport json\nprint(json.load(open('kernels/manifest.json'))['version'])\nPY",
+      "expect": "ALLOW",
+      "rule": "heredoc"
+    },
+    {
+      "name": "heredoc-writes-but-no-backslash",
+      "command": "python - <<'PY'\nimport json\njson.dump({'a': 1}, open('out.json','w'))\nPY",
+      "expect": "ALLOW",
+      "rule": "heredoc"
+    },
+    {
+      "name": "windows-path-backslashes-no-heredoc",
+      "command": "go run ./cmd/gate -message-file \"C:\\\\Temp\\\\msg.txt\"",
+      "expect": "ALLOW",
+      "rule": "heredoc"
+    },
+    {
+      "name": "conflict-marker-grep-is-not-a-heredoc",
+      "command": "grep -c '^<<<<<<<\\|^=======\\|^>>>>>>>' skill.md",
+      "expect": "ALLOW",
+      "rule": "heredoc"
+    },
+    {
+      "name": "xargs-carries-rm-into-command-position",
+      "command": "echo models/x | xargs rm -rf",
+      "expect": "DENY",
+      "rule": "force"
+    },
+    {
+      "name": "find-exec-delete-over-protected-path",
+      "command": "find models/ -name '*.tmp' -exec rm {} \\;",
+      "expect": "DENY",
+      "rule": "find-delete"
+    },
+    {
+      "name": "find-dash-delete-over-protected-path",
+      "command": "find datasets/ -name '*.part' -delete",
+      "expect": "DENY",
+      "rule": "find-delete"
+    },
+    {
+      "name": "find-exec-read-only-is-ordinary",
+      "command": "find models/ -name 'config.json' -exec cat {} \\;",
+      "expect": "ALLOW",
+      "rule": "find-delete"
+    },
+    {
+      "name": "find-delete-outside-protected-paths",
+      "command": "find /tmp/scratch -name '*.tmp' -delete",
+      "expect": "ALLOW",
+      "rule": "find-delete"
+    },
+    {
+      "name": "ordinary-test-run",
+      "command": "go test ./internal/... -count=1",
+      "expect": "ALLOW",
+      "rule": "baseline"
+    },
+    {
+      "name": "ordinary-build",
+      "command": "go build ./...",
+      "expect": "ALLOW",
+      "rule": "baseline"
+    },
+    {
+      "name": "ordinary-read",
+      "command": "tail -20 /tmp/gate.log",
+      "expect": "ALLOW",
+      "rule": "baseline"
+    }
+  ]
+}

@@ -96,7 +96,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			hostFeeds[pastKey] = past.Key
 			hostFeeds[pastValue] = past.Value
 		}
-		result, err := buildDenseBlockFromPlan(
+		result, err := buildLayerBlockFromPlan(
 			builder, current, r.spec, graphWeights, positions, multiPositions,
 			pastKey, pastValue, plan,
 		)
@@ -170,7 +170,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		); err != nil {
 			return reference.Value{}, err
 		}
-		result, err := buildDenseBlockFromPlan(
+		result, err := buildLayerBlockFromPlan(
 			builder, current, r.spec, graphWeights, positions, nil, nil, nil, plan,
 		)
 		if err != nil {
@@ -380,7 +380,7 @@ func (r *Runner) runDenseLayerNoCache(
 	); err != nil {
 		return reference.Value{}, err
 	}
-	result, err := buildDenseBlockFromPlan(
+	result, err := buildLayerBlockFromPlan(
 		builder, input, r.spec, graphWeights, positions, nil, nil, nil, plan,
 	)
 	if err != nil {
@@ -393,7 +393,7 @@ func (r *Runner) runDenseLayerNoCache(
 	return results[result.Output], nil
 }
 
-func buildDenseBlockFromPlan(
+func buildLayerBlockFromPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec model.Spec,
@@ -408,7 +408,7 @@ func buildDenseBlockFromPlan(
 		converted := [4][]uint32(*multiPositions)
 		axes = &converted
 	}
-	return model.BuildDenseBlockWithOptions(model.DenseBlockOptions{
+	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions, MultiPositions: axes,
 			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,

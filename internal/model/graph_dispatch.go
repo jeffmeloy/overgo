@@ -24,10 +24,10 @@ type CachedBlockContext struct {
 	Sequences        uint64
 }
 
-// BlockDispatchOptions: family-dispatch graph inputs.
+// BlockDispatchOptions: compiled layer-program inputs.
 type BlockDispatchOptions DenseBlockOptions
 
-// BuildArchitectureBlockCached: family-routed graph construction.
+// BuildArchitectureBlockCached: compiled layer-program construction.
 func BuildArchitectureBlockCached(
 	options BlockDispatchOptions,
 ) (DenseBlockResult, error) {
@@ -44,6 +44,11 @@ func BuildArchitectureBlockCached(
 	plan := *options.Plan
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
+	}
+	if plan.Program != compileLayerProgram(
+		plan.Block, plan.Attention, plan.Recurrent, plan.Composition,
+	) {
+		return DenseBlockResult{}, errors.New("compiled layer program differs from layer policy")
 	}
 	if plan.GraphFamily == ArchitectureFamilyEncoderDecoder {
 		return DenseBlockResult{}, errors.New(

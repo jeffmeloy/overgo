@@ -90,6 +90,7 @@ const (
 	AttentionMixNone AttentionMixPolicy = iota
 	AttentionMixNemotron
 	AttentionMixQwenGDN
+	AttentionMixOutputProjection
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -146,6 +147,7 @@ const (
 	LayerCompositionRecurrentOnly
 	LayerCompositionAttentionOnly
 	LayerCompositionFeedForwardOnly
+	LayerCompositionIdentity
 )
 
 func (p LayerProgram) Instruction(index int) (LayerOperatorInstruction, bool) {
@@ -322,6 +324,17 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 			composition = LayerCompositionAttentionOnly
 		}
 	}
+	deciSparse := profile.DeciSparse &&
+		(s.LayerFeedForwardLength(layer) == 0 || s.LayerHeadCount(layer) == 0 ||
+			s.LayerKVHeadCount(layer) == 0)
+	if deciSparse {
+		switch {
+		case s.LayerFeedForwardLength(layer) == 0:
+			composition = LayerCompositionIdentity
+		case s.LayerHeadCount(layer) == 0:
+			composition = LayerCompositionFeedForwardOnly
+		}
+	}
 	experts := s.moeGraphPlan(layer)
 	if block == BlockNemotronH {
 		experts.Routing = tensor.MoERoutingSigmoid
@@ -377,13 +390,11 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		ExpertComposition: s.expertCompositionPlan(),
 		DenseWeights:      s.denseWeightPlan(profile, layer),
 		DenseGraph:        profile.DenseGraph,
-		DeciSparse: profile.DeciSparse &&
-			(s.LayerFeedForwardLength(layer) == 0 || s.LayerHeadCount(layer) == 0 ||
-				s.LayerKVHeadCount(layer) == 0),
-		QKPreprocess:    s.qkPreprocessPlan(layer),
-		QueryScale:      s.queryScalePlan(profile, layer),
-		AttentionOutput: s.attentionOutputPlan(normalization),
-		ResidualStages:  s.residualStagePlan(profile, normalization),
+		DeciSparse:        deciSparse,
+		QKPreprocess:      s.qkPreprocessPlan(layer),
+		QueryScale:        s.queryScalePlan(profile, layer),
+		AttentionOutput:   s.attentionOutputPlan(normalization),
+		ResidualStages:    s.residualStagePlan(profile, normalization),
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -820,6 +831,22 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	switch block {
 	case BlockDense:
+		if plan.DeciSparse {
+			stages := []LayerOperatorInstruction{cacheSentinelLayerStage()}
+			if plan.Composition == LayerCompositionIdentity {
+				return newLayerProgram(stages...)
+			}
+			if plan.Composition != LayerCompositionFeedForwardOnly {
+				stages = append(stages, layerStage(LayerOperatorAttentionNorm),
+					attentionLayerStageWithoutCache(AttentionMixOutputProjection),
+					layerStage(LayerOperatorResidual))
+			}
+			return newLayerProgram(append(stages,
+				layerStage(LayerOperatorFeedForwardNorm),
+				feedForwardLayerStage(FeedForwardMixStandardSwiGLU),
+				layerStage(LayerOperatorResidual),
+			)...)
+		}
 		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
 			return newLayerProgram(
 				leafLayerStage(
@@ -939,6 +966,12 @@ func attentionLayerStage(policy AttentionMixPolicy) LayerOperatorInstruction {
 	instruction.CacheCount = 2
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	instruction.Caches[1] = RuntimeCachePrimaryValue
+	return instruction
+}
+
+func attentionLayerStageWithoutCache(policy AttentionMixPolicy) LayerOperatorInstruction {
+	instruction := layerStage(LayerOperatorAttentionMix)
+	instruction.Attention = policy
 	return instruction
 }
 

@@ -91,22 +91,30 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 }
 
 func TestDenseProgramsIsolateAtomicGraphs(t *testing.T) {
-	fixtures := []struct {
-		name    string
-		plan    LayerPlan
-		profile ArchitectureProfile
-	}{
-		{name: "special graph", plan: LayerPlan{Block: BlockDense}, profile: ArchitectureProfile{DenseGraph: DenseGraphBERT}},
-		{name: "sparse layer", plan: LayerPlan{Block: BlockDense, DeciSparse: true}},
+	program := compileLayerProgram(
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
+	)
+	instruction, ok := program.Instruction(0)
+	if !ok || program.Count != 1 || instruction.Operator != LayerOperatorDenseTransformer {
+		t.Fatalf("atomic dense program = %+v", program)
 	}
-	for _, fixture := range fixtures {
-		t.Run(fixture.name, func(t *testing.T) {
-			program := compileLayerProgram(fixture.plan, fixture.profile)
-			instruction, ok := program.Instruction(0)
-			if !ok || program.Count != 1 || instruction.Operator != LayerOperatorDenseTransformer {
-				t.Fatalf("atomic dense program = %+v", program)
-			}
-		})
+}
+
+func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
+	program := compileLayerProgram(LayerPlan{Block: BlockDense, DeciSparse: true}, ArchitectureProfile{})
+	want := []LayerOperator{
+		LayerOperatorCacheSentinel, LayerOperatorAttentionNorm, LayerOperatorAttentionMix,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+		LayerOperatorResidual,
+	}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("Deci stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("Deci stage %d = %d, want %d", index, instruction.Operator, operator)
+		}
 	}
 }
 

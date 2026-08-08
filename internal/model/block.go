@@ -302,11 +302,6 @@ func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
 	case DenseGraphRWKV7:
 		return buildRWKV7BlockCached(c.builder, c.input, c.spec, c.weights, c.pastKey, c.pastValue, c.layer)
 	}
-	if c.plan.DeciSparse {
-		return buildDeciSparseBlockCached(
-			c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer,
-		)
-	}
 	return DenseBlockResult{}, errors.New("standard dense block requires staged execution")
 }
 
@@ -957,68 +952,6 @@ func deepSeek4LimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, li
 	gate = builder.Clamp(gate, -math.MaxFloat32, limit)
 	up = builder.Clamp(up, -limit, limit)
 	return builder.SwiGLU(gate, up)
-}
-
-func buildDeciSparseBlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey *tensor.Tensor,
-	pastValue *tensor.Tensor,
-	layerIndex uint32,
-) (DenseBlockResult, error) {
-	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Deci position count is invalid")
-	}
-	cacheKey, cacheValue, err := buildSentinelCache(builder, input, pastKey, pastValue)
-	if err != nil {
-		return DenseBlockResult{}, fmt.Errorf("Deci: %w", err)
-	}
-	if spec.LayerFeedForwardLength(layerIndex) == 0 {
-		return DenseBlockResult{Output: input, Key: cacheKey, Value: cacheValue}, builder.Err()
-	}
-	ffnInput := input
-	if spec.LayerHeadCount(layerIndex) > 0 {
-		if weights.AttentionNorm == nil || weights.AttentionOutput == nil {
-			return DenseBlockResult{}, errors.New("Deci linear-attention weights are incomplete")
-		}
-		projected := builder.MulMat(
-			weights.AttentionOutput,
-			builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon),
-		)
-		if weights.AttentionOutputBias != nil {
-			projected = builder.Add(projected, weights.AttentionOutputBias)
-		}
-		ffnInput = builder.Add(projected, input)
-	}
-	if err := (graphWeights{
-		requireGraphWeight("norm", weights.FeedForwardNorm),
-		requireGraphWeight("gate", weights.FeedForwardGate),
-		requireGraphWeight("up", weights.FeedForwardUp),
-		requireGraphWeight("down", weights.FeedForwardDown),
-	}).validate("Deci feed-forward"); err != nil {
-		return DenseBlockResult{}, err
-	}
-	normalized := builder.WeightedRMSNorm(ffnInput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	gate := builder.MulMat(weights.FeedForwardGate, normalized)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	if weights.FeedForwardGateBias != nil {
-		gate = builder.Add(gate, weights.FeedForwardGateBias)
-	}
-	if weights.FeedForwardUpBias != nil {
-		up = builder.Add(up, weights.FeedForwardUpBias)
-	}
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	if weights.FeedForwardDownBias != nil {
-		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
-	}
-	output := builder.Add(feedForward, ffnInput)
-	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
-	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
 func buildQwen35AttentionMixCached(

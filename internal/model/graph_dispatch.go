@@ -173,18 +173,24 @@ func executeLayerInstruction(
 		)
 		return c.Builder.Err()
 	case LayerOperatorAttentionMix:
-		if instruction.CacheCount != 2 || instruction.TensorCount != 0 {
+		if instruction.TensorCount != 0 {
 			return errors.New("compiled attention-mixing stage is invalid")
 		}
 		var result DenseBlockResult
 		var err error
 		switch instruction.Attention {
 		case AttentionMixNemotron:
+			if instruction.CacheCount != 2 {
+				return errors.New("compiled attention-mixing cache bindings are invalid")
+			}
 			result, err = buildNemotronAttentionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
 		case AttentionMixQwenGDN:
+			if instruction.CacheCount != 2 {
+				return errors.New("compiled attention-mixing cache bindings are invalid")
+			}
 			sequences := c.Sequences
 			if sequences == 0 {
 				sequences = 1
@@ -194,13 +200,25 @@ func executeLayerInstruction(
 				c.Positions, c.MultiPositions, sequences,
 				operands.caches[0], operands.caches[1], c.CacheWrite,
 			)
+		case AttentionMixOutputProjection:
+			if instruction.CacheCount != 0 || options.Weights.AttentionOutput == nil {
+				return errors.New("compiled output-projection stage is invalid")
+			}
+			projected := c.Builder.MulMat(options.Weights.AttentionOutput, execution.current)
+			if options.Weights.AttentionOutputBias != nil {
+				projected = c.Builder.Add(projected, options.Weights.AttentionOutputBias)
+			}
+			result.Output, err = projected, c.Builder.Err()
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
 		if err != nil {
 			return err
 		}
-		execution.result = result
+		execution.result.Output = result.Output
+		if result.Key != nil || result.Value != nil {
+			execution.result.Key, execution.result.Value = result.Key, result.Value
+		}
 		execution.current = result.Output
 		return nil
 	case LayerOperatorHybridMix:
@@ -330,6 +348,9 @@ func executeLayerInstruction(
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 {
 			return errors.New("compiled sentinel-cache stage is invalid")
 		}
+		if len(c.Positions) == 0 || uint64(len(c.Positions)) != execution.residual.Shape.Dims[1] {
+			return errors.New("compiled sentinel-cache positions are invalid")
+		}
 		key, value, err := buildSentinelCache(
 			c.Builder, execution.residual, operands.caches[0], operands.caches[1],
 		)
@@ -338,6 +359,7 @@ func executeLayerInstruction(
 		}
 		execution.result.Key = key
 		execution.result.Value = value
+		execution.result.Output = execution.residual
 		return nil
 	case LayerOperatorScale:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||

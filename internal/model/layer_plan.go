@@ -822,9 +822,14 @@ func compileLayerProgram(
 				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 			)
 		}
-		return leafLayerProgram(
-			LayerOperatorLinearAttention,
-			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm),
+			leafLayerStage(
+				LayerOperatorLinearAttention,
+				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+			),
+			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
+			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
 		)
 	case BlockMLA:
 		return leafLayerProgram(
@@ -853,12 +858,20 @@ func leafLayerProgram(
 	caches []RuntimeCacheBinding,
 	tensors []RuntimeTensorBinding,
 ) LayerProgram {
+	return newLayerProgram(leafLayerStage(operator, caches, tensors))
+}
+
+func leafLayerStage(
+	operator LayerOperator,
+	caches []RuntimeCacheBinding,
+	tensors []RuntimeTensorBinding,
+) LayerOperatorInstruction {
 	instruction := layerStage(operator)
 	instruction.CacheCount = uint8(len(caches))
 	instruction.TensorCount = uint8(len(tensors))
 	copy(instruction.Caches[:], caches)
 	copy(instruction.Tensors[:], tensors)
-	return newLayerProgram(instruction)
+	return instruction
 }
 
 func layerStage(operator LayerOperator) LayerOperatorInstruction {

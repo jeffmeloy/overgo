@@ -1323,6 +1323,10 @@
     "Block": 8,
     "Capabilities": 8388618,
     "CatalogFamily": 2,
+    "Experts": {
+      "Composition": 1,
+      "SelectionBias": true
+    },
     "Family": 2,
     "GraphFamily": 2,
     "MLAVariant": 4,

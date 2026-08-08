@@ -358,9 +358,9 @@ func executeLayerInstruction(
 			plan.Block != BlockKimiLinear || !plan.Recurrent {
 			return errors.New("compiled linear-attention stage is invalid")
 		}
-		result, err := buildKimiKDABlockCachedWithPlan(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan,
+		result, err := buildKimiKDAMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1],
 		)
 		if err != nil {
 			return err
@@ -489,18 +489,24 @@ func buildStandardFeedForwardMix(
 		} else {
 			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
 		}
+		if plan.Experts.SelectionBias {
+			required.add("feed-forward selection bias", weights.FeedForwardExpertBias)
+		}
+		switch plan.ExpertComposition.kind {
+		case expertSharedAdd, expertSharedAverage, expertSharedLimited:
+			required.add("shared expert gate", weights.FeedForwardSharedGate)
+			required.add("shared expert up", weights.FeedForwardSharedUp)
+			required.add("shared expert down", weights.FeedForwardSharedDown)
+		case expertSharedGated:
+			required.add("shared expert router", weights.FeedForwardSharedRouter)
+			required.add("shared expert gate", weights.FeedForwardSharedGate)
+			required.add("shared expert up", weights.FeedForwardSharedUp)
+			required.add("shared expert down", weights.FeedForwardSharedDown)
+		}
 		if err := required.validate("compiled feed-forward stage"); err != nil {
 			return nil, err
 		}
-		feedForward := plan.Experts.BuildLayer(builder, input, nil, weights)
-		if plan.Block == BlockGraniteHybrid && spec.SharedExpertFF > 0 {
-			if weights.FeedForwardSharedGate == nil || weights.FeedForwardSharedUp == nil ||
-				weights.FeedForwardSharedDown == nil {
-				return nil, errors.New("compiled shared feed-forward stage is incomplete")
-			}
-			feedForward = builder.Add(feedForward, buildSharedSwiGLU(builder, input, weights))
-		}
-		return feedForward, builder.Err()
+		return plan.ExpertComposition.Build(builder, input, input, input, spec, weights, plan)
 	}
 	if err := (graphWeights{
 		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),

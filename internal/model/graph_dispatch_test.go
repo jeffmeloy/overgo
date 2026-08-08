@@ -80,8 +80,14 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 		BlockKimiLinear, AttentionStandard, true, LayerCompositionStandard,
 	)
 	instruction, ok := program.Instruction(0)
-	if !ok || program.Count != 1 || instruction.Operator != LayerOperatorLinearAttention {
+	if !ok || program.Count != 6 || instruction.Operator != LayerOperatorAttentionNorm {
 		t.Fatalf("Kimi recurrent program = %+v", program)
+	}
+	mixer, _ := program.Instruction(1)
+	feedForward, _ := program.Instruction(4)
+	if mixer.Operator != LayerOperatorLinearAttention ||
+		feedForward.FeedForward != FeedForwardMixStandardSwiGLU {
+		t.Fatalf("Kimi recurrent policies = %+v/%+v", mixer, feedForward)
 	}
 }
 

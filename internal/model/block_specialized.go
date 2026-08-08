@@ -654,25 +654,22 @@ func BuildRWKV7BlockCached(
 	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState, Auxiliary: auxiliary}, nil
 }
 
-// buildKimiKDABlockCachedWithPlan: recurrent KDA leaf.
-func buildKimiKDABlockCachedWithPlan(
+// buildKimiKDAMixCached: recurrent KDA mixer.
+func buildKimiKDAMixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
-	plan LayerPlan,
 ) (DenseBlockResult, error) {
 	if spec.Profile().Block != BlockKimiLinear {
 		return DenseBlockResult{}, errors.New("Kimi Linear block requires kimi-linear architecture")
 	}
-	layerIndex := plan.Layer
-	if builder == nil || input == nil || pastKey == nil || pastValue == nil {
+	if builder == nil || normalized == nil || pastKey == nil || pastValue == nil {
 		return DenseBlockResult{}, errors.New("Kimi Linear KDA input/state is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("attention Q", weights.AttentionQ),
 		requireGraphWeight("attention K", weights.AttentionK),
 		requireGraphWeight("attention V", weights.AttentionV),
@@ -688,13 +685,11 @@ func buildKimiKDABlockCachedWithPlan(
 		requireGraphWeight("output gate A", weights.SSMOutputGateA),
 		requireGraphWeight("output gate B", weights.SSMOutputGateB),
 		requireGraphWeight("SSM norm", weights.SSMNorm),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
 	}
-	addKimiFeedForwardRequirements(&required, spec, weights, layerIndex)
 	if err := required.validate("Kimi Linear KDA"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if input.Shape.Rank != 2 || len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+	if normalized.Shape.Rank != 2 || len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Kimi Linear KDA input shape is invalid")
 	}
 	headDim := uint64(spec.KDAHeadDim)
@@ -706,7 +701,6 @@ func buildKimiKDABlockCachedWithPlan(
 		!pastValue.Shape.Equal(tensor.MustShape(headDim, headDim, heads, 1)) {
 		return DenseBlockResult{}, errors.New("Kimi Linear KDA cache shape is invalid")
 	}
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	convolve := func(projection, kernel *tensor.Tensor, stateIndex uint64) (*tensor.Tensor, *tensor.Tensor) {
 		state := builder.FlatSlice(pastKey, stateIndex*window*inner, window, inner)
 		projected := builder.MulMat(projection, normalized)
@@ -744,61 +738,10 @@ func buildKimiKDABlockCachedWithPlan(
 		builder.Sigmoid(outputGate),
 	)
 	attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, inner, tokens))
-	residual := builder.Add(input, attention)
-	output := buildKimiFeedForward(builder, residual, spec, weights, layerIndex)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: nextConv, Value: nextState}, nil
-}
-
-func buildKimiFeedForward(
-	builder *tensor.Builder,
-	residual *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	layerIndex uint32,
-) *tensor.Tensor {
-	normalized := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	if layerIndex < spec.LeadingDenseBlocks {
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		up := builder.MulMat(weights.FeedForwardUp, normalized)
-		return builder.Add(residual, builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up)))
-	}
-	plan := spec.moeGraphPlan(layerIndex)
-	plan.NormalizeTopKProb = true
-	plan.SelectionBias = true
-	routed := plan.BuildLayer(builder, normalized, nil, weights)
-	shared := builder.MulMat(
-		weights.FeedForwardSharedDown,
-		builder.SwiGLU(
-			builder.MulMat(weights.FeedForwardSharedGate, normalized),
-			builder.MulMat(weights.FeedForwardSharedUp, normalized),
-		),
-	)
-	return builder.Add(residual, builder.Add(routed, shared))
-}
-
-func addKimiFeedForwardRequirements(
-	required *graphWeights,
-	spec Spec,
-	weights LayerGraphWeights,
-	layerIndex uint32,
-) {
-	if layerIndex < spec.LeadingDenseBlocks {
-		required.add("feed-forward gate", weights.FeedForwardGate)
-		required.add("feed-forward up", weights.FeedForwardUp)
-		required.add("feed-forward down", weights.FeedForwardDown)
-		return
-	}
-	required.add("feed-forward router", weights.FeedForwardRouter)
-	required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
-	required.add("feed-forward expert up", weights.FeedForwardUpExperts)
-	required.add("feed-forward expert down", weights.FeedForwardDownExperts)
-	required.add("feed-forward correction bias", weights.FeedForwardExpertBias)
-	required.add("shared expert gate", weights.FeedForwardSharedGate)
-	required.add("shared expert up", weights.FeedForwardSharedUp)
-	required.add("shared expert down", weights.FeedForwardSharedDown)
+	return DenseBlockResult{Output: attention, Key: nextConv, Value: nextState}, nil
 }
 
 // buildLFM2RecurrentMixCached: short-convolution mixer.

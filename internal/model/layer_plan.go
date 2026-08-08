@@ -54,6 +54,7 @@ const (
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionMix
+	LayerOperatorHybridMix
 	LayerOperatorRecurrentMix
 	LayerOperatorFeedForwardNorm
 	LayerOperatorFeedForwardMix
@@ -83,6 +84,14 @@ const (
 	AttentionMixQwenGDN
 )
 
+// HybridMixPolicy: parallel mixer implementation.
+type HybridMixPolicy uint8
+
+const (
+	HybridMixNone HybridMixPolicy = iota
+	HybridMixFalconH1
+)
+
 // FeedForwardMixPolicy: feed-forward operator implementation.
 type FeedForwardMixPolicy uint8
 
@@ -105,6 +114,7 @@ type LayerOperatorInstruction struct {
 	Operator               LayerOperator
 	Family                 BlockPolicy
 	Attention              AttentionMixPolicy
+	Hybrid                 HybridMixPolicy
 	Recurrent              RecurrentMixPolicy
 	FeedForward            FeedForwardMixPolicy
 	RequireConvolutionBias bool
@@ -722,6 +732,13 @@ func compileLayerProgram(
 			layerStage(LayerOperatorResidual),
 		)
 	}
+	if block == BlockFalconH1 {
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm), hybridLayerStage(HybridMixFalconH1),
+			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
+			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+		)
+	}
 	if block == BlockGraniteHybrid {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba2, false),
@@ -790,8 +807,6 @@ func compileLayerProgram(
 		copy(instruction.Tensors[:], bindings)
 	}
 	switch block {
-	case BlockFalconH1:
-		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheConvolution, RuntimeCacheSSM)
 	case BlockDSA:
 		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey)
 		bindTensors(RuntimeTensorPerLayerInput)
@@ -827,6 +842,17 @@ func attentionLayerStage(policy AttentionMixPolicy) LayerOperatorInstruction {
 	instruction.CacheCount = 2
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	instruction.Caches[1] = RuntimeCachePrimaryValue
+	return instruction
+}
+
+func hybridLayerStage(policy HybridMixPolicy) LayerOperatorInstruction {
+	instruction := layerStage(LayerOperatorHybridMix)
+	instruction.Hybrid = policy
+	instruction.CacheCount = 4
+	instruction.Caches[0] = RuntimeCachePrimaryKey
+	instruction.Caches[1] = RuntimeCachePrimaryValue
+	instruction.Caches[2] = RuntimeCacheConvolution
+	instruction.Caches[3] = RuntimeCacheSSM
 	return instruction
 }
 

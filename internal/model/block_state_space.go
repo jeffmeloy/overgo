@@ -195,35 +195,29 @@ func buildMamba2MixerCached(
 	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
 }
 
-func BuildFalconH1BlockCached(
+func buildFalconH1HybridMixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if builder == nil || input == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Falcon-H1 block input/state is nil")
+	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
+		return DenseBlockResult{}, errors.New("Falcon-H1 hybrid mix input/state is nil")
 	}
-	if spec.Profile().Block != BlockFalconH1 || input.Shape.Rank != 2 ||
-		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Falcon-H1 block architecture/input is invalid")
+	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("Falcon-H1 hybrid mix input is invalid")
 	}
-	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Falcon-H1 block position count is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "Falcon-H1 KV cache is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-	}).validate("Falcon-H1 block"); err != nil {
+	}).validate("Falcon-H1 hybrid mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if weights.AttentionQKV == nil && (weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
@@ -236,7 +230,6 @@ func BuildFalconH1BlockCached(
 	queryWidth := heads * uint64(spec.KeyLength)
 	keyWidth := kvHeads * uint64(spec.KeyLength)
 	valueWidth := kvHeads * uint64(spec.ValueLength)
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	var query, key, value *tensor.Tensor
 	if weights.AttentionQKV != nil {
 		mixed := builder.MulMat(weights.AttentionQKV, normalized)
@@ -296,26 +289,12 @@ func BuildFalconH1BlockCached(
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
-	residual := builder.Add(input, builder.Add(attention, ssm.Output))
-	ffnInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	gate := builder.MulMat(weights.FeedForwardGate, ffnInput)
-	up := builder.MulMat(weights.FeedForwardUp, ffnInput)
-	if weights.FeedForwardGateBias != nil {
-		gate = builder.Add(gate, weights.FeedForwardGateBias)
-	}
-	if weights.FeedForwardUpBias != nil {
-		up = builder.Add(up, weights.FeedForwardUpBias)
-	}
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	if weights.FeedForwardDownBias != nil {
-		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
-	}
-	output := builder.Add(residual, feedForward)
+	hybrid := builder.Add(attention, ssm.Output)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{
-		Output: output, Key: cacheKey, Value: cacheValue,
+		Output: hybrid, Key: cacheKey, Value: cacheValue,
 		States: CacheStates[*tensor.Tensor]{
 			CacheStateConvolution: {Mode: CacheStateFixed, Value: ssm.Key},
 			CacheStateSSM:         {Mode: CacheStateFixed, Value: ssm.Value},

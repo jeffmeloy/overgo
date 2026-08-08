@@ -189,6 +189,27 @@ func executeLayerInstruction(
 		execution.result = result
 		execution.current = result.Output
 		return nil
+	case LayerOperatorHybridMix:
+		if instruction.CacheCount != 4 || instruction.TensorCount != 0 {
+			return errors.New("compiled hybrid-mixing stage is invalid")
+		}
+		var result DenseBlockResult
+		var err error
+		switch instruction.Hybrid {
+		case HybridMixFalconH1:
+			result, err = buildFalconH1HybridMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
+			)
+		default:
+			return errors.New("compiled hybrid-mixing policy is invalid")
+		}
+		if err != nil {
+			return err
+		}
+		execution.result = result
+		execution.current = result.Output
+		return nil
 	case LayerOperatorRecurrentMix:
 		if instruction.CacheCount != 2 {
 			return errors.New("compiled recurrent-mixing stage is invalid")
@@ -338,11 +359,6 @@ func executeFamilyBlock(
 	switch instruction.Family {
 	case BlockDense:
 		return BuildDenseBlockWithOptions(DenseBlockOptions(options))
-	case BlockFalconH1:
-		return BuildFalconH1BlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
-		)
 	case BlockKimiLinear:
 		return BuildKimiLinearBlockCached(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, plan.Recurrent,

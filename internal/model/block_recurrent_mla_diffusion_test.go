@@ -671,6 +671,7 @@ func TestBuildMamba2Block(t *testing.T) {
 }
 
 func TestBuildFalconH1Block(t *testing.T) {
+	fixturePositions := []uint32{0, 1}
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "falcon-h1", EmbeddingLength: 4, FeedForwardLength: 6,
 
@@ -697,7 +698,17 @@ func TestBuildFalconH1Block(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	result, err := BuildFalconH1BlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, convState, ssmState)
+	plan := spec.PlanLayer(0, false)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, Positions: fixturePositions,
+			PastStates: CacheStates[*tensor.Tensor]{
+				CacheStateConvolution: {Mode: CacheStateFixed, Value: convState},
+				CacheStateSSM:         {Mode: CacheStateFixed, Value: ssmState},
+			},
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

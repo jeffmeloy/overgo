@@ -186,6 +186,7 @@ func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
 
 func TestExecutorFalconH1BlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
+	fixturePositions := []uint32{0, 1, 2}
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "falcon-h1", EmbeddingLength: 4, FeedForwardLength: 6,
 
@@ -218,9 +219,17 @@ func TestExecutorFalconH1BlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := model.BuildFalconH1BlockCached(
-		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, convState, ssmState,
-	)
+	plan := spec.PlanLayer(0, false)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: fixturePositions,
+			PastStates: model.CacheStates[*tensor.Tensor]{
+				model.CacheStateConvolution: {Mode: model.CacheStateFixed, Value: convState},
+				model.CacheStateSSM:         {Mode: model.CacheStateFixed, Value: ssmState},
+			},
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

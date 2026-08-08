@@ -44,6 +44,11 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			want = []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
 			}
+		case BlockFalconH1:
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorHybridMix, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+			}
 		}
 		if len(want) != 0 {
 			if program.Count != uint8(len(want)) {

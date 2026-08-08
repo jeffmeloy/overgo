@@ -55,9 +55,8 @@ imported artifact to that evidence.
 
 Example:
 
-```powershell
-Get-Content export.jsonl -Raw |
-  repodb-import -repo C:\data\overgo-repodb -root C:\data\adaptive-export
+```bash
+repodb-import -repo /data/overgo-repodb -root /data/adaptive-export < export.jsonl
 ```
 
 Repeated exports are separate evidence-bearing batches. The source store may

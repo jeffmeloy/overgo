@@ -46,11 +46,7 @@ func TestExecutorSSMScanMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -108,11 +104,7 @@ func TestExecutorMambaBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -170,11 +162,7 @@ func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -253,11 +241,7 @@ func TestExecutorFalconH1BlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -323,11 +307,7 @@ func TestExecutorGraniteHybridRecurrentBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -397,11 +377,7 @@ func TestExecutorPLaMo2RecurrentBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -473,11 +449,7 @@ func TestExecutorJambaRecurrentMoEBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -518,11 +490,7 @@ func TestExecutorGatedDeltaNetMatchesReference(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				cuda, err := New(0)
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer cuda.Close()
+				cuda := newFixtureExecutor(t)
 				got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 				if err != nil {
 					t.Fatal(err)
@@ -555,11 +523,7 @@ func TestExecutorQwen35LayoutOperationsMatchReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -641,11 +605,7 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				cuda, err := New(0)
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer cuda.Close()
+				cuda := newFixtureExecutor(t)
 				got, err := cuda.Execute(context.Background(), outputs, feeds)
 				if err != nil {
 					t.Fatal(err)
@@ -708,11 +668,7 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -786,11 +742,7 @@ func TestExecutorKimiLinearKDABlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -857,11 +809,7 @@ func TestExecutorRWKV6Qwen2BlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -941,11 +889,7 @@ func TestExecutorRWKV6BlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -982,11 +926,7 @@ func TestExecutorRWKV7OpsMatchReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -1051,11 +991,7 @@ func TestExecutorKimiLinearMLABlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -1093,11 +1029,7 @@ func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -1309,11 +1241,7 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -1417,11 +1345,7 @@ func TestExecutorDenseQwen3BlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -1504,11 +1428,7 @@ func TestExecutorDenseOLMo2BlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{result.Output}, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -1552,11 +1472,7 @@ func TestExecutorDenseOLMoClampedQKVMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)

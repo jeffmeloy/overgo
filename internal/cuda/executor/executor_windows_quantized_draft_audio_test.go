@@ -95,11 +95,7 @@ func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -159,11 +155,7 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -218,11 +210,7 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -298,11 +286,7 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -365,11 +349,7 @@ func TestExecutorGemma3nActiveStageMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -381,14 +361,10 @@ func TestExecutorGemma3nActiveStageMatchesReference(t *testing.T) {
 
 func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	var pointer driver.DevicePtr
 	leftData := []float32{1, 2, 3, 4}
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err := worker.Do(context.Background(), func(state *device.State) error {
 		var allocateErr error
 		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(leftData) * 4))
 		if allocateErr != nil {
@@ -402,11 +378,7 @@ func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	defer worker.Do(context.Background(), func(state *device.State) error {
 		return state.Driver.MemFree(pointer)
 	})
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(4)
 	left := builder.Input("left", dtype.F32, shape)
@@ -431,11 +403,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 		q8FixtureBlockSize = 32
 	)
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	storage := make([]byte, 68)
 	binary.LittleEndian.PutUint16(storage[0:], 0x3800)  // 0.5
 	binary.LittleEndian.PutUint16(storage[34:], 0x3800) // 0.5
@@ -444,7 +412,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 		storage[36+index] = 2
 	}
 	var pointer driver.DevicePtr
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err := worker.Do(context.Background(), func(state *device.State) error {
 		var allocateErr error
 		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
 		if allocateErr != nil {
@@ -458,11 +426,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 	defer worker.Do(context.Background(), func(state *device.State) error {
 		return state.Driver.MemFree(pointer)
 	})
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 	builder := tensor.NewBuilder()
 	weights := builder.Input("weights", dtype.Q8_0, tensor.MustShape(q8FixtureBlockSize, 2))
 	rows := builder.GetRows(weights, []uint32{1})
@@ -510,11 +474,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 
 func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	storage := make([]byte, 420)
 	for row := 0; row < 2; row++ {
 		offset := row * 210
@@ -526,7 +486,7 @@ func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 	storage[0] = 0x0f
 	storage[128] = 0xe4
 	var pointer driver.DevicePtr
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err := worker.Do(context.Background(), func(state *device.State) error {
 		var allocateErr error
 		pointer, allocateErr = state.Driver.MemAlloc(uint64(len(storage)))
 		if allocateErr != nil {
@@ -540,11 +500,7 @@ func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 	defer worker.Do(context.Background(), func(state *device.State) error {
 		return state.Driver.MemFree(pointer)
 	})
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 	builder := tensor.NewBuilder()
 	weights := builder.Input("weights", dtype.Q6K, tensor.MustShape(256, 2))
 	rows := builder.GetRows(weights, []uint32{1})
@@ -679,11 +635,7 @@ func testExecutorSmallQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type)
 		t.Fatal(err)
 	}
 
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	var pointer driver.DevicePtr
 	err = worker.Do(context.Background(), func(state *device.State) error {
 		var allocateErr error
@@ -699,11 +651,7 @@ func testExecutorSmallQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type)
 	defer worker.Do(context.Background(), func(state *device.State) error {
 		return state.Driver.MemFree(pointer)
 	})
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 
 	width := traits.BlockSize
 	builder := tensor.NewBuilder()
@@ -781,11 +729,7 @@ func testExecutorClassicQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Typ
 		t.Fatal(err)
 	}
 
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	var pointer driver.DevicePtr
 	err = worker.Do(context.Background(), func(state *device.State) error {
 		var allocateErr error
@@ -801,11 +745,7 @@ func testExecutorClassicQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Typ
 	defer worker.Do(context.Background(), func(state *device.State) error {
 		return state.Driver.MemFree(pointer)
 	})
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 
 	builder := tensor.NewBuilder()
 	weights := builder.Input("weights", dataType, tensor.MustShape(32, 2))
@@ -946,11 +886,7 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 		t.Fatal(err)
 	}
 
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	var pointer driver.DevicePtr
 	err = worker.Do(context.Background(), func(state *device.State) error {
 		var allocateErr error
@@ -966,11 +902,7 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 	defer worker.Do(context.Background(), func(state *device.State) error {
 		return state.Driver.MemFree(pointer)
 	})
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 
 	builder := tensor.NewBuilder()
 	weights := builder.Input("weights", dataType, tensor.MustShape(256, 2))

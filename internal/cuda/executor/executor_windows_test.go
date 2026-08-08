@@ -4,28 +4,18 @@ package executor
 
 import (
 	"context"
-	"errors"
-
-	"overgo/internal/cuda/device"
-
-	"overgo/internal/cuda/driver"
-
-	"overgo/internal/model"
-
-	"overgo/internal/quant"
-
-	"overgo/internal/tensor"
-
-	"overgo/internal/tensor/dtype"
-
-	"overgo/internal/tensor/reference"
-
 	"math"
-	"strings"
-
 	"testing"
 
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/model"
+	"overgo/internal/modeltest"
+	"overgo/internal/quant"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 func TestExecutorImplicitZeroFeed(t *testing.T) {
@@ -33,11 +23,7 @@ func TestExecutorImplicitZeroFeed(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("zero", dtype.F32, tensor.MustShape(4))
 	output := builder.Scale(input, 3)
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		input: reference.ZeroValue(input.Shape),
 	})
@@ -64,11 +50,7 @@ func TestExecutorBF16RoundMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +110,7 @@ func TestExecutorLoRAMatchesReference(t *testing.T) {
 		moeUp:      {Shape: moeUp.Shape, Data: []float32{0, 0}},
 		moeDown:    {Shape: moeDown.Shape, Data: []float32{1, 2}},
 	}
-	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 1e-5)...)
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyProjection)...)
 }
 
 func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
@@ -164,7 +146,7 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 		indexerWeights: {Shape: indexerWeights.Shape, Data: []float32{2, 1, 1, 3}},
 	}
 	outputs := []*tensor.Tensor{transformed, argmax, indices, pairs, gathered, attention, causalAttention, indexerScores}
-	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 1e-5)...)
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyProjection)...)
 }
 
 func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
@@ -180,7 +162,7 @@ func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
 	feeds := map[*tensor.Tensor]reference.Value{
 		input: patternedValue(input.Shape, 17, 0.013, -0.2),
 	}
-	checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{output}, 0)...)
+	checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{output}, accuracyExact)...)
 }
 
 func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
@@ -229,42 +211,55 @@ func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
 		selected: {Shape: selected.Shape, Data: []float32{1}},
 	}
 	outputs := []*tensor.Tensor{head, attention, moe}
-	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 2e-4)...)
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracySparse)...)
+}
+
+const (
+	dsaFixtureTokens = 3
+	dsaSeedModulo    = 13
+	dsaSeedBase      = 3
+	dsaValueScale    = 0.2
+	dsaValueOffset   = 0.1
+)
+
+func dsaFixtureWeights(builder *tensor.Builder, spec model.Spec) model.LayerGraphWeights {
+	shapes := spec.TensorShapes(0)
+	queryRank := uint64(spec.QLoRARank)
+	kvRank := uint64(spec.KVLoRARank)
+	rope := uint64(spec.RopeDimensionCount)
+	indexerHeads := uint64(spec.IndexerHeadCount)
+	indexerKey := uint64(spec.IndexerKeyLength)
+	return model.LayerGraphWeights{
+		AttentionNorm:      builder.Input("attn_norm", dtype.F32, tensor.MustShape(shapes.Embedding)),
+		AttentionQ:         builder.Input("q_a", dtype.F32, tensor.MustShape(shapes.Embedding, queryRank)),
+		AttentionQNorm:     builder.Input("q_norm", dtype.F32, tensor.MustShape(queryRank)),
+		AttentionQB:        builder.Input("q_b", dtype.F32, tensor.MustShape(queryRank, shapes.QueryProjectionWidth())),
+		AttentionKVAMQA:    builder.Input("kv_a", dtype.F32, tensor.MustShape(shapes.Embedding, kvRank+rope)),
+		AttentionKVANorm:   builder.Input("kv_norm", dtype.F32, tensor.MustShape(kvRank)),
+		AttentionKB:        builder.Input("k_b", dtype.F32, tensor.MustShape(shapes.Key-rope, kvRank, shapes.QueryHeads)),
+		AttentionVB:        builder.Input("v_b", dtype.F32, tensor.MustShape(kvRank, shapes.Value, shapes.QueryHeads)),
+		AttentionOutput:    builder.Input("attn_out", dtype.F32, tensor.MustShape(shapes.AttentionOutputWidth(), shapes.Embedding)),
+		FeedForwardNorm:    builder.Input("ffn_norm", dtype.F32, tensor.MustShape(shapes.Embedding)),
+		FeedForwardGate:    builder.Input("ffn_gate", dtype.F32, tensor.MustShape(shapes.Embedding, shapes.FeedForward)),
+		FeedForwardUp:      builder.Input("ffn_up", dtype.F32, tensor.MustShape(shapes.Embedding, shapes.FeedForward)),
+		FeedForwardDown:    builder.Input("ffn_down", dtype.F32, tensor.MustShape(shapes.FeedForward, shapes.Embedding)),
+		IndexerKNorm:       builder.Input("indexer_norm", dtype.F32, tensor.MustShape(indexerKey)),
+		IndexerKNormBias:   builder.Input("indexer_norm_bias", dtype.F32, tensor.MustShape(indexerKey)),
+		IndexerProjection:  builder.Input("indexer_proj", dtype.F32, tensor.MustShape(shapes.Embedding, indexerHeads)),
+		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(shapes.Embedding, indexerKey)),
+		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(queryRank, indexerHeads*indexerKey)),
+	}
 }
 
 func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "glm-dsa", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 12,
-
-		RMSNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 6, ValueLength: 4,
-		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
-		IndexerHeadCount: 2,
-		IndexerKeyLength: 8, IndexerTopK: 2, IndexerFullLayers: []bool{true}}, MoESpec: model.MoESpec{LeadingDenseBlocks: 1},
-	}
-	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
-	weights := model.LayerGraphWeights{
-		AttentionNorm:      builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
-		AttentionQ:         builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
-		AttentionQNorm:     builder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
-		AttentionQB:        builder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
-		AttentionKVAMQA:    builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
-		AttentionKVANorm:   builder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
-		AttentionKB:        builder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
-		AttentionVB:        builder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
-		AttentionOutput:    builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
-		FeedForwardNorm:    builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
-		FeedForwardGate:    builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
-		FeedForwardUp:      builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
-		FeedForwardDown:    builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
-		IndexerKNorm:       builder.Input("indexer_norm", dtype.F32, tensor.MustShape(8)),
-		IndexerKNormBias:   builder.Input("indexer_norm_bias", dtype.F32, tensor.MustShape(8)),
-		IndexerProjection:  builder.Input("indexer_proj", dtype.F32, tensor.MustShape(8, 2)),
-		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
-		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
-	}
-	result, err := model.BuildGLMDSABlockCached(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, nil, nil, 0)
+	spec := modeltest.GLMDSA().Spec
+	input := builder.Input("input", dtype.F32, tensor.MustShape(uint64(spec.EmbeddingLength), dsaFixtureTokens))
+	weights := dsaFixtureWeights(builder, spec)
+	result, err := model.BuildGLMDSABlockCached(
+		builder, input, spec, weights, fixturePositions(dsaFixtureTokens), nil, nil, nil, nil, 0,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,52 +270,22 @@ func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	for _, node := range builder.Nodes() {
 		if node.Op == tensor.OpInput {
-			feeds[node] = patternedValue(node.Shape, int(node.ID%13)+3, 0.2, 0.1)
+			feeds[node] = patternedValue(
+				node.Shape, int(node.ID%dsaSeedModulo)+dsaSeedBase, dsaValueScale, dsaValueOffset,
+			)
 		}
 	}
-	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 2e-4)...)
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracySparse)...)
 }
 
 func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
 	builder := tensor.NewBuilder()
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek32", BlockCount: 62, EmbeddingLength: 8,
-		FeedForwardLength: 12,
-
-		RMSNormEpsilon: 1e-5, LayerNormEpsilon: 1e-6}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 6, ValueLength: 4,
-		QLoRARank: 3, KVLoRARank: 3, RopeDimensionCount: 2, RopeFrequencyBase: 10000,
-		RopeScalingType: "yarn", RopeScalingFactor: 4, OriginalContextLength: 16,
-		YaRNExtFactor: 1, YaRNAttentionFactor: 1, YaRNBetaFast: 32, YaRNBetaSlow: 1,
-
-		IndexerHeadCount: 2, IndexerKeyLength: 8, IndexerTopK: 2,
-		IndexerFullLayers: make([]bool, 62)}, MoESpec: model.MoESpec{LeadingDenseBlocks: 62},
-	}
-	for index := range spec.IndexerFullLayers {
-		spec.IndexerFullLayers[index] = true
-	}
-	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
-	weights := model.LayerGraphWeights{
-		AttentionNorm:      builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
-		AttentionQ:         builder.Input("q_a", dtype.F32, tensor.MustShape(8, 3)),
-		AttentionQNorm:     builder.Input("q_norm", dtype.F32, tensor.MustShape(3)),
-		AttentionQB:        builder.Input("q_b", dtype.F32, tensor.MustShape(3, 12)),
-		AttentionKVAMQA:    builder.Input("kv_a", dtype.F32, tensor.MustShape(8, 5)),
-		AttentionKVANorm:   builder.Input("kv_norm", dtype.F32, tensor.MustShape(3)),
-		AttentionKB:        builder.Input("k_b", dtype.F32, tensor.MustShape(4, 3, 2)),
-		AttentionVB:        builder.Input("v_b", dtype.F32, tensor.MustShape(3, 4, 2)),
-		AttentionOutput:    builder.Input("attn_out", dtype.F32, tensor.MustShape(8, 8)),
-		FeedForwardNorm:    builder.Input("ffn_norm", dtype.F32, tensor.MustShape(8)),
-		FeedForwardGate:    builder.Input("ffn_gate", dtype.F32, tensor.MustShape(8, 12)),
-		FeedForwardUp:      builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
-		FeedForwardDown:    builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
-		IndexerKNorm:       builder.Input("indexer_norm", dtype.F32, tensor.MustShape(8)),
-		IndexerKNormBias:   builder.Input("indexer_norm_bias", dtype.F32, tensor.MustShape(8)),
-		IndexerProjection:  builder.Input("indexer_proj", dtype.F32, tensor.MustShape(8, 2)),
-		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
-		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
-	}
+	spec := modeltest.DeepSeek32().Spec
+	input := builder.Input("input", dtype.F32, tensor.MustShape(uint64(spec.EmbeddingLength), dsaFixtureTokens))
+	weights := dsaFixtureWeights(builder, spec)
 	result, err := model.BuildDSABlockCached(
-		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, nil, nil, 0,
+		builder, input, spec, weights, fixturePositions(dsaFixtureTokens), nil, nil, nil, nil, 0,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -332,202 +297,12 @@ func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	for _, node := range builder.Nodes() {
 		if node.Op == tensor.OpInput {
-			feeds[node] = patternedValue(node.Shape, int(node.ID%13)+3, 0.2, 0.1)
+			feeds[node] = patternedValue(
+				node.Shape, int(node.ID%dsaSeedModulo)+dsaSeedBase, dsaValueScale, dsaValueOffset,
+			)
 		}
 	}
-	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, 3e-4)...)
-}
-
-func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
-	fixturePositions := []uint32{0, 1}
-	builder := tensor.NewBuilder()
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "nemotron_h", BlockCount: 1, EmbeddingLength: 4,
-		FeedForwardLength: 1,
-
-		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 1, HeadCountKV: 1, LayerHeadCounts: []uint32{0}, LayerKVHeadCounts: []uint32{0},
-		KeyLength: 4, ValueLength: 4}, MoESpec: model.MoESpec{LayerFeedForward: []uint32{0}}, RecurrentSpec: model.RecurrentSpec{RecurrentLayers: []bool{true},
-		SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 4, SSMGroupCount: 2},
-	}
-	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
-	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
-	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	weights := model.LayerGraphWeights{
-		AttentionNorm: builder.Input("norm", dtype.F32, tensor.MustShape(4)),
-		SSMInput:      builder.Input("ssm_in", dtype.F32, tensor.MustShape(4, 28)),
-		SSMConv1D:     builder.Input("conv", dtype.F32, tensor.MustShape(3, 16)),
-		SSMConv1DBias: builder.Input("conv_bias", dtype.F32, tensor.MustShape(16)),
-		SSMTimeStep:   builder.Input("dt_bias", dtype.F32, tensor.MustShape(4)),
-		SSMA:          builder.Input("a", dtype.F32, tensor.MustShape(1, 4)),
-		SSMD:          builder.Input("d", dtype.F32, tensor.MustShape(1, 4)),
-		SSMNorm:       builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
-		SSMOutput:     builder.Input("ssm_out", dtype.F32, tensor.MustShape(8, 4)),
-	}
-	plan := spec.PlanLayer(0, true)
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: input, Positions: fixturePositions,
-			PastKey: convState, PastValue: ssmState, Recurrent: true,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	feeds := map[*tensor.Tensor]reference.Value{}
-	for index, node := range []*tensor.Tensor{
-		input, convState, ssmState, weights.AttentionNorm, weights.SSMInput, weights.SSMConv1D,
-		weights.SSMConv1DBias, weights.SSMTimeStep, weights.SSMA, weights.SSMD, weights.SSMNorm, weights.SSMOutput,
-	} {
-		offset := float32(0)
-		if node == weights.AttentionNorm || node == weights.SSMNorm {
-			offset = 1
-		}
-		feeds[node] = patternedValue(node.Shape, index+3, 0.04, offset)
-	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 8e-4)
-}
-
-func TestExecutorNemotronHMoEBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
-	fixturePositions := []uint32{0, 1}
-	builder := tensor.NewBuilder()
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "nemotron_h_moe", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 6,
-
-		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
-		LayerHeadCounts: []uint32{2}, LayerKVHeadCounts: []uint32{1},
-		KeyLength: 4, ValueLength: 4}, MoESpec: model.MoESpec{LayerFeedForward: []uint32{6},
-
-		ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6, SharedExpertFF: 5,
-		ExpertWeightsNorm: true, ExpertWeightsScale: 1.25, MoELatentSize: 4}, RecurrentSpec: model.RecurrentSpec{RecurrentLayers: []bool{false}},
-	}
-	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	weights := model.LayerGraphWeights{
-		AttentionNorm:          builder.Input("norm", dtype.F32, tensor.MustShape(8)),
-		FeedForwardRouter:      builder.Input("router", dtype.F32, tensor.MustShape(8, 4)),
-		FeedForwardExpertBias:  builder.Input("bias", dtype.F32, tensor.MustShape(4)),
-		FeedForwardLatentDown:  builder.Input("latent_down", dtype.F32, tensor.MustShape(8, 4)),
-		FeedForwardLatentUp:    builder.Input("latent_up", dtype.F32, tensor.MustShape(4, 8)),
-		FeedForwardUpExperts:   builder.Input("up_exps", dtype.F32, tensor.MustShape(4, 6, 4)),
-		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 4, 4)),
-		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5)),
-		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
-	}
-	plan := spec.PlanLayer(0, false)
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: input, Positions: fixturePositions,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	feeds := map[*tensor.Tensor]reference.Value{
-		input:                         patternedValue(input.Shape, 3, 0.15, 0),
-		weights.AttentionNorm:         patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 1),
-		weights.FeedForwardExpertBias: {Shape: weights.FeedForwardExpertBias.Shape, Data: []float32{0.1, -0.2, 0.3, -0.1}},
-	}
-	for index, node := range []*tensor.Tensor{
-		weights.FeedForwardRouter, weights.FeedForwardLatentDown, weights.FeedForwardLatentUp,
-		weights.FeedForwardUpExperts, weights.FeedForwardDownExperts,
-		weights.FeedForwardSharedUp, weights.FeedForwardSharedDown,
-	} {
-		feeds[node] = patternedValue(node.Shape, index+11, 0.06, 0)
-	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
-}
-
-func TestExecutorNemotronHAttentionBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
-	fixturePositions := []uint32{0, 1}
-	builder := tensor.NewBuilder()
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "nemotron_h", BlockCount: 1, EmbeddingLength: 8,
-		FeedForwardLength: 1,
-
-		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1,
-		LayerHeadCounts: []uint32{2}, LayerKVHeadCounts: []uint32{1},
-		KeyLength: 4, ValueLength: 4}, MoESpec: model.MoESpec{LayerFeedForward: []uint32{0}}, RecurrentSpec: model.RecurrentSpec{RecurrentLayers: []bool{false}},
-	}
-	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	weights := model.LayerGraphWeights{
-		AttentionNorm:       builder.Input("norm", dtype.F32, tensor.MustShape(8)),
-		AttentionQ:          builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
-		AttentionK:          builder.Input("k", dtype.F32, tensor.MustShape(8, 4)),
-		AttentionV:          builder.Input("v", dtype.F32, tensor.MustShape(8, 4)),
-		AttentionOutput:     builder.Input("output", dtype.F32, tensor.MustShape(8, 8)),
-		AttentionOutputBias: builder.Input("output_bias", dtype.F32, tensor.MustShape(8)),
-	}
-	plan := spec.PlanLayer(0, false)
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: input, Positions: fixturePositions,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	feeds := map[*tensor.Tensor]reference.Value{
-		input:                 patternedValue(input.Shape, 3, 0.15, 0),
-		weights.AttentionNorm: patternedValue(weights.AttentionNorm.Shape, 5, 0.03, 1),
-	}
-	for index, node := range []*tensor.Tensor{
-		weights.AttentionQ, weights.AttentionK, weights.AttentionV,
-		weights.AttentionOutput, weights.AttentionOutputBias,
-	} {
-		feeds[node] = patternedValue(node.Shape, index+11, 0.06, 0)
-	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 6e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyMLA)...)
 }
 
 func TestExecutorMatchesReference(t *testing.T) {
@@ -567,11 +342,7 @@ func TestExecutorMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(
 		context.Background(),
 		[]*tensor.Tensor{output, layerNorm, reluSquared, geluErf, xielu, divide},
@@ -580,12 +351,12 @@ func TestExecutorMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 2e-5)
-	compare(t, got[layerNorm].Data, want[layerNorm].Data, 2e-5)
-	compare(t, got[reluSquared].Data, want[reluSquared].Data, 2e-5)
-	compare(t, got[geluErf].Data, want[geluErf].Data, 2e-5)
-	compare(t, got[xielu].Data, want[xielu].Data, 2e-5)
-	compare(t, got[divide].Data, want[divide].Data, 2e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyElementwise)
+	compare(t, got[layerNorm].Data, want[layerNorm].Data, accuracyElementwise)
+	compare(t, got[reluSquared].Data, want[reluSquared].Data, accuracyElementwise)
+	compare(t, got[geluErf].Data, want[geluErf].Data, accuracyElementwise)
+	compare(t, got[xielu].Data, want[xielu].Data, accuracyElementwise)
+	compare(t, got[divide].Data, want[divide].Data, accuracyElementwise)
 }
 
 func TestExecutorMPTVariantsMatchReference(t *testing.T) {
@@ -631,16 +402,12 @@ func TestExecutorMPTVariantsMatchReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 2e-3)
+	compare(t, got[output].Data, want[output].Data, accuracyModelLoose)
 }
 
 func TestExecutorGroupedMulMatMatchesReference(t *testing.T) {
@@ -657,16 +424,12 @@ func TestExecutorGroupedMulMatMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 1e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyProjection)
 }
 
 func TestExecutorQuantizedGroupedMulMatMatchesReference(t *testing.T) {
@@ -697,11 +460,7 @@ func TestExecutorQuantizedGroupedMulMatMatchesReference(t *testing.T) {
 	left := builder.Input("left", dtype.Q8_0, leftShape)
 	right := builder.Input("right", dtype.F32, rightShape)
 	output := builder.GroupedMulMat(left, right)
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
+	worker := newFixtureWorker(t)
 	var pointer driver.DevicePtr
 	if err = worker.Do(context.Background(), func(state *device.State) error {
 		var allocateErr error
@@ -714,17 +473,13 @@ func TestExecutorQuantizedGroupedMulMatMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Do(context.Background(), func(state *device.State) error { return state.Driver.MemFree(pointer) })
-	cuda, err := NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[referenceOutput].Data, 1e-4)
+	compare(t, got[output].Data, want[referenceOutput].Data, accuracyQuantKernel)
 }
 
 func TestExecutorMoEMatchesReference(t *testing.T) {
@@ -773,16 +528,12 @@ func TestExecutorMoEMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 5e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyState)
 }
 
 func TestExecutorMoEExpertScaleMatchesReference(t *testing.T) {
@@ -813,16 +564,12 @@ func TestExecutorMoEExpertScaleMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 7e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyStateLoose)
 }
 
 func TestExecutorGroupedMoEMatchesReference(t *testing.T) {
@@ -849,16 +596,12 @@ func TestExecutorGroupedMoEMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 7e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyStateLoose)
 }
 
 func TestExecutorGroupedMoESupportsTopKPolicyBoundary(t *testing.T) {
@@ -885,16 +628,12 @@ func TestExecutorGroupedMoESupportsTopKPolicyBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 1e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyProjection)
 }
 
 func TestExecutorGroveMoEBlockMatchesReference(t *testing.T) {
@@ -952,18 +691,14 @@ func TestExecutorGroveMoEBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
+	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyState)
+	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyState)
 }
 
 func TestExecutorLlama4MoEBlockMatchesReference(t *testing.T) {
@@ -1018,18 +753,14 @@ func TestExecutorLlama4MoEBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 1e-6)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 1e-6)
+	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
+	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyFP32Tight)
+	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyFP32Tight)
 }
 
 func TestExecutorMistral3TemperatureMoEBlockMatchesReference(t *testing.T) {
@@ -1081,18 +812,14 @@ func TestExecutorMistral3TemperatureMoEBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-6)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-6)
+	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
+	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyFP32)
+	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyFP32)
 }
 
 func TestExecutorGPTOSSBlockMatchesReference(t *testing.T) {
@@ -1148,18 +875,14 @@ func TestExecutorGPTOSSBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 1e-6)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 1e-6)
+	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
+	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyFP32Tight)
+	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyFP32Tight)
 }
 
 func TestExecutorGLM4MoEBlockMatchesReference(t *testing.T) {
@@ -1220,18 +943,14 @@ func TestExecutorGLM4MoEBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, 8e-4)
-	compare(t, got[result.Key].Data, want[result.Key].Data, 5e-5)
-	compare(t, got[result.Value].Data, want[result.Value].Data, 5e-5)
+	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
+	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyState)
+	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyState)
 }
 
 func TestExecutorNativeQuantizedMoEMatchesReference(t *testing.T) {
@@ -1363,7 +1082,7 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 		t.Fatal(err)
 	}
 
-	worker, err := device.New(0)
+	worker, err := device.New(cudaFixtureDevice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1416,9 +1135,9 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[referenceOutput].Data, 5e-4)
-	compare(t, got[fusedOutput].Data, want[referenceFusedOutput].Data, 5e-4)
-	compare(t, got[squaredOutput].Data, want[referenceSquaredOutput].Data, 5e-4)
+	compare(t, got[output].Data, want[referenceOutput].Data, accuracyModel)
+	compare(t, got[fusedOutput].Data, want[referenceFusedOutput].Data, accuracyModel)
+	compare(t, got[squaredOutput].Data, want[referenceSquaredOutput].Data, accuracyModel)
 }
 
 func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
@@ -1443,358 +1162,12 @@ func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 7e-5)
-}
-
-func TestExecutorRetainedOutputLifetime(t *testing.T) {
-	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	shape := tensor.MustShape(4)
-	left := builder.Input("left", dtype.F32, shape)
-	right := builder.Input("right", dtype.F32, shape)
-	output := builder.Add(left, right)
-	leftValue, _ := reference.NewValue(shape, []float32{1, 2, 3, 4})
-	rightValue, _ := reference.NewValue(shape, []float32{10, 20, 30, 40})
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	if _, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds); err != nil {
-		t.Fatal(err)
-	}
-	before, err := cuda.worker.MemoryStats(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	retained, err := cuda.ExecuteRetainedWithDeviceFeeds(
-		context.Background(),
-		[]*tensor.Tensor{output},
-		feeds,
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	during, err := cuda.worker.MemoryStats(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if during.CurrentBytes-before.CurrentBytes != minimumDeviceBufferBytes {
-		t.Fatalf(
-			"retained pool bytes = %d, want %d",
-			during.CurrentBytes-before.CurrentBytes,
-			minimumDeviceBufferBytes,
-		)
-	}
-	got, err := retained.CopyToHost(context.Background(), output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got.Data, []float32{11, 22, 33, 44}, 0)
-	canceled, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := retained.Release(canceled); !errors.Is(err, context.Canceled) {
-		t.Fatalf("canceled release error = %v", err)
-	}
-	if _, ok := retained.Value(output); !ok {
-		t.Fatal("canceled release discarded retained output")
-	}
-	if err := retained.Release(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if err := retained.Release(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	after, err := cuda.worker.MemoryStats(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if after.CurrentBytes != during.CurrentBytes {
-		t.Fatalf("pooled bytes after release = %d, want %d", after.CurrentBytes, during.CurrentBytes)
-	}
-	if _, ok := retained.Value(output); ok {
-		t.Fatal("released output remains accessible")
-	}
-	reused, err := cuda.ExecuteRetainedWithDeviceFeeds(
-		context.Background(),
-		[]*tensor.Tensor{output},
-		feeds,
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reusedStats, err := cuda.worker.MemoryStats(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reusedStats.Allocations != after.Allocations || reusedStats.CurrentBytes != after.CurrentBytes {
-		t.Fatalf("retained pool did not reuse allocation: before=%+v after=%+v", after, reusedStats)
-	}
-	if err := reused.Release(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
-	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	shape := tensor.MustShape(8)
-	input := builder.Input("input", dtype.F32, shape)
-	producer := builder.Scale(input, 2)
-	first := builder.FlatSlice(producer, 1, 3)
-	second := builder.FlatSlice(producer, 5, 2)
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	retained, err := cuda.ExecuteRetainedWithDeviceFeeds(
-		context.Background(),
-		[]*tensor.Tensor{first, second},
-		map[*tensor.Tensor]reference.Value{
-			input: {Shape: shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
-		},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer retained.Release(context.Background())
-	firstValue, firstOK := retained.Value(first)
-	secondValue, secondOK := retained.Value(second)
-	if !firstOK || !secondOK || secondValue.Pointer-firstValue.Pointer != 4*4 {
-		t.Fatalf("retained slice pointers = %+v/%+v", firstValue, secondValue)
-	}
-	firstHost, err := retained.CopyToHost(context.Background(), first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondHost, err := retained.CopyToHost(context.Background(), second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, firstHost.Data, []float32{4, 6, 8}, 0)
-	compare(t, secondHost.Data, []float32{12, 14}, 0)
-}
-
-func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
-	cudatest.Require(t)
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	buffer, err := cuda.AllocateDeviceBuffer(context.Background(), 8*4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer buffer.Release(context.Background())
-
-	initialBuilder := tensor.NewBuilder()
-	initialShape := tensor.MustShape(3)
-	initialInput := initialBuilder.Input("initial", dtype.F32, initialShape)
-	initialOutput := initialBuilder.Scale(initialInput, 1)
-	initialTarget, err := buffer.Value(initialShape)
-	if err != nil {
-		t.Fatal(err)
-	}
-	initialGraph, err := Compile(initialOutput)
-	if err != nil {
-		t.Fatal(err)
-	}
-	initialTargets := initialGraph.NewRetainedTargets()
-	if err := initialTargets.Set(initialOutput, initialTarget); err != nil {
-		t.Fatal(err)
-	}
-	initial, err := cuda.ExecuteRetainedCompiledWithTargets(
-		context.Background(),
-		initialGraph,
-		map[*tensor.Tensor]reference.Value{
-			initialInput: {Shape: initialShape, Data: []float32{1, 2, 3}},
-		},
-		nil,
-		initialTargets,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := initial.Release(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	appendBuilder := tensor.NewBuilder()
-	past := appendBuilder.Input("past", dtype.F32, initialShape)
-	newShape := tensor.MustShape(2)
-	added := appendBuilder.Input("added", dtype.F32, newShape)
-	joined := appendBuilder.Concat(past, added, 0)
-	joinedTarget, err := buffer.Value(joined.Shape)
-	if err != nil {
-		t.Fatal(err)
-	}
-	appendGraph, err := Compile(joined)
-	if err != nil {
-		t.Fatal(err)
-	}
-	appendTargets := appendGraph.NewRetainedTargets()
-	if err := appendTargets.Set(joined, joinedTarget); err != nil {
-		t.Fatal(err)
-	}
-	retained, err := cuda.ExecuteRetainedCompiledWithTargets(
-		context.Background(),
-		appendGraph,
-		map[*tensor.Tensor]reference.Value{
-			added: {Shape: newShape, Data: []float32{4, 5}},
-		},
-		map[*tensor.Tensor]driver.DevicePtr{past: initialTarget.Pointer},
-		appendTargets,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer retained.Release(context.Background())
-	got, err := retained.CopyToHost(context.Background(), joined)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got.Data, []float32{1, 2, 3, 4, 5}, 0)
-}
-
-func TestExecutorRejectsUndeclaredRetainedTargetAlias(t *testing.T) {
-	cudatest.Require(t)
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	shape := tensor.MustShape(4)
-	buffer, err := cuda.AllocateDeviceBuffer(context.Background(), 4*4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer buffer.Release(context.Background())
-	value, err := buffer.Value(shape)
-	if err != nil {
-		t.Fatal(err)
-	}
-	builder := tensor.NewBuilder()
-	input := builder.Input("input", dtype.F32, shape)
-	output := builder.Scale(input, 2)
-	compiled, err := Compile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	targets := compiled.NewRetainedTargets()
-	if err := targets.Set(output, value); err != nil {
-		t.Fatal(err)
-	}
-	_, err = cuda.ExecuteRetainedCompiledWithTargets(
-		context.Background(), compiled, nil,
-		map[*tensor.Tensor]driver.DevicePtr{input: value.Pointer},
-		targets,
-	)
-	if err == nil || !strings.Contains(err.Error(), "overlaps input") {
-		t.Fatalf("undeclared target alias error = %v", err)
-	}
-}
-
-func TestReleaseDeviceBuffersIsAtomicAndRetryable(t *testing.T) {
-	cudatest.Require(t)
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	first, err := cuda.AllocateDeviceBuffer(context.Background(), 4*4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := cuda.AllocateDeviceBuffer(context.Background(), 4*4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	shape := tensor.MustShape(4)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := ReleaseDeviceBuffers(ctx, first, second); !errors.Is(err, context.Canceled) {
-		t.Fatalf("canceled release error = %v", err)
-	}
-	if _, err := first.Value(shape); err != nil {
-		t.Fatalf("first buffer mutated by canceled release: %v", err)
-	}
-	if _, err := second.Value(shape); err != nil {
-		t.Fatalf("second buffer mutated by canceled release: %v", err)
-	}
-	if err := ReleaseDeviceBuffers(context.Background(), first, second); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := first.Value(shape); err == nil {
-		t.Fatal("released first buffer remains accessible")
-	}
-	if _, err := second.Value(shape); err == nil {
-		t.Fatal("released second buffer remains accessible")
-	}
-}
-
-func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
-	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	shape := tensor.MustShape(4)
-	input := builder.Input("input", dtype.F32, shape)
-	output := builder.Scale(input, 1)
-	inputValue, _ := reference.NewValue(shape, []float32{1, 2, 3, 4})
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	retained, err := cuda.ExecuteRetainedWithDeviceFeeds(
-		context.Background(),
-		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{input: inputValue},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer retained.Release(context.Background())
-	source, ok := retained.Value(output)
-	if !ok {
-		t.Fatal("retained output is unavailable")
-	}
-	copiedOwner, copied, err := cuda.CopyDeviceValues(
-		context.Background(),
-		[]DeviceCopy{{
-			Shape: shape,
-			Segments: []DeviceCopySegment{
-				{Source: source.Pointer + 8, Bytes: 8},
-				{Source: source.Pointer, Bytes: 8},
-			},
-		}},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer copiedOwner.Release(context.Background())
-	data := make([]float32, 4)
-	err = cuda.worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemcpyDtoH(driver.Bytes(data), copied[0].Pointer)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, data, []float32{3, 4, 1, 2}, 0)
+	compare(t, got[output].Data, want[output].Data, accuracyStateLoose)
 }
 
 func TestExecutorMulMatMatchesReference(t *testing.T) {
@@ -1822,16 +1195,12 @@ func TestExecutorMulMatMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 1e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyProjection)
 }
 
 func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
@@ -1862,7 +1231,7 @@ func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
 	left := builder.Input("left", dtype.Q8_0, leftShape)
 	right := builder.Input("right", dtype.F32, rightShape)
 	output := builder.MulMat(left, right)
-	worker, err := device.New(0)
+	worker, err := device.New(cudaFixtureDevice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1889,7 +1258,7 @@ func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[referenceOutput].Data, 1e-2)
+	compare(t, got[output].Data, want[referenceOutput].Data, accuracyQuantized)
 	referenceSelection := referenceBuilder.TopK(referenceOutput, 1)
 	wantSelection, err := reference.Execute(
 		[]*tensor.Tensor{referenceSelection},
@@ -1909,7 +1278,7 @@ func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, gotSelection[selection].Data, wantSelection[referenceSelection].Data, 0)
+	compare(t, gotSelection[selection].Data, wantSelection[referenceSelection].Data, accuracyExact)
 }
 
 func TestExecutorActivatedGatesMatchReference(t *testing.T) {
@@ -1944,17 +1313,13 @@ func TestExecutorActivatedGatesMatchReference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			cuda, err := New(0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer cuda.Close()
+			cuda := newFixtureExecutor(t)
 			got, err := cuda.Execute(context.Background(), outputs, feeds)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, item := range outputs {
-				compare(t, got[item].Data, want[item].Data, 1e-5)
+				compare(t, got[item].Data, want[item].Data, accuracyProjection)
 			}
 		})
 	}
@@ -1979,14 +1344,10 @@ func TestExecutorSSMConvMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cuda, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cuda := newFixtureExecutor(t)
 	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compare(t, got[output].Data, want[output].Data, 1e-5)
+	compare(t, got[output].Data, want[output].Data, accuracyProjection)
 }

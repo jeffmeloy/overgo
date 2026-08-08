@@ -803,26 +803,8 @@ func addKimiFeedForwardRequirements(
 	required.add("shared expert down", weights.FeedForwardSharedDown)
 }
 
-// BuildLFM2BlockCached: attention or gated short-convolution block
-// Recurrent cache: Key convolution window; Value reserved ABI slot
-func BuildLFM2BlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	recurrent bool,
-	pastKey, pastValue *tensor.Tensor,
-	layerIndex uint32,
-) (LFM2BlockResult, error) {
-	plan := spec.PlanLayer(layerIndex, recurrent)
-	return BuildLFM2BlockCachedWithPlan(
-		builder, input, spec, weights, positions, pastKey, pastValue, plan,
-	)
-}
-
-// BuildLFM2BlockCachedWithPlan: compiled attention/convolution layer.
-func BuildLFM2BlockCachedWithPlan(
+// buildLFM2BlockCachedWithPlan: compiled attention/convolution layer.
+func buildLFM2BlockCachedWithPlan(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -830,24 +812,21 @@ func BuildLFM2BlockCachedWithPlan(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 	plan LayerPlan,
-) (LFM2BlockResult, error) {
+) (DenseBlockResult, error) {
 	if spec.Profile().Attention != AttentionLFM2 {
-		return LFM2BlockResult{}, errors.New("LFM2 block requires lfm2 or lfm2moe architecture")
+		return DenseBlockResult{}, errors.New("LFM2 block requires lfm2 or lfm2moe architecture")
 	}
 	if !plan.Recurrent {
-		result, err := BuildDenseBlockWithOptions(DenseBlockOptions{
+		return BuildDenseBlockWithOptions(DenseBlockOptions{
 			Context: CachedBlockContext{
 				Builder: builder, Input: input, Positions: positions,
 				PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
 			},
 			Spec: spec, Weights: weights, Plan: &plan,
 		})
-		return LFM2BlockResult{
-			Output: result.Output, Key: result.Key, Value: result.Value,
-		}, err
 	}
 	if builder == nil || input == nil || pastKey == nil || pastValue == nil {
-		return LFM2BlockResult{}, errors.New("LFM2 recurrent block input or state is nil")
+		return DenseBlockResult{}, errors.New("LFM2 recurrent block input or state is nil")
 	}
 	required := graphWeights{
 		requireGraphWeight("operator norm", weights.AttentionNorm),
@@ -869,17 +848,17 @@ func BuildLFM2BlockCachedWithPlan(
 		required.add("feed-forward down", weights.FeedForwardDown)
 	}
 	if err := required.validate("LFM2 recurrent block"); err != nil {
-		return LFM2BlockResult{}, err
+		return DenseBlockResult{}, err
 	}
 	if input.Shape.Rank != 2 || len(positions) == 0 ||
 		uint64(len(positions)) != input.Shape.Dims[1] {
-		return LFM2BlockResult{}, errors.New("LFM2 recurrent block input shape is invalid")
+		return DenseBlockResult{}, errors.New("LFM2 recurrent block input shape is invalid")
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	window := uint64(spec.ShortConvCacheLength - 1)
 	if !pastKey.Shape.Equal(tensor.MustShape(window, embedding)) ||
 		!pastValue.Shape.Equal(tensor.MustShape(1)) {
-		return LFM2BlockResult{}, errors.New("LFM2 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("LFM2 recurrent cache shape is invalid")
 	}
 	tokens := uint64(len(positions))
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
@@ -924,9 +903,9 @@ func BuildLFM2BlockCachedWithPlan(
 	output := builder.Add(residual, feedForward)
 	nextReserved := builder.Scale(pastValue, 1)
 	if err := builder.Err(); err != nil {
-		return LFM2BlockResult{}, err
+		return DenseBlockResult{}, err
 	}
-	return LFM2BlockResult{
-		Output: output, Key: nextState, Value: nextReserved, Recurrent: true,
+	return DenseBlockResult{
+		Output: output, Key: nextState, Value: nextReserved,
 	}, nil
 }

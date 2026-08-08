@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -127,6 +128,26 @@ func fixtureShapeBytes(t testing.TB, shape tensor.Shape, dataType dtype.Type) ui
 		t.Fatal(err)
 	}
 	return bytes
+}
+
+func buildFixtureCachedBlock(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec model.Spec,
+	weights model.LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	layer uint32,
+	recurrent bool,
+) (model.DenseBlockResult, error) {
+	plan := spec.PlanLayer(layer, recurrent)
+	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: positions,
+			PastKey: pastKey, PastValue: pastValue, Layer: layer, Recurrent: recurrent,
+		},
+		Spec: spec, Weights: weights, Plan: &plan,
+	})
 }
 
 func checkCUDAGraph(

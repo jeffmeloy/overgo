@@ -262,13 +262,6 @@ type Qwen35BlockOptions struct {
 	CacheWrite     tensor.CacheWriteMode
 }
 
-type LFM2BlockResult struct {
-	Output    *tensor.Tensor
-	Key       *tensor.Tensor
-	Value     *tensor.Tensor
-	Recurrent bool
-}
-
 // DenseBlockOptions: dense layer graph inputs.
 type DenseBlockOptions struct {
 	Context CachedBlockContext

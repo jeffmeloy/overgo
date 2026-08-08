@@ -930,8 +930,8 @@ func TestExecutorLFM2ShortConvolutionBlockMatchesReference(t *testing.T) {
 	}
 	state := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := model.BuildLFM2BlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 0,
+	result, err := buildFixtureCachedBlock(
+		builder, input, spec, weights, []uint32{0, 1}, state, reserved, 0, true,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -985,8 +985,8 @@ func TestExecutorLFM2CenteredShortConvolutionBlockMatchesReference(t *testing.T)
 	}
 	state := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := model.BuildLFM2BlockCached(
-		builder, input, spec, weights, []uint32{0, 1, 2}, true, state, reserved, 0,
+	result, err := buildFixtureCachedBlock(
+		builder, input, spec, weights, []uint32{0, 1, 2}, state, reserved, 0, true,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1045,8 +1045,8 @@ func TestExecutorLFM2MoEShortConvolutionBlockMatchesReference(t *testing.T) {
 	}
 	state := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := model.BuildLFM2BlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 2,
+	result, err := buildFixtureCachedBlock(
+		builder, input, spec, weights, []uint32{0, 1}, state, reserved, 2, true,
 	)
 	if err != nil {
 		t.Fatal(err)

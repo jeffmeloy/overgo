@@ -406,8 +406,9 @@ func TestBuildLFM2CenteredShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := BuildLFM2BlockCached(
-		builder, input, spec, weights, []uint32{0, 1, 2}, true, state, reserved, 0,
+	result, err := buildLFM2BlockCachedWithPlan(
+		builder, input, spec, weights, []uint32{0, 1, 2}, state, reserved,
+		spec.PlanLayer(0, true),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -446,10 +447,10 @@ func TestBuildLFM2CenteredShortConvolutionSupportsEvenKernel(t *testing.T) {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	result, err := BuildLFM2BlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, true,
+	result, err := buildLFM2BlockCachedWithPlan(
+		builder, input, spec, weights, []uint32{0, 1},
 		builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(3, 4)),
-		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), 0,
+		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), spec.PlanLayer(0, true),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -494,8 +495,9 @@ func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := BuildLFM2BlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 2,
+	result, err := buildLFM2BlockCachedWithPlan(
+		builder, input, spec, weights, []uint32{0, 1}, state, reserved,
+		spec.PlanLayer(2, true),
 	)
 	if err != nil {
 		t.Fatal(err)

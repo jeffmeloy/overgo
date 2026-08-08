@@ -281,6 +281,11 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1],
 			)
+		case RecurrentMixDynamicWKV6:
+			result, err = buildDynamicWKV6MixCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
 		default:
 			return errors.New("compiled recurrent-mixing policy is invalid")
 		}
@@ -363,10 +368,11 @@ func executeLayerInstruction(
 		return nil
 	case LayerOperatorScale:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
-			options.Spec.ResidualScale <= 0 {
+			plan.ResidualStages.residualScale <= 0 {
 			return errors.New("compiled scale stage is invalid")
 		}
-		execution.current = c.Builder.Scale(execution.current, options.Spec.ResidualScale)
+		execution.current = c.Builder.Scale(execution.current, plan.ResidualStages.residualScale)
+		execution.result.Output = execution.current
 		return c.Builder.Err()
 	case LayerOperatorResidual:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||

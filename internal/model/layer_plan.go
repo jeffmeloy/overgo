@@ -81,6 +81,7 @@ const (
 	RecurrentMixPLaMo2
 	RecurrentMixQwenGDN
 	RecurrentMixLFM2
+	RecurrentMixDynamicWKV6
 )
 
 // AttentionMixPolicy: attention operator implementation.
@@ -335,6 +336,13 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 			composition = LayerCompositionFeedForwardOnly
 		}
 	}
+	residualStages := s.residualStagePlan(profile, normalization)
+	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
+		residualStages.residualScale = 0
+		if s.RescaleEvery > 0 && (layer+1)%s.RescaleEvery == 0 {
+			residualStages.residualScale = rwkvLayerRescale
+		}
+	}
 	experts := s.moeGraphPlan(layer)
 	if block == BlockNemotronH {
 		experts.Routing = tensor.MoERoutingSigmoid
@@ -394,7 +402,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		QKPreprocess:      s.qkPreprocessPlan(layer),
 		QueryScale:        s.queryScalePlan(profile, layer),
 		AttentionOutput:   s.attentionOutputPlan(normalization),
-		ResidualStages:    s.residualStagePlan(profile, normalization),
+		ResidualStages:    residualStages,
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -750,10 +758,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	recurrent := plan.Recurrent
 	composition := plan.Composition
 	if profile.Attention == AttentionLFM2 && recurrent {
-		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixLFM2, false),
-			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+		return residualMixerProgram(
+			recurrentLayerStage(RecurrentMixLFM2, false), FeedForwardMixStandardSwiGLU, false,
+		)
+	}
+	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
+		return residualMixerProgram(
+			recurrentLayerStage(RecurrentMixDynamicWKV6, false), FeedForwardMixStandardSwiGLU,
+			plan.ResidualStages.residualScale > 0,
 		)
 	}
 	if profile.Attention == AttentionQwenGDN {
@@ -761,17 +773,11 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		if recurrent {
 			mixer = recurrentLayerStage(RecurrentMixQwenGDN, false)
 		}
-		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixQwenGDN),
-			layerStage(LayerOperatorResidual),
-		)
+		return residualMixerProgram(mixer, FeedForwardMixQwenGDN, false)
 	}
 	if block == BlockFalconH1 {
-		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), hybridLayerStage(HybridMixFalconH1),
-			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+		return residualMixerProgram(
+			hybridLayerStage(HybridMixFalconH1), FeedForwardMixStandardSwiGLU, false,
 		)
 	}
 	if block == BlockGraniteHybrid {
@@ -783,10 +789,8 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		)
 	}
 	if block == BlockJamba {
-		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba, false),
-			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+		return residualMixerProgram(
+			recurrentLayerStage(RecurrentMixMamba, false), FeedForwardMixStandardSwiGLU, false,
 		)
 	}
 	if block == BlockPLaMo2 {
@@ -867,14 +871,12 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 			)
 		}
-		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm),
+		return residualMixerProgram(
 			leafLayerStage(
 				LayerOperatorLinearAttention,
 				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 			),
-			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+			FeedForwardMixStandardSwiGLU, false,
 		)
 	case BlockMLA:
 		return latentLayerProgram(
@@ -899,6 +901,17 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	default:
 		return LayerProgram{}
 	}
+}
+
+func residualMixerProgram(mixer LayerOperatorInstruction, feedForward FeedForwardMixPolicy, scale bool) LayerProgram {
+	stages := []LayerOperatorInstruction{
+		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
+		layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(feedForward), layerStage(LayerOperatorResidual),
+	}
+	if scale {
+		stages = append(stages, layerStage(LayerOperatorScale))
+	}
+	return newLayerProgram(stages...)
 }
 
 func latentLayerProgram(

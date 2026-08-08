@@ -257,20 +257,18 @@ func buildDeepSeek4FeedForwardWithPlan(
 	return output, nil
 }
 
-// buildRWKV6Qwen2BlockCached: RMS/SwiGLU QRWKV recurrent block.
-func buildRWKV6Qwen2BlockCached(
+// buildDynamicWKV6MixCached: RMS-input dynamic WKV6 recurrence.
+func buildDynamicWKV6MixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	pastShift, pastState *tensor.Tensor,
-	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().DenseGraph != DenseGraphRWKV6Qwen2 || builder == nil || input == nil || pastShift == nil || pastState == nil {
-		return DenseBlockResult{}, errors.New("RWKV6-Qwen2 block input/state is invalid")
+	if builder == nil || normalized == nil || pastShift == nil || pastState == nil {
+		return DenseBlockResult{}, errors.New("dynamic WKV6 input/state is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("time-mix W1", weights.TimeMixW1),
 		requireGraphWeight("time-mix W2", weights.TimeMixW2),
 		requireGraphWeight("time-mix lerp X", weights.TimeMixLerpX),
@@ -283,26 +281,21 @@ func buildRWKV6Qwen2BlockCached(
 		requireGraphWeight("time receptance", weights.TimeMixReceptance),
 		requireGraphWeight("time gate", weights.TimeMixGate),
 		requireGraphWeight("time output", weights.TimeMixOutput),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
 	}
-	if err := required.validate("RWKV6-Qwen2"); err != nil {
+	if err := required.validate("dynamic WKV6"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) || input.Shape.Dims[1] == 0 {
-		return DenseBlockResult{}, errors.New("RWKV6-Qwen2 input shape is invalid")
+	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) || normalized.Shape.Dims[1] == 0 {
+		return DenseBlockResult{}, errors.New("dynamic WKV6 input shape is invalid")
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	width := uint64(spec.WKVHeadSize)
 	heads := embedding / width
-	tokens := input.Shape.Dims[1]
+	tokens := normalized.Shape.Dims[1]
 	if !pastShift.Shape.Equal(tensor.MustShape(embedding)) ||
 		!pastState.Shape.Equal(tensor.MustShape(width, width, heads, 1)) {
-		return DenseBlockResult{}, errors.New("RWKV6-Qwen2 cache shape is invalid")
+		return DenseBlockResult{}, errors.New("dynamic WKV6 cache shape is invalid")
 	}
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	xPrev := builder.Reshape(pastShift, embedding, 1)
 	if tokens > 1 {
 		xPrev = builder.Concat(xPrev, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
@@ -360,20 +353,10 @@ func buildRWKV6Qwen2BlockCached(
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
 	attention = builder.MulMat(weights.TimeMixOutput, builder.Multiply(attention, gate))
-	residual := builder.Add(input, attention)
-	ffnInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	feedForward := builder.MulMat(
-		weights.FeedForwardDown,
-		builder.SwiGLU(builder.MulMat(weights.FeedForwardGate, ffnInput), builder.MulMat(weights.FeedForwardUp, ffnInput)),
-	)
-	output := builder.Add(residual, feedForward)
-	if spec.RescaleEvery > 0 && (layerIndex+1)%spec.RescaleEvery == 0 {
-		output = builder.Scale(output, rwkvLayerRescale)
-	}
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState}, nil
+	return DenseBlockResult{Output: attention, Key: nextShift, Value: nextState}, nil
 }
 
 // buildRWKV6BlockCached: affine-LN WKV6 recurrent block.

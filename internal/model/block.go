@@ -293,10 +293,6 @@ func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
 		return buildTalkieBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue)
 	case DenseGraphGemma4:
 		return buildGemma4BlockCached(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.plan)
-	case DenseGraphGemma3n:
-		return DenseBlockResult{}, errors.New("Gemma 3n block requires AltUp execution")
-	case DenseGraphRWKV6Qwen2:
-		return buildRWKV6Qwen2BlockCached(c.builder, c.input, c.spec, c.weights, c.pastKey, c.pastValue, c.layer)
 	case DenseGraphRWKV6:
 		return buildRWKV6BlockCached(c.builder, c.input, c.spec, c.weights, c.pastKey, c.pastValue, c.layer)
 	case DenseGraphRWKV7:

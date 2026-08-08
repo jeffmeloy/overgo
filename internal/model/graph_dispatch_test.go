@@ -19,6 +19,8 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		}
 		var want []LayerOperator
 		switch policy {
+		case BlockDense:
+			want = []LayerOperator{LayerOperatorDenseTransformer}
 		case BlockMamba, BlockMamba2:
 			want = []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,

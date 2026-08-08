@@ -51,6 +51,7 @@ type LayerOperator uint8
 
 const (
 	LayerOperatorFamilyBlock LayerOperator = iota
+	LayerOperatorDenseTransformer
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionMix
@@ -793,6 +794,18 @@ func compileLayerProgram(
 			recurrentLayerStage(recurrentPolicy, block == BlockMamba2),
 			layerStage(LayerOperatorResidual),
 		)
+	}
+	if block == BlockDense {
+		return LayerProgram{
+			Count: 1,
+			Instructions: [maxLayerInstructions]LayerOperatorInstruction{{
+				Operator:   LayerOperatorDenseTransformer,
+				CacheCount: 2,
+				Caches: [maxLayerCacheBindings]RuntimeCacheBinding{
+					RuntimeCachePrimaryKey, RuntimeCachePrimaryValue,
+				},
+			}},
+		}
 	}
 	instruction := LayerOperatorInstruction{
 		Operator: LayerOperatorFamilyBlock,

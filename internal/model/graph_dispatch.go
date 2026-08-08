@@ -155,14 +155,14 @@ func executeLayerInstruction(
 		}
 		var result DenseBlockResult
 		var err error
-		switch instruction.Family {
-		case BlockMamba:
+		switch instruction.Recurrent {
+		case RecurrentMixMamba:
 			result, err = buildMambaMixerCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case BlockMamba2:
-			if plan.Block == BlockMamba2 && options.Weights.SSMConv1DBias == nil {
+		case RecurrentMixMamba2:
+			if instruction.RequireConvolutionBias && options.Weights.SSMConv1DBias == nil {
 				return errors.New("Mamba2 recurrent-mixing convolution bias is nil")
 			}
 			result, err = buildMamba2MixerCached(

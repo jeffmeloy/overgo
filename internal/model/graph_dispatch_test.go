@@ -40,6 +40,9 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 				if instruction.Operator != operator {
 					t.Fatalf("semantic program %d stage %d = %d, want %d", policy, index, instruction.Operator, operator)
 				}
+				if operator == LayerOperatorRecurrentMix && instruction.Recurrent == RecurrentMixNone {
+					t.Fatalf("semantic program %d recurrent stage has no math policy", policy)
+				}
 			}
 			continue
 		}

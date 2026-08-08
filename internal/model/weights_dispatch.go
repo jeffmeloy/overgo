@@ -2,7 +2,7 @@ package model
 
 import "overgo/internal/gguf"
 
-// ReadWeights: family-routed tensor catalog validation.
+// ReadWeights: profile-routed tensor catalog validation.
 func ReadWeights(file *gguf.File, spec Spec) (Weights, error) {
 	if spec.Architecture == "" {
 		return readWeightCatalog(file, spec)

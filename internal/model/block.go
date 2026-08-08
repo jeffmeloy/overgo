@@ -262,16 +262,8 @@ type Qwen35BlockOptions struct {
 	CacheWrite     tensor.CacheWriteMode
 }
 
-// DenseBlockOptions: dense layer graph inputs.
-type DenseBlockOptions struct {
-	Context CachedBlockContext
-	Spec    Spec
-	Weights LayerGraphWeights
-	Plan    *LayerPlan
-}
-
 // buildDenseBlockWithOptions: typed dense layer construction.
-func buildDenseBlockWithOptions(options DenseBlockOptions) (DenseBlockResult, error) {
+func buildDenseBlockWithOptions(options BlockDispatchOptions) (DenseBlockResult, error) {
 	if options.Context.MultiPositions != nil {
 		if !options.Spec.SupportsMultiAxisPositions() {
 			return DenseBlockResult{}, errors.New("dense block architecture does not support multi-axis positions")
@@ -281,7 +273,7 @@ func buildDenseBlockWithOptions(options DenseBlockOptions) (DenseBlockResult, er
 	return buildDenseBlock(options)
 }
 
-func buildDenseBlock(options DenseBlockOptions) (DenseBlockResult, error) {
+func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
 	context := options.Context
 	builder := context.Builder
 	input := context.Input
@@ -324,11 +316,11 @@ func buildDenseBlock(options DenseBlockOptions) (DenseBlockResult, error) {
 	case DenseGraphGemma3n:
 		return DenseBlockResult{}, errors.New("Gemma 3n block requires AltUp execution")
 	case DenseGraphRWKV6Qwen2:
-		return BuildRWKV6Qwen2BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
+		return buildRWKV6Qwen2BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
 	case DenseGraphRWKV6:
-		return BuildRWKV6BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
+		return buildRWKV6BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
 	case DenseGraphRWKV7:
-		return BuildRWKV7BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
+		return buildRWKV7BlockCached(builder, input, spec, weights, pastKey, pastValue, layerIndex)
 	}
 	isPostOnlyNorm := !normPlan.PreAttention
 	if err := layerPlan.ExpertComposition.Validate(spec); err != nil {

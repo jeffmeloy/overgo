@@ -257,8 +257,8 @@ func buildDeepSeek4FeedForwardWithPlan(
 	return output, nil
 }
 
-// BuildRWKV6Qwen2BlockCached: RMS/SwiGLU QRWKV recurrent block.
-func BuildRWKV6Qwen2BlockCached(
+// buildRWKV6Qwen2BlockCached: RMS/SwiGLU QRWKV recurrent block.
+func buildRWKV6Qwen2BlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -376,8 +376,8 @@ func BuildRWKV6Qwen2BlockCached(
 	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState}, nil
 }
 
-// BuildRWKV6BlockCached: affine-LN WKV6 recurrent block.
-func BuildRWKV6BlockCached(
+// buildRWKV6BlockCached: affine-LN WKV6 recurrent block.
+func buildRWKV6BlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -508,8 +508,8 @@ func BuildRWKV6BlockCached(
 	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState}, nil
 }
 
-// BuildRWKV7BlockCached: RWKV7/ARWKV7 recurrent block.
-func BuildRWKV7BlockCached(
+// buildRWKV7BlockCached: RWKV7/ARWKV7 recurrent block.
+func buildRWKV7BlockCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,

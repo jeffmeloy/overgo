@@ -25,7 +25,12 @@ type CachedBlockContext struct {
 }
 
 // BlockDispatchOptions: compiled layer-program inputs.
-type BlockDispatchOptions DenseBlockOptions
+type BlockDispatchOptions struct {
+	Context CachedBlockContext
+	Spec    Spec
+	Weights LayerGraphWeights
+	Plan    *LayerPlan
+}
 
 // BuildArchitectureBlockCached: compiled layer-program construction.
 func BuildArchitectureBlockCached(
@@ -350,7 +355,7 @@ func executeLayerInstruction(
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 || plan.Block != BlockDense {
 			return errors.New("compiled dense-transformer stage is invalid")
 		}
-		result, err := executeDenseTransformer(options, plan, operands)
+		result, err := buildDenseBlockWithOptions(options)
 		if err != nil {
 			return err
 		}
@@ -422,14 +427,6 @@ func executeLayerInstruction(
 	default:
 		return errors.New("compiled layer operator is unknown")
 	}
-}
-
-func executeDenseTransformer(
-	options BlockDispatchOptions,
-	plan LayerPlan,
-	operands layerOperands,
-) (DenseBlockResult, error) {
-	return buildDenseBlockWithOptions(DenseBlockOptions(options))
 }
 
 func buildSentinelCache(

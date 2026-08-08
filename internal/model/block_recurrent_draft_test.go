@@ -136,7 +136,7 @@ func TestBuildRWKV6Qwen2Block(t *testing.T) {
 	}
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
-	result, err := BuildRWKV6Qwen2BlockCached(builder, input, spec, weights, shift, state, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestBuildRWKV6Block(t *testing.T) {
 	}
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
-	result, err := BuildRWKV6BlockCached(builder, input, spec, weights, shift, state, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestBuildRWKV7BlockValueResidual(t *testing.T) {
 	weights := rwkv7GraphWeights(builder, spec, true)
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
-	first, err := BuildRWKV7BlockCached(builder, input, spec, weights, shift, state, 0)
+	first, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestBuildRWKV7BlockValueResidual(t *testing.T) {
 		t.Fatalf("unexpected RWKV7 first-layer result: %+v", first)
 	}
 	weights.PerLayerInput = builder.Input("first_value", dtype.F32, input.Shape)
-	second, err := BuildRWKV7BlockCached(builder, input, spec, weights, shift, state, 1)
+	second, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestBuildARWKV7UngatedBlock(t *testing.T) {
 	weights := rwkv7GraphWeights(builder, spec, false)
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 1))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
-	result, err := BuildRWKV7BlockCached(builder, input, spec, weights, shift, state, 0)
+	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

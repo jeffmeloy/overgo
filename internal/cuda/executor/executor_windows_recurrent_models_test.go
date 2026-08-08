@@ -782,7 +782,7 @@ func TestExecutorRWKV6Qwen2BlockMatchesReference(t *testing.T) {
 	}
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
-	result, err := model.BuildRWKV6Qwen2BlockCached(builder, input, spec, weights, shift, state, 0)
+	result, err := buildFixtureCachedBlock(builder, input, spec, weights, nil, shift, state, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -856,7 +856,7 @@ func TestExecutorRWKV6BlockMatchesReference(t *testing.T) {
 	}
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
-	result, err := model.BuildRWKV6BlockCached(builder, input, spec, weights, shift, state, 0)
+	result, err := buildFixtureCachedBlock(builder, input, spec, weights, nil, shift, state, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}

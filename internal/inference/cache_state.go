@@ -189,15 +189,8 @@ func (r *Runner) cacheSchema(
 	layer int,
 	tokens uint32,
 ) (model.LayerPlan, model.LayerCacheSchema, error) {
-	info := model.LayerWeights{}
-	if layer < len(r.weights.Layers) {
-		info = r.weights.Layers[layer]
-	}
 	plan := r.layerPlan(layer)
-	if layer >= 0 && layer < len(r.cacheSchemas) {
-		return plan, r.cacheSchemas[layer].WithTokenCount(tokens), nil
-	}
-	schema, err := model.CacheSchemaForPlan(r.spec, plan, info, tokens)
+	schema, err := r.program.Model.CacheSchema(layer, tokens)
 	return plan, schema, err
 }
 

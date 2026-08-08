@@ -43,8 +43,9 @@ func TestLayerCacheSchemaMaterializesTokenDimensions(t *testing.T) {
 
 func TestCompileCacheSchemasRejectsLayerCountMismatch(t *testing.T) {
 	const fixtureLayer = 0
-	plan := ModelPlan{layers: []LayerPlan{{Layer: fixtureLayer}}}
-	if _, err := CompileCacheSchemas(Spec{}, plan, nil); err == nil {
+	if _, err := compileCacheSchemas(
+		Spec{}, []LayerPlan{{Layer: fixtureLayer}}, []LayerWeights{{}, {}},
+	); err == nil {
 		t.Fatal("cache catalog accepted mismatched layer counts")
 	}
 }

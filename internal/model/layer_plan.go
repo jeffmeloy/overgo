@@ -306,13 +306,14 @@ func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (Auxiliary
 
 // ModelPlan: immutable model and per-layer execution contract.
 type ModelPlan struct {
-	profile     ArchitectureProfile
-	layers      []LayerPlan
-	draftLayers []LayerPlan
-	cacheLayers uint32
-	cachedGraph CachedGraphPolicy
-	terminal    TerminalPlan
-	draft       DraftPlan
+	profile      ArchitectureProfile
+	layers       []LayerPlan
+	draftLayers  []LayerPlan
+	cacheSchemas []LayerCacheSchema
+	cacheLayers  uint32
+	cachedGraph  CachedGraphPolicy
+	terminal     TerminalPlan
+	draft        DraftPlan
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -358,6 +359,14 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
 		plan.layers[layer] = spec.PlanLayer(layer, recurrent)
 	}
+	cacheSchemas, cacheErr := compileCacheSchemas(spec, plan.layers, weights.Layers)
+	if cacheErr != nil {
+		if weights.TokenEmbedding.Name != "" {
+			return ModelPlan{}, cacheErr
+		}
+	} else {
+		plan.cacheSchemas = cacheSchemas
+	}
 	if plan.draft.AppendedBlocks {
 		plan.draftLayers = make([]LayerPlan, plan.draft.Heads)
 		executable := spec
@@ -390,6 +399,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	}
 	if len(plan.draftLayers) != wantDraftLayers {
 		return fmt.Errorf("model plan architecture %s has invalid draft layers", spec.Architecture)
+	}
+	if len(plan.cacheSchemas) != 0 && len(plan.cacheSchemas) != len(plan.layers) {
+		return fmt.Errorf("model plan architecture %s has invalid cache schemas", spec.Architecture)
 	}
 	for offset, layer := range plan.draftLayers {
 		if layer.Layer != spec.BlockCount+uint32(offset) {
@@ -516,6 +528,19 @@ func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
 		return LayerPlan{}, fmt.Errorf("model plan draft layer %d is unavailable", offset)
 	}
 	return p.draftLayers[offset], nil
+}
+
+// CacheSchema: materialized compiled layer-cache contract.
+func (p ModelPlan) CacheSchema(layer int, tokens uint32) (LayerCacheSchema, error) {
+	if layer < 0 || layer >= len(p.cacheSchemas) {
+		return LayerCacheSchema{}, fmt.Errorf("model plan cache schema %d is unavailable", layer)
+	}
+	return p.cacheSchemas[layer].WithTokenCount(tokens), nil
+}
+
+// HasCacheSchemas: physical cache layout compiled.
+func (p ModelPlan) HasCacheSchemas() bool {
+	return len(p.layers) != 0 && len(p.cacheSchemas) == len(p.layers)
 }
 
 // CacheLayerCount: compiled cache-layer count.

@@ -46,10 +46,6 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	fail := func(openErr error) (*Runner, error) {
 		return nil, errors.Join(openErr, consumed.Close())
 	}
-	cacheSchemas, err := model.CompileCacheSchemas(spec, program.Model, weights.Layers)
-	if err != nil {
-		return fail(err)
-	}
 	vocab, err := tokenizer.Load(file)
 	if err != nil {
 		return fail(err)
@@ -203,7 +199,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	evidenceTier := consumed.EvidenceTier()
 	consumed.Disown()
 	return &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, program: program, evidenceTier: evidenceTier, cacheSchemas: cacheSchemas,
+		file: file, path: path, spec: spec, program: program, evidenceTier: evidenceTier,
 		weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,

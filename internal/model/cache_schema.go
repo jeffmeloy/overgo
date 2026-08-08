@@ -110,25 +110,30 @@ type LayerCacheSchema struct {
 	StrictStates bool
 }
 
-// CompileCacheSchemas: immutable per-layer cache catalog.
-func CompileCacheSchemas(
+func compileCacheSchemas(
 	spec Spec,
-	plan ModelPlan,
+	plans []LayerPlan,
 	layers []LayerWeights,
-) ([]LayerCacheSchema, error) {
-	if plan.LayerCount() != len(layers) {
+) (result []LayerCacheSchema, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = nil
+			err = fmt.Errorf("cache schema has invalid dimensions: %v", recovered)
+		}
+	}()
+	if len(layers) != 0 && len(plans) != len(layers) {
 		return nil, fmt.Errorf(
 			"cache schema layer count %d differs from plan count %d",
-			len(layers), plan.LayerCount(),
+			len(layers), len(plans),
 		)
 	}
-	result := make([]LayerCacheSchema, len(layers))
-	for index, layer := range layers {
-		layerPlan, err := plan.Layer(index)
-		if err != nil {
-			return nil, err
+	result = make([]LayerCacheSchema, len(plans))
+	for index := range plans {
+		layer := LayerWeights{}
+		if index < len(layers) {
+			layer = layers[index]
 		}
-		schema, err := CacheSchemaForPlan(spec, layerPlan, layer, 1)
+		schema, err := CacheSchemaForPlan(spec, plans[index], layer, 1)
 		if err != nil {
 			return nil, fmt.Errorf("cache schema layer %d: %w", index, err)
 		}

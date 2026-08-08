@@ -179,7 +179,11 @@ func BenchmarkRebuildDeviceCachePages(b *testing.B) {
 
 func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{
-		Architecture: "falcon-h1", BlockCount: 1, ContextLength: 4,
+		Architecture: "falcon-h1", BlockCount: 1, ContextLength: 4, EmbeddingLength: 4,
+	}, AttentionSpec: model.AttentionSpec{
+		KeyLength: 2, ValueLength: 3, HeadCountKV: 1,
+	}, RecurrentSpec: model.RecurrentSpec{
+		SSMConvKernel: 2, SSMInnerSize: 2, SSMGroupCount: 1, SSMStateSize: 1,
 	}},
 		weights: model.Weights{Layers: []model.LayerWeights{{}}}},
 	}

@@ -153,7 +153,6 @@ type preparedModel struct {
 	spec                model.Spec
 	program             modelrecipe.Plan
 	evidenceTier        recipe.EvidenceTier
-	cacheSchemas        []model.LayerCacheSchema
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
 	cuda                *executor.Executor

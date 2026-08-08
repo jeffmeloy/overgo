@@ -865,6 +865,7 @@ func TestKVCacheStateRejectsWrongModelShape(t *testing.T) {
 	}
 	other := cacheTestRunner()
 	other.spec.KeyLength = 4
+	other = attachFixtureProgram(other)
 	if _, err := other.LoadCache(data); err == nil {
 		t.Fatal("cache for a different key width was accepted")
 	}

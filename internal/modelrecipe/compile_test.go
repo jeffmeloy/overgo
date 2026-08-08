@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
@@ -66,7 +67,10 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 			SSMTimeStepRank: 2, SSMGroupCount: 1, FullAttentionInterval: 2,
 		},
 	}
-	program, err := Compile(definition, spec, model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}})
+	program, err := Compile(definition, spec, model.Weights{
+		TokenEmbedding: gguf.TensorInfo{Name: "token_embd.weight"},
+		Layers:         []model.LayerWeights{{Recurrent: true}, {}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

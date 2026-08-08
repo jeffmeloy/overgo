@@ -1,7 +1,6 @@
 package recipe
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,46 +31,58 @@ type definitionBody struct {
 	Outputs      []Output     `json:"outputs"`
 }
 
+var definitionCodec = artifact.DocumentCodec[Definition]{
+	Name: "recipe definition", ContractFor: func(value Definition) artifact.DocumentContract {
+		return DefinitionDocumentContract(value.Version)
+	},
+	Decode: decodeDefinition,
+	Encode: definitionContent, Canonicalize: canonicalize,
+	Clone: func(value Definition) Definition {
+		value.Dependencies = slices.Clone(value.Dependencies)
+		value.Nodes = slices.Clone(value.Nodes)
+		value.Edges = slices.Clone(value.Edges)
+		value.Inputs = slices.Clone(value.Inputs)
+		value.Outputs = slices.Clone(value.Outputs)
+		return value
+	},
+	Identity:    func(value Definition) artifact.ID { return value.ID },
+	SetIdentity: func(value *Definition, id artifact.ID) { value.ID = id },
+}
+
 func ParseDefinition(content []byte) (Definition, error) {
+	return definitionCodec.Parse(content)
+}
+
+func decodeDefinition(content []byte, definition *Definition) error {
 	var envelope struct {
 		Version uint16 `json:"version"`
 	}
 	if err := json.Unmarshal(content, &envelope); err != nil {
-		return Definition{}, fmt.Errorf("recipe: decode definition version: %w", err)
+		return fmt.Errorf("recipe: decode definition version: %w", err)
 	}
-	var definition Definition
-	var err error
 	switch envelope.Version {
 	case LegacyVersion:
 		var body legacyDefinitionBody
-		if err = strictjson.DecodeBytes(content, &body); err == nil {
-			definition, err = newDefinition(
-				LegacyVersion, body.Task, body.Model, nil,
-				body.Nodes, body.Edges, body.Inputs, body.Outputs,
-			)
+		if err := strictjson.DecodeBytes(content, &body); err != nil {
+			return err
+		}
+		*definition = Definition{
+			Version: LegacyVersion, Task: body.Task, Model: body.Model,
+			Nodes: body.Nodes, Edges: body.Edges, Inputs: body.Inputs, Outputs: body.Outputs,
 		}
 	case Version:
 		var body definitionBody
-		if err = strictjson.DecodeBytes(content, &body); err == nil {
-			definition, err = newDefinition(
-				Version, body.Task, artifact.ID{}, body.Dependencies,
-				body.Nodes, body.Edges, body.Inputs, body.Outputs,
-			)
+		if err := strictjson.DecodeBytes(content, &body); err != nil {
+			return err
+		}
+		*definition = Definition{
+			Version: Version, Task: body.Task, Dependencies: body.Dependencies,
+			Nodes: body.Nodes, Edges: body.Edges, Inputs: body.Inputs, Outputs: body.Outputs,
 		}
 	default:
-		return Definition{}, errors.New("recipe: unsupported definition version")
+		return errors.New("recipe: unsupported definition version")
 	}
-	if err != nil {
-		return Definition{}, fmt.Errorf("recipe: decode definition: %w", err)
-	}
-	canonical, err := definition.Content()
-	if err != nil {
-		return Definition{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return Definition{}, errors.New("recipe: non-canonical definition content")
-	}
-	return definition, nil
+	return nil
 }
 
 func NewDefinition(task Task, model artifact.ID, nodes []Node, edges []Edge, inputs []Input, outputs []Output) (Definition, error) {
@@ -101,52 +112,19 @@ func newDefinition(
 	inputs []Input,
 	outputs []Output,
 ) (Definition, error) {
-	definition := Definition{
+	return definitionCodec.New(Definition{
 		Version: version, Task: task, Model: model, Dependencies: slices.Clone(dependencies),
 		Nodes: slices.Clone(nodes), Edges: slices.Clone(edges),
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs),
-	}
-	if err := canonicalize(&definition); err != nil {
-		return Definition{}, err
-	}
-	content, err := definitionContent(definition)
-	if err != nil {
-		return Definition{}, err
-	}
-	id, err := DefinitionDocumentContract(version).Identify(content)
-	if err != nil {
-		return Definition{}, err
-	}
-	definition.ID = id
-	return definition, nil
+	})
 }
 
 func (d Definition) ValidateIdentity() error {
-	if (d.Version != LegacyVersion && d.Version != Version) || d.ID.Kind() != artifact.KindRecipe {
-		return errors.New("recipe: invalid version, recipe identity, or model identity")
-	}
-	canonical := d
-	if err := canonicalize(&canonical); err != nil {
-		return err
-	}
-	if !sameDefinitionShape(d, canonical) {
-		return errors.New("recipe: definition is not canonical")
-	}
-	content, err := definitionContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := DefinitionDocumentContract(d.Version).ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("recipe: identity mismatch")
-	}
-	return nil
+	return definitionCodec.ValidateIdentity(d)
 }
 
 func (d Definition) Content() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	return definitionContent(d)
+	return definitionCodec.ContentBytes(d)
 }
 
 func (d Definition) Descriptor() (artifact.Descriptor, error) {
@@ -158,11 +136,7 @@ func (d Definition) Descriptor() (artifact.Descriptor, error) {
 }
 
 func (d Definition) ArtifactContent() (artifact.Content, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return DefinitionDocumentContract(d.Version).Content(d.ID, content)
+	return definitionCodec.Content(d)
 }
 
 func DefinitionDocumentContract(version uint16) artifact.DocumentContract {
@@ -334,11 +308,4 @@ func duplicateOutputs(outputs []Output) bool {
 		}
 	}
 	return false
-}
-
-func sameDefinitionShape(left, right Definition) bool {
-	return left.Version == right.Version && left.Task == right.Task && left.Model == right.Model &&
-		slices.Equal(left.Dependencies, right.Dependencies) &&
-		slices.Equal(left.Nodes, right.Nodes) && slices.Equal(left.Edges, right.Edges) &&
-		slices.Equal(left.Inputs, right.Inputs) && slices.Equal(left.Outputs, right.Outputs)
 }

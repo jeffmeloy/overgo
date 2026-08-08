@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,6 +28,31 @@ var profileContract = artifact.DocumentContract{
 
 var legacyProfileContract = artifact.DocumentContract{
 	Kind: artifact.KindProfile, MediaType: ProfileMediaType, Schema: LegacyProfileSchema,
+}
+
+var profileCodec = artifact.DocumentCodec[ProfileDocument]{
+	Name: "model profile", ContractFor: func(value ProfileDocument) artifact.DocumentContract {
+		return profileContractForVersion(value.Version)
+	},
+	Decode: func(data []byte, value *ProfileDocument) error {
+		var body profileBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = ProfileDocument{
+			Version: body.Version, Architecture: body.Architecture,
+			Policy: body.Policy, Provenance: slices.Clone(body.Provenance),
+		}
+		return nil
+	},
+	Encode:       profileDocumentContent,
+	Canonicalize: func(value *ProfileDocument) error { return value.validateShape() },
+	Clone: func(value ProfileDocument) ProfileDocument {
+		value.Provenance = slices.Clone(value.Provenance)
+		return value
+	},
+	Identity:    func(value ProfileDocument) artifact.ID { return value.ID },
+	SetIdentity: func(value *ProfileDocument, id artifact.ID) { value.ID = id },
 }
 
 type profileBody struct {
@@ -63,76 +87,19 @@ func NewProfileDocumentWithProvenance(
 		Version: ProfileVersion, Architecture: profile.Name, Policy: profile,
 		Provenance: slices.Clone(provenance),
 	}
-	if err := document.validateShape(); err != nil {
-		return ProfileDocument{}, err
-	}
-	content, err := profileDocumentContent(document)
-	if err != nil {
-		return ProfileDocument{}, err
-	}
-	id, err := profileContractForVersion(document.Version).Identify(content)
-	if err != nil {
-		return ProfileDocument{}, err
-	}
-	document.ID = id
-	return document, nil
+	return profileCodec.New(document)
 }
 
 func ParseProfileDocument(content []byte) (ProfileDocument, error) {
-	var body profileBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return ProfileDocument{}, fmt.Errorf("model recipe: decode profile: %w", err)
-	}
-	document := ProfileDocument{
-		Version: body.Version, Architecture: body.Architecture, Policy: body.Policy,
-		Provenance: slices.Clone(body.Provenance),
-	}
-	if err := document.validateShape(); err != nil {
-		return ProfileDocument{}, err
-	}
-	canonicalContent, err := profileDocumentContent(document)
-	if err != nil {
-		return ProfileDocument{}, err
-	}
-	document.ID, err = profileContractForVersion(document.Version).Identify(canonicalContent)
-	if err != nil {
-		return ProfileDocument{}, err
-	}
-	if body.Architecture != document.Architecture {
-		return ProfileDocument{}, errors.New("model recipe: profile architecture mismatch")
-	}
-	canonical, err := document.Content()
-	if err != nil {
-		return ProfileDocument{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return ProfileDocument{}, errors.New("model recipe: non-canonical profile content")
-	}
-	return document, nil
+	return profileCodec.Parse(content)
 }
 
 func (d ProfileDocument) ValidateIdentity() error {
-	if d.ID.Kind() != artifact.KindProfile {
-		return errors.New("model recipe: invalid profile identity")
-	}
-	if err := d.validateShape(); err != nil {
-		return err
-	}
-	content, err := profileDocumentContent(d)
-	if err != nil {
-		return err
-	}
-	if err := profileContractForVersion(d.Version).ValidateIdentity(d.ID, content); err != nil {
-		return errors.New("model recipe: profile identity mismatch")
-	}
-	return nil
+	return profileCodec.ValidateIdentity(d)
 }
 
 func (d ProfileDocument) Content() ([]byte, error) {
-	if err := d.ValidateIdentity(); err != nil {
-		return nil, err
-	}
-	return profileDocumentContent(d)
+	return profileCodec.ContentBytes(d)
 }
 
 func (d ProfileDocument) Descriptor() (artifact.Descriptor, error) {
@@ -179,11 +146,7 @@ func profileDocumentContent(d ProfileDocument) ([]byte, error) {
 }
 
 func ProfileContent(document ProfileDocument) (artifact.Content, error) {
-	content, err := document.Content()
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return profileContractForVersion(document.Version).Content(document.ID, content)
+	return profileCodec.Content(document)
 }
 
 func PublishProfiles(

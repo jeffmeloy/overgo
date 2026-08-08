@@ -11,6 +11,7 @@ import (
 type DocumentCodec[T any] struct {
 	Name         string
 	Contract     DocumentContract
+	ContractFor  func(T) DocumentContract
 	Decode       func([]byte, *T) error
 	Encode       func(T) ([]byte, error)
 	Canonicalize func(*T) error
@@ -32,7 +33,8 @@ func (c DocumentCodec[T]) New(value T) (T, error) {
 	if err != nil {
 		return value, err
 	}
-	id, err := c.Contract.Identify(data)
+	contract := c.contract(value)
+	id, err := contract.Identify(data)
 	if err != nil {
 		return value, err
 	}
@@ -67,15 +69,16 @@ func (c DocumentCodec[T]) ValidateIdentity(value T) error {
 		return err
 	}
 	id := c.Identity(value)
-	if id.Kind() != c.Contract.Kind {
-		return fmt.Errorf("%s: invalid document identity", c.Name)
-	}
 	canonical := c.clone(value)
 	c.SetIdentity(&canonical, ID{})
 	if err := c.Canonicalize(&canonical); err != nil {
 		return err
 	}
 	c.SetIdentity(&canonical, id)
+	contract := c.contract(canonical)
+	if id.Kind() != contract.Kind {
+		return fmt.Errorf("%s: invalid document identity", c.Name)
+	}
 	if !reflect.DeepEqual(value, canonical) {
 		return fmt.Errorf("%s: document is not canonical", c.Name)
 	}
@@ -84,7 +87,7 @@ func (c DocumentCodec[T]) ValidateIdentity(value T) error {
 	if err != nil {
 		return err
 	}
-	if err := c.Contract.ValidateIdentity(id, data); err != nil {
+	if err := contract.ValidateIdentity(id, data); err != nil {
 		return fmt.Errorf("%s: document identity mismatch", c.Name)
 	}
 	return nil
@@ -105,7 +108,7 @@ func (c DocumentCodec[T]) Content(value T) (Content, error) {
 	if err != nil {
 		return Content{}, err
 	}
-	return c.Contract.Content(id, data)
+	return c.contract(value).Content(id, data)
 }
 
 func (c DocumentCodec[T]) clone(value T) T {
@@ -117,8 +120,15 @@ func (c DocumentCodec[T]) clone(value T) T {
 
 func (c DocumentCodec[T]) validate() error {
 	if c.Name == "" || c.Decode == nil || c.Encode == nil || c.Canonicalize == nil ||
-		c.Identity == nil || c.SetIdentity == nil {
+		c.Identity == nil || c.SetIdentity == nil || c.Contract.Kind == KindInvalid && c.ContractFor == nil {
 		return errors.New("artifact: incomplete document codec")
 	}
 	return nil
+}
+
+func (c DocumentCodec[T]) contract(value T) DocumentContract {
+	if c.ContractFor != nil {
+		return c.ContractFor(value)
+	}
+	return c.Contract
 }

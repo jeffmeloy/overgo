@@ -1,7 +1,6 @@
 package recipe
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +19,31 @@ const (
 
 var lifecycleContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: LifecycleMediaType, Schema: LifecycleSchema,
+}
+
+var lifecycleCodec = artifact.DocumentCodec[LifecycleEvent]{
+	Name: "recipe lifecycle", Contract: lifecycleContract,
+	Decode: func(data []byte, value *LifecycleEvent) error {
+		var body lifecycleBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = LifecycleEvent{
+			Version: body.Version, Recipe: body.Recipe, Model: body.Model, Task: body.Task,
+			From: body.From, To: body.To, PreviousEvent: body.PreviousEvent,
+			Supersedes: body.Supersedes, Evidence: body.Evidence,
+		}
+		return nil
+	},
+	Encode: lifecycleContent, Canonicalize: canonicalizeEvent,
+	Clone: func(value LifecycleEvent) LifecycleEvent {
+		value.PreviousEvent = artifact.CloneID(value.PreviousEvent)
+		value.Supersedes = artifact.CloneID(value.Supersedes)
+		value.Evidence = slices.Clone(value.Evidence)
+		return value
+	},
+	Identity:    func(value LifecycleEvent) artifact.ID { return value.ID },
+	SetIdentity: func(value *LifecycleEvent, id artifact.ID) { value.ID = id },
 }
 
 func LifecycleDocumentContract() artifact.DocumentContract { return lifecycleContract }
@@ -63,81 +87,23 @@ func NewLifecycleEvent(definition Definition, from, to Status, previousEvent, su
 	if err := definition.ValidateIdentity(); err != nil {
 		return LifecycleEvent{}, err
 	}
-	event := LifecycleEvent{
+	return lifecycleCodec.New(LifecycleEvent{
 		Version: LifecycleVersion, Recipe: definition.ID, Model: definition.Model, Task: definition.Task,
 		From: from, To: to, PreviousEvent: artifact.CloneID(previousEvent), Supersedes: artifact.CloneID(supersedes),
 		Evidence: slices.Clone(evidence),
-	}
-	if err := canonicalizeEvent(&event); err != nil {
-		return LifecycleEvent{}, err
-	}
-	content, err := lifecycleContent(event)
-	if err != nil {
-		return LifecycleEvent{}, err
-	}
-	id, err := lifecycleContract.Identify(content)
-	if err != nil {
-		return LifecycleEvent{}, err
-	}
-	event.ID = id
-	return event, nil
+	})
 }
 
 func ParseLifecycleEvent(content []byte) (LifecycleEvent, error) {
-	var body lifecycleBody
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		return LifecycleEvent{}, fmt.Errorf("recipe: decode lifecycle: %w", err)
-	}
-	event := LifecycleEvent{
-		Version: body.Version, Recipe: body.Recipe, Model: body.Model, Task: body.Task,
-		From: body.From, To: body.To, PreviousEvent: body.PreviousEvent,
-		Supersedes: body.Supersedes, Evidence: body.Evidence,
-	}
-	if err := canonicalizeEvent(&event); err != nil {
-		return LifecycleEvent{}, err
-	}
-	canonical, err := lifecycleContent(event)
-	if err != nil {
-		return LifecycleEvent{}, err
-	}
-	if !bytes.Equal(canonical, content) {
-		return LifecycleEvent{}, errors.New("recipe: non-canonical lifecycle content")
-	}
-	event.ID, err = lifecycleContract.Identify(content)
-	if err != nil {
-		return LifecycleEvent{}, err
-	}
-	return event, event.Validate()
+	return lifecycleCodec.Parse(content)
 }
 
 func (e LifecycleEvent) Content() (artifact.Content, error) {
-	if err := e.Validate(); err != nil {
-		return artifact.Content{}, err
-	}
-	data, err := lifecycleContent(e)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return lifecycleContract.Content(e.ID, data)
+	return lifecycleCodec.Content(e)
 }
 
 func (e LifecycleEvent) Validate() error {
-	if e.Version != LifecycleVersion || e.ID.Kind() != artifact.KindEvidence ||
-		e.Recipe.Kind() != artifact.KindRecipe || e.Model.Kind() != artifact.KindModel {
-		return errors.New("recipe: invalid lifecycle identity")
-	}
-	canonical := e
-	if err := canonicalizeEvent(&canonical); err != nil {
-		return err
-	}
-	data, err := lifecycleContent(canonical)
-	if err != nil {
-		return err
-	}
-	if err := lifecycleContract.ValidateIdentity(e.ID, data); err != nil {
-		return errors.New("recipe: lifecycle identity mismatch")
-	}
-	return nil
+	return lifecycleCodec.ValidateIdentity(e)
 }
 
 func canonicalizeEvent(event *LifecycleEvent) error {

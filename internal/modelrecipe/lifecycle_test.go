@@ -32,7 +32,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	first, err := inferenceFixture(modelID, recipe.PlacementHost)
+	first, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 		t.Fatalf("first active = (%s, %v, %v)", active.ID, ok, err)
 	}
 
-	second, err := inferenceFixture(modelID, recipe.PlacementDevice)
+	second, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	active, err := inferenceFixture(modelID, recipe.PlacementHost)
+	active, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		t.Fatalf("active record = (%+v, %v, %v)", record, ok, err)
 	}
 
-	refused, err := inferenceFixture(modelID, recipe.PlacementDevice)
+	refused, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
 	if err != nil {
 		t.Fatal(err)
 	}

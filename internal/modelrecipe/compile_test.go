@@ -14,7 +14,7 @@ import (
 
 func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementHost)
+	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 
 func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "capacity-model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementHybrid)
+	definition, err := inferenceFixture(modelID, recipe.PlacementHybrid, DecodeSessionCapacity)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,12 +50,45 @@ func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	}
 }
 
+func TestRecipeDecodeSessionPolicyIsAuthoritative(t *testing.T) {
+	const fixtureLayerCount = 1
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "request-capable-model")
+	definition, err := inferenceFixture(modelID, recipe.PlacementHybrid, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := Compile(definition, model.Spec{CommonSpec: model.CommonSpec{
+		Architecture: "llama", BlockCount: fixtureLayerCount,
+	}}, model.Weights{Layers: []model.LayerWeights{{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if program.Decode.Session != DecodeSessionRequest {
+		t.Fatalf("decode session = %q, need recipe request policy", program.Decode.Session)
+	}
+}
+
+func TestCapacityDecodePolicyRequiresCompatibleModel(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "request-only-model")
+	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionCapacity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Compile(
+		definition,
+		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}},
+		model.Weights{},
+	); err == nil {
+		t.Fatal("capacity policy accepted a model without capacity cache support")
+	}
+}
+
 func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "qwen35-model")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "qwen35-profile")
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "qwen35-definition")
 	definition, err := InferenceWithModelDefinition(
-		modelID, profileID, definitionID, recipe.PlacementHybrid,
+		modelID, profileID, definitionID, recipe.PlacementHybrid, DecodeSessionCapacity,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +111,7 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "persisted-model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementDevice)
+	definition, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
 	if err != nil {
 		t.Fatal(err)
 	}

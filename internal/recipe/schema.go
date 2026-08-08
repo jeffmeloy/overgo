@@ -106,10 +106,23 @@ type Module struct {
 	Outputs    []Port      `json:"outputs,omitempty"`
 }
 
+// SessionPolicy: decode cache/graph lifetime.
+type SessionPolicy string
+
+const (
+	SessionRequest  SessionPolicy = "request"
+	SessionCapacity SessionPolicy = "capacity"
+)
+
+func (p SessionPolicy) Valid() bool {
+	return p == "" || p == SessionRequest || p == SessionCapacity
+}
+
 type Node struct {
-	ID        NodeID    `json:"id"`
-	Module    ModuleID  `json:"module"`
-	Placement Placement `json:"placement"`
+	ID        NodeID        `json:"id"`
+	Module    ModuleID      `json:"module"`
+	Placement Placement     `json:"placement"`
+	Session   SessionPolicy `json:"session,omitempty"`
 }
 
 type Endpoint struct {

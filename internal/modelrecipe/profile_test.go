@@ -310,7 +310,9 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := inferenceWithProfileFixture(modelID, document.ID, recipe.PlacementHost)
+	definition, err := inferenceWithProfileFixture(
+		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +367,9 @@ func TestProfileCandidateRejectsParityDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := inferenceWithProfileFixture(modelID, document.ID, recipe.PlacementHost)
+	definition, err := inferenceWithProfileFixture(
+		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +397,9 @@ func TestCompileWithProfileMatchesRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := inferenceWithProfileFixture(modelID, document.ID, recipe.PlacementHost)
+	definition, err := inferenceWithProfileFixture(
+		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

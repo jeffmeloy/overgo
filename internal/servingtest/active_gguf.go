@@ -71,6 +71,7 @@ func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.Loa
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, placement,
+		modelrecipe.DecodeSessionCapacity,
 	)
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err

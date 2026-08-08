@@ -42,7 +42,9 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		store := openProgramStore(t)
 		defer store.Close()
 		inventory, _ := publishProgramFacts(t, store, path)
-		definition, err := inferenceFixture(inventory.Manifest.ID, recipe.PlacementHybrid)
+		definition, err := inferenceFixture(
+			inventory.Manifest.ID, recipe.PlacementHybrid, DecodeSessionCapacity,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,6 +62,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		_, other := publishProgramFacts(t, store, otherPath)
 		definition, err := InferenceWithModelDefinition(
 			inventory.Manifest.ID, other.Profile.ID, other.Document.ID, recipe.PlacementHybrid,
+			DecodeSessionCapacity,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -166,6 +169,7 @@ func definitionRecipe(
 	t.Helper()
 	definition, err := InferenceWithModelDefinition(
 		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
+		DecodeSessionCapacity,
 	)
 	if err != nil {
 		t.Fatal(err)

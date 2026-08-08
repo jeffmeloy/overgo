@@ -12,19 +12,21 @@ func inferenceWithProfileFixture(
 	modelID artifact.ID,
 	profileID artifact.ID,
 	placement recipe.Placement,
+	session DecodeSessionPolicy,
 ) (recipe.Definition, error) {
 	return inference([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: modelID},
 		{Role: recipe.DependencyProfile, Artifact: profileID},
-	}, placement)
+	}, placement, session)
 }
 
 func inferenceFixture(
 	modelID artifact.ID,
 	placement recipe.Placement,
+	session DecodeSessionPolicy,
 ) (recipe.Definition, error) {
 	return inference(
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, placement,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, placement, session,
 	)
 }
 

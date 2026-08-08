@@ -43,11 +43,11 @@ type ProgramIdentity struct {
 }
 
 // DecodeSessionPolicy: compiled decode-graph lifetime.
-type DecodeSessionPolicy uint8
+type DecodeSessionPolicy = recipe.SessionPolicy
 
 const (
-	DecodeSessionRequest DecodeSessionPolicy = iota
-	DecodeSessionCapacity
+	DecodeSessionRequest  = recipe.SessionRequest
+	DecodeSessionCapacity = recipe.SessionCapacity
 )
 
 // DecodePlan: recipe-owned session program.
@@ -64,17 +64,24 @@ func InferenceWithModelDefinition(
 	profileID artifact.ID,
 	definitionID artifact.ID,
 	placement recipe.Placement,
+	session DecodeSessionPolicy,
 ) (recipe.Definition, error) {
 	return inference([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: modelID},
 		{Role: recipe.DependencyProfile, Artifact: profileID},
 		{Role: recipe.DependencyDefinition, Artifact: definitionID},
-	}, placement)
+	}, placement, session)
 }
 
-func inference(dependencies []recipe.Dependency, placement recipe.Placement) (recipe.Definition, error) {
+func inference(
+	dependencies []recipe.Dependency,
+	placement recipe.Placement,
+	session DecodeSessionPolicy,
+) (recipe.Definition, error) {
 	compile := recipe.Node{ID: "compile", Module: ModuleCompileModelPlan, Placement: placement}
-	decode := recipe.Node{ID: "decode", Module: ModuleCompileDecodePlan, Placement: placement}
+	decode := recipe.Node{
+		ID: "decode", Module: ModuleCompileDecodePlan, Placement: placement, Session: session,
+	}
 	forward := recipe.Node{ID: "forward", Module: ModuleForwardTokens, Placement: placement}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
@@ -134,19 +141,49 @@ func compileDefinition(
 	if err != nil {
 		return Plan{}, err
 	}
-	return compilePlan(definition, definition.Nodes, modelPlan), nil
+	decode, err := compileDecodePlan(definition.Nodes, modelPlan)
+	if err != nil {
+		return Plan{}, err
+	}
+	return compilePlan(definition, definition.Nodes, modelPlan, decode), nil
 }
 
-func compilePlan(definition recipe.Definition, nodes []recipe.Node, modelPlan model.ModelPlan) Plan {
-	session := DecodeSessionRequest
-	if modelPlan.SupportsCapacityCache() {
-		session = DecodeSessionCapacity
-	}
+func compilePlan(
+	definition recipe.Definition,
+	nodes []recipe.Node,
+	modelPlan model.ModelPlan,
+	decode DecodePlan,
+) Plan {
 	return Plan{
 		Identity: programIdentity(definition), Recipe: definition,
-		Model: modelPlan, Decode: DecodePlan{Session: session},
+		Model: modelPlan, Decode: decode,
 		Nodes: append([]recipe.Node(nil), nodes...),
 	}
+}
+
+func compileDecodePlan(nodes []recipe.Node, modelPlan model.ModelPlan) (DecodePlan, error) {
+	var session DecodeSessionPolicy
+	for _, node := range nodes {
+		if node.Module == ModuleCompileDecodePlan {
+			if session != "" {
+				return DecodePlan{}, errors.New("model recipe: multiple decode-session policies")
+			}
+			session = node.Session
+			continue
+		}
+		if node.Session != "" {
+			return DecodePlan{}, fmt.Errorf(
+				"model recipe: module %q carries decode-session policy", node.Module,
+			)
+		}
+	}
+	if session == "" {
+		return DecodePlan{}, errors.New("model recipe: decode-session policy is missing")
+	}
+	if session == DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
+		return DecodePlan{}, errors.New("model recipe: capacity session is incompatible with model plan")
+	}
+	return DecodePlan{Session: session}, nil
 }
 
 func programIdentity(definition recipe.Definition) ProgramIdentity {
@@ -195,6 +232,10 @@ func (p Plan) ValidateServing() error {
 	}
 	if !slices.Equal(p.Nodes, p.Recipe.Nodes) {
 		return errors.New("model recipe: serving node program differs")
+	}
+	decode, err := compileDecodePlan(p.Nodes, p.Model)
+	if err != nil || decode != p.Decode {
+		return errors.New("model recipe: serving decode program differs")
 	}
 	return nil
 }

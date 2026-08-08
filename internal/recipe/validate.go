@@ -22,6 +22,9 @@ func (d Definition) Validate(catalog *Catalog) error {
 	}
 	nodes := make(map[NodeID]nodeContract, len(d.Nodes))
 	for _, node := range d.Nodes {
+		if !node.Session.Valid() {
+			return fmt.Errorf("recipe: node %q has invalid session policy %q", node.ID, node.Session)
+		}
 		module, ok := catalog.Module(node.Module)
 		if !ok {
 			return fmt.Errorf("recipe: node %q uses unknown module %q", node.ID, node.Module)

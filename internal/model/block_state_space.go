@@ -401,99 +401,84 @@ func buildPLaMo2MixerCached(
 	return DenseBlockResult{Output: mixer, Key: nextConvState, Value: nextSSMState}, nil
 }
 
-// BuildNemotronHBlockCached: attention, Mamba2, or FFN mixer.
-func BuildNemotronHBlockCached(
+func buildNemotronAttentionMixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if builder == nil || input == nil || input.Shape.Rank != 2 ||
-		spec.Profile().Block != BlockNemotronH {
-		return DenseBlockResult{}, errors.New("Nemotron-H block architecture/input is invalid")
+	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
+		return DenseBlockResult{}, errors.New("Nemotron-H attention input is invalid")
 	}
-	if weights.AttentionNorm == nil {
-		return DenseBlockResult{}, errors.New("Nemotron-H block norm is nil")
-	}
-	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Nemotron-H position count is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "Nemotron-H cache must contain both tensors"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	if spec.IsRecurrentLayer(layerIndex) {
-		result, err := buildMamba2MixerCached(builder, normalized, spec, weights, pastKey, pastValue)
-		if err != nil {
-			return DenseBlockResult{}, err
-		}
-		result.Output = builder.Add(input, result.Output)
-		return result, builder.Err()
+	if err := (graphWeights{
+		requireGraphWeight("attention Q", weights.AttentionQ),
+		requireGraphWeight("attention K", weights.AttentionK),
+		requireGraphWeight("attention V", weights.AttentionV),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+	}).validate("Nemotron-H attention"); err != nil {
+		return DenseBlockResult{}, err
 	}
-	tokens := input.Shape.Dims[1]
-	if spec.LayerFeedForwardLength(layerIndex) == 0 {
-		if err := (graphWeights{
-			requireGraphWeight("attention Q", weights.AttentionQ),
-			requireGraphWeight("attention K", weights.AttentionK),
-			requireGraphWeight("attention V", weights.AttentionV),
-			requireGraphWeight("attention output", weights.AttentionOutput),
-		}).validate("Nemotron-H"); err != nil {
-			return DenseBlockResult{}, err
-		}
-		query := builder.MulMat(weights.AttentionQ, normalized)
-		key := builder.MulMat(weights.AttentionK, normalized)
-		value := builder.MulMat(weights.AttentionV, normalized)
-		if weights.AttentionQBias != nil {
-			query = builder.Add(query, weights.AttentionQBias)
-		}
-		if weights.AttentionKBias != nil {
-			key = builder.Add(key, weights.AttentionKBias)
-		}
-		if weights.AttentionVBias != nil {
-			value = builder.Add(value, weights.AttentionVBias)
-		}
-		heads := uint64(spec.LayerHeadCount(layerIndex))
-		kvHeads := uint64(spec.LayerKVHeadCount(layerIndex))
-		query = builder.Reshape(query, uint64(spec.KeyLength), heads, tokens)
-		key = builder.Reshape(key, uint64(spec.KeyLength), kvHeads, tokens)
-		value = builder.Reshape(value, uint64(spec.ValueLength), kvHeads, tokens)
-		cacheKey, cacheValue := key, value
-		var queryStart uint32
-		if pastKey != nil {
-			if pastKey.Shape.Dims[2] > math.MaxUint32 {
-				return DenseBlockResult{}, errors.New("Nemotron-H cache token count exceeds uint32")
-			}
-			queryStart = uint32(pastKey.Shape.Dims[2])
-			cacheKey = builder.Concat(pastKey, key, 2)
-			cacheValue = builder.Concat(pastValue, value, 2)
-		}
-		scale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-		if spec.AttentionScale > 0 {
-			scale = spec.AttentionScale
-		}
-		attention := builder.AttentionWithOffset(query, cacheKey, cacheValue, scale, true, queryStart)
-		attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
-		attention = builder.MulMat(weights.AttentionOutput, attention)
-		if weights.AttentionOutputBias != nil {
-			attention = builder.Add(attention, weights.AttentionOutputBias)
-		}
-		return DenseBlockResult{Output: builder.Add(input, attention), Key: cacheKey, Value: cacheValue}, builder.Err()
+	tokens := normalized.Shape.Dims[1]
+	query := builder.MulMat(weights.AttentionQ, normalized)
+	key := builder.MulMat(weights.AttentionK, normalized)
+	value := builder.MulMat(weights.AttentionV, normalized)
+	if weights.AttentionQBias != nil {
+		query = builder.Add(query, weights.AttentionQBias)
 	}
-	sentinel := builder.GroupSlice(input, 0, 1, 1, input.Shape.Dims[0])
-	cacheKey, cacheValue := sentinel, sentinel
+	if weights.AttentionKBias != nil {
+		key = builder.Add(key, weights.AttentionKBias)
+	}
+	if weights.AttentionVBias != nil {
+		value = builder.Add(value, weights.AttentionVBias)
+	}
+	heads := uint64(spec.LayerHeadCount(layerIndex))
+	kvHeads := uint64(spec.LayerKVHeadCount(layerIndex))
+	query = builder.Reshape(query, uint64(spec.KeyLength), heads, tokens)
+	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeads, tokens)
+	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeads, tokens)
+	cacheKey, cacheValue := key, value
+	var queryStart uint32
 	if pastKey != nil {
-		wantPrefix := tensor.MustShape(1, 1, pastKey.Shape.Dims[2])
-		if !pastKey.Shape.Equal(wantPrefix) || !pastValue.Shape.Equal(wantPrefix) {
-			return DenseBlockResult{}, errors.New("Nemotron-H FFN sentinel cache shape is invalid")
+		if pastKey.Shape.Dims[2] > math.MaxUint32 {
+			return DenseBlockResult{}, errors.New("Nemotron-H cache token count exceeds uint32")
 		}
-		cacheKey = builder.Concat(pastKey, sentinel, 2)
-		cacheValue = builder.Concat(pastValue, sentinel, 2)
+		queryStart = uint32(pastKey.Shape.Dims[2])
+		cacheKey = builder.Concat(pastKey, key, 2)
+		cacheValue = builder.Concat(pastValue, value, 2)
+	}
+	scale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	if spec.AttentionScale > 0 {
+		scale = spec.AttentionScale
+	}
+	attention := builder.AttentionWithOffset(query, cacheKey, cacheValue, scale, true, queryStart)
+	attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
+	attention = builder.MulMat(weights.AttentionOutput, attention)
+	if weights.AttentionOutputBias != nil {
+		attention = builder.Add(attention, weights.AttentionOutputBias)
+	}
+	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, builder.Err()
+}
+
+func buildNemotronFeedForwardMix(
+	builder *tensor.Builder,
+	normalized *tensor.Tensor,
+	weights LayerGraphWeights,
+	plan MoEGraphPlan,
+) (*tensor.Tensor, error) {
+	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
+		return nil, errors.New("Nemotron-H feed-forward input is invalid")
 	}
 	var feedForward *tensor.Tensor
-	if spec.Profile().Has(ArchitectureMoE) {
+	if weights.FeedForwardRouter != nil {
 		if err := (graphWeights{
 			requireGraphWeight("router", weights.FeedForwardRouter),
 			requireGraphWeight("expert bias", weights.FeedForwardExpertBias),
@@ -502,21 +487,17 @@ func BuildNemotronHBlockCached(
 			requireGraphWeight("shared up", weights.FeedForwardSharedUp),
 			requireGraphWeight("shared down", weights.FeedForwardSharedDown),
 		}).validate("Nemotron-H MoE"); err != nil {
-			return DenseBlockResult{}, err
+			return nil, err
 		}
 		expertInput := normalized
 		if weights.FeedForwardLatentDown != nil {
 			if weights.FeedForwardLatentUp == nil {
-				return DenseBlockResult{}, errors.New("Nemotron-H MoE latent projection is incomplete")
+				return nil, errors.New("Nemotron-H MoE latent projection is incomplete")
 			}
 			expertInput = builder.MulMat(weights.FeedForwardLatentDown, normalized)
 		} else if weights.FeedForwardLatentUp != nil {
-			return DenseBlockResult{}, errors.New("Nemotron-H MoE latent projection is incomplete")
+			return nil, errors.New("Nemotron-H MoE latent projection is incomplete")
 		}
-		plan := spec.moeGraphPlan(layerIndex)
-		plan.Routing = tensor.MoERoutingSigmoid
-		plan.Activation = tensor.MoEActivationReLUSquared
-		plan.SelectionBias = true
 		feedForward = plan.BuildLayer(builder, expertInput, normalized, weights)
 		if weights.FeedForwardLatentUp != nil {
 			feedForward = builder.MulMat(weights.FeedForwardLatentUp, feedForward)
@@ -526,7 +507,7 @@ func BuildNemotronHBlockCached(
 		feedForward = builder.Add(feedForward, shared)
 	} else {
 		if weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
-			return DenseBlockResult{}, errors.New("Nemotron-H dense FFN catalog is incomplete")
+			return nil, errors.New("Nemotron-H dense FFN catalog is incomplete")
 		}
 		feedForward = builder.MulMat(weights.FeedForwardUp, normalized)
 		if weights.FeedForwardUpBias != nil {
@@ -537,5 +518,5 @@ func BuildNemotronHBlockCached(
 			feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 		}
 	}
-	return DenseBlockResult{Output: builder.Add(input, feedForward), Key: cacheKey, Value: cacheValue}, builder.Err()
+	return feedForward, builder.Err()
 }

@@ -3,6 +3,8 @@ package model
 import (
 	"fmt"
 	"math"
+
+	"overgo/internal/tensor"
 )
 
 // BlockPolicy: compiled block-builder selection.
@@ -52,10 +54,12 @@ const (
 	LayerOperatorFamilyBlock LayerOperator = iota
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
+	LayerOperatorAttentionMix
 	LayerOperatorRecurrentMix
 	LayerOperatorFeedForwardNorm
 	LayerOperatorFeedForwardMix
 	LayerOperatorFeedForwardPostNorm
+	LayerOperatorCacheSentinel
 	LayerOperatorScale
 	LayerOperatorResidual
 )
@@ -70,6 +74,14 @@ const (
 	RecurrentMixPLaMo2
 )
 
+// AttentionMixPolicy: attention operator implementation.
+type AttentionMixPolicy uint8
+
+const (
+	AttentionMixNone AttentionMixPolicy = iota
+	AttentionMixNemotron
+)
+
 // FeedForwardMixPolicy: feed-forward operator implementation.
 type FeedForwardMixPolicy uint8
 
@@ -77,6 +89,7 @@ const (
 	FeedForwardMixNone FeedForwardMixPolicy = iota
 	FeedForwardMixStandardSwiGLU
 	FeedForwardMixFusedSwiGLU
+	FeedForwardMixNemotron
 )
 
 const (
@@ -89,6 +102,7 @@ const (
 type LayerOperatorInstruction struct {
 	Operator               LayerOperator
 	Family                 BlockPolicy
+	Attention              AttentionMixPolicy
 	Recurrent              RecurrentMixPolicy
 	FeedForward            FeedForwardMixPolicy
 	RequireConvolutionBias bool
@@ -103,6 +117,16 @@ type LayerProgram struct {
 	Count        uint8
 	Instructions [maxLayerInstructions]LayerOperatorInstruction
 }
+
+// LayerCompositionPolicy: semantic block-stage composition.
+type LayerCompositionPolicy uint8
+
+const (
+	LayerCompositionStandard LayerCompositionPolicy = iota
+	LayerCompositionRecurrentOnly
+	LayerCompositionAttentionOnly
+	LayerCompositionFeedForwardOnly
+)
 
 func (p LayerProgram) Instruction(index int) (LayerOperatorInstruction, bool) {
 	if index < 0 || index >= int(p.Count) || index >= len(p.Instructions) {
@@ -211,6 +235,7 @@ type LayerPlan struct {
 	CatalogFamily     ArchitectureFamily
 	Block             BlockPolicy
 	Program           LayerProgram
+	Composition       LayerCompositionPolicy
 	Cache             CachePolicy
 	Attention         AttentionPolicy
 	Position          PositionPolicy
@@ -266,7 +291,24 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	normalization := s.NormPlan()
 	cache := cachePolicy(s, profile, layer, recurrent)
 	block := blockPolicy(profile, recurrent)
-	program := compileLayerProgram(block, recurrent)
+	composition := LayerCompositionStandard
+	if block == BlockNemotronH {
+		switch {
+		case recurrent:
+			composition = LayerCompositionRecurrentOnly
+		case s.LayerFeedForwardLength(layer) > 0:
+			composition = LayerCompositionFeedForwardOnly
+		default:
+			composition = LayerCompositionAttentionOnly
+		}
+	}
+	program := compileLayerProgram(block, recurrent, composition)
+	experts := s.moeGraphPlan(layer)
+	if block == BlockNemotronH {
+		experts.Routing = tensor.MoERoutingSigmoid
+		experts.Activation = tensor.MoEActivationReLUSquared
+		experts.SelectionBias = true
+	}
 	cacheWrite := CacheWriteFixed
 	if cache.PrimaryMode().TokenAligned() {
 		cacheWrite = CacheWriteConcatOnly
@@ -284,6 +326,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		FeedForward:       profile.FeedForward,
 		Block:             block,
 		Program:           program,
+		Composition:       composition,
 		Cache:             cache,
 		CacheMode:         cache.PrimaryMode(),
 		CacheWrite:        cacheWrite,
@@ -305,7 +348,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Normalization:     normalization,
 		Rotary:            s.rotaryPlan(profile, layer),
 		AttentionGraph:    s.attentionGraphPlan(layer),
-		Experts:           s.moeGraphPlan(layer),
+		Experts:           experts,
 		ExpertComposition: s.expertCompositionPlan(),
 		DenseWeights:      s.denseWeightPlan(profile, layer),
 		DenseGraph:        profile.DenseGraph,
@@ -509,7 +552,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			layer.CatalogFamily != plan.profile.CatalogFamily {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if layer.Program != compileLayerProgram(layer.Block, layer.Recurrent) {
+		if layer.Program != compileLayerProgram(layer.Block, layer.Recurrent, layer.Composition) {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
 		if layer.SharedKV {
@@ -658,7 +701,11 @@ func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 	return profile.Block
 }
 
-func compileLayerProgram(block BlockPolicy, recurrent bool) LayerProgram {
+func compileLayerProgram(
+	block BlockPolicy,
+	recurrent bool,
+	composition LayerCompositionPolicy,
+) LayerProgram {
 	if block == BlockGraniteHybrid {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba2, false),
@@ -681,6 +728,27 @@ func compileLayerProgram(block BlockPolicy, recurrent bool) LayerProgram {
 			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedSwiGLU),
 			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 		)
+	}
+	if block == BlockNemotronH {
+		switch composition {
+		case LayerCompositionRecurrentOnly:
+			return newLayerProgram(
+				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba2, false),
+				layerStage(LayerOperatorResidual),
+			)
+		case LayerCompositionAttentionOnly:
+			return newLayerProgram(
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixNemotron),
+				layerStage(LayerOperatorResidual),
+			)
+		case LayerCompositionFeedForwardOnly:
+			return newLayerProgram(
+				layerStage(LayerOperatorAttentionNorm), cacheSentinelLayerStage(),
+				feedForwardLayerStage(FeedForwardMixNemotron), layerStage(LayerOperatorResidual),
+			)
+		default:
+			return LayerProgram{}
+		}
 	}
 	if block == BlockMamba || block == BlockMamba2 {
 		recurrentPolicy := RecurrentMixMamba
@@ -743,9 +811,26 @@ func recurrentLayerStage(
 	return instruction
 }
 
+func attentionLayerStage(policy AttentionMixPolicy) LayerOperatorInstruction {
+	instruction := layerStage(LayerOperatorAttentionMix)
+	instruction.Attention = policy
+	instruction.CacheCount = 2
+	instruction.Caches[0] = RuntimeCachePrimaryKey
+	instruction.Caches[1] = RuntimeCachePrimaryValue
+	return instruction
+}
+
 func feedForwardLayerStage(policy FeedForwardMixPolicy) LayerOperatorInstruction {
 	instruction := layerStage(LayerOperatorFeedForwardMix)
 	instruction.FeedForward = policy
+	return instruction
+}
+
+func cacheSentinelLayerStage() LayerOperatorInstruction {
+	instruction := layerStage(LayerOperatorCacheSentinel)
+	instruction.CacheCount = 2
+	instruction.Caches[0] = RuntimeCachePrimaryKey
+	instruction.Caches[1] = RuntimeCachePrimaryValue
 	return instruction
 }
 

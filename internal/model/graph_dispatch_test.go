@@ -8,7 +8,11 @@ import (
 
 func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 	for policy := BlockDense; policy <= BlockQwenGDN; policy++ {
-		program := compileLayerProgram(policy, false)
+		composition := LayerCompositionStandard
+		if policy == BlockNemotronH {
+			composition = LayerCompositionAttentionOnly
+		}
+		program := compileLayerProgram(policy, false, composition)
 		instruction, ok := program.Instruction(0)
 		if !ok {
 			t.Fatalf("block policy %d has no compiled operator", policy)
@@ -36,6 +40,10 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 				LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
 				LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
 			}
+		case BlockNemotronH:
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
+			}
 		}
 		if len(want) != 0 {
 			if program.Count != uint8(len(want)) {
@@ -56,6 +64,29 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			instruction.Family != policy {
 			t.Fatalf("block policy %d family program = %+v", policy, program)
 		}
+	}
+}
+
+func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
+	const mixerStage = 1
+	fixtures := []struct {
+		name        string
+		recurrent   bool
+		composition LayerCompositionPolicy
+		mixer       LayerOperator
+	}{
+		{name: "recurrent", recurrent: true, composition: LayerCompositionRecurrentOnly, mixer: LayerOperatorRecurrentMix},
+		{name: "attention", composition: LayerCompositionAttentionOnly, mixer: LayerOperatorAttentionMix},
+		{name: "feed-forward", composition: LayerCompositionFeedForwardOnly, mixer: LayerOperatorCacheSentinel},
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			program := compileLayerProgram(BlockNemotronH, fixture.recurrent, fixture.composition)
+			instruction, ok := program.Instruction(mixerStage)
+			if !ok || instruction.Operator != fixture.mixer {
+				t.Fatalf("Nemotron program = %+v", program)
+			}
+		})
 	}
 }
 

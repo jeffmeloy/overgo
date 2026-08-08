@@ -158,6 +158,27 @@ func executeLayerInstruction(
 			execution.current, options.Weights.AttentionPostNorm, options.Spec.RMSNormEpsilon,
 		)
 		return c.Builder.Err()
+	case LayerOperatorAttentionMix:
+		if instruction.CacheCount != 2 || instruction.TensorCount != 0 {
+			return errors.New("compiled attention-mixing stage is invalid")
+		}
+		var result DenseBlockResult
+		var err error
+		switch instruction.Attention {
+		case AttentionMixNemotron:
+			result, err = buildNemotronAttentionMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan.Layer,
+			)
+		default:
+			return errors.New("compiled attention-mixing policy is invalid")
+		}
+		if err != nil {
+			return err
+		}
+		execution.result = result
+		execution.current = result.Output
+		return nil
 	case LayerOperatorRecurrentMix:
 		if instruction.CacheCount != 2 {
 			return errors.New("compiled recurrent-mixing stage is invalid")
@@ -216,6 +237,10 @@ func executeLayerInstruction(
 			feedForward, err = buildFusedFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
 			)
+		case FeedForwardMixNemotron:
+			feedForward, err = buildNemotronFeedForwardMix(
+				c.Builder, execution.current, options.Weights, plan.Experts,
+			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
 		}
@@ -233,6 +258,19 @@ func executeLayerInstruction(
 			execution.current, options.Weights.FeedForwardPostNorm, options.Spec.RMSNormEpsilon,
 		)
 		return c.Builder.Err()
+	case LayerOperatorCacheSentinel:
+		if instruction.CacheCount != 2 || instruction.TensorCount != 0 {
+			return errors.New("compiled sentinel-cache stage is invalid")
+		}
+		key, value, err := buildSentinelCache(
+			c.Builder, execution.residual, operands.caches[0], operands.caches[1],
+		)
+		if err != nil {
+			return err
+		}
+		execution.result.Key = key
+		execution.result.Value = value
+		return nil
 	case LayerOperatorScale:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
 			options.Spec.ResidualScale <= 0 {
@@ -281,11 +319,6 @@ func executeFamilyBlock(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
 		)
-	case BlockNemotronH:
-		return BuildNemotronHBlockCached(
-			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], c.Layer,
-		)
 	case BlockKimiLinear:
 		return BuildKimiLinearBlockCached(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, plan.Recurrent,
@@ -311,6 +344,39 @@ func executeFamilyBlock(
 	default:
 		return DenseBlockResult{}, errors.New("compiled family block is unknown")
 	}
+}
+
+func buildSentinelCache(
+	builder *tensor.Builder,
+	input, pastKey, pastValue *tensor.Tensor,
+) (*tensor.Tensor, *tensor.Tensor, error) {
+	const (
+		sentinelOffset      = 0
+		sentinelWidth       = 1
+		sentinelGroupCount  = 1
+		cacheTokenDimension = 2
+	)
+	if input == nil || input.Shape.Rank != 2 {
+		return nil, nil, errors.New("sentinel-cache input is invalid")
+	}
+	if err := requireTensorPair(pastKey, pastValue, "sentinel cache must contain both tensors"); err != nil {
+		return nil, nil, err
+	}
+	sentinel := builder.GroupSlice(
+		input, sentinelOffset, sentinelWidth, sentinelGroupCount, input.Shape.Dims[0],
+	)
+	cacheKey, cacheValue := sentinel, sentinel
+	if pastKey != nil {
+		wantPrefix, err := tensor.NewShape(
+			sentinelWidth, sentinelGroupCount, pastKey.Shape.Dims[cacheTokenDimension],
+		)
+		if err != nil || !pastKey.Shape.Equal(wantPrefix) || !pastValue.Shape.Equal(wantPrefix) {
+			return nil, nil, errors.New("sentinel cache shape is invalid")
+		}
+		cacheKey = builder.Concat(pastKey, sentinel, cacheTokenDimension)
+		cacheValue = builder.Concat(pastValue, sentinel, cacheTokenDimension)
+	}
+	return cacheKey, cacheValue, builder.Err()
 }
 
 func buildFusedFeedForwardMix(

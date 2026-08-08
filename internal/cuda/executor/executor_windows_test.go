@@ -340,6 +340,7 @@ func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
 
 func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
+	fixturePositions := []uint32{0, 1}
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "nemotron_h", BlockCount: 1, EmbeddingLength: 4,
 		FeedForwardLength: 1,
@@ -362,9 +363,14 @@ func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {
 		SSMNorm:       builder.Input("ssm_norm", dtype.F32, tensor.MustShape(4, 2)),
 		SSMOutput:     builder.Input("ssm_out", dtype.F32, tensor.MustShape(8, 4)),
 	}
-	result, err := model.BuildNemotronHBlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, convState, ssmState, 0,
-	)
+	plan := spec.PlanLayer(0, true)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: fixturePositions,
+			PastKey: convState, PastValue: ssmState, Recurrent: true,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,6 +406,7 @@ func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {
 
 func TestExecutorNemotronHMoEBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
+	fixturePositions := []uint32{0, 1}
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "nemotron_h_moe", BlockCount: 1, EmbeddingLength: 8,
 		FeedForwardLength: 6,
@@ -423,7 +430,13 @@ func TestExecutorNemotronHMoEBlockMatchesReference(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
 	}
-	result, err := model.BuildNemotronHBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	plan := spec.PlanLayer(0, false)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: fixturePositions,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,6 +473,7 @@ func TestExecutorNemotronHMoEBlockMatchesReference(t *testing.T) {
 
 func TestExecutorNemotronHAttentionBlockMatchesReference(t *testing.T) {
 	cudatest.Require(t)
+	fixturePositions := []uint32{0, 1}
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "nemotron_h", BlockCount: 1, EmbeddingLength: 8,
 		FeedForwardLength: 1,
@@ -477,7 +491,13 @@ func TestExecutorNemotronHAttentionBlockMatchesReference(t *testing.T) {
 		AttentionOutput:     builder.Input("output", dtype.F32, tensor.MustShape(8, 8)),
 		AttentionOutputBias: builder.Input("output_bias", dtype.F32, tensor.MustShape(8)),
 	}
-	result, err := model.BuildNemotronHBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	plan := spec.PlanLayer(0, false)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, Positions: fixturePositions,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

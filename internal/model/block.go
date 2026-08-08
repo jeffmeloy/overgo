@@ -1051,18 +1051,9 @@ func buildDeciSparseBlockCached(
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Deci position count is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Deci cache must contain both sentinel tensors"); err != nil {
-		return DenseBlockResult{}, err
-	}
-	sentinel := builder.GroupSlice(input, 0, 1, 1, input.Shape.Dims[0])
-	cacheKey, cacheValue := sentinel, sentinel
-	if pastKey != nil {
-		wantPrefix := tensor.MustShape(1, 1, pastKey.Shape.Dims[2])
-		if !pastKey.Shape.Equal(wantPrefix) || !pastValue.Shape.Equal(wantPrefix) {
-			return DenseBlockResult{}, errors.New("Deci sentinel cache shape is invalid")
-		}
-		cacheKey = builder.Concat(pastKey, sentinel, 2)
-		cacheValue = builder.Concat(pastValue, sentinel, 2)
+	cacheKey, cacheValue, err := buildSentinelCache(builder, input, pastKey, pastValue)
+	if err != nil {
+		return DenseBlockResult{}, fmt.Errorf("Deci: %w", err)
 	}
 	if spec.LayerFeedForwardLength(layerIndex) == 0 {
 		return DenseBlockResult{Output: input, Key: cacheKey, Value: cacheValue}, builder.Err()

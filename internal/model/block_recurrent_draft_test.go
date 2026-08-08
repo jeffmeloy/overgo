@@ -1010,6 +1010,7 @@ func TestBuildGPTOSSBiasedMoEBlock(t *testing.T) {
 }
 
 func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
+	fixturePositions := []uint32{0, 1}
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "nemotron_h_moe", BlockCount: 3, EmbeddingLength: 8,
 		FeedForwardLength: 6,
@@ -1033,7 +1034,14 @@ func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
 	}
-	result, err := BuildNemotronHBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 2)
+	const fixtureLayer = 2
+	plan := spec.PlanLayer(fixtureLayer, false)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, Positions: fixturePositions, Layer: fixtureLayer,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

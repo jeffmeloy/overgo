@@ -205,9 +205,6 @@ func (r *Runner) runLayerCached(
 	attentionBlockIDs []float32,
 ) (reference.Value, LayerCache, error) {
 	plan := r.layerPlan(layerIndex)
-	if plan.Attention == model.AttentionLFM2 {
-		return r.runLFM2LayerCached(ctx, activation, info, layerIndex, positions, past)
-	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
@@ -306,66 +303,6 @@ func (r *Runner) runLayerCached(
 		)
 	}
 	return results[outputTensor], layerCache, nil
-}
-
-func (r *Runner) runLFM2LayerCached(
-	ctx context.Context,
-	activation reference.Value,
-	info model.LayerWeights,
-	layerIndex int,
-	positions []uint32,
-	past *LayerCache,
-) (reference.Value, LayerCache, error) {
-	runtime := r.newInferenceGraphRuntime(ctx)
-	builder := runtime.builder
-	input := runtime.input("input", activation)
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
-	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
-	if err != nil {
-		return reference.Value{}, LayerCache{}, err
-	}
-	var pastKey, pastValue *tensor.Tensor
-	if info.Recurrent {
-		keyValue := reference.Value{}
-		valueValue := reference.Value{}
-		if past == nil {
-			shape := tensor.MustShape(
-				uint64(r.spec.ShortConvCacheLength-1), uint64(r.spec.EmbeddingLength),
-			)
-			elements, _ := shape.Elements()
-			keyValue = reference.Value{Shape: shape, Data: make([]float32, int(elements))}
-			valueValue = reference.Value{Shape: tensor.MustShape(1), Data: []float32{0}}
-		} else {
-			keyValue, valueValue = past.Key, past.Value
-		}
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateConvolution), dtype.F32, keyValue.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.reserved_state", layerIndex), dtype.F32, valueValue.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = keyValue, valueValue
-	} else if past != nil {
-		pastKey = builder.Input(fmt.Sprintf("blk.%d.cache_key", layerIndex), dtype.F32, past.Key.Shape)
-		pastValue = builder.Input(fmt.Sprintf("blk.%d.cache_value", layerIndex), dtype.F32, past.Value.Shape)
-		hostFeeds[pastKey], hostFeeds[pastValue] = past.Key, past.Value
-	}
-	result, err := model.BuildLFM2BlockCachedWithPlan(
-		builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
-		r.layerPlan(layerIndex),
-	)
-	if err != nil {
-		return reference.Value{}, LayerCache{}, err
-	}
-	output := result.Output
-	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
-		output, err = r.applyDeviceOutputNorm(builder, output, deviceFeeds)
-		if err != nil {
-			return reference.Value{}, LayerCache{}, err
-		}
-	}
-	outputs := []*tensor.Tensor{output, result.Key, result.Value}
-	results, err := runtime.execute(outputs...)
-	if err != nil {
-		return reference.Value{}, LayerCache{}, err
-	}
-	return results[output], LayerCache{Key: results[result.Key], Value: results[result.Value]}, nil
 }
 
 func (r *Runner) runLFM2LayerNonCausal(

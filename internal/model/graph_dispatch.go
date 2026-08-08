@@ -358,6 +358,15 @@ func executeFamilyBlock(
 	}
 	switch instruction.Family {
 	case BlockDense:
+		if plan.Attention == AttentionLFM2 {
+			result, err := BuildLFM2BlockCachedWithPlan(
+				c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan,
+			)
+			return DenseBlockResult{
+				Output: result.Output, Key: result.Key, Value: result.Value,
+			}, err
+		}
 		return BuildDenseBlockWithOptions(DenseBlockOptions(options))
 	case BlockKimiLinear:
 		return BuildKimiLinearBlockCached(

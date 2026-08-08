@@ -361,9 +361,14 @@ func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := BuildLFM2BlockCached(
-		builder, input, spec, weights, []uint32{0, 1}, true, state, reserved, 0,
-	)
+	plan := spec.PlanLayer(0, true)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, Positions: []uint32{0, 1},
+			PastKey: state, PastValue: reserved, Recurrent: true,
+		},
+		Spec: spec, Weights: weights, Plan: &plan,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

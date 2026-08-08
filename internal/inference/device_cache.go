@@ -1319,25 +1319,6 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if sideErr != nil {
 			return fail(sideErr)
 		}
-		if plan.Attention == model.AttentionLFM2 {
-			cacheInputs, inputErr := r.deviceBatchLayerCacheInputs(
-				builder, prefix, layerIndex, past, hostFeeds, deviceFeeds,
-			)
-			if inputErr != nil {
-				return fail(inputErr)
-			}
-			cacheBindings[layerIndex] = cacheInputs
-			result, buildErr := model.BuildLFM2BlockCachedWithPlan(
-				builder, current, r.spec, graphWeights, positions,
-				cacheInputs.key, cacheInputs.value, plan,
-			)
-			if buildErr != nil {
-				return fail(buildErr)
-			}
-			current = result.Output
-			keys[layerIndex], values[layerIndex] = result.Key, result.Value
-			continue
-		}
 		cacheInputs := layerGraphCacheInputs{states: make(model.CacheStates[*tensor.Tensor])}
 		if plan.SharedKV {
 			cacheInputs.key, cacheInputs.value = keys[plan.KVSource], values[plan.KVSource]

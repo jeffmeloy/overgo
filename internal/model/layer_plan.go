@@ -23,7 +23,6 @@ const (
 	BlockMLA
 	BlockDSA
 	BlockDeepSeek4
-	BlockQwenGDN
 )
 
 // RuntimeCacheBinding: indexed cache operand.
@@ -72,6 +71,7 @@ const (
 	RecurrentMixMamba
 	RecurrentMixMamba2
 	RecurrentMixPLaMo2
+	RecurrentMixQwenGDN
 )
 
 // AttentionMixPolicy: attention operator implementation.
@@ -80,6 +80,7 @@ type AttentionMixPolicy uint8
 const (
 	AttentionMixNone AttentionMixPolicy = iota
 	AttentionMixNemotron
+	AttentionMixQwenGDN
 )
 
 // FeedForwardMixPolicy: feed-forward operator implementation.
@@ -90,6 +91,7 @@ const (
 	FeedForwardMixStandardSwiGLU
 	FeedForwardMixFusedSwiGLU
 	FeedForwardMixNemotron
+	FeedForwardMixQwenGDN
 )
 
 const (
@@ -302,12 +304,15 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 			composition = LayerCompositionAttentionOnly
 		}
 	}
-	program := compileLayerProgram(block, recurrent, composition)
+	program := compileLayerProgram(block, profile.Attention, recurrent, composition)
 	experts := s.moeGraphPlan(layer)
 	if block == BlockNemotronH {
 		experts.Routing = tensor.MoERoutingSigmoid
 		experts.Activation = tensor.MoEActivationReLUSquared
 		experts.SelectionBias = true
+	}
+	if profile.Attention == AttentionQwenGDN {
+		experts.NormalizeTopKProb = true
 	}
 	cacheWrite := CacheWriteFixed
 	if cache.PrimaryMode().TokenAligned() {
@@ -552,7 +557,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			layer.CatalogFamily != plan.profile.CatalogFamily {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if layer.Program != compileLayerProgram(layer.Block, layer.Recurrent, layer.Composition) {
+		if layer.Program != compileLayerProgram(
+			layer.Block, layer.Attention, layer.Recurrent, layer.Composition,
+		) {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
 		if layer.SharedKV {
@@ -692,9 +699,6 @@ func (p ModelPlan) Terminal() TerminalPlan { return p.terminal }
 func (p ModelPlan) Draft() DraftPlan { return p.draft }
 
 func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
-	if profile.Attention == AttentionQwenGDN {
-		return BlockQwenGDN
-	}
 	if recurrent && profile.RecurrentBlock != BlockDense {
 		return profile.RecurrentBlock
 	}
@@ -703,9 +707,21 @@ func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 
 func compileLayerProgram(
 	block BlockPolicy,
+	attention AttentionPolicy,
 	recurrent bool,
 	composition LayerCompositionPolicy,
 ) LayerProgram {
+	if attention == AttentionQwenGDN {
+		mixer := attentionLayerStage(AttentionMixQwenGDN)
+		if recurrent {
+			mixer = recurrentLayerStage(RecurrentMixQwenGDN, false)
+		}
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
+			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixQwenGDN),
+			layerStage(LayerOperatorResidual),
+		)
+	}
 	if block == BlockGraniteHybrid {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba2, false),
@@ -782,12 +798,6 @@ func compileLayerProgram(
 	case BlockDeepSeek4:
 		bindCaches(RuntimeCachePrimaryKey)
 		bindTensors(RuntimeTensorCurrentPositions)
-	case BlockQwenGDN:
-		if recurrent {
-			bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue)
-		} else {
-			bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheConvolution, RuntimeCacheSSM)
-		}
 	default:
 		bindCaches(RuntimeCachePrimaryKey, RuntimeCachePrimaryValue)
 	}

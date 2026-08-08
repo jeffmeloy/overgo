@@ -7,12 +7,12 @@ import (
 )
 
 func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
-	for policy := BlockDense; policy <= BlockQwenGDN; policy++ {
+	for policy := BlockDense; policy <= BlockDeepSeek4; policy++ {
 		composition := LayerCompositionStandard
 		if policy == BlockNemotronH {
 			composition = LayerCompositionAttentionOnly
 		}
-		program := compileLayerProgram(policy, false, composition)
+		program := compileLayerProgram(policy, AttentionStandard, false, composition)
 		instruction, ok := program.Instruction(0)
 		if !ok {
 			t.Fatalf("block policy %d has no compiled operator", policy)
@@ -81,12 +81,36 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
-			program := compileLayerProgram(BlockNemotronH, fixture.recurrent, fixture.composition)
+			program := compileLayerProgram(
+				BlockNemotronH, AttentionStandard, fixture.recurrent, fixture.composition,
+			)
 			instruction, ok := program.Instruction(mixerStage)
 			if !ok || instruction.Operator != fixture.mixer {
 				t.Fatalf("Nemotron program = %+v", program)
 			}
 		})
+	}
+}
+
+func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
+	const (
+		mixerStage            = 1
+		qwenProgramStageCount = 6
+	)
+	for _, recurrent := range []bool{false, true} {
+		program := compileLayerProgram(
+			BlockDense, AttentionQwenGDN, recurrent, LayerCompositionStandard,
+		)
+		instruction, ok := program.Instruction(mixerStage)
+		if !ok || program.Count != qwenProgramStageCount {
+			t.Fatalf("Qwen GDN program = %+v", program)
+		}
+		if recurrent && instruction.Recurrent != RecurrentMixQwenGDN {
+			t.Fatalf("Qwen recurrent stage = %+v", instruction)
+		}
+		if !recurrent && instruction.Attention != AttentionMixQwenGDN {
+			t.Fatalf("Qwen attention stage = %+v", instruction)
+		}
 	}
 }
 

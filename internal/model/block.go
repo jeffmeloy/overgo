@@ -1105,66 +1105,34 @@ func BuildQwen35BlockWithOptions(options Qwen35BlockOptions) (Qwen35BlockResult,
 	if options.Sequences == 0 {
 		return Qwen35BlockResult{}, errors.New("Qwen hybrid sequence count is zero")
 	}
-	return buildQwen35BlockCached(
-		options.Builder, options.Input, options.Spec, options.Weights,
-		options.Positions, options.MultiPositions, options.Sequences, options.Recurrent,
-		options.PastKey, options.PastValue, options.ConvState, options.SSMState,
-		options.CacheWrite,
-	)
-}
-
-func buildQwen35BlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	multiPositions *[4][]uint32,
-	sequences uint64,
-	recurrent bool,
-	pastKey, pastValue, convState, ssmState *tensor.Tensor,
-	cacheWrite tensor.CacheWriteMode,
-) (Qwen35BlockResult, error) {
-	if spec.Profile().AttentionGraph.QwenGDN == qwenGDNNone {
-		return Qwen35BlockResult{}, errors.New("Qwen hybrid block architecture is invalid")
+	plan := options.Spec.PlanLayer(0, options.Recurrent)
+	pastKey, pastValue := options.PastKey, options.PastValue
+	if options.Recurrent {
+		pastKey, pastValue = options.ConvState, options.SSMState
 	}
-	if recurrent {
-		return buildQwen35RecurrentBlock(
-			builder,
-			input,
-			spec,
-			weights,
-			positions,
-			sequences,
-			convState,
-			ssmState,
-		)
-	}
-	result, err := buildQwen35AttentionBlock(
-		builder,
-		input,
-		spec,
-		weights,
-		positions,
-		multiPositions,
-		sequences,
-		pastKey,
-		pastValue,
-		cacheWrite,
-	)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: options.Spec, Weights: options.Weights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: options.Builder, Input: options.Input, Positions: options.Positions,
+			MultiPositions: options.MultiPositions, PastKey: pastKey, PastValue: pastValue,
+			Recurrent: options.Recurrent, CacheWrite: options.CacheWrite,
+			Sequences: options.Sequences,
+		},
+	})
 	if err != nil {
 		return Qwen35BlockResult{}, err
 	}
-	return Qwen35BlockResult{
-		Output: result.Output,
-		Key:    result.Key,
-		Value:  result.Value,
-	}, nil
+	qwen := Qwen35BlockResult{Output: result.Output, Key: result.Key, Value: result.Value}
+	if options.Recurrent {
+		qwen.Key, qwen.Value = nil, nil
+		qwen.ConvState, qwen.SSMState, qwen.Recurrent = result.Key, result.Value, true
+	}
+	return qwen, nil
 }
 
-func buildQwen35AttentionBlock(
+func buildQwen35AttentionMixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
@@ -1173,26 +1141,23 @@ func buildQwen35AttentionBlock(
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
 ) (DenseBlockResult, error) {
-	if builder == nil || input == nil {
-		return DenseBlockResult{}, errors.New("Qwen3.5 attention block input is nil")
+	if builder == nil || normalized == nil {
+		return DenseBlockResult{}, errors.New("Qwen3.5 attention mix input is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("attention Q/gate", weights.AttentionQ),
 		requireGraphWeight("attention K", weights.AttentionK),
 		requireGraphWeight("attention V", weights.AttentionV),
 		requireGraphWeight("attention output", weights.AttentionOutput),
 		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
 		requireGraphWeight("attention K norm", weights.AttentionKNorm),
-		requireGraphWeight("post-attention norm", weights.FeedForwardNorm),
 	}
-	addQwen35FeedForwardRequirements(&required, spec, weights)
-	if err := required.validate("Qwen3.5 attention block"); err != nil {
+	if err := required.validate("Qwen3.5 attention mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if len(positions) == 0 || sequences == 0 ||
 		uint64(len(positions)) > math.MaxUint64/sequences ||
-		uint64(len(positions))*sequences != input.Shape.Dims[1] {
+		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
 		return DenseBlockResult{}, errors.New("Qwen3.5 attention position count is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "Qwen3.5 attention cache must contain both key and value"); err != nil {
@@ -1202,7 +1167,6 @@ func buildQwen35AttentionBlock(
 	tokens := uint64(len(positions))
 	headWidth := uint64(spec.KeyLength)
 	heads := uint64(spec.HeadCount)
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryAndGate := builder.MulMat(weights.AttentionQ, normalized)
 	query := builder.GroupSlice(queryAndGate, 0, headWidth, heads, 2*headWidth)
 	gate := builder.GroupSlice(queryAndGate, headWidth, headWidth, heads, 2*headWidth)
@@ -1284,35 +1248,31 @@ func buildQwen35AttentionBlock(
 	gate = builder.Reshape(gate, uint64(spec.HeadCount)*headWidth, tokens*sequences)
 	attention = builder.Multiply(attention, builder.Sigmoid(gate))
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	residual := builder.Add(input, attention)
-	output := buildQwen35FeedForward(builder, residual, spec, weights)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, nil
 }
 
-func buildQwen35RecurrentBlock(
+func buildQwen35RecurrentMixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	sequences uint64,
 	convState, ssmState *tensor.Tensor,
-) (Qwen35BlockResult, error) {
-	if builder == nil || input == nil || convState == nil || ssmState == nil {
-		return Qwen35BlockResult{}, errors.New("Qwen3.5 recurrent block input/state is nil")
+) (DenseBlockResult, error) {
+	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
+		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent mix input/state is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("QKV", weights.AttentionQKV),
 		requireGraphWeight("SSM convolution", weights.SSMConv1D),
 		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
 		requireGraphWeight("SSM A", weights.SSMA),
 		requireGraphWeight("SSM norm", weights.SSMNorm),
 		requireGraphWeight("SSM output", weights.SSMOutput),
-		requireGraphWeight("post-attention norm", weights.FeedForwardNorm),
 	}
 	qwenPolicy := spec.Profile().AttentionGraph.QwenGDN
 	if qwenPolicy == qwenGDNRepeatInterleave {
@@ -1326,14 +1286,13 @@ func buildQwen35RecurrentBlock(
 		required.add("SSM beta", weights.SSMBeta)
 		required.add("SSM alpha", weights.SSMAlpha)
 	}
-	addQwen35FeedForwardRequirements(&required, spec, weights)
-	if err := required.validate("Qwen3.5 recurrent block"); err != nil {
-		return Qwen35BlockResult{}, err
+	if err := required.validate("Qwen3.5 recurrent mix"); err != nil {
+		return DenseBlockResult{}, err
 	}
 	if len(positions) == 0 || sequences == 0 ||
 		uint64(len(positions)) > math.MaxUint64/sequences ||
-		uint64(len(positions))*sequences != input.Shape.Dims[1] {
-		return Qwen35BlockResult{}, errors.New("Qwen3.5 recurrent position count is invalid")
+		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent position count is invalid")
 	}
 	tokens := uint64(len(positions))
 	stateWidth := uint64(spec.SSMStateSize)
@@ -1348,10 +1307,9 @@ func buildQwen35RecurrentBlock(
 	}
 	if !convState.Shape.Equal(wantConvState) ||
 		!ssmState.Shape.Equal(tensor.MustShape(stateWidth, stateWidth, valueHeads, sequences)) {
-		return Qwen35BlockResult{}, errors.New("Qwen3.5 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent cache shape is invalid")
 	}
 
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	qkvProjection := builder.MulMat(weights.AttentionQKV, normalized)
 	qkvMixed := qkvProjection
 	var z *tensor.Tensor
@@ -1473,37 +1431,29 @@ func buildQwen35RecurrentBlock(
 	)
 	attention = builder.Reshape(attention, valueDimension, tokens*sequences)
 	attention = builder.MulMat(weights.SSMOutput, attention)
-	residual := builder.Add(input, attention)
-	output := buildQwen35FeedForward(builder, residual, spec, weights)
 	if err := builder.Err(); err != nil {
-		return Qwen35BlockResult{}, err
+		return DenseBlockResult{}, err
 	}
-	return Qwen35BlockResult{
-		Output:    output,
-		ConvState: nextConvState,
-		SSMState:  nextSSMState,
-		Recurrent: true,
-	}, nil
+	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
 }
 
-func buildQwen35FeedForward(
+func buildQwen35FeedForwardMix(
 	builder *tensor.Builder,
-	residual *tensor.Tensor,
-	spec Spec,
+	normalized *tensor.Tensor,
 	weights LayerGraphWeights,
-) *tensor.Tensor {
-	normalized := builder.WeightedRMSNorm(
-		residual,
-		weights.FeedForwardNorm,
-		spec.RMSNormEpsilon,
-	)
+	experts MoEGraphPlan,
+	composition ExpertCompositionPlan,
+) (*tensor.Tensor, error) {
+	required := graphWeights{}
+	addQwen35FeedForwardRequirements(&required, composition, weights)
+	if err := required.validate("Qwen3.5 feed-forward mix"); err != nil {
+		return nil, err
+	}
 	var feedForward *tensor.Tensor
-	if spec.expertCompositionPlan().kind == expertSharedGated {
-		plan := spec.moeGraphPlan(0)
-		plan.NormalizeTopKProb = true
-		feedForward = plan.BuildLayer(builder, normalized, nil, weights)
+	if composition.kind == expertSharedGated {
+		feedForward = experts.BuildLayer(builder, normalized, nil, weights)
 		sharedRouter := builder.Reshape(
-			weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
+			weights.FeedForwardSharedRouter, normalized.Shape.Dims[0], 1,
 		)
 		sharedGate := builder.Sigmoid(builder.MulMat(sharedRouter, normalized))
 		shared := builder.MulMat(
@@ -1519,15 +1469,15 @@ func buildQwen35FeedForward(
 		up := builder.MulMat(weights.FeedForwardUp, normalized)
 		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
 	}
-	return builder.Add(residual, feedForward)
+	return feedForward, builder.Err()
 }
 
 func addQwen35FeedForwardRequirements(
 	required *graphWeights,
-	spec Spec,
+	composition ExpertCompositionPlan,
 	weights LayerGraphWeights,
 ) {
-	if spec.expertCompositionPlan().kind == expertSharedGated {
+	if composition.kind == expertSharedGated {
 		required.add("feed-forward router", weights.FeedForwardRouter)
 		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
 		if weights.FeedForwardGateUpExperts != nil {

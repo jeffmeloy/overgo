@@ -170,6 +170,16 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
+		case AttentionMixQwenGDN:
+			sequences := c.Sequences
+			if sequences == 0 {
+				sequences = 1
+			}
+			result, err = buildQwen35AttentionMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				c.Positions, c.MultiPositions, sequences,
+				operands.caches[0], operands.caches[1], c.CacheWrite,
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -203,6 +213,15 @@ func executeLayerInstruction(
 			result, err = buildPLaMo2MixerCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
+			)
+		case RecurrentMixQwenGDN:
+			sequences := c.Sequences
+			if sequences == 0 {
+				sequences = 1
+			}
+			result, err = buildQwen35RecurrentMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				c.Positions, sequences, operands.caches[0], operands.caches[1],
 			)
 		default:
 			return errors.New("compiled recurrent-mixing policy is invalid")
@@ -240,6 +259,11 @@ func executeLayerInstruction(
 		case FeedForwardMixNemotron:
 			feedForward, err = buildNemotronFeedForwardMix(
 				c.Builder, execution.current, options.Weights, plan.Experts,
+			)
+		case FeedForwardMixQwenGDN:
+			feedForward, err = buildQwen35FeedForwardMix(
+				c.Builder, execution.current, options.Weights,
+				plan.Experts, plan.ExpertComposition,
 			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
@@ -339,8 +363,6 @@ func executeFamilyBlock(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions, c.TokenRows,
 			operands.caches[0], c.PastStates, operands.tensors[0], c.Layer,
 		)
-	case BlockQwenGDN:
-		return executeQwenGDNOperator(options, plan, operands)
 	default:
 		return DenseBlockResult{}, errors.New("compiled family block is unknown")
 	}
@@ -454,35 +476,4 @@ func buildStandardFeedForwardMix(
 		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 	}
 	return feedForward, builder.Err()
-}
-
-func executeQwenGDNOperator(
-	options BlockDispatchOptions,
-	plan LayerPlan,
-	operands layerOperands,
-) (DenseBlockResult, error) {
-	c := options.Context
-	sequences := c.Sequences
-	if sequences == 0 {
-		sequences = 1
-	}
-	pastKey, pastValue := operands.caches[0], operands.caches[1]
-	convState, ssmState := operands.caches[2], operands.caches[3]
-	if plan.Recurrent {
-		convState, ssmState = operands.caches[0], operands.caches[1]
-		pastKey, pastValue = nil, nil
-	}
-	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
-		Builder: c.Builder, Input: c.Input, Spec: options.Spec, Weights: options.Weights,
-		Positions: c.Positions, MultiPositions: c.MultiPositions, Sequences: sequences,
-		Recurrent: plan.Recurrent, PastKey: pastKey, PastValue: pastValue,
-		ConvState: convState, SSMState: ssmState, CacheWrite: c.CacheWrite,
-	})
-	if err != nil {
-		return DenseBlockResult{}, err
-	}
-	if plan.Recurrent {
-		return DenseBlockResult{Output: result.Output, Key: result.ConvState, Value: result.SSMState}, nil
-	}
-	return DenseBlockResult{Output: result.Output, Key: result.Key, Value: result.Value}, nil
 }

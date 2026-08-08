@@ -43,8 +43,17 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	cachePageTokens := resolveCachePageTokens(options.CachePageTokens)
 	file := consumed.File()
 	path, spec, weights, program := consumed.Path(), consumed.Spec(), consumed.Weights(), consumed.Plan()
+	var cuda *executor.Executor
+	var worker *device.Worker
+	var deviceWeights *model.DeviceF32Weights
+	var rawWeights *model.DeviceWeights
+	var decodeWeights *model.DeviceBF16Weights
 	fail := func(openErr error) (*Runner, error) {
-		return nil, errors.Join(openErr, consumed.Close())
+		return nil, errors.Join(
+			openErr,
+			closeAcceleratorResources(decodeWeights, rawWeights, deviceWeights, cuda, worker),
+			consumed.Close(),
+		)
 	}
 	vocab, err := tokenizer.Load(file)
 	if err != nil {
@@ -75,11 +84,6 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		}
 		outputBias = slices.Clone(value.Data)
 	}
-	var cuda *executor.Executor
-	var worker *device.Worker
-	var deviceWeights *model.DeviceF32Weights
-	var rawWeights *model.DeviceWeights
-	var decodeWeights *model.DeviceBF16Weights
 	var hostWeights *model.HostTensorStore
 	if options.CacheHostWeights {
 		hostWeights = model.NewHostTensorStore()
@@ -91,13 +95,10 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		}
 		cuda, err = executor.NewWithWorker(worker)
 		if err != nil {
-			_ = worker.Close()
 			return fail(err)
 		}
 		deviceWeights, err = model.NewDeviceF32Weights(worker)
 		if err != nil {
-			_ = cuda.Close()
-			_ = worker.Close()
 			return fail(err)
 		}
 		selected := selectedModelTensors(file, weights)
@@ -149,16 +150,9 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 			}
 			rawWeights, err = model.NewDeviceWeights(worker)
 			if err != nil {
-				_ = deviceWeights.Close()
-				_ = cuda.Close()
-				_ = worker.Close()
 				return fail(err)
 			}
 			if err = rawWeights.Load(context.Background(), file, quantized); err != nil {
-				_ = rawWeights.Close()
-				_ = deviceWeights.Close()
-				_ = cuda.Close()
-				_ = worker.Close()
 				return fail(err)
 			}
 			if options.PreloadBF16DecodeWeights {
@@ -174,20 +168,11 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 					err = decodeWeights.Load(context.Background(), file, decodeTensors)
 				}
 				if err != nil {
-					_ = decodeWeights.Close()
-					_ = rawWeights.Close()
-					_ = deviceWeights.Close()
-					_ = cuda.Close()
-					_ = worker.Close()
 					return fail(err)
 				}
 			}
 		}
 		if err = deviceWeights.Load(context.Background(), file, f32Tensors); err != nil {
-			_ = rawWeights.Close()
-			_ = deviceWeights.Close()
-			_ = cuda.Close()
-			_ = worker.Close()
 			return fail(err)
 		}
 	} else {
@@ -236,27 +221,41 @@ func (s *runnerState) release(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+func closeAcceleratorResources(
+	decodeWeights *model.DeviceBF16Weights,
+	rawWeights *model.DeviceWeights,
+	deviceWeights *model.DeviceF32Weights,
+	cuda *executor.Executor,
+	worker *device.Worker,
+) error {
+	var errs []error
+	if decodeWeights != nil {
+		errs = append(errs, decodeWeights.Close())
+	}
+	if rawWeights != nil {
+		errs = append(errs, rawWeights.Close())
+	}
+	if deviceWeights != nil {
+		errs = append(errs, deviceWeights.Close())
+	}
+	if cuda != nil {
+		errs = append(errs, cuda.Close())
+	}
+	if worker != nil {
+		errs = append(errs, worker.Close())
+	}
+	return errors.Join(errs...)
+}
+
 func (m *preparedModel) close() error {
 	var errs []error
 	if m.hostWeights != nil {
 		m.hostWeights.Release()
 		m.hostWeights = nil
 	}
-	if m.rawWeights != nil {
-		errs = append(errs, m.rawWeights.Close())
-	}
-	if m.deviceWeights != nil {
-		errs = append(errs, m.deviceWeights.Close())
-	}
-	if m.decodeWeights != nil {
-		errs = append(errs, m.decodeWeights.Close())
-	}
-	if m.cuda != nil {
-		errs = append(errs, m.cuda.Close())
-	}
-	if m.worker != nil {
-		errs = append(errs, m.worker.Close())
-	}
+	errs = append(errs, closeAcceleratorResources(
+		m.decodeWeights, m.rawWeights, m.deviceWeights, m.cuda, m.worker,
+	))
 	if m.file != nil {
 		errs = append(errs, m.file.Close())
 	}

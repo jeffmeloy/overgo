@@ -149,6 +149,15 @@ func executeLayerInstruction(
 			execution.current, options.Weights.AttentionNorm, options.Spec.RMSNormEpsilon,
 		)
 		return c.Builder.Err()
+	case LayerOperatorAttentionPostNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			options.Weights.AttentionPostNorm == nil {
+			return errors.New("compiled attention post-normalization stage is invalid")
+		}
+		execution.current = c.Builder.WeightedRMSNorm(
+			execution.current, options.Weights.AttentionPostNorm, options.Spec.RMSNormEpsilon,
+		)
+		return c.Builder.Err()
 	case LayerOperatorRecurrentMix:
 		if instruction.CacheCount != 2 {
 			return errors.New("compiled recurrent-mixing stage is invalid")
@@ -166,6 +175,11 @@ func executeLayerInstruction(
 				return errors.New("Mamba2 recurrent-mixing convolution bias is nil")
 			}
 			result, err = buildMamba2MixerCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
+		case RecurrentMixPLaMo2:
+			result, err = buildPLaMo2MixerCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
@@ -191,14 +205,34 @@ func executeLayerInstruction(
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
 			return errors.New("compiled feed-forward stage is invalid")
 		}
-		feedForward, err := buildStandardFeedForwardMix(
-			c.Builder, execution.current, plan, options.Spec, options.Weights,
-		)
+		var feedForward *tensor.Tensor
+		var err error
+		switch instruction.FeedForward {
+		case FeedForwardMixStandardSwiGLU:
+			feedForward, err = buildStandardFeedForwardMix(
+				c.Builder, execution.current, plan, options.Spec, options.Weights,
+			)
+		case FeedForwardMixFusedSwiGLU:
+			feedForward, err = buildFusedFeedForwardMix(
+				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
+			)
+		default:
+			return errors.New("compiled feed-forward policy is invalid")
+		}
 		if err != nil {
 			return err
 		}
 		execution.current = feedForward
 		return nil
+	case LayerOperatorFeedForwardPostNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			options.Weights.FeedForwardPostNorm == nil {
+			return errors.New("compiled feed-forward post-normalization stage is invalid")
+		}
+		execution.current = c.Builder.WeightedRMSNorm(
+			execution.current, options.Weights.FeedForwardPostNorm, options.Spec.RMSNormEpsilon,
+		)
+		return c.Builder.Err()
 	case LayerOperatorScale:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
 			options.Spec.ResidualScale <= 0 {
@@ -247,8 +281,6 @@ func executeFamilyBlock(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
 		)
-	case BlockPLaMo2:
-		return BuildPLaMo2RecurrentBlockCached(c.Builder, c.Input, options.Spec, options.Weights, operands.caches[0], operands.caches[1])
 	case BlockNemotronH:
 		return BuildNemotronHBlockCached(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
@@ -279,6 +311,28 @@ func executeFamilyBlock(
 	default:
 		return DenseBlockResult{}, errors.New("compiled family block is unknown")
 	}
+}
+
+func buildFusedFeedForwardMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	layer uint32,
+) (*tensor.Tensor, error) {
+	if err := (graphWeights{
+		requireGraphWeight("feed-forward fused gate/up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}).validate("compiled fused feed-forward stage"); err != nil {
+		return nil, err
+	}
+	width := uint64(spec.LayerFeedForwardLength(layer))
+	tokens := input.Shape.Dims[1]
+	fusedWidth := 2 * width
+	fused := builder.MulMat(weights.FeedForwardUp, input)
+	gate := builder.Reshape(builder.GroupSlice(fused, 0, width, 1, fusedWidth), width, tokens)
+	up := builder.Reshape(builder.GroupSlice(fused, width, width, 1, fusedWidth), width, tokens)
+	return builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up)), builder.Err()
 }
 
 func buildStandardFeedForwardMix(

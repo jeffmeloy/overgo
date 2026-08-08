@@ -30,6 +30,12 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 				LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
 				LayerOperatorScale, LayerOperatorResidual,
 			}
+		case BlockPLaMo2:
+			want = []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorAttentionPostNorm,
+				LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+				LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
+			}
 		}
 		if len(want) != 0 {
 			if program.Count != uint8(len(want)) {

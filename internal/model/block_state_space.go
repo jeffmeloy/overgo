@@ -323,23 +323,20 @@ func BuildFalconH1BlockCached(
 	}, nil
 }
 
-func BuildPLaMo2RecurrentBlockCached(
+func buildPLaMo2MixerCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if builder == nil || input == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("PLaMo2 block input/state is nil")
+	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
+		return DenseBlockResult{}, errors.New("PLaMo2 mixer input/state is nil")
 	}
-	if spec.Profile().RecurrentBlock != BlockPLaMo2 || input.Shape.Rank != 2 ||
-		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("PLaMo2 block architecture/input is invalid")
+	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("PLaMo2 mixer input is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
-		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
 		requireGraphWeight("SSM input", weights.SSMInput),
 		requireGraphWeight("SSM convolution", weights.SSMConv1D),
 		requireGraphWeight("SSM X", weights.SSMX),
@@ -351,12 +348,8 @@ func BuildPLaMo2RecurrentBlockCached(
 		requireGraphWeight("SSM B norm", weights.SSMBNorm),
 		requireGraphWeight("SSM C norm", weights.SSMCNorm),
 		requireGraphWeight("SSM output", weights.SSMOutput),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
 	}
-	if err := required.validate("PLaMo2 block"); err != nil {
+	if err := required.validate("PLaMo2 mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	inner := uint64(spec.SSMInnerSize)
@@ -369,8 +362,7 @@ func BuildPLaMo2RecurrentBlockCached(
 	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
 		return DenseBlockResult{}, errors.New("PLaMo2 recurrent cache shape is invalid")
 	}
-	tokens := input.Shape.Dims[1]
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
+	tokens := normalized.Shape.Dims[1]
 	zx := builder.MulMat(weights.SSMInput, normalized)
 	z := builder.Reshape(builder.GroupSlice(zx, 0, headWidth, heads, 2*headWidth), headWidth, heads, tokens, 1)
 	x := builder.Reshape(builder.GroupSlice(zx, headWidth, headWidth, heads, 2*headWidth), inner, tokens)
@@ -403,19 +395,10 @@ func BuildPLaMo2RecurrentBlockCached(
 	mixer = builder.Add(mixer, builder.Multiply(x, builder.Reshape(weights.SSMD, 1, heads)))
 	mixer = builder.Multiply(mixer, builder.SiLU(z))
 	mixer = builder.MulMat(weights.SSMOutput, builder.Reshape(mixer, inner, tokens))
-	mixer = builder.WeightedRMSNorm(mixer, weights.AttentionPostNorm, spec.RMSNormEpsilon)
-	residual := builder.Add(input, mixer)
-	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	fused := builder.MulMat(weights.FeedForwardUp, normalized)
-	gate := builder.Reshape(builder.GroupSlice(fused, 0, uint64(spec.FeedForwardLength), 1, 2*uint64(spec.FeedForwardLength)), uint64(spec.FeedForwardLength), tokens)
-	up := builder.Reshape(builder.GroupSlice(fused, uint64(spec.FeedForwardLength), uint64(spec.FeedForwardLength), 1, 2*uint64(spec.FeedForwardLength)), uint64(spec.FeedForwardLength), tokens)
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
-	output := builder.Add(residual, feedForward)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: nextConvState, Value: nextSSMState}, nil
+	return DenseBlockResult{Output: mixer, Key: nextConvState, Value: nextSSMState}, nil
 }
 
 // BuildNemotronHBlockCached: attention, Mamba2, or FFN mixer.

@@ -51,9 +51,11 @@ type LayerOperator uint8
 const (
 	LayerOperatorFamilyBlock LayerOperator = iota
 	LayerOperatorAttentionNorm
+	LayerOperatorAttentionPostNorm
 	LayerOperatorRecurrentMix
 	LayerOperatorFeedForwardNorm
 	LayerOperatorFeedForwardMix
+	LayerOperatorFeedForwardPostNorm
 	LayerOperatorScale
 	LayerOperatorResidual
 )
@@ -65,6 +67,16 @@ const (
 	RecurrentMixNone RecurrentMixPolicy = iota
 	RecurrentMixMamba
 	RecurrentMixMamba2
+	RecurrentMixPLaMo2
+)
+
+// FeedForwardMixPolicy: feed-forward operator implementation.
+type FeedForwardMixPolicy uint8
+
+const (
+	FeedForwardMixNone FeedForwardMixPolicy = iota
+	FeedForwardMixStandardSwiGLU
+	FeedForwardMixFusedSwiGLU
 )
 
 const (
@@ -78,6 +90,7 @@ type LayerOperatorInstruction struct {
 	Operator               LayerOperator
 	Family                 BlockPolicy
 	Recurrent              RecurrentMixPolicy
+	FeedForward            FeedForwardMixPolicy
 	RequireConvolutionBias bool
 	CacheCount             uint8
 	TensorCount            uint8
@@ -650,7 +663,7 @@ func compileLayerProgram(block BlockPolicy, recurrent bool) LayerProgram {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba2, false),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardMix),
+			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixStandardSwiGLU),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
 		)
 	}
@@ -658,7 +671,15 @@ func compileLayerProgram(block BlockPolicy, recurrent bool) LayerProgram {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba, false),
 			layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-			layerStage(LayerOperatorFeedForwardMix), layerStage(LayerOperatorResidual),
+			feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+		)
+	}
+	if block == BlockPLaMo2 {
+		return newLayerProgram(
+			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixPLaMo2, false),
+			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
+			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedSwiGLU),
+			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 		)
 	}
 	if block == BlockMamba || block == BlockMamba2 {
@@ -719,6 +740,12 @@ func recurrentLayerStage(
 	instruction.CacheCount = 2
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	instruction.Caches[1] = RuntimeCachePrimaryValue
+	return instruction
+}
+
+func feedForwardLayerStage(policy FeedForwardMixPolicy) LayerOperatorInstruction {
+	instruction := layerStage(LayerOperatorFeedForwardMix)
+	instruction.FeedForward = policy
 	return instruction
 }
 

@@ -814,7 +814,14 @@ func TestBuildPLaMo2HybridBlocks(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	recurrent, err := BuildPLaMo2RecurrentBlockCached(builder, input, spec, recurrentWeights, convState, ssmState)
+	plan := spec.PlanLayer(0, true)
+	recurrent, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Spec: spec, Weights: recurrentWeights, Plan: &plan,
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+			Recurrent: true,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

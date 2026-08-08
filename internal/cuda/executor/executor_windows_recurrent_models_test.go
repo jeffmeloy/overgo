@@ -356,7 +356,14 @@ func TestExecutorPLaMo2RecurrentBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := model.BuildPLaMo2RecurrentBlockCached(builder, input, spec, weights, convState, ssmState)
+	plan := spec.PlanLayer(0, true)
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
+			Recurrent: true,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

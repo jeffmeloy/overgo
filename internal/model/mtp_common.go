@@ -51,9 +51,52 @@ func buildMTPDenseBlock(
 	if !policy.valid(spec, offset) {
 		return DenseBlockResult{}, errors.New(policy.label + " MTP block is invalid")
 	}
-	return BuildDenseBlockCachedForLayer(
-		builder, input, executable, weights, positions, pastKey, pastValue,
-		spec.BlockCount+offset,
+	plan := executable.PlanLayer(spec.BlockCount+offset, false)
+	return buildMTPDenseBlockWithPlan(
+		builder, input, spec, executable, weights, positions, pastKey, pastValue, policy, offset, plan,
+	)
+}
+
+func buildMTPDenseBlockWithPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec, executable Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	policy mtpPolicy,
+	offset uint32,
+	plan LayerPlan,
+) (DenseBlockResult, error) {
+	if !policy.valid(spec, offset) || plan.Layer != spec.BlockCount+offset {
+		return DenseBlockResult{}, errors.New(policy.label + " MTP block plan is invalid")
+	}
+	return BuildArchitectureBlockCached(BlockDispatchOptions{
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, Positions: positions,
+			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer, Recurrent: plan.Recurrent,
+		},
+		Spec: executable, Weights: weights, Plan: &plan,
+	})
+}
+
+// BuildAppendedMTPBlockCachedWithPlan: compiled multi-head draft block.
+func BuildAppendedMTPBlockCachedWithPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue *tensor.Tensor,
+	offset uint32,
+	plan LayerPlan,
+) (DenseBlockResult, error) {
+	policy := hyv3MTPPolicy
+	if spec.Profile().DraftKind == DraftStep35MTP {
+		policy = step35MTPPolicy
+	}
+	return buildMTPDenseBlockWithPlan(
+		builder, input, spec, spec, weights, positions, pastKey, pastValue, policy, offset, plan,
 	)
 }
 

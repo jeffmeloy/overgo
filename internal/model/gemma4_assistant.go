@@ -39,6 +39,23 @@ func BuildGemma4AssistantBlock(
 	sharedKey, sharedValue *tensor.Tensor,
 	layerIndex uint32,
 ) (*tensor.Tensor, error) {
+	plan := spec.PlanLayer(layerIndex, false)
+	return BuildGemma4AssistantBlockWithPlan(
+		builder, input, spec, weights, positions, sharedKey, sharedValue, plan,
+	)
+}
+
+// BuildGemma4AssistantBlockWithPlan: compiled query-only target-cache block.
+func BuildGemma4AssistantBlockWithPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	sharedKey, sharedValue *tensor.Tensor,
+	plan LayerPlan,
+) (*tensor.Tensor, error) {
+	layerIndex := plan.Layer
 	if builder == nil || input == nil || sharedKey == nil || sharedValue == nil {
 		return nil, errors.New("Gemma 4 assistant block input is nil")
 	}
@@ -71,7 +88,6 @@ func BuildGemma4AssistantBlock(
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	query := builder.Reshape(builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens)
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
-	plan := spec.PlanLayer(layerIndex, false)
 	query = plan.Rotary.ApplyOne(builder, query, positions, nil, weights.RopeFactors)
 	queryStart := positions[0] - 1
 	attention := plan.AttentionGraph.Build(

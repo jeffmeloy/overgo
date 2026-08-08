@@ -308,6 +308,7 @@ func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (Auxiliary
 type ModelPlan struct {
 	Profile     ArchitectureProfile
 	Layers      []LayerPlan
+	DraftLayers []LayerPlan
 	CacheLayers uint32
 	CachedGraph CachedGraphPolicy
 	Terminal    TerminalPlan
@@ -357,6 +358,16 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
 		plan.Layers[layer] = spec.PlanLayer(layer, recurrent)
 	}
+	if plan.Draft.AppendedBlocks {
+		plan.DraftLayers = make([]LayerPlan, plan.Draft.Heads)
+		executable := spec
+		if plan.Draft.Kind == DraftNextNMTP {
+			executable.BlockCount += plan.Draft.Heads
+		}
+		for offset := range plan.DraftLayers {
+			plan.DraftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
+		}
+	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
 	}
@@ -372,6 +383,18 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	}
 	if plan.Draft != plan.Profile.DraftPlan(spec.NextNPredictLayers) {
 		return fmt.Errorf("model plan architecture %s has invalid draft policy", spec.Architecture)
+	}
+	wantDraftLayers := 0
+	if plan.Draft.AppendedBlocks {
+		wantDraftLayers = int(plan.Draft.Heads)
+	}
+	if len(plan.DraftLayers) != wantDraftLayers {
+		return fmt.Errorf("model plan architecture %s has invalid draft layers", spec.Architecture)
+	}
+	for offset, layer := range plan.DraftLayers {
+		if layer.Layer != spec.BlockCount+uint32(offset) {
+			return fmt.Errorf("model plan draft layer %d identity is inconsistent", offset)
+		}
 	}
 	if spec.SharedKVLayers > 0 && (!plan.Profile.Has(ArchitectureSharedKV) ||
 		spec.SharedKVLayers >= spec.BlockCount) {

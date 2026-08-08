@@ -268,15 +268,13 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		pastValue = runtime.input("step35_mtp.past_value", past.Value)
 	}
 	var block model.DenseBlockResult
-	if r.usesStep35MTPGraph() {
-		block, err = model.BuildStep35MTPBlockCached(
-			runtime.builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
-		)
-	} else {
-		block, err = model.BuildHYV3MTPBlockCached(
-			runtime.builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset,
-		)
+	draftLayer, err := r.draftLayerPlan(offset)
+	if err != nil {
+		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
+	block, err = model.BuildAppendedMTPBlockCachedWithPlan(
+		runtime.builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset, draftLayer,
+	)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}

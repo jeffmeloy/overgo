@@ -134,9 +134,9 @@ func (r *Runner) AdvanceGemma4Assistant(
 			return reference.Value{}, nil, layerErr
 		}
 		shared := cacheInputs[r.spec.IsSlidingLayer(uint32(layerIndex))]
-		current, err = model.BuildGemma4AssistantBlock(
+		current, err = model.BuildGemma4AssistantBlockWithPlan(
 			runtime.builder, current, r.spec, graphWeights, []uint32{session.Position},
-			shared[0], shared[1], uint32(layerIndex),
+			shared[0], shared[1], r.layerPlan(layerIndex),
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference Gemma 4 assistant layer %d: %w", layerIndex, err)

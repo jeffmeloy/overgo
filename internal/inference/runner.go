@@ -231,6 +231,13 @@ func (r *Runner) layerPlan(layer int) model.LayerPlan {
 	return r.program.Model.Layers[layer]
 }
 
+func (r *Runner) draftLayerPlan(offset uint32) (model.LayerPlan, error) {
+	if r == nil || int(offset) >= len(r.program.Model.DraftLayers) {
+		return model.LayerPlan{}, errors.New("inference: compiled draft layer is unavailable")
+	}
+	return r.program.Model.DraftLayers[offset], nil
+}
+
 func (r *Runner) profile() model.ArchitectureProfile {
 	if r == nil || r.program.Model.Profile.Name == "" {
 		panic("inference: compiled profile is unavailable")

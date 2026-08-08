@@ -40,6 +40,11 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 		plan.Draft.Session != DraftSessionMulti {
 		t.Fatalf("draft plan = %+v", plan.Draft)
 	}
+	if len(plan.DraftLayers) != int(spec.NextNPredictLayers) ||
+		plan.DraftLayers[0].Layer != spec.BlockCount ||
+		plan.DraftLayers[1].Layer != spec.BlockCount+1 {
+		t.Fatalf("draft layers = %+v", plan.DraftLayers)
+	}
 }
 
 func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {

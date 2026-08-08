@@ -50,6 +50,28 @@ func BuildNextNMTPBlockCachedWithDSA(
 	executable := spec
 	executable.BlockCount += spec.NextNPredictLayers
 	plan := executable.PlanLayer(spec.BlockCount+offset, false)
+	return BuildNextNMTPBlockCachedWithDSAPlan(
+		builder, input, spec, weights, positions, pastKey, pastValue,
+		pastIndexerKey, previousTopK, offset, plan,
+	)
+}
+
+// BuildNextNMTPBlockCachedWithDSAPlan: compiled appended block.
+func BuildNextNMTPBlockCachedWithDSAPlan(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	positions []uint32,
+	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
+	offset uint32,
+	plan LayerPlan,
+) (DenseBlockResult, error) {
+	if !nextNMTPPolicy.valid(spec, offset) || plan.Layer != spec.BlockCount+offset {
+		return DenseBlockResult{}, errors.New("NextN MTP block plan is invalid")
+	}
+	executable := spec
+	executable.BlockCount += spec.NextNPredictLayers
 	return BuildArchitectureBlockCached(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,

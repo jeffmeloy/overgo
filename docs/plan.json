@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -> overgo merge: model ladder",
+  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -78,33 +78,33 @@
       "steps": [
         {
           "id": "golden-generation",
-          "status": "done",
-          "title": "serving goldens captured live from adaptive CUDA /api/infer (4 greedy cases, coherent text); decode baseline median ~1.97 ms/tok (480-515 tok/s)"
+          "title": "serving goldens captured live from adaptive CUDA /api/infer (4 greedy cases, coherent text); decode baseline median ~1.97 ms/tok (480-515 tok/s)",
+          "status": "done"
         },
         {
           "id": "converter-extension",
-          "status": "open",
-          "title": "hfconvert gains qwen2 arch generically (attention q/k/v biases, arch-keyed metadata/tensor map); convert; inspect"
+          "title": "hfconvert gains qwen2 arch generically (attention q/k/v biases, arch-keyed metadata/tensor map); convert; inspect",
+          "status": "done"
         },
         {
           "id": "decode-parity",
-          "status": "open",
-          "title": "text-level greedy parity vs serving golden (BPE reproducible here) + stability"
+          "title": "text-level greedy parity vs serving golden (BPE reproducible here) + stability",
+          "status": "done"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "title": "sealed lifecycle activation"
+          "title": "sealed lifecycle activation",
+          "status": "done"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "densecausal gains qwen2 (attention biases) vs tiny torch golden; real-artifact step"
+          "title": "densecausal gains qwen2 (attention biases) vs tiny torch golden; real-artifact step",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "title": "head-to-head vs 1.97 ms/tok baseline, at-or-below"
+          "title": "head-to-head vs 1.97 ms/tok baseline, at-or-below",
+          "status": "open"
         }
       ]
     },

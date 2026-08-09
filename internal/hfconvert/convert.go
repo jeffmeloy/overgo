@@ -1,5 +1,6 @@
-// Package hfconvert converts a plain HF-llama safetensors checkpoint to GGUF.
-// Dims and vocabulary derive entirely from config.json and tokenizer files.
+// Package hfconvert converts a plain HF safetensors checkpoint to GGUF.
+// Arch selected from config.json model_type; dims and vocabulary derive
+// entirely from config.json and tokenizer files.
 package hfconvert
 
 import (
@@ -51,7 +52,23 @@ type tokenizerFile struct {
 	} `json:"model"`
 }
 
-// Options: one HF-llama checkpoint export.
+// archProfiles: supported architectures; prefix doubles as general.architecture.
+// attentionBias marks archs whose q/k/v projections carry biases.
+// ropePermute: catalog llama RoPE is interleaved (RoPELayoutNormal) so HF
+// rotate-half q/k rows permute; catalog qwen2 RoPE is NeoX (rotate-half) and
+// consumes the HF layout unpermuted.
+type archProfile struct {
+	prefix        string
+	attentionBias bool
+	ropePermute   bool
+}
+
+var archProfiles = map[string]archProfile{
+	"llama": {prefix: "llama", ropePermute: true},
+	"qwen2": {prefix: "qwen2", attentionBias: true},
+}
+
+// Options: one HF checkpoint export.
 type Options struct {
 	Directory  string
 	OutputPath string
@@ -70,17 +87,21 @@ func Convert(options Options) (Report, error) {
 		return Report{}, err
 	}
 	if strings.TrimSpace(options.OutputPath) == "" {
-		return Report{}, errors.New("HF-llama converter: output path is required")
+		return Report{}, errors.New("HF converter: output path is required")
 	}
 	if _, statErr := os.Stat(filepath.Join(directory, "model.safetensors.index.json")); statErr == nil {
-		return Report{}, errors.New("HF-llama converter: sharded checkpoints are unsupported; need a single model.safetensors")
+		return Report{}, errors.New("HF converter: sharded checkpoints are unsupported; need a single model.safetensors")
 	}
 	if _, statErr := os.Stat(filepath.Join(directory, "model.safetensors")); statErr != nil {
-		return Report{}, fmt.Errorf("HF-llama converter: model.safetensors: %w", statErr)
+		return Report{}, fmt.Errorf("HF converter: model.safetensors: %w", statErr)
 	}
 	config, err := readConfig(directory)
 	if err != nil {
 		return Report{}, err
+	}
+	profile, ok := archProfiles[config.ModelType]
+	if !ok {
+		return Report{}, fmt.Errorf("HF converter: model type %q is unsupported", config.ModelType)
 	}
 	if err := validateConfig(config); err != nil {
 		return Report{}, err
@@ -94,11 +115,11 @@ func Convert(options Options) (Report, error) {
 	if name == "" {
 		name = filepath.Base(directory)
 	}
-	metadata, err := modelMetadata(directory, name, config)
+	metadata, err := modelMetadata(directory, name, profile, config)
 	if err != nil {
 		return Report{}, err
 	}
-	tensors, err := modelTensors(source, config)
+	tensors, err := modelTensors(source, profile, config)
 	if err != nil {
 		return Report{}, err
 	}
@@ -121,46 +142,44 @@ func readConfig(directory string) (modelConfig, error) {
 	var config modelConfig
 	encoded, err := os.ReadFile(filepath.Join(directory, "config.json"))
 	if err != nil {
-		return config, fmt.Errorf("HF-llama converter: read config: %w", err)
+		return config, fmt.Errorf("HF converter: read config: %w", err)
 	}
 	if err := json.Unmarshal(encoded, &config); err != nil {
-		return config, fmt.Errorf("HF-llama converter: parse config: %w", err)
+		return config, fmt.Errorf("HF converter: parse config: %w", err)
 	}
 	return config, nil
 }
 
 func validateConfig(config modelConfig) error {
-	if config.ModelType != "llama" {
-		return fmt.Errorf("HF-llama converter: model type %q is unsupported; need llama", config.ModelType)
-	}
 	if config.HiddenLayers == 0 || config.HiddenSize == 0 || config.IntermediateSize == 0 ||
 		config.AttentionHeads == 0 || config.KVHeads == 0 || config.Vocabulary == 0 ||
 		config.MaxPositions == 0 || config.RMSEpsilon <= 0 || config.RopeTheta <= 0 {
-		return errors.New("HF-llama converter: configuration is incomplete")
+		return errors.New("HF converter: configuration is incomplete")
 	}
 	if config.HiddenSize%config.AttentionHeads != 0 {
-		return errors.New("HF-llama converter: hidden size is not divisible by head count")
+		return errors.New("HF converter: hidden size is not divisible by head count")
 	}
 	if config.HeadDim != 0 && config.HeadDim != config.HiddenSize/config.AttentionHeads {
-		return errors.New("HF-llama converter: explicit head_dim disagrees with hidden_size/num_attention_heads")
+		return errors.New("HF converter: explicit head_dim disagrees with hidden_size/num_attention_heads")
 	}
 	return nil
 }
 
-func modelMetadata(directory, name string, config modelConfig) ([]gguf.Metadata, error) {
+func modelMetadata(directory, name string, profile archProfile, config modelConfig) ([]gguf.Metadata, error) {
+	prefix := profile.prefix + "."
 	metadata := []gguf.Metadata{
-		stringMetadata("general.architecture", "llama"),
+		stringMetadata("general.architecture", profile.prefix),
 		stringMetadata("general.name", name),
-		uint32Metadata("llama.block_count", config.HiddenLayers),
-		uint32Metadata("llama.context_length", config.MaxPositions),
-		uint32Metadata("llama.embedding_length", config.HiddenSize),
-		uint32Metadata("llama.feed_forward_length", config.IntermediateSize),
-		uint32Metadata("llama.attention.head_count", config.AttentionHeads),
-		uint32Metadata("llama.attention.head_count_kv", config.KVHeads),
-		float32Metadata("llama.attention.layer_norm_rms_epsilon", config.RMSEpsilon),
-		float32Metadata("llama.rope.freq_base", config.RopeTheta),
-		uint32Metadata("llama.rope.dimension_count", config.HiddenSize/config.AttentionHeads),
-		uint32Metadata("llama.vocab_size", config.Vocabulary),
+		uint32Metadata(prefix+"block_count", config.HiddenLayers),
+		uint32Metadata(prefix+"context_length", config.MaxPositions),
+		uint32Metadata(prefix+"embedding_length", config.HiddenSize),
+		uint32Metadata(prefix+"feed_forward_length", config.IntermediateSize),
+		uint32Metadata(prefix+"attention.head_count", config.AttentionHeads),
+		uint32Metadata(prefix+"attention.head_count_kv", config.KVHeads),
+		float32Metadata(prefix+"attention.layer_norm_rms_epsilon", config.RMSEpsilon),
+		float32Metadata(prefix+"rope.freq_base", config.RopeTheta),
+		uint32Metadata(prefix+"rope.dimension_count", config.HiddenSize/config.AttentionHeads),
+		uint32Metadata(prefix+"vocab_size", config.Vocabulary),
 	}
 	tokenizerItems, err := tokenizerMetadata(directory, config.Vocabulary)
 	if err != nil {
@@ -172,11 +191,11 @@ func modelMetadata(directory, name string, config modelConfig) ([]gguf.Metadata,
 func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, error) {
 	encoded, err := os.ReadFile(filepath.Join(directory, "tokenizer.json"))
 	if err != nil {
-		return nil, fmt.Errorf("HF-llama converter: read tokenizer: %w", err)
+		return nil, fmt.Errorf("HF converter: read tokenizer: %w", err)
 	}
 	var file tokenizerFile
 	if err := json.Unmarshal(encoded, &file); err != nil {
-		return nil, fmt.Errorf("HF-llama converter: parse tokenizer: %w", err)
+		return nil, fmt.Errorf("HF converter: parse tokenizer: %w", err)
 	}
 	pre, err := preTokenizerName(file.PreTokenizer)
 	if err != nil {
@@ -187,16 +206,16 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 	seen := make([]bool, vocabulary)
 	for token, id := range file.Model.Vocab {
 		if id < 0 || id >= len(tokens) || seen[id] {
-			return nil, fmt.Errorf("HF-llama converter: invalid tokenizer ID %d", id)
+			return nil, fmt.Errorf("HF converter: invalid tokenizer ID %d", id)
 		}
 		tokens[id], types[id], seen[id] = token, tokenTypeNormal, true
 	}
 	for _, added := range file.Added {
 		if added.ID < 0 || added.ID >= len(tokens) {
-			return nil, fmt.Errorf("HF-llama converter: added token ID %d is out of range", added.ID)
+			return nil, fmt.Errorf("HF converter: added token ID %d is out of range", added.ID)
 		}
 		if seen[added.ID] && tokens[added.ID] != added.Content {
-			return nil, fmt.Errorf("HF-llama converter: added token ID %d is inconsistent", added.ID)
+			return nil, fmt.Errorf("HF converter: added token ID %d is inconsistent", added.ID)
 		}
 		tokens[added.ID], seen[added.ID] = added.Content, true
 		types[added.ID] = tokenTypeUserDefined
@@ -281,7 +300,7 @@ func preTokenizerName(raw json.RawMessage) (string, error) {
 	}
 	var root preTokenizerNode
 	if err := json.Unmarshal(raw, &root); err != nil {
-		return "", fmt.Errorf("HF-llama converter: parse pre-tokenizer: %w", err)
+		return "", fmt.Errorf("HF converter: parse pre-tokenizer: %w", err)
 	}
 	var regexes []string
 	collectSplitRegexes(root, &regexes)
@@ -289,11 +308,11 @@ func preTokenizerName(raw json.RawMessage) (string, error) {
 		return "gpt-2", nil
 	}
 	if len(regexes) > 1 {
-		return "", fmt.Errorf("HF-llama converter: %d pre-tokenizer split patterns; need at most one", len(regexes))
+		return "", fmt.Errorf("HF converter: %d pre-tokenizer split patterns; need at most one", len(regexes))
 	}
 	pre, ok := splitRegexPre[regexes[0]]
 	if !ok {
-		return "", fmt.Errorf("HF-llama converter: unsupported pre-tokenizer split regex %q", regexes[0])
+		return "", fmt.Errorf("HF converter: unsupported pre-tokenizer split regex %q", regexes[0])
 	}
 	return pre, nil
 }
@@ -348,14 +367,14 @@ func mergeStrings(raw []json.RawMessage) ([]string, error) {
 		var joined string
 		if err := json.Unmarshal(entry, &joined); err == nil {
 			if strings.Count(joined, " ") == 0 {
-				return nil, fmt.Errorf("HF-llama converter: merge %d is invalid", index)
+				return nil, fmt.Errorf("HF converter: merge %d is invalid", index)
 			}
 			merges[index] = joined
 			continue
 		}
 		var pair []string
 		if err := json.Unmarshal(entry, &pair); err != nil || len(pair) != 2 || pair[0] == "" || pair[1] == "" {
-			return nil, fmt.Errorf("HF-llama converter: merge %d is invalid", index)
+			return nil, fmt.Errorf("HF converter: merge %d is invalid", index)
 		}
 		merges[index] = pair[0] + " " + pair[1]
 	}
@@ -414,7 +433,7 @@ func resolveSpecialTokens(directory string, file tokenizerFile, tokens []string)
 		if id >= 0 && id < len(tokens) {
 			*entry.destination = id
 		} else if id >= len(tokens) {
-			return result, fmt.Errorf("HF-llama converter: special token ID %d is out of range", id)
+			return result, fmt.Errorf("HF converter: special token ID %d is out of range", id)
 		}
 	}
 	return result, nil
@@ -433,7 +452,7 @@ func firstTokenID(rawID, rawContent json.RawMessage, fallback *string, tokenID m
 	}
 	id, found := tokenID[content]
 	if !found {
-		return -1, fmt.Errorf("HF-llama converter: special token %q is missing from the vocabulary", content)
+		return -1, fmt.Errorf("HF converter: special token %q is missing from the vocabulary", content)
 	}
 	return id, nil
 }
@@ -478,36 +497,36 @@ func readOptionalJSON(path string, destination any) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("HF-llama converter: read %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("HF converter: read %s: %w", filepath.Base(path), err)
 	}
 	if err := json.Unmarshal(encoded, destination); err != nil {
-		return fmt.Errorf("HF-llama converter: parse %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("HF converter: parse %s: %w", filepath.Base(path), err)
 	}
 	return nil
 }
 
 var layerNamePattern = regexp.MustCompile(`^model\.layers\.(\d+)\.(.+)$`)
 
-func modelTensors(source *safetensors.Source, config modelConfig) ([]gguf.TensorData, error) {
+func modelTensors(source *safetensors.Source, profile archProfile, config modelConfig) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(source.Tensors))
 	sawOutput := false
 	for sourceName, tensor := range source.Tensors {
-		destinationName, ok := modelTensorName(sourceName)
+		destinationName, ok := modelTensorName(sourceName, profile)
 		if !ok {
-			return nil, fmt.Errorf("HF-llama converter: tensor %q has no mapping", sourceName)
+			return nil, fmt.Errorf("HF converter: tensor %q has no mapping", sourceName)
 		}
 		if destinationName == "output.weight" {
 			sawOutput = true
 		}
-		dataType, reader, err := modelTensorReader(tensor)
+		dataType, reader, err := modelTensorReader(tensor, destinationName)
 		if err != nil {
-			return nil, fmt.Errorf("HF-llama converter: tensor %q: %w", sourceName, err)
+			return nil, fmt.Errorf("HF converter: tensor %q: %w", sourceName, err)
 		}
-		// GGUF llama RoPE is interleaved; HF q/k rows are rotate-half layout
-		if heads := ropePermuteHeads(destinationName, config); heads != 0 {
+		// Interleaved-RoPE archs: HF q/k rows (weights AND biases) permute from rotate-half
+		if heads := ropePermuteHeads(destinationName, profile, config); heads != 0 {
 			reader, err = permuteRopeRows(reader, tensor.Shape, dataType, heads)
 			if err != nil {
-				return nil, fmt.Errorf("HF-llama converter: permute %q: %w", sourceName, err)
+				return nil, fmt.Errorf("HF converter: permute %q: %w", sourceName, err)
 			}
 		}
 		tensors = append(tensors, gguf.TensorData{
@@ -516,16 +535,34 @@ func modelTensors(source *safetensors.Source, config modelConfig) ([]gguf.Tensor
 	}
 	// Tied embeddings: runtime output head falls back to token_embd; no duplicate tensor.
 	if !sawOutput && !config.TiedEmbeddings {
-		return nil, errors.New("HF-llama converter: lm_head.weight is missing and embeddings are untied")
+		return nil, errors.New("HF converter: lm_head.weight is missing and embeddings are untied")
 	}
 	sort.Slice(tensors, func(i, j int) bool { return tensors[i].Name < tensors[j].Name })
 	if len(tensors) == 0 {
-		return nil, errors.New("HF-llama converter: no tensors found")
+		return nil, errors.New("HF converter: no tensors found")
 	}
 	return tensors, nil
 }
 
-func modelTensorName(name string) (string, bool) {
+var layerTensorMapping = map[string]string{
+	"self_attn.q_proj.weight":         "attn_q.weight",
+	"self_attn.k_proj.weight":         "attn_k.weight",
+	"self_attn.v_proj.weight":         "attn_v.weight",
+	"self_attn.o_proj.weight":         "attn_output.weight",
+	"mlp.gate_proj.weight":            "ffn_gate.weight",
+	"mlp.up_proj.weight":              "ffn_up.weight",
+	"mlp.down_proj.weight":            "ffn_down.weight",
+	"input_layernorm.weight":          "attn_norm.weight",
+	"post_attention_layernorm.weight": "ffn_norm.weight",
+}
+
+var attentionBiasMapping = map[string]string{
+	"self_attn.q_proj.bias": "attn_q.bias",
+	"self_attn.k_proj.bias": "attn_k.bias",
+	"self_attn.v_proj.bias": "attn_v.bias",
+}
+
+func modelTensorName(name string, profile archProfile) (string, bool) {
 	switch name {
 	case "model.embed_tokens.weight":
 		return "token_embd.weight", true
@@ -538,39 +575,36 @@ func modelTensorName(name string) (string, bool) {
 	if match == nil {
 		return "", false
 	}
-	mapping := map[string]string{
-		"self_attn.q_proj.weight":         "attn_q.weight",
-		"self_attn.k_proj.weight":         "attn_k.weight",
-		"self_attn.v_proj.weight":         "attn_v.weight",
-		"self_attn.o_proj.weight":         "attn_output.weight",
-		"mlp.gate_proj.weight":            "ffn_gate.weight",
-		"mlp.up_proj.weight":              "ffn_up.weight",
-		"mlp.down_proj.weight":            "ffn_down.weight",
-		"input_layernorm.weight":          "attn_norm.weight",
-		"post_attention_layernorm.weight": "ffn_norm.weight",
+	suffix, ok := layerTensorMapping[match[2]]
+	if !ok && profile.attentionBias {
+		suffix, ok = attentionBiasMapping[match[2]]
 	}
-	suffix, ok := mapping[match[2]]
 	if !ok {
 		return "", false
 	}
 	return "blk." + match[1] + "." + suffix, true
 }
 
-func ropePermuteHeads(destinationName string, config modelConfig) uint32 {
+func ropePermuteHeads(destinationName string, profile archProfile, config modelConfig) uint32 {
+	if !profile.ropePermute {
+		return 0
+	}
 	switch {
-	case strings.HasSuffix(destinationName, ".attn_q.weight"):
+	case strings.HasSuffix(destinationName, ".attn_q.weight"),
+		strings.HasSuffix(destinationName, ".attn_q.bias"):
 		return config.AttentionHeads
-	case strings.HasSuffix(destinationName, ".attn_k.weight"):
+	case strings.HasSuffix(destinationName, ".attn_k.weight"),
+		strings.HasSuffix(destinationName, ".attn_k.bias"):
 		return config.KVHeads
 	}
 	return 0
 }
 
 // permuteRopeRows: llama.cpp q/k permutation; per head, row (s, i) of the
-// (2, d/2) split moves to interleaved row 2i+s.
+// (2, d/2) split moves to interleaved row 2i+s. Rank 1 = bias, one element per row.
 func permuteRopeRows(reader io.Reader, shape []uint64, dataType gguf.DType, heads uint32) (io.Reader, error) {
-	if len(shape) != 2 || heads == 0 {
-		return nil, errors.New("rank-2 tensor with head count required")
+	if len(shape) < 1 || len(shape) > 2 || heads == 0 {
+		return nil, errors.New("rank-1 or rank-2 tensor with head count required")
 	}
 	elementSize := uint64(0)
 	switch dataType {
@@ -581,7 +615,10 @@ func permuteRopeRows(reader io.Reader, shape []uint64, dataType gguf.DType, head
 	default:
 		return nil, fmt.Errorf("unsupported dtype %d", dataType)
 	}
-	outRows, rowBytes := shape[0], shape[1]*elementSize
+	outRows, rowBytes := shape[0], elementSize
+	if len(shape) == 2 {
+		rowBytes = shape[1] * elementSize
+	}
 	if outRows%uint64(heads) != 0 {
 		return nil, errors.New("rows are not divisible by head count")
 	}
@@ -614,8 +651,16 @@ func permuteRopeRows(reader io.Reader, shape []uint64, dataType gguf.DType, head
 	return bytes.NewReader(destination), nil
 }
 
-// modelTensorReader: source dtypes pass through unconverted.
-func modelTensorReader(tensor safetensors.Tensor) (gguf.DType, io.Reader, error) {
+// modelTensorReader: weights pass through unconverted; biases promote to F32
+// (the tensor catalog requires F32 bias storage).
+func modelTensorReader(tensor safetensors.Tensor, destinationName string) (gguf.DType, io.Reader, error) {
+	if strings.HasSuffix(destinationName, ".bias") {
+		reader, err := safetensors.F32Reader(tensor)
+		if err != nil {
+			return 0, nil, err
+		}
+		return gguf.DTypeF32, reader, nil
+	}
 	switch tensor.DType {
 	case "BF16":
 		return gguf.DTypeBF16, tensor.Reader(), nil
@@ -632,7 +677,7 @@ func validateModelCatalog(metadata []gguf.Metadata, tensors []gguf.TensorData) e
 	file := &gguf.File{Metadata: metadata, Tensors: make([]gguf.TensorInfo, len(tensors))}
 	for index, tensor := range tensors {
 		if len(tensor.Shape) > gguf.MaxDimensions {
-			return fmt.Errorf("HF-llama converter: tensor %q rank exceeds GGUF", tensor.Name)
+			return fmt.Errorf("HF converter: tensor %q rank exceeds GGUF", tensor.Name)
 		}
 		info := gguf.TensorInfo{
 			Name: tensor.Name, Dimensions: uint32(len(tensor.Shape)), Type: tensor.Type,
@@ -643,13 +688,13 @@ func validateModelCatalog(metadata []gguf.Metadata, tensors []gguf.TensorData) e
 	}
 	spec, err := model.ReadSpec(file)
 	if err != nil {
-		return fmt.Errorf("HF-llama converter: generated model metadata: %w", err)
+		return fmt.Errorf("HF converter: generated model metadata: %w", err)
 	}
 	if _, err := model.ReadWeights(file, spec); err != nil {
-		return fmt.Errorf("HF-llama converter: generated tensor catalog: %w", err)
+		return fmt.Errorf("HF converter: generated tensor catalog: %w", err)
 	}
 	if _, err := tokenizer.Load(file); err != nil {
-		return fmt.Errorf("HF-llama converter: generated tokenizer: %w", err)
+		return fmt.Errorf("HF converter: generated tokenizer: %w", err)
 	}
 	return nil
 }
@@ -661,7 +706,7 @@ func writeOutput(path string, metadata []gguf.Metadata, tensors []gguf.TensorDat
 	}
 	file, err := os.OpenFile(absolute, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return fmt.Errorf("HF-llama converter: create %s: %w", absolute, err)
+		return fmt.Errorf("HF converter: create %s: %w", absolute, err)
 	}
 	succeeded := false
 	defer func() {
@@ -671,7 +716,7 @@ func writeOutput(path string, metadata []gguf.Metadata, tensors []gguf.TensorDat
 		}
 	}()
 	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		return fmt.Errorf("HF-llama converter: write %s: %w", absolute, err)
+		return fmt.Errorf("HF converter: write %s: %w", absolute, err)
 	}
 	if err := file.Sync(); err != nil {
 		return err

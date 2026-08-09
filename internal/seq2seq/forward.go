@@ -1,0 +1,181 @@
+// Forward for the layered-attention seq2seq capability: bidirectional RoPE
+// encoder, full-recompute teacher-forced decode, and the shared per-layer
+// pieces the incremental session reuses. All math is per-row identical
+// between the full and incremental paths, so both decode forms agree
+// bit-for-bit (asserted by the parity tests).
+package seq2seq
+
+import (
+	"fmt"
+
+	"overgo/internal/hostmath"
+)
+
+// embedRows: dst[rows,d] = embed[token]*sqrt(d) — the reference's scaled
+// word embedding.
+func (m *Model) embedRows(dst []float32, tokens []int) error {
+	d := m.Dims.DModel
+	for i, token := range tokens {
+		if token < 0 || token >= m.Dims.Vocab {
+			return fmt.Errorf("seq2seq: token %d at position %d outside vocab %d", token, i, m.Dims.Vocab)
+		}
+		row, source := dst[i*d:(i+1)*d], m.embed[token*d:(token+1)*d]
+		for j, value := range source {
+			row[j] = value * m.embedScale
+		}
+	}
+	return nil
+}
+
+// projectQ: normed hidden -> per-head-normed, roped (posBase.. for self;
+// rope skipped when roped=false for cross), score-scale-folded queries.
+// Score scale folds into q because the hostmath cores run scale 1; with a
+// power-of-two head dim the fold is bit-exact against scaling the scores.
+func (m *Model) projectQ(dst, normed []float32, rows int, block *attnBlock, posBase int, roped bool) {
+	heads, hd := m.Dims.Heads, m.Dims.HeadDim
+	hostmath.Linear(dst, normed, block.q, rows, m.Dims.DModel, heads*hd)
+	hostmath.RMSNormInto(dst, dst, block.qNorm, rows*heads, hd, m.Dims.RMSEps)
+	if roped {
+		m.ropeRows(dst, rows, heads, posBase)
+	}
+	for i := range dst {
+		dst[i] *= m.scoreScale
+	}
+}
+
+// projectKV: normed source rows -> per-head-normed roped keys and raw values.
+func (m *Model) projectKV(dstK, dstV, source []float32, rows int, block *attnBlock, posBase int, roped bool) {
+	kv, hd := m.Dims.KVHeads, m.Dims.HeadDim
+	hostmath.Linear(dstK, source, block.k, rows, m.Dims.DModel, kv*hd)
+	hostmath.RMSNormInto(dstK, dstK, block.kNorm, rows*kv, hd, m.Dims.RMSEps)
+	if roped {
+		m.ropeRows(dstK, rows, kv, posBase)
+	}
+	hostmath.Linear(dstV, source, block.v, rows, m.Dims.DModel, kv*hd)
+}
+
+// ropeRows: rotate-half every head of rows whose absolute positions start
+// at posBase.
+func (m *Model) ropeRows(x []float32, rows, heads, posBase int) {
+	hd := m.Dims.HeadDim
+	for p := 0; p < rows; p++ {
+		for h := 0; h < heads; h++ {
+			hostmath.ApplyRotaryHalf(x[(p*heads+h)*hd:(p*heads+h+1)*hd], m.invFreq, posBase+p)
+		}
+	}
+}
+
+// gatedResidualOut: hidden += gate * (attn @ o_proj) per row.
+func (m *Model) gatedResidualOut(hidden, attn, oProj []float32, rows int, gate float32) {
+	d := m.Dims.DModel
+	projected := make([]float32, rows*d)
+	hostmath.Linear(projected, attn, oProj, rows, m.Dims.Heads*m.Dims.HeadDim, d)
+	for i, value := range projected {
+		hidden[i] += gate * value
+	}
+}
+
+// Encode runs the bidirectional encoder over source token ids and returns
+// the final-normed memory [len(src), d].
+func (m *Model) Encode(src []int) ([]float32, error) {
+	if len(src) == 0 {
+		return nil, fmt.Errorf("seq2seq: empty source")
+	}
+	dims := m.Dims
+	rows, d := len(src), dims.DModel
+	hidden := make([]float32, rows*d)
+	if err := m.embedRows(hidden, src); err != nil {
+		return nil, err
+	}
+	normed := make([]float32, rows*d)
+	q := make([]float32, rows*dims.Heads*dims.HeadDim)
+	k := make([]float32, rows*dims.KVHeads*dims.HeadDim)
+	v := make([]float32, rows*dims.KVHeads*dims.HeadDim)
+	attn := make([]float32, rows*dims.Heads*dims.HeadDim)
+	for layer := range m.encoder {
+		block := &m.encoder[layer]
+		hostmath.RMSNormInto(normed, hidden, block.inNorm, rows, d, dims.RMSEps)
+		m.projectQ(q, normed, rows, block, 0, true)
+		m.projectKV(k, v, normed, rows, block, 0, true)
+		hostmath.MaskedBidirectionalAttention(attn, q, k, v, rows, rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
+		m.gatedResidualOut(hidden, attn, block.o, rows, block.gate)
+	}
+	hostmath.RMSNormInto(hidden, hidden, m.encFinalNorm, rows, d, dims.RMSEps)
+	return hidden, nil
+}
+
+// crossMemory: per-decoder-layer static cross-attention K/V, projected once
+// from the encoder memory (keys per-head normed; no RoPE on cross rows).
+type crossMemory struct {
+	k, v [][]float32
+	rows int
+}
+
+// projectCrossMemory computes every cross layer's static K/V from memory.
+// Shared by full and incremental decode so both read identical values.
+func (m *Model) projectCrossMemory(memory []float32, memRows int) (*crossMemory, error) {
+	if memRows <= 0 || len(memory) != memRows*m.Dims.DModel {
+		return nil, fmt.Errorf("seq2seq: memory %d values for %d rows of width %d", len(memory), memRows, m.Dims.DModel)
+	}
+	cross := &crossMemory{rows: memRows}
+	width := memRows * m.Dims.KVHeads * m.Dims.HeadDim
+	for layer := range m.decoderCross {
+		block := &m.decoderCross[layer]
+		k, v := make([]float32, width), make([]float32, width)
+		m.projectKV(k, v, memory, memRows, block, 0, false)
+		cross.k = append(cross.k, k)
+		cross.v = append(cross.v, v)
+	}
+	return cross, nil
+}
+
+// projectLogits: logits[vocab] = rmsnorm(hiddenRow) @ embed^T (tied head).
+func (m *Model) projectLogits(logits, hiddenRow, normedScratch []float32) {
+	d := m.Dims.DModel
+	hostmath.RMSNormInto(normedScratch[:d], hiddenRow, m.decFinalNorm, 1, d, m.Dims.RMSEps)
+	hostmath.Linear(logits[:m.Dims.Vocab], normedScratch[:d], m.embed, 1, d, m.Dims.Vocab)
+}
+
+// DecodeFull teacher-forces tgt through the decoder in one full-sequence
+// pass and returns logits [len(tgt), vocab] — the recompute reference the
+// incremental session is checked against.
+func (m *Model) DecodeFull(memory []float32, memRows int, tgt []int) ([]float32, error) {
+	if len(tgt) == 0 {
+		return nil, fmt.Errorf("seq2seq: empty target")
+	}
+	cross, err := m.projectCrossMemory(memory, memRows)
+	if err != nil {
+		return nil, err
+	}
+	dims := m.Dims
+	rows, d := len(tgt), dims.DModel
+	hidden := make([]float32, rows*d)
+	if err := m.embedRows(hidden, tgt); err != nil {
+		return nil, err
+	}
+	normed := make([]float32, rows*d)
+	q := make([]float32, rows*dims.Heads*dims.HeadDim)
+	k := make([]float32, rows*dims.KVHeads*dims.HeadDim)
+	v := make([]float32, rows*dims.KVHeads*dims.HeadDim)
+	attn := make([]float32, rows*dims.Heads*dims.HeadDim)
+	for layer := range m.decoderSelf {
+		self := &m.decoderSelf[layer]
+		hostmath.RMSNormInto(normed, hidden, self.inNorm, rows, d, dims.RMSEps)
+		m.projectQ(q, normed, rows, self, 0, true)
+		m.projectKV(k, v, normed, rows, self, 0, true)
+		hostmath.CausalAttention(attn, q, k, v, rows, dims.Heads, dims.KVHeads, dims.HeadDim)
+		m.gatedResidualOut(hidden, attn, self.o, rows, self.gate)
+
+		crossBlock := &m.decoderCross[layer]
+		hostmath.RMSNormInto(normed, hidden, crossBlock.inNorm, rows, d, dims.RMSEps)
+		m.projectQ(q, normed, rows, crossBlock, 0, false)
+		hostmath.MaskedBidirectionalAttention(attn, q, cross.k[layer], cross.v[layer], rows, cross.rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
+		m.gatedResidualOut(hidden, attn, crossBlock.o, rows, crossBlock.gate)
+	}
+	logits := make([]float32, rows*dims.Vocab)
+	scratch := make([]float32, d)
+	for row := 0; row < rows; row++ {
+		m.projectLogits(logits[row*dims.Vocab:(row+1)*dims.Vocab], hidden[row*d:(row+1)*d], scratch)
+	}
+	return logits, nil
+}

@@ -216,6 +216,38 @@ func CausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDim int) {
 	})
 }
 
+// CausalAttentionStep: one cached-decode query at position cachedRows-1
+// attending the cachedRows keys/values accumulated so far — the incremental
+// form of CausalAttention. Same per-row math (f64 dots stored f32,
+// SoftmaxInPlace, f32 value accumulation), so a stepped decode is
+// bit-identical to the full-sequence core's row at that position. Layout:
+// q/out [heads][headDim] flat; kCache/vCache [cachedRows][kvHeads][headDim].
+func CausalAttentionStep(out, q, kCache, vCache []float32, cachedRows, heads, kvHeads, headDim int) {
+	clear(out)
+	group := heads / kvHeads
+	scores := make([]float32, cachedRows)
+	for h := 0; h < heads; h++ {
+		kv := h / group
+		qRow := q[h*headDim : (h+1)*headDim]
+		for ki := range scores {
+			kRow := kCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+			var dot float64
+			for d := 0; d < headDim; d++ {
+				dot += float64(qRow[d]) * float64(kRow[d])
+			}
+			scores[ki] = float32(dot)
+		}
+		SoftmaxInPlace(scores)
+		outRow := out[h*headDim : (h+1)*headDim]
+		for ki, weight := range scores {
+			vRow := vCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+			for d := 0; d < headDim; d++ {
+				outRow[d] += weight * vRow[d]
+			}
+		}
+	}
+}
+
 // causalAttentionHeads runs the head range [hStart,hEnd) — each worker owns
 // disjoint out rows per head, so the split is race-free.
 func causalAttentionHeads(out, q, k, v []float32, seq, heads, kvHeads, headDim, hStart, hEnd int) {

@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -> overgo merge: model ladder",
+  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -126,20 +126,17 @@
         {
           "id": "recipe-activation",
           "title": "sealed lifecycle, tabular-predict task (recipe schema may need the task enum)",
-          "status": "done",
-          "verdict": "TaskTabular admitted (recipe schema enum + validateTask, catalog module model.tabular-predict host table->predictions, modelrecipe.TabularDefinition); dual-head artifact inventoried via new generic modelartifact.FromFiles (explicit component list, tensor facts namespaced per head). Activated: model:sha256:127ad48856519e932017fedeed3e9c09a6f12ea726f496ac1c97abeaa1bf30b5 -> recipe:sha256:545e6cca3b1f34ad8376fa18b764f2b60d1f9bde0418518a038ffbbfee3272d8, status round-trip verified (tier experimental)."
+          "status": "done"
         },
         {
           "id": "training-leg",
           "title": "per baseline policy (ICL models predict via context, check what adaptive trains here first)",
-          "status": "done",
-          "verdict": "ABSENT-baseline: adaptive_new has no tabular training capability. Evidence: extmodel/tabular_set_transformer.go is forward-only (no backward); the seeded recipe tabfm.infer.table_host.v6 has only Load+Execute stages (no adapt/train stage); recipeTaskTraining modules are causal-LM only (ModuleCausalTrainingForwardBackward); go/training and go/modeltrain contain no tabular code (only an owed-future-grid note in a skipped sweep harness). The ICL model predicts via context and trains in its vendor pytorch stack (models/tabfm-1.0.0-pytorch/tabfm/); overgo matches the reference capability surface exactly (predict only)."
+          "status": "done"
         },
         {
           "id": "performance-leg",
           "title": "head-to-head vs live baseline, at-or-below",
-          "status": "done",
-          "verdict": "AT-OR-BELOW on all 4 golden cases, matched warm-predict protocol. Reference /api/predict 'seconds' excludes load (handler compiles the resident runtime before its timer; 2nd-request values used); overgo = median of 5 warm predicts after one LoadHead (internal/tabularicl/predict_wall_test.go TestPredictWall). Seconds ref->overgo: cls_blobs 2.2320->1.8040 (0.81x), cls_wide 3.8770->2.5440 (0.66x), reg_linear 2.3345->1.8261 (0.78x), reg_wide 3.8638->2.5098 (0.65x). Overgo head load 2.2-2.8s."
+          "status": "done"
         }
       ]
     },
@@ -150,28 +147,28 @@
       "steps": [
         {
           "id": "golden-import",
-          "status": "done",
-          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -> tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)"
+          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -\u003e tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
+          "status": "done"
         },
         {
           "id": "reference-port",
-          "status": "open",
-          "title": "neutral seq2seq capability package; reference is adaptive extmodel layeredAttentionSeq2Seq (needle_research_test.go admits it; models/needle safetensors); parity vs the JAX oracle incl. incremental decode"
+          "title": "neutral seq2seq capability package; reference is adaptive extmodel layeredAttentionSeq2Seq (needle_research_test.go admits it; models/needle safetensors); parity vs the JAX oracle incl. incremental decode",
+          "status": "done"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "title": "sealed lifecycle (task fit: generation vs a seq2seq task entry -- decide from the reference contract)"
+          "title": "sealed lifecycle (task fit: generation vs a seq2seq task entry -- decide from the reference contract)",
+          "status": "open"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "per baseline policy; check what adaptive trains for needle first"
+          "title": "per baseline policy; check what adaptive trains for needle first",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "title": "matched protocol head-to-head, at-or-below"
+          "title": "matched protocol head-to-head, at-or-below",
+          "status": "open"
         }
       ]
     },

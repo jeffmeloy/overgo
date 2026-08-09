@@ -86,3 +86,34 @@ func TestMaskedBidirectionalAttention(t *testing.T) {
 		}
 	}
 }
+
+// TestCausalAttentionStepMatchesFull: stepping a query at each position over
+// the accumulated cache must be BIT-identical to the full-sequence core's
+// row — the contract incremental decode relies on.
+func TestCausalAttentionStepMatchesFull(t *testing.T) {
+	const seq, heads, kvHeads, headDim = 6, 4, 2, 8
+	fill := func(n int, seed float64) []float32 {
+		out := make([]float32, n)
+		for i := range out {
+			out[i] = float32(math.Sin(seed + float64(i)*0.7))
+		}
+		return out
+	}
+	q := fill(seq*heads*headDim, 0.2)
+	k := fill(seq*kvHeads*headDim, 0.6)
+	v := fill(seq*kvHeads*headDim, 1.1)
+
+	full := make([]float32, seq*heads*headDim)
+	CausalAttention(full, q, k, v, seq, heads, kvHeads, headDim)
+
+	step := make([]float32, heads*headDim)
+	for pos := 0; pos < seq; pos++ {
+		cached := (pos + 1) * kvHeads * headDim
+		CausalAttentionStep(step, q[pos*heads*headDim:(pos+1)*heads*headDim], k[:cached], v[:cached], pos+1, heads, kvHeads, headDim)
+		for i, value := range step {
+			if value != full[pos*heads*headDim+i] {
+				t.Fatalf("pos %d element %d: step %g != full %g", pos, i, value, full[pos*heads*headDim+i])
+			}
+		}
+	}
+}

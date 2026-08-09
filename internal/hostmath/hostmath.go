@@ -29,6 +29,50 @@ func RMSNormInto(out, x, weight []float32, rows, d int, eps float64) {
 	}
 }
 
+// LayerNormInto: classic LayerNorm per row — mean-subtracted, BIASED
+// variance (divide by d), optional affine. weight and bias come together or
+// not at all (nil/nil is the no-affine variant). out may alias x. f64 stats.
+func LayerNormInto(out, x, weight, bias []float32, rows, d int, eps float64) {
+	affine := weight != nil || bias != nil
+	if affine && (len(weight) != d || len(bias) != d) {
+		panic("hostmath: LayerNormInto affine vectors do not match width")
+	}
+	for r := 0; r < rows; r++ {
+		row := x[r*d : (r+1)*d]
+		var mean float64
+		for _, v := range row {
+			mean += float64(v)
+		}
+		mean /= float64(d)
+		var variance float64
+		for _, v := range row {
+			dv := float64(v) - mean
+			variance += dv * dv
+		}
+		variance /= float64(d)
+		inv := 1.0 / math.Sqrt(variance+eps)
+		o := out[r*d : (r+1)*d]
+		for j := 0; j < d; j++ {
+			n := (float64(row[j]) - mean) * inv
+			if affine {
+				n = n*float64(weight[j]) + float64(bias[j])
+			}
+			o[j] = float32(n)
+		}
+	}
+}
+
+// GELUErf: the EXACT (erf) GELU 0.5*x*(1+erf(x/sqrt(2))) — distinct from the
+// tanh approximation above.
+func GELUErf(x float64) float64 { return 0.5 * x * (1 + math.Erf(x/math.Sqrt2)) }
+
+// GELUErfInPlace applies GELUErf element-wise, f64 math.
+func GELUErfInPlace(v []float32) {
+	for k := range v {
+		v[k] = float32(GELUErf(float64(v[k])))
+	}
+}
+
 // RopeInvFreq: the default rotary inverse-frequency ladder 1/theta^(2i/d).
 func RopeInvFreq(theta float64, headDim int) []float64 {
 	out := make([]float64, headDim/2)

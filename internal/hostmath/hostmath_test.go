@@ -17,6 +17,76 @@ func TestGELUTanh(t *testing.T) {
 	}
 }
 
+// TestLayerNormInto checks mean/biased-variance normalization, the affine
+// path, the no-affine path, aliasing, and the affine width panic.
+func TestLayerNormInto(t *testing.T) {
+	const d, eps = 4, 1e-6
+	x := []float32{1, 2, 3, 4, -2, 0, 2, 8}
+	weight := []float32{1.5, -0.5, 2, 1}
+	bias := []float32{0.1, -0.2, 0.3, 0}
+	out := make([]float32, len(x))
+	LayerNormInto(out, x, weight, bias, 2, d, eps)
+	for r := 0; r < 2; r++ {
+		row := x[r*d : (r+1)*d]
+		var mean float64
+		for _, v := range row {
+			mean += float64(v)
+		}
+		mean /= d
+		var variance float64
+		for _, v := range row {
+			dv := float64(v) - mean
+			variance += dv * dv
+		}
+		variance /= d
+		inv := 1 / math.Sqrt(variance+eps)
+		for j := 0; j < d; j++ {
+			want := (float64(row[j])-mean)*inv*float64(weight[j]) + float64(bias[j])
+			if diff := math.Abs(float64(out[r*d+j]) - want); diff > 1e-7 {
+				t.Fatalf("ln[%d][%d] = %g, want %g", r, j, out[r*d+j], want)
+			}
+		}
+	}
+	plain := make([]float32, d)
+	LayerNormInto(plain, x[:d], nil, nil, 1, d, eps)
+	var sum, ss float64
+	for _, v := range plain {
+		sum += float64(v)
+		ss += float64(v) * float64(v)
+	}
+	if math.Abs(sum) > 1e-6 || math.Abs(ss/d-1) > 1e-5 {
+		t.Fatalf("no-affine row not standardized: sum=%g meanSq=%g", sum, ss/d)
+	}
+	aliased := append([]float32(nil), x[:d]...)
+	LayerNormInto(aliased, aliased, nil, nil, 1, d, eps)
+	for j := range plain {
+		if aliased[j] != plain[j] {
+			t.Fatalf("aliased LayerNorm differs at %d", j)
+		}
+	}
+	defer func() {
+		if recover() == nil {
+			t.Fatal("want panic on mismatched affine width")
+		}
+	}()
+	LayerNormInto(out, x, weight[:2], bias, 2, d, eps)
+}
+
+// TestGELUErf pins the exact-erf GELU against closed-form Phi values.
+func TestGELUErf(t *testing.T) {
+	v := []float32{0, 1, -1, 2, 0.5}
+	want := []float64{0, 0.8413447460685429, -0.15865525393145707, 1.9544997361036416, 0.34573123063700656}
+	GELUErfInPlace(v)
+	for i := range v {
+		if diff := math.Abs(float64(v[i]) - want[i]); diff > 1e-6 {
+			t.Fatalf("geluErf[%d] = %g, want %g", i, v[i], want[i])
+		}
+	}
+	if g := GELUErf(10); math.Abs(g-10) > 1e-9 {
+		t.Fatalf("geluErf(10) = %g, want ~10", g)
+	}
+}
+
 // bruteBidirectional: direct per-query softmax over an explicit key subset.
 func bruteBidirectional(q, k, v []float32, querySeq, keySeq, heads, headDim int, allowed func(int) bool) []float32 {
 	out := make([]float32, querySeq*heads*headDim)

@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -> overgo merge: model ladder",
+  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -147,7 +147,7 @@
       "steps": [
         {
           "id": "golden-import",
-          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -> tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
+          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -\u003e tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
           "status": "done"
         },
         {
@@ -158,20 +158,17 @@
         {
           "id": "recipe-activation",
           "title": "sealed lifecycle (task fit: generation vs a seq2seq task entry -- decide from the reference contract)",
-          "status": "done",
-          "verdict": "seq2seq task sealed: TaskSeq2Seq in the schema enum; model.seq2seq-generate in the catalog (host, source tokens in, generated tokens out); Seq2SeqDefinition mirrors forecast/tabular; the three capability activations now share one activateCapability lifecycle driver in cmd/recipe. Inventory via modelartifact.FromHFRepository (needle is standard HF layout; pkl/zip/vendor-repo sidecars ignored by the companion whitelist). Real activation ran candidate -> validated -> active: model model:sha256:2928aabc..., recipe recipe:sha256:fc284859...; status round-trip confirms active, tier experimental. Compile-refusal test proves the inference compiler rejects the seq2seq task."
+          "status": "done"
         },
         {
           "id": "training-leg",
           "title": "per baseline policy; check what adaptive trains for needle first",
-          "status": "done",
-          "verdict": "ABSENT-baseline: adaptive serves needle but does not train it. Evidence: (1) go/extmodel/attention_seq2seq.go is forward/generate only -- zero backward/grad/loss symbols; (2) the seeded recipe map in go/cmd/repodb/seed_model_profiles.go has only {inference, attention-seq2seq} (Load: ResolveModelSpec + LoadStackedAttentionSeq2Seq; Execute: AttentionSeq2SeqGenerate); training declarations exist only for dense_causal, alternating-window, pocket-tts, uvit scopes; (3) the research-tagged needle tests contain zero train/backward/grad references; (4) the model is JAX-vendor-trained: config.json jax_config (library jax, checkpoint needle.pkl) and the vendored repo ships its own launch_train.sh. Overgo matches the reference capability surface exactly; no training lane nobody has."
+          "status": "done"
         },
         {
           "id": "performance-leg",
           "title": "matched protocol head-to-head, at-or-below",
-          "status": "done",
-          "verdict": "AT-OR-BELOW, matched host protocol (both implementations host-side Go, same artifact, same oracle src/tgt). Overgo (internal/seq2seq TestDecodeWall, model loaded once, median-of-5): load 0.108-0.218s; encode+decode-full median 0.0203-0.0204s; generate-8 (encode + 8-token incremental greedy) median 0.0303-0.0308s. Reference (adaptive go test -tags research ./extmodel -run TestNeedleIncrementalDecodeMatchesJAXOracle -count=1 -v): test elapsed 0.42/0.43/0.44s across three runs -- that wall includes artifact resolve+load, dispatch calibration, encode, 8 incremental advances, oracle JSON read, and parity asserts (no per-op timer is reported). Honest composite: overgo load+generate-8 = 0.14-0.25s vs reference 0.42-0.44s test wall (~0.3-0.6x); op-only walls (20-31ms) are an order below the reference test wall even before subtracting its load. Verdict: at-or-below."
+          "status": "done"
         }
       ]
     },
@@ -182,33 +179,33 @@
       "steps": [
         {
           "id": "golden-import",
-          "status": "done",
-          "title": "complete golden ladder pulled from adaptive fixtures/pockettts (g0 config/tensors, g1 tokenizer, g2 mimi encode, g3 stage traces, g4 e2e, g5 mimi decode stages, g6 backbone + reference wav; ~8MB)"
+          "title": "complete golden ladder pulled from adaptive fixtures/pockettts (g0 config/tensors, g1 tokenizer, g2 mimi encode, g3 stage traces, g4 e2e, g5 mimi decode stages, g6 backbone + reference wav; ~8MB)",
+          "status": "done"
         },
         {
           "id": "backbone-port",
-          "status": "open",
-          "title": "neutral speech-synthesis package: text backbone vs g6/g3 traces (reference: adaptive extmodel/speech_flow_synthesis.go; known: voice-cloning encoder is amputated in the artifact -- decoder/TTS is the capability)"
+          "title": "neutral speech-synthesis package: text backbone vs g6/g3 traces (reference: adaptive extmodel/speech_flow_synthesis.go; known: voice-cloning encoder is amputated in the artifact -- decoder/TTS is the capability)",
+          "status": "done"
         },
         {
           "id": "codec-port",
-          "status": "open",
-          "title": "audio codec decoder vs g5 mimi decode stages; e2e wav vs g4 + reference wav (multimodal directive: real audio out, byte/\u8fd1-parity bar derived)"
+          "title": "audio codec decoder vs g5 mimi decode stages; e2e wav vs g4 + reference wav (multimodal directive: real audio out, byte/近-parity bar derived)",
+          "status": "open"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "title": "sealed lifecycle, speech task entry"
+          "title": "sealed lifecycle, speech task entry",
+          "status": "open"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "adaptive HAS a pocket-tts training declaration (seed profiles) -- scope it honestly"
+          "title": "adaptive HAS a pocket-tts training declaration (seed profiles) -- scope it honestly",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "title": "matched protocol, at-or-below"
+          "title": "matched protocol, at-or-below",
+          "status": "open"
         }
       ]
     },

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"overgo/internal/gguf"
@@ -112,6 +113,10 @@ func Convert(options Options) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	if config.Text.GlobalKVHeads == 0 {
+		// null num_global_key_value_heads: global layers reuse num_key_value_heads (E4B)
+		config.Text.GlobalKVHeads = config.Text.KVHeads
+	}
 	if err := validateConfig(config); err != nil {
 		return Report{}, err
 	}
@@ -143,6 +148,9 @@ func Convert(options Options) (Report, error) {
 		report.ModelTensors = len(tensors)
 	}
 	if options.MMProjPath != "" {
+		if err := validateProjectorConfig(config); err != nil {
+			return report, err
+		}
 		metadata := projectorMetadata(name, config)
 		tensors, tensorErr := projectorTensors(source, options.MMProjF32)
 		if tensorErr != nil {
@@ -195,7 +203,12 @@ func validateConfig(config modelConfig) error {
 		full.PartialRotary <= 0 || full.PartialRotary > 1 {
 		return errors.New("Gemma 4 converter: RoPE configuration is incomplete")
 	}
-	if config.Vision.PatchSize == 0 || config.Vision.PoolingSize == 0 || config.Vision.Embedding != text.HiddenSize ||
+	return nil
+}
+
+// validateProjectorConfig: embedder-layout multimodal keys; only the mmproj output needs them.
+func validateProjectorConfig(config modelConfig) error {
+	if config.Vision.PatchSize == 0 || config.Vision.PoolingSize == 0 || config.Vision.Embedding != config.Text.HiddenSize ||
 		config.Vision.Positions == 0 || config.Audio.Embedding == 0 {
 		return errors.New("Gemma 4 converter: multimodal configuration is incomplete")
 	}
@@ -364,8 +377,17 @@ var layerNamePattern = regexp.MustCompile(`^model\.language_model\.layers\.(\d+)
 
 func modelTensors(source *safetensors.Source, config modelConfig) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(source.Tensors)+1)
+	sharedKVStart := config.Text.HiddenLayers - config.Text.SharedKVLayers
 	for sourceName, tensor := range source.Tensors {
 		destinationName, include := modelTensorName(sourceName)
+		if include && config.Text.SharedKVLayers > 0 &&
+			(strings.HasSuffix(destinationName, ".attn_k.weight") || strings.HasSuffix(destinationName, ".attn_v.weight")) {
+			match := layerNamePattern.FindStringSubmatch(sourceName)
+			if index, parseErr := strconv.ParseUint(match[1], 10, 32); parseErr == nil && uint32(index) >= sharedKVStart {
+				// shared-KV blocks never read k/v projections (spec.LayerHasKV)
+				continue
+			}
+		}
 		if !include {
 			if strings.HasPrefix(sourceName, "model.language_model.") &&
 				!strings.HasSuffix(sourceName, "weight_scale") {
@@ -413,6 +435,12 @@ func modelTensorName(name string) (string, bool) {
 		return "token_embd.weight", true
 	case "model.language_model.norm.weight":
 		return "output_norm.weight", true
+	case "model.language_model.embed_tokens_per_layer.weight":
+		return "per_layer_token_embd.weight", true
+	case "model.language_model.per_layer_model_projection.weight":
+		return "per_layer_model_proj.weight", true
+	case "model.language_model.per_layer_projection_norm.weight":
+		return "per_layer_proj_norm.weight", true
 	}
 	match := layerNamePattern.FindStringSubmatch(name)
 	if match == nil || strings.HasSuffix(name, "weight_scale") {
@@ -424,6 +452,9 @@ func modelTensorName(name string) (string, bool) {
 		"mlp.down_proj.weight":              "ffn_down.weight",
 		"mlp.gate_proj.weight":              "ffn_gate.weight",
 		"mlp.up_proj.weight":                "ffn_up.weight",
+		"per_layer_input_gate.weight":       "per_layer_inp_gate.weight",
+		"per_layer_projection.weight":       "per_layer_proj.weight",
+		"post_per_layer_input_norm.weight":  "per_layer_post_norm.weight",
 		"post_attention_layernorm.weight":   "post_attention_norm.weight",
 		"post_feedforward_layernorm.weight": "post_ffw_norm.weight",
 		"pre_feedforward_layernorm.weight":  "ffn_norm.weight",

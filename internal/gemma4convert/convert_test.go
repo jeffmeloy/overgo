@@ -18,6 +18,12 @@ func TestModelTensorName(t *testing.T) {
 		"model.language_model.layers.17.mlp.down_proj.weight":              "blk.17.ffn_down.weight",
 		"model.language_model.layers.17.post_feedforward_layernorm.weight": "blk.17.post_ffw_norm.weight",
 		"model.language_model.layers.17.layer_scalar":                      "blk.17.layer_output_scale.weight",
+		"model.language_model.embed_tokens_per_layer.weight":               "per_layer_token_embd.weight",
+		"model.language_model.per_layer_model_projection.weight":           "per_layer_model_proj.weight",
+		"model.language_model.per_layer_projection_norm.weight":            "per_layer_proj_norm.weight",
+		"model.language_model.layers.17.per_layer_input_gate.weight":       "blk.17.per_layer_inp_gate.weight",
+		"model.language_model.layers.17.per_layer_projection.weight":       "blk.17.per_layer_proj.weight",
+		"model.language_model.layers.17.post_per_layer_input_norm.weight":  "blk.17.per_layer_post_norm.weight",
 	} {
 		got, ok := modelTensorName(source)
 		if !ok || got != want {

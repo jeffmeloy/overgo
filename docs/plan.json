@@ -431,8 +431,8 @@
         },
         {
           "id": "convert-parity",
-          "status": "open",
-          "title": "gemma4 conversion of E4B (existing converter; verify vs e4b fixture set incl. vision+audio per multimodal directive)",
+          "status": "done",
+          "title": "gemma4 conversion of E4B (existing converter; verify vs e4b fixture set incl. vision+audio per multimodal directive) -- DONE: gemma-4-E4B-it-bf16.gguf 684 tensors 14.94GB 18.8s; parity 0 mismatches (719 lang tensors, 36 shared-KV k/v dropped per LayerHasKV, +1 rope_freqs); generic mapping-adds only (+38/-1); mmproj tower export = open capability",
           "resource": "cpu"
         },
         {

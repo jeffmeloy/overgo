@@ -31,7 +31,10 @@ import (
 	"overgo/internal/runrecord"
 )
 
-const gateRecipeSeed = "overgo-gate/v1"
+const (
+	gateRecipeSeed   = "overgo-gate/v1"
+	gateWorkloadSeed = "overgo-gate-workload/v1"
+)
 
 type gateContext struct {
 	repo        string
@@ -342,6 +345,29 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	batch.Artifacts = append(batch.Artifacts,
 		artifact.Descriptor{ID: recipeID}, artifact.Descriptor{ID: environmentID})
+	// A wall-time evaluation rides every successful run: evaluations are the
+	// advisory layer's observation unit, so the gate's own history becomes
+	// the calibration corpus (first run calibrates, second enforces).
+	if outcome == runrecord.OutcomeSucceeded {
+		workloadID, err := artifact.IdentifyBytes(artifact.KindDataset, []byte(gateWorkloadSeed))
+		if err != nil {
+			return err
+		}
+		evaluation, err := runrecord.NewEvaluation(recipeID, record.Run.ID, workloadID, []runrecord.Metric{{
+			Name: "gate_wall_ns", Value: float64(time.Since(g.start).Nanoseconds()),
+			Unit: "ns", Direction: runrecord.DirectionMinimize,
+		}})
+		if err != nil {
+			return err
+		}
+		evaluationContent, err := evaluation.Content()
+		if err != nil {
+			return err
+		}
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: workloadID})
+		batch.Contents = append(batch.Contents, evaluationContent)
+		batch.Lineage = append(batch.Lineage, evaluation.Lineage()...)
+	}
 
 	store, err := repodb.Open(filepath.Join(g.repo, g.storePath))
 	if err != nil {

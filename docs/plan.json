@@ -379,7 +379,8 @@
               ]
             },
             "gap_math": "total ~920s (878.2 bf16 denoise + 38.2 decode + ~4) vs 463.4 bar; remaining 457s all denoise: 17.5 -> 8.4 s/step needed (attention 39 -> 60+ TFLOPS)"
-          }
+          },
+          "resource": "gpu"
         }
       ]
     },
@@ -401,17 +402,20 @@
         {
           "id": "recipe-activation",
           "status": "open",
-          "title": "GGUF inference activation"
+          "title": "GGUF inference activation",
+          "resource": "gpu"
         },
         {
           "id": "training-leg",
           "status": "open",
-          "title": "densecausal extension per config deltas (gated attn output, hybrid attention) vs tiny torch golden; real step"
+          "title": "densecausal extension per config deltas (gated attn output, hybrid attention) vs tiny torch golden; real step",
+          "resource": "gpu"
         },
         {
           "id": "performance-leg",
           "status": "open",
-          "title": "CUDA head-to-head vs adaptive serving, at-or-below"
+          "title": "CUDA head-to-head vs adaptive serving, at-or-below",
+          "resource": "gpu"
         }
       ]
     },
@@ -428,22 +432,26 @@
         {
           "id": "convert-parity",
           "status": "open",
-          "title": "gemma4 conversion of E4B (existing converter; verify vs e4b fixture set incl. vision+audio per multimodal directive)"
+          "title": "gemma4 conversion of E4B (existing converter; verify vs e4b fixture set incl. vision+audio per multimodal directive)",
+          "resource": "cpu"
         },
         {
           "id": "recipe-activation",
           "status": "open",
-          "title": "GGUF inference activation"
+          "title": "GGUF inference activation",
+          "resource": "gpu"
         },
         {
           "id": "training-leg",
           "status": "open",
-          "title": "adaptive TRAINS E4B (stream_lm_cuda) -- real reference; scope densecausal/mixed-window delta"
+          "title": "adaptive TRAINS E4B (stream_lm_cuda) -- real reference; scope densecausal/mixed-window delta",
+          "resource": "gpu"
         },
         {
           "id": "performance-leg",
           "status": "open",
-          "title": "head-to-head vs adaptive serving, at-or-below"
+          "title": "head-to-head vs adaptive serving, at-or-below",
+          "resource": "gpu"
         }
       ]
     },

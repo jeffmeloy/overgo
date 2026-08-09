@@ -1,6 +1,7 @@
 package hfgguf
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,11 +62,32 @@ func ValidateQwen35Repository(repository *hfrepo.Repository) (model.Spec, error)
 	if err != nil {
 		return model.Spec{}, err
 	}
-	mappings, err := qwen35TensorMappings(repository.Tensors, blockCount)
+	mappings, err := qwen35TensorMappings(repository, blockCount)
 	if err != nil {
 		return model.Spec{}, err
 	}
 	return validateMappedRepository(metadata, mappings, "Qwen 3.5")
+}
+
+// Qwen35Conversion: model metadata plus streamed language tensors for GGUF
+// export; tokenizer metadata is the converter's responsibility.
+func Qwen35Conversion(repository *hfrepo.Repository) ([]gguf.Metadata, []gguf.TensorData, error) {
+	if repository == nil || repository.Tensors == nil {
+		return nil, nil, errors.New("HF/GGUF adapter: nil repository")
+	}
+	metadata, blockCount, err := qwen35Metadata(repository)
+	if err != nil {
+		return nil, nil, err
+	}
+	mappings, err := qwen35TensorMappings(repository, blockCount)
+	if err != nil {
+		return nil, nil, err
+	}
+	tensors, err := mappedTensorData(mappings)
+	if err != nil {
+		return nil, nil, err
+	}
+	return metadata, tensors, nil
 }
 
 // Qwen35TensorData: stream mapped Qwen 3.5 language payloads.
@@ -81,7 +103,7 @@ func Qwen35TensorData(repository *hfrepo.Repository) ([]gguf.TensorData, error) 
 	if err != nil {
 		return nil, err
 	}
-	mappings, err := qwen35TensorMappings(repository.Tensors, blockCount)
+	mappings, err := qwen35TensorMappings(repository, blockCount)
 	if err != nil {
 		return nil, err
 	}
@@ -206,10 +228,176 @@ func checkedProduct(left, right uint32, label string) (uint32, error) {
 	return left * right, nil
 }
 
-func qwen35TensorMappings(source *safetensors.Source, blockCount uint32) ([]tensorMapping, error) {
-	return collectTensorMappings(source, func(name string) (string, bool, error) {
+func qwen35TensorMappings(repository *hfrepo.Repository, blockCount uint32) ([]tensorMapping, error) {
+	dims, err := qwen35LinearDimensions(repository)
+	if err != nil {
+		return nil, err
+	}
+	return collectTensorMappings(repository.Tensors, func(name string) (string, bool, error) {
 		return qwen35TensorName(name, blockCount)
-	}, qwen35TensorShape)
+	}, qwen35TensorShape, qwen35TensorTransforms(dims))
+}
+
+type qwen35LinearDims struct {
+	keyHeads, valueHeads, keyWidth, valueWidth uint64
+}
+
+func qwen35LinearDimensions(repository *hfrepo.Repository) (qwen35LinearDims, error) {
+	text, err := qwen35TextConfig(repository.Config)
+	if err != nil {
+		return qwen35LinearDims{}, err
+	}
+	values, err := requiredValues[uint32](text,
+		"linear_num_key_heads", "linear_num_value_heads",
+		"linear_key_head_dim", "linear_value_head_dim",
+	)
+	if err != nil {
+		return qwen35LinearDims{}, err
+	}
+	dims := qwen35LinearDims{
+		keyHeads: uint64(values[0]), valueHeads: uint64(values[1]),
+		keyWidth: uint64(values[2]), valueWidth: uint64(values[3]),
+	}
+	if dims.keyHeads == 0 || dims.valueHeads%dims.keyHeads != 0 ||
+		dims.keyWidth == 0 || dims.valueWidth == 0 {
+		return qwen35LinearDims{}, errors.New("HF/GGUF adapter: Qwen 3.5 linear head dimensions are invalid")
+	}
+	return dims, nil
+}
+
+// qwen35TensorTransforms: llama.cpp GGUF conventions the runtime consumes —
+// the GDN decay base is stored as -exp(A_log), and V-head-major payloads
+// reorder from HF K-grouped order to tiled order when valueHeads > keyHeads.
+func qwen35TensorTransforms(dims qwen35LinearDims) tensorValueMapper {
+	reorder := dims.keyHeads != dims.valueHeads
+	qkRows := 2 * dims.keyHeads * dims.keyWidth
+	vRows := dims.valueHeads * dims.valueWidth
+	return func(name string) func([]byte, uint64) error {
+		if strings.HasSuffix(name, ".linear_attn.A_log") {
+			return func(data []byte, elementSize uint64) error {
+				if reorder {
+					if err := dims.reorderVRows(data, elementSize, dims.valueHeads, 0, 1); err != nil {
+						return err
+					}
+				}
+				return negateExpF32(data, elementSize)
+			}
+		}
+		// Zero-centered RMSNorm: every norm stores w, the runtime consumes 1+w;
+		// the GDN group norm (linear_attn.norm) is conventional and stays raw.
+		if strings.HasSuffix(name, "norm.weight") && !strings.HasSuffix(name, ".linear_attn.norm.weight") {
+			return addOneF32
+		}
+		if !reorder {
+			return nil
+		}
+		switch {
+		case strings.HasSuffix(name, ".linear_attn.dt_bias"):
+			return func(data []byte, elementSize uint64) error {
+				return dims.reorderVRows(data, elementSize, dims.valueHeads, 0, 1)
+			}
+		case strings.HasSuffix(name, ".linear_attn.in_proj_qkv.weight"),
+			strings.HasSuffix(name, ".linear_attn.conv1d.weight"):
+			return func(data []byte, elementSize uint64) error {
+				return dims.reorderVRows(data, elementSize, qkRows+vRows, qkRows, dims.valueWidth)
+			}
+		case strings.HasSuffix(name, ".linear_attn.in_proj_z.weight"):
+			return func(data []byte, elementSize uint64) error {
+				return dims.reorderVRows(data, elementSize, vRows, 0, dims.valueWidth)
+			}
+		case strings.HasSuffix(name, ".linear_attn.in_proj_a.weight"),
+			strings.HasSuffix(name, ".linear_attn.in_proj_b.weight"):
+			return func(data []byte, elementSize uint64) error {
+				return dims.reorderVRows(data, elementSize, dims.valueHeads, 0, 1)
+			}
+		case strings.HasSuffix(name, ".linear_attn.out_proj.weight"):
+			return func(data []byte, elementSize uint64) error {
+				return dims.reorderVColumns(data, elementSize)
+			}
+		}
+		return nil
+	}
+}
+
+// reorderVRows: within the row region [startRow, startRow+valueHeads*blockRows),
+// move row-blocks from K-grouped order (k*perK+v) to tiled order (v*keyHeads+k).
+func (d qwen35LinearDims) reorderVRows(
+	data []byte,
+	elementSize, totalRows, startRow, blockRows uint64,
+) error {
+	perK := d.valueHeads / d.keyHeads
+	totalBytes := uint64(len(data))
+	if totalRows == 0 || totalBytes%(totalRows*elementSize) != 0 {
+		return errors.New("V-row reorder: payload size disagrees with row count")
+	}
+	rowBytes := totalBytes / totalRows
+	blockBytes := blockRows * rowBytes
+	regionStart := startRow * rowBytes
+	regionBytes := d.valueHeads * blockBytes
+	if regionStart+regionBytes > totalBytes {
+		return errors.New("V-row reorder: region exceeds payload")
+	}
+	region := data[regionStart : regionStart+regionBytes]
+	scratch := make([]byte, regionBytes)
+	for k := uint64(0); k < d.keyHeads; k++ {
+		for v := uint64(0); v < perK; v++ {
+			source := (k*perK + v) * blockBytes
+			destination := (v*d.keyHeads + k) * blockBytes
+			copy(scratch[destination:destination+blockBytes], region[source:source+blockBytes])
+		}
+	}
+	copy(region, scratch)
+	return nil
+}
+
+// reorderVColumns: per row, move valueWidth-wide column blocks from K-grouped
+// to tiled V-head order (out_proj consumes the reordered V space as input).
+func (d qwen35LinearDims) reorderVColumns(data []byte, elementSize uint64) error {
+	perK := d.valueHeads / d.keyHeads
+	headBytes := d.valueWidth * elementSize
+	rowBytes := d.valueHeads * headBytes
+	if rowBytes == 0 || uint64(len(data))%rowBytes != 0 {
+		return errors.New("V-column reorder: payload size disagrees with row width")
+	}
+	scratch := make([]byte, rowBytes)
+	for offset := uint64(0); offset < uint64(len(data)); offset += rowBytes {
+		row := data[offset : offset+rowBytes]
+		for k := uint64(0); k < d.keyHeads; k++ {
+			for v := uint64(0); v < perK; v++ {
+				source := (k*perK + v) * headBytes
+				destination := (v*d.keyHeads + k) * headBytes
+				copy(scratch[destination:destination+headBytes], row[source:source+headBytes])
+			}
+		}
+		copy(row, scratch)
+	}
+	return nil
+}
+
+// addOneF32: zero-centered norm weights shift to 1+w on a promoted F32 payload.
+func addOneF32(data []byte, elementSize uint64) error {
+	if elementSize != 4 {
+		return errors.New("norm transform requires an F32 payload")
+	}
+	for index := 0; index+4 <= len(data); index += 4 {
+		value := math.Float32frombits(binary.LittleEndian.Uint32(data[index:]))
+		binary.LittleEndian.PutUint32(data[index:], math.Float32bits(value+1))
+	}
+	return nil
+}
+
+// negateExpF32: decay base -exp(A_log) on a promoted F32 payload.
+func negateExpF32(data []byte, elementSize uint64) error {
+	if elementSize != 4 {
+		return errors.New("A_log transform requires an F32 payload")
+	}
+	for index := 0; index+4 <= len(data); index += 4 {
+		value := math.Float32frombits(binary.LittleEndian.Uint32(data[index:]))
+		binary.LittleEndian.PutUint32(
+			data[index:], math.Float32bits(float32(-math.Exp(float64(value)))),
+		)
+	}
+	return nil
 }
 
 func qwen35TensorShape(tensor safetensors.Tensor) ([]uint64, error) {

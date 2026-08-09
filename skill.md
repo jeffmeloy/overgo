@@ -177,6 +177,23 @@ work) before re-arming. Re-arm-only turns are the observed failure mode --
 24 idle minutes while queued work sat untouched. Only GPU-contending work
 defers while an agent measures on the device; CPU-side slices never wait.
 
+THERE IS NO TURN (owner directive 2026-08-09). "Turn" is a harness
+transport artifact, not a unit of work, and every "end of turn" is an
+invitation to stop -- the observed root cause of repeated idle stops:
+one dispatch feels like completion, "GPU busy" reads as "plan blocked",
+and waiting is never scored against the unblocked candidates. The
+campaign is a continuous dispatcher over two lanes {GPU, CPU}. Wakes,
+task notifications, and user messages are EVENTS into that dispatcher,
+never boundaries. On every event: for each FREE lane, dispatch the
+highest open plan step runnable on it, or write ONE line naming why no
+open step fits that lane (file overlap with an in-flight gate counts;
+"something is running elsewhere" does not). Plan steps carry a resource
+tag (cpu | gpu | either) so "runnable" is a lookup, not judgment. Yielding
+the process back to the harness is legal ONLY when both lanes are
+occupied or per-lane blocked-lines are written; it is a scheduler yield,
+not an ending -- nothing is summarized, defended, or wrapped up on yield.
+The only true exits remain the three user-owned stop reasons.
+
 DELEGATION CONTRACT. A subagent's prompt must require verification to run
 TO COMPLETION before its final message -- "suite still running, will
 finalize later" is a malformed ending that costs an idle resume round-trip

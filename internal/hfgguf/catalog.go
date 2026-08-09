@@ -1,6 +1,7 @@
 package hfgguf
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -137,10 +138,14 @@ type tensorMapping struct {
 	name   string
 	tensor safetensors.Tensor
 	shape  []uint64
+	// transform mutates the materialized payload (elementSize is the stored
+	// element width after any rank-1 F32 promotion).
+	transform func(data []byte, elementSize uint64) error
 }
 
 type tensorNameMapper func(string) (string, bool, error)
 type tensorShapeMapper func(safetensors.Tensor) ([]uint64, error)
+type tensorValueMapper func(string) func(data []byte, elementSize uint64) error
 
 func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 	tensors := make([]gguf.TensorInfo, 0, len(mappings))
@@ -167,13 +172,14 @@ func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 }
 
 func denseTensorMappings(source *safetensors.Source) ([]tensorMapping, error) {
-	return collectTensorMappings(source, denseTensorName, nil)
+	return collectTensorMappings(source, denseTensorName, nil, nil)
 }
 
 func collectTensorMappings(
 	source *safetensors.Source,
 	nameMapper tensorNameMapper,
 	shapeMapper tensorShapeMapper,
+	valueMapper tensorValueMapper,
 ) ([]tensorMapping, error) {
 	if source == nil || nameMapper == nil {
 		return nil, errors.New("HF/GGUF adapter: invalid tensor mapping source")
@@ -203,7 +209,11 @@ func collectTensorMappings(
 		if len(shape) == 0 || len(shape) > gguf.MaxDimensions {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q rank %d is unsupported", sourceName, len(shape))
 		}
-		mappings = append(mappings, tensorMapping{name: name, tensor: tensor, shape: shape})
+		mapping := tensorMapping{name: name, tensor: tensor, shape: shape}
+		if valueMapper != nil {
+			mapping.transform = valueMapper(sourceName)
+		}
+		mappings = append(mappings, mapping)
 	}
 	return mappings, nil
 }
@@ -237,6 +247,14 @@ func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 			}
 			reader = converted
 		}
+		if mapping.transform != nil {
+			traits, _ := storage.Traits()
+			transformed, err := transformPayload(reader, traits.TypeSize, mapping.transform)
+			if err != nil {
+				return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
+			}
+			reader = transformed
+		}
 		ggmlShape := make([]uint64, len(shape))
 		for index, dimension := range shape {
 			ggmlShape[len(shape)-1-index] = dimension
@@ -246,6 +264,25 @@ func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 		})
 	}
 	return tensors, nil
+}
+
+// transformPayload: materialize a payload stream, mutate in place, re-emit.
+func transformPayload(
+	reader io.Reader,
+	elementSize uint64,
+	transform func(data []byte, elementSize uint64) error,
+) (io.Reader, error) {
+	encoded, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	if elementSize == 0 || uint64(len(encoded))%elementSize != 0 {
+		return nil, errors.New("payload size disagrees with element size")
+	}
+	if err := transform(encoded, elementSize); err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(encoded), nil
 }
 
 func denseTensorName(name string) (string, bool, error) {

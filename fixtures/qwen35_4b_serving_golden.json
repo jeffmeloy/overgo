@@ -1,0 +1,31 @@
+{
+ "schema": "qwen35_4b_serving_golden/v1",
+ "status": "PROVISIONAL",
+ "source": "overgo host path (OVERGO_HOST_EXECUTE=1 cmd/generate, reference executor, greedy temp=0); adaptive live-serving capture replaces this when the GPU frees",
+ "model": "checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf (overgo hfconvert from models/Qwen3.5-4B safetensors)",
+ "date": "2026-08-09",
+ "decode_mode": "greedy (temp 0), 8 new tokens per case, ID-level",
+ "cases": [
+  {
+   "name": "capital",
+   "prompt": "The capital of France is",
+   "prompt_ids": [760, 6511, 314, 9338, 369],
+   "generated_ids": [11751, 13, 198, 32, 13, 2912, 198, 33],
+   "text": "The capital of France is Paris.\nA. True\nB"
+  },
+  {
+   "name": "count",
+   "prompt": "One, two, three, four,",
+   "prompt_ids": [3833, 11, 1330, 11, 2250, 11, 2943, 11],
+   "generated_ids": [4097, 11, 4590, 11, 7840, 11, 7810, 11],
+   "text": "One, two, three, four, five, six, seven, eight,"
+  },
+  {
+   "name": "code",
+   "prompt": "def fibonacci(",
+   "prompt_ids": [727, 73111, 7],
+   "generated_ids": [307, 16026, 198, 262, 413, 307, 606, 220],
+   "text": "def fibonacci( n ):\n    if n == "
+  }
+ ]
+}

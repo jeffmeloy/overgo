@@ -94,6 +94,9 @@ func Convert(options Options) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	if config.ModelType == "qwen3_5" {
+		return convertQwen35(directory, options)
+	}
 	profile, ok := archProfiles[config.ModelType]
 	if !ok {
 		return Report{}, fmt.Errorf("HF converter: model type %q is unsupported", config.ModelType)
@@ -184,14 +187,19 @@ func modelMetadata(directory, name string, profile archProfile, config modelConf
 		uint32Metadata(prefix+"rope.dimension_count", config.headDim()),
 		uint32Metadata(prefix+"vocab_size", config.Vocabulary),
 	}
-	tokenizerItems, err := tokenizerMetadata(directory, config.Vocabulary)
+	tokenizerItems, err := tokenizerMetadata(directory, config.Vocabulary, noSpecialTokens())
 	if err != nil {
 		return nil, err
 	}
 	return append(metadata, tokenizerItems...), nil
 }
 
-func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, error) {
+func noSpecialTokens() specialTokenIDs {
+	return specialTokenIDs{bos: -1, eos: -1, unknown: -1, padding: -1}
+}
+
+// tokenizerMetadata: fallback IDs seed resolution; file-sourced IDs override.
+func tokenizerMetadata(directory string, vocabulary uint32, fallback specialTokenIDs) ([]gguf.Metadata, error) {
 	encoded, err := os.ReadFile(filepath.Join(directory, "tokenizer.json"))
 	if err != nil {
 		return nil, fmt.Errorf("HF converter: read tokenizer: %w", err)
@@ -236,7 +244,7 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 	if err != nil {
 		return nil, err
 	}
-	special, err := resolveSpecialTokens(directory, file, tokens)
+	special, err := resolveSpecialTokens(directory, file, tokens, fallback)
 	if err != nil {
 		return nil, err
 	}
@@ -285,13 +293,15 @@ const (
 const (
 	gpt2SplitRegex   = `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`
 	qwen2SplitRegex  = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
+	qwen35SplitRegex = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
 	digitSplitRegex  = `\p{N}{1,3}`
 	llama3SplitRegex = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}+| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
 )
 
 var splitRegexPre = map[string]string{
-	gpt2SplitRegex:  "gpt-2",
-	qwen2SplitRegex: "qwen2",
+	gpt2SplitRegex:   "gpt-2",
+	qwen2SplitRegex:  "qwen2",
+	qwen35SplitRegex: "qwen35",
 	digitSplitRegex + "\n" + llama3SplitRegex: "llama-bpe",
 }
 
@@ -405,9 +415,10 @@ type specialTokensMap struct {
 }
 
 // resolveSpecialTokens: generation_config IDs win, then special_tokens_map
-// contents, then tokenizer.json model.unk_token; -1 means unresolved.
-func resolveSpecialTokens(directory string, file tokenizerFile, tokens []string) (specialTokenIDs, error) {
-	result := specialTokenIDs{bos: -1, eos: -1, unknown: -1, padding: -1}
+// contents, then tokenizer.json model.unk_token, then caller fallback; -1 means
+// unresolved.
+func resolveSpecialTokens(directory string, file tokenizerFile, tokens []string, fallback specialTokenIDs) (specialTokenIDs, error) {
+	result := fallback
 	tokenID := make(map[string]int, len(tokens))
 	for id, token := range tokens {
 		tokenID[token] = id

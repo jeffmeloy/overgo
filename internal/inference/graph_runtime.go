@@ -142,6 +142,11 @@ func (r *Runner) hostLayer(ctx context.Context, key string, info model.LayerWeig
 }
 
 func (runtime *inferenceGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {
+	// Host-execute mode (no CUDA context): the reference executor IS the
+	// golden implementation; GPU-free parity path.
+	if runtime.runner.cuda == nil {
+		return runtime.feeds.Execute(outputs, false, reference.Execute, nil)
+	}
 	return runtime.feeds.Execute(
 		outputs, runtime.runner.hasPreloadedWeights(),
 		func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {

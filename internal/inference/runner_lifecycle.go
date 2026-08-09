@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"slices"
 
 	"overgo/internal/cuda/device"
@@ -15,6 +16,12 @@ import (
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
+
+// hostExecuteEnabled: OVERGO_HOST_EXECUTE=1 serves on the host reference
+// executor; no CUDA context is created (GPU-free parity path).
+func hostExecuteEnabled() bool {
+	return os.Getenv("OVERGO_HOST_EXECUTE") == "1"
+}
 
 func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*Runner, error) {
 	if loaded == nil {
@@ -186,7 +193,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		if err = deviceWeights.Load(context.Background(), file, f32Tensors); err != nil {
 			return fail(err)
 		}
-	} else {
+	} else if !hostExecuteEnabled() {
 		cuda, err = executor.New(options.DeviceOrdinal)
 		if err != nil {
 			return fail(err)

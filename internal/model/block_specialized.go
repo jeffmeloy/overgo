@@ -175,7 +175,14 @@ func buildDeepSeek4AttentionCachedWithPlan(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: input, Key: cacheKV, Value: cacheKV, States: states}, nil
+	// distinct node per cache stream: retained-output indexing rejects the
+	// same tensor as both Key and Value (same class as buildSentinelCache);
+	// Reshape always emits a new node, values identical
+	cacheValue := builder.Reshape(cacheKV, cacheKV.Shape.Dims[:cacheKV.Shape.Rank]...)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: input, Key: cacheKV, Value: cacheValue, States: states}, nil
 }
 
 // buildDeepSeek4FeedForwardWithPlan: hyper-FFN and terminal head.

@@ -1,0 +1,36 @@
+{
+  "campaign": "adaptive_new -> overgo merge: model ladder",
+  "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch; the Stop hook blocks idle ends.",
+  "items": [
+    {
+      "id": "rung1-timesfm",
+      "title": "timesfm-200m: forecast capability port",
+      "status": "open",
+      "steps": [
+        { "id": "rung-export", "title": "fixtures + baseline into store", "status": "done" },
+        { "id": "forecast-task", "title": "forecast task + terminal capability in recipe schema", "status": "open" },
+        { "id": "reference-port", "title": "neutral time-series package, forward vs golden", "status": "open" },
+        { "id": "recipe-activation", "title": "activate through sealed lifecycle; forecast entry", "status": "open" },
+        { "id": "training-leg", "title": "backward vs ten grad goldens", "status": "open" },
+        { "id": "performance-leg", "title": "wall+memory verdict per baseline policy", "status": "open" }
+      ]
+    },
+    { "id": "rung2-fractale", "title": "Fractale-350M", "status": "open", "steps": [] },
+    { "id": "rung3-carbon", "title": "Carbon-500M", "status": "open", "steps": [] },
+    { "id": "rung4-qwen05", "title": "Qwen2.5-0.5B (activation-class)", "status": "open", "steps": [] },
+    { "id": "rung5-tabfm", "title": "tabfm (port-class)", "status": "open", "steps": [] },
+    { "id": "rung6-needle", "title": "needle", "status": "open", "steps": [] },
+    { "id": "rung7-pockettts", "title": "pocket-tts (port-class)", "status": "open", "steps": [] },
+    { "id": "rung8-un0", "title": "Un-0", "status": "open", "steps": [] },
+    { "id": "rung9-simplediffusion", "title": "SimpleDiffusion (port-class)", "status": "open", "steps": [] },
+    { "id": "rung10-minicpm", "title": "MiniCPM5-1B", "status": "open", "steps": [] },
+    { "id": "rung11-wan", "title": "Wan2.1-1.3B (port-class)", "status": "open", "steps": [] },
+    { "id": "rung12-qwen4b", "title": "Qwen3.5-4B (activation-class)", "status": "open", "steps": [] },
+    { "id": "rung13-e4b", "title": "gemma-4-E4B", "status": "open", "steps": [] },
+    { "id": "rung14-rxbrain", "title": "Hy-Embodied-RxBrain", "status": "open", "steps": [] },
+    { "id": "rung15-sensenova", "title": "SenseNova-U1-8B", "status": "open", "steps": [] },
+    { "id": "rung16-krea", "title": "Krea-2-Turbo", "status": "open", "steps": [] },
+    { "id": "rung17-gemma12b", "title": "gemma-4-12B-fp8", "status": "open", "steps": [] },
+    { "id": "rung18-qwen9b", "title": "Qwen3.5-9B (activation done at pilot; smoke+legs)", "status": "open", "steps": [] }
+  ]
+}

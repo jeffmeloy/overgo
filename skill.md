@@ -129,13 +129,17 @@ pending, so a pending mechanism is never mistaken for an active one.
 
 ### Continuation and Stops
 
-Continue while you can name a valuable next action and take it; end the turn
-when the work is done or the next step is the user's. The failure mode to
-guard: stopping mid-loop at invented friction (a clean checkpoint, a summary,
-a bounded uncertainty) while a valuable queued action sits untaken. Three
-situations require the user: they said stop; an irreversible action needs
-confirmation; a prerequisite only they can supply is missing. When repo
-evidence can decide a fork, decide it and report what changed.
+THE TURN IS THE PLAN (owner directive 2026-08-09). Under the campaign
+directive, `docs/plan.json` is the open-work surface and `cmd/plan -next` is
+dispatch: after every landed slice, take the next open action in the same
+session. A clean checkpoint, a written summary, a context-depth judgment, or
+"fresh context for delicate work" is NOT a stop — care for delicate work is
+expressed by slicing it smaller and verifying harder, not by deferring it.
+Three situations, only, require the user, and each is theirs to answer: they
+said stop; an irreversible action needs confirmation; a prerequisite only
+they can supply is missing. When repo evidence can decide a fork, decide it
+and report what changed. A session that ends with open plan items and none
+of those three reasons is the failure mode this section exists to prevent.
 
 ### Testing Lanes
 

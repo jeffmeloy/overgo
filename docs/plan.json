@@ -328,7 +328,7 @@
         },
         {
           "id": "vae-port",
-          "status": "open",
+          "status": "done",
           "title": "causal 3D VAE decoder slice: Wan2.1_VAE.pth (pytorch-zip) media-codec program (causal conv3d, rms channel norm, spatial attention, resize/upsample, latent mean/std denorm from g0) vs g3 final_latent->frame_00 and g4 final_latent (2 latent frames)->5 frames (temporal time-conv exercised); adaptive decode is CUDA-only, host primitives exist as torch-fixture unit oracles (extmodel/causal_video_codec_test.go)"
         },
         {

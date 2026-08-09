@@ -1,0 +1,56 @@
+{
+ "schema": "qwen25_serving_golden/v1",
+ "source": "adaptive_new adaptive-gpt-server /api/infer (cuda build), greedy device argmax",
+ "model_dir": "models/Qwen2.5-0.5B",
+ "date": "2026-08-09",
+ "cases": [
+  {
+   "name": "capital",
+   "prompt": "The capital of France is",
+   "max_tokens": 24,
+   "text": " Paris. It is the largest city in Europe and the second largest in the world. It is also the capital of France",
+   "prompt_tokens": 5,
+   "generated_tokens": 24,
+   "decode_median_ms": 1.95,
+   "decode_tok_per_sec": 479.54730734186927,
+   "serving_path": "resident KV-cache",
+   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+  },
+  {
+   "name": "count",
+   "prompt": "One, two, three, four,",
+   "max_tokens": 24,
+   "text": " five, six, seven, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen, sixteen,",
+   "prompt_tokens": 8,
+   "generated_tokens": 24,
+   "decode_median_ms": 2.009,
+   "decode_tok_per_sec": 514.820103948894,
+   "serving_path": "resident KV-cache",
+   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+  },
+  {
+   "name": "code",
+   "prompt": "def fibonacci(n):",
+   "max_tokens": 32,
+   "text": " \n    if n == 0: \n        return 0\n    elif n == 1: \n        return 1\n    else: \n       ",
+   "prompt_tokens": 4,
+   "generated_tokens": 32,
+   "decode_median_ms": 1.9918000000000002,
+   "decode_tok_per_sec": 512.5322399312215,
+   "serving_path": "resident KV-cache",
+   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+  },
+  {
+   "name": "multilingual",
+   "prompt": "Der schnelle braune Fuchs",
+   "max_tokens": 24,
+   "text": "chen, die in der Schule auf dem Weg zum Gymnasium sind, haben eine Menge von Problemen.",
+   "prompt_tokens": 7,
+   "generated_tokens": 24,
+   "decode_median_ms": 1.9547,
+   "decode_tok_per_sec": 512.6730550187349,
+   "serving_path": "resident KV-cache",
+   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+  }
+ ]
+}

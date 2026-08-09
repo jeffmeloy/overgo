@@ -46,6 +46,73 @@ func RMSNormBackward(dx, dscale, x, weight, dy []float32, rows, d int, eps float
 	}
 }
 
+// LayerNormBackward: VJP of LayerNormInto (classic LN, biased variance).
+// Given dy at the norm output, writes dx (set, or += when addDX) and
+// accumulates dW += dy*xhat and dB += dy when non-nil. A nil weight is the
+// no-affine variant (dW/dB must then be nil). f64 stats, matching forward.
+func LayerNormBackward(dx, dW, dB, x, weight, dy []float32, rows, d int, eps float64, addDX bool) {
+	affine := len(weight) != 0
+	for r := 0; r < rows; r++ {
+		xr := x[r*d : (r+1)*d]
+		dyr := dy[r*d : (r+1)*d]
+		dxr := dx[r*d : (r+1)*d]
+		var mean float64
+		for _, v := range xr {
+			mean += float64(v)
+		}
+		mean /= float64(d)
+		var variance float64
+		for _, v := range xr {
+			dv := float64(v) - mean
+			variance += dv * dv
+		}
+		inv := 1.0 / math.Sqrt(variance/float64(d)+eps)
+
+		var meanG, meanGXHat float64
+		for i := 0; i < d; i++ {
+			xhat := (float64(xr[i]) - mean) * inv
+			g := float64(dyr[i])
+			if affine {
+				g *= float64(weight[i])
+			}
+			meanG += g
+			meanGXHat += g * xhat
+			if dW != nil {
+				dW[i] += float32(float64(dyr[i]) * xhat)
+			}
+			if dB != nil {
+				dB[i] += dyr[i]
+			}
+		}
+		meanG /= float64(d)
+		meanGXHat /= float64(d)
+		for i := 0; i < d; i++ {
+			xhat := (float64(xr[i]) - mean) * inv
+			g := float64(dyr[i])
+			if affine {
+				g *= float64(weight[i])
+			}
+			value := float32(inv * (g - meanG - xhat*meanGXHat))
+			if addDX {
+				dxr[i] += value
+			} else {
+				dxr[i] = value
+			}
+		}
+	}
+}
+
+// GELUErfBackward: dst = dy * gelu'(x) for the EXACT erf GELU;
+// gelu'(x) = 0.5*(1+erf(x/sqrt2)) + x*exp(-x^2/2)/sqrt(2*pi). dst may alias dy.
+func GELUErfBackward(dst, x, dy []float32) {
+	invSqrt2Pi := 1 / math.Sqrt(2*math.Pi)
+	for i := range x {
+		xv := float64(x[i])
+		g := 0.5*(1+math.Erf(xv/math.Sqrt2)) + xv*invSqrt2Pi*math.Exp(-0.5*xv*xv)
+		dst[i] = float32(float64(dy[i]) * g)
+	}
+}
+
 // RotaryHalfBackward: the VJP of ApplyRotaryHalf — rotation by the negated
 // angle, in place on one head row's gradient.
 func RotaryHalfBackward(dx []float32, invFreq []float64, pos int) {

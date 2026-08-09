@@ -312,7 +312,7 @@
         },
         {
           "id": "text-conditioning-port",
-          "status": "open",
+          "status": "done",
           "title": "neutral text-conditioning slice: unigram tokenizer (google/umt5-xxl tokenizer.json) + relative-position umt5 encoder streamed from models_t5_umt5-xxl-enc-bf16.pth (pytorch-zip reader, bf16-rounded host math) + text_embedding.0/GELU/.2 projection + pad-row semantics vs g1 (reference: adaptive extmodel/latent_video.go encodeRelativePositionTokensStreamed + projectCompactTextConditioningEvidence)"
         },
         {

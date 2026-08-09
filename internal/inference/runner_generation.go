@@ -107,6 +107,12 @@ func (r *Runner) Generate(
 	}
 	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 &&
 		r.hasPreloadedWeights() && supportsPersistentDeviceCache(r.spec)
+	// deviceGreedy: raw-greedy decode selects on device; only the winning
+	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
+	// callback users must opt in via options.DeviceGreedy.
+	deviceGreedy := useDeviceCache && !options.CachePrompt &&
+		options.PostSamplingProbabilities == 0 && options.Sampler.IsRawGreedy() &&
+		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -192,11 +198,17 @@ func (r *Runner) Generate(
 			} else {
 				deviceCache = retainedPrefix
 				var nextDevice *deviceKVCache
-				hidden, nextDevice, err = r.forwardDeviceCachedLocked(
-					ctx,
-					ids[cached:],
-					retainedPrefix,
-				)
+				if deviceGreedy {
+					nextDevice, err = r.forwardDeviceCachedGreedyStepLocked(
+						ctx, ids[cached:], retainedPrefix,
+					)
+				} else {
+					hidden, nextDevice, err = r.forwardDeviceCachedLocked(
+						ctx,
+						ids[cached:],
+						retainedPrefix,
+					)
+				}
 				if err == nil {
 					deviceCache = nextDevice
 				}
@@ -314,11 +326,19 @@ func (r *Runner) Generate(
 					}
 				}
 				var nextDeviceCache *deviceKVCache
-				hidden, nextDeviceCache, err = r.forwardDeviceCachedLocked(
-					ctx,
-					[]tokenizer.TokenID{ids[len(ids)-1]},
-					deviceCache,
-				)
+				if deviceGreedy {
+					nextDeviceCache, err = r.forwardDeviceCachedGreedyStepLocked(
+						ctx,
+						[]tokenizer.TokenID{ids[len(ids)-1]},
+						deviceCache,
+					)
+				} else {
+					hidden, nextDeviceCache, err = r.forwardDeviceCachedLocked(
+						ctx,
+						[]tokenizer.TokenID{ids[len(ids)-1]},
+						deviceCache,
+					)
+				}
 				if err == nil {
 					oldDeviceCache := deviceCache
 					deviceCache = nextDeviceCache
@@ -349,21 +369,27 @@ func (r *Runner) Generate(
 				return nil, "", err
 			}
 		}
-		var logits []float32
-		var logitsErr error
-		if useDeviceCache {
-			logits = deviceCache.Logits
+		var event TokenEvent
+		if deviceGreedy {
+			event = TokenEvent{ID: deviceCache.Selected}
 		} else {
-			width := int(hidden.Shape.Dims[0])
-			last := hidden.Data[len(hidden.Data)-width:]
-			logits, logitsErr = r.logits(ctx, outputTable, last)
-		}
-		if logitsErr != nil {
-			return nil, "", logitsErr
-		}
-		event, sampleErr := sampleGenerationToken(logits, ids, options)
-		if sampleErr != nil {
-			return nil, "", sampleErr
+			var logits []float32
+			var logitsErr error
+			if useDeviceCache {
+				logits = deviceCache.Logits
+			} else {
+				width := int(hidden.Shape.Dims[0])
+				last := hidden.Data[len(hidden.Data)-width:]
+				logits, logitsErr = r.logits(ctx, outputTable, last)
+			}
+			if logitsErr != nil {
+				return nil, "", logitsErr
+			}
+			var sampleErr error
+			event, sampleErr = sampleGenerationToken(logits, ids, options)
+			if sampleErr != nil {
+				return nil, "", sampleErr
+			}
 		}
 		event.Index = generatedIndex
 		ids = append(ids, event.ID)

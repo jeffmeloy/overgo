@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -33,14 +34,94 @@ type Executor struct {
 }
 
 type executorResources struct {
-	module    driver.Module
-	functions functionSet
-	blas      *blasState
-	q8Input   q8InputState
-	arena     driver.DevicePtr
-	arenaSize uint64
-	buffers   deviceBufferPool
-	graphExec driver.GraphExec
+	module     driver.Module
+	functions  functionSet
+	blas       *blasState
+	q8Input    q8InputState
+	arena      driver.DevicePtr
+	arenaSize  uint64
+	buffers    deviceBufferPool
+	graphExecs graphExecCache
+}
+
+const graphExecCacheCapacity = 4
+
+type graphExecEntry struct {
+	exec      driver.GraphExec
+	recording []byte
+	used      uint64
+}
+
+// graphExecCache: retained instantiated graphs keyed by launch trace. Retained
+// buffer leases alternate between a small set of pool slots, so steady-state
+// decode cycles through a handful of byte-identical traces; a match replays
+// the instantiated exec with zero per-token kernel re-issue.
+type graphExecCache struct {
+	entries []graphExecEntry
+	tick    uint64
+}
+
+func (c *graphExecCache) match(recording []byte) (driver.GraphExec, bool) {
+	for index := range c.entries {
+		entry := &c.entries[index]
+		if entry.exec != 0 && bytes.Equal(entry.recording, recording) {
+			c.tick++
+			entry.used = c.tick
+			return entry.exec, true
+		}
+	}
+	return 0, false
+}
+
+// store: captures into the least-recently-used slot; exec update preferred
+// over re-instantiation.
+func (c *graphExecCache) store(
+	state *device.State,
+	graph driver.Graph,
+	recording []byte,
+) (driver.GraphExec, error) {
+	var entry *graphExecEntry
+	if len(c.entries) < graphExecCacheCapacity {
+		c.entries = append(c.entries, graphExecEntry{})
+		entry = &c.entries[len(c.entries)-1]
+	} else {
+		entry = &c.entries[0]
+		for index := range c.entries {
+			if c.entries[index].used < entry.used {
+				entry = &c.entries[index]
+			}
+		}
+	}
+	if entry.exec != 0 {
+		updated, err := state.Driver.GraphExecUpdate(entry.exec, graph)
+		if err != nil || !updated {
+			_ = state.Driver.GraphExecDestroy(entry.exec)
+			entry.exec = 0
+		}
+	}
+	if entry.exec == 0 {
+		exec, err := state.Driver.GraphInstantiate(graph)
+		if err != nil {
+			entry.recording = nil
+			return 0, err
+		}
+		entry.exec = exec
+	}
+	entry.recording = append(entry.recording[:0], recording...)
+	c.tick++
+	entry.used = c.tick
+	return entry.exec, nil
+}
+
+func (c *graphExecCache) close(state *device.State) error {
+	var errs []error
+	for index := range c.entries {
+		if c.entries[index].exec != 0 {
+			errs = append(errs, state.Driver.GraphExecDestroy(c.entries[index].exec))
+		}
+	}
+	c.entries = nil
+	return errors.Join(errs...)
 }
 
 const minimumDeviceBufferBytes uint64 = 256
@@ -1040,7 +1121,7 @@ func (e *Executor) runCompiled(
 			&resources.q8Input,
 			arena,
 			&resources.buffers,
-			&resources.graphExec,
+			&resources.graphExecs,
 			retain,
 		)
 		return executeErr
@@ -1060,7 +1141,7 @@ func execute(
 	q8Input *q8InputState,
 	arena driver.DevicePtr,
 	buffers *deviceBufferPool,
-	graphExec *driver.GraphExec,
+	execCache *graphExecCache,
 	retainOutputs bool,
 ) (result *executionResult, err error) {
 	outputs := compiled.outputs
@@ -1348,6 +1429,30 @@ func execute(
 			for axis := range attributes.Positions {
 				values = append(values, attributes.Positions[axis]...)
 			}
+		case tensor.OpAttention:
+			// device-resident logical KV count keeps decode launches stable
+			attributes, ok := attributesFor(node).(tensor.AttentionAttributes)
+			if !ok {
+				return nil, errors.New("invalid attention attributes")
+			}
+			tokens := attributes.KeyValueTokens
+			if tokens == 0 {
+				capacity, capacityErr := uint32Checked(
+					node.Inputs[1].Shape.Dims[2], "attention KV capacity",
+				)
+				if capacityErr != nil {
+					return nil, capacityErr
+				}
+				tokens = capacity
+			}
+			values = []uint32{tokens}
+		case tensor.OpCacheAppend:
+			// device-resident append offset keeps decode launches stable
+			attributes, ok := attributesFor(node).(tensor.CacheAppendAttributes)
+			if !ok {
+				return nil, errors.New("invalid cache append attributes")
+			}
+			values = []uint32{attributes.Offset}
 		default:
 			continue
 		}
@@ -1370,126 +1475,143 @@ func execute(
 		}
 	}
 
-	capturing := retainOutputs && graphExec != nil
-	if blas != nil {
-		blas.stagedNode = nil
-	}
-	if q8Input != nil {
-		q8Input.stagedNode = nil
-	}
-	if capturing {
-		if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
-			return nil, captureErr
+	capturing := retainOutputs && execCache != nil
+	resetStaged := func() {
+		if blas != nil {
+			blas.stagedNode = nil
+		}
+		if q8Input != nil {
+			q8Input.stagedNode = nil
 		}
 	}
-	abortCapture := func() {
-		if !capturing {
-			return
-		}
-		graph, _ := state.Driver.StreamEndCapture(state.Stream)
-		_ = state.Driver.GraphDestroy(graph)
-		capturing = false
-	}
-	for _, node := range order {
-		if node.Op == tensor.OpInput {
-			continue
-		}
-		if _, skipped := compiled.skipped[node]; skipped {
-			continue
-		}
-		_, aliases, viewErr := tensor.ResolveStorageView(node)
-		if viewErr != nil {
-			abortCapture()
-			return nil, viewErr
-		}
-		if aliases {
-			_, retainedOutput := compiled.outputIndexes[node]
-			_, retainedAlias := retainedViews[node]
-			if retainedAlias || !(retainOutputs && retainedOutput) {
+	resetStaged()
+	runLaunches := func(probe bool) error {
+		for _, node := range order {
+			if node.Op == tensor.OpInput {
 				continue
 			}
-		}
-		if fusion, ok := compiled.weightedRMS[node]; ok {
-			_, emitQ8 := compiled.q8Emit[node]
-			if err := launchWeightedRMSNorm(
-				state, functions, q8Input, node, fusion, emitQ8, pointers,
+			if _, skipped := compiled.skipped[node]; skipped {
+				continue
+			}
+			_, aliases, viewErr := tensor.ResolveStorageView(node)
+			if viewErr != nil {
+				return viewErr
+			}
+			if aliases {
+				_, retainedOutput := compiled.outputIndexes[node]
+				_, retainedAlias := retainedViews[node]
+				if retainedAlias || !(retainOutputs && retainedOutput) {
+					continue
+				}
+			}
+			if fusion, ok := compiled.weightedRMS[node]; ok {
+				_, emitQ8 := compiled.q8Emit[node]
+				if err := launchWeightedRMSNorm(
+					state, functions, q8Input, node, fusion, emitQ8, pointers,
+				); err != nil {
+					return fmt.Errorf("launch tensor %d (weighted_rms_norm): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.activatedGate[node]; ok {
+				_, emitQ8 := compiled.q8Emit[node]
+				if err := launchActivatedGate(
+					state, functions, q8Input, node, fusion, emitQ8, pointers,
+				); err != nil {
+					return fmt.Errorf("launch tensor %d (activated_gate): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.weightedRMSGate[node]; ok {
+				_, emitQ8 := compiled.q8Emit[node]
+				if err := launchWeightedRMSGate(
+					state, functions, q8Input, node, fusion, emitQ8, pointers,
+				); err != nil {
+					return fmt.Errorf("launch tensor %d (weighted_rms_gate): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if paired, ok := compiled.q8Argmax[node]; ok {
+				var launchErr error
+				if node.Op == tensor.OpMulMat {
+					launchErr = launchQ8ArgmaxPartials(
+						state, functions, q8Input, node, pointers,
+					)
+				} else {
+					launchErr = launchQ8ArgmaxReduction(
+						state, functions, paired, node, pointers,
+					)
+				}
+				if launchErr != nil {
+					return fmt.Errorf("launch tensor %d (q8_argmax): %w", node.ID, launchErr)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if err := launchNode(
+				state, functions, blas, q8Input, node, attributesFor(node), pointers, attributePointers,
 			); err != nil {
-				abortCapture()
-				return nil, fmt.Errorf("launch tensor %d (weighted_rms_norm): %w", node.ID, err)
+				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 			}
-			submitted = true
-			continue
+			submitted = submitted || !probe
 		}
-		if fusion, ok := compiled.activatedGate[node]; ok {
-			_, emitQ8 := compiled.q8Emit[node]
-			if err := launchActivatedGate(
-				state, functions, q8Input, node, fusion, emitQ8, pointers,
-			); err != nil {
-				abortCapture()
-				return nil, fmt.Errorf("launch tensor %d (activated_gate): %w", node.ID, err)
-			}
-			submitted = true
-			continue
-		}
-		if fusion, ok := compiled.weightedRMSGate[node]; ok {
-			_, emitQ8 := compiled.q8Emit[node]
-			if err := launchWeightedRMSGate(
-				state, functions, q8Input, node, fusion, emitQ8, pointers,
-			); err != nil {
-				abortCapture()
-				return nil, fmt.Errorf("launch tensor %d (weighted_rms_gate): %w", node.ID, err)
-			}
-			submitted = true
-			continue
-		}
-		if paired, ok := compiled.q8Argmax[node]; ok {
-			var launchErr error
-			if node.Op == tensor.OpMulMat {
-				launchErr = launchQ8ArgmaxPartials(
-					state, functions, q8Input, node, pointers,
-				)
-			} else {
-				launchErr = launchQ8ArgmaxReduction(
-					state, functions, paired, node, pointers,
-				)
-			}
-			if launchErr != nil {
-				abortCapture()
-				return nil, fmt.Errorf("launch tensor %d (q8_argmax): %w", node.ID, launchErr)
-			}
-			submitted = true
-			continue
-		}
-		if err := launchNode(
-			state, functions, blas, q8Input, node, attributesFor(node), pointers, attributePointers,
-		); err != nil {
-			abortCapture()
-			return nil, fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
-		}
-		submitted = true
+		return nil
 	}
-	if capturing {
-		graph, captureErr := state.Driver.StreamEndCapture(state.Stream)
-		capturing = false
-		if captureErr != nil {
-			return nil, captureErr
-		}
-		defer state.Driver.GraphDestroy(graph)
-		if *graphExec != 0 {
-			updated, updateErr := state.Driver.GraphExecUpdate(*graphExec, graph)
-			if updateErr != nil || !updated {
-				_ = state.Driver.GraphExecDestroy(*graphExec)
-				*graphExec = 0
+	var trace device.LaunchTrace
+	replayed := false
+	if capturing && len(execCache.entries) > 0 {
+		// probe: rebuild the launch trace without touching the device; a
+		// byte-identical trace proves the retained exec replays unchanged
+		trace.Reset(true)
+		state.Trace = &trace
+		probeErr := runLaunches(true)
+		state.Trace = nil
+		if probeErr == nil {
+			if exec, ok := execCache.match(trace.Data()); ok {
+				if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
+					return nil, err
+				}
+				submitted = true
+				replayed = true
 			}
 		}
-		if *graphExec == 0 {
-			*graphExec, err = state.Driver.GraphInstantiate(graph)
-			if err != nil {
+		if !replayed {
+			resetStaged()
+		}
+	}
+	if !replayed {
+		if capturing {
+			if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
+				return nil, captureErr
+			}
+			trace.Reset(false)
+			state.Trace = &trace
+		}
+		launchErr := runLaunches(false)
+		state.Trace = nil
+		if launchErr != nil {
+			if capturing {
+				graph, _ := state.Driver.StreamEndCapture(state.Stream)
+				_ = state.Driver.GraphDestroy(graph)
+			}
+			return nil, launchErr
+		}
+		if capturing {
+			graph, captureErr := state.Driver.StreamEndCapture(state.Stream)
+			if captureErr != nil {
+				return nil, captureErr
+			}
+			defer state.Driver.GraphDestroy(graph)
+			exec, storeErr := execCache.store(state, graph, trace.Data())
+			if storeErr != nil {
+				return nil, storeErr
+			}
+			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
 				return nil, err
 			}
-		}
-		if err := state.Driver.GraphLaunch(*graphExec, state.Stream); err != nil {
-			return nil, err
 		}
 	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
@@ -1680,9 +1802,8 @@ func (e *Executor) closeResources(state *device.State) error {
 		e.resources.arena = 0
 		e.resources.arenaSize = 0
 	}
-	if e.resources.graphExec != 0 {
-		errs = append(errs, state.Driver.GraphExecDestroy(e.resources.graphExec))
-		e.resources.graphExec = 0
+	if err := e.resources.graphExecs.close(state); err != nil {
+		errs = append(errs, err)
 	}
 	if e.resources.blas != nil {
 		if e.resources.blas.staging != 0 {

@@ -247,6 +247,8 @@ func run(args []string) error {
 		_, _, generationErr := runner.Generate(context.Background(), options.Prompt, inference.GenerateOptions{
 			MaxNewTokens: options.Tokens,
 			Sampler:      sampler,
+			// benchmark OnToken only counts; logits omission is acceptable
+			DeviceGreedy: options.Temperature == 0,
 			ContextShift: options.ContextShift,
 			CachePrompt:  options.CachePrompt,
 			OnPromptEvaluated: func(evaluation inference.PromptEvaluation) {

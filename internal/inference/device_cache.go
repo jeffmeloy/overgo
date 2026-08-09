@@ -489,6 +489,24 @@ func (r *Runner) forwardDeviceCachedLocked(
 	return reference.Value{}, next[0], nil
 }
 
+// forwardDeviceCachedGreedyStepLocked: raw-greedy single-branch forward; the
+// argmax token stays resident and only its id is copied back.
+func (r *Runner) forwardDeviceCachedGreedyStepLocked(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	past *deviceKVCache,
+) (*deviceKVCache, error) {
+	next, err := r.forwardDeviceCachedGreedyBatchLocked(ctx, []deviceBatchAppend{{
+		Tokens:     tokenIDs,
+		Past:       past,
+		PageTokens: r.cachePageTokens,
+	}})
+	if err != nil {
+		return nil, err
+	}
+	return next[0], nil
+}
+
 type deviceBatchAppend struct {
 	Tokens     []tokenizer.TokenID
 	Past       *deviceKVCache

@@ -117,10 +117,13 @@ func launchAttentionLayout(
 			attentionDecodePartialFloats = uint64(attentionDecodeThreads)
 			f32Bytes                     = uint64(4)
 		)
-		sharedBytes := (uint64(keyValueTokens) + attentionDecodePartialFloats) * f32Bytes
+		// shared memory sized to capacity; logical KV count is device-resident
+		tokenCountPointer, hasTokenCount := attributePointers[node]
+		sharedBytes := (uint64(keyCapacityTokens) + attentionDecodePartialFloats) * f32Bytes
 		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
 			relativeBias == 0 && sinks == 0 && blockIDs == 0 && softcap == 0 &&
-			maxALiBiBias == 0 && window == 0 && sharedBytes <= attentionDecodeSharedLimit {
+			maxALiBiBias == 0 && window == 0 && hasTokenCount &&
+			sharedBytes <= attentionDecodeSharedLimit {
 			blocks := uint64(queryHeads) * uint64(sequences)
 			if blocks > math.MaxUint32 {
 				return errors.New("decode attention launch size exceeds uint32")
@@ -130,7 +133,8 @@ func launchAttentionLayout(
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
-				&queryHeads, &keyValueHeads, &keyValueTokens, &sequences, &scale,
+				&queryHeads, &keyValueHeads, &tokenCountPointer, &keyCapacityTokens,
+				&sequences, &scale,
 			)
 		}
 		const attentionOnlineThreads = uint32(256)
@@ -240,18 +244,22 @@ func launchAttentionLayout(
 			return errors.New("cache append offset overflows")
 		}
 		offset := uint64(attributes.Offset) * inner
-		traits, _ := dtype.F32.Traits()
-		if offset > uint64(outputCount) || uint64(rightCount) > uint64(outputCount)-offset ||
-			offset > math.MaxUint64/traits.TypeSize {
+		if offset > uint64(outputCount) || uint64(rightCount) > uint64(outputCount)-offset {
 			return errors.New("cache append range exceeds capacity")
 		}
-		byteOffset := offset * traits.TypeSize
-		if uint64(output) > math.MaxUint64-byteOffset {
-			return errors.New("cache append destination overflows")
+		// destination base stays fixed; the row offset is device-resident so
+		// decode launches stay byte-identical across steps
+		offsetPointer, ok := attributePointers[node]
+		if !ok {
+			return errors.New("cache append offset storage is unavailable")
 		}
-		destination := output + driver.DevicePtr(byteOffset)
+		innerCount, err := uint32Checked(inner, "cache append inner size")
+		if err != nil {
+			return err
+		}
 		return launch1DABI(
-			state, functions[kernelCopyF32], rightCount, &right, &destination, &rightCount,
+			state, functions[kernelCopyTokenOffsetF32], rightCount,
+			&right, &output, &offsetPointer, &innerCount, &rightCount,
 		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)

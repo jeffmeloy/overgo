@@ -313,6 +313,22 @@ extern "C" __global__ void copy_f32(
     }
 }
 
+// copy_token_offset_f32: cache append with device-resident row offset so the
+// destination argument stays byte-identical across decode steps.
+extern "C" __global__ void copy_token_offset_f32(
+        const float * input,
+        float * output,
+        const unsigned int * offset_rows,
+        unsigned int inner,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const unsigned long long base =
+            (unsigned long long) offset_rows[0] * (unsigned long long) inner;
+        output[base + index] = input[index];
+    }
+}
+
 extern "C" __global__ void silu_f32(
         const float * input,
         float * output,
@@ -2703,6 +2719,9 @@ extern "C" __global__ void attention_f32(
     output[index] = weighted / sum;
 }
 
+// key_value_token_count: device scalar so decode launches stay byte-identical
+// across steps; key_value_stride is the KV capacity used for addressing and
+// shared-memory partitioning.
 extern "C" __global__ void attention_decode_f32(
         const float * query,
         const float * key,
@@ -2712,7 +2731,8 @@ extern "C" __global__ void attention_decode_f32(
         unsigned int value_width,
         unsigned int query_heads,
         unsigned int key_value_heads,
-        unsigned int key_value_tokens,
+        const unsigned int * key_value_token_count,
+        unsigned int key_value_stride,
         unsigned int sequences,
         float scale) {
     const unsigned int row = blockIdx.x;
@@ -2721,17 +2741,18 @@ extern "C" __global__ void attention_decode_f32(
     if (sequence >= sequences) {
         return;
     }
+    const unsigned int key_value_tokens = key_value_token_count[0];
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
     const unsigned int query_offset =
         (sequence * query_heads + query_head) * key_width;
     extern __shared__ float shared[];
     float * scores = shared;
-    float * partial = shared + key_value_tokens;
+    float * partial = shared + key_value_stride;
     float local_maximum = -3.402823466e+38F;
     for (unsigned int token = threadIdx.x; token < key_value_tokens; token += blockDim.x) {
         const unsigned int key_offset =
-            ((sequence * key_value_tokens + token) * key_value_heads + key_value_head) * key_width;
+            ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * key_width;
         float dot = 0.0f;
         for (unsigned int channel = 0; channel < key_width; ++channel) {
             dot += query[query_offset + channel] * key[key_offset + channel];
@@ -2752,7 +2773,7 @@ extern "C" __global__ void attention_decode_f32(
         float weighted = 0.0f;
         for (unsigned int token = 0; token < key_value_tokens; ++token) {
             const unsigned int value_offset =
-                ((sequence * key_value_tokens + token) * key_value_heads + key_value_head) * value_width;
+                ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
             weighted += scores[token] * value[value_offset + channel];
         }
         output[(sequence * query_heads + query_head) * value_width + channel] = weighted / sum;

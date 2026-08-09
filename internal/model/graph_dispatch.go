@@ -509,10 +509,14 @@ func buildSentinelCache(
 	if err := requireTensorPair(pastKey, pastValue, "sentinel cache must contain both tensors"); err != nil {
 		return nil, nil, err
 	}
-	sentinel := builder.GroupSlice(
-		input, sentinelOffset, sentinelWidth, sentinelGroupCount, input.Shape.Dims[0],
-	)
-	cacheKey, cacheValue := sentinel, sentinel
+	// distinct node per cache stream: retained-output indexing rejects the
+	// same tensor appearing as both Key and Value
+	sentinel := func() *tensor.Tensor {
+		return builder.GroupSlice(
+			input, sentinelOffset, sentinelWidth, sentinelGroupCount, input.Shape.Dims[0],
+		)
+	}
+	cacheKey, cacheValue := sentinel(), sentinel()
 	if pastKey != nil {
 		wantPrefix, err := tensor.NewShape(
 			sentinelWidth, sentinelGroupCount, pastKey.Shape.Dims[cacheTokenDimension],
@@ -520,8 +524,8 @@ func buildSentinelCache(
 		if err != nil || !pastKey.Shape.Equal(wantPrefix) || !pastValue.Shape.Equal(wantPrefix) {
 			return nil, nil, errors.New("sentinel cache shape is invalid")
 		}
-		cacheKey = builder.Concat(pastKey, sentinel, cacheTokenDimension)
-		cacheValue = builder.Concat(pastValue, sentinel, cacheTokenDimension)
+		cacheKey = builder.Concat(pastKey, cacheKey, cacheTokenDimension)
+		cacheValue = builder.Concat(pastValue, cacheValue, cacheTokenDimension)
 	}
 	return cacheKey, cacheValue, builder.Err()
 }

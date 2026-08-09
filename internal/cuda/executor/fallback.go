@@ -21,6 +21,9 @@ func launchReferenceNode(
 	node *tensor.Tensor,
 	pointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
+	if state.Trace != nil {
+		return errors.New("reference bridge cannot join a traced graph")
+	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 		return err
 	}
@@ -105,10 +108,52 @@ func launchGridSharedABI(
 		}
 		pointers[index] = value.UnsafePointer()
 	}
+	if trace := state.Trace; trace != nil {
+		// grid/block Y and Z are CUDA-bounded to 65535; X keeps 32 bits
+		trace.Words(
+			uint64(function.id),
+			uint64(grid.X)|uint64(grid.Y)<<32|uint64(grid.Z)<<48,
+			uint64(block.X)|uint64(block.Y)<<32|uint64(block.Z)<<48,
+			uint64(sharedBytes),
+		)
+		for index, pointer := range pointers {
+			var size uintptr
+			switch arguments[index].(type) {
+			case *uint32, *float32:
+				size = 4
+			case *driver.DevicePtr, *uint64:
+				size = 8
+			default:
+				size = reflect.TypeOf(arguments[index]).Elem().Size()
+			}
+			trace.Bytes(unsafe.Slice((*byte)(pointer), size))
+		}
+		if trace.Probe {
+			runtime.KeepAlive(arguments)
+			return nil
+		}
+	}
 	err := state.Driver.LaunchKernel(function.function, grid, block, sharedBytes, state.Stream, pointers)
 	runtime.KeepAlive(arguments)
 	return err
 }
+
+// traceExternalCall: records a non-kernel stream operation (cuBLAS) so trace
+// equality still implies identical device work; true means probe-skip.
+func traceExternalCall(state *device.State, tag uint64, words ...uint64) bool {
+	trace := state.Trace
+	if trace == nil {
+		return false
+	}
+	trace.Words(tag)
+	trace.Words(words...)
+	return trace.Probe
+}
+
+const (
+	traceTagSGEMM  = uint64(1) << 32
+	traceTagGEMMEx = uint64(2) << 32
+)
 
 func validateKernelArgumentCount(function boundKernel, count int) error {
 	if count == int(function.argumentCount) {

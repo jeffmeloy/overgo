@@ -19,6 +19,7 @@ const (
 	kernelF32ToBf16
 	kernelQuantizeQ80InputF32
 	kernelCopyF32
+	kernelCopyTokenOffsetF32
 	kernelSiluF32
 	kernelGeluF32
 	kernelGeluErfF32
@@ -152,6 +153,7 @@ var kernelFunctionNames = [...]string{
 	"f32_to_bf16",
 	"quantize_q8_0_input_f32",
 	"copy_f32",
+	"copy_token_offset_f32",
 	"silu_f32",
 	"gelu_f32",
 	"gelu_erf_f32",
@@ -284,6 +286,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	3,
+	5,
 	3,
 	3,
 	3,
@@ -342,7 +345,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	16,
 	14,
 	24,
-	11,
+	12,
 	23,
 	8,
 	5,

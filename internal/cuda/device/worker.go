@@ -16,6 +16,9 @@ type State struct {
 	Device  driver.Device
 	Context driver.Context
 	Stream  driver.Stream
+	// Trace: optional launch recorder; launch sites append their
+	// configuration and skip device work while Trace.Probe is set.
+	Trace *LaunchTrace
 }
 
 type request struct {

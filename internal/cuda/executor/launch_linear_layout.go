@@ -175,6 +175,13 @@ func launchLinearLayout(
 				}
 				blas.stagedNode = rightNode
 			}
+			if traceExternalCall(
+				state, traceTagGEMMEx,
+				uint64(left), uint64(blas.staging), uint64(output),
+				uint64(leftRows), uint64(rightRows), uint64(inner),
+			) {
+				return nil
+			}
 			return blas.library.GEMMEx(
 				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
 				int32(leftRows), int32(rightRows), int32(inner), 1,
@@ -234,6 +241,13 @@ func launchLinearLayout(
 		if blas == nil {
 			return errors.New("cuBLAS is unavailable for F32 mul_mat")
 		}
+		if traceExternalCall(
+			state, traceTagSGEMM,
+			uint64(left), uint64(right), uint64(output),
+			uint64(leftRows), uint64(rightRows), uint64(inner),
+		) {
+			return nil
+		}
 		err = blas.library.SGEMM(
 			blas.handle,
 			cublas.OperationTranspose,
@@ -290,6 +304,13 @@ func launchLinearLayout(
 				if leftNode.Type == dtype.F32 {
 					if blas == nil {
 						return errors.New("cuBLAS is unavailable for F32 grouped_mul_mat")
+					}
+					if traceExternalCall(
+						state, traceTagSGEMM,
+						uint64(left), uint64(right), uint64(groupOutput),
+						uint64(leftRows), 1, uint64(inner),
+					) {
+						continue
 					}
 					if err = blas.library.SGEMM(
 						blas.handle, cublas.OperationTranspose, cublas.OperationNone,

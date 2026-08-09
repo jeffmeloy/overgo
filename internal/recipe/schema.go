@@ -26,6 +26,9 @@ const (
 	TaskRerank     Task = "rerank"
 	TaskProjection Task = "projection"
 	TaskTraining   Task = "training"
+	// TaskForecast: time-series forecasting (ladder rung 1, the first
+	// non-token capability; series in, quantile horizon out).
+	TaskForecast Task = "forecast"
 )
 
 type Placement string
@@ -206,7 +209,7 @@ func validName(value string) bool {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)

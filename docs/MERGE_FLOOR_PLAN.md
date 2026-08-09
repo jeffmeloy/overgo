@@ -330,10 +330,40 @@ correctly by bare-name discovery with zero bytes moved. The ladder's rung 1
 machinery.
 
 Residuals, owned and non-blocking: the exporter's bookkeeping commit in
-adaptive_new (behind that repo's review phase); the manifest-scoped device
-lane and store-derived smoke matrix remain target forms (their interim
-invocations are named in skill.md); advisory enforcement activates as gate
-history crosses the detector floor.
+adaptive_new (behind that repo's review phase); advisory enforcement
+activates as gate history crosses the detector floor.
+
+## Automation tightening (post-floor campaign, 2026-08-08)
+
+Six improvements from the operating review, each landed as a gated slice:
+
+1. Derived step scope + identical-tree retry cache in the gate (build/
+   manifest/sbom/claims skip by derivation; verification steps reuse a
+   byte-identical tree's prior success; commit never cached).
+2. Magic scan wired as a gate step over the commit's constants vs the
+   closure ledger (advisory-first until the 530-constant backlog is
+   triaged); scan core shared via `internal/closurescan`.
+3. Findings surface (`internal/finding`, importer-recognized) + two-window
+   advisory escalation: a confirmed regression becomes one open finding
+   carrying its advisories as evidence.
+4. Store-derived smoke matrix (`cmd/smoke-lane` over the `internal/discovery`
+   servable predicate, runs + evaluations recorded per model recipe) and
+   manifest-scoped device routing in the gate. Live first run: Qwen3.5-9B
+   served in 53.2s, recorded.
+5. Observation chronology fixed: commit-sequence ordering via the gate's
+   batch-key join (hash-order series would have poisoned the detector).
+6. DECLINED: prebuilt gate binary. `go run` is the staleness-proof form; a
+   stale-binary check would add surface to save seconds, and the incident
+   history (adaptive_new's stale hook binary bricking sessions) argues for
+   always-current. Reopen only if measured gate-start latency becomes a
+   ranked tax.
+
+Defects found live by the tightening itself, all fixed at their owners:
+serving opened the store as a WRITER (starved concurrent serves;
+self-deadlocked the lane) -> read-only; discovery preferred a recorded
+parent-directory location over the artifact file; closure-scan's fixed emit
+batch key collided on the second emit; the advisory-window rename orphaned
+its ledger rows (re-emitted under exported names with supersession noted).
 
 ## Model ladder (owner directive 2026-08-08)
 

@@ -139,18 +139,21 @@ evidence can decide a fork, decide it and report what changed.
 
 ### Testing Lanes
 
-Built lanes (run today):
 - Fast correctness: `go test ./...` — model-free, required per code slice;
-  scope derived from the import graph on gated runs.
-- Claims: `go run ./cmd/compatibility -check`; manifest: regenerate-and-diff;
-  SBOM: `go run ./cmd/sbom -check`.
-
-Target lanes (build status in `docs/MERGE_FLOOR_PLAN.md`; until built, CUDA
-integration tests run env-gated via their existing invocation):
-- Device parity: kernel-scoped parity from the manifest diff; missing
-  prerequisites are UNAVAILABLE, never passing evidence.
-- Model smoke: store-derived matrix over active, oracle-backed recipes with
-  artifacts present; real-model runs record to the store.
+  scope derived from the import graph on gated runs, with identical-tree
+  retry reuse.
+- Claims / manifest / SBOM: gate steps, scope-derived (claims by
+  evidence-path intersection, manifest by kernel-owning paths, SBOM by
+  dependency-owning paths).
+- Device: `go run ./cmd/device-lane` standalone; the gate routes it by
+  kernel/CUDA-cone paths (manifest-scoped Layer 3). Missing prerequisites
+  are UNAVAILABLE and FAIL a change that needs device evidence — never
+  passing, never silently skipped.
+- Model smoke: `go run ./cmd/smoke-lane` — the store-derived matrix over the
+  servable predicate (`internal/discovery`); every serve records a run +
+  evaluation against the model's own recipe; absent models fail the lane.
+- Magic scan: gate step over the commit's constants vs the closure ledger;
+  advisory-first until the backlog is triaged.
 
 ## Capability-Grounded Governance
 

@@ -21,11 +21,13 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/safetensors"
 )
 
 // Dims: model geometry, derived from tensor shapes and config.
+// AttnBias: q/k/v projection biases present (qwen2); derived from shapes.
 type Dims struct {
 	Vocab        int
 	Hidden       int
@@ -36,6 +38,7 @@ type Dims struct {
 	Intermediate int
 	RopeTheta    float64
 	RMSEps       float64
+	AttnBias     bool
 }
 
 // Model: loaded weights (f32), shapes, and derived dims. lm head is the
@@ -47,6 +50,7 @@ type Model struct {
 }
 
 type artifactConfig struct {
+	ModelType         string  `json:"model_type"`
 	NumAttentionHeads int     `json:"num_attention_heads"`
 	HeadDim           int     `json:"head_dim"`
 	RopeTheta         float64 `json:"rope_theta"`
@@ -97,7 +101,25 @@ func Load(directory string) (*Model, error) {
 		}
 		weights[name] = values
 	}
-	return NewModel(weights, shapes, config.NumAttentionHeads, config.HeadDim, config.RopeTheta, config.RMSNormEps)
+	m, err := NewModel(weights, shapes, config.NumAttentionHeads, config.HeadDim, config.RopeTheta, config.RMSNormEps)
+	if err != nil {
+		return nil, err
+	}
+	// model_type vs derived bias cross-check: qwen2 REQUIRES qkv biases,
+	// llama forbids them; anything else is unverified.
+	switch config.ModelType {
+	case "llama":
+		if m.Dims.AttnBias {
+			return nil, fmt.Errorf("densecausal: model_type llama but attention biases present")
+		}
+	case "qwen2":
+		if !m.Dims.AttnBias {
+			return nil, fmt.Errorf("densecausal: model_type qwen2 but attention biases absent")
+		}
+	default:
+		return nil, fmt.Errorf("densecausal: unsupported model_type %q (llama, qwen2)", config.ModelType)
+	}
+	return m, nil
 }
 
 // NewModel derives dims from shapes and validates the geometry; weights map
@@ -163,11 +185,66 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 		} else if q[0]/d.HeadDim != d.Heads || k[0]/d.HeadDim != d.KVHeads || gate[0] != d.Intermediate {
 			return nil, fmt.Errorf("densecausal: layer %d geometry differs from layer 0", layer)
 		}
+		// q/k/v biases: all-or-none per layer, identical across layers.
+		hasBias, err := layerAttnBias(shapes, prefix, q[0], k[0])
+		if err != nil {
+			return nil, err
+		}
+		if layer == 0 {
+			d.AttnBias = hasBias
+		} else if hasBias != d.AttnBias {
+			return nil, fmt.Errorf("densecausal: layer %d bias presence differs from layer 0", layer)
+		}
 	}
 	if _, err := shapeOf(shapes, "model.norm.weight", 1); err != nil {
 		return nil, err
 	}
+	// Any bias outside the q/k/v attention triple is an unverified layout.
+	for name := range shapes {
+		if strings.HasSuffix(name, ".bias") && !attnBiasName(name) {
+			return nil, fmt.Errorf("densecausal: unexpected bias tensor %q", name)
+		}
+	}
 	return &Model{Dims: d, Weights: weights, Shapes: shapes}, nil
+}
+
+// layerAttnBias validates the per-layer q/k/v bias triple: absent entirely,
+// or all present with lengths matching the projection out-dims.
+func layerAttnBias(shapes map[string][]int, prefix string, qOut, kvOut int) (bool, error) {
+	present := 0
+	for _, want := range []struct {
+		name string
+		out  int
+	}{
+		{prefix + "self_attn.q_proj.bias", qOut},
+		{prefix + "self_attn.k_proj.bias", kvOut},
+		{prefix + "self_attn.v_proj.bias", kvOut},
+	} {
+		shape, ok := shapes[want.name]
+		if !ok {
+			continue
+		}
+		present++
+		if len(shape) != 1 || shape[0] != want.out {
+			return false, fmt.Errorf("densecausal: bias %q shape %v, want [%d]", want.name, shape, want.out)
+		}
+	}
+	if present != 0 && present != 3 {
+		return false, fmt.Errorf("densecausal: %sself_attn has %d of 3 q/k/v biases", prefix, present)
+	}
+	return present == 3, nil
+}
+
+// attnBiasName: model.layers.N.self_attn.{q,k,v}_proj.bias.
+func attnBiasName(name string) bool {
+	rest, ok := strings.CutPrefix(name, "model.layers.")
+	if !ok {
+		return false
+	}
+	if dot := strings.IndexByte(rest, '.'); dot >= 0 {
+		rest = rest[dot+1:]
+	}
+	return rest == "self_attn.q_proj.bias" || rest == "self_attn.k_proj.bias" || rest == "self_attn.v_proj.bias"
 }
 
 func shapeOf(shapes map[string][]int, name string, rank int) ([]int, error) {

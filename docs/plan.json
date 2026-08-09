@@ -99,7 +99,7 @@
         {
           "id": "training-leg",
           "title": "densecausal gains qwen2 (attention biases) vs tiny torch golden; real-artifact step",
-          "status": "open"
+          "status": "done"
         },
         {
           "id": "performance-leg",

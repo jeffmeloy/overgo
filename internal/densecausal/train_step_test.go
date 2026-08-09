@@ -9,9 +9,9 @@ import (
 	"overgo/internal/dataroot"
 )
 
-// artifactDir resolves the real llama-architecture artifact through the
-// data-root contract; absent artifact skips LOUDLY.
-func artifactDir(t *testing.T) string {
+// artifactDir resolves a real artifact through the data-root contract;
+// absent artifact skips LOUDLY.
+func artifactDir(t *testing.T, name string) string {
 	t.Helper()
 	working, err := os.Getwd()
 	if err != nil {
@@ -22,9 +22,9 @@ func artifactDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(roots.Models, "Carbon-500M")
+	dir := filepath.Join(roots.Models, name)
 	if _, err := os.Stat(filepath.Join(dir, "model.safetensors")); err != nil {
-		t.Skipf("UNAVAILABLE: Carbon-500M artifact absent at %s; real-artifact training step NOT verified", dir)
+		t.Skipf("UNAVAILABLE: %s artifact absent at %s; real-artifact training step NOT verified", name, dir)
 	}
 	return dir
 }
@@ -34,15 +34,11 @@ func artifactDir(t *testing.T) string {
 // sign on a 500M-parameter f32 model.
 const stepRate = 1e-3
 
-// TestRealArtifactTrainingStepDecreasesLoss loads Carbon-500M (bf16
-// safetensors promoted to f32), runs one full-parameter backward on a fixed
-// token batch, applies one SGD step to EVERY parameter, and asserts the loss
-// on the same batch decreased.
-func TestRealArtifactTrainingStepDecreasesLoss(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads ~2GB weights and runs a 28-layer host backward; skipped in -short")
-	}
-	m, err := Load(artifactDir(t))
+// runRealArtifactStep loads a real artifact (storage dtype promoted to f32),
+// runs one full-parameter backward on a fixed token batch, applies one SGD
+// step to EVERY parameter, and asserts the loss on the same batch decreased.
+func runRealArtifactStep(t *testing.T, name string) {
+	m, err := Load(artifactDir(t, name))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,4 +74,11 @@ func TestRealArtifactTrainingStepDecreasesLoss(t *testing.T) {
 	if !(lossAfter < lossBefore) {
 		t.Fatalf("loss did not decrease: before %.6f after %.6f", lossBefore, lossAfter)
 	}
+}
+
+func TestRealArtifactTrainingStepDecreasesLoss(t *testing.T) {
+	if testing.Short() {
+		t.Skip("loads ~2GB weights and runs a 28-layer host backward; skipped in -short")
+	}
+	runRealArtifactStep(t, "Carbon-500M")
 }

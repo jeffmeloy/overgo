@@ -11,9 +11,11 @@ import (
 	"overgo/internal/hostmath"
 )
 
-// layer: weight views for one decoder layer.
+// layer: weight views for one decoder layer. qb/kb/vb are the optional
+// q/k/v projection biases (qwen2); nil = absent (llama), one code path.
 type layer struct {
 	inLN, q, k, v, o []float32
+	qb, kb, vb       []float32
 	postLN           []float32
 	gate, up, down   []float32
 }
@@ -26,6 +28,9 @@ func (m *Model) layerWeights(index int) (layer, error) {
 		k:      m.Weights[prefix+"self_attn.k_proj.weight"],
 		v:      m.Weights[prefix+"self_attn.v_proj.weight"],
 		o:      m.Weights[prefix+"self_attn.o_proj.weight"],
+		qb:     m.Weights[prefix+"self_attn.q_proj.bias"],
+		kb:     m.Weights[prefix+"self_attn.k_proj.bias"],
+		vb:     m.Weights[prefix+"self_attn.v_proj.bias"],
 		postLN: m.Weights[prefix+"post_attention_layernorm.weight"],
 		gate:   m.Weights[prefix+"mlp.gate_proj.weight"],
 		up:     m.Weights[prefix+"mlp.up_proj.weight"],
@@ -35,6 +40,9 @@ func (m *Model) layerWeights(index int) (layer, error) {
 		if w == nil {
 			return layer{}, fmt.Errorf("densecausal: layer %d tensor missing", index)
 		}
+	}
+	if m.Dims.AttnBias && (l.qb == nil || l.kb == nil || l.vb == nil) {
+		return layer{}, fmt.Errorf("densecausal: layer %d attention bias missing", index)
 	}
 	return l, nil
 }
@@ -62,6 +70,14 @@ func (m *Model) attnSubForward(l layer, xn []float32, invFreq []float64, seq int
 	hostmath.Linear(tr.qPost, xn, l.q, seq, d.Hidden, width)
 	hostmath.Linear(tr.kPost, xn, l.k, seq, d.Hidden, kvWidth)
 	hostmath.Linear(tr.v, xn, l.v, seq, d.Hidden, kvWidth)
+	if l.qb != nil {
+		// Bias lands before rope, matching the HF projection layout.
+		for p := 0; p < seq; p++ {
+			hostmath.AddBias(tr.qPost[p*width:(p+1)*width], l.qb)
+			hostmath.AddBias(tr.kPost[p*kvWidth:(p+1)*kvWidth], l.kb)
+			hostmath.AddBias(tr.v[p*kvWidth:(p+1)*kvWidth], l.vb)
+		}
+	}
 	tr.qScaled = append([]float32(nil), tr.qPost...)
 	tr.kRoped = append([]float32(nil), tr.kPost...)
 	for p := 0; p < seq; p++ {

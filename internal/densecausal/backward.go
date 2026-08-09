@@ -140,12 +140,19 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 			hostmath.RotaryHalfBackward(dk[(p*d.KVHeads+h)*d.HeadDim:(p*d.KVHeads+h+1)*d.HeadDim], invFreq, p)
 		}
 	}
+	// Optional q/k/v bias grads (qwen2): dB sums dy rows; dx path unchanged.
+	var dbQ, dbK, dbV []float32
+	if l.qb != nil {
+		dbQ = g.slot(prefix+"self_attn.q_proj.bias", width)
+		dbK = g.slot(prefix+"self_attn.k_proj.bias", kvWidth)
+		dbV = g.slot(prefix+"self_attn.v_proj.bias", kvWidth)
+	}
 	dXn := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dXn, g.slot(prefix+"self_attn.q_proj.weight", width*d.Hidden), nil,
+	hostmath.LinearBackward(dXn, g.slot(prefix+"self_attn.q_proj.weight", width*d.Hidden), dbQ,
 		xn, l.q, dq, seq, d.Hidden, width, false)
-	hostmath.LinearBackward(dXn, g.slot(prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), nil,
+	hostmath.LinearBackward(dXn, g.slot(prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), dbK,
 		xn, l.k, dk, seq, d.Hidden, kvWidth, true)
-	hostmath.LinearBackward(dXn, g.slot(prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), nil,
+	hostmath.LinearBackward(dXn, g.slot(prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), dbV,
 		xn, l.v, dv, seq, d.Hidden, kvWidth, true)
 	dx := dh2
 	hostmath.RMSNormBackward(dx, g.slot(prefix+"input_layernorm.weight", d.Hidden), x, l.inLN, dXn, seq, d.Hidden, d.RMSEps, true)

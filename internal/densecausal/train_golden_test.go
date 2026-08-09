@@ -8,9 +8,10 @@ import (
 	"testing"
 )
 
-// tinyGolden mirrors fixtures/llama_train_golden.json
-// (schema llama_train_golden/v1): a seeded tiny llama, one token batch, the
+// tinyGolden mirrors fixtures/{llama,qwen2}_train_golden.json
+// (schema <arch>_train_golden/v1): a seeded tiny model, one token batch, the
 // causal-LM loss, last-position logits, and every parameter gradient.
+// attention_bias absent (older llama golden) reads false.
 type tinyGolden struct {
 	Schema string `json:"schema"`
 	Config struct {
@@ -23,6 +24,7 @@ type tinyGolden struct {
 		HeadDim           int     `json:"head_dim"`
 		RopeTheta         float64 `json:"rope_theta"`
 		RMSNormEps        float64 `json:"rms_norm_eps"`
+		AttentionBias     bool    `json:"attention_bias"`
 	} `json:"config"`
 	Tokens     []int     `json:"tokens"`
 	Loss       float64   `json:"loss"`
@@ -34,13 +36,13 @@ type tinyGolden struct {
 	Grads map[string][]float64 `json:"grads"`
 }
 
-func readTinyGolden(t *testing.T) *tinyGolden {
+func readGolden(t *testing.T, file, schema string) *tinyGolden {
 	t.Helper()
 	working, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(filepath.Dir(filepath.Dir(working)), "fixtures", "llama_train_golden.json")
+	path := filepath.Join(filepath.Dir(filepath.Dir(working)), "fixtures", file)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: %s absent; training parity NOT verified", path)
@@ -49,10 +51,15 @@ func readTinyGolden(t *testing.T) *tinyGolden {
 	if err := json.Unmarshal(raw, &g); err != nil {
 		t.Fatal(err)
 	}
-	if g.Schema != "llama_train_golden/v1" {
-		t.Fatalf("golden schema %q", g.Schema)
+	if g.Schema != schema {
+		t.Fatalf("golden schema %q, want %q", g.Schema, schema)
 	}
 	return &g
+}
+
+func readTinyGolden(t *testing.T) *tinyGolden {
+	t.Helper()
+	return readGolden(t, "llama_train_golden.json", "llama_train_golden/v1")
 }
 
 func modelFromGolden(t *testing.T, g *tinyGolden) *Model {
@@ -77,6 +84,7 @@ func modelFromGolden(t *testing.T, g *tinyGolden) *Model {
 		KVHeads: g.Config.NumKeyValueHeads, HeadDim: g.Config.HeadDim,
 		Intermediate: g.Config.IntermediateSize,
 		RopeTheta:    g.Config.RopeTheta, RMSEps: g.Config.RMSNormEps,
+		AttnBias: g.Config.AttentionBias,
 	}
 	if m.Dims != want {
 		t.Fatalf("derived dims %+v, want %+v", m.Dims, want)
@@ -94,7 +102,13 @@ const (
 
 func TestTinyModelLossAndGradsMatchGolden(t *testing.T) {
 	g := readTinyGolden(t)
-	m := modelFromGolden(t, g)
+	assertTrainGoldenParity(t, g, modelFromGolden(t, g))
+}
+
+// assertTrainGoldenParity: loss (relative), last-position logits, and every
+// parameter gradient against the torch golden.
+func assertTrainGoldenParity(t *testing.T, g *tinyGolden, m *Model) {
+	t.Helper()
 	loss, logits, grads, err := m.LossAndGrads(g.Tokens)
 	if err != nil {
 		t.Fatal(err)

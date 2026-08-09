@@ -1,14 +1,17 @@
-# Golden generator for the llama-architecture training capability (rung 3).
+# Golden generator for the dense causal-LM training capability (rung 3).
 # torch is sanctioned here solely as the golden oracle. Emits:
 #   fixtures/llama_train_golden.json            full tiny-model step golden
+#   fixtures/qwen2_train_golden.json            tiny qwen2 (qkv biases) step golden
 #   fixtures/llama_attn_gqa_grad_golden.json    GQA causal attention fwd+bwd
 #   fixtures/llama_rope_interleaved_grad_golden.json  interleaved (GGML) rope
 #   fixtures/llama_gatedmlp_grad_golden.json    SiLU-gated MLP fwd+bwd
 #   fixtures/llama_softmaxce_grad_golden.json   mean softmax-CE loss + grad
 # Tiny dims only; every tensor seeded; f64 lists via json.dump.
+# argv selects generators by function name; no argv = all.
 import json
 import math
 import os
+import sys
 
 import torch
 import torch.nn.functional as F
@@ -25,6 +28,42 @@ def dump(name, payload):
 
 def flat(t):
     return t.detach().double().reshape(-1).tolist()
+
+
+def emit_train_golden(name, schema, model, config, head_dim, attention_bias):
+    # Shared tiny-model step emitter: seeded batch, causal-LM mean CE,
+    # last-position logits, full f64 state_dict + every parameter grad.
+    model.train()
+    tokens = torch.randint(0, config.vocab_size, (1, 12), generator=torch.Generator().manual_seed(7))
+    logits = model(input_ids=tokens).logits
+    # Causal-LM objective: positions 0..n-2 predict tokens 1..n-1, mean CE.
+    loss = F.cross_entropy(logits[0, :-1, :], tokens[0, 1:])
+    loss.backward()
+    params = {}
+    grads = {}
+    for pname, p in model.named_parameters():
+        params[pname] = {"shape": list(p.shape), "values": flat(p)}
+        grads[pname] = flat(p.grad)
+    dump(name, {
+        "schema": schema,
+        "config": {
+            "vocab_size": config.vocab_size,
+            "hidden_size": config.hidden_size,
+            "intermediate_size": config.intermediate_size,
+            "num_hidden_layers": config.num_hidden_layers,
+            "num_attention_heads": config.num_attention_heads,
+            "num_key_value_heads": config.num_key_value_heads,
+            "head_dim": head_dim,
+            "rope_theta": config.rope_theta,
+            "rms_norm_eps": config.rms_norm_eps,
+            "attention_bias": attention_bias,
+        },
+        "tokens": tokens[0].tolist(),
+        "loss": loss.item(),
+        "last_logits": flat(logits[0, -1, :]),
+        "params": params,
+        "grads": grads,
+    })
 
 
 def gen_full_model():
@@ -49,36 +88,36 @@ def gen_full_model():
         attn_implementation="eager",
     )
     model = LlamaForCausalLM(config).float()
-    model.train()
-    tokens = torch.randint(0, config.vocab_size, (1, 12), generator=torch.Generator().manual_seed(7))
-    logits = model(input_ids=tokens).logits
-    # Causal-LM objective: positions 0..n-2 predict tokens 1..n-1, mean CE.
-    loss = F.cross_entropy(logits[0, :-1, :], tokens[0, 1:])
-    loss.backward()
-    params = {}
-    grads = {}
-    for name, p in model.named_parameters():
-        params[name] = {"shape": list(p.shape), "values": flat(p)}
-        grads[name] = flat(p.grad)
-    dump("llama_train_golden.json", {
-        "schema": "llama_train_golden/v1",
-        "config": {
-            "vocab_size": config.vocab_size,
-            "hidden_size": config.hidden_size,
-            "intermediate_size": config.intermediate_size,
-            "num_hidden_layers": config.num_hidden_layers,
-            "num_attention_heads": config.num_attention_heads,
-            "num_key_value_heads": config.num_key_value_heads,
-            "head_dim": config.head_dim,
-            "rope_theta": config.rope_theta,
-            "rms_norm_eps": config.rms_norm_eps,
-        },
-        "tokens": tokens[0].tolist(),
-        "loss": loss.item(),
-        "last_logits": flat(logits[0, -1, :]),
-        "params": params,
-        "grads": grads,
-    })
+    emit_train_golden("llama_train_golden.json", "llama_train_golden/v1",
+                      model, config, config.head_dim, False)
+
+
+def gen_qwen2_full_model():
+    from transformers import Qwen2Config, Qwen2ForCausalLM
+
+    torch.manual_seed(0)
+    config = Qwen2Config(
+        vocab_size=128,
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        max_position_embeddings=64,
+        rms_norm_eps=1e-6,
+        rope_theta=10000.0,
+        tie_word_embeddings=True,
+        attention_dropout=0.0,
+        use_sliding_window=False,
+        attn_implementation="eager",
+    )
+    model = Qwen2ForCausalLM(config).float()
+    names = [n for n, _ in model.named_parameters()]
+    assert "model.layers.0.self_attn.q_proj.bias" in names, "qwen2 qkv biases missing"
+    assert not any(n.endswith("o_proj.bias") for n in names), "unexpected o_proj bias"
+    head_dim = config.hidden_size // config.num_attention_heads
+    emit_train_golden("qwen2_train_golden.json", "qwen2_train_golden/v1",
+                      model, config, head_dim, True)
 
 
 def gen_attn_gqa():
@@ -161,8 +200,10 @@ def gen_softmax_ce():
 if __name__ == "__main__":
     import transformers
     print("torch", torch.__version__, "transformers", transformers.__version__)
-    gen_full_model()
-    gen_attn_gqa()
-    gen_rope_interleaved()
-    gen_gated_mlp()
-    gen_softmax_ce()
+    generators = [gen_full_model, gen_qwen2_full_model, gen_attn_gqa,
+                  gen_rope_interleaved, gen_gated_mlp, gen_softmax_ce]
+    selected = sys.argv[1:]
+    for gen in generators:
+        if selected and gen.__name__ not in selected:
+            continue
+        gen()

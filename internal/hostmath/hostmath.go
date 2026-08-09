@@ -78,19 +78,23 @@ func SoftmaxInPlace(row []float32) {
 func Softplus(x float64) float64 { return math.Log1p(math.Exp(x)) }
 
 // Linear: dst[rows,out] = x[rows,in] · w[out,in]^T (row-major weight).
+// Fans out over the output dimension — each worker owns disjoint dst
+// columns, so the split is race-free.
 func Linear(dst, x, w []float32, rows, inDim, outDim int) {
-	for r := 0; r < rows; r++ {
-		xRow := x[r*inDim : (r+1)*inDim]
-		dRow := dst[r*outDim : (r+1)*outDim]
-		for o := 0; o < outDim; o++ {
-			wRow := w[o*inDim : (o+1)*inDim]
-			var sum float32
-			for c := range wRow {
-				sum += wRow[c] * xRow[c]
+	parallelRange(outDim, func(oStart, oEnd int) {
+		for r := 0; r < rows; r++ {
+			xRow := x[r*inDim : (r+1)*inDim]
+			dRow := dst[r*outDim : (r+1)*outDim]
+			for o := oStart; o < oEnd; o++ {
+				wRow := w[o*inDim : (o+1)*inDim]
+				var sum float32
+				for c := range wRow {
+					sum += wRow[c] * xRow[c]
+				}
+				dRow[o] = sum
 			}
-			dRow[o] = sum
 		}
-	}
+	})
 }
 
 // AddBias adds bias element-wise; a nil bias is the no-bias variant.
@@ -116,8 +120,16 @@ func SiLUInPlace(v []float32) {
 // Layout is [seq][heads][headDim] flat; scores are f64 dots stored f32.
 func CausalAttention(out, q, k, v []float32, seq, heads, headDim int) {
 	clear(out)
+	parallelRange(heads, func(hStart, hEnd int) {
+		causalAttentionHeads(out, q, k, v, seq, heads, headDim, hStart, hEnd)
+	})
+}
+
+// causalAttentionHeads runs the head range [hStart,hEnd) — each worker owns
+// disjoint out rows per head, so the split is race-free.
+func causalAttentionHeads(out, q, k, v []float32, seq, heads, headDim, hStart, hEnd int) {
 	scores := make([]float32, seq)
-	for h := 0; h < heads; h++ {
+	for h := hStart; h < hEnd; h++ {
 		for qi := 0; qi < seq; qi++ {
 			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			probs := scores[:qi+1]
